@@ -8,6 +8,7 @@ import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import * as touch from '../../../../../base/browser/touch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
@@ -700,6 +701,74 @@ suite('WorkspacePicker - Connection Status', () => {
 			{ force: false, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
 			{ force: true, sameAnchor: true, preferredGroup: SESSION_WORKSPACE_GROUP_REMOTE, attachesContext: undefined },
 		]);
+	});
+
+	test('ignores the retargeted ghost click that follows a touch tap so a single tap does not re-close the picker', () => {
+		class ClockPicker extends WorkspacePicker {
+			now = 1000;
+			protected override _now(): number {
+				return this.now;
+			}
+		}
+		providersService.setProviders([createMockProvider('local-1')]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			ClockPicker,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			upcastPartial<IActionWidgetService>({
+				get isVisible() { return visible; },
+				show: () => { visible = true; showCount++; },
+				hide: () => { visible = false; hideCount++; },
+				updateItems: () => { },
+			}),
+		) as ClockPicker;
+		const container = document.createElement('div');
+		const popupItem = document.createElement('button');
+		const unrelatedButton = document.createElement('button');
+		let popupSelectionCount = 0;
+		let unrelatedSelectionCount = 0;
+		popupItem.addEventListener('click', () => popupSelectionCount++);
+		unrelatedButton.addEventListener('click', () => unrelatedSelectionCount++);
+		document.body.append(container, popupItem, unrelatedButton);
+		disposables.add(toDisposable(() => {
+			container.remove();
+			popupItem.remove();
+			unrelatedButton.remove();
+		}));
+		picker.renderCategoryTriggers(container, [
+			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.folder, group: SESSION_WORKSPACE_GROUP_LOCAL },
+		]);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+
+		// The popup opens before the browser's ghost click, so the click can land on a popup item
+		// that replaced the trigger beneath the touch point.
+		picker.now = 1000;
+		trigger.dispatchEvent(Object.assign(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }), { pageX: 100, pageY: 100 }));
+		picker.now = 1100;
+		unrelatedButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 200, clientY: 200, detail: 1 }));
+		picker.now = 1200;
+		popupItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, detail: 1 }));
+		const afterTapAndGhostClick = { visible, showCount, hideCount, popupSelectionCount, unrelatedSelectionCount };
+
+		// A deliberate mouse click (no preceding tap) after the guard window still toggles it closed.
+		picker.now = 5000;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const afterDeliberateClick = { visible, showCount, hideCount };
+
+		assert.deepStrictEqual({ afterTapAndGhostClick, afterDeliberateClick }, {
+			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0, popupSelectionCount: 0, unrelatedSelectionCount: 1 },
+			afterDeliberateClick: { visible: false, showCount: 1, hideCount: 1 },
+		});
 	});
 
 	test('keeps the unified remote submenu open when session types change while open', () => {
@@ -2640,6 +2709,49 @@ suite('WorkspacePicker - Category Triggers', () => {
 				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-radio-tower', 'codicon-chevron-down-compact'] },
 				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-ellipsis', 'codicon-chevron-down-compact'] },
 			],
+		});
+	});
+
+	test('keeps an additional workspace trigger independent from the primary trigger lifecycle', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		providersService.setProviders([provider]);
+		const folderUri = URI.file('/local/project');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: provider.id, checked: true }]);
+		const picker = createTestPicker(disposables, providersService, storage);
+		const primaryContainer = document.createElement('div');
+		const secondaryContainer = document.createElement('div');
+
+		picker.renderCategoryTriggers(primaryContainer, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+		}]);
+		const secondary = picker.renderAdditionalTrigger(secondaryContainer, {
+			label: 'Workspace',
+			ariaLabel: 'Choose a comparison workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			contextViewLayer: 1,
+			hideNoWorkspaceOption: true,
+		});
+
+		const labelsBeforeDispose = [
+			primaryContainer.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			secondaryContainer.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		];
+		secondary.dispose();
+
+		assert.deepStrictEqual({
+			labelsBeforeDispose,
+			primaryTriggerCount: primaryContainer.querySelectorAll('.action-label').length,
+			secondaryTriggerCount: secondaryContainer.querySelectorAll('.action-label').length,
+		}, {
+			labelsBeforeDispose: ['local/project', 'local/project'],
+			primaryTriggerCount: 1,
+			secondaryTriggerCount: 0,
 		});
 	});
 

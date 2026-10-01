@@ -14,7 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
@@ -252,6 +252,12 @@ export interface IAgentMaterializeChatEvent {
 }
 
 export type AgentProvider = string;
+
+export interface IAgentPluginUninstallRequest {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly directSourceId?: string;
+}
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -289,6 +295,9 @@ export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 
 /** Well-known agent provider id for the Codex agent-host backend. */
 export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
+
+/** Well-known agent provider id for the Copilot CLI agent-host backend. */
+export const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli' as const;
 
 /**
  * Static capability facts an agent backend advertises about itself. Each flag
@@ -339,6 +348,8 @@ export interface AuthenticateParams {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	/** Optional client metadata. Hosts must remain usable when it is absent. */
+	readonly _meta?: Record<string, unknown>;
 }
 
 /** Request for a previously accepted bearer token. */
@@ -516,6 +527,8 @@ export interface IAgentChatContext {
 	 * like {@link hostInstructions}, reporting back when it is submitted.
 	 */
 	readonly workspaceSnapshot?: IWorkspaceSnapshot;
+	/** Records provider stage timing for the turn being sent; supplied only for a send. */
+	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
 }
@@ -692,6 +705,31 @@ export interface IAgentChatDataChange {
 	readonly providerData: string;
 }
 
+export const AgentCanvasAvailability = {
+	Ready: 'ready',
+	Unavailable: 'unavailable',
+} as const;
+
+export type AgentCanvasAvailability = typeof AgentCanvasAvailability[keyof typeof AgentCanvasAvailability];
+
+/** A live model-opened canvas projected by an agent provider. */
+export interface IAgentCanvas {
+	readonly instanceId: string;
+	readonly extensionId: string;
+	readonly extensionName?: string;
+	readonly canvasId: string;
+	readonly title?: string;
+	readonly status?: string;
+	readonly revision: number;
+	readonly availability: AgentCanvasAvailability;
+}
+
+/** Full replacement of the live canvas collection for one exact chat. */
+export interface IAgentCanvasSnapshot {
+	readonly chat: URI;
+	readonly canvases: readonly IAgentCanvas[];
+}
+
 /** A legacy concrete chat backing enumerated by {@link IAgent.listLegacyChatBackings} for migration. */
 export interface IAgentLegacyChat {
 	/** The concrete chat's channel URI (see {@link buildChatUri}). */
@@ -850,6 +888,9 @@ export interface IAgentChats {
 
 	/** Reconstruct the turns for `chat` (used on restore). */
 	getMessages(chat: URI, context: AgentChatOperationContext): Promise<readonly Turn[]>;
+
+	/** Resolve the current source of a live model-opened canvas. */
+	resolveCanvasSource?(chat: URI, instanceId: string, revision: number, context: AgentChatOperationContext): Promise<string>;
 }
 
 export interface IAgentResolveChatConfigParams {
@@ -1244,6 +1285,9 @@ export interface IAgent {
 	/** Refresh live sessions after account-backed Connector membership changes. */
 	refreshConnectorSessions?(): Promise<void>;
 
+	/** Uninstall a plugin through the provider that owns its installation state. */
+	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
+
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;
 
@@ -1257,6 +1301,9 @@ export interface IAgent {
 
 	/** Fires when an opaque chat backing changes and must be persisted again. */
 	readonly onDidChangeChatData: Event<IAgentChatDataChange>;
+
+	/** Full-replacement live canvas snapshots for exact chats owned by this provider. */
+	readonly onDidChangeCanvases?: Event<IAgentCanvasSnapshot>;
 
 	/** Fires when the provider creates a chat, such as a delegated subagent. */
 	readonly onDidSpawnChat: Event<IAgentSpawnChatEvent>;

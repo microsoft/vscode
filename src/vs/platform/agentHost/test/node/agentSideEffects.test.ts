@@ -65,6 +65,7 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -254,6 +255,10 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
+	services.set(IAgentHostSessionPromptService, {
+		_serviceBrand: undefined,
+		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+	});
 	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
 	services.set(IAgentHostTurnService, turnService);
 	options.onDidCreateTurnService?.(turnService);
@@ -1130,7 +1135,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('forwards background requests and optimistically clears blocking state', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1146,7 +1151,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1175,7 +1180,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(ids, ['missing']);
 		});
 
-		test('retains blocking state when the provider rejects', async () => {
+		test('retains optimistic non-blocking state when the provider rejects', async () => {
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
 			});
@@ -1183,7 +1188,7 @@ suite('AgentSideEffects', () => {
 			requestBackground();
 			await timeout(0);
 
-			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: false });
 		});
 	});
 
@@ -2908,7 +2913,7 @@ suite('AgentSideEffects', () => {
 
 			// The turn with no preceding real turn has no anchor.
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'turn-1'), undefined);
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.strictEqual(persisted.length, 1);
 			const payload = JSON.parse(persisted[0].payload) as { responseParts: { kind: string; toolCall?: { content?: { type: string }[] } }[] };
 			const toolCallPart = payload.responseParts.find(p => p.kind === ResponsePartKind.ToolCall);
@@ -3010,7 +3015,7 @@ suite('AgentSideEffects', () => {
 			await runBang(se, terminalManager, 'local-1');
 
 			assert.strictEqual(localTurns.resolveConcreteTurnId(defaultChatUri, 'local-1'), 'real-1');
-			const persisted = await db.getLocalTurns();
+			const persisted = (await db.getPersistedTurns()).filter(record => record.kind === 'local');
 			assert.deepStrictEqual(persisted.map(r => ({ turnId: r.turnId, chatUri: r.chatUri, anchorTurnId: r.anchorTurnId })), [
 				{ turnId: 'local-1', chatUri: defaultChatUri, anchorTurnId: 'real-1' },
 			]);
@@ -3052,7 +3057,7 @@ suite('AgentSideEffects', () => {
 			// The local turn is dropped from memory synchronously and from the DB async.
 			assert.strictEqual(localTurns.isLocal(defaultChatUri, 'local-1'), false);
 			await new Promise(r => setTimeout(r, 10));
-			assert.deepStrictEqual(await db.getLocalTurns(), []);
+			assert.deepStrictEqual(await db.getPersistedTurns(), []);
 		});
 	});
 
@@ -6782,9 +6787,9 @@ suite('AgentSideEffects', () => {
 				message: { text: '!echo hi', origin: { kind: MessageKind.User } },
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'p1', content: 'ran' }],
 				usage: undefined,
-				state: 2, // TurnState.Complete
+				state: TurnState.Complete,
 			};
-			await sessionDb.insertLocalTurn({ turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
+			await sessionDb.insertPersistedTurn({ kind: 'local', turnId: 'local-1', chatUri: buildDefaultChatUri(sessionResource.toString()), anchorTurnId: 'real-1', seq: 1, payload: JSON.stringify(localTurn) });
 
 			await localService.restoreSession(sessionResource);
 

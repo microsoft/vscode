@@ -17,6 +17,7 @@ import { LocalCommandContribution } from './localCommand/localCommandContributio
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
 import { PersistedTurnUsageContribution } from './persistedTurnUsage/persistedTurnUsageContribution.js';
+import { PersistedFailedTurnsContribution } from './persistedFailedTurns/persistedFailedTurnsContribution.js';
 import { PullRequestChatContribution } from './pullRequest/pullRequestChatContribution.js';
 import { SessionWorkspaceConversionContribution } from './sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
 import { QueueDrainContribution } from './queueDrain/queueDrainContribution.js';
@@ -29,12 +30,14 @@ import { TurnAdmissionContribution } from './turnAdmission/turnAdmissionContribu
 import { TurnDelegationContribution } from './turnDelegation/turnDelegationContribution.js';
 import { WorktreeAnnouncementContribution } from './worktreeAnnouncement/worktreeAnnouncementContribution.js';
 import { WorkspaceContextContribution } from './workspaceContext/workspaceContextContribution.js';
+import { WorktreeFailureContribution } from './worktreeFailure/worktreeFailureContribution.js';
 
 /** Registers all built-in chat contribution constructors. */
 export function registerBuiltInChatContributions(
 	contributions: IAgentHostChatContributions,
 ): IDisposable {
 	const registrations = new DisposableStore();
+	registrations.add(contributions.registerContribution(WorktreeFailureContribution));
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
@@ -42,6 +45,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));
 	registrations.add(contributions.registerContribution(PersistedTurnUsageContribution));
+	registrations.add(contributions.registerContribution(PersistedFailedTurnsContribution));
 	registrations.add(contributions.registerContribution(WorktreeAnnouncementContribution));
 	registrations.add(contributions.registerContribution(CheckpointAndChangesetContribution));
 	registrations.add(contributions.registerContribution(SessionWorkspaceConversionContribution));

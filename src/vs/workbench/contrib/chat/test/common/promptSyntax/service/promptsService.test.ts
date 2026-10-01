@@ -1112,7 +1112,7 @@ suite('PromptsService', () => {
 					'powershell: "${PLUGIN_ROOT}/scripts/pre-tool.ps1"',
 				],
 			);
-			const quotedScript = (name: string) => `"${pluginUri.fsPath}/scripts/${name}"`;
+			const quotedScript = (name: string) => `'${pluginUri.fsPath}/scripts/${name}'`;
 
 			assert.deepStrictEqual(hooks, [{
 				type: 'command',
@@ -1122,6 +1122,44 @@ suite('PromptsService', () => {
 				windowsSource: 'powershell',
 				linuxSource: 'bash',
 				osxSource: 'bash',
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Copilot plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/copilot-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.Copilot,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
+				cwd: workspaceUri,
+				env: {
+					EXISTING: 'value',
+					PLUGIN_ROOT: pluginUri.fsPath,
+				},
+			}]);
+		});
+
+		test('resolves PLUGIN_ROOT in hooks from Agent Plugin agents', async () => {
+			const pluginUri = URI.file('/plugins/agent-plugin');
+			const { hooks, workspaceUri } = await getPluginAgentPreToolUseHooks(
+				pluginUri,
+				PluginFormat.AgentPlugin,
+				['command: "echo ${PLUGIN_ROOT}"'],
+			);
+
+			assert.deepStrictEqual(hooks, [{
+				type: 'command',
+				command: `echo ${pluginUri.fsPath}`,
 				cwd: workspaceUri,
 				env: {
 					EXISTING: 'value',
@@ -2164,6 +2202,37 @@ suite('PromptsService', () => {
 				],
 			});
 		});
+
+		test('does not cache canceled prompt discovery', async () => {
+			const rootFolder = '/prompts-discovery-cancellation';
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/prompts/workspace-prompt.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Workspace prompt.\'',
+						'---',
+						'I am a workspace prompt.',
+					]
+				},
+			]);
+
+			const cancellationTokenSource = disposables.add(new CancellationTokenSource());
+			cancellationTokenSource.cancel();
+
+			await assert.rejects(service.listPromptFiles(PromptsType.prompt, cancellationTokenSource.token), CancellationError);
+
+			const prompts = await service.listPromptFiles(PromptsType.prompt, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				prompts.map(prompt => basename(prompt.uri)),
+				['workspace-prompt.prompt.md'],
+			);
+		});
 	});
 
 	suite('listPromptFiles - instructions', () => {
@@ -2719,7 +2788,12 @@ suite('PromptsService', () => {
 			const errorSpy = sinon.spy(logService, 'error');
 
 			try {
-				await service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token);
+				// Cancellation must surface as an error rather than an empty result,
+				// otherwise it gets cached as "no prompt files".
+				await assert.rejects(
+					service.listPromptFiles(PromptsType.agent, cancellationTokenSource.token),
+					CancellationError,
+				);
 
 				assert.deepStrictEqual({
 					secondProviderCalled,
