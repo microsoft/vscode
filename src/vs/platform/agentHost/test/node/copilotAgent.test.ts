@@ -10955,6 +10955,37 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('prepareTurn materializes a deferred chat once, and the following send reuses the live session', async () => {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			let creates = 0;
+			client.createSession = async () => {
+				creates++;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'prepare-turn');
+				const chat = defaultChatUri(session);
+				const workingDirectory = URI.file('/workspace');
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+
+				await agent.chats.prepareTurn!(chat, [workingDirectory], context);
+				const afterPrepare = { creates, live: hasLiveChat(agent, chat) };
+				await agent.chats.prepareTurn!(chat, [workingDirectory], context);
+				await agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context);
+
+				assert.deepStrictEqual({ afterPrepare, afterSend: { creates, live: hasLiveChat(agent, chat) } }, {
+					afterPrepare: { creates: 1, live: true },
+					afterSend: { creates: 1, live: true },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restores a preflight-failed deferred chat and retries only its known-empty SDK backing', async () => {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sessionDataService = disposables.add(new TestSessionDataService());
