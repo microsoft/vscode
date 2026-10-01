@@ -896,6 +896,162 @@ suite('DefaultAccountProvider', () => {
 		assert.strictEqual(provider.managedSettingsFreshness.state, ManagedSettingsFreshnessState.Satisfied);
 	});
 
+	for (const forceRefresh of [false, true]) {
+		test(`${forceRefresh ? 'forced' : 'expired-cache'} background refresh preserves accepted policy while fetching`, async () => {
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<IRequestContext>();
+			let delaySettings = false;
+			const requestService = new TestRequestService(async options => {
+				if (options.callSite === 'defaultAccount.entitlements') {
+					return jsonResponse({ chat_enabled: true });
+				}
+				if (options.callSite === 'defaultAccount.managedSettings') {
+					if (delaySettings) {
+						started.complete();
+						return response.p;
+					}
+					return jsonResponse({ forceRemoteSettingsRefresh: true, model: 'original-model' });
+				}
+				throw new Error(`Unexpected request: ${options.callSite}`);
+			});
+			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => sessions });
+			const accountService = disposables.add(new DefaultAccountService(TestProductService));
+			accountService.setDefaultAccountProvider(provider);
+			await accountService.refresh();
+			const gateService = disposables.add(new AccountPolicyService(new NullLogService(), accountService));
+			await gateService.whenInitialized();
+			const gateStates: AccountPolicyGateState[] = [];
+			disposables.add(gateService.onDidChangeGateInfo(info => gateStates.push(info.state)));
+
+			if (!forceRefresh) {
+				const policyData = provider['_policyData'];
+				assert.ok(policyData);
+				provider['setPolicyData']({
+					...policyData,
+					managedSettingsFetchedAt: Date.now() - 60 * 60 * 1000,
+				});
+			}
+			const acceptedFreshness = provider.managedSettingsFreshness;
+			delaySettings = true;
+			const refresh = accountService.refresh({ forceRefresh });
+			await started.p;
+			const duringRefresh = {
+				freshness: provider.managedSettingsFreshness,
+				model: provider.policyData?.managedSettings?.model,
+				gateState: gateService.gateInfo.state,
+			};
+			response.complete(jsonResponse({ forceRemoteSettingsRefresh: true, model: 'updated-model' }));
+			await refresh;
+
+			assert.deepStrictEqual({
+				duringRefresh,
+				afterRefresh: {
+					freshness: provider.managedSettingsFreshness.state,
+					model: provider.policyData?.managedSettings?.model,
+					gateState: gateService.gateInfo.state,
+				},
+				gateStates,
+			}, {
+				duringRefresh: {
+					freshness: acceptedFreshness,
+					model: 'original-model',
+					gateState: AccountPolicyGateState.Inactive,
+				},
+				afterRefresh: {
+					freshness: ManagedSettingsFreshnessState.Satisfied,
+					model: 'updated-model',
+					gateState: AccountPolicyGateState.Inactive,
+				},
+				gateStates: [],
+			});
+		});
+	}
+
+	test('background refresh failure blocks until a live retry succeeds', async () => {
+		let started = new DeferredPromise<void>();
+		let response = new DeferredPromise<IRequestContext>();
+		let delaySettings = false;
+		const provider = await createProvider(new TestRequestService(async () => {
+			if (delaySettings) {
+				started.complete();
+				return response.p;
+			}
+			return jsonResponse({ forceRemoteSettingsRefresh: true });
+		}));
+		const cachedPolicy = createCachedPolicy(true);
+		await provider['getManagedSettings'](sessions, cachedPolicy);
+		delaySettings = true;
+
+		const refresh = provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true });
+		await started.p;
+		const duringRefresh = provider.managedSettingsFreshness.state;
+		response.error(new Error('managed settings request timed out'));
+		const failed = await refresh;
+		const afterFailure = provider.managedSettingsFreshness;
+
+		started = new DeferredPromise<void>();
+		response = new DeferredPromise<IRequestContext>();
+		const retry = provider['getManagedSettings'](sessions, cachedPolicy, { forceRefresh: true, retryManagedSettings: true });
+		await started.p;
+		const duringRetry = provider.managedSettingsFreshness.state;
+		response.complete(jsonResponse({ forceRemoteSettingsRefresh: true }));
+		await retry;
+
+		assert.deepStrictEqual({
+			duringRefresh,
+			afterFailure: describeFreshness(afterFailure),
+			retainedPolicy: failed.data,
+			duringRetry,
+			afterRetry: provider.managedSettingsFreshness.state,
+		}, {
+			duringRefresh: ManagedSettingsFreshnessState.Satisfied,
+			afterFailure: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'server',
+				failure: ManagedSettingsFreshnessFailure.Network,
+				hasLastAttempt: true,
+				hasScope: true,
+			},
+			retainedPolicy: cachedPolicy.policyData,
+			duringRetry: ManagedSettingsFreshnessState.Pending,
+			afterRetry: ManagedSettingsFreshnessState.Satisfied,
+		});
+	});
+
+	test('a satisfied refresh does not authorize a different account while fetching', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		let delaySettings = false;
+		const provider = await createProvider(new TestRequestService(async () => {
+			if (delaySettings) {
+				started.complete();
+				return response.p;
+			}
+			return jsonResponse({});
+		}), { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+		await provider['getManagedSettings'](sessions, undefined);
+		delaySettings = true;
+
+		const refresh = provider['getManagedSettings']([
+			{ ...sessions[0], account: { id: 'second-account', label: 'hubot' } },
+		], undefined);
+		await started.p;
+		const duringRefresh = provider.managedSettingsFreshness.state;
+		response.complete(jsonResponse({}));
+		await refresh;
+
+		assert.deepStrictEqual({
+			duringRefresh,
+			afterRefresh: provider.managedSettingsFreshness.state,
+			account: provider.managedSettingsFreshness.state === ManagedSettingsFreshnessState.Satisfied
+				? provider.managedSettingsFreshness.scope.accountId : undefined,
+		}, {
+			duringRefresh: ManagedSettingsFreshnessState.Pending,
+			afterRefresh: ManagedSettingsFreshnessState.Satisfied,
+			account: 'second-account',
+		});
+	});
+
 	test('successful retry clears a blocked requirement when the server removes it', async () => {
 		let requestCount = 0;
 		const requestService = new TestRequestService(async () => {

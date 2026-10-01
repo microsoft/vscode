@@ -390,6 +390,8 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 		return this._tokens.get(request.resource);
 	}
 
+	getAuthAccount(): undefined { return undefined; }
+
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
 	}
@@ -1078,6 +1080,7 @@ class RecordingOTelService implements IAgentHostOTelService {
 	async getSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	async getNativeSdkTelemetryConfig(): Promise<undefined> { return undefined; }
 	getSessionTraceContext(): undefined { return undefined; }
+	setSessionComparisonMetadata(): void { }
 	releaseSessionTraceContext(): void { }
 	withTraceContext<T>(_context: undefined, fn: () => T): T { return fn(); }
 	getCurrentTraceContext(): undefined { return undefined; }
@@ -1347,6 +1350,71 @@ suite('ClaudeAgent', () => {
 			downloads: sdk.ensureAvailableCalls,
 			contexts: telemetry.events.filter(event => event.data?.name === 'providerContext').map(({ data }) => [data?.provider, data?.activationState, data?.sdkAvailability]),
 		}, { deferred: true, initialSdkLists: 0, downloads: 0, contexts: [['claude', 'notRequired', 'unavailable']] });
+	});
+
+	for (const count of [0, 2]) {
+		test(`startup telemetry records a processed Claude result with ${count} candidates after provider publication`, async () => {
+			const telemetry = new TestAgentHostStartupTelemetryService();
+			let now = 10;
+			const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+			const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+			sdk.sessionList = Array.from({ length: count }, (_, i) => ({ sessionId: `private-${i}`, cwd: '/private', summary: 'Private title', lastModified: 1 }));
+			disposables.add(agent.onDidDiscoverChats(() => { now = 30; }));
+			await agent.startChatDiscovery();
+			await agent.startChatDiscovery();
+			assert.deepStrictEqual({
+				scans: sdk.listSessionsCallCount,
+				markers: telemetry.events.filter(event => ['sessionDiscoveryScan', 'firstSessionDiscoveryResult'].includes(String(event.data?.name))).map(({ data }) => [
+					data?.name, data?.timestampMs, data?.since, data?.scannedSessionCount, data?.candidateSessionCount, data?.externalSessionCount, data?.filteredSessionCount, data?.failedSessionCount,
+				]),
+			}, {
+				scans: 1,
+				markers: [
+					['sessionDiscoveryScan', 10, 'sessionDiscoveryScanStart', count, undefined, undefined, undefined, undefined],
+					['firstSessionDiscoveryResult', 30, 'processStart', undefined, count, count, 0, undefined],
+				],
+			});
+		});
+	}
+
+	test('startup telemetry distinguishes deferred Claude discovery from its late empty result', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		sdk.canLoadWithoutDownloadResult = false;
+		await agent.startChatDiscovery();
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.canLoadWithoutDownloadResult = true;
+		(agent as unknown as { _restartChatDiscovery(): void })._restartChatDiscovery();
+		await agent.startChatDiscovery();
+		assert.deepStrictEqual({
+			before,
+			scans: sdk.listSessionsCallCount,
+			downloads: sdk.ensureAvailableCalls,
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, scans: 1, downloads: 0, first: [[50, 0]] });
+	});
+
+	test('startup telemetry records a late Claude result even after discovery scan sampling is exhausted', async () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		const startupPerformance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 50));
+		const { agent, sdk } = createTestContext(disposables, { startupPerformance });
+		const internal = agent as unknown as { _emitClaudeCodeChats(): Promise<boolean> };
+		sdk.listSessionsRejection = new Error('catalog unavailable');
+		const results: boolean[] = [];
+		for (let i = 0; i < 4; i++) {
+			results.push(await internal._emitClaudeCodeChats());
+		}
+		const before = telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').length;
+		sdk.listSessionsRejection = undefined;
+		results.push(await internal._emitClaudeCodeChats());
+		await internal._emitClaudeCodeChats();
+		assert.deepStrictEqual({
+			before,
+			results,
+			scans: telemetry.events.filter(event => event.data?.name === 'sessionDiscoveryScan').map(({ data }) => data?.outcome),
+			first: telemetry.events.filter(event => event.data?.name === 'firstSessionDiscoveryResult').map(({ data }) => [data?.durationMs, data?.candidateSessionCount]),
+		}, { before: 0, results: [false, false, false, false, true], scans: ['error', 'error', 'error'], first: [[50, 0]] });
 	});
 
 	test('getDescriptor advertises the Claude provider', () => {
@@ -5121,6 +5189,7 @@ suite('ClaudeAgent', () => {
 				_isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean>;
 				_onDidDiscoverChats: { fire(chats: readonly unknown[]): void };
 				_logService: { warn(message: string): void };
+				_recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void;
 			}): Promise<void>;
 		})._emitClaudeCodeChats;
 
@@ -5129,6 +5198,7 @@ suite('ClaudeAgent', () => {
 			_isKnownClaudeCodeChat: async chat => sessionIdOfChat(chat.chat) !== 'unknown-external',
 			_onDidDiscoverChats: { fire: chats => emitted.push(...chats) },
 			_logService: { warn: () => { } },
+			_recordFirstDiscoveryResult: () => { },
 		});
 
 		assert.deepStrictEqual(emitted, [{ ...chats[2], external: true }]);

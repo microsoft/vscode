@@ -10,6 +10,11 @@ Exact dimensions, styling, action placement, and regression behavior belong in c
 
 ## Workbench topology
 
+Startup selects one of two concrete workbenches: `DesktopWorkbench` for every
+non-phone window, and `MobileWorkbench` for mobile web windows below the phone
+breakpoint. `Workbench` contains only their shared layout mechanics and is not
+instantiated directly.
+
 ```text
 Title bar
 Content
@@ -39,7 +44,7 @@ The main workbench grid is non-proportional. The Sessions Part is the flexible s
 
 At most one high-priority surface is visible in the main horizontal chain: normally the Sessions Part, or the Custom View Grid while a custom view is active. This prevents fixed side parts from absorbing general window resize.
 
-The single-pane presentation may place the Auxiliary Bar inside the Editor's grid node. Consumers must distinguish the actual Editor content area from the shared grid node when interpreting visibility or size.
+The desktop presentation may place the Auxiliary Bar inside the Editor's grid node. Consumers must distinguish the actual Editor content area from the shared grid node when interpreting visibility or size.
 
 ## Sessions Part
 
@@ -66,21 +71,13 @@ Session geometry does not determine Editor, Details, or other side-pane visibili
 
 ## Editor presentation
 
-The Agents Window supports two presentation families:
-
-The single-pane layout is the default on non-phone viewports when its startup setting is enabled. Phone viewports always use the classic layout. The selection is made during workbench creation and requires a reload when the setting changes.
-
-### Classic layout
-
-The Editor is a workbench-grid part and may be hidden independently of the Sessions Part and Auxiliary Bar. Ordinary editors open in that main Editor; editors that require modal presentation use `ModalEditorPart` without changing the underlying workbench topology.
-
-### Single-pane detail layout
+All non-phone Agents windows use the desktop detail layout. Phone viewports use the dedicated mobile presentation.
 
 The Editor and Auxiliary Bar compose one side pane next to the active session. Editor tabs choose either editor content or a details view while the layout coordinators preserve one coherent visibility model.
 
 The main Editor supports exactly one editor group. Its shared multiple-group capability is disabled, which removes editor split/grid commands, keybindings, menus, and split drop targets; the part also rejects group creation and multi-group layout requests from open-to-side and programmatic paths. The independent chat grid remains supported.
 
-The durable state and transition catalog lives in [SINGLE_PANE_SCENARIOS.md](SINGLE_PANE_SCENARIOS.md). Implementation behavior is covered by the layout-controller and single-pane strategy tests.
+The durable state and transition catalog lives in [DESKTOP.md](DESKTOP.md). Implementation behavior is covered by the layout-controller and desktop strategy tests.
 
 Editors must be opened through `IEditorService`. Sessions-specific presentation must not bypass editor service behavior by opening directly on an editor group.
 
@@ -112,7 +109,7 @@ Part instances and listeners are disposables. Repeatedly created per-session or 
 
 Layout controllers translate session activation into part capture and restoration. They do not own session identity or the visible-session model.
 
-Classic desktop, mobile, and single-pane presentations intentionally use different strategies where their compositions differ. Shared behavior belongs in the base controller; presentation-specific behavior stays in the relevant controller or strategy.
+Mobile and desktop presentations intentionally use different strategies where their compositions differ. Shared behavior belongs in the base controller; presentation-specific behavior stays in the relevant controller or strategy.
 
 See [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md) for rule tags, persistence, and test ownership.
 
@@ -138,5 +135,5 @@ Update this specification only when part ownership, grid topology, presentation 
 - [Documentation index](README.md)
 - [Sessions architecture](SESSIONS.md)
 - [Layout controllers](LAYOUT_CONTROLLER.md)
-- [Single-pane scenarios](SINGLE_PANE_SCENARIOS.md)
+- [Desktop scenarios](DESKTOP.md)
 - [Mobile layout](MOBILE.md)
