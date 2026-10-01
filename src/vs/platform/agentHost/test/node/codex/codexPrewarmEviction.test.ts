@@ -54,7 +54,7 @@ import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../no
 import { CODEX_FILE_LINK_INSTRUCTIONS, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 import { codexSkillsToContainers } from '../../../node/codex/codexCustomizations.js';
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
-import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+import { ICopilotApiService } from '../../../../copilot/common/copilotApiService.js';
 import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';

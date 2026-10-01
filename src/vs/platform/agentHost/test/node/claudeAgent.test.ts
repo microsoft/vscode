@@ -89,7 +89,8 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ClaudeProxyService, IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
-import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../node/shared/copilotApiService.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../../copilot/common/copilotApiService.js';
+import { createTestCopilotApiService } from './testCopilotApiService.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
@@ -391,6 +392,7 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 	}
 
 	getAuthAccount(): undefined { return undefined; }
+	getAuthAccountForToken(): undefined { return undefined; }
 
 	dispose(): void {
 		this._onDidChangeAuthToken.dispose();
@@ -1887,13 +1889,13 @@ suite('ClaudeAgent', () => {
 			const configuration = disposables.add(new AgentConfigurationService(state, logService));
 			const endpoints = disposables.add(new AgentHostGitHubEndpointService(configuration, logService));
 			let retiredCredentialReachedEnterprise = false;
-			const api = disposables.add(new CopilotApiService(async url => {
+			const api = createTestCopilotApiService(disposables, async url => {
 				if (String(url).endsWith('/copilot_internal/user')) {
 					retiredCredentialReachedEnterprise ||= !String(url).startsWith('https://api.github.com/');
 					return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a' });
 				}
 				return Response.json({ data: ALL_MODELS });
-			}, logService, FakeProductService, endpoints));
+			}, logService, FakeProductService, endpoints);
 			const proxy = disposables.add(new ClaudeProxyService(logService, api));
 			const { agent } = createTestContext(disposables, { gitHubEndpointService: endpoints, copilotApiService: api, claudeProxyService: proxy });
 			const authenticating = agent.authenticate(endpoints.getCopilotResource().resource, 'test-token-a');

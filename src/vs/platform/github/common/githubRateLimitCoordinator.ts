@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
 import { GitHubRequestAccount } from './githubTypes.js';
 import { GitHubRequestQueue } from './githubRequestQueue.js';
 import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
@@ -21,6 +22,8 @@ const unhintedRateLimitCooldown = 60_000;
 
 export class GitHubRateLimitCoordinator extends Disposable {
 
+	private readonly _onDidChange = this._register(new Emitter<void>());
+	readonly onDidChange = this._onDidChange.event;
 	private readonly _states = new Map<string, GitHubRateLimitState>();
 	private readonly _accountBlockedUntil = new Map<string, number>();
 	private readonly _inactiveAccounts = new Map<string, number>();
@@ -45,7 +48,10 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const blockedUntil = resourceBlockedUntil === undefined
 			? accountBlockedUntil
 			: accountBlockedUntil === undefined ? resourceBlockedUntil : Math.max(resourceBlockedUntil, accountBlockedUntil);
-		return blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
+		const delay = blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
+		return account.kind === 'bootstrap' && account.accountId !== undefined
+			? Math.max(delay, this.getDelay({ ...account, accountId: undefined }, resource))
+			: delay;
 	}
 
 	preserveCooldown(account: GitHubRequestAccount, resource: string, delay: number): void {
@@ -56,6 +62,19 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const previous = this._states.get(key);
 		this._states.set(key, { ...previous, blockedUntil: Math.max(previous?.blockedUntil ?? 0, this._scheduler.now() + delay) });
 		this.releaseAccount(account);
+		this._onDidChange.fire();
+	}
+
+	updateRetryAfter(account: GitHubRequestAccount, resource: string, value: string | null, fallbackDelay = 0): void {
+		const now = this._scheduler.now();
+		const seconds = parseSeconds(value, now);
+		const delay = seconds !== undefined && seconds > 0 ? seconds * 1000 : fallbackDelay;
+		if (delay > 0) {
+			const key = this._key(account, resource);
+			const previous = this._states.get(key);
+			this._states.set(key, { ...previous, blockedUntil: Math.max(previous?.blockedUntil ?? 0, now + delay) });
+			this._onDidChange.fire();
+		}
 	}
 
 	async wait(account: GitHubRequestAccount, resource: string, signal: AbortSignal): Promise<void> {
@@ -109,6 +128,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			blockedUntil: previous?.blockedUntil !== undefined && previous.blockedUntil > now
 				? Math.max(previous.blockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
+		this._onDidChange.fire();
 	}
 
 	updateFromGraphQL(account: GitHubRequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
@@ -126,6 +146,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			...(previous?.blockedUntil !== undefined && previous.blockedUntil > this._scheduler.now()
 				? { blockedUntil: previous.blockedUntil } : {}),
 		});
+		this._onDidChange.fire();
 	}
 
 	markGraphQLRateLimited(account: GitHubRequestAccount): void {
@@ -141,11 +162,13 @@ export class GitHubRateLimitCoordinator extends Disposable {
 				? previous.resetAt
 				: now + unhintedRateLimitCooldown),
 		});
+		this._onDidChange.fire();
 	}
 
 	clearAccount(account: GitHubRequestAccount): void {
 		this._clearAccount(GitHubRequestQueue.accountKey(account));
 		this._scheduleCleanup();
+		this._onDidChange.fire();
 	}
 
 	retainAccount(account: GitHubRequestAccount, owner?: object): void {

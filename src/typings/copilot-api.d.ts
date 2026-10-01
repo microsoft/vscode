@@ -86,6 +86,7 @@ declare module '@vscode/copilot-api' {
 		);
 		updateDomains(copilotToken: CopilotToken | undefined, enterpriseUrlConfig: string | undefined): IDomainChangeResponse;
 		makeRequest<T>(requestOptions: MakeRequestOptions, requestMetadata: RequestMetadata): Promise<T>;
+		readonly capiPingURL: string;
 	}
 
 	interface CCAModelTokenPriceTier {

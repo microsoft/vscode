@@ -30,7 +30,7 @@ import { GitHubFetch, GitHubRequestTimeoutError } from '../../../github/common/g
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
-import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import type { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from '../../../copilot/common/copilotApiService.js';
 import type Anthropic from '@anthropic-ai/sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import type { IAgentHostAuthenticationService, IAgentHostAuthTokenChangeEvent } from '../../node/agentHostAuthenticationService.js';
@@ -238,6 +238,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
 		getAuthAccount: () => undefined,
+		getAuthAccountForToken: () => undefined,
 		getAuthToken: resource => {
 			if (resource.resource === GITHUB_REPO_PROTECTED_RESOURCE.resource) {
 				return 'gh-token';

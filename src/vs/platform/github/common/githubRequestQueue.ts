@@ -196,6 +196,10 @@ export class GitHubRequestQueue extends Disposable {
 		this._drain();
 	}
 
+	isPending(signal: AbortSignal): boolean {
+		return this._pending.some(request => request.context.signal === signal);
+	}
+
 	cancelAccount(account: GitHubRequestAccount, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication'), owner?: object): void {
 		const accountKey = GitHubRequestQueue.accountKey(account);
 		for (const request of [...this._pending, ...this._active]) {
@@ -309,6 +313,9 @@ export class GitHubRequestQueue extends Disposable {
 	static accountKey(account: GitHubRequestAccount): string {
 		if (account.kind === 'anonymous') {
 			return `anonymous\x00${account.origin}`;
+		}
+		if (account.kind === 'bootstrap' && account.accountId === undefined) {
+			return `bootstrap\x00${account.origin}`;
 		}
 		return `${account.host.toLowerCase()}\x00${account.accountId}`;
 	}

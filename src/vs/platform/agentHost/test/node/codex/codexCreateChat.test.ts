@@ -53,7 +53,7 @@ import { CodexAppServerClient, type ICodexAppServerTransport } from '../../../no
 import { ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import type { HookMetadata } from '../../../node/codex/protocol/generated/v2/HookMetadata.js';
 import type { JsonValue } from '../../../node/codex/protocol/generated/serde_json/JsonValue.js';
-import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+import { ICopilotApiService } from '../../../../copilot/common/copilotApiService.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';

@@ -106,7 +106,8 @@ import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from '../../node/copilot/byokLmProxyService.js';
-import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../../copilot/common/copilotApiService.js';
+import { createTestCopilotApiService } from './testCopilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 
 const TEST_PRODUCT_SERVICE: IProductService = {
@@ -3358,13 +3359,18 @@ suite('CopilotAgent', () => {
 		const copilotDiscoveryStarted = new DeferredPromise<void>();
 		const copilotDiscovery = new DeferredPromise<Response>();
 		const endpoints = createTestGitHubEndpointService();
-		const copilotApiService = disposables.add(new CopilotApiService(async (_url, options) => {
+		const copilotApiService = createTestCopilotApiService(disposables, async (_url, options) => {
 			if (new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a') {
 				copilotDiscoveryStarted.complete();
 				return copilotDiscovery.p;
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku' });
-		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints));
+		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints, new class extends mock<IAgentHostAuthenticationService>() {
+			override readonly onDidChangeAuthToken = Event.None;
+			override getAuthAccountForToken(_resource: string, token: string) {
+				return { providerId: 'github', accountId: token };
+			}
+		}());
 		const events: ITelemetryData[] = [];
 		const sdkEvents: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
@@ -3439,7 +3445,7 @@ suite('CopilotAgent', () => {
 		const discoveryStarted = new DeferredPromise<void>();
 		const oldDiscovery = new DeferredPromise<Response>();
 		let oldCredentialReachedNewEndpoint = false;
-		const apiService = disposables.add(new CopilotApiService(async (url, options) => {
+		const apiService = createTestCopilotApiService(disposables, async (url, options) => {
 			if (String(url).startsWith('https://api.github.com/')) {
 				discoveryStarted.complete();
 				return oldDiscovery.p;
@@ -3448,7 +3454,7 @@ suite('CopilotAgent', () => {
 				oldCredentialReachedNewEndpoint ||= new Headers(options?.headers).get('Authorization') === 'Bearer test-token-a';
 			}
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'enterprise-sku' });
-		}, logService, TEST_PRODUCT_SERVICE, endpoints));
+		}, logService, TEST_PRODUCT_SERVICE, endpoints);
 		const skus: ITelemetryData[] = [];
 		const telemetryService = disposables.add(new AgentHostTelemetryService(TelemetryService.createWithLevel({
 			telemetryLevel: TelemetryLevel.USAGE,
@@ -3475,9 +3481,9 @@ suite('CopilotAgent', () => {
 
 	test('retries Copilot SKU discovery on authentication with an unchanged token', async () => {
 		let available = false;
-		const copilotApiService = disposables.add(new CopilotApiService(async () => available
+		const copilotApiService = createTestCopilotApiService(disposables, async () => available
 			? Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'recovered-sku' })
-			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			: new Response('Unavailable', { status: 503 }), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService());
 		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), copilotApiService });
 		try {
 			await agent.authenticate('https://api.github.com', 'test-token-a');
@@ -3908,9 +3914,9 @@ suite('CopilotAgent', () => {
 
 	test('rearms expired Copilot auth notifications after every authenticate call', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
-		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+		const copilotApiService = createTestCopilotApiService(disposables, async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService());
 		const { agent, instantiationService } = createTestAgentContext(disposables, { sessionDataService, copilotApiService });
 		const mockSession = new MockCopilotSession();
 		const createdSession = createAgentSessionThroughAgent(agent, instantiationService, { mockSession });
@@ -12897,9 +12903,9 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const mockSession = new MockCopilotSession();
 			let capturedConfig: Parameters<ITestCopilotClient['createSession']>[0] | undefined;
-			const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+			const copilotApiService = createTestCopilotApiService(disposables, async () => Response.json({
 				endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku-a',
-			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+			}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService());
 			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, copilotApiService });
 			client.createSession = async config => {
 				capturedConfig = config;

@@ -5,7 +5,7 @@
 
 import { ILogService } from '../../../log/common/log.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { ICopilotApiService, type ICopilotUtilityChatMessage } from './copilotApiService.js';
+import { ICopilotApiService, type ICopilotUtilityChatMessage } from '../../../copilot/common/copilotApiService.js';
 
 /**
  * Branch-name prefix for worktree-isolated agent sessions, e.g.

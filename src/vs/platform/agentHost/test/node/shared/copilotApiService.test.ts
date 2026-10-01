@@ -5,9 +5,12 @@
 
 import assert from 'assert';
 import type Anthropic from '@anthropic-ai/sdk';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
+import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, type FetchFunction } from '../../../../copilot/common/copilotApiService.js';
+import { AgentHostCopilotApiService as CopilotApiService } from '../../../node/agentHostCopilotApiService.js';
+import { createTestCopilotApiService } from '../testCopilotApiService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
@@ -123,7 +126,7 @@ suite('CopilotApiService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
-		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri)));
+		return createTestCopilotApiService(disposables, fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri));
 	}
 
 	function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
@@ -1662,23 +1665,29 @@ suite('CopilotApiService', () => {
 			assert.strictEqual(capturedSignal, controller.signal);
 		});
 
-		test('forwards AbortSignal to fetch for models', async () => {
+		test('cancels the underlying model request when its caller aborts', async () => {
 			const controller = new AbortController();
-			let capturedSignal: AbortSignal | undefined;
+			const started = new DeferredPromise<AbortSignal>();
 			const service = createService(async (input, init) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
 					return userResponse();
 				}
-				capturedSignal = init?.signal as AbortSignal;
-				return modelsResponse([]);
+				const signal = init?.signal;
+				assert.ok(signal);
+				void started.complete(signal);
+				return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
 			});
 
-			await service.models('gh-tok', { signal: controller.signal });
-			assert.strictEqual(capturedSignal, controller.signal);
+			const pending = service.models('gh-tok', { signal: controller.signal });
+			const capturedSignal = await started.p;
+			const reason = new Error('Cancelled model request');
+			controller.abort(reason);
+			await assert.rejects(pending, error => error === reason);
+			assert.strictEqual(capturedSignal.aborted, true);
 		});
 
-		test('does not forward AbortSignal to shared endpoint discovery', async () => {
+		test('uses an independent abort signal for shared endpoint discovery', async () => {
 			const controller = new AbortController();
 			let discoverySignal: AbortSignal | undefined;
 			const service = createService(async (input, init) => {
@@ -1691,7 +1700,9 @@ suite('CopilotApiService', () => {
 			});
 
 			await service.messages('gh-tok', baseRequest, { signal: controller.signal });
-			assert.strictEqual(discoverySignal, undefined);
+			assert.ok(discoverySignal);
+			assert.notStrictEqual(discoverySignal, controller.signal);
+			assert.strictEqual(discoverySignal.aborted, false);
 		});
 
 		test('cancels the underlying SSE stream when the consumer breaks early', async () => {
@@ -1796,7 +1807,7 @@ suite('CopilotApiService', () => {
 			assert.deepStrictEqual(result, fakeModels);
 		});
 
-		test('returns empty array when data is missing', async () => {
+		test('rejects a malformed model list when data is missing', async () => {
 			const service = createService(async (input) => {
 				const url = getUrl(input);
 				if (url.includes('/copilot_internal')) {
@@ -1805,8 +1816,7 @@ suite('CopilotApiService', () => {
 				return new Response(JSON.stringify({}), { status: 200 });
 			});
 
-			const result = await service.models('gh-tok');
-			assert.deepStrictEqual(result, []);
+			await assert.rejects(service.models('gh-tok'), { kind: 'malformedResponse' });
 		});
 
 		test('sends Bearer token in Authorization header', async () => {

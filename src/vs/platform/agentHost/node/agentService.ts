@@ -93,7 +93,7 @@ import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.j
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { AgentHostSkillCompletionProvider } from './agentHostSkillCompletionProvider.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { ICopilotApiService } from '../../copilot/common/copilotApiService.js';
 import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';

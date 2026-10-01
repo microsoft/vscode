@@ -23,7 +23,15 @@ export interface GitHubAnonymousAccount {
 	readonly origin: string;
 }
 
-export type GitHubRequestAccount = GitHubAccountHandle | GitHubAnonymousAccount;
+/** Quota accounting for an explicit credential before identity lookup or authentication publication. */
+export interface GitHubBootstrapAccount {
+	readonly kind: 'bootstrap';
+	readonly host: string;
+	readonly origin: string;
+	readonly accountId?: string;
+}
+
+export type GitHubRequestAccount = GitHubAccountHandle | GitHubAnonymousAccount | GitHubBootstrapAccount;
 
 export type GitHubRequestPriority =
 	| 'mutationReconciliation'
@@ -82,6 +90,7 @@ export class GitHubRequestError extends Error {
 		readonly statusCode?: number,
 		readonly responseBody?: string,
 		readonly graphQLErrors?: readonly GitHubGraphQLError[],
+		readonly statusText?: string,
 	) {
 		super(message);
 		this.name = 'GitHubRequestError';
@@ -91,6 +100,12 @@ export class GitHubRequestError extends Error {
 export class GitHubRequestTimeoutError extends GitHubRequestError {
 	constructor(readonly requestDispatched = false) {
 		super('GitHub request timed out', 'timeout');
+	}
+}
+
+export class GitHubRequestRateLimitError extends GitHubRequestError {
+	constructor(readonly retryAfterMs: number) {
+		super('The server cooldown exceeds the remaining request budget', 'rateLimit', 429);
 	}
 }
 
@@ -149,6 +164,13 @@ export interface GitHubClientOptions {
 /** Trusted API base for public reads; callers cannot override authentication or network execution. */
 export interface GitHubAnonymousClientOptions {
 	readonly apiBaseUri: string;
+}
+
+/** Internal, read-only bootstrap capability; account provenance affects quota accounting, not authorization. */
+export interface GitHubBootstrapClientOptions {
+	readonly apiBaseUri: string;
+	readonly token: string;
+	readonly accountId?: string;
 }
 
 export interface GitHubCredentialChange {
