@@ -802,7 +802,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, undefined, logService);
+		const launcher = createTestLauncher(managedSettingsPermissions, { memory: true, localMemory: true }, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -906,6 +906,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createRequestCanvasRenderer: createConfigs[0].requestCanvasRenderer,
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
+				createMemory: createConfigs[0].memory,
+				createLocalMemoryStore: createConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
@@ -922,6 +924,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeRequestCanvasRenderer: resumeConfigs[0].requestCanvasRenderer,
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
+				resumeMemory: resumeConfigs[0].memory,
+				resumeLocalMemoryStore: resumeConfigs[0].featureFlags?.copilot_swe_agent_memory_in_repo_store,
+				ephemeralMemory: createConfigs[1].memory,
+				ephemeralLocalMemoryStore: createConfigs[1].featureFlags?.copilot_swe_agent_memory_in_repo_store,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
 				ephemeralMcpOAuthTokenStorage: createConfigs[1].mcpOAuthTokenStorage,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
@@ -967,6 +973,8 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createRequestCanvasRenderer: true,
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
+				createMemory: { enabled: true },
+				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -990,6 +998,10 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeRequestCanvasRenderer: true,
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
+				resumeMemory: { enabled: true },
+				resumeLocalMemoryStore: true,
+				ephemeralMemory: { enabled: false },
+				ephemeralLocalMemoryStore: false,
 				ephemeralMcpServers: {},
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],

@@ -20,6 +20,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { AgentHostCopilotCliSettingsContribution } from '../../../browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
 
 class MockAgentHostService extends mock<IAgentHostService>() {
@@ -112,7 +113,7 @@ async function flush(): Promise<void> {
 	await Promise.resolve();
 }
 
-function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null) {
+function setup(disposables: DisposableStore, settings: Record<string, unknown>, policyData: IPolicyData | null = null, quality = 'insider') {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const agentHostService = new MockAgentHostService();
 	const defaultAccountService = new MockDefaultAccountService(policyData);
@@ -124,6 +125,7 @@ function setup(disposables: DisposableStore, settings: Record<string, unknown>, 
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) });
 	instantiationService.stub(IDefaultAccountService, defaultAccountService);
+	instantiationService.stub(IProductService, { _serviceBrand: undefined, quality } as IProductService);
 	disposables.add(instantiationService.createInstance(AgentHostCopilotCliSettingsContribution));
 	return { agentHostService, defaultAccountService };
 }
@@ -220,7 +222,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 		});
 	});
 
-	test('forwards Copilot Memory and local memory only when opted in and preview features are allowed', async () => {
+	test('forwards Copilot Memory and local memory only when opted in, preview features are allowed, and local memory is outside Stable', async () => {
 		const memorySchema = {
 			[CopilotCliConfigKey.Memory]: fullSchema[CopilotCliConfigKey.Memory],
 			[CopilotCliConfigKey.LocalMemory]: fullSchema[CopilotCliConfigKey.LocalMemory],
@@ -236,6 +238,11 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
 		}, { chat_preview_features_enabled: false });
 		agentHostService.setRootState(makeRootStateWithSchema(memorySchema));
+		const { agentHostService: stableHost } = setup(disposables, {
+			[AgentHostCopilotMemoryEnabledSettingId]: true,
+			[AgentHostCopilotLocalMemoryEnabledSettingId]: true,
+		}, null, 'stable');
+		stableHost.setRootState(makeRootStateWithSchema(memorySchema));
 		await flush();
 		const policyDisabled = mergedConfig(agentHostService);
 
@@ -245,10 +252,12 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		assert.deepStrictEqual({
 			defaultOff: mergedConfig(defaultHost),
+			stable: mergedConfig(stableHost),
 			policyDisabled,
 			policyEnabled: mergedConfig(agentHostService),
 		}, {
 			defaultOff: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
+			stable: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: false },
 			policyDisabled: { [CopilotCliConfigKey.Memory]: false, [CopilotCliConfigKey.LocalMemory]: false },
 			policyEnabled: { [CopilotCliConfigKey.Memory]: true, [CopilotCliConfigKey.LocalMemory]: true },
 		});

@@ -11,6 +11,7 @@ import { IAgentHostService } from '../../../../../../platform/agentHost/common/a
 import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
 import { AgentHostRootConfigForwarder, type IForwardedRootConfigKey } from './agentHostRootConfigForwarder.js';
 
@@ -31,6 +32,7 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
 		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -85,7 +87,9 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				key: CopilotCliConfigKey.LocalMemory,
-				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+				// The local store skips GitHub's Copilot Memory policy checks, so Stable never enables it.
+				computeValue: () => this._productService.quality !== 'stable'
+					&& this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
 					&& this._configurationService.getValue<boolean>(AgentHostCopilotLocalMemoryEnabledSettingId) === true,
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, AgentHostCopilotLocalMemoryEnabledSettingId);
