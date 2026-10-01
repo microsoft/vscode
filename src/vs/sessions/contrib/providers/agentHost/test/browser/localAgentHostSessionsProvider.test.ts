@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -26,6 +26,8 @@ import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -60,7 +62,9 @@ import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../service
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
+import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
@@ -135,7 +139,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
-	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
+	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
 	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
 	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
@@ -3955,6 +3959,90 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
+	test('does not resolve recent samples when any sample selection prerequisite is disabled', async () => {
+		const configuration = new TestConfigurationService({
+			[DevContainerSamplesEnabledSettingId]: true,
+			[DevContainerAgentHostEnabledSettingId]: true,
+			[RemoteAgentHostsEnabledSettingId]: true,
+			'chat.disableAIFeatures': false,
+		});
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configuration });
+		const source = devContainerSampleUri(devContainerSamples[0]);
+		const initiallyVisible = !!provider.resolveWorkspace(source);
+		const disabled: boolean[] = [];
+		for (const [setting, value] of [
+			[DevContainerSamplesEnabledSettingId, false],
+			[DevContainerAgentHostEnabledSettingId, false],
+			[RemoteAgentHostsEnabledSettingId, false],
+			['chat.disableAIFeatures', true],
+		] as const) {
+			await configuration.setUserConfiguration(setting, value);
+			disabled.push(!!provider.resolveWorkspace(source));
+			await configuration.setUserConfiguration(setting, !value);
+		}
+		assert.deepStrictEqual({ initiallyVisible, disabled, restored: provider.resolveWorkspace(source)?.description }, {
+			initiallyVisible: true,
+			disabled: [false, false, false, false],
+			restored: 'https://github.com/microsoft/vscode-remote-try-go',
+		});
+	});
+
+	for (const available of [true, false]) {
+		test(`sample drafts defer provisioning and never create a local backend (available: ${available})`, async () => {
+			let containerStarts = 0;
+			let trustRequests = 0;
+			agentHost.resolveSessionConfigResult = {
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+				values: { isolation: 'worktree' },
+			};
+			const resolveConfig = stub(agentHost, 'resolveSessionConfig').callsFake(async request => {
+				agentHost.resolveSessionConfigRequests.push(request);
+				return {
+					...agentHost.resolveSessionConfigResult,
+					values: { ...agentHost.resolveSessionConfigResult.values, ...request.config },
+				};
+			});
+			disposables.add(toDisposable(() => resolveConfig.restore()));
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({
+					[DevContainerSamplesEnabledSettingId]: true,
+					[DevContainerWorktreeEnabledSettingId]: true,
+					[DevContainerAgentHostEnabledSettingId]: true,
+					[RemoteAgentHostsEnabledSettingId]: true,
+				}),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return available; }
+					override async connect(): Promise<never> {
+						containerStarts++;
+						throw new Error('Sample provisioning reached');
+					}
+				}(),
+				requestWorkspaceTrust: async () => { trustRequests++; return true; },
+			});
+			const session = provider.createNewSession(devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+			await timeout(0);
+			const before = {
+				containerStarts, trustRequests,
+				localCreates: agentHost.createdSessionUris.length,
+				enabled: provider.isDevContainerEnabled(session.sessionId),
+				workingDirectories: agentHost.resolveSessionConfigRequests.map(request => request.workingDirectory),
+			};
+			assert.throws(() => provider.setDevContainerEnabled(session.sessionId, false), /must run in a container/);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'first prompt'), available ? /Sample provisioning reached/ : /selected Dev Container is not available/);
+			assert.deepStrictEqual({
+				before,
+				after: { containerStarts, trustRequests, localCreates: agentHost.createdSessionUris.length },
+				isolation: provider.getSessionConfig(session.sessionId)?.values.isolation,
+				schema: provider.getSessionConfig(session.sessionId)?.schema,
+			}, {
+				before: { containerStarts: 0, trustRequests: 0, localCreates: 0, enabled: true, workingDirectories: available ? [undefined, undefined] : [undefined] },
+				after: { containerStarts: available ? 1 : 0, trustRequests: available ? 1 : 0, localCreates: 0 },
+				isolation: available ? 'folder' : 'worktree',
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+			});
+		});
+	}
+
 	test('enables a preferred Dev Container after asynchronous availability resolves', async () => {
 		const availability = new DeferredPromise<boolean>();
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -6972,6 +7060,56 @@ suite('LocalAgentHostSessionsProvider', () => {
 					availability: 'ready',
 				},
 				source: 'https://example.test/preview-1/2',
+			});
+		});
+
+		test('reads background shells from each chat\'s state while the session is active', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const rawId = 'background-shell-catalog';
+			const session = setupMultiChatSession(provider, rawId);
+			const backend = AgentSession.uri('copilotcli', rawId);
+			const main = buildDefaultChatUri(backend);
+			const peer = buildChatUri(backend, 'peer');
+			const startedAt = new Date(0).toISOString();
+			const copilotShell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'shell:same-id', label: 'Run tests', command: 'npm test',
+				startedAt, _meta: toCopilotBackgroundShellMeta('same-id', 'attached'),
+			};
+			const plainShell: BackgroundShellWork = {
+				kind: BackgroundWorkKind.Shell, id: 'same-id', label: 'Build', command: 'npm run build',
+				startedAt,
+			};
+			const subagent: BackgroundSubagentWork = {
+				kind: BackgroundWorkKind.Subagent, id: 'subagent:reviewer', label: 'Reviewer',
+				startedAt, chat: buildChatUri(backend, 'reviewer'),
+			};
+			const chatState = (resource: string, backgroundWork: BackgroundWork[]): ChatState => ({
+				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: startedAt, turns: [], backgroundWork,
+			});
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main }));
+			agentHost.setChatState(main, chatState(main, [copilotShell, subagent]));
+			agentHost.setChatState(peer, chatState(peer, [plainShell]));
+			disposables.add(autorun(reader => {
+				for (const chat of session.chats.read(reader)) {
+					chat.backgroundShells?.read(reader);
+				}
+			}));
+			const shells = () => session.chats.get().map(chat => chat.backgroundShells?.get());
+
+			const inactive = shells();
+			activeSession.set(new class extends mock<IActiveSession>() {
+				override readonly resource = session.resource;
+			}(), undefined);
+			const active = shells();
+			agentHost.setChatState(main, chatState(main, []));
+			const afterRemoval = shells();
+
+			const peerShell = { id: 'same-id', description: 'Build', command: 'npm run build', startedAt };
+			assert.deepStrictEqual({ inactive, active, afterRemoval }, {
+				inactive: [[], []],
+				active: [[{ id: 'shell:same-id', shellId: 'same-id', description: 'Run tests', command: 'npm test', startedAt, attachmentMode: 'attached' }], [peerShell]],
+				afterRemoval: [[], [peerShell]],
 			});
 		});
 

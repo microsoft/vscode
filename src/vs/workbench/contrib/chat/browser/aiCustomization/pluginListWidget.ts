@@ -47,6 +47,7 @@ import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
@@ -506,7 +507,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const publisher = DOM.append(details, $('.plugin-list-item-source'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, secondary: true });
+		const installButton = new Button(actionContainer, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+		});
 		installButton.element.classList.add('plugin-list-item-install-button');
 
 		const templateDisposables = new DisposableStore();
@@ -807,6 +811,7 @@ export class PluginListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -1315,13 +1320,17 @@ export class PluginListWidget extends Disposable {
 		}));
 
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
@@ -1336,13 +1345,17 @@ export class PluginListWidget extends Disposable {
 		}
 		actions.style.display = '';
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
@@ -1481,6 +1494,7 @@ export class PluginListWidget extends Disposable {
 			return;
 		}
 		const label = this.formatActionLabel(primary);
+		const actionLabel = primary.tooltip ?? primary.label;
 		if (secondary.length > 0) {
 			const secondaryActions = secondary.map((action, index) => disposables.add(new Action(
 				`plugin_tree_add_${index}`,
@@ -1490,28 +1504,54 @@ export class PluginListWidget extends Disposable {
 				() => this.runPluginAction(action),
 			)));
 			const button = disposables.add(new ButtonWithDropdown(container, {
-				...defaultButtonStyles,
+				...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}) : defaultButtonStyles),
 				secondary: true,
+				supportIcons: this.workspaceService.isSessionsWindow,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => secondaryActions },
-				title: primary.tooltip ?? label,
-				ariaLabel: primary.tooltip ?? label,
+				title: actionLabel,
+				ariaLabel: actionLabel,
 			}));
 			button.element.classList.add('plugin-installed-action');
-			button.label = label;
+			button.primaryButton.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+			button.dropdownButton.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+			button.primaryButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
+			button.dropdownButton.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
+			if (this.workspaceService.isSessionsWindow) {
+				button.icon = Codicon.add;
+			} else {
+				button.label = label;
+			}
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 			return;
 		}
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}) : defaultButtonStyles),
 			secondary: true,
-			title: primary.tooltip ?? label,
-			ariaLabel: primary.tooltip ?? label,
+			supportIcons: this.workspaceService.isSessionsWindow,
+			title: actionLabel,
+			ariaLabel: actionLabel,
 		}));
 		button.element.classList.add('plugin-installed-action');
-		button.label = label;
+		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		button.element.classList.toggle('plugin-card-icon-button', this.workspaceService.isSessionsWindow);
+		if (this.workspaceService.isSessionsWindow) {
+			button.icon = Codicon.add;
+		} else {
+			button.label = label;
+		}
 		button.enabled = primary.enabled !== false;
 		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 	}
@@ -1519,21 +1559,31 @@ export class PluginListWidget extends Disposable {
 	private renderPluginUpdateAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('checkForAndApplyPluginUpdates', "Check for and Apply Updates");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...(this.workspaceService.isSessionsWindow ? getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}) : defaultButtonStyles),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
 		button.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
-		button.label = `$(${Codicon.refresh.id})`;
+		button.element.classList.toggle('plugin-card-ghost-button', this.workspaceService.isSessionsWindow);
+		if (this.workspaceService.isSessionsWindow) {
+			button.icon = Codicon.refresh;
+		} else {
+			button.label = `$(${Codicon.refresh.id})`;
+		}
 		disposables.add(button.onDidClick(() => this.runUpdatePluginsAction(button)));
 	}
 
 	private renderBrowseMarketplaceAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('browseMarketplace', "Browse Marketplace");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
 			secondary: true,
 			supportIcons: true,
 			title: label,
@@ -1593,9 +1643,18 @@ export class PluginListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item);
-		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+		const more = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
 		this.cardListControllers.get(parent)?.addItem({
 			row,
@@ -1673,9 +1732,18 @@ export class PluginListWidget extends Disposable {
 		let more: Button | undefined;
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
-			const moreButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+			const moreButton = this.cardDisposables.add(new Button(actions, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+			}));
 			moreButton.element.classList.add('plugin-card-icon-button');
-			moreButton.label = `$(${Codicon.ellipsis.id})`;
+			moreButton.icon = Codicon.ellipsis;
 			this.rememberCardFocusElement(moreButton.element);
 			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
 			more = moreButton;
@@ -1702,7 +1770,11 @@ export class PluginListWidget extends Disposable {
 		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+		const install = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			ariaLabel: localize('installPluginAria', "Install {0}", item.name),
+		}));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));

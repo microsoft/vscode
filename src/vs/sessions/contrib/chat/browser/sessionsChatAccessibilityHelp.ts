@@ -8,6 +8,7 @@ import { getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js
 import { isWeb } from '../../../../base/common/platform.js';
 import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { getModePickerAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { getBackgroundShellsPillAccessibilityHelp } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -33,6 +34,7 @@ import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SE
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
+import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
 export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 120;
 	readonly name = 'sessionsChat';
@@ -55,6 +57,9 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		}
 		content.push(localize('sessionsChat.preparation', "While a new session is being prepared, the transcript shows your submitted prompt and attachments followed by startup progress. Use Tab to reach Show Log beside the progress message and press Enter to open the Dev Container output channel. The chat input and attachment controls are disabled until preparation finishes. Use the input's Stop action or Cancel Chat command{0} to cancel preparation. If preparation fails or is canceled, your original prompt and attachments remain in the new-session composer.", '<keybinding:workbench.action.chat.cancel>'));
 		content.push(localize('sessionsChat.connectionLog', "While connecting to a Dev Container for an existing session, use Tab to reach Show Log and press Enter to open the Dev Container output channel."));
+		if (areDevContainerSamplesEnabled(configurationService)) {
+			content.push(localize('sessionsChat.devContainerSamples', "The workspace picker includes Dev Container Sample. Open its submenu and choose a sample with the arrow keys and Enter. Selecting a sample does not start Docker or clone the repository. The sample is prepared in a Docker volume when you send your first prompt."));
+		}
 		if (configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
 			content.push(localize('sessionsChat.responseSelectionMenu', "When you select assistant response text, an action menu appears. Press Tab to focus the menu, use the Up Arrow and Down Arrow keys to move between actions, and press Enter to activate one. Press Escape to dismiss the menu. Ask in a Side Chat opens a question input anchored to the selected text. Quote appends the selection as a blockquote in the chat input when the conversation is interactive. Copy copies the selected text."));
 		} else {
@@ -157,6 +162,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.pastedText', "Long pasted text is stored as an attached text item and replaced in the input with a numbered inline reference."));
 		content.push(localize('sessionsChat.pasteAsText', "To paste the clipboard as plain text, without converting it to Markdown or storing it as an attachment, invoke Paste as Text{0}.", '<keybinding:editor.action.pasteAsText>'));
 		content.push(localize('sessionsChat.backgroundActivities', "Press Shift+Tab from the chat input to reach metadata and status pills above it, use the left and right arrows to move between pills, and press Enter or Space to activate one. Live browsers appear in their own pill, and the chat's subagents appear in another. A pill with more than one entry opens a picker. Subagents are grouped under Subagents: In Progress and Subagents: Completed. In Progress includes subagents waiting for input; Completed includes failed subagents. Use the up and down arrows to move between entries. When an entry has details, Tab moves through its row actions and detail links; Shift+Tab returns to the row action, and the up and down arrows continue moving between entries. Press Enter to open an entry, or Escape to dismiss the picker and return focus to the pill."));
+		content.push(getBackgroundShellsPillAccessibilityHelp());
 		const chatTabsMode = configurationService.getValue<SessionsChatTabsMode>(SESSIONS_CHAT_TABS_SETTING) ?? SESSIONS_CHAT_TABS_DEFAULT;
 		content.push(chatTabsMode === SessionsChatTabsMode.Single
 			? localize('sessionsChat.conversationsAsSessionView', "Chats open directly in the session view without a tab row. Side-by-side chats each show a session header. Pin keeps that chat visible when another chat opens. Close removes that chat group. Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later. For sessions that support multiple chats, use Show Chat Tabs in the session overflow menu to show multiple tabs.")
@@ -196,6 +202,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 		content.push(localize('sessionsChat.renameChat', "When Rename is available for a non-main chat, focus its tab or nested row in the Sessions list and invoke Rename{0}, or double-click its title, to rename it inline. Type the new title, then press Enter to confirm or Escape to cancel. From the chat transcript or input, invoking Rename opens a prompt instead.", `<keybinding:${RENAME_CHAT_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.archiveSession', "To archive or mark one or more sessions as done, focus them in the Sessions list and invoke Archive or Mark as Done{0}.", `<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`));
 		content.push(localize('sessionsChat.deleteSession', "To permanently delete a session, open its context menu and choose Delete. This is destructive and cannot be undone."));
+		content.push(localize('sessionsChat.deleteSandboxSession', "For a Cloud sandbox session, Delete removes its Mission Control task and stored conversation even when the environment is offline. A failed deletion leaves the session in the list."));
 		content.push(localize('sessionsChat.changes', "Focus the Changes view{0}.", '<keybinding:workbench.action.agentSessions.focusChangesView>'));
 		content.push(localize('sessionsChat.viewAllChanges', "Status pills above the chat input include the session's diff stats (lines added and removed). Activate the Changes pill to open the multi-file diff editor with Session Changes for a folder session or Branch Changes for a worktree session{0}.", '<keybinding:workbench.agentSessions.action.viewChanges>'));
 		content.push(localize('sessionsChat.openPullRequest', "When the session is associated with GitHub pull requests, a status pill above the chat input shows the pull request number or count. Activate it to open a single pull request or choose from the associated pull requests{0}.", '<keybinding:workbench.agentSessions.action.openPullRequest>'));
