@@ -1571,14 +1571,11 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .mcp-detail-editor-container {
+	position: absolute;
+	inset: 0;
 	box-sizing: border-box;
-	min-height: 100%;
 	display: flex;
 	justify-content: center;
-}
-
-.ai-customization-management-editor .mcp-detail-editor-scrollable {
-	height: 100%;
 }
 
 .ai-customization-management-editor .mcp-detail-body {
@@ -1771,13 +1768,24 @@ per-word capitalization does not survive translation. */
 	min-height: 0;
 }
 
-.ai-customization-management-editor .marketplace-detail-scrollable {
-	height: 100%;
+.ai-customization-management-editor .mcp-detail-editor-scrollable,
+.ai-customization-management-editor .marketplace-detail-scrollable,
+.ai-customization-management-editor .plugin-detail-editor-scrollable {
+	position: relative;
+	flex: 1;
+	min-height: 0;
+	width: 100%;
+}
+
+.ai-customization-management-editor .marketplace-detail-scrollable > .scrollbar > .slider,
+.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
+	border-radius: var(--vscode-cornerRadius-circle);
 }
 
 .ai-customization-management-editor .marketplace-detail-editor-container {
+	position: absolute;
+	inset: 0;
 	box-sizing: border-box;
-	min-height: 100%;
 	display: flex;
 	justify-content: center;
 }
@@ -1801,28 +1809,19 @@ per-word capitalization does not survive translation. */
 	gap: var(--vscode-spacing-size40);
 }
 
-.ai-customization-management-editor .marketplace-detail-sections {
+.ai-customization-management-editor .marketplace-detail-query-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size160);
-}
-
-.ai-customization-management-editor .marketplace-detail-section {
-	min-width: 0;
-}
-
-.ai-customization-management-editor .marketplace-detail-list {
-	list-style-position: outside;
+	gap: var(--vscode-spacing-size40);
 	margin: 0;
-	padding-inline-start: var(--vscode-spacing-size240);
-	border: none;
-	border-radius: 0;
-	overflow: visible;
+	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size100) var(--vscode-spacing-size320);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-textCodeBlock-background);
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
+	grid-template-columns: auto auto minmax(0, 1fr);
 	row-gap: var(--vscode-spacing-size80);
 }
 
@@ -1832,33 +1831,36 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header-text {
-	grid-column: 2;
+	grid-column: 3;
 	grid-row: 1;
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-title-actions {
-	grid-column: 2;
+	grid-column: 3;
 	grid-row: 2;
 	justify-content: flex-start;
 	margin-left: 0;
 }
 
-.ai-customization-management-editor .marketplace-detail-list li {
-	padding: var(--vscode-spacing-size20) 0;
+.ai-customization-management-editor .marketplace-detail-icon {
+	margin-inline-end: var(--vscode-spacing-size120);
 }
 
-.ai-customization-management-editor .plugin-detail-editor-scrollable {
-	flex: 1;
-	min-height: 0;
+.ai-customization-management-editor .marketplace-detail-icon > .codicon {
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.ai-customization-management-editor .marketplace-detail-icon > img {
 	width: 100%;
-}
-
-.ai-customization-management-editor .plugin-detail-editor-scrollable > .scrollbar > .slider {
-	border-radius: var(--vscode-cornerRadius-circle);
+	height: 100%;
+	border-radius: var(--vscode-cornerRadius-small);
+	object-fit: contain;
 }
 
 .ai-customization-management-editor .plugin-detail-editor-container {
-	min-height: 100%;
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
 	display: flex;
 	justify-content: center;
 }
@@ -2097,12 +2099,13 @@ per-word capitalization does not survive translation. */
 	padding-inline-start: 0;
 }
 
-.ai-customization-management-editor .ai-customization-embedded-detail:is(.embedded-plugin-detail, .embedded-connector-detail) .embedded-detail-facts {
+.ai-customization-management-editor .ai-customization-embedded-detail:is(.embedded-plugin-detail, .embedded-marketplace-detail, .embedded-connector-detail) .embedded-detail-facts {
 	padding-inline-start: 0;
 	margin-bottom: 0;
 }
 
 .ai-customization-management-editor .embedded-plugin-detail .plugin-detail-source-facts,
+.ai-customization-management-editor .embedded-marketplace-detail .marketplace-detail-source-facts,
 .ai-customization-management-editor .embedded-connector-detail .connector-detail-facts {
 	display: flex;
 	flex-direction: column;
@@ -2123,13 +2126,13 @@ per-word capitalization does not survive translation. */
 	white-space: normal;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-readme-message {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-marketplace-detail) .plugin-detail-readme-message {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-agents-fontSize-body2);
 	line-height: 16px;
 }
 
-.ai-customization-management-editor .embedded-plugin-detail .plugin-detail-readme > .plugin-detail-contribution-group-title {
+.ai-customization-management-editor :is(.embedded-plugin-detail, .embedded-marketplace-detail) .plugin-detail-readme > .plugin-detail-contribution-group-title {
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
@@ -2150,7 +2153,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-row:not(:last-child) {
-	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border);
+	box-shadow: inset 0 calc(-1 * var(--vscode-strokeThickness)) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-fact-label,
@@ -2243,7 +2246,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-flat-list {
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 	border-radius: var(--vscode-cornerRadius-medium);
 	overflow: hidden;
 }
@@ -2257,7 +2260,7 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-section + .plugin-detail-contribution-section {
-	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border);
+	box-shadow: inset 0 var(--vscode-strokeThickness) var(--vscode-widget-border, var(--vscode-agentsPanel-border));
 }
 
 .ai-customization-management-editor .ai-customization-embedded-detail .plugin-detail-contribution-group {
@@ -2917,10 +2920,18 @@ per-word capitalization does not survive translation. */
 	flex: 1;
 }
 
-.plugin-list-widget .customization-card-primary-action:focus-visible,
 .plugin-list-widget .plugin-remote-item:focus-visible {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+.plugin-list-widget .plugin-home-row.primary-action-focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .plugin-list-widget .plugin-home-row .customization-card-primary-action:focus {
+	outline: none;
 }
 
 .plugin-list-widget .plugin-home-row:not(:last-child) {

@@ -20,6 +20,7 @@ import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -180,7 +181,7 @@ suite('aiCustomizationManagementEditor', () => {
 			computeMigration?(session: URI, type: CustomizationMigrationType, token?: CancellationToken): Promise<CustomizationMigration>;
 		};
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
-		dialogService: { confirm(): Promise<{ confirmed: boolean }> };
+		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
 			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean } | undefined>;
 		};
@@ -2021,6 +2022,61 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
+
+	for (const confirmed of [false, true]) {
+		test(`${confirmed ? 'executes' : 'cancels'} MCP property removals only after a warning confirmation`, async () => {
+			const editor = createTestEditor(undefined, createConfigurationServiceStub({
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+			}));
+			const server: IMcpServerCustomizationMigrationCandidate = {
+				type: CustomizationMigrationType.McpServers,
+				storage: PromptsStorage.local,
+				id: 'mcp.config.ws0.server',
+				name: 'server',
+				sourceUri: URI.file('/workspace/.vscode/mcp.json'),
+				targetUri: URI.file('/workspace/.mcp.json'),
+				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+				removedProperties: { gallery: true, version: '1', dev: {}, sandboxEnabled: true },
+			};
+			const confirmations: IConfirmation[] = [];
+			const calls: string[] = [];
+			editor.dialogService = {
+				confirm: async confirmation => {
+					confirmations.push(confirmation);
+					calls.push('confirm');
+					return { confirmed };
+				},
+			};
+			editor.customizationMigrationService = {
+				migrateMcpServers: async () => {
+					calls.push('migrate');
+					return { migratedCount: 1, failures: [] };
+				},
+			};
+			editor.notificationService = {
+				error: () => calls.push('error'),
+				warn: () => calls.push('warn'),
+				info: () => calls.push('info'),
+			};
+			editor.showCustomizationMigrationDashboard = () => { };
+			editor.refreshCustomizationMigrationInfo = async () => { };
+			const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+			await editor.migrateSelectedCustomizations(category, [server]);
+
+			assert.deepStrictEqual({
+				calls,
+				confirmations,
+				inProgress: editor.customizationMigrationInProgress,
+				writesInProgress: editor.customizationMigrationWritesInProgress,
+			}, {
+				calls: confirmed ? ['confirm', 'migrate', 'info'] : ['confirm'],
+				confirmations: [{ type: 'warning', ...category.getConfirmation([server], 'Copilot') }],
+				inProgress: false,
+				writesInProgress: false,
+			});
+			editor.editorPreviewDisposables.dispose();
+		});
+	}
 
 	test('keeps migration hint attribution within its originating flow', async () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({

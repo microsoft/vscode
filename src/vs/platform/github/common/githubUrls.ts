@@ -6,6 +6,11 @@
 import { URI } from '../../../base/common/uri.js';
 import { deriveGitHubEndpoints } from './githubEndpoints.js';
 
+/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
+export function getPullRequestUrlKey(url: string): string {
+	return url.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 /** A GitHub issue, identified by the repository that owns it and its number. */
 export interface IGitHubIssueReference {
 	readonly owner: string;

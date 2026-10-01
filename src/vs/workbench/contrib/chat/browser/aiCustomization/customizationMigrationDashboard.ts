@@ -29,6 +29,7 @@ import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHei
 const $ = DOM.$;
 const focusPreferredTarget = Symbol('focusPreferredTarget');
 const MIGRATION_ITEM_HEIGHT = 48;
+const MIGRATION_ITEM_WITH_CHANGES_HEIGHT = 68;
 const MIGRATION_GROUP_HEADER_HEIGHT_WITH_DESCRIPTION = 52;
 
 export interface ICustomizationMigrationDashboardItem {
@@ -36,6 +37,7 @@ export interface ICustomizationMigrationDashboardItem {
 	readonly label: string;
 	readonly scopeLabel: string;
 	readonly sourceLabel: string;
+	readonly changesLabel?: string;
 	readonly manualReviewReason?: string;
 	readonly resource?: URI;
 	readonly promptType?: PromptsType;
@@ -139,7 +141,11 @@ class MigrationTreeDelegate implements IListVirtualDelegate<MigrationTreeEntry> 
 	getHeight(element: MigrationTreeEntry): number {
 		return element.type === 'group-header'
 			? element.destinationLabel ? MIGRATION_GROUP_HEADER_HEIGHT_WITH_DESCRIPTION : CUSTOMIZATION_GROUP_HEADER_HEIGHT
-			: MIGRATION_ITEM_HEIGHT;
+			: element.changesLabel ? MIGRATION_ITEM_WITH_CHANGES_HEIGHT : MIGRATION_ITEM_HEIGHT;
+	}
+
+	hasDynamicHeight(element: MigrationTreeEntry): boolean {
+		return element.type === 'migration-item' && element.changesLabel !== undefined;
 	}
 
 	getTemplateId(element: MigrationTreeEntry): string {
@@ -155,6 +161,7 @@ interface IMigrationItemTemplateData {
 	readonly label: HTMLElement;
 	readonly metadata: HTMLElement;
 	readonly source: HTMLElement;
+	readonly changes: HTMLElement;
 	readonly reviewButton: Button;
 	readonly moreButton: Button;
 	readonly disposables: DisposableStore;
@@ -183,6 +190,7 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		const label = DOM.append(header, $('.migration-tree-item-label'));
 		const metadata = DOM.append(content, $('.migration-tree-item-metadata'));
 		const source = DOM.append(metadata, $('.migration-tree-item-source'));
+		const changes = DOM.append(content, $('.migration-tree-item-changes'));
 		const reviewButton = disposables.add(new Button(container, {
 			...defaultButtonStyles,
 			secondary: true,
@@ -202,7 +210,7 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		}));
 		moreButton.element.classList.add('migration-tree-item-more');
 		moreButton.label = `$(${Codicon.ellipsis.id})`;
-		return { container, checkbox, checkboxContainer, content, label, metadata, source, reviewButton, moreButton, disposables, elementDisposables };
+		return { container, checkbox, checkboxContainer, content, label, metadata, source, changes, reviewButton, moreButton, disposables, elementDisposables };
 	}
 
 	renderElement(element: IMigrationItemEntry, _index: number, templateData: IMigrationItemTemplateData): void {
@@ -219,6 +227,8 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 		templateData.reviewButton.element.setAttribute('aria-label', localize('reviewMigrationItemAriaLabel', "Review {0}", element.label));
 		templateData.moreButton.element.setAttribute('aria-label', localize('migrationItemActions', "More actions for {0}", element.label));
 		templateData.source.textContent = element.sourceLabel;
+		templateData.changes.textContent = element.changesLabel ?? '';
+		templateData.changes.style.display = element.changesLabel ? '' : 'none';
 		templateData.elementDisposables.add(templateData.checkbox.onChange(() => this.selectionChanged(element, templateData.checkbox.checked)));
 		templateData.elementDisposables.add(DOM.addDisposableListener(templateData.checkbox.domNode, DOM.EventType.CLICK, event => event.stopPropagation()));
 		templateData.elementDisposables.add(templateData.reviewButton.onDidClick(event => {
@@ -239,6 +249,9 @@ class MigrationItemRenderer implements IListRenderer<IMigrationItemEntry, IMigra
 				: element.label,
 		}));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.source, { content: element.sourceLabel }));
+		if (element.changesLabel) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.changes, { content: element.changesLabel }));
+		}
 	}
 
 	disposeTemplate(templateData: IMigrationItemTemplateData): void {
@@ -473,7 +486,9 @@ export class CustomizationMigrationDashboard extends Disposable {
 						? localize('migrationGroupAriaLabel', "{0}, {1} migrations", entry.label, entry.count)
 						: entry.manualReviewReason
 							? localize('migrationItemWithStatusAriaLabel', "{0}, needs manual review, {1}, {2}, source {3}", entry.label, entry.manualReviewReason, entry.scopeLabel, entry.sourceLabel)
-							: localize('migrationItemAriaLabel', "{0}, {1}, source {2}", entry.label, entry.scopeLabel, entry.sourceLabel),
+							: entry.changesLabel
+								? localize('migrationItemWithChangesAriaLabel', "{0}, {1}, source {2}. Migration changes: {3}", entry.label, entry.scopeLabel, entry.sourceLabel, entry.changesLabel)
+								: localize('migrationItemAriaLabel', "{0}, {1}, source {2}", entry.label, entry.scopeLabel, entry.sourceLabel),
 				},
 				keyboardNavigationLabelProvider: {
 					getKeyboardNavigationLabel: entry => entry.label,

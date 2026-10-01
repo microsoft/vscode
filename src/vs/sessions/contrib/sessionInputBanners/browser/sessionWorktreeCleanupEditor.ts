@@ -91,7 +91,7 @@ export class SessionWorktreeCleanupEditor extends EditorPane {
 		parent.appendChild(this.scrollableElement.getDomNode());
 		const content = dom.append(this.container, dom.$('.session-worktree-cleanup-content'));
 
-		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Clean Up Agent Worktrees")));
+		dom.append(content, dom.$('h1', undefined, localize('sessionWorktreeCleanup.heading', "Open worktree cleanup")));
 		dom.append(content, dom.$('p.session-worktree-cleanup-intro', undefined,
 			localize('sessionWorktreeCleanup.intro', "Inactive, unpinned sessions older than the selected period can be cleaned up to reclaim the disk space their worktrees use. Cleaning up a session marks it as done and deletes its worktree; you can restore the session later to recreate it. Active, running, needs-input, and pinned sessions are always protected.")));
 

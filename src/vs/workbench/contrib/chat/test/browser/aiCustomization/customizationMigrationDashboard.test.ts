@@ -88,7 +88,7 @@ suite('CustomizationMigrationDashboard', () => {
 						{
 							id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, selectedCount: 1, countLabel: '1 server',
 							destinationLabel: '.mcp.json',
-							items: [{ id: 'workspace-mcp', label: 'Postgres', scopeLabel: 'Workspace', sourceLabel: '.vscode/mcp.json' }],
+							items: [{ id: 'workspace-mcp', label: 'Postgres', scopeLabel: 'Workspace', sourceLabel: '.vscode/mcp.json', changesLabel: 'The gallery property will be removed.' }],
 						},
 						{
 							id: CustomizationMigrationCategoryId.ConfiguredLocations, label: 'Custom location settings', description: 'Update locations.', count: 1, selectedCount: 1, countLabel: '1 customization',
@@ -125,6 +125,7 @@ suite('CustomizationMigrationDashboard', () => {
 			counts: [...parent.querySelectorAll('.group-count')].map(element => element.textContent),
 			items: [...parent.querySelectorAll('.migration-tree-item-label')].map(element => element.textContent),
 			sources: [...parent.querySelectorAll('.migration-tree-item-source')].map(element => element.textContent),
+			changes: [...parent.querySelectorAll('.migration-tree-item-changes')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
 			checklistCopy: parent.textContent?.includes('Your migration checklist'),
 			initialFocus,
 			focus: document.activeElement?.getAttribute('aria-label'),
@@ -136,6 +137,7 @@ suite('CustomizationMigrationDashboard', () => {
 			counts: ['1', '2', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
+			changes: ['The gallery property will be removed.'],
 			checklistCopy: false,
 			initialFocus: 'Migrate Convert Prompt to Skills (Workspace)',
 			focus: 'Change destination for user prompt migrations',

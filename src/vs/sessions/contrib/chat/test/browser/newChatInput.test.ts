@@ -28,6 +28,7 @@ import { IChatDraft } from '../../../../../workbench/contrib/chat/common/attachm
 import { NewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { INewSessionComposerPicker } from '../../browser/newSessionComposerService.js';
 import { constObservable } from '../../../../../base/common/observable.js';
+import type { IWorkspacePickerContextAction } from '../../browser/sessionWorkspacePicker.js';
 
 interface IInputModelReferenceHarness {
 	readonly _store: DisposableStore;
@@ -53,8 +54,11 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
+const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
+const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
+const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
 const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
-const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly [], anchor?: HTMLElement) => void;
+const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly IWorkspacePickerContextAction[], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
 const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
 
@@ -141,6 +145,30 @@ interface IInitializationLoadingHarness {
 	};
 }
 
+interface IInputValueHarness {
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+			getLineCount(): number;
+			getLineMaxColumn(lineNumber: number): number;
+		} | null;
+		setPosition(position: { lineNumber: number; column: number }): void;
+	};
+}
+
+interface IClearInputOnSendStartHarness {
+	readonly options: {
+		clearInputOnSendStart?: () => boolean;
+	};
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+		} | null;
+	};
+}
+
 interface IContextPickerHarness {
 	readonly options: {
 		readonly getContextFolderUri: () => URI | undefined;
@@ -156,6 +184,7 @@ interface IAttachmentPickerHarness {
 	readonly quickInputService: {
 		readonly currentQuickInput: { readonly anchor?: unknown } | undefined;
 		cancel(): Promise<void>;
+		withQuickInputAnchor?<T>(anchor: HTMLElement | undefined, anchorPosition: 'above' | 'below' | 'overlay' | undefined, operation: () => Promise<T>): Promise<T>;
 		createQuickPick?(): {
 			placeholder: string;
 			matchOnDescription: boolean;
@@ -163,7 +192,7 @@ interface IAttachmentPickerHarness {
 			anchor: HTMLElement | undefined;
 			anchorPosition: 'above' | 'below' | 'overlay' | undefined;
 			items: readonly unknown[];
-			readonly selectedItems: readonly [];
+			readonly selectedItems: readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
 			show(): void;
 			hide(): void;
 			dispose(): void;
@@ -172,7 +201,8 @@ interface IAttachmentPickerHarness {
 		};
 	};
 	isPickerVisibleAt(anchor: HTMLElement): boolean;
-	_getStaticPicks?(contextActions: readonly []): readonly [];
+	_getStaticPicks?(contextActions: readonly IWorkspacePickerContextAction[]): readonly { readonly id?: string; readonly label?: string; readonly contextAction?: IWorkspacePickerContextAction }[];
+	_handleFileDialog?(): Promise<void>;
 }
 
 interface IAttachmentRenderingHarness {
@@ -222,6 +252,51 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('gets and sets the composer input without moving focus', () => {
+		let value = 'Initial prompt';
+		let position: { lineNumber: number; column: number } | undefined;
+		const harness: IInputValueHarness = {
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+					getLineCount: () => 2,
+					getLineMaxColumn: () => 8,
+				}),
+				setPosition: newPosition => position = newPosition,
+			},
+		};
+
+		setInputValue.call(harness, 'Updated\nprompt');
+
+		assert.deepStrictEqual({
+			value: getInputValue.call(harness),
+			position,
+		}, {
+			value: 'Updated\nprompt',
+			position: { lineNumber: 2, column: 8 },
+		});
+	});
+
+	test('clears comparison input immediately and restores it after a failed send', () => {
+		let value = 'Compare these approaches';
+		const harness: IClearInputOnSendStartHarness = {
+			options: { clearInputOnSendStart: () => true },
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+				}),
+			},
+		};
+
+		const restore = clearInputOnSendStart.call(harness, value);
+		assert.deepStrictEqual({ value, canRestore: !!restore }, { value: '', canRestore: true });
+
+		restore?.();
+		assert.strictEqual(value, 'Compare these approaches');
+	});
 
 	test('exposes the scoped model control', () => {
 		const modelPickers = new NewChatModelPickerService();
@@ -382,6 +457,113 @@ suite('NewChatInputWidget', () => {
 		assert.deepStrictEqual({
 			anchor: picker.anchor === attachButton ? 'attachButton' : undefined,
 			anchorPosition: picker.anchorPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('anchors a quick pick opened by a context action to the attach button', async () => {
+		const attachButton = document.createElement('div');
+		const onDidAcceptEmitter = disposables.add(new Emitter<void>());
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const actionRan = new DeferredPromise<void>();
+		const action: IWorkspacePickerContextAction = {
+			label: 'Nested picker',
+			icon: Codicon.add,
+			run: async () => actionRan.complete(),
+		};
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [{ contextAction: action }],
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: onDidAcceptEmitter.event,
+			onDidHide: onDidHideEmitter.event,
+		};
+		let inheritedAnchor: HTMLElement | undefined;
+		let inheritedPosition: 'above' | 'below' | 'overlay' | undefined;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+				withQuickInputAnchor: async (anchor, anchorPosition, operation) => {
+					inheritedAnchor = anchor;
+					inheritedPosition = anchorPosition;
+					return operation();
+				},
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [{ contextAction: action }],
+		};
+
+		showAttachmentPicker.call(harness, undefined, [action], attachButton);
+		onDidAcceptEmitter.fire();
+		await actionRan.p;
+
+		assert.deepStrictEqual({
+			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: inheritedPosition,
+		}, {
+			anchor: 'attachButton',
+			anchorPosition: 'below',
+		});
+		onDidHideEmitter.fire();
+	});
+
+	test('anchors the Files picker to the attach button', async () => {
+		const attachButton = document.createElement('div');
+		const onDidAcceptEmitter = disposables.add(new Emitter<void>());
+		const onDidHideEmitter = disposables.add(new Emitter<void>());
+		const fileDialogOpened = new DeferredPromise<void>();
+		const filePick = { id: 'sessions.filesAndFolders', label: 'Files...' };
+		const picker = {
+			placeholder: '',
+			matchOnDescription: false,
+			sortByLabel: true,
+			anchor: undefined as HTMLElement | undefined,
+			anchorPosition: undefined as 'above' | 'below' | 'overlay' | undefined,
+			items: [] as readonly unknown[],
+			selectedItems: [filePick],
+			show: () => { },
+			hide: () => { },
+			dispose: () => { },
+			onDidAccept: onDidAcceptEmitter.event,
+			onDidHide: onDidHideEmitter.event,
+		};
+		let inheritedAnchor: HTMLElement | undefined;
+		let inheritedPosition: 'above' | 'below' | 'overlay' | undefined;
+		const harness: IAttachmentPickerHarness = {
+			quickInputService: {
+				currentQuickInput: undefined,
+				cancel: async () => { },
+				createQuickPick: () => picker,
+				withQuickInputAnchor: async (anchor, anchorPosition, operation) => {
+					inheritedAnchor = anchor;
+					inheritedPosition = anchorPosition;
+					return operation();
+				},
+			},
+			isPickerVisibleAt: () => false,
+			_getStaticPicks: () => [filePick],
+			_handleFileDialog: async () => fileDialogOpened.complete(),
+		};
+
+		showAttachmentPicker.call(harness, undefined, [], attachButton);
+		onDidAcceptEmitter.fire();
+		await fileDialogOpened.p;
+
+		assert.deepStrictEqual({
+			anchor: inheritedAnchor === attachButton ? 'attachButton' : undefined,
+			anchorPosition: inheritedPosition,
 		}, {
 			anchor: 'attachButton',
 			anchorPosition: 'below',

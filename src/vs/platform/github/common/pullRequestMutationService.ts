@@ -137,7 +137,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		signal: AbortSignal,
 	): Promise<CreatedPullRequest> {
 		return this._serializeRepository(ref, 'createPullRequest', async () => {
-			const created = await this._withCredential(ref, signal, async (credential, combinedSignal) => {
+			const created = await this._withCredential<CreatedPullRequest>(ref, signal, async (credential, combinedSignal) => {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 					caller: 'github.mutations',
 					method: 'POST',
@@ -153,11 +153,14 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 				}, combinedSignal);
 				const value = asObject(response.data, 'GitHub create pull request response was malformed');
 				const number = requiredNumber(value, 'number');
+				const state = stringProperty(value, 'state');
 				return {
 					ref: { ...ref, number },
 					id: idProperty(value, 'node_id'),
 					url: requiredString(value, 'html_url'),
+					title: options.title,
 					createdAt: stringProperty(value, 'created_at'),
+					...(state === 'open' || state === 'closed' ? { state } : {}),
 				};
 			});
 			return created;

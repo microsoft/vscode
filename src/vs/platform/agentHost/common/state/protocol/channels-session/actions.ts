@@ -105,6 +105,24 @@ export interface SessionDefaultChatChangedAction {
 }
 
 /**
+ * The owning session's authoritative chat catalog order changed.
+ *
+ * Host-emitted convergence signal; it never originates from a client
+ * dispatch. `chats` is the complete resulting order and MUST contain every
+ * chat currently in the session exactly once. Reducers replace the catalog
+ * order while preserving each matching summary. Invalid or incomplete orders
+ * are ignored.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionChatsReorderedAction {
+	type: ActionType.SessionChatsReordered;
+	/** Every chat URI in authoritative catalog order. */
+	chats: URI[];
+}
+
+/**
  * Session title updated. Fired by the server when the title is auto-generated
  * from conversation, or dispatched by a client to rename a session.
  *

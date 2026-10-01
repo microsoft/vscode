@@ -6110,6 +6110,34 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual(signals.filter(signal => signal.kind === 'subagent_completed').map(signal => signal.toolCallId), ['tc-finished']);
 	});
 
+	test('reports idle again once a background subagent settles after its root turn', async () => {
+		// A deferred CLI client restart waits for this report. A background subagent still
+		// finishing when the root turn ends must hold the restart off until it settles.
+		let turnEndCount = 0;
+		const { session, mockSession, waitForSignal } = await createAgentSession(disposables, { onTurnEnded: () => turnEndCount++ });
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'research', agentDisplayName: 'Research', agentDescription: 'Research',
+		}, { agentId: 'agent-1' });
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		const afterRootTurn = { hasActiveTurn: session.hasActiveTurn, hasActiveSubagents: session.hasActiveSubagents, turnEndCount };
+
+		mockSession.backgroundTasks = [{
+			type: 'agent', id: 'agent-1', toolCallId: 'tc-subagent', description: 'Research',
+			status: 'completed', agentType: 'research', prompt: 'Research', startedAt: new Date(0).toISOString(),
+		}];
+		mockSession.fire('session.background_tasks_changed', {});
+		await waitForSignal(signal => signal.kind === 'subagent_completed');
+
+		assert.deepStrictEqual({
+			afterRootTurn,
+			afterSubagent: { hasActiveSubagents: session.hasActiveSubagents, turnEndCount },
+		}, {
+			afterRootTurn: { hasActiveTurn: false, hasActiveSubagents: true, turnEndCount: 1 },
+			afterSubagent: { hasActiveSubagents: false, turnEndCount: 2 },
+		});
+	});
+
 	test('completes an idle subagent even when its confirmation is superseded or fails', async () => {
 		const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, { subagentTaskCompletionDelay: 20 });
 		session.resetTurnState('turn-parent');
@@ -8773,7 +8801,7 @@ suite('CopilotAgentSession', () => {
 		}));
 
 		for (const platform of ['darwin', 'win32'] as const) {
-			test(`does not query or publish SDK sandbox diagnostics on ${platform}`, async () => {
+			test(`queries and publishes SDK sandbox diagnostics on ${platform}`, async () => {
 				let queries = 0;
 				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On, [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
 				const { session, mockSession, dispatchedActions, fireRootConfigChange } = await createAgentSession(disposables, {
@@ -8793,8 +8821,8 @@ suite('CopilotAgentSession', () => {
 					diagnostics: dispatchedActions.filter(action => action.type === ActionType.SessionMetaChanged).map(action => readAgentSandboxDiagnostics(action)),
 					sandbox: mockSession.sandboxConfigUpdates.at(-1),
 				}, {
-					queries: 0,
-					diagnostics: [],
+					queries: 3,
+					diagnostics: [['Unsupported sandbox.']],
 					sandbox: expectedSessionSandboxConfig(platform, sandbox),
 				});
 			});

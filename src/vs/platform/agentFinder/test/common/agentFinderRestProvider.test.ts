@@ -327,12 +327,12 @@ suite('AgentFinderRestProvider', () => {
 				},
 			]);
 
-			assert.deepStrictEqual(result.map(item => item.installation), [
-				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
-				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' },
-				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' },
-				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' },
-				{ kind: 'plugin', repository: 'github/copilot-plugins', ref: marketplacePluginSha, path: 'plugins/spark' },
+			assert.deepStrictEqual(result.map(item => ({ installation: item.installation, readmeUri: item.readmeUri?.toString() })), [
+				{ installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' }, readmeUri: undefined },
+				{ installation: { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'main', path: 'plugins/accessibility-kanban' }, readmeUri: 'https://raw.githubusercontent.com/github/awesome-copilot/main/plugins/accessibility-kanban/README.md' },
+				{ installation: { kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'main', path: 'claude/modern-go-guidelines' }, readmeUri: 'https://raw.githubusercontent.com/JetBrains/go-modern-guidelines/main/claude/modern-go-guidelines/README.md' },
+				{ installation: { kind: 'plugin', repository: 'github/copilot-plugins', ref: 'main', path: 'plugins/spark' }, readmeUri: 'https://raw.githubusercontent.com/github/copilot-plugins/main/plugins/spark/README.md' },
+				{ installation: { kind: 'plugin', repository: 'github/copilot-plugins', ref: marketplacePluginSha, path: 'plugins/spark' }, readmeUri: `https://raw.githubusercontent.com/github/copilot-plugins/${marketplacePluginSha}/plugins/spark/README.md` },
 			]);
 		});
 
@@ -349,8 +349,8 @@ suite('AgentFinderRestProvider', () => {
 			];
 			const result = await resources(variants);
 
-			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, installation: item.installation })),
-				variants.map(() => ({ displayName: marketplacePlugin.displayName, installation: undefined })));
+			assert.deepStrictEqual(result.map(item => ({ displayName: item.displayName, installation: item.installation, readmeUri: item.readmeUri })),
+				variants.map(() => ({ displayName: marketplacePlugin.displayName, installation: undefined, readmeUri: undefined })));
 		});
 
 		test('supports repository-root skills and plugins without guessing a default branch', async () => {
@@ -360,10 +360,10 @@ suite('AgentFinderRestProvider', () => {
 				{ ...claudePlugin, url: 'https://github.com/JetBrains/go-modern-guidelines/tree/develop', metadata: { ...claudePlugin.metadata, repoPath: '.claude-plugin/plugin.json' } },
 			]);
 
-			assert.deepStrictEqual(result.map(item => item.installation), [
-				{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release', path: '' },
-				{ kind: 'plugin', repository: 'github/awesome-copilot', ref: 'v1.2.3', path: '' },
-				{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'develop', path: '' },
+			assert.deepStrictEqual(result.map(item => ({ installation: item.installation, readmeUri: item.readmeUri?.toString() })), [
+				{ installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release', path: '' }, readmeUri: undefined },
+				{ installation: { kind: 'plugin', repository: 'github/awesome-copilot', ref: 'v1.2.3', path: '' }, readmeUri: 'https://raw.githubusercontent.com/github/awesome-copilot/v1.2.3/README.md' },
+				{ installation: { kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'develop', path: '' }, readmeUri: 'https://raw.githubusercontent.com/JetBrains/go-modern-guidelines/develop/README.md' },
 			]);
 		});
 

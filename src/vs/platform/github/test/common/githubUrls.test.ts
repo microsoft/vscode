@@ -6,10 +6,22 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseGitHubCommitTarget, parseGitHubIssueUrl, parseGitHubLinkTarget, parseGitHubPullRequestUrl, parsePullRequestUrl } from '../../common/githubUrls.js';
+import { getPullRequestUrlKey, parseGitHubCommitTarget, parseGitHubIssueUrl, parseGitHubLinkTarget, parseGitHubPullRequestUrl, parsePullRequestUrl } from '../../common/githubUrls.js';
 
 suite('GitHub URL parsers', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('pull request keys preserve the host and number while normalizing case and trailing slashes', () => {
+		assert.deepStrictEqual([
+			' HTTPS://GITHUB.COM/Owner/Repo/PULL/42/// ',
+			'https://tenant.ghe.com/Owner/Repo/pull/42/',
+			'https://github.com/Owner/Repo/pull/43',
+		].map(getPullRequestUrlKey), [
+			'https://github.com/owner/repo/pull/42',
+			'https://tenant.ghe.com/owner/repo/pull/42',
+			'https://github.com/owner/repo/pull/43',
+		]);
+	});
 
 	test('issue URLs allow public host variants and trailing paths, queries and fragments', () => {
 		const urls = [

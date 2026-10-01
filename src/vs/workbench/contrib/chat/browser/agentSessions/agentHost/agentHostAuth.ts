@@ -10,6 +10,7 @@ import { match } from '../../../../../../base/common/glob.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
+import { authenticationAccountId, authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { deriveGitHubEndpoints } from '../../../../../../platform/github/common/githubEndpoints.js';
 import { type McpOAuthClient, type ModelSelection, type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -74,7 +75,7 @@ export function modelRequiresAgentAuthentication(agent: AgentInfo | undefined, m
  */
 export class AgentHostAuthTokenCache {
 	private readonly _completedTokens = new Map<string, string>();
-	private readonly _pendingAuthentications = new Map<string, { readonly token: string; readonly promise: Promise<void> }>();
+	private readonly _pendingAuthentications = new Map<string, { readonly credentialKey: string; readonly promise: Promise<void> }>();
 	private readonly _keyGenerations = new Map<string, number>();
 	private readonly _rejectedSessions = new Map<string, RejectedAuthenticationSession>();
 	private _globalGeneration = 0;
@@ -83,13 +84,14 @@ export class AgentHostAuthTokenCache {
 	 * Forwards a token once per resource/scope pair. Same-token callers share
 	 * and await an in-flight authentication.
 	 */
-	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>): Promise<boolean> {
+	async authenticate(resource: string, scopes: readonly string[] | undefined, token: string, authenticate: () => Promise<unknown>, accountId?: string): Promise<boolean> {
+		const credentialKey = JSON.stringify([token, accountId]);
 		const key = this._key(resource, scopes);
 		const globalGeneration = this._globalGeneration;
 		const keyGeneration = this._keyGenerations.get(key) ?? 0;
 		const pending = this._pendingAuthentications.get(key);
 		if (pending) {
-			if (pending.token === token) {
+			if (pending.credentialKey === credentialKey) {
 				await pending.promise;
 				if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 					throw new CancellationError();
@@ -105,10 +107,10 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			return this.authenticate(resource, scopes, token, authenticate);
+			return this.authenticate(resource, scopes, token, authenticate, accountId);
 		}
 
-		if (this._completedTokens.get(key) === token) {
+		if (this._completedTokens.get(key) === credentialKey) {
 			return false;
 		}
 
@@ -117,9 +119,9 @@ export class AgentHostAuthTokenCache {
 			if (!this._isCurrentGeneration(key, globalGeneration, keyGeneration)) {
 				throw new CancellationError();
 			}
-			this._completedTokens.set(key, token);
+			this._completedTokens.set(key, credentialKey);
 		})();
-		this._pendingAuthentications.set(key, { token, promise });
+		this._pendingAuthentications.set(key, { credentialKey, promise });
 		try {
 			await promise;
 			return true;
@@ -305,7 +307,7 @@ export class AgentHostAuthenticationRecovery {
 				options.authTokenCache?.rejectSession(resource.resource, scopes, currentSession);
 			}
 			options.authTokenCache?.clear(resource.resource, isNewAlternative ? scopes : resource.scopes_supported);
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, session, candidateResolution.providerId)) {
 				this._resentTokens.set(key, session.accessToken);
 				logService.info(`${options.logPrefix} Authenticating for resource: ${resource.resource}`);
 				reportAgentHostAuthRecovery(this._telemetryService, {
@@ -463,6 +465,7 @@ export interface IAgentHostAuthenticateRequest {
 	readonly token: string;
 	/** The access token's remaining lifetime in seconds, when known. */
 	readonly expiresIn?: number;
+	readonly _meta?: Record<string, unknown>;
 }
 
 export interface IAgentHostAuthenticationOptions {
@@ -508,7 +511,8 @@ async function forwardAuthenticationToken(
 	options: Pick<IAgentHostAuthenticationOptions, 'authTokenCache' | 'authenticate' | 'isCurrent'>,
 	resource: string,
 	scopes: readonly string[] | undefined,
-	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id'>>) | undefined,
+	session: (Pick<AuthenticationSession, 'accessToken' | 'expiresAfter'> & Partial<Pick<AuthenticationSession, 'id' | 'account' | 'authorizationServer'>>) | undefined,
+	providerId?: string,
 ): Promise<boolean> {
 	throwIfAuthenticationStale(options);
 	const token = session?.accessToken ?? '';
@@ -518,14 +522,20 @@ async function forwardAuthenticationToken(
 		throw new CancellationError();
 	}
 	const expiresAfter = session?.expiresAfter;
+	const account = providerId && session?.account?.id ? {
+		providerId,
+		accountId: session.account.id,
+		...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
+	} : undefined;
 	const request: IAgentHostAuthenticateRequest = {
 		resource,
 		scopes,
 		token,
 		...(expiresAfter !== undefined && Number.isInteger(expiresAfter) && expiresAfter > 0 ? { expiresIn: Math.ceil(expiresAfter / 1000) } : {}),
+		...(account ? { _meta: authenticationAccountMeta(account) } : {}),
 	};
 	if (options.authTokenCache) {
-		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request));
+		return options.authTokenCache.authenticate(resource, scopes ?? [], token, () => options.authenticate(request), authenticationAccountId(account));
 	}
 	await options.authenticate(request);
 	return true;
@@ -635,7 +645,7 @@ export async function revokeAuthenticationForRemovedSessions(
 				// Another account still covers this resource; forward it so the host
 				// swaps credentials instead of losing them. Unchanged tokens are
 				// deduped by the cache.
-				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session)) {
+				if (await forwardAuthenticationToken(options, resource.resource, scopes, resolution.session, resolution.providerId)) {
 					logService.info(`${options.logPrefix} Authenticating for resource after session removal: ${resource.resource}`);
 				}
 				continue;
@@ -704,7 +714,7 @@ async function authenticateProtectedResourceWithServices(
 		return false;
 	}
 
-	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session);
+	const authenticated = await forwardAuthenticationToken(options, resource.resource, resource.scopes_supported ?? [], resolution.session, resolution.providerId);
 	if (!authenticated) {
 		logService.trace(`${options.logPrefix} Authentication state for ${resource.resource} unchanged; skipping authenticate RPC`);
 		return false;
@@ -792,7 +802,7 @@ export async function resolveAuthenticationInteractively(
 		throwIfAuthenticationStale(options);
 		if (existingSessionResolution.kind === 'resolved') {
 			const existingSession = existingSessionResolution.session;
-			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession)) {
+			if (await forwardAuthenticationToken(options, resource.resource, scopes, existingSession, existingSessionResolution.providerId)) {
 				reportAgentHostAuthRecovery(telemetryService, {
 					trigger: 'sessionCreation',
 					action: 'forwardCurrent',
@@ -862,7 +872,7 @@ async function forceAuthenticationInteractively(
 		data.sessionMatch = sessionResolution.match;
 		data.credentialChanged = challengedToken === undefined ? undefined : session.accessToken !== challengedToken;
 		options.authTokenCache?.clear(resource.resource, scopes);
-		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session)) {
+		if (!await forwardAuthenticationToken(options, resource.resource, scopes, session, sessionResolution.providerId)) {
 			data.result = 'deduplicated';
 			return undefined;
 		}

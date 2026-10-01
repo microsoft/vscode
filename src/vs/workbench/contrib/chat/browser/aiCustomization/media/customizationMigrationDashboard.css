@@ -245,7 +245,8 @@
 }
 
 .customization-migration-dashboard .migration-tree-item-label,
-.customization-migration-dashboard .migration-tree-item-source {
+.customization-migration-dashboard .migration-tree-item-source,
+.customization-migration-dashboard .migration-tree-item-changes {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -277,6 +278,14 @@
 	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);
+}
+
+.customization-migration-dashboard .migration-tree-item-changes {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-editorWarning-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow-wrap: anywhere;
+	white-space: pre-line;
 }
 
 .customization-migration-dashboard .migration-result {
