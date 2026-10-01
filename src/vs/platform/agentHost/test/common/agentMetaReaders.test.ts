@@ -11,7 +11,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, readMcpServerTools, withMcpServerSourceMeta, withMcpServerToolsMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -105,6 +105,30 @@ suite('Agent host _meta readers', () => {
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
 			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			unchanged: true,
+		});
+	});
+
+	test('validates reported MCP server tools and merges them into open metadata', () => {
+		const read = (meta: Record<string, unknown> | undefined) => readMcpServerTools({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'server',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		} satisfies McpServerCustomization);
+		const opaque = { 'test.opaque': 'kept' };
+
+		assert.deepStrictEqual({
+			absent: [read(undefined), read({}), read({ 'agentHost.mcpServerTools': 'tools' })],
+			filtered: read({ 'agentHost.mcpServerTools': [{ name: 'a', description: 'A' }, { name: 'b', description: 1 }, { description: 'missing name' }, null, 'c'] }),
+			merged: withMcpServerToolsMeta(opaque, [{ name: 'a' }]),
+			unchanged: withMcpServerToolsMeta(opaque, undefined) === opaque,
+		}, {
+			absent: [undefined, undefined, undefined],
+			filtered: [{ name: 'a', description: 'A' }, { name: 'b' }],
+			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerTools': [{ name: 'a' }] },
 			unchanged: true,
 		});
 	});

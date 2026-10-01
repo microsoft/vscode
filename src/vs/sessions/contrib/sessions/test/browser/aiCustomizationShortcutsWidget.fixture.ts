@@ -153,8 +153,10 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 }
 
 function createMockMcpService(serverCount: number = 0): IMcpService {
-	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new class extends mock<IMcpServer>() {
+	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, (_, index) => new class extends mock<IMcpServer>() {
+		override readonly definition = { id: `mock-mcp-${index}`, label: `Mock MCP ${index}` };
 		override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+		override readonly tools = constObservable([]);
 	}()));
 	return new class extends mock<IMcpService>() {
 		override readonly servers = servers;

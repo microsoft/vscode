@@ -39,7 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, readMcpServerTools } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
@@ -20609,8 +20609,40 @@ Use the attached image as context.
 			await timeout(0);
 
 			const updates = getActions(signals).filter(a => a.type === ActionType.SessionCustomizationUpdated);
-			const names = updates.map(a => (a as { customization: { name: string } }).customization.name).sort();
-			assert.deepStrictEqual(names, ['alpha', 'beta']);
+			const customizations = updates.map(a => (a as { customization: McpServerCustomization }).customization);
+			// A connected server is republished once its tools are fetched.
+			assert.deepStrictEqual({
+				names: [...new Set(customizations.map(c => c.name))].sort(),
+				alphaTools: readMcpServerTools(customizations.filter(c => c.name === 'alpha').at(-1)),
+				betaTools: readMcpServerTools(customizations.find(c => c.name === 'beta')),
+			}, {
+				names: ['alpha', 'beta'],
+				alphaTools: [],
+				betaTools: undefined,
+			});
+		});
+
+		test('publishes the model-visible tools of a connected MCP server', async () => {
+			const { signals, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'alpha', status: 'connected' }] };
+					m.mcpListToolsResult = {
+						tools: [
+							{ name: 'search', description: 'Search things.' },
+							{ name: 'render_view', ui: { visibility: ['app'] } },
+							{ name: 'both', ui: { visibility: ['model', 'app'] } },
+						],
+					};
+				},
+			});
+
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated) && readMcpServerTools((s.action as { customization: McpServerCustomization }).customization) !== undefined);
+
+			const published = getActions(signals)
+				.filter(a => a.type === ActionType.SessionCustomizationUpdated)
+				.map(a => readMcpServerTools((a as { customization: McpServerCustomization }).customization))
+				.filter(tools => tools !== undefined);
+			assert.deepStrictEqual(published, [[{ name: 'search', description: 'Search things.' }, { name: 'both' }]]);
 		});
 
 		test('publishes SDK configuration sources for host-only MCP servers and retains them across status updates', async () => {

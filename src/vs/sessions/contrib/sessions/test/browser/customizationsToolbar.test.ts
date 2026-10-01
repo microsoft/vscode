@@ -61,12 +61,15 @@ suite('Customizations toolbar', () => {
 			{ id: 'tools', label: 'Tools', icon: Codicon.tools, isTools: true },
 			reader,
 			new class extends mock<IAICustomizationItemsModel>() { },
-			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<IAICustomizationMcpServerCountService>() {
+				override readonly enabledToolCount = constObservable(2);
+			},
 			toolsService,
 			enablementService,
 		)).get();
 
-		assert.strictEqual(count, 1);
+		// One enabled built-in tool plus two tools from enabled MCP servers.
+		assert.strictEqual(count, 3);
 	});
 
 	test('tracks the active customization total and migration availability', async () => {
@@ -81,6 +84,7 @@ suite('Customizations toolbar', () => {
 		};
 		const mcpServerCountService = new class extends mock<IAICustomizationMcpServerCountService>() {
 			override readonly count = constObservable(3);
+			override readonly enabledToolCount = constObservable(0);
 		};
 		const toolsService = new class extends mock<ILanguageModelToolsService>() {
 			override readonly toolSets = constObservable<readonly IToolSet[]>([]);

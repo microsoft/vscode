@@ -2831,6 +2831,27 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	/** Publishes the model-visible tools of a ready MCP server so clients can list them. */
+	private async _publishMcpServerTools(serverName: string): Promise<void> {
+		const result = await this._wrapper.session.rpc.mcp.listTools({ serverName });
+		const tools = result.tools
+			.filter(tool => !tool.ui?.visibility || tool.ui.visibility.includes('model'))
+			.map(tool => tool.description ? { name: tool.name, description: tool.description } : { name: tool.name });
+		this._mcpCustomizations.setTools(serverName, tools);
+	}
+
+	private _publishReadyMcpServerTools(): void {
+		for (const { serverName } of this._mcpCustomizations.readyChannels()) {
+			this._publishMcpServerToolsInBackground(serverName);
+		}
+	}
+
+	private _publishMcpServerToolsInBackground(serverName: string): void {
+		void this._publishMcpServerTools(serverName).catch(error => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to publish tools for MCP server '${serverName}'`, error);
+		});
+	}
+
 	private _parseToolSearchNames(text: string): string[] | undefined {
 		try {
 			const parsed = JSON.parse(text);
@@ -7546,6 +7567,7 @@ export class CopilotAgentSession extends Disposable {
 				this._syncObservedMcpServerEnablement(e.data.serverName, previousEnabled, enabled);
 			}
 			if (server.state.kind === McpServerStatus.Ready) {
+				this._publishMcpServerToolsInBackground(e.data.serverName);
 				void this._refreshMcpToolRoutingCache(e.data.serverName).catch(error => {
 					this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP tool routing metadata for '${e.data.serverName}'`, error);
 				});
@@ -7558,6 +7580,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolsUpdated(() => {
 			this._slashCommandProvider.clearCache();
 			this._refreshReadyMcpToolRoutingCaches();
+			this._publishReadyMcpServerTools();
 			this._fireMcpToolsListChanged();
 		}));
 		this._register(wrapper.onCommandsChanged(() => {
@@ -7616,6 +7639,7 @@ export class CopilotAgentSession extends Disposable {
 			})));
 			for (const server of result.servers) {
 				if (server.status === 'connected') {
+					this._publishMcpServerToolsInBackground(server.name);
 					void this._refreshMcpToolRoutingCache(server.name).catch(error => {
 						this._logService.warn(`[Copilot:${this.sessionId}] Failed to refresh MCP tool routing metadata for '${server.name}'`, error);
 					});
