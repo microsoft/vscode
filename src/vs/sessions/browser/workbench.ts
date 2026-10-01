@@ -196,6 +196,10 @@ export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService, I
 	/** Hides the side pane as one semantic transition. */
 	hideSidePane(): void;
 
+	captureSidePaneComposition(): ISidePaneState;
+
+	restoreSidePaneComposition(composition: ISidePaneState): void;
+
 	readonly onDidChangeEditorMaximized: Event<void>;
 
 	/** The concrete Agents workbench presentation selected at startup. */
@@ -2268,6 +2272,29 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	hideSidePane(): void {
 		if (this.isSidePaneVisible()) {
 			this.toggleSidePane();
+		}
+	}
+
+	captureSidePaneComposition(): ISidePaneState {
+		return this._getSidePaneState();
+	}
+
+	restoreSidePaneComposition(composition: ISidePaneState): void {
+		const before = this._getSidePaneState();
+		if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+			return;
+		}
+
+		const suppressEditorPartAutoVisibility = this.suppressEditorPartAutoVisibility();
+		try {
+			this.setEditorHidden(!composition.editor, false, true);
+			this._setAuxiliaryBarHidden(!composition.auxiliaryBar, undefined, true);
+		} finally {
+			suppressEditorPartAutoVisibility.dispose();
+		}
+
+		if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+			this._onSidePaneRevealed();
 		}
 	}
 

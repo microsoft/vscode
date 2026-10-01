@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { Part } from '../../../workbench/browser/part.js';
 import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
-import { AgentWorkbenchLayout, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
 import { EditorParts } from '../../browser/parts/editorParts.js';
@@ -80,6 +80,8 @@ suite('Sessions - Workbench', () => {
 	const isSecondarySideBarVisibleDesktop = DesktopWorkbench.prototype.isSecondarySideBarVisible as (this: ITestWorkbench) => boolean;
 	const toggleSidePane = DesktopWorkbench.prototype.toggleSidePane as (this: ITestWorkbench) => boolean;
 	const hideSidePane = Workbench.prototype.hideSidePane as (this: ITestWorkbench) => void;
+	const captureSidePaneComposition = Workbench.prototype.captureSidePaneComposition as (this: ITestWorkbench) => ISidePaneState;
+	const restoreSidePaneComposition = Workbench.prototype.restoreSidePaneComposition as (this: ITestWorkbench, composition: ISidePaneState) => void;
 	const applyCustomViewGridVisibility = Reflect.get(Workbench.prototype, '_applyCustomViewGridVisibility') as (this: ITestWorkbench, descriptor: object | undefined) => void;
 	const setSessionsHidden = Reflect.get(Workbench.prototype, 'setSessionsHidden') as (this: ITestWorkbench, hidden: boolean) => void;
 	const setPanelHidden = Reflect.get(Workbench.prototype, 'setPanelHidden') as (this: ITestWorkbench, hidden: boolean) => void;
@@ -739,6 +741,131 @@ suite('Sessions - Workbench', () => {
 			restoredAuxiliaryBarVisible: true,
 			editorMaximized: true,
 			maximizedStates: [false, true],
+		});
+	});
+
+	test('captureSidePaneComposition reads the current composition without changing visibility', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false } });
+
+		const composition = captureSidePaneComposition.call(host);
+
+		assert.deepStrictEqual({
+			composition,
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			resizes: host.resizes,
+			visibilityChanges: host.visibilityChanges,
+			events: host.events,
+		}, {
+			composition: { editor: true, auxiliaryBar: false },
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			resizes: [],
+			visibilityChanges: [],
+			events: [],
+		});
+	});
+
+	test('captureSidePaneComposition reads a fully closed side pane without reopening it', () => {
+		const host = createHost({ single: true, partVisibility: { editor: false, auxiliaryBar: false } });
+
+		const composition = captureSidePaneComposition.call(host);
+
+		assert.deepStrictEqual({
+			composition,
+			visibilityChanges: host.visibilityChanges,
+		}, {
+			composition: { editor: false, auxiliaryBar: false },
+			visibilityChanges: [],
+		});
+	});
+
+	test('restoreSidePaneComposition reopens a different owner composition and reveals the side pane once', () => {
+		const host = createHost({ single: true, dockedWidth: 300, editorWidth: 900, partVisibility: { editor: false, auxiliaryBar: false } });
+
+		const ownerA = captureSidePaneComposition.call(host);
+		restoreSidePaneComposition.call(host, { editor: false, auxiliaryBar: true });
+		const ownerB = captureSidePaneComposition.call(host);
+		restoreSidePaneComposition.call(host, ownerA);
+
+		assert.deepStrictEqual({
+			ownerA,
+			ownerB,
+			editorVisible: host.partVisibility.editor,
+			auxiliaryBarVisible: host.partVisibility.auxiliaryBar,
+			hideOrder: host.events.map(event => ({ partId: event.partId, visible: event.visible })),
+			revealCount: host.sidePaneReveals.length,
+		}, {
+			ownerA: { editor: false, auxiliaryBar: false },
+			ownerB: { editor: false, auxiliaryBar: true },
+			editorVisible: false,
+			auxiliaryBarVisible: false,
+			hideOrder: [
+				{ partId: Parts.AUXILIARYBAR_PART, visible: true },
+				{ partId: Parts.AUXILIARYBAR_PART, visible: false },
+			],
+			revealCount: 1,
+		});
+	});
+
+	test('restoreSidePaneComposition applies every Editor/Details composition in order and restores shared widths', () => {
+		const host = createHost({ single: true, dockedWidth: 300, editorWidth: 900, partVisibility: { editor: false, auxiliaryBar: false } });
+		const sharedEditorWidthBefore = host.workbenchGrid.getViewSize(host.editorPartView).width;
+
+		const compositions: ISidePaneState[] = [
+			{ editor: true, auxiliaryBar: true },
+			{ editor: false, auxiliaryBar: true },
+			{ editor: true, auxiliaryBar: false },
+			{ editor: false, auxiliaryBar: false },
+		];
+		const observed: ISidePaneState[] = [];
+		for (const composition of compositions) {
+			restoreSidePaneComposition.call(host, composition);
+			observed.push(captureSidePaneComposition.call(host));
+		}
+
+		const sharedEditorWidthAfter = host.workbenchGrid.getViewSize(host.editorPartView).width;
+
+		assert.deepStrictEqual({
+			observed,
+			sharedEditorWidthBefore,
+			sharedEditorWidthAfter,
+		}, {
+			observed: compositions,
+			sharedEditorWidthBefore: 900,
+			sharedEditorWidthAfter: 900,
+		});
+	});
+
+	test('restoreSidePaneComposition hides Editor before Details and shows Editor before Details', () => {
+		const host = createHost({ single: true, dockedWidth: 300, editorWidth: 900, partVisibility: { editor: true, auxiliaryBar: true } });
+
+		restoreSidePaneComposition.call(host, { editor: false, auxiliaryBar: false });
+		const hideOrder = host.events.map(event => event.partId);
+		host.events.length = 0;
+
+		restoreSidePaneComposition.call(host, { editor: true, auxiliaryBar: true });
+		const showOrder = host.events.map(event => event.partId);
+
+		assert.deepStrictEqual({ hideOrder, showOrder }, {
+			hideOrder: [Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART],
+			showOrder: [Parts.EDITOR_PART, Parts.AUXILIARYBAR_PART],
+		});
+	});
+
+	test('restoreSidePaneComposition is a no-op when the requested composition already matches', () => {
+		const host = createHost({ single: true, partVisibility: { editor: true, auxiliaryBar: false } });
+
+		restoreSidePaneComposition.call(host, { editor: true, auxiliaryBar: false });
+
+		assert.deepStrictEqual({
+			events: host.events,
+			visibilityChanges: host.visibilityChanges,
+			revealCount: host.sidePaneReveals.length,
+		}, {
+			events: [],
+			visibilityChanges: [],
+			revealCount: 0,
 		});
 	});
 
