@@ -812,6 +812,15 @@ class NoVisibleSessionCommandService extends TestCommandService {
 	}
 }
 
+class ComposerCurrentSessionCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.getCurrentSession') {
+			return 'sessions-voice://new-chat/composer' as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { name: string; data: unknown }[] = [];
 
@@ -5657,6 +5666,33 @@ suite('VoiceSessionController', () => {
 			callId: 'same-session-send',
 			name: 'send_to_chat',
 			args: { text: 'refactor the upload service' },
+		});
+
+		test('send_to_chat avoids composer and routes to active session', async () => {
+			const voiceClientService = new TestVoiceClientService();
+			const commandService = new ComposerCurrentSessionCommandService();
+			const chatService = new NewSessionChatService();
+			const controller = createController(voiceClientService, undefined, commandService, undefined, undefined, undefined, chatService);
+			await controller.connect(mainWindow);
+			(Reflect.get(controller, '_isConnected') as { set(value: boolean, tx: undefined): void }).set(true, undefined);
+			controller.setActiveSessionShown(URI.parse('agent-host-copilotcli:/active-session'));
+
+			voiceClientService.fireToolCall({
+				callId: 'composer-fallback-send',
+				name: 'send_to_chat',
+				args: { text: 'check pending review comments' },
+			});
+			await voiceClientService.toolResultReceived;
+
+			assert.deepStrictEqual({
+				sent: chatService.sent,
+				acceptedInputs: commandService.acceptedInputs,
+				toolResults: voiceClientService.toolResults,
+			}, {
+				sent: [{ resource: 'agent-host-copilotcli:/active-session', message: 'check pending review comments' }],
+				acceptedInputs: [],
+				toolResults: [{ callId: 'composer-fallback-send', result: 'ok' }],
+			});
 		});
 		await voiceClientService.toolResultReceived;
 
