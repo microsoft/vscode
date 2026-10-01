@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { McpAuthRequiredReason, McpServerStatus } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostMcpServer } from '../../../../../../../sessions/common/agentHostSessionsProvider.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { IChatWidgetService } from '../../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatToolAuthenticationSubPart } from '../../../../browser/widget/chatContentParts/toolInvocationParts/chatToolAuthenticationSubPart.js';
 import { IChatResponseViewModel } from '../../../../common/model/chatViewModel.js';
@@ -31,7 +30,14 @@ suite('ChatToolAuthenticationSubPart', () => {
 			name: 'Documentation',
 			enabled: true,
 			status: McpServerStatus.AuthRequired,
-			state: { kind: McpServerStatus.AuthRequired },
+			state: {
+				kind: McpServerStatus.AuthRequired,
+				reason: McpAuthRequiredReason.Required,
+				resource: {
+					resource: 'https://docs.example.com',
+					authorization_servers: ['https://login.example.com'],
+				},
+			},
 			setEnabled: enabled => enabledChanges.push(enabled),
 		});
 		class TestAgentHostCustomizationService extends NullAgentHostCustomizationService {
@@ -46,7 +52,7 @@ suite('ChatToolAuthenticationSubPart', () => {
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			getWidgetBySessionResource: resource => {
 				assert.strictEqual(resource, sessionResource);
-				return upcastPartial({ focusInput: () => focused = true });
+				return upcastPartial<IChatWidget>({ focusInput: () => { focused = true; } });
 			},
 		}));
 		const invocation = new ChatToolInvocation(
@@ -57,11 +63,11 @@ suite('ChatToolAuthenticationSubPart', () => {
 			{},
 		);
 		let cancelled = false;
-		invocation.setAuthenticationRequired({ id: server.id, name: server.name }, () => cancelled = true);
+		invocation.setAuthenticationRequired({ id: server.id, name: server.name, resource: 'https://docs.example.com' }, () => cancelled = true);
 		const context = upcastPartial<IChatContentPartRenderContext>({
 			content: [],
 			contentIndex: -1,
-			element: upcastPartial<IChatResponseViewModel>({ sessionResource, content: [] }),
+			element: upcastPartial<IChatResponseViewModel>({ sessionResource }),
 		});
 		const part = store.add(instantiationService.createInstance(ChatToolAuthenticationSubPart, invocation, context));
 
