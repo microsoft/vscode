@@ -647,9 +647,22 @@
 	overflow-wrap: anywhere;
 }
 
-.project-board-card-context a {
+.project-board-card-context a,
+.project-board-card-pull-requests a {
 	display: block;
 	color: var(--vscode-textLink-foreground);
+}
+
+.project-board-card-context a:is(:hover, :active),
+.project-board-card-pull-requests a:is(:hover, :active) {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+}
+
+.project-board-card-context a:focus-visible,
+.project-board-card-pull-requests a:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .project-board-card-warning {

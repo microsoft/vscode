@@ -459,6 +459,9 @@ suite('ProjectBoardService', () => {
 			const h = createBoard(document, [parent, worker, nested]);
 			await h.service.open();
 			await h.moveViaPicker('General, P0', parent.resource);
+			for (const title of ['Parent', 'Worker']) {
+				h.container.querySelector<HTMLElement>(`[aria-label="Expand Child chats of ${title}"]`)!.click();
+			}
 			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === nested.resource.toString())!;
 			card.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			for (const title of ['Worker', 'Parent']) {
@@ -480,9 +483,7 @@ suite('ProjectBoardService', () => {
 			const nested = workerChat('Nested worker', worker);
 			const h = createBoard(mainWindow.document, [main, worker, nested]);
 			store.add(h.service.createView(h.container));
-			for (const title of ['Worker', 'Main']) {
-				h.container.querySelector<HTMLElement>(`[aria-label="Collapse Child chats of ${title}"]`)!.click();
-			}
+			assert.strictEqual(h.container.querySelectorAll('.project-board-child-cards[hidden]').length, 2);
 			h.activeSidePanelCardId.set(getProjectBoardCardId(h.session, nested), undefined);
 			assert.deepStrictEqual({
 				current: [...h.container.querySelectorAll<HTMLElement>('[aria-current="true"]')].map(element => element.dataset.chatResource),
@@ -491,7 +492,7 @@ suite('ProjectBoardService', () => {
 			}, { current: [nested.resource.toString()], cues: ['Open in Side Panel: Nested worker', 'Open in Side Panel: Nested worker'], labelVisible: 0 });
 		});
 
-		test('nests children without duplicates, folds without opening, and opens the exact child', async () => {
+		test('child groups start collapsed, retain live summaries, and open the exact child after expansion', async () => {
 			const parent = new TestChat('Parent');
 			const child = new TestChat('Child');
 			const h = createBoard(mainWindow.document, [parent, child]);
@@ -503,14 +504,16 @@ suite('ProjectBoardService', () => {
 				cards: h.container.querySelectorAll('.project-board-card').length,
 				child: children().querySelector('h4')?.textContent,
 				expanded: disclosure().getAttribute('aria-expanded'),
-			}, { families: 1, cards: 2, child: 'Child', expanded: 'true' });
-			disclosure().click();
+			}, { families: 1, cards: 2, child: 'Child', expanded: 'false' });
 			const collapsed = { hidden: children().hidden, expanded: disclosure().getAttribute('aria-expanded'), opened: [...h.opened] };
 			child.status.set(SessionStatus.NeedsInput, undefined);
 			assert.deepStrictEqual({
 				collapsed, stillHidden: children().hidden, summary: h.container.querySelector('.project-board-child-summary')?.textContent,
 			}, { collapsed: { hidden: true, expanded: 'false', opened: [] }, stillHidden: true, summary: '1 child chat · 🙋 1 Needs Input' });
+			assert.ok(h.service.getAccessibleContent().includes('(collapsed)'));
 			disclosure().click();
+			h.session.chats.set([parent, child, new TestChat('New child')], undefined);
+			assert.strictEqual(children().hidden, false, 'Live additions preserve an explicitly expanded family');
 			children().querySelector<HTMLElement>('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			assert.deepStrictEqual(h.opened, [child.resource]);
 			assert.deepStrictEqual([parent.isRead.get(), child.isRead.get()], [false, false]);
@@ -522,6 +525,7 @@ suite('ProjectBoardService', () => {
 			const child = new TestChat('Child');
 			const h = createBoard(document, [parent, child]);
 			await h.service.open();
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			h.container.querySelector<HTMLElement>('.project-board-child-cards .project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			const parentElement = h.container.querySelector<HTMLElement>('.project-board-card')!;
@@ -546,6 +550,7 @@ suite('ProjectBoardService', () => {
 			h.session.chats.set([parent, child], undefined);
 			const inCell = (cell: string) => [...h.container.querySelectorAll(`[aria-label="${cell}"] .project-board-card h4`)].map(e => e.textContent);
 			assert.deepStrictEqual(inCell('General, P0'), ['Parent', 'Child']);
+			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true);
 			await h.moveViaPicker('General, P1', child.resource);
 			assert.deepStrictEqual({ p0: inCell('General, P0'), p1: inCell('General, P1') }, { p0: ['Parent'], p1: ['Child'] });
 			await h.moveViaPicker('Follow Parent', child.resource);
@@ -559,6 +564,7 @@ suite('ProjectBoardService', () => {
 			const parent = new TestChat('Parent');
 			const h = createBoard(document, [parent, new TestChat('Child')]);
 			await h.service.open();
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			h.container.querySelector<HTMLElement>('.project-board-card')!.focus();
 			parent.title.set('Updated parent', undefined);
 			const parentElement = h.container.querySelector<HTMLElement>('.project-board-card')!;
@@ -586,6 +592,9 @@ suite('ProjectBoardService', () => {
 			assert.ok(session instanceof TestBoardSession);
 			session.chats.set([parents[3], child, nested], undefined);
 			await h.service.open();
+			for (const title of ['Parent 3', 'Delegated chat']) {
+				h.container.querySelector<HTMLElement>(`[aria-label="Expand Child chats of ${title}"]`)!.click();
+			}
 			[...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === nested.resource.toString())!
 				.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
 			for (const parent of parents) {
@@ -610,11 +619,16 @@ suite('ProjectBoardService', () => {
 			store.add(toDisposable(() => embedded.remove()));
 			store.add(h.service.createView(embedded));
 			await h.service.open();
+			assert.ok(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden);
+			assert.ok(embedded.querySelector<HTMLElement>('.project-board-child-cards')!.hidden);
 			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			assert.deepStrictEqual({
 				standalone: h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
 				embedded: embedded.querySelector<HTMLElement>('.project-board-child-cards')!.hidden,
-			}, { standalone: true, embedded: false });
+			}, { standalone: false, embedded: true });
+			h.closeBoard();
+			await h.service.open();
+			assert.strictEqual(h.currentContainer.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true, 'Recreated views start collapsed');
 		});
 
 		test('folded axes count nested child activity without hiding it in the parent total', async () => {
@@ -637,7 +651,6 @@ suite('ProjectBoardService', () => {
 			const child = new TestChat('Child');
 			const h = createBoard(mainWindow.document, [parent, child]);
 			await h.service.open();
-			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			const another = new TestChat('Another child');
 			h.session.chats.set([parent, child, another], undefined);
 			assert.deepStrictEqual({
@@ -667,6 +680,7 @@ suite('ProjectBoardService', () => {
 			h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 			h.questionCarousels.set([{ carousel, requestId: 'child-request' }], undefined);
 			await h.service.open();
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			const textarea = h.container.querySelector<HTMLTextAreaElement>('.project-board-child-cards textarea')!;
 			textarea.value = 'My answer';
 			textarea.setSelectionRange(1, 4);
@@ -1258,6 +1272,13 @@ suite('ProjectBoardService', () => {
 			h.service.toggleDisplayOption('showSessionList');
 			view.layout(1400, 800);
 			const rows = (cell: string) => h.container.querySelector(`[aria-label="${cell}"]`)!.querySelectorAll('.session-item').length;
+			const expandChildren = (cell: string) => {
+				const row = [...h.container.querySelectorAll<HTMLElement>(`[aria-label="${cell}"] .monaco-list-row`)]
+					.find(row => row.querySelector('.session-title')?.textContent === 'Shared session')!;
+				if (row.getAttribute('aria-expanded') === 'false') {
+					row.querySelector<HTMLElement>('.monaco-tl-twistie')!.click();
+				}
+			};
 			const drop = (cell: string, source?: HTMLElement, draggedSession = session) => {
 				const dataTransfer = new mainWindow.DataTransfer();
 				if (source) {
@@ -1270,10 +1291,10 @@ suite('ProjectBoardService', () => {
 				target.dispatchEvent(new mainWindow.DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
 				target.dispatchEvent(new mainWindow.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
 			};
-			return { ...h, storage, session, chats, first, second, view, rows, drop };
+			return { ...h, storage, session, chats, first, second, view, rows, drop, expandChildren };
 		}
 
-		test('reuses shared rows, nests chats and restores the card renderer', () => {
+		test('native child rows start collapsed and restore the card renderer', () => {
 			const h = createSessionBoard();
 			const row = h.container.querySelector('.session-item');
 			assert.ok(row);
@@ -1285,7 +1306,7 @@ suite('ProjectBoardService', () => {
 			};
 			h.service.toggleDisplayOption('showSessionList');
 			assert.deepStrictEqual({ list, cards: h.container.querySelectorAll('.project-board-card').length }, {
-				list: { sessions: 1, groups: 0, nested: 1, cards: 0 }, cards: 2,
+				list: { sessions: 1, groups: 0, nested: 0, cards: 0 }, cards: 2,
 			});
 			h.container.querySelector<HTMLElement>('.project-board-card-select')!.click();
 			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '1 conversation selected');
@@ -1308,10 +1329,12 @@ suite('ProjectBoardService', () => {
 			h.state.sessions.push(other);
 			h.sessionsChanged.fire({ added: [other], removed: [], changed: [] });
 			h.drop('General, P1', undefined, other);
+			h.expandChildren('General, P0');
 			const source = h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .session-chat-item')!.closest<HTMLElement>('.monaco-list-row')!;
 			h.drop('General, P1', source);
 			const moved = [h.rows('General, P0'), h.rows('General, P1'), h.rows('Unassigned')];
 			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+			h.expandChildren('General, P1');
 			h.drop('General, P0', h.container.querySelector<HTMLElement>('[aria-label="General, P1"] .session-chat-item')!.closest<HTMLElement>('.monaco-list-row')!);
 			const expanded = h.container.querySelector('[data-board-control="collapse:column:p0"]')!.getAttribute('aria-expanded');
 			h.service.toggleDisplayOption('showSessionList');
@@ -1340,6 +1363,7 @@ suite('ProjectBoardService', () => {
 
 		test('opening nested chats honors side-panel routing and restores focus', async () => {
 			const h = createSessionBoard();
+			h.expandChildren('Unassigned');
 			h.service.toggleOpenChatInSidePanel();
 			const child = h.container.querySelector<HTMLElement>('.session-chat-item')!;
 			assert.ok(child);
@@ -1546,7 +1570,6 @@ suite('ProjectBoardService', () => {
 			const second = new TestChat('Second child');
 			const h = createBoard(document, [main, first, second]);
 			store.add(h.service.createView(h.container));
-			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			const disclosure = h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!;
 			const children = h.container.querySelector<HTMLElement>('.project-board-child-cards')!;
 			const parent = h.container.querySelector<HTMLElement>('.project-board-card-family > .project-board-card')!;
@@ -3025,6 +3048,7 @@ suite('ProjectBoardService', () => {
 			}
 			const card = (target: IChat) => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')]
 				.find(element => element.dataset.chatResource === target.resource.toString())!;
+			h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			card(worker).querySelector<HTMLElement>('.project-board-card-select')!.click();
 			card(otherChat).querySelector<HTMLElement>('.project-board-card-select')!.click();
 			const button = card(worker).querySelector<HTMLElement>('[aria-label="Mark as Done"]')!;
@@ -3967,6 +3991,27 @@ suite('ProjectBoardService', () => {
 		});
 	});
 
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} PR links follow theme colors without rebuilding the card`, async () => {
+			const h = createBoard(mainWindow.document, [new TestChat('Themed PR')]);
+			h.session.artifacts.set([{
+				id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'example/project#12',
+				link: URI.parse('https://github.com/example/project/pull/12'), isArtifact: true,
+			}], undefined);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const link = h.container.querySelector<HTMLAnchorElement>('.project-board-card-pull-requests a')!;
+			for (const color of ['rgb(79, 193, 255)', 'rgb(0, 95, 184)', 'rgb(255, 255, 0)']) {
+				h.container.style.setProperty('--vscode-textLink-foreground', color);
+				assert.strictEqual(mainWindow.getComputedStyle(link).color, color);
+			}
+			assert.strictEqual(h.container.querySelector('.project-board-card-pull-requests a'), link);
+		});
+	}
+
 	test('PR cards reuse owned associations, live icons and titles from the exact chat workspace without loading history', async () => {
 		const chats = Array.from({ length: 17 }, (_, index) => new TestChat(`PR ${index.toString().padStart(2, '0')}`));
 		const target = chats[16];
@@ -4164,6 +4209,7 @@ suite('ProjectBoardService', () => {
 			await h.service.open(other);
 			const origin = h.container.querySelector<HTMLElement>(`.project-board[data-board-id="${DEFAULT_PROJECT_BOARD_ID}"]`)!;
 			const otherBoard = h.currentContainer.querySelector<HTMLElement>(`.project-board[data-board-id="${other}"]`)!;
+			origin.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
 			const textarea = origin.querySelector<HTMLTextAreaElement>('textarea')!;
 			const otherTextarea = otherBoard.querySelector('textarea');
 			textarea.value = 'Keep my draft';

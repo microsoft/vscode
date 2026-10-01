@@ -5744,6 +5744,26 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('opt-in collapsed children preserve user expansion and reveal the exact chat', () => {
+			const peer = createChat('Peer');
+			const added = createChat('Added');
+			const { session, main, chats } = createChatSession('Session');
+			const { container, list } = renderFlatList([session], { collapseChatChildrenByDefault: true });
+			chats.set([main, peer], undefined);
+			assert.deepStrictEqual({ titles: rowTitles(container), expanded: row(container, 'Session').getAttribute('aria-expanded') },
+				{ titles: ['Session'], expanded: 'false' });
+			toggleSession(container, 'Session');
+			chats.set([main, peer, added], undefined);
+			list.setSessions([session]);
+			assert.deepStrictEqual(rowTitles(container), ['Session', 'Peer', 'Added']);
+			toggleSession(container, 'Session');
+			list.focusChat(added.resource);
+			assert.deepStrictEqual({
+				titles: rowTitles(container), focused: list.getFocusedChat()?.resource.toString(),
+				expanded: row(container, 'Session').getAttribute('aria-expanded'),
+			}, { titles: ['Session', 'Peer', 'Added'], focused: added.resource.toString(), expanded: 'true' });
+		});
+
 		test('updates live chats and preserves tree, chat identity, focus, and collapsed state across refreshes', () => {
 			const peer = createChat('Peer');
 			const added = createChat('Added');

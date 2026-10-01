@@ -130,7 +130,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 	private readonly cardElements = new Map<string, HTMLElement>();
 	private readonly activeChatLabels = new Map<string, HTMLElement>();
 	private readonly monitoredChildLabels = new Map<string, { element: HTMLElement; children: readonly IProjectBoardCard[] }>();
-	private readonly collapsedChats = new Set<string>();
+	private readonly expandedChats = new Set<string>();
 	private readonly selectedCards = new Set<string>();
 	private readonly cardCheckboxes = new Map<string, Checkbox>();
 	private readonly cardDoneButtons = new Map<string, Button>();
@@ -412,7 +412,10 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				let rootId = id;
 				let parent = this.model.getParentCard(rootId, this.showArchived);
 				while (parent) {
-					changed = this.collapsedChats.delete(parent.id) || changed;
+					if (!this.expandedChats.has(parent.id)) {
+						this.expandedChats.add(parent.id);
+						changed = true;
+					}
 					rootId = parent.id;
 					parent = this.model.getParentCard(rootId, this.showArchived);
 				}
@@ -589,7 +592,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 					const children = this.withChildCards(this.model.getChildCards(card.id, this.showArchived));
 					if (children.length) {
 						const summary = this.childChatSummary(children);
-						lines.push(this.collapsedChats.has(card.id) ? localize('projectBoard.collapsedGroup', "{0} (collapsed)", summary) : summary);
+						lines.push(this.expandedChats.has(card.id) ? summary : localize('projectBoard.collapsedGroup', "{0} (collapsed)", summary));
 						for (const child of children) {
 							lines.push(localize('projectBoard.accessibleChildChat', "  {0}, {1}", child.title, this.getStatusLabel(child)));
 							appendCardDetails(child);
@@ -1242,7 +1245,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 			}
 		}
 		for (const [parentId, { element, children }] of this.monitoredChildLabels) {
-			const child = this.active && !this.showHeader && this.collapsedChats.has(parentId)
+			const child = this.active && !this.showHeader && !this.expandedChats.has(parentId)
 				? children.find(child => child.id === activeCardId) : undefined;
 			const label = child ? localize('projectBoard.monitoredChild', "Open in Side Panel: {0}", child.title) : '';
 			if (element.hidden === !child && element.textContent === label) {
@@ -1879,7 +1882,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		const childCards = document.createElement('div');
 		childCards.className = 'project-board-child-cards';
 		childCards.id = `project-board-children-${generateUuid()}`;
-		childCards.hidden = this.collapsedChats.has(card.id);
+		childCards.hidden = !this.expandedChats.has(card.id);
 		childCards.setAttribute('role', 'group');
 		const name = localize('projectBoard.childrenOf', "Child chats of {0}", card.title);
 		childCards.setAttribute('aria-label', name);
@@ -1898,8 +1901,8 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 		this.monitoredChildLabels.set(card.id, { element: monitoredChild, children: descendants });
 		heading.appendChild(summary);
 		this.createCollapseControl(heading, `collapse:children:${card.id}`, name, childCards.hidden, [childCards.id], () => {
-			if (!this.collapsedChats.delete(card.id)) {
-				this.collapsedChats.add(card.id);
+			if (!this.expandedChats.delete(card.id)) {
+				this.expandedChats.add(card.id);
 			}
 		}, store);
 		for (const child of children) {
@@ -1929,6 +1932,7 @@ class ProjectBoardView extends Disposable implements IProjectBoardView {
 				alwaysConsumeMouseWheel: false,
 				useCompactQuickChatRows: false,
 				showChatChildren: true,
+				collapseChatChildrenByDefault: true,
 				markSessionReadOnOpen: false,
 				approvalModel: this.approvalModel.value,
 				onSessionOpen: resource => {
