@@ -43,6 +43,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -174,6 +175,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			isClientConnected: candidate => connected && candidate === clientId,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
 		};
 		disposables.add(clientConnectionService.registerSource(source));
 		return value => connected = value;
@@ -299,6 +301,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		const providerService = createTestAgentHostProviderService(() => agent);

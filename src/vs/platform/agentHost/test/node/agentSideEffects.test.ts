@@ -7,7 +7,7 @@ import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DeferredPromise, SequencerByKey, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -22,7 +22,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import { AgentSession, AgentSignal, IAgent, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolveSubagentChatParent, SubagentChatSignal, type IAgentChatContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
@@ -38,7 +38,7 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractiv
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -64,6 +64,7 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHostAskQuestionsToolInvokedEvent, type IAgentHostTurnCompletedEvent } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
@@ -139,6 +140,35 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 class NoopWorktreeIsolation extends NullAgentHostWorktreeIsolation { }
 
+/** Models a worktree session whose first send creates the worktree, as `resolveOnFirstSend` does. */
+class FirstSendWorktreeIsolation extends NullAgentHostWorktreeIsolation {
+	private readonly _onDidChangePending = new Emitter<string>();
+	override readonly onDidChangeWorkingDirectoryPending = this._onDidChangePending.event;
+	private _worktree: URI | undefined;
+
+	override isWorkingDirectoryPending(): boolean {
+		return this._worktree === undefined;
+	}
+
+	override getResolvedWorktree(): URI | undefined {
+		return this._worktree;
+	}
+
+	create(sessionId: string, worktree: URI): URI {
+		this._worktree = worktree;
+		this._onDidChangePending.fire(sessionId);
+		return worktree;
+	}
+
+	dispose(): void {
+		this._onDidChangePending.dispose();
+	}
+}
+
+function enableWorkspaceSnapshot(stateManager: AgentHostStateManager): void {
+	stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AgentHostWorkspaceSnapshotEnabledConfigKey]: true } });
+}
+
 function createNoopCustomizationEnablementService(): IAgentHostCustomizationEnablementService {
 	return {
 		_serviceBrand: undefined,
@@ -171,6 +201,9 @@ function createTestSideEffects(
 		localTurns?: AgentHostLocalTurns;
 		gitStateService?: IAgentHostGitStateService;
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
+		worktreeIsolation?: IAgentHostWorktreeIsolation;
+		fileService?: IFileService;
+		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 	},
 	_gitService?: IAgentHostGitService,
 	telemetryService: ITelemetryService = NullTelemetryService,
@@ -181,7 +214,7 @@ function createTestSideEffects(
 	const logService = new NullLogService();
 	const contributionFileService = disposables.add(new FileService(logService));
 	const configService = disposables.add(new AgentConfigurationService(stateManager, logService));
-	const worktreeIsolation = new NoopWorktreeIsolation();
+	const worktreeIsolation = options.worktreeIsolation ?? new NoopWorktreeIsolation();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentConfigurationService, configService],
@@ -190,7 +223,7 @@ function createTestSideEffects(
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
-		[IFileService, contributionFileService],
+		[IFileService, options.fileService ?? contributionFileService],
 		[ITelemetryService, telemetryService],
 		[IAgentHostTerminalManager, terminalManager],
 		[ISessionDataService, options.sessionDataService],
@@ -220,7 +253,13 @@ function createTestSideEffects(
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
-	services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+	services.set(IAgentHostSessionPromptService, {
+		_serviceBrand: undefined,
+		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+	});
+	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
+	services.set(IAgentHostTurnService, turnService);
+	options.onDidCreateTurnService?.(turnService);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 	services.set(IAgentHostTelemetryReporter, telemetryReporter);
 	const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -1094,7 +1133,7 @@ suite('AgentSideEffects', () => {
 			return server?.type === CustomizationType.McpServer ? server.state : undefined;
 		}
 
-		test('forwards background requests without changing provider-owned state', async () => {
+		test('forwards background requests and optimistically clears blocking state', async () => {
 			const calls: Array<{ session: URI; id: string }> = [];
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async (session: URI, id: string) => {
@@ -1110,7 +1149,7 @@ suite('AgentSideEffects', () => {
 				state: serverState(),
 			}, {
 				calls: [{ session: sessionUri.toString(), id: 'server' }],
-				state: { kind: McpServerStatus.Starting, blocking: true },
+				state: { kind: McpServerStatus.Starting, blocking: false },
 			});
 		});
 
@@ -1139,7 +1178,7 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual(ids, ['missing']);
 		});
 
-		test('retains blocking state when the provider rejects', async () => {
+		test('retains optimistic non-blocking state when the provider rejects', async () => {
 			Object.assign(agent, {
 				backgroundMcpServerStartup: async () => { throw new Error('SDK rejected'); },
 			});
@@ -1147,7 +1186,7 @@ suite('AgentSideEffects', () => {
 			requestBackground();
 			await timeout(0);
 
-			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: true });
+			assert.deepStrictEqual(serverState(), { kind: McpServerStatus.Starting, blocking: false });
 		});
 	});
 
@@ -1557,6 +1596,198 @@ suite('AgentSideEffects', () => {
 				'- Avoid extraneous steps or context-gathering prior to providing the command, unless context is required to resolve ambiguity.',
 				'</terminal_chat>',
 			].join('\n')]);
+		});
+
+		test('prepares the workspace snapshot for a host-started first turn before the send path', async () => {
+			enableWorkspaceSnapshot(stateManager);
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			const telemetry = new TestTelemetryService();
+			let turnService: IAgentHostTurnService | undefined;
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+				onDidCreateTurnService: service => turnService = service,
+			}, undefined, telemetry);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+
+			// The path `send_message`, `create_session`, and automations use: a server-dispatched ChatTurnStarted.
+			// `preparation: 'prepared'` means preparation had started before the outgoing-turn contribution ran.
+			turnService!.startTurnMessage(URI.parse(defaultChatUri), { text: 'Bump the version to 2', origin: { kind: MessageKind.Agent } });
+			await waitForSendMessageCalls(1);
+
+			const snapshotEvent = telemetry.events.find(event => event.eventName === 'agentHost.workspaceSnapshot')?.data as { preparation?: string; includedRootCount?: number } | undefined;
+			assert.deepStrictEqual({ preparation: snapshotEvent?.preparation, included: snapshotEvent?.includedRootCount }, { preparation: 'prepared', included: 1 });
+		});
+
+		test('offers the workspace snapshot again when the first turn is cancelled before reaching the provider', async () => {
+			enableWorkspaceSnapshot(stateManager);
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			// Hold the first turn at its turn-start checkpoint, after the outgoing-turn contributions and before the final cancellation check.
+			const firstCapture = new DeferredPromise<void>();
+			let captures = 0;
+			const checkpointService: IAgentHostCheckpointService = {
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { if (captures++ === 0) { await firstCapture.p; } },
+			};
+			const telemetry = new TestTelemetryService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry, new FakeChangesetService(), undefined, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			const startTurn = (turnId: string) => {
+				const action = { type: ActionType.ChatTurnStarted, turnId, startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } } as const;
+				stateManager.dispatchServerAction(defaultChatUri, action);
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+			const reportedSnapshots = () => telemetry.events.filter(event => event.eventName === 'agentHost.workspaceSnapshot').length;
+
+			startTurn('turn-1');
+			await timeout(10);
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const cancel = { type: ActionType.ChatTurnCancelled, turnId: 'turn-1', duration: 0 } as const;
+			stateManager.dispatchClientAction(defaultChatUri, cancel, { clientId: 'test', clientSeq: 1 });
+			localSideEffects.handleAction(defaultChatUri, cancel);
+			firstCapture.complete();
+			await timeout(0);
+			const afterCancel = { sends: agent.sendMessageCalls.length, reported: reportedSnapshots() };
+
+			startTurn('turn-2');
+			await waitForSendMessageCalls(1);
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			assert.deepStrictEqual({ afterCancel, snapshotSent: snapshot !== undefined, reported: reportedSnapshots() }, {
+				afterCancel: { sends: 0, reported: 0 },
+				snapshotSent: true,
+				reported: 1,
+			});
+		});
+
+		test('prepares the workspace snapshot for a provider turn queued behind a local command before the send path', async () => {
+			enableWorkspaceSnapshot(stateManager);
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			const telemetry = new TestTelemetryService();
+			// `/rename` persists the new title, so it needs a real session database.
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const dispatchClient = (action: ChatAction, clientSeq: number) => {
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq });
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'rename', startedAt: '2025-01-01T00:00:00.000Z', message: { text: '/rename Version bump', origin: { kind: MessageKind.User } } }, 1);
+			// Queued while the local command runs, so the queue drains it from the command's turn end.
+			dispatchClient({ type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Queued, id: 'queued', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } }, 2);
+			await waitForSendMessageCalls(1);
+
+			const snapshotEvent = telemetry.events.find(event => event.eventName === 'agentHost.workspaceSnapshot')?.data as { preparation?: string; includedRootCount?: number } | undefined;
+			assert.deepStrictEqual({
+				prompt: agent.sendMessageCalls[0].prompt,
+				preparation: snapshotEvent?.preparation,
+				included: snapshotEvent?.includedRootCount,
+			}, { prompt: 'Bump the version to 2', preparation: 'prepared', included: 1 });
+		});
+
+		test('snapshots the worktree created for the first send, not the folder in session state', async () => {
+			enableWorkspaceSnapshot(stateManager);
+			const repository = URI.file('/repo');
+			const worktree = URI.file('/worktrees/repo-agent');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'repo-only.ts'), VSBuffer.fromString(''));
+			await diskFileService.writeFile(URI.joinPath(worktree, 'meta.json'), VSBuffer.fromString(''));
+			const worktreeIsolation = disposables.add(new FirstSendWorktreeIsolation());
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [worktreeIsolation.create(AgentSession.id(sessionUri), worktree)],
+				worktreeIsolation,
+				fileService: diskFileService,
+			});
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			// Model selection is a provider round-trip; the snapshot is prepared alongside it.
+			agent.chats.changeAgent = () => timeout(0);
+
+			const turnStarted = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } },
+			} as const;
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			assert.strictEqual(snapshot?.split('```text\n')[1].split('\n```')[0], `${JSON.stringify(worktree.fsPath).slice(1, -1)}\nmeta.json`);
 		});
 
 		test('adds focused edit guidance for an editor inline-chat surface', async () => {
@@ -2574,6 +2805,61 @@ suite('AgentSideEffects', () => {
 				&& toolCall.content?.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri));
 			assert.strictEqual(terminalManager.created.length, 1);
 			assert.ok(terminalManager.sentTexts.some(s => s.data.includes('echo hi')));
+		});
+
+		test('a cancelled ! command that finishes late does not release the next turn\'s workspace snapshot', async () => {
+			enableWorkspaceSnapshot(stateManager);
+			const repository = URI.file('/repo');
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'copilotcli',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				workingDirectories: [repository.toString()],
+			});
+			stateManager.setSessionChangesets(sessionUri.toString(), buildDefaultChangesetCatalog(sessionUri.toString()));
+			stateManager.dispatchServerAction(sessionUri.toString(), { type: ActionType.SessionReady });
+			const diskFileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(diskFileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await diskFileService.writeFile(URI.joinPath(repository, 'meta.json'), VSBuffer.fromString(''));
+			// Hold the provider turn at its turn-start checkpoint: after the outgoing-turn contributions, before dispatch.
+			const capture = new DeferredPromise<void>();
+			const checkpointService: IAgentHostCheckpointService = { ...NULL_CHECKPOINT_SERVICE, captureTurnStartCheckpoint: () => capture.p };
+			const terminalManager = disposables.add(new TestAgentHostTerminalManager());
+			const telemetry = new TestTelemetryService();
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [repository],
+				fileService: diskFileService,
+			}, undefined, telemetry, new FakeChangesetService(), terminalManager, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			// As AgentService does for a client action: apply it, then run its side effects.
+			const dispatchClient = (action: ChatAction, clientSeq: number) => {
+				stateManager.dispatchClientAction(defaultChatUri, action, { clientId: 'test', clientSeq });
+				localSideEffects.handleAction(defaultChatUri, action);
+			};
+
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'bang', startedAt: '2025-01-01T00:00:00.000Z', message: { text: '!sleep 10', origin: { kind: MessageKind.User } } }, 1);
+			await terminalManager.commandFinishedListenerRegistered.p;
+			dispatchClient({ type: ActionType.ChatTurnCancelled, turnId: 'bang', duration: 0 }, 2);
+			dispatchClient({ type: ActionType.ChatTurnStarted, turnId: 'turn-2', startedAt: '2025-01-01T00:00:01.000Z', message: { text: 'Bump the version to 2', origin: { kind: MessageKind.User } } }, 3);
+			await timeout(10);
+			// The cancelled command finishes while the provider turn waits to be dispatched.
+			terminalManager.fireCommandFinished({ commandId: '1', command: 'sleep 10', exitCode: 0, output: '' });
+			await timeout(0);
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			const sendContext = agent.chatContexts.find(call => call.boundary === 'sendMessage')?.context;
+			const snapshot = resolveAgentHostInstructions(sendContext)?.find(instruction => instruction.startsWith('<workspace_info>'));
+			const reported = telemetry.events.filter(event => event.eventName === 'agentHost.workspaceSnapshot').map(event => (event.data as { preparation?: string }).preparation);
+			assert.deepStrictEqual({ prompt: agent.sendMessageCalls[0].prompt, snapshotSent: snapshot !== undefined, reported }, {
+				prompt: 'Bump the version to 2', snapshotSent: true, reported: ['prepared'],
+			});
 		});
 
 		test('a lone ! is forwarded to the agent instead of running a command', async () => {

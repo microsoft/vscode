@@ -273,6 +273,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 					tools: constObservable([]),
 					isResolved: constObservable(true),
 					whenResolved: () => Promise.resolve(),
+					getSyncedUri: () => undefined,
 					activeClient: clientId => derived(reader => ({ clientId, tools: [], customizations: [...customizations.read(reader)] })),
 					dispose: () => { },
 				};

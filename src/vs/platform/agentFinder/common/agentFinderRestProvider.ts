@@ -301,6 +301,8 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	const sourceSet = text(metadata?.sourceSet);
 	const repository = (sourceSet && !sourceSet.includes('://') ? githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true) : undefined) ?? githubRepository(url);
 	const publisher = repository?.path.split('/')[1];
+	const installation = parseInstallation(mediaType, metadata, url, externalUrl);
+	const readmeUri = getReadmeUri(installation);
 	return {
 		identifier,
 		displayName,
@@ -312,12 +314,21 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 		url,
 		externalUrl,
 		repository,
+		...(readmeUri ? { readmeUri } : {}),
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
 		version: text(value.version) ?? text(metadata?.version),
 		score: value.score,
-		installation: parseInstallation(mediaType, metadata, url, externalUrl),
+		installation,
 	};
+}
+
+function getReadmeUri(installation: CustomizationMarketplaceInstallation | undefined): URI | undefined {
+	if (installation?.kind !== 'plugin') {
+		return undefined;
+	}
+	const path = [installation.repository, installation.ref, installation.path, 'README.md'].filter(Boolean).join('/');
+	return URI.from({ scheme: Schemas.https, authority: 'raw.githubusercontent.com', path: `/${path}` });
 }
 
 function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): CustomizationMarketplaceInstallation | undefined {
@@ -340,6 +351,9 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		: mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? 'plugin.json'
 			: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
 				: undefined;
+	const marketplaceManifest = mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? '.github/plugin/marketplace.json'
+		: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/marketplace.json'
+			: undefined;
 	const sourceSet = metadata.sourceSet;
 	const repoPath = metadata.repoPath;
 	if (!manifest || url.authority.toLowerCase() !== 'github.com' || /%2f|%5c/i.test(externalUrl) ||
@@ -347,12 +361,20 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		return undefined;
 	}
 	const repository = githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true);
-	if (repository?.path !== `/${sourceSet}` || (repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
+	const isMarketplacePlugin = kind === 'plugin' && repoPath === marketplaceManifest;
+	if (repository?.path !== `/${sourceSet}` || (!isMarketplacePlugin && repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
 		return undefined;
 	}
 	const [, owner, name, view, ...parts] = url.path.split('/');
 	if (`${owner}/${name}`.toLowerCase() !== sourceSet.toLowerCase() || (view !== 'blob' && view !== 'tree')) {
 		return undefined;
+	}
+	if (isMarketplacePlugin) {
+		const [ref, ...pathSegments] = parts;
+		const path = pathSegments.join('/');
+		return ref !== undefined && isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
+			? { kind: 'plugin', repository: sourceSet, ref, path }
+			: undefined;
 	}
 	const path = repoPath === manifest ? '' : repoPath.slice(0, -manifest.length - 1);
 	if (mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
@@ -379,6 +401,10 @@ function isSafeSourcePath(path: string): boolean {
 function isSafeGitRef(ref: string): boolean {
 	return ref.length <= maxGitRefLength && isSafeSourcePath(ref) && !ref.includes('..') &&
 		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
+}
+
+function isSupportedMarketplaceRef(ref: string): boolean {
+	return ref === 'main' || ref === 'master' || /^[0-9a-f]{40}$/i.test(ref);
 }
 
 function parseHttpUri(value: unknown): URI | undefined {

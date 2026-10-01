@@ -8,6 +8,7 @@ import { SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import * as touch from '../../../../../base/browser/touch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { CancellationError, errorHandler } from '../../../../../base/common/errors.js';
@@ -22,6 +23,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { RemoteAgentHostConnectionStatus, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TUNNEL_ADDRESS_PREFIX } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { devContainerSamples, devContainerSampleUri, findDevContainerSample } from '../../../../../platform/agentHost/common/devContainerSamples.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -101,7 +104,7 @@ function createMockProvider(id: string, opts?: {
 	isDevContainerWorkspaceAvailable?: (workspaceUri: URI) => Promise<boolean>;
 }): ISessionsProvider {
 	const pathPrefix = MOCK_PROVIDER_PATH_PREFIXES[id];
-	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`);
+	const canResolve = (uri: URI) => !pathPrefix || uri.path === pathPrefix || uri.path.startsWith(`${pathPrefix}/`) || (id === 'local-agent-host' && !!findDevContainerSample(uri));
 	const base = {
 		id,
 		label: `Provider ${id}`,
@@ -335,7 +338,7 @@ function createTestPicker(
 	fileDialogService: Partial<IFileDialogService> = {},
 	workspacesService: IWorkspacesService = { getRecentlyOpened: async () => ({ workspaces: [], files: [] }), onDidChangeRecentlyOpened: Event.None } as unknown as IWorkspacesService,
 	recentWorkspacesService?: ISessionsRecentWorkspacesService,
-	options?: IWorkspacePickerOptions,
+	options?: IWorkspacePickerOptions & { readonly configuration?: Record<string, unknown> },
 	fileService: IFileService = upcastPartial<IFileService>({
 		onDidFilesChange: Event.None,
 		onDidChangeFileSystemProviderRegistrations: Event.None,
@@ -359,7 +362,7 @@ function createTestPicker(
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
-	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true }));
+	instantiationService.stub(IConfigurationService, new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true, ...options?.configuration }));
 	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
 	instantiationService.stub(IFileDialogService, fileDialogService);
 	instantiationService.stub(IDialogService, dialogService);
@@ -702,6 +705,74 @@ suite('WorkspacePicker - Connection Status', () => {
 		]);
 	});
 
+	test('ignores the retargeted ghost click that follows a touch tap so a single tap does not re-close the picker', () => {
+		class ClockPicker extends WorkspacePicker {
+			now = 1000;
+			protected override _now(): number {
+				return this.now;
+			}
+		}
+		providersService.setProviders([createMockProvider('local-1')]);
+		let visible = false;
+		let showCount = 0;
+		let hideCount = 0;
+		const picker = createTestPicker(
+			disposables,
+			providersService,
+			undefined,
+			undefined,
+			ClockPicker,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			upcastPartial<IActionWidgetService>({
+				get isVisible() { return visible; },
+				show: () => { visible = true; showCount++; },
+				hide: () => { visible = false; hideCount++; },
+				updateItems: () => { },
+			}),
+		) as ClockPicker;
+		const container = document.createElement('div');
+		const popupItem = document.createElement('button');
+		const unrelatedButton = document.createElement('button');
+		let popupSelectionCount = 0;
+		let unrelatedSelectionCount = 0;
+		popupItem.addEventListener('click', () => popupSelectionCount++);
+		unrelatedButton.addEventListener('click', () => unrelatedSelectionCount++);
+		document.body.append(container, popupItem, unrelatedButton);
+		disposables.add(toDisposable(() => {
+			container.remove();
+			popupItem.remove();
+			unrelatedButton.remove();
+		}));
+		picker.renderCategoryTriggers(container, [
+			{ label: 'Folder', ariaLabel: 'Choose a folder', icon: Codicon.folder, group: SESSION_WORKSPACE_GROUP_LOCAL },
+		]);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+
+		// The popup opens before the browser's ghost click, so the click can land on a popup item
+		// that replaced the trigger beneath the touch point.
+		picker.now = 1000;
+		trigger.dispatchEvent(Object.assign(new CustomEvent(touch.EventType.Tap, { bubbles: true, cancelable: true }), { pageX: 100, pageY: 100 }));
+		picker.now = 1100;
+		unrelatedButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 200, clientY: 200, detail: 1 }));
+		picker.now = 1200;
+		popupItem.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: 100, clientY: 100, detail: 1 }));
+		const afterTapAndGhostClick = { visible, showCount, hideCount, popupSelectionCount, unrelatedSelectionCount };
+
+		// A deliberate mouse click (no preceding tap) after the guard window still toggles it closed.
+		picker.now = 5000;
+		trigger.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		const afterDeliberateClick = { visible, showCount, hideCount };
+
+		assert.deepStrictEqual({ afterTapAndGhostClick, afterDeliberateClick }, {
+			afterTapAndGhostClick: { visible: true, showCount: 1, hideCount: 0, popupSelectionCount: 0, unrelatedSelectionCount: 1 },
+			afterDeliberateClick: { visible: false, showCount: 1, hideCount: 1 },
+		});
+	});
+
 	test('keeps the unified remote submenu open when session types change while open', () => {
 		const onDidChangeSessionTypes = disposables.add(new Emitter<void>());
 		const provider = createMockProvider('agenthost-remote-1', {
@@ -814,6 +885,54 @@ suite('WorkspacePicker - Connection Status', () => {
 			updateCount: 1,
 			preserveOpenPanel: [true],
 			hasRemoteSubmenu: true,
+		});
+	});
+
+	test('offers six gated samples and selecting one only selects a required-container workspace', async () => {
+		let availabilityChecks = 0;
+		providersService.setProviders([{
+			...createMockProvider('local-agent-host', {
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				isDevContainerWorkspaceAvailable: async () => { availabilityChecks++; return true; },
+			}),
+			supportsLocalWorkspaces: true,
+		}]);
+		const create = (enabled: boolean, hidden = false, overrides: Record<string, boolean> = {}) => createTestPicker(
+			disposables, providersService, undefined, undefined, TestablePicker, undefined, undefined, undefined,
+			{
+				restoreFromSessions: false,
+				configuration: {
+					[DevContainerSamplesEnabledSettingId]: enabled,
+					[DevContainerAgentHostEnabledSettingId]: true,
+					'chat.disableAIFeatures': hidden,
+					...overrides,
+				},
+			},
+		) as TestablePicker;
+		const label = 'Dev Container Sample';
+		const picker = create(true);
+		const submenu = picker.getItems().find(item => item.label === label)?.submenuActions?.[0];
+		const modes: boolean[] = [];
+		disposables.add(picker.onDidSelectWorkspaceMode(event => modes.push(event.preferDevContainer)));
+		await picker.selectSubmenu(label, 'Node.js');
+		assert.deepStrictEqual({
+			disabled: create(false).getItemLabels().includes(label),
+			hidden: create(true, true).getItemLabels().includes(label),
+			containersDisabled: create(true, false, { [DevContainerAgentHostEnabledSettingId]: false }).getItemLabels().includes(label),
+			remoteHostsDisabled: create(true, false, { [RemoteAgentHostsEnabledSettingId]: false }).getItemLabels().includes(label),
+			samples: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : [],
+			selected: picker.selectedResolved?.workspace.uri.toString(),
+			modes,
+			availabilityChecks,
+		}, {
+			disabled: false,
+			hidden: false,
+			containersDisabled: false,
+			remoteHostsDisabled: false,
+			samples: ['Go', '.NET', 'Node.js', 'PHP', 'Python', 'Rust'],
+			selected: devContainerSampleUri(devContainerSamples[2]).toString(),
+			modes: [true],
+			availabilityChecks: 0,
 		});
 	});
 
@@ -2640,6 +2759,49 @@ suite('WorkspacePicker - Category Triggers', () => {
 				{ label: 'Remote Setup', ariaLabel: 'Choose a remote setup', hidden: true, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-radio-tower', 'codicon-chevron-down-compact'] },
 				{ label: undefined, ariaLabel: 'More workspace options', hidden: false, hasPopup: 'listbox', expanded: 'false', role: 'button', tabIndex: 0, icons: ['codicon-ellipsis', 'codicon-chevron-down-compact'] },
 			],
+		});
+	});
+
+	test('keeps an additional workspace trigger independent from the primary trigger lifecycle', () => {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1');
+		providersService.setProviders([provider]);
+		const folderUri = URI.file('/local/project');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: folderUri, providerId: provider.id, checked: true }]);
+		const picker = createTestPicker(disposables, providersService, storage);
+		const primaryContainer = document.createElement('div');
+		const secondaryContainer = document.createElement('div');
+
+		picker.renderCategoryTriggers(primaryContainer, [{
+			label: 'Workspace',
+			ariaLabel: 'Choose a workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+		}]);
+		const secondary = picker.renderAdditionalTrigger(secondaryContainer, {
+			label: 'Workspace',
+			ariaLabel: 'Choose a comparison workspace',
+			icon: Codicon.project,
+			reflectsWorkspace: true,
+			contextViewLayer: 1,
+			hideNoWorkspaceOption: true,
+		});
+
+		const labelsBeforeDispose = [
+			primaryContainer.querySelector('.sessions-chat-dropdown-label')?.textContent,
+			secondaryContainer.querySelector('.sessions-chat-dropdown-label')?.textContent,
+		];
+		secondary.dispose();
+
+		assert.deepStrictEqual({
+			labelsBeforeDispose,
+			primaryTriggerCount: primaryContainer.querySelectorAll('.action-label').length,
+			secondaryTriggerCount: secondaryContainer.querySelectorAll('.action-label').length,
+		}, {
+			labelsBeforeDispose: ['local/project', 'local/project'],
+			primaryTriggerCount: 1,
+			secondaryTriggerCount: 0,
 		});
 	});
 

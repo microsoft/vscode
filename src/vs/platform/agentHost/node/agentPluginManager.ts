@@ -6,6 +6,8 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { SequencerByKey } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
+import { Schemas } from '../../../base/common/network.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentPluginManager, type ISyncedCustomization } from '../common/agentPluginManager.js';
@@ -96,6 +98,10 @@ export class AgentPluginManager implements IAgentPluginManager {
 		return this._basePath;
 	}
 
+	get hostPluginsPath(): URI {
+		return URI.joinPath(this.basePath, '.host');
+	}
+
 	async syncCustomizations(
 		clientId: string,
 		customizations: ClientPluginCustomization[],
@@ -134,7 +140,12 @@ export class AgentPluginManager implements IAgentPluginManager {
 	 * Returns the local directory URI.
 	 */
 	private async _syncPlugin(clientId: string, ref: ClientPluginCustomization): Promise<URI> {
-		const pluginUri = toAgentClientUri(URI.parse(ref.uri), clientId);
+		const uri = URI.parse(ref.uri);
+		// Normalize so `..` segments cannot escape the host-owned directory.
+		if (uri.scheme === Schemas.file && extUriBiasedIgnorePathCase.isEqualOrParent(extUriBiasedIgnorePathCase.normalizePath(uri), this.hostPluginsPath)) {
+			return uri;
+		}
+		const pluginUri = toAgentClientUri(uri, clientId);
 		const destDir = this._dirFor(ref.uri, ref.nonce);
 
 		// Nonce cache hit — the plugin is already materialized under the nonce

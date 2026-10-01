@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import * as DOM from '../../../../../../base/browser/dom.js';
+import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -34,7 +35,7 @@ import { IAICustomizationItemsModel, ItemsModelSection } from '../../../browser/
 import { DELETE_AI_CUSTOMIZATION_ID } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -136,8 +137,15 @@ suite('AICustomizationDiscoveryPage', () => {
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
+		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
+			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
+			return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error'
+				? [{ resource, state }]
+				: [];
+		}));
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChanges.event;
+			override readonly installations = observableFromEvent(installChanges.event, getInstallations);
 			override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 				if (installedIdentifiers.includes(resource.identifier)) {
 					return { kind: 'installed', target: { kind: 'skill', uri: URI.file(`/installed/${resource.identifier}`) } };
@@ -145,9 +153,6 @@ suite('AICustomizationDiscoveryPage', () => {
 				return setupUrl && resource.identifier === 'unity'
 					? { kind: 'unavailable', message: 'Manual setup required', setupUrl }
 					: installStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-			}
-			override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
-				return [...recordedResources.values()];
 			}
 			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				const key = getCustomizationMarketplaceResourceKey(resource);
@@ -232,7 +237,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			notifyInstallChange: () => installChanges.fire(),
 			setRepairHandler: (handler: (resource: ICustomizationMarketplaceResource) => Promise<void>) => { onRepair = handler; },
 			setRecoveryAction: (action: ICustomizationMarketplaceSourceRecoveryAction) => { recoveryActions.set('other', action); },
-			selectImport: async (id: string) => {
+			selectAddCustomization: async (id: string) => {
 				const button = container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 				assert.ok(button);
 				button.click();
@@ -288,38 +293,91 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+	test('Add Customization action describes the menu trigger', () => {
+		const fixture = createPage();
+		const button = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		assert.ok(button);
+		assert.deepStrictEqual({
+			ariaLabel: button.getAttribute('aria-label'),
+			expanded: button.getAttribute('aria-expanded'),
+		}, {
+			ariaLabel: 'Add a customization',
+			expanded: 'false',
+		});
+	});
+
 	for (const [action, type] of [
 		['newAgent', PromptsType.agent],
 		['newSkill', PromptsType.skill],
 		['newInstructions', PromptsType.instructions],
 		['newPrompt', PromptsType.prompt],
 	] as const) {
-		test(`Import > ${action} closes Discover before starting creation`, async () => {
+		test(`Add Customization > ${action} closes Discover before starting creation`, async () => {
 			const fixture = createPage(['agentFinder'], [
 				AICustomizationManagementSection.Agents,
 				AICustomizationManagementSection.Skills,
 				AICustomizationManagementSection.Instructions,
 				AICustomizationManagementSection.Prompts,
 			]);
-			await fixture.selectImport(action);
+			await fixture.selectAddCustomization(action);
 			assert.deepStrictEqual(fixture.creationEvents, ['close', type]);
 		});
 	}
 
-	test('menu buttons use the shared small button style and show chevrons', () => {
+	test('title and menu buttons use the expected casing', () => {
 		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
-		const importButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
+		const title = fixture.container.querySelector<HTMLElement>('.customization-discovery-title');
+		const addCustomizationButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
 		const sourceButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-source .monaco-button');
 
-		assert.deepStrictEqual([importButton, sourceButton].map(button => ({
-			label: button?.textContent,
-			small: button?.classList.contains('small'),
-			hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
-			hasPopup: button?.getAttribute('aria-haspopup'),
-		})), [
-			{ label: 'Import', small: true, hasChevron: true, hasPopup: 'menu' },
-			{ label: 'All sources', small: true, hasChevron: true, hasPopup: 'menu' },
-		]);
+		assert.deepStrictEqual({
+			title: title?.textContent,
+			buttons: [addCustomizationButton, sourceButton].map(button => ({
+				label: button?.textContent,
+				small: button?.classList.contains('small'),
+				hasChevron: button?.querySelector('.codicon-chevron-down') !== null,
+				hasPopup: button?.getAttribute('aria-haspopup'),
+			})),
+		}, {
+			title: 'Discover customizations',
+			buttons: [
+				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
+				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
+			],
+		});
+	});
+
+	test('announces loading only after the scheduled catalog search starts', async () => {
+		const ariaHost = DOM.append(mainWindow.document.body, DOM.$('div'));
+		store.add(toDisposable(() => ariaHost.remove()));
+		setARIAContainer(ariaHost);
+		const fixture = createPage(['agentFinder']);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+		await timeout(0);
+
+		fixture.page.setSearchQuery('remote');
+		const pending = {
+			requests: fixture.requests.length,
+			busy: fixture.container.querySelector('.customization-discovery-results')?.getAttribute('aria-busy'),
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await timeout(0);
+		const loading = {
+			requests: fixture.requests.length,
+			announcements: [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean),
+		};
+
+		await fixture.requests[1].result.complete({ items: [resource('remote')] });
+		await timeout(0);
+		const complete = [...ariaHost.querySelectorAll('.monaco-status')].map(element => element.textContent).filter(Boolean);
+
+		assert.deepStrictEqual({ pending, loading, complete }, {
+			pending: { requests: 1, busy: 'true', announcements: [] },
+			loading: { requests: 2, announcements: ['Loading customizations...'] },
+			complete: ['1 customizations found.'],
+		});
 	});
 
 	test('browse features first-party resources ahead of the source order', async () => {
@@ -889,10 +947,13 @@ suite('AICustomizationDiscoveryPage', () => {
 	});
 
 	test('catalog-backed installed skills open their installed detail page', async () => {
-		const fixture = createPage(['agentFinder'], undefined, undefined, undefined, ['installed-skill']);
+		const candidate = resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill });
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/mail/SKILL.md') } });
+		fixture.notifyInstallChange();
 		fixture.page.setSearchQuery('mail');
 		fixture.page.setVisible(true);
-		await fixture.requests[0].result.complete({ items: [resource('installed-skill', { displayName: 'Local mail skill', mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await fixture.requests[0].result.complete({ items: [candidate] });
 		await timeout(0);
 		const primaryAction = [...fixture.container.querySelectorAll<HTMLElement>('.customization-discovery-result-primary')]
 			.find(element => element.getAttribute('aria-label') === 'Open installed customization Local mail skill');
@@ -900,6 +961,8 @@ suite('AICustomizationDiscoveryPage', () => {
 		primaryAction.click();
 		await timeout(0);
 		assert.deepStrictEqual({
+			rows: [...fixture.container.querySelectorAll('.customization-discovery-result-name')].map(element => element.textContent),
+			accessibleNames: fixture.page.getAccessibilityContent().split('\n').filter(line => line === 'Local mail skill'),
 			marketplace: fixture.openedDetails,
 			installed: fixture.openedInstalled.map(target => ({
 				section: target.section,
@@ -907,6 +970,8 @@ suite('AICustomizationDiscoveryPage', () => {
 				uri: target.promptDetail?.uri.toString(),
 			})),
 		}, {
+			rows: ['Local mail skill'],
+			accessibleNames: ['Local mail skill'],
 			marketplace: [],
 			installed: [{
 				section: AICustomizationManagementSection.Skills,
@@ -1369,10 +1434,10 @@ suite('AICustomizationDiscoveryPage', () => {
 			disabledSelectable: fixture.getSourceActions().some(action => action.id === 'customizationDiscovery.source.copilotConnectors'),
 			content: fixture.page.getAccessibilityContent().match(/^(?:connector|public|stale)-mail$/gm),
 		}, {
-			labels: ['All sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
+			labels: ['All Sources', 'GitHub Feed', 'Copilot Connectors', 'Configured Plugin Marketplaces', 'Configure Marketplaces'],
 			selected: { label: 'Copilot Connectors', cancelled: true, content: ['connector-mail'] },
 			selections: [undefined, ['copilotConnectors'], undefined],
-			finalLabel: 'All sources',
+			finalLabel: 'All Sources',
 			disabledSelectable: false,
 			content: ['public-mail'],
 		});
@@ -1420,7 +1485,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			content: fixture.page.getAccessibilityContent().match(/^(?:all|connector)-(?:featured|search)$/gm),
 		}, {
 			browseMode: true,
-			source: 'All sources',
+			source: 'All Sources',
 			content: ['all-featured'],
 		});
 	});

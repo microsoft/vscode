@@ -1217,9 +1217,19 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		service.addInstalledPlugin(uri, plugin);
 		assert.strictEqual(service.installedPlugins.get().length, 1);
 
-		service.removeInstalledPlugin(uri);
-		assert.strictEqual(service.installedPlugins.get().length, 0);
-		assert.strictEqual(service.getMarketplacePluginMetadata(uri), undefined);
+		const removed = service.removeInstalledPlugin(uri);
+		const missing = service.removeInstalledPlugin(uri);
+		assert.deepStrictEqual({
+			removed,
+			missing,
+			installed: service.installedPlugins.get().length,
+			metadata: service.getMarketplacePluginMetadata(uri),
+		}, {
+			removed: true,
+			missing: false,
+			installed: 0,
+			metadata: undefined,
+		});
 	});
 
 	test('addInstalledPlugin updates metadata for existing entry', () => {

@@ -1039,6 +1039,27 @@ suite('SyncedCustomizationBundler', () => {
 		assert.notStrictEqual(result1!.ref.nonce, result2!.ref.nonce);
 	});
 
+	test('getSyncedUri finds a bundled agent and refreshes with the latest origins', async () => {
+		const bundler = createBundler();
+		const source = await seedFile('/ext/review.agent.md', '# Review');
+		const replacement = await seedFile('/other/review.agent.md', '# Review');
+		const result = await bundler.bundle([{ uri: source, type: PromptsType.agent, source: 'extension' }]);
+		const expected = URI.joinPath(URI.parse(result!.ref.uri), 'agents', 'review.agent.md').toString();
+		const first = bundler.getSyncedUri(source)?.toString();
+		await bundler.bundle([{ uri: replacement, type: PromptsType.agent, source: 'extension' }]);
+		assert.deepStrictEqual({
+			first,
+			oldSource: bundler.getSyncedUri(source),
+			replacement: bundler.getSyncedUri(replacement)?.toString(),
+			missing: bundler.getSyncedUri(URI.file('/missing.agent.md')),
+		}, {
+			first: expected,
+			oldSource: undefined,
+			replacement: expected,
+			missing: undefined,
+		});
+	});
+
 	test('getOrigin recovers provenance of flattened files by synced URI', async () => {
 		const bundler = createBundler();
 		const extUri = await seedFile('/ext/rule.md', 'ext rule');

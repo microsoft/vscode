@@ -13,7 +13,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubWorkflowJob, GitHubWorkflowLog, GitHubWorkflowRun } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
@@ -553,17 +553,12 @@ class CIHarness extends Disposable {
 		this.snapshot = observableValue(this, makeSnapshot(count));
 		const abort = new AbortController();
 		this._register(toDisposable(() => abort.abort()));
-		this.context = {
-			session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
-			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
-			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
-		};
 		this.mutations.jobs = Array.from({ length: count }, (_, index) => ({
 			id: `job-${index}`, checkRunId: `check-${index}`, runId: '1', name: `CI ${index}`, conclusion: 'FAILURE',
 			headSha: 'head', runAttempt: 1, steps: [{ number: 1, name: 'Run tests', conclusion: 'FAILURE' }],
 		}));
 		const harness = this;
-		const service = new class extends mock<IGitHubService>() {
+		const client = new class extends mock<IGitHubClient>() {
 			override readonly mutations = harness.mutations;
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
 				override subscribePullRequest() {
@@ -576,10 +571,15 @@ class CIHarness extends Disposable {
 				}
 			}();
 		}();
+		this.context = {
+			client, session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
+			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
+			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+		};
 		const logService = new NullLogService();
 		const stateManager = this._register(new AgentHostStateManager(logService));
 		const configurationService = this._register(new AgentConfigurationService(stateManager, logService));
-		this.tools = this._register(new AgentMergeTools(() => this.enabled, chat => chat === this.context.chat ? this.context : this.peerContexts.get(chat), async () => { assert.fail('Unexpected enablement call'); }, service, logService, stateManager, configurationService));
+		this.tools = this._register(new AgentMergeTools(() => this.enabled, chat => chat === this.context.chat ? this.context : this.peerContexts.get(chat), async () => { assert.fail('Unexpected enablement call'); }, logService, stateManager, configurationService));
 	}
 
 	async read(request: AgentMergeCIRequest = {}, chat = this.context.chat): Promise<CIResult> {

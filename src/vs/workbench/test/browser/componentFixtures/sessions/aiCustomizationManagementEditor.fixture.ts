@@ -4,17 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { dirname as dirnameUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -55,7 +54,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -815,6 +814,7 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 		capabilities: ['Inspect design systems', 'Export assets'],
 		representativeQueries: ['Review the components in this Figma file'],
 		repository: URI.parse('https://github.com/example/figma-plugin'),
+		readmeUri: URI.parse('https://raw.githubusercontent.com/example/figma-plugin/main/README.md'),
 		installation: { kind: 'plugin', repository: 'example/figma-plugin', ref: 'main', path: '' },
 	},
 	{
@@ -940,6 +940,29 @@ const copilotConnectorMarketplaceResource: ICustomizationMarketplaceResource = {
 	installation: { kind: 'copilotConnector', name: fixtureCopilotConnectors[0].name },
 };
 
+function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMarketplaceInstallService {
+	return new class extends mock<ICustomizationMarketplaceInstallService>() {
+		override readonly onDidChange = Event.None;
+		override readonly installations = constObservable(emptyCustomizationMarketplaceInstallationSnapshot);
+	}();
+}
+
+function createEmptyCustomizationMarketplaceService(): ICustomizationMarketplaceService {
+	return new class extends mock<ICustomizationMarketplaceService>() {
+		override readonly sources = [];
+		override readonly onDidChangeSources = Event.None;
+	}();
+}
+
+function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState | undefined): state is RecordedCustomizationMarketplaceInstallState {
+	return state?.kind === 'checking'
+		|| state?.kind === 'installed'
+		|| state?.kind === 'missing'
+		|| state?.kind === 'repairing'
+		|| state?.kind === 'uninstalling'
+		|| state?.kind === 'error';
+}
+
 function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
 	const connectors = enabled ? availableConnectors : [];
 	return new class extends mock<ICopilotConnectorsService>() {
@@ -999,8 +1022,6 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
-	readonly migrationCategory?: CustomizationMigrationCategoryId;
-	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -1109,6 +1130,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
 	}
 
+	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
+		customizationMarketplaceResources.flatMap(resource => {
+			const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
+			return isRecordedCustomizationMarketplaceInstallState(state) ? [{ resource, state }] : [];
+		}),
+	);
+
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
@@ -1117,10 +1145,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const codeReviewService = createMockCodeReviewService();
 			const configurationService = marketplaceConfiguration = new TestConfigurationService({
 				[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsPromptMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsUserDataMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsLocationsMigrationEnabled]: true,
-				[ChatConfiguration.ChatCustomizationsMcpServerMigrationEnabled]: true,
+				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 				[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: options.copilotConnectorsEnabled ?? false,
 				'test.marketplace.other.enabled': options.otherSourceEnabled ?? false,
 				[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: marketplaceVisibilityEnabled,
@@ -1176,16 +1201,11 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
+				override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
 				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
 					// The outgoing Discover view may read installation state while the visibility change disposes it.
 					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
 					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-				}
-				override getRecordedResources(): readonly ICustomizationMarketplaceResource[] {
-					return customizationMarketplaceResources.filter(resource => {
-						const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
-						return state?.kind === 'checking' || state?.kind === 'installed' || state?.kind === 'missing' || state?.kind === 'repairing' || state?.kind === 'uninstalling' || state?.kind === 'error';
-					});
 				}
 				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
@@ -1223,7 +1243,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					started: true,
 					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
 						id: `activity-${activityIndex}`,
-						categoryLabel: 'Prompts to skills',
+						categoryLabel: 'Prompt to Skills',
 						scopeLabel: 'Your profile',
 						storage: PromptsStorage.user,
 						items: Array.from({ length: 4 }, (_, itemIndex) => ({
@@ -1312,7 +1332,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope() {
-					if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
+					if (!options.migrationDashboard) {
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
@@ -1425,7 +1445,40 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;
 				override async exists(resource: URI) {
-					return fileContents.has(resource) || createdFolders.has(resource);
+					if (fileContents.has(resource) || createdFolders.has(resource)) {
+						return true;
+					}
+					const prefix = resource.path.endsWith('/') ? resource.path : `${resource.path}/`;
+					for (const [fileResource] of fileContents) {
+						if (fileResource.scheme === resource.scheme && fileResource.authority === resource.authority && fileResource.path.startsWith(prefix)) {
+							return true;
+						}
+					}
+					return false;
+				}
+				override async resolve(resource: URI) {
+					const value = fileContents.get(resource);
+					if (value !== undefined) {
+						return createFixtureFileStat(resource, value.length, false);
+					}
+
+					const children = new Map<string, IFileStatWithMetadata>();
+					const prefix = resource.path.endsWith('/') ? resource.path : `${resource.path}/`;
+					for (const [fileResource, content] of fileContents) {
+						if (fileResource.scheme !== resource.scheme || fileResource.authority !== resource.authority || !fileResource.path.startsWith(prefix)) {
+							continue;
+						}
+						const [name, remaining] = fileResource.path.slice(prefix.length).split('/', 2);
+						if (!name) {
+							continue;
+						}
+						const childResource = URI.joinPath(resource, name);
+						children.set(name, { ...createFixtureFileStat(childResource, remaining ? 0 : content.length, !!remaining), name });
+					}
+					if (children.size === 0 && !createdFolders.has(resource)) {
+						throw new Error(`Fixture file not found: ${resource.toString()}`);
+					}
+					return { ...createFixtureFileStat(resource, 0, true), children: [...children.values()] };
 				}
 				override async readFile(resource: URI) {
 					if (delayedReadFiles.has(resource)) {
@@ -1561,7 +1614,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override get lastFocusedWidget() { return undefined; }
 				override async reveal() { return false; }
 			}());
-			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
+			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() {
+				override async request(): Promise<IRequestContext> {
+					const readme = '# Figma Plugin\n\nInspect design systems, review components, and export implementation-ready assets.\n\n## Workflows\n\n- Review component consistency\n- Inspect design tokens\n- Export assets\n\n## Usage\n\nAsk the agent to review the components in your Figma file.\n\n## Design review checklist\n\n' + Array.from({ length: 18 }, (_, index) => `${index + 1}. Validate the component against the shared design system and accessibility guidance.`).join('\n');
+					return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(readme)) };
+				}
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors));
@@ -1691,7 +1749,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
@@ -1803,10 +1861,57 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const detail = row.querySelector('.customization-discovery-result-detail')?.textContent;
 			return detail?.includes('Marketplace 1') || detail?.includes('Marketplace 2') || detail?.includes('Copilot Connectors');
 		}), 'Marketplace results must show their source name.');
+		const availablePrimaryAction = availableRows[0]?.querySelector<HTMLButtonElement>(':scope > .customization-discovery-result-primary');
+		if (availableRows[0] && availablePrimaryAction) {
+			availablePrimaryAction.focus();
+			const targetWindow = DOM.getWindow(availableRows[0]);
+			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			availablePrimaryAction.blur();
+		}
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
-			resultRows[resultRows.length - 1]?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary')?.click();
-			await Promise.resolve();
+			const selectedRow = resultRows[resultRows.length - 1];
+			(selectedRow?.querySelector<HTMLElement>('.customization-discovery-result-aside')
+				?? selectedRow?.querySelector<HTMLButtonElement>('.customization-discovery-result-primary'))?.click();
+			let detailContainer: HTMLElement | null = null;
+			let scrollHost: HTMLElement | null = null;
+			for (let attempt = 0; attempt < 40; attempt++) {
+				await timeout(50);
+				detailContainer = ctx.container.querySelector('.marketplace-detail-container');
+				scrollHost = detailContainer?.querySelector('.marketplace-detail-scrollable') ?? null;
+				const pluginPreviewReady = options.discoveryQuery !== 'figma'
+					|| !!detailContainer?.querySelector('.plugin-detail-readme-content h1');
+				if (detailContainer?.style.display !== 'none' && scrollHost && pluginPreviewReady) {
+					break;
+				}
+			}
+			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			assert(
+				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
+				'Marketplace detail scroll host must remain inside the detail page bounds.',
+			);
+			if (options.discoveryQuery === 'figma') {
+				const scrollContent = scrollHost.querySelector<HTMLElement>('.marketplace-detail-editor-container');
+				if (!scrollContent) {
+					throw new Error('Marketplace detail scroll content did not render');
+				}
+				assert(scrollContent.scrollHeight > scrollContent.clientHeight, 'Loaded plugin README content must extend the marketplace detail scroll range.');
+				const verticalScrollbar = scrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
+				const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
+				if (!verticalScrollbar || !scrollbarSlider) {
+					throw new Error('Marketplace detail scrollbar did not render');
+				}
+				assert(!verticalScrollbar.classList.contains('invisible'), 'Loaded plugin README content must show the marketplace detail scrollbar.');
+				assert(
+					scrollbarSlider.getBoundingClientRect().height < verticalScrollbar.getBoundingClientRect().height,
+					'Marketplace detail scrollbar thumb must represent the visible portion of the loaded plugin README.',
+				);
+				scrollContent.scrollTop = scrollContent.scrollHeight;
+				await timeout(50);
+				assert(scrollContent.scrollTop > 0, 'Marketplace detail scroll content must accept a scroll position after plugin preview content loads.');
+				scrollContent.scrollTop = 0;
+			}
 		}
 		if (options.discoveryQuery.includes('@installed')) {
 			assert(customizationMarketplaceQueryCount === 1, 'The Installed filter must not issue another catalog query.');
@@ -1866,6 +1971,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.dispatchEvent(new InputEvent('input', { bubbles: true, data: options.mcpSearchQuery, inputType: 'insertText' }));
 			await new Promise(resolve => setTimeout(resolve, 600));
 			input.blur();
+			const marketplaceRow = ctx.container.querySelector<HTMLElement>('.mcp-content-container .plugin-marketplace-home-row');
+			const marketplacePrimaryAction = marketplaceRow?.querySelector<HTMLButtonElement>(':scope > .customization-card-primary-action');
+			if (marketplaceRow && marketplacePrimaryAction) {
+				marketplacePrimaryAction.focus();
+				const targetWindow = DOM.getWindow(marketplaceRow);
+				assert(targetWindow.getComputedStyle(marketplaceRow).outlineStyle === 'solid', 'Focused marketplace MCP rows must outline the entire item.');
+				assert(targetWindow.getComputedStyle(marketplacePrimaryAction).outlineStyle === 'none', 'Focused marketplace MCP rows must not retain an inner primary-action outline.');
+				marketplacePrimaryAction.blur();
+			}
 			for (const scrollbar of ctx.container.querySelectorAll<HTMLElement>('.mcp-content-container .scrollbar')) {
 				scrollbar.style.visibility = 'hidden';
 			}
@@ -1883,22 +1997,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			input.blur();
 			await new Promise(resolve => setTimeout(resolve, 300));
 		}
-	}
-
-	if (options.migrationCategory) {
-		editor.showCustomizationMigrationPage(options.migrationCategory);
-	}
-
-	if (options.migrationPartialSelection) {
-		let firstMigrationCheckbox: HTMLElement | null = null;
-		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
-			firstMigrationCheckbox = ctx.container.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
-			if (!firstMigrationCheckbox) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
-		}
-		firstMigrationCheckbox?.click();
-		await new Promise(resolve => setTimeout(resolve, 50));
 	}
 
 	if (options.scrollToBottom) {
@@ -1956,23 +2054,36 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 		if (options.pluginReadmeContent !== undefined) {
 			let pluginDetailScrollHost: HTMLElement | null = null;
+			let pluginDetailScrollContent: HTMLElement | null = null;
 			let overflowingCodeBlock: HTMLElement | null = null;
-			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !overflowingCodeBlock); attempt++) {
+			for (let attempt = 0; attempt < 40 && (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock); attempt++) {
 				await timeout(50);
 				const pluginDetailView = ctx.container.querySelector<HTMLElement>('.plugin-detail-container');
 				const scrollHost = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-scrollable');
 				const detailContainer = pluginDetailView?.querySelector<HTMLElement>('.plugin-detail-editor-container');
 				const codeBlock = detailContainer?.querySelector<HTMLElement>('div[data-code]');
-				if (pluginDetailView?.style.display !== 'none' && scrollHost && scrollHost.scrollHeight > scrollHost.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
+				if (pluginDetailView?.style.display !== 'none' && scrollHost && detailContainer && detailContainer.scrollHeight > detailContainer.clientHeight && codeBlock && codeBlock.scrollWidth > codeBlock.clientWidth) {
 					pluginDetailScrollHost = scrollHost;
+					pluginDetailScrollContent = detailContainer;
 					overflowingCodeBlock = codeBlock;
 				}
 			}
-			if (!pluginDetailScrollHost || !overflowingCodeBlock) {
+			if (!pluginDetailScrollHost || !pluginDetailScrollContent || !overflowingCodeBlock) {
 				throw new Error('Overflowing plugin detail did not render');
 			}
-			pluginDetailScrollHost.scrollTop = pluginDetailScrollHost.scrollHeight;
+			const verticalScrollbar = pluginDetailScrollHost.querySelector<HTMLElement>('.scrollbar.vertical');
+			const scrollbarSlider = verticalScrollbar?.querySelector<HTMLElement>('.slider');
+			if (!verticalScrollbar || !scrollbarSlider) {
+				throw new Error('Installed plugin detail scrollbar did not render');
+			}
+			assert(!verticalScrollbar.classList.contains('invisible'), 'Overflowing installed plugin detail must show its vertical scrollbar.');
+			assert(
+				scrollbarSlider.getBoundingClientRect().height < verticalScrollbar.getBoundingClientRect().height,
+				'Installed plugin detail scrollbar thumb must represent the visible portion of its README.',
+			);
+			pluginDetailScrollContent.scrollTop = pluginDetailScrollContent.scrollHeight;
 			await timeout(50);
+			assert(pluginDetailScrollContent.scrollTop > 0, 'Installed plugin detail scroll content must accept a scroll position.');
 		}
 	}
 
@@ -2055,6 +2166,8 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2266,6 +2379,8 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 					return repo ? (pluginInstallUris.get(repo) ?? URI.file('/dev/null')) : URI.file('/dev/null');
 				}
 			}());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2354,6 +2469,8 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
@@ -2439,6 +2556,8 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 				override async fetchMarketplacePlugins() { return []; }
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2556,6 +2675,7 @@ function renderEmbeddedPluginDetail(ctx: ComponentFixtureContext, item: IAgentPl
 				override readonly enablementModel = undefined!;
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override async readFile(): Promise<IFileContent> { throw new Error('Fixture README not found'); }
 			}());
@@ -2757,7 +2877,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// MCP Servers page with many servers to verify scrollable list layout
 	McpServersTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible Workspace and User groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
+		expectedVisualDescriptions: ['The MCP Servers page uses a classic tree with separate collapsible User and Workspace groups, followed by source-specific and Available groups when applicable. The tree edges align with the title and search field.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
@@ -2998,7 +3118,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Prompts tab — workspace and user prompts, scrollable
 	PromptsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Prompts page shows Workspace, User, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
+		expectedVisualDescriptions: ['The Prompts page shows User, Workspace, Plugins, Extensions, and Built-In customizations as collapsible parent nodes in a tree.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Prompts,
@@ -3017,7 +3137,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
+		expectedVisualDescriptions: ['The migration dashboard shows a flat tree of numbered migration types scoped to Workspace or Profile. Each expanded type lists the specific customizations and their source locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -3115,58 +3235,10 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		}),
 	}),
 
-	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-		}),
-	}),
-
-	UserDataMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.UserData,
-		}),
-	}),
-
-	McpMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Migrate MCP Servers page shows Remote Browser moving from the workspace .vscode/mcp.json file to the root .mcp.json file, with no file open or more-actions controls.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-		}),
-	}),
-
-	ConfiguredLocationsMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			files: [{
-				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.agent,
-				source: PromptFileSource.ConfigWorkspace,
-				name: 'SuperAgent',
-			}],
-			configuration: {
-				[PromptsConfig.AGENTS_LOCATION_KEY]: {
-					'.custom/agents': true,
-				},
-			},
-			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
-		}),
-	}),
-
 	// Plugins tab
 	PluginsTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible Workspace and User groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
+		expectedVisualDescriptions: ['The Plugins page uses a classic tree with separate collapsible User and Workspace groups, plus Remote Session and Available groups when applicable. Header action buttons use the standard gap.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			selectedSection: AICustomizationManagementSection.Plugins,
@@ -3280,7 +3352,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3291,7 +3363,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResult: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows its description, install state, publisher, version, stars, tags, capabilities, representative query, and explicit external actions.'],
+		expectedVisualDescriptions: ['Opening an available skill keeps discovery inside VS Code and shows Back, the skill icon beside its title, and Install in a compact header, followed by a subtle Try this section and an ordered Details table with linked source and repository metadata.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3313,7 +3385,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverAvailableSearchResultNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['At a narrow width, marketplace detail facts and metadata sections remain readable in one column with explicit Back, Install, Open Resource, and Open Repository actions.'],
+		expectedVisualDescriptions: ['At a narrow width, the available marketplace detail keeps Back, the resource icon, title, install state, and Install readable while Try this and the ordered Details table remain aligned in one scrollable column.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3337,7 +3409,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverPluginDetail: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A plugin marketplace item backed by a real plugin marketplace model reuses the embedded plugin detail presentation with its Install action and marketplace provenance.'],
+		expectedVisualDescriptions: ['An available plugin shows its icon beside the title, Try this, ordered linked metadata, and its remotely loaded README inline beneath one theme-aware page scrollbar. There is no Contains section.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,
@@ -3452,7 +3524,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	PluginCatalogHome: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Plugins page shows separate Workspace and User sections plus Available, with no Featured section.'],
+		expectedVisualDescriptions: ['The Plugins page shows separate User and Workspace sections plus Available, with no Featured section.'],
 		render: renderPluginHomeMode,
 	}),
 

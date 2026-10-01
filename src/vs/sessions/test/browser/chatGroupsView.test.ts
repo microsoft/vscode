@@ -1590,6 +1590,33 @@ suite('Sessions - ChatGroupsView', () => {
 		});
 	});
 
+	test('does not show a transient read-only banner while a peer transcript loads', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer]);
+		view.setSession(session, options);
+		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
+		current.isLoadingTranscript.set(true, undefined);
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		session.activeChat.set(peer, undefined);
+		const loading = readBanner(view).visible;
+
+		transaction(tx => {
+			peer.interactivity.set(ChatInteractivity.Full, tx);
+			current.isLoadingTranscript.set(false, tx);
+		});
+		const ready = readBanner(view).visible;
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const readOnly = readBanner(view).visible;
+		current.isLoadingTranscript.set(true, undefined);
+		session.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ loading, ready, readOnly, archived: readBanner(view).message }, {
+			loading: false, ready: false, readOnly: true, archived: 'Archived sessions are read-only.',
+		});
+	});
+
 	test('hides the remote host banner when connected or when no remote host backs the session', () => {
 		const { view } = createHarness(disposables);
 		view.setSession(new TestActiveSession([createChat('main')]), options);
