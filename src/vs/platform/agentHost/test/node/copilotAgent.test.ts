@@ -8737,6 +8737,27 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], []),
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const validation = await (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
+				._validateModelSelection({ id: 'claude-haiku-4.5' })
+				.then(() => 'accepted', () => 'rejected');
+
+			assert.deepStrictEqual({ models: agent.models.get().map(model => model.id), validation }, {
+				models: ['auto', 'hydrafusion'],
+				validation: 'accepted',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	suite('contextSize to contextTier mapping', () => {
 		const longContextModel: ITestCopilotModelInfo = {
 			id: 'claude-sonnet',

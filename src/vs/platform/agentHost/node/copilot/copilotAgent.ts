@@ -3464,7 +3464,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._fallbackAutoModel = {
 				provider: this.id,
 				id: AUTO_MODEL_ID,
-				name: 'Auto',
+				name: localize('copilotAgent.autoModelName', "Auto"),
 				supportsVision: false,
 				configSchema: tier ? { type: 'object', properties: { [AutoTierConfigKey]: tier } } : undefined,
 			};
@@ -5737,10 +5737,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await (this._invalidatingModelRefresh ?? this._modelRefreshInFlight);
 		// An empty catalog can mean the provider is unauthenticated or temporarily
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
-		// Auto offered because the runtime listed nothing does not make it non-empty.
-		const models = this._capiModels.includes(this._getFallbackAutoModel())
-			? this._models.get().filter(candidate => !isAutoModel(candidate.id))
-			: this._models.get();
+		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
+		// whatever HydraFusion or BYOK models are published beside it.
+		if (this._capiModels.includes(this._getFallbackAutoModel())) {
+			return;
+		}
+		const models = this._models.get();
 		if (models.length > 0 && !models.some(candidate => candidate.id === model.id)) {
 			throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
 		}
