@@ -5,8 +5,8 @@
 
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -20,107 +20,75 @@ import { ICodexContinuationCandidate, CodexContinuationSurface } from '../../../
 import { ICodexContinuationService } from '../../../../../services/agentHost/browser/codexContinuationService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { markOnboardingTarget, registerOnboardingTargetProvider } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
-import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
+import { ISpotlightPayload, ISpotlightStep, SPOTLIGHT_PRESENTATION_KIND } from '../../../../onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
 import { IChatWidget, IChatWidgetService } from '../../chat.js';
 
-export const CODEX_CONTINUATION_MESSAGE = localize('codexContinuation.message', "You're nearing your ChatGPT limit. Continue this Codex session with your Copilot subscription.");
+export const CODEX_CONTINUATION_MESSAGE = localize('codexContinuation.message', "You're nearing your ChatGPT limit. Continue your Codex sessions with your Copilot subscription.");
 export const CODEX_CONTINUATION_LABEL = localize('codexContinuation.continue', "Continue with Copilot");
 export const CODEX_CONTINUATION_DISABLE_LABEL = localize('codexContinuation.disable', "Don't Show Again");
 
 const WIDGET_MATERIALIZATION_TIMEOUT = 5_000;
 
+export interface ICodexContinuationSessionTarget extends IDisposable {
+	readonly onDidOpen: Event<URI>;
+	getElement(): HTMLElement | undefined;
+	focus(): void;
+}
+
+export interface ICodexContinuationNavigation {
+	getActiveWidget(): IChatWidget | undefined;
+	revealSession(resource: URI, token: CancellationToken): Promise<ICodexContinuationSessionTarget | undefined>;
+}
+
 /**
- * Opens a session and waits for the exact widget owner to materialize. Sessions
- * can finish opening before their Chat widget is mounted, so observe the widget
- * service rather than sampling its registry once.
+ * Waits for a user-opened session's active widget to materialize. Never opens a
+ * session or falls back to an inactive widget that happens to show the same chat.
  */
-export function openAndWaitForChatWidget(
+export function waitForActiveChatWidget(
 	resource: URI,
 	widgets: IChatWidgetService,
-	open: () => Promise<IChatWidget | undefined>,
+	getActiveWidget: () => IChatWidget | undefined,
 	token: CancellationToken,
 	timeoutMs = WIDGET_MATERIALIZATION_TIMEOUT,
 ): Promise<IChatWidget | undefined> {
 	const store = new DisposableStore();
-	const touched: IChatWidget[] = [];
-	let openCompleted = false;
 	let settled = false;
 	let resolveResult: (widget: IChatWidget | undefined) => void;
-	let rejectResult: (error: unknown) => void;
-	const result = new Promise<IChatWidget | undefined>((resolve, reject) => {
+	const result = new Promise<IChatWidget | undefined>(resolve => {
 		resolveResult = resolve;
-		rejectResult = reject;
 	});
 	const matches = (widget: IChatWidget | undefined): widget is IChatWidget =>
-		widget?.viewModel?.sessionResource.toString() === resource.toString();
-	const finish = (widget: IChatWidget | undefined, error?: unknown) => {
+		!!widget?.visible && widget.viewModel?.sessionResource.toString() === resource.toString();
+	const finish = (widget: IChatWidget | undefined) => {
 		if (settled) {
 			return;
 		}
 		settled = true;
 		store.dispose();
-		if (error !== undefined) {
-			rejectResult(error);
-		} else {
-			resolveResult(widget);
-		}
+		resolveResult(widget);
 	};
-	const tryFinish = (openedWidget?: IChatWidget) => {
-		if (!openCompleted || settled) {
-			return;
-		}
-		if (matches(openedWidget)) {
-			finish(openedWidget);
-			return;
-		}
-		if (matches(widgets.lastFocusedWidget)) {
-			finish(widgets.lastFocusedWidget);
-			return;
-		}
-		const touchedWidget = touched.findLast(matches);
-		if (touchedWidget) {
-			finish(touchedWidget);
-			return;
-		}
-		const matchingWidgets = widgets.getAllWidgets().filter(matches);
-		if (matchingWidgets.length === 1) {
-			finish(matchingWidgets[0]);
-		}
+	const tryFinish = () => {
+		const active = getActiveWidget();
+		if (matches(active)) { finish(active); }
 	};
-	const observe = (widget: IChatWidget, wasTouched: boolean) => {
-		if (wasTouched && matches(widget)) {
-			touched.push(widget);
-		}
-		store.add(widget.onDidChangeViewModel(() => {
-			if (matches(widget)) {
-				touched.push(widget);
-			}
-			tryFinish();
-		}));
-	};
+	const observe = (widget: IChatWidget) => store.add(widget.onDidChangeViewModel(tryFinish));
 	for (const widget of widgets.getAllWidgets()) {
-		observe(widget, false);
+		observe(widget);
 	}
 	store.add(widgets.onDidAddWidget(widget => {
-		observe(widget, true);
+		observe(widget);
 		tryFinish();
 	}));
-	store.add(widgets.onDidChangeFocusedSession(() => {
-		if (matches(widgets.lastFocusedWidget)) {
-			touched.push(widgets.lastFocusedWidget);
-		}
-		tryFinish();
-	}));
+	store.add(widgets.onDidChangeFocusedSession(tryFinish));
+	store.add(widgets.onDidChangeWidgetVisibility(tryFinish));
 	store.add(token.onCancellationRequested(() => finish(undefined)));
 	store.add(disposableTimeout(() => finish(undefined), timeoutMs));
 
-	void open().then(openedWidget => {
-		openCompleted = true;
-		tryFinish(openedWidget);
-	}, error => finish(undefined, error));
+	if (token.isCancellationRequested) { finish(undefined); }
+	else { tryFinish(); }
 	return result;
 }
 
@@ -134,74 +102,91 @@ export class CodexContinuationGuide extends Disposable {
 		@IWorkspaceTrustManagementService private readonly _trust: IWorkspaceTrustManagementService,
 		@INotificationService private readonly _notifications: INotificationService,
 		@IHostService private readonly _host: IHostService,
+		@IChatWidgetService private readonly _widgets: IChatWidgetService,
 	) { super(); }
 
-	async run(candidate: ICodexContinuationCandidate, surface: CodexContinuationSurface, open: (resource: URI, token: CancellationToken) => Promise<IChatWidget | undefined>): Promise<void> {
+	async run(candidate: ICodexContinuationCandidate, surface: CodexContinuationSurface, navigation: ICodexContinuationNavigation): Promise<void> {
 		const store = new DisposableStore();
 		this._run.value = store;
 		const cancellation = new CancellationTokenSource();
 		store.add(toDisposable(() => cancellation.dispose(true)));
+		const row = store.add(new MutableDisposable<ICodexContinuationSessionTarget>());
 		let widget: IChatWidget | undefined;
 		let completed = false;
 		let guideShown = false;
+		let unavailable = false;
 		this._nudge.log('continueClicked', surface);
 		try {
-			let current = await this._nudge.resolve(candidate);
+			const current = await this._nudge.resolve(candidate);
 			if (!current || store.isDisposed || !this._host.hasFocus || !this._trust.isWorkspaceTrusted()) { throw new Error('unavailable'); }
 			const resource = this._connections.getSessionResource(current.session.session);
-			widget = await open(resource, cancellation.token);
-			current = await this._nudge.resolve(candidate);
-			if (!current || store.isDisposed || !widget || widget.viewModel?.sessionResource.toString() !== resource.toString() || !this._trust.isWorkspaceTrusted()) { throw new Error('unavailable'); }
-			const owner = widget;
-			const resolution = this._connections.resolveSessionResource(resource);
-			if (!resolution) { throw new Error('unavailable'); }
-			const session = resolution.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.verifiedValue;
-			const chat = session?.defaultChat && resolution.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(session.defaultChat));
-			if (!chat) { throw new Error('unavailable'); }
-			const validOwner = () => !store.isDisposed && this._nudge.ownsEpisode() && this._trust.isWorkspaceTrusted()
-				&& owner.viewModel?.sessionResource.toString() === resource.toString();
-			const getTarget = () => owner.input.availableLanguageModels.find(model => model.metadata.id === current!.target.id && model.metadata.isUserSelectable !== false);
-			let explicitSelection = false;
+			const activeWidget = () => {
+				const active = navigation.getActiveWidget();
+				return active?.visible && active.viewModel?.sessionResource.toString() === resource.toString() ? active : undefined;
+			};
+			const validRun = () => !store.isDisposed && !cancellation.token.isCancellationRequested
+				&& this._nudge.ownsEpisode() && this._trust.isWorkspaceTrusted();
+			const validOwner = () => validRun() && !!widget && widget === activeWidget();
+			const abortUnavailable = () => { unavailable = true; cancellation.cancel(); };
+			const revalidate = async () => {
+				if (!validRun()) { return false; }
+				const eligible = await this._nudge.resolve(candidate);
+				if (!validRun()) { return false; }
+				if (!eligible) { abortUnavailable(); return false; }
+				return true;
+			};
+			const didShow = () => {
+				if (!guideShown) { guideShown = true; this._nudge.log('guideShown', surface); }
+			};
 			store.add(autorun(reader => {
 				this._nudge.revision.read(reader);
-				if (!validOwner()) { cancellation.cancel(); }
-			}));
-			const accepted = store.add(new Emitter<Promise<boolean>>());
-			store.add(owner.input.onDidChangeUserSelectedModel(event => {
-				explicitSelection = event.toModelId === getTarget()?.identifier;
-				if (!explicitSelection) { cancellation.cancel(); }
-			}));
-			store.add(owner.onDidChangeViewModel(() => {
-				if (owner.viewModel?.sessionResource.toString() !== resource.toString()) { cancellation.cancel(); }
+				if (!validRun()) { cancellation.cancel(); }
 			}));
 			store.add(this._trust.onDidChangeTrust(trusted => { if (!trusted) { cancellation.cancel(); } }));
-			store.add(chat.onDidApplyAction(envelope => {
-				if (envelope.action.type !== ActionType.ChatDraftChanged || envelope.origin?.clientId !== resolution.connection.clientId) { return; }
-				if (envelope.rejectionReason) { cancellation.cancel(); return; }
-				const target = getTarget();
-				if (target && explicitSelection && validOwner() && chat.verifiedValue?.draft?.model?.id === target.metadata.id
-					&& owner.input.selectedLanguageModel.get()?.identifier === target.identifier) {
-					accepted.fire((async () => {
-						// The source selection is now a Copilot draft, so validate the original
-						// metadata pair and current gates without substituting another session.
-						const eligible = await this._nudge.resolve(candidate, undefined, true);
-						completed = !!eligible && validOwner() && chat.verifiedValue?.draft?.model?.id === target.metadata.id;
-						return completed;
-					})());
-				}
-			}));
+
+			widget = activeWidget();
 			const id = `codex.continuation.${generateUuid()}`;
+			const steps: ISpotlightStep[] = [];
+			if (!widget) {
+				row.value = await navigation.revealSession(resource, cancellation.token);
+				const target = row.value;
+				if (!target || !validRun()) { throw new Error('unavailable'); }
+				const opened = store.add(new Emitter<Promise<boolean>>());
+				store.add(target.onDidOpen(openedResource => {
+					if (openedResource.toString() !== resource.toString()) { cancellation.cancel(); return; }
+					opened.fire((async () => {
+						widget = await waitForActiveChatWidget(resource, this._widgets, activeWidget, cancellation.token);
+						if (!validRun()) { return false; }
+						if (!widget || !await revalidate()) { abortUnavailable(); return false; }
+						return true;
+					})());
+				}));
+				const rowId = `${id}.session`;
+				store.add(registerOnboardingTargetProvider(rowId, () => {
+					const element = validRun() ? target.getElement() : undefined;
+					return element ? { element, onDidSelect: opened.event } : undefined;
+				}));
+				steps.push({
+					id: 'openSession', targetId: rowId,
+					title: localize('codexContinuation.openSession', "Open a Codex Session"),
+					description: localize('codexContinuation.openSession.description', "This Codex session uses your ChatGPT subscription. Open it to continue with your Copilot subscription."),
+					placement: 'right', allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+					missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
+					onBeforeShow: async () => { await revalidate(); },
+					onDidShow: () => { didShow(); target.focus(); },
+				});
+			}
+
+			const accepted = store.add(new Emitter<Promise<boolean>>());
 			const markedTarget = store.add(new MutableDisposable());
 			let markedElement: HTMLElement | undefined;
+			let prepared = false;
+			const getTarget = () => widget?.input.availableLanguageModels.find(model => model.metadata.id === current.target.id && model.metadata.isUserSelectable !== false);
 			store.add(registerOnboardingTargetProvider(id, () => {
-				if (!validOwner()) {
-					return undefined;
-				}
-				const control = owner.input.getModelPickerControl();
+				if (!prepared || !validOwner()) { return undefined; }
+				const control = widget!.input.getModelPickerControl();
 				const target = getTarget();
-				if (!control || !target) {
-					return undefined;
-				}
+				if (!control || !target) { return undefined; }
 				if (markedElement !== control.element) {
 					markedElement = control.element;
 					markedTarget.value = markOnboardingTarget(control.element, id, { onDidSelect: accepted.event });
@@ -209,7 +194,7 @@ export class CodexContinuationGuide extends Disposable {
 				return {
 					element: control.element,
 					open: () => {
-						const currentControl = owner.input.getModelPickerControl();
+						const currentControl = widget?.input.getModelPickerControl();
 						const currentTarget = getTarget();
 						if (validOwner() && currentControl?.element === control.element && currentTarget?.identifier === target.identifier) {
 							currentControl.open({ initialFilterValue: currentTarget.metadata.name, initialFocusItemId: currentTarget.identifier });
@@ -217,30 +202,52 @@ export class CodexContinuationGuide extends Disposable {
 					},
 				};
 			}));
+			steps.push({
+				id: 'chooseCopilot', targetId: id, title: CODEX_CONTINUATION_LABEL,
+				description: localize('codexContinuation.guide', "Select {0} from GitHub Copilot to continue this session.", current.target.name),
+				placement: 'left', openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+				missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
+				onDidShow: didShow,
+				onBeforeShow: async () => {
+					if (!await revalidate()) { return; }
+					if (!validOwner() || widget!.viewModel!.model.isInputBlocked.get()) { abortUnavailable(); return; }
+					if (prepared) { return; }
+					const owner = widget!;
+					const resolution = this._connections.resolveSessionResource(resource);
+					const session = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.verifiedValue;
+					const chat = session?.defaultChat && resolution?.connection.getSubscriptionUnmanaged(StateComponents.Chat, URI.parse(session.defaultChat));
+					if (!resolution || !chat) { abortUnavailable(); return; }
+					let explicitSelection = false;
+					store.add(owner.input.onDidChangeUserSelectedModel(event => {
+						explicitSelection = event.toModelId === getTarget()?.identifier;
+						if (!explicitSelection) { cancellation.cancel(); }
+					}));
+					store.add(owner.onDidChangeViewModel(() => {
+						if (owner.viewModel?.sessionResource.toString() !== resource.toString()) { cancellation.cancel(); }
+					}));
+					store.add(this._widgets.onDidChangeFocusedSession(() => { if (!validOwner()) { cancellation.cancel(); } }));
+					store.add(chat.onDidApplyAction(envelope => {
+						if (envelope.action.type !== ActionType.ChatDraftChanged || envelope.origin?.clientId !== resolution.connection.clientId) { return; }
+						if (envelope.rejectionReason) { cancellation.cancel(); return; }
+						const target = getTarget();
+						if (target && explicitSelection && validOwner() && chat.verifiedValue?.draft?.model?.id === target.metadata.id
+							&& owner.input.selectedLanguageModel.get()?.identifier === target.identifier) {
+							accepted.fire((async () => {
+								const eligible = await this._nudge.resolve(candidate, undefined, true);
+								completed = !!eligible && validOwner() && chat.verifiedValue?.draft?.model?.id === target.metadata.id;
+								return completed;
+							})());
+						}
+					}));
+					prepared = true;
+				},
+			});
 			store.add(onboardingScenarioRegistry.register({
 				id, repeatable: true, trigger: { kind: 'command', commandId: id },
-				presentation: {
-					kind: SPOTLIGHT_PRESENTATION_KIND, payload: {
-						steps: [{
-							id: 'chooseCopilot', targetId: id, title: CODEX_CONTINUATION_LABEL,
-							description: localize('codexContinuation.guide', "Select {0} from GitHub Copilot to continue this session.", current.target.name),
-							placement: 'left',
-							openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
-							missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
-							onDidShow: () => {
-								if (!guideShown) {
-									guideShown = true;
-									this._nudge.log('guideShown', surface);
-								}
-							},
-							onBeforeShow: async () => {
-								if (!await this._nudge.resolve(candidate) || !validOwner()) { throw new Error('unavailable'); }
-							},
-						}]
-					} satisfies ISpotlightPayload
-				},
+				presentation: { kind: SPOTLIGHT_PRESENTATION_KIND, payload: { steps } satisfies ISpotlightPayload },
 			}));
 			const outcome = await this._onboarding.runScenario(id, cancellation.token);
+			if (unavailable) { throw new Error('unavailable'); }
 			if (completed && outcome === OnboardingOutcome.Completed && validOwner()) { await this._nudge.complete(surface); }
 			else { this._nudge.log('guideCancelled', surface); }
 		} catch {
@@ -249,9 +256,11 @@ export class CodexContinuationGuide extends Disposable {
 				this._notifications.info(localize('codexContinuation.unavailable', "This Copilot continuation is no longer available. Review the session's model picker to continue."));
 			}
 		} finally {
-			const restoreFocus = !store.isDisposed && this._host.hasFocus;
+			if (!store.isDisposed && this._host.hasFocus) {
+				if (widget?.visible && widget === navigation.getActiveWidget()) { widget.focusInput(); }
+				else { row.value?.focus(); }
+			}
 			store.dispose();
-			if (restoreFocus) { widget?.focusInput(); }
 		}
 	}
 }

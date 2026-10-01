@@ -68,6 +68,9 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive): string {
 	const content = [];
+	if (type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.codexContinuation', "A ChatGPT limit suggestion may offer Continue with Copilot. If the eligible Codex session is not active, the guide highlights its row in the Sessions list. Open that session using the list's usual keyboard shortcut: by default, Command+Down Arrow on macOS or Enter on Windows and Linux. The next step opens its model picker with a matching Copilot model in the search. Use Up and Down Arrow and Enter to select the Copilot model. An already-active eligible session goes directly to the picker. Escape cancels the guide without changing the model."));
+	}
 	if (isSessionsWindow) {
 		content.push(localize('chat.sessionPreparation', "While a session is being prepared, a progress message appears in the transcript. Use Tab or Shift+Tab to reach Show Log, when available, and press Enter or Space to open the output log. Use Stop to cancel preparation. The chat input and attachment controls are disabled until preparation finishes."));
 	}

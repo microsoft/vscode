@@ -621,10 +621,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			this._onDidChangeQuotaExceeded.fire();
 		}
 
-		const sessionRateLimitChanged = oldQuota.sessionRateLimit?.percentRemaining !== quotas.sessionRateLimit?.percentRemaining;
-		const weeklyRateLimitChanged = oldQuota.weeklyRateLimit?.percentRemaining !== quotas.weeklyRateLimit?.percentRemaining;
+		const sessionRateLimitChanged = this.compareQuotas(oldQuota.sessionRateLimit, quotas.sessionRateLimit).changed.remaining;
+		const weeklyRateLimitChanged = this.compareQuotas(oldQuota.weeklyRateLimit, quotas.weeklyRateLimit).changed.remaining;
 
-		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling) {
+		if (chatChanged.remaining || completionsChanged.remaining || premiumChatChanged.remaining || sessionRateLimitChanged || weeklyRateLimitChanged || oldQuota.usageBasedBilling !== quotas.usageBasedBilling || oldQuota.additionalUsageEnabled !== quotas.additionalUsageEnabled) {
 			this._onDidChangeQuotaRemaining.fire();
 		}
 
@@ -655,6 +655,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			changed: {
 				exceeded: (oldQuota?.percentRemaining === 0) !== (newQuota?.percentRemaining === 0),
 				remaining: oldQuota?.percentRemaining !== newQuota?.percentRemaining
+					// Pooled or newly limited allowances can become unusable without a percentage change.
+					|| oldQuota?.hasQuota !== newQuota?.hasQuota
+					|| oldQuota?.unlimited !== newQuota?.unlimited
 					|| oldQuota?.usageBasedBilling !== newQuota?.usageBasedBilling
 					// Unlimited plans report a constant percentage, so consumed credits are the only signal that usage moved.
 					|| oldQuota?.creditsUsed !== newQuota?.creditsUsed

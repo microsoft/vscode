@@ -10,6 +10,7 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -19,6 +20,8 @@ import '../media/sessionsListNotice.css';
 export interface ISessionsListNoticeHost {
 	readonly container: HTMLElement;
 	readonly onDidChangeVisibility: Event<boolean>;
+	readonly onDidOpenSession: Event<URI>;
+	revealSession(resource: URI): IDisposable & { readonly targetId: string };
 	isVisible(): boolean;
 	focusSessionsList(): void;
 	announce(message: string): void;

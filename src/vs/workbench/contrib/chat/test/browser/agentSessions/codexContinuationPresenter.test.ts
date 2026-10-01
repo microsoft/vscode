@@ -51,6 +51,32 @@ suite('Codex continuation presentation boundary', () => {
 			presenter.dispose();
 			assert.strictEqual(await visible!(), false);
 		}));
+
+		test(`${surface} removes a visible nudge when quota eligibility is lost`, () => runWithFakedTimers({}, async () => {
+			const candidate = upcastPartial<ICodexContinuationCandidate>({});
+			const eligible = observableValue<ICodexContinuationCandidate | undefined>('candidate', candidate);
+			let disposed = 0;
+			let dismissed = 0;
+			const nudge = upcastPartial<ICodexContinuationService>({
+				candidate: eligible, revision: observableValue('revision', 0), setSelectableModels: () => { },
+				wouldShow: async () => true, resolve: async () => eligible.get(), reservePresentation: async () => true,
+				releasePresentation: async () => { }, ownsEpisode: () => true, markVisible: async () => true,
+				dismiss: () => dismissed++,
+			});
+			let visible: (() => Promise<boolean>) | undefined;
+			store.add(new CodexContinuationPresenter({
+				surface, onDidChangePresentability: Event.None, isPresentable: () => true,
+				show: (_candidate, didShow) => { visible = didShow; return toDisposable(() => disposed++); },
+			}, nudge, upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }),
+				upcastPartial<ILanguageModelsService>({ getLanguageModelIds: () => [], onDidChangeLanguageModels: Event.None })));
+			await timeout(1);
+			assert.strictEqual(await visible!(), true);
+
+			eligible.set(undefined, undefined);
+			await timeout(1);
+
+			assert.deepStrictEqual({ disposed, dismissed }, { disposed: 1, dismissed: 0 });
+		}));
 	}
 	test('disposal while treatment resolves prevents late UI', () => runWithFakedTimers({}, async () => {
 		const treatment = new DeferredPromise<boolean>();

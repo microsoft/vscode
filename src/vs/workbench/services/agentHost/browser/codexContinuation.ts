@@ -8,7 +8,7 @@ import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, readAgentModelSourceId } from '..
 import { ICodexAccountInfo } from '../../../../platform/agentHost/common/codexAccount.js';
 import { isPaidChatGPTPlan } from '../../../../platform/agentHost/common/codexAccountPlan.js';
 import { parseCodexModelSelection, toCodexModelSelectionId } from '../../../../platform/agentHost/common/codexModelSelection.js';
-import { SessionModelInfo } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { isSessionStatusArchived, SessionModelInfo } from '../../../../platform/agentHost/common/state/sessionState.js';
 
 export const CODEX_CONTINUATION_MAX_AGE = 5 * 60 * 1000;
 export type CodexContinuationSurface = 'agentsWindow' | 'editorWindow';
@@ -70,7 +70,7 @@ export function updateCodexEpisode(episode: ICodexContinuationEpisode | undefine
 export function getCodexContinuationCandidates(sessions: readonly IAgentSessionMetadata[], models: readonly SessionModelInfo[], activeSession?: string): ICodexContinuationCandidate[] {
 	const candidates: ICodexContinuationCandidate[] = [];
 	for (const session of sessions) {
-		if (AgentSession.provider(session.session) !== 'codex' || !session.model) {
+		if (AgentSession.provider(session.session) !== 'codex' || !session.model || isSessionStatusArchived(session.status)) {
 			continue;
 		}
 		const selection = parseCodexModelSelection(session.model);

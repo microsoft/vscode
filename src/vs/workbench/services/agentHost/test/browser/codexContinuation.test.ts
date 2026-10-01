@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AgentSession, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { ICodexAccountInfo } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { toCodexModelProvider } from '../../../../../platform/agentHost/common/codexModelSelection.js';
-import { PolicyState, SessionModelInfo } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { PolicyState, SessionModelInfo, SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatEntitlement, hasUsableCopilotPremiumQuota } from '../../../chat/common/chatEntitlementService.js';
 import { CODEX_CONTINUATION_MAX_AGE, getCodexContinuationCandidates, getCodexTriggeringLimits, ICodexContinuationEpisode, updateCodexEpisode } from '../../browser/codexContinuation.js';
 
@@ -74,6 +74,16 @@ suite('Codex continuation eligibility', () => {
 			getCodexContinuationCandidates(sessions, [source, { ...target, policyState: PolicyState.Disabled }]),
 			getCodexContinuationCandidates(sessions, [source, { ...target, id: '@provider=vscode-proxy:other', name: source.name }]),
 		], [['new', 'old'], ['old', 'new'], [], [], []]);
+	});
+	test('archived active sessions do not outrank newer candidates', () => {
+		const source: SessionModelInfo = { provider: 'codex', id: '@provider=openai:gpt', name: 'GPT', _meta: { modelSourceId: 'chatgptSubscription' } };
+		const target: SessionModelInfo = { provider: 'codex', id: '@provider=vscode-proxy:gpt', name: 'GPT Copilot' };
+		const archived: IAgentSessionMetadata = { session: AgentSession.uri('codex', 'archived'), startTime: 0, modifiedTime: 1, model: { id: source.id }, status: SessionStatus.IsArchived };
+		const external: IAgentSessionMetadata = { session: AgentSession.uri('codex', 'external'), startTime: 0, modifiedTime: 2, model: { id: source.id } };
+		assert.deepStrictEqual(
+			getCodexContinuationCandidates([archived, external], [source, target], archived.session.toString()).map(candidate => AgentSession.id(candidate.session.session)),
+			['external'],
+		);
 	});
 	test('turn provider is a bounded dispatch fact', () => {
 		assert.deepStrictEqual(['openai', 'vscode-proxy', 'private-provider', '', undefined].map(toCodexModelProvider), ['openai', 'copilot', 'other', 'unknown', 'unknown']);

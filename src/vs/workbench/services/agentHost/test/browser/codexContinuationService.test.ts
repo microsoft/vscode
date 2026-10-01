@@ -57,9 +57,10 @@ suite('Codex continuation coordination', () => {
 			override onDidChangeAccount = Event.None;
 			override account: ICodexAccountInfo = { status: 'signedIn', planType: 'plus', observedAt: Date.now(), rateLimits: [{ usedPercent: 95, windowDurationMins: 300 }] };
 		}();
+		const quotaChanged = store.add(new Emitter<void>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override onDidChangeEntitlement = Event.None;
-			override onDidChangeQuotaRemaining = Event.None;
+			override onDidChangeQuotaRemaining = quotaChanged.event;
 			override onDidChangeQuotaExceeded = Event.None;
 			override onDidChangeSentiment = Event.None;
 			override entitlement = ChatEntitlement.Pro;
@@ -80,11 +81,13 @@ suite('Codex continuation coordination', () => {
 			override async getTreatment<T>(): Promise<T | undefined> { order.push('treatment'); return treatment as T; }
 		}();
 		const config = new TestConfigurationService({ chat: { agentHost: { codexAgent: { enabled: true } } } });
-		const environment = new class extends mock<IWorkbenchEnvironmentService>() { override isSessionsWindow = true; }();
+		const environment = new class extends mock<IWorkbenchEnvironmentService>() {
+			override isSessionsWindow = true;
+		}();
 
 		const service = store.add(new CodexContinuationService(agent, connections, account, entitlement, host, storage, telemetry, assignment, config, environment));
 		service.setSelectableModels([{ id: target.id, vendor: 'agent-host-codex' }]);
-		return { service, order, host, account, entitlement, session, activity, notifications };
+		return { service, order, host, account, entitlement, session, activity, notifications, quotaChanged };
 	}
 
 	for (const treatment of [false, true]) {
@@ -167,11 +170,55 @@ suite('Codex continuation coordination', () => {
 		assert.strictEqual(await service.resolve(), undefined);
 		assert.strictEqual((storage.getObject(CODEX_CONTINUATION_STORAGE_KEY, StorageScope.APPLICATION_SHARED, {}) as { permanent?: string }).permanent, undefined);
 	}));
-	test('own Copilot rate limits fail closed at 90 percent usage', () => runWithFakedTimers({}, async () => {
-		const { service, entitlement } = create(store.add(new InMemoryStorageService()));
-		entitlement.quotas = { ...entitlement.quotas, sessionRateLimit: { unlimited: false, percentRemaining: 10 } };
+	const blockedQuotas: { name: string; entitlement?: ChatEntitlement; quotas: IChatEntitlementService['quotas'] }[] = [
+		{ name: 'included premium quota exhausted', quotas: { premiumChat: { unlimited: false, percentRemaining: 0 }, additionalUsageEnabled: false } },
+		{ name: 'chat quota exhausted despite additional usage', quotas: { premiumChat: { unlimited: false, percentRemaining: 50 }, chat: { unlimited: false, percentRemaining: 0 }, additionalUsageEnabled: true } },
+		{ name: 'Business allowance blocked', entitlement: ChatEntitlement.Business, quotas: { premiumChat: { unlimited: true, percentRemaining: 100, hasQuota: false }, additionalUsageEnabled: true } },
+		{ name: 'Enterprise allowance blocked', entitlement: ChatEntitlement.Enterprise, quotas: { premiumChat: { unlimited: false, percentRemaining: 50, hasQuota: false }, additionalUsageEnabled: true } },
+		{ name: 'unknown premium allowance', quotas: {} },
+	];
+	for (const rateLimit of ['sessionRateLimit', 'weeklyRateLimit'] as const) {
+		for (const percentRemaining of [0, 10]) {
+			blockedQuotas.push({
+				name: `${rateLimit} with ${percentRemaining} percent remaining`,
+				quotas: { premiumChat: { unlimited: false, percentRemaining: 100 }, [rateLimit]: { unlimited: false, percentRemaining } },
+			});
+		}
+	}
+	for (const blocked of blockedQuotas) {
+		test(`suppresses both surfaces when Copilot is unavailable: ${blocked.name}`, () => runWithFakedTimers({}, async () => {
+			const { service, entitlement, activity, order } = create(store.add(new InMemoryStorageService()));
+			entitlement.entitlement = blocked.entitlement ?? ChatEntitlement.Pro;
+			entitlement.quotas = blocked.quotas;
+			await timeout(101);
+
+			assert.deepStrictEqual({
+				candidate: service.candidate.get(),
+				agents: await service.wouldShow('agentsWindow'),
+				editor: await service.wouldShow('editorWindow'),
+				reserved: await service.reservePresentation(),
+				listSessions: activity.listSessions,
+				telemetry: order,
+			}, { candidate: undefined, agents: false, editor: false, reserved: false, listSessions: 0, telemetry: [] });
+		}));
+	}
+	test('withdraws eligibility on a live Copilot quota update and restores it when quota returns', () => runWithFakedTimers({}, async () => {
+		const { service, entitlement, quotaChanged } = create(store.add(new InMemoryStorageService()));
 		await timeout(101);
-		assert.strictEqual(service.candidate.get(), undefined);
+		const original = service.candidate.get()!;
+		assert.ok(original);
+
+		entitlement.quotas = { ...entitlement.quotas, additionalUsageEnabled: false };
+		quotaChanged.fire();
+		await timeout(101);
+		const blocked = { candidate: service.candidate.get(), resolved: await service.resolve(original), canShow: await service.wouldShow('agentsWindow') };
+
+		entitlement.quotas = { premiumChat: { unlimited: false, percentRemaining: 100 } };
+		quotaChanged.fire();
+		await timeout(101);
+		assert.deepStrictEqual({ blocked, restored: service.candidate.get()?.session.session.toString() }, {
+			blocked: { candidate: undefined, resolved: undefined, canShow: false }, restored: original.session.session.toString(),
+		});
 	}));
 	test('focus lost while the authoritative claim is read does not consume an episode', () => runWithFakedTimers({}, async () => {
 		let onRead = () => { };

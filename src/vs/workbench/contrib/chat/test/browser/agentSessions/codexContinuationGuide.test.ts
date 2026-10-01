@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -28,14 +29,15 @@ import { ISpotlightPayload } from '../../../../onboarding/browser/spotlight/spot
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
 import { OnboardingOutcome } from '../../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
-import { CodexContinuationGuide, openAndWaitForChatWidget } from '../../../browser/agentSessions/agentHost/codexContinuationGuide.js';
+import { CodexContinuationGuide, waitForActiveChatWidget } from '../../../browser/agentSessions/agentHost/codexContinuationGuide.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
+import { IChatModel } from '../../../common/model/chatModel.js';
 
 suite('Codex continuation exact widget guide', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'noSearch'] as const) {
+	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'noSearch', 'rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'blocked'] as const) {
 		test(`only a committed exact selection completes: ${scenario}`, async () => {
 			const resource = URI.parse('agent-host-codex:/one');
 			const candidate: ICodexContinuationCandidate = {
@@ -46,7 +48,8 @@ suite('Codex continuation exact widget guide', () => {
 			const target: ILanguageModelChatMetadataAndIdentifier = { identifier: `agent-host-codex:${candidate.target.id}`, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: candidate.target.id, name: candidate.target.name, isUserSelectable: true }) };
 			const element = document.createElement('button');
 			const foreign = document.createElement('button');
-			for (const targetElement of [element, foreign]) {
+			const row = document.createElement('div');
+			for (const targetElement of [element, foreign, row]) {
 				targetElement.style.cssText = 'position: fixed; width: 100px; height: 30px;';
 				mainWindow.document.body.appendChild(targetElement);
 				store.add(toDisposable(() => targetElement.remove()));
@@ -55,7 +58,11 @@ suite('Codex continuation exact widget guide', () => {
 			const selections = store.add(new Emitter<{ fromModelId: string; toModelId: string }>());
 			const confirmations = store.add(new Emitter<ActionEnvelope>());
 			const viewChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
+			const sessionOpened = store.add(new Emitter<URI>());
+			const focused = store.add(new Emitter<void>());
+			const startWithRow = ['rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived'].includes(scenario);
 			let committed: ChatState | undefined;
+			let eligible = true;
 			let replaced = false;
 			const opened: object[] = [];
 			const actions: CodexContinuationAction[] = [];
@@ -65,10 +72,15 @@ suite('Codex continuation exact widget guide', () => {
 				onDidChangeUserSelectedModel: selections.event,
 				getModelPickerControl: () => scenario === 'noSearch' ? undefined : { element: replaced ? foreign : element, open: options => opened.push(options) },
 			});
-			const widget = upcastPartial<IChatWidget>({ input, viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource }), onDidChangeViewModel: viewChanged.event, focusInput: () => { } });
+			const widget = upcastPartial<IChatWidget>({ input, visible: true, viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource, model: upcastPartial<IChatModel>({ isInputBlocked: observableValue('blocked', scenario === 'blocked') }) }), onDidChangeViewModel: viewChanged.event, focusInput: () => { } });
+			let active: IChatWidget | undefined = startWithRow ? undefined : widget;
+			const widgets = upcastPartial<IChatWidgetService>({
+				getAllWidgets: () => [widget], onDidAddWidget: Event.None,
+				onDidChangeFocusedSession: focused.event, onDidChangeWidgetVisibility: Event.None,
+			});
 			const nudge = upcastPartial<ICodexContinuationService>({
 				revision: observableValue('revision', 0),
-				resolve: async () => candidate, ownsEpisode: () => true,
+				resolve: async () => eligible ? candidate : undefined, ownsEpisode: () => true,
 				log: action => actions.push(action), complete: async () => { actions.push('guideCompleted'); },
 			});
 			const connection = upcastPartial<IAgentConnection>({
@@ -85,8 +97,33 @@ suite('Codex continuation exact widget guide', () => {
 			const onboarding = new class extends mock<IOnboardingScenarioService>() {
 				override async runScenario(id: string, token?: CancellationToken): Promise<OnboardingOutcome> {
 					const registered = onboardingScenarioRegistry.getScenario(id)!;
-					const step = (registered.presentation.payload as ISpotlightPayload).steps[0];
+					const steps = (registered.presentation.payload as ISpotlightPayload).steps;
+					assert.strictEqual(steps.length, startWithRow ? 2 : 1);
+					if (startWithRow) {
+						const rowStep = steps[0];
+						await rowStep.onBeforeShow?.();
+						const rowTarget = resolveOnboardingTarget(mainWindow, rowStep.targetId)!;
+						assert.strictEqual(rowTarget.element, row);
+						assert.strictEqual(rowStep.hideNext, true);
+						spotlightShows++;
+						rowStep.onDidShow?.();
+						assert.deepStrictEqual({ active, opened }, { active: undefined, opened: [] }, 'revealing a row neither opens the chat nor its picker');
+						if (scenario === 'rowCancelled') { return OnboardingOutcome.Skipped; }
+						let rowResult: Promise<boolean> | undefined;
+						const listener = rowTarget.onDidSelect!(result => { rowResult = result; });
+						try {
+							if (scenario === 'rowArchived') { eligible = false; }
+							if (scenario !== 'cancelledDuringOpen') { active = widget; }
+							sessionOpened.fire(scenario === 'wrongSession' ? resource.with({ path: '/other' }) : resource);
+							if (scenario === 'cancelledDuringOpen') {
+								return OnboardingOutcome.Skipped;
+							}
+							if (!rowResult || !await rowResult || token?.isCancellationRequested) { return OnboardingOutcome.Aborted; }
+						} finally { listener.dispose(); }
+					}
+					const step = steps[steps.length - 1];
 					await step.onBeforeShow?.();
+					if (token?.isCancellationRequested) { return OnboardingOutcome.Aborted; }
 					let resolved = resolveOnboardingTarget(mainWindow, id);
 					if (!resolved) {
 						return OnboardingOutcome.Aborted;
@@ -125,15 +162,30 @@ suite('Codex continuation exact widget guide', () => {
 			const guide = store.add(new CodexContinuationGuide(nudge, connections, onboarding,
 				upcastPartial<IWorkspaceTrustManagementService>({ isWorkspaceTrusted: () => scenario !== 'restricted', onDidChangeTrust: Event.None }),
 				upcastPartial<INotificationService>({ info: () => { } }),
-				upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None })));
-			let opens = 0;
-			await guide.run(candidate, 'editorWindow', async requested => { assert.strictEqual(requested.toString(), resource.toString()); opens++; return widget; });
-			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted' || scenario === 'replaced');
-			assert.strictEqual(actions.filter(action => action === 'guideShown').length, scenario === 'restricted' || scenario === 'noSearch' ? 0 : 1);
-			assert.strictEqual(spotlightShows, scenario === 'restricted' || scenario === 'noSearch' ? 0 : scenario === 'replaced' ? 2 : 1);
+				upcastPartial<IHostService>({ hasFocus: true, onDidChangeFocus: Event.None }), widgets));
+			let reveals = 0;
+			let releases = 0;
+			await guide.run(candidate, 'editorWindow', {
+				getActiveWidget: () => active,
+				revealSession: async requested => {
+					assert.strictEqual(requested.toString(), resource.toString());
+					reveals++;
+					return { getElement: () => row, onDidOpen: sessionOpened.event, focus: () => { }, dispose: () => { releases++; } };
+				},
+			});
+			if (scenario === 'cancelledDuringOpen') {
+				active = widget;
+				focused.fire();
+				await timeout(0);
+				assert.deepStrictEqual(opened, [], 'a late open cannot revive a cancelled guide');
+			}
+			const neverShown = scenario === 'restricted' || scenario === 'noSearch' || scenario === 'blocked';
+			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted' || scenario === 'replaced' || scenario === 'rowAccepted');
+			assert.strictEqual(actions.filter(action => action === 'guideShown').length, neverShown ? 0 : 1);
+			assert.strictEqual(spotlightShows, neverShown ? 0 : scenario === 'replaced' || scenario === 'rowAccepted' ? 2 : 1);
 			assert.strictEqual(element.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'run target is disposed');
 			assert.strictEqual(foreign.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'replacement target is disposed');
-			assert.strictEqual(opens, scenario === 'restricted' ? 0 : 1);
+			assert.deepStrictEqual({ reveals, releases }, { reveals: startWithRow ? 1 : 0, releases: startWithRow ? 1 : 0 });
 		});
 	}
 
@@ -144,10 +196,12 @@ suite('Codex continuation exact widget guide', () => {
 		const focusedSessionChanged = store.add(new Emitter<void>());
 		const widgets: IChatWidget[] = [];
 		const other = upcastPartial<IChatWidget>({
+			visible: true,
 			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: otherResource }),
 			onDidChangeViewModel: Event.None,
 		});
 		const exact = upcastPartial<IChatWidget>({
+			visible: true,
 			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource }),
 			onDidChangeViewModel: Event.None,
 		});
@@ -156,9 +210,10 @@ suite('Codex continuation exact widget guide', () => {
 			getAllWidgets: () => widgets,
 			onDidAddWidget: added.event,
 			onDidChangeFocusedSession: focusedSessionChanged.event,
+			onDidChangeWidgetVisibility: Event.None,
 		});
 		const cancellation = store.add(new CancellationTokenSource());
-		const result = openAndWaitForChatWidget(resource, service, async () => undefined, cancellation.token, 1_000);
+		const result = waitForActiveChatWidget(resource, service, () => widgets.at(-1), cancellation.token, 1_000);
 		widgets.push(other);
 		added.fire(other);
 		widgets.push(exact);
@@ -175,11 +230,13 @@ suite('Codex continuation exact widget guide', () => {
 			getAllWidgets: () => widgets,
 			onDidAddWidget: added.event,
 			onDidChangeFocusedSession: Event.None,
+			onDidChangeWidgetVisibility: Event.None,
 		});
 		const cancellation = store.add(new CancellationTokenSource());
-		const result = openAndWaitForChatWidget(resource, service, async () => undefined, cancellation.token, 1_000);
+		const result = waitForActiveChatWidget(resource, service, () => widgets.at(-1), cancellation.token, 1_000);
 		cancellation.cancel();
 		const exact = upcastPartial<IChatWidget>({
+			visible: true,
 			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource }),
 			onDidChangeViewModel: Event.None,
 		});

@@ -350,7 +350,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasOnboardingTargetSelection(target.element) : step.openTarget;
 		if (step.advanceOnTargetSelection) {
-			stepStore.add(onDidSelectOnboardingTarget(target.element)(async accepted => {
+			stepStore.add((target.onDidSelect ?? onDidSelectOnboardingTarget(target.element))(async accepted => {
 				try {
 					if (await accepted) {
 						done({ action: 'next', via: 'condition' });

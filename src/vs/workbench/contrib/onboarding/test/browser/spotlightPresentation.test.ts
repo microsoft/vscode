@@ -65,6 +65,25 @@ suite('SpotlightPresentation', () => {
 		};
 	}
 
+	test('a scoped adapter reports selection without replacing the owner target marker', async () => {
+		const container = createContainer();
+		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+		const selected = disposables.add(new Emitter<Promise<boolean>>());
+		const target = createTarget(container, 'test.owner');
+		disposables.add(registerOnboardingTargetProvider('test.adapter', () => ({ element: target, onDidSelect: selected.event })));
+		const result = await presentation.run(createScenario('test.adapter', {
+			id: 'choose', targetId: 'test.adapter', title: 'Open Session', description: 'Use the real row.',
+			allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+		}), {
+			targetWindow: mainWindow, onAbort: Event.None,
+			onDidShow: () => selected.fire(Promise.resolve(true)),
+		});
+		assert.deepStrictEqual({ outcome: result.outcome, marker: target.getAttribute(ONBOARDING_TARGET_ATTR), retainedListener: selected.hasListeners() }, {
+			outcome: OnboardingOutcome.Completed, marker: 'test.owner', retainedListener: false,
+		});
+	});
+
 	test('resolves a target within the prepared instance scope', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));

@@ -327,6 +327,12 @@ export class SessionsView extends ViewPane {
 			onDidChangeVisibility: this.onDidChangeBodyVisibility,
 			isVisible: () => this.isBodyVisible(),
 			focusSessionsList: () => sessionsControl.focus(),
+			onDidOpenSession: sessionsControl.onDidOpenSession,
+			revealSession: resource => {
+				const session = this.sessionsManagementService.getSession(resource);
+				if (!session) { throw new Error('Session is no longer available'); }
+				return sessionsControl.revealSessionForOnboarding(session);
+			},
 			announce: status,
 		})) { this._register(notice); }
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));

@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { runAtThisOrScheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { getWindow, runAtThisOrScheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide, openAndWaitForChatWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationGuide.js';
+import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE, CodexContinuationGuide, ICodexContinuationNavigation } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationGuide.js';
 import { CodexContinuationPresenter } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationPresenter.js';
+import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICodexContinuationService } from '../../../../../workbench/services/agentHost/browser/codexContinuationService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsListNoticeHost, registerSessionsListNotice, SessionsListNotice } from '../../../sessions/browser/views/sessionsListNotice.js';
@@ -25,6 +26,23 @@ class CodexContinuationNotice extends Disposable {
 	) {
 		super();
 		const guide = this._register(instantiation.createInstance(CodexContinuationGuide));
+		const navigation: ICodexContinuationNavigation = {
+			getActiveWidget: () => {
+				const active = sessions.activeSession.get();
+				return active && active.activeChat.get()?.resource.toString() === active.resource.toString()
+					? widgets.getWidgetBySessionResource(active.resource) : undefined;
+			},
+			revealSession: async (resource, token) => {
+				if (token.isCancellationRequested || !host.isVisible()) { return undefined; }
+				const reveal = host.revealSession(resource);
+				return {
+					onDidOpen: host.onDidOpenSession,
+					getElement: () => findOnboardingTarget(getWindow(host.container), reveal.targetId),
+					focus: host.focusSessionsList,
+					dispose: () => reveal.dispose(),
+				};
+			},
+		};
 		this._register(autorun(reader => nudge.setActiveSession(sessions.activeSession.read(reader)?.resource)));
 		this._register(instantiation.createInstance(CodexContinuationPresenter, {
 			surface: 'agentsWindow',
@@ -42,15 +60,7 @@ class CodexContinuationNotice extends Disposable {
 					},
 					run: () => {
 						close('action');
-						void guide.run(candidate, 'agentsWindow', (resource, token) => openAndWaitForChatWidget(
-							resource,
-							widgets,
-							async () => {
-								await sessions.openSession(resource, { forceMainChat: true });
-								return undefined;
-							},
-							token,
-						));
+						void guide.run(candidate, 'agentsWindow', navigation);
 					},
 				}));
 				host.container.appendChild(notice.domNode);

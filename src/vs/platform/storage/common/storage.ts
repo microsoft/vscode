@@ -112,7 +112,6 @@ export interface IStorageService {
 	/** Atomically update local, machine-only shared state across windows. */
 	compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string): Promise<{ swapped: boolean; currentValue: string | undefined }>;
 
-
 	/**
 	 * Retrieve an element stored with the given key from storage. Use
 	 * the provided `defaultValue` if the element is `null` or `undefined`.
