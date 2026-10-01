@@ -165,13 +165,19 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('configured locations banner links to affected settings', () => {
+	test('configured locations copy explains harness discovery and links to affected settings', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
+		const agent: IPromptPath = {
+			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.ConfigWorkspace,
+		};
 		const modifiedSettingIds = [
 			PromptsConfig.MODE_LOCATION_KEY,
 			PromptsConfig.SKILLS_LOCATION_KEY,
 		];
-		const banner = category.getBanner?.([], 'Copilot', undefined, modifiedSettingIds);
+		const banner = category.getBanner?.([agent], 'Copilot', undefined, modifiedSettingIds);
 		const message = banner?.message;
 		const settingsLinks = [
 			PromptsConfig.MODE_LOCATION_KEY,
@@ -180,9 +186,12 @@ suite('customizationMigration', () => {
 
 		assert.deepStrictEqual(isMarkdownString(message) ? {
 			settingIds: category.configurationSettingIds,
+			card: category.getCardDescription([agent], 'Copilot'),
+			pageDescription: category.getPageDescription([agent], 'Copilot'),
 			value: message.value,
 			isTrusted: message.isTrusted,
 			consequence: banner?.consequence,
+			confirmationDetail: category.getConfirmation([agent], 'Copilot').detail,
 		} : message, {
 			settingIds: [
 				PromptsConfig.AGENTS_LOCATION_KEY,
@@ -190,9 +199,12 @@ suite('customizationMigration', () => {
 				PromptsConfig.SKILLS_LOCATION_KEY,
 				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 			],
-			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
+			card: 'Found 1 customization in a location observed only by the Local agent harness. Copilot picks it up when running in VS Code. Move it to a supported location for use outside VS Code.',
+			pageDescription: 'Found 1 customization in a location configured through VS Code settings. These settings are only observed by the Local agent harness. Copilot picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the selected customization to a supported harness location for use outside VS Code.',
+			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are only observed by the Local agent harness. Copilot picks up customizations from all additional locations when running in VS Code, in addition to its built-in locations. Move the customizations into supported harness folders so Copilot can find them when running independently.`,
 			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
 			consequence: 'The option to clear unused location settings after migration is selected by default.',
+			confirmationDetail: 'This moves 1 customization out of a VS Code-configured location.',
 		});
 	});
 
