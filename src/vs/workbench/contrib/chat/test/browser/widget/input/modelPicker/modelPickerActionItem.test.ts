@@ -150,7 +150,7 @@ suite('ModelPickerActionItem', () => {
 			const configuration = picker.domNode.querySelector<HTMLElement>('.model-picker-config')!;
 			return {
 				configurationVisible: configuration.offsetWidth > 0,
-				minimumWidthBeyondSections: picker.minimumWidth - 90 - configuration.offsetWidth,
+				minimumWidthBeyondSections: picker.minimumWidth - 90 - configuration.getBoundingClientRect().width,
 			};
 		});
 
@@ -158,6 +158,12 @@ suite('ModelPickerActionItem', () => {
 			{ configurationVisible: true, minimumWidthBeyondSections: 2 },
 			{ configurationVisible: false, minimumWidthBeyondSections: 0 },
 		]);
+	});
+
+	test('preserves fractional configuration widths when sizing a short model name', () => {
+		const picker = renderPicker(createModel('o3'), { tabbed: true });
+
+		assert.strictEqual(picker.minimumWidth, picker.name.width + picker.configuration.width + 2);
 	});
 
 	for (const tabbed of [false, true]) {

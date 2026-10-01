@@ -160,8 +160,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			const model = chatView.querySelector<HTMLElement>('.model-picker-config');
 			const voice = chatView.querySelector<HTMLElement>('.chat-voice-input-mode');
 			assert(!!model && !!voice && model.checkVisibility() && voice.checkVisibility());
-			assert(voice.getBoundingClientRect().left - model.getBoundingClientRect().right === 8,
-				'The model configuration and voice control must be separated by the same 8px as the empty composer.');
+			const gap = voice.getBoundingClientRect().left - model.getBoundingClientRect().right;
+			assert(gap === 8, `The model configuration and voice control must be separated by the same 8px as the empty composer, got ${gap}px.`);
 		},
 	}),
 	SessionsWindowModelConfiguration: defineComponentFixture({

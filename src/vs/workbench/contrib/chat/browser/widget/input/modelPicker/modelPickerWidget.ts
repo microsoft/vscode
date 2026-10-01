@@ -139,7 +139,12 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _updateMinimumWidth(nameWidth: number): void {
-		const configurationWidth = this._configButton && this._configButton.offsetWidth > 0 ? dom.getTotalWidth(this._configButton) : 0;
+		let configurationWidth = 0;
+		if (this._configButton && this._configButton.offsetWidth > 0) {
+			const margins = dom.getTotalWidth(this._configButton) - this._configButton.offsetWidth;
+			// Preserve fractional text widths so rounding does not leave space after the readout.
+			configurationWidth = this._configButton.getBoundingClientRect().width + margins;
+		}
 		const minimumWidth = nameWidth + configurationWidth;
 		if (this._minimumWidth !== minimumWidth) {
 			this._minimumWidth = minimumWidth;
