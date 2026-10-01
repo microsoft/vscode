@@ -25,7 +25,9 @@ use windows_sys::Win32::Foundation::{
 	WAIT_OBJECT_0, WAIT_TIMEOUT,
 };
 use windows_sys::Win32::Storage::FileSystem::{ReadFile, WriteFile};
-use windows_sys::Win32::System::Console::{ClosePseudoConsole, CreatePseudoConsole, COORD, HPCON};
+use windows_sys::Win32::System::Console::{
+	ClosePseudoConsole, CreatePseudoConsole, SetConsoleCtrlHandler, COORD, HPCON,
+};
 use windows_sys::Win32::System::Pipes::CreatePipe;
 use windows_sys::Win32::System::Threading::{
 	CreateProcessW, DeleteProcThreadAttributeList, GetExitCodeProcess,
@@ -485,6 +487,9 @@ fn windows_conpty_ctrl_c_cancels_without_fallback() {
 		}
 	});
 	let path = env::join_paths([tools.as_path()]).expect("join cancellation PATH");
+	// A test runner started in a new process group ignores Ctrl+C, and the shim would inherit that. Restore the default
+	// that interactive terminals give it.
+	unsafe { SetConsoleCtrlHandler(None, 0) };
 
 	let mut process = ConPtyProcess::spawn(
 		&[],
