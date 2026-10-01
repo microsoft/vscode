@@ -2517,11 +2517,21 @@ suite('Sessions - SessionsList', () => {
 			const target = targetContainer.querySelector<HTMLElement>('.monaco-list');
 			assert.ok(source && target);
 			const dataTransfer = new DataTransfer();
+			let catalogReads = 0;
+			harness.managementService.getSessions = () => {
+				catalogReads++;
+				return [session];
+			};
 			source.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer }));
-			target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			for (let i = 0; i < 50; i++) {
+				target.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer }));
+			}
 			target.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }));
 			source.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer }));
-			assert.deepStrictEqual(harness.commandService.calls.filter(call => call.commandId === PROMOTE_SESSION_COMMAND_ID).map(call => call.args), [[[session]]]);
+			assert.deepStrictEqual({
+				calls: harness.commandService.calls.filter(call => call.commandId === PROMOTE_SESSION_COMMAND_ID).map(call => call.args),
+				catalogReads,
+			}, { calls: [[[session]]], catalogReads: 0 });
 		});
 
 		test('adds a promoted automation to the visible list without refreshing the catalog', () => {

@@ -2882,12 +2882,20 @@ class SessionDragAndDrop extends Disposable implements ITreeDragAndDrop<SessionL
 }
 
 class SessionsListDragAndDrop extends SessionDragAndDrop {
+	private promotionDrag: { readonly identifiers: readonly DraggedSessionIdentifier[]; readonly sessions: ISession[] } | undefined;
+
 	constructor(private readonly delegate: ISessionsListDndDelegate) {
 		super();
 	}
 
 	override onDragEnd(): void {
 		super.onDragEnd();
+		this.promotionDrag = undefined;
+		this.delegate.setDropTargetHeader(undefined);
+	}
+
+	onDragLeave(): void {
+		this.promotionDrag = undefined;
 		this.delegate.setDropTargetHeader(undefined);
 	}
 
@@ -2978,6 +2986,7 @@ class SessionsListDragAndDrop extends SessionDragAndDrop {
 			}
 			this.delegate.reorder(this.draggedSessions(data), target, sectorToPosition(targetSector));
 		} finally {
+			this.promotionDrag = undefined;
 			this.delegate.setDropTargetHeader(undefined);
 		}
 	}
@@ -3176,13 +3185,20 @@ class SessionsListDragAndDrop extends SessionDragAndDrop {
 	}
 
 	private promotionSessions(data: IDragAndDropData): ISession[] {
-		const identifiers = this._transfer.getData(DraggedSessionIdentifier.prototype);
-		const sessions = identifiers?.map(id => this.delegate.resolveSession(id.sessionId));
-		if (sessions?.length && sessions.every((session): session is ISession => !!session && canPromoteSession(session))) {
-			return sessions;
+		if (data instanceof ElementsDragAndDropData) {
+			const dragged = this.draggedSessions(data);
+			return dragged.length > 0 && dragged.every(canPromoteSession) ? dragged : [];
 		}
-		const dragged = this.draggedSessions(data);
-		return dragged.length > 0 && dragged.every(canPromoteSession) ? dragged : [];
+		const identifiers = this._transfer.getData(DraggedSessionIdentifier.prototype);
+		if (!identifiers?.length) {
+			this.promotionDrag = undefined;
+			return [];
+		}
+		if (this.promotionDrag?.identifiers !== identifiers) {
+			const sessions = identifiers.map(id => this.delegate.resolveSession(id.sessionId));
+			this.promotionDrag = { identifiers, sessions: sessions.every((session): session is ISession => !!session) ? sessions : [] };
+		}
+		return this.promotionDrag.sessions.every(canPromoteSession) ? this.promotionDrag.sessions : [];
 	}
 }
 
@@ -3701,7 +3717,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 					sessionsWithFailingCI,
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
-					resolveSession: id => this._sessionsManagementService.getSessions().find(session => session.sessionId === id),
+					resolveSession: id => this.sessions.find(session => session.sessionId === id),
 					promoteSessions: sessions => {
 						void this.commandService.executeCommand(PROMOTE_SESSION_COMMAND_ID, sessions).catch(error => this.notificationService.error(error));
 					},
