@@ -38,7 +38,7 @@ import { IUserDataProfileService } from '../../../../../workbench/services/userD
 import { IConfigurationCache } from '../../../../../workbench/services/configuration/common/configuration.js';
 import { IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AccountPolicyService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
-import { LayoutSettings, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { LayoutSettings, ModernUIDensity, ModernUIFrostedGlassOpacity } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../../../workbench/contrib/preferences/browser/settingsTreeModels.js';
 import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
@@ -300,6 +300,38 @@ suite('Sessions ConfigurationService', () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "sessionsConfigurationService.testSetting": "userValue" }'));
 		await testObject.reloadConfiguration();
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting'), 'workspaceValue');
+	}));
+
+	test('Agents Window layout density overrides User density and restores inheritance when reset', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = LayoutSettings.MODERN_UI_DENSITY;
+		const changes: ModernUIDensity[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				changes.push(testObject.getValue(key));
+			}
+		}));
+		const read = () => {
+			const inspected = testObject.inspect<ModernUIDensity>(key);
+			return { value: testObject.getValue<ModernUIDensity>(key), user: inspected.userValue, agentsWindow: inspected.workspaceValue };
+		};
+
+		await testObject.updateValue(key, ModernUIDensity.Compact, ConfigurationTarget.USER);
+		const inherited = read();
+		await testObject.updateValue(key, ModernUIDensity.Default, ConfigurationTarget.WORKSPACE);
+		const overridden = read();
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService());
+		await testObject.initialize();
+		const restored = read();
+		await testObject.updateValue(key, undefined, ConfigurationTarget.WORKSPACE);
+
+		assert.deepStrictEqual({ inherited, overridden, restored, reset: read(), changes }, {
+			inherited: { value: ModernUIDensity.Compact, user: ModernUIDensity.Compact, agentsWindow: undefined },
+			overridden: { value: ModernUIDensity.Default, user: ModernUIDensity.Compact, agentsWindow: ModernUIDensity.Default },
+			restored: { value: ModernUIDensity.Default, user: ModernUIDensity.Compact, agentsWindow: ModernUIDensity.Default },
+			reset: { value: ModernUIDensity.Compact, user: ModernUIDensity.Compact, agentsWindow: undefined },
+			changes: [ModernUIDensity.Compact, ModernUIDensity.Default],
+		});
 	}));
 
 	test('inspect shows workspace value from workspace configuration file', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

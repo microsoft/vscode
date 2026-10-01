@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -24,6 +24,82 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { TestProductService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { EXP_ASSIGNMENT_SETTING_TAG, POLICY_SETTING_TAG } from '../../common/preferences.js';
 import { SettingsTarget } from '../../browser/preferencesWidgets.js';
+import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
+
+suite('SettingsTree Agents Window density', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel(isSessionsWindow: boolean, settingsTarget: SettingsTarget) {
+		const key = LayoutSettings.MODERN_UI_DENSITY;
+		const defaults = new TestConfigurationService({ [key]: ModernUIDensity.Default });
+		const workspace = new TestConfigurationService();
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				const inspected = super.inspect<T>(key, overrides);
+				const defaultValue = defaults.getValue<T>(key);
+				const workspaceValue = workspace.getValue<T>(key);
+				return { ...inspected, defaultValue, workspaceValue, value: workspaceValue ?? inspected.userValue ?? defaultValue };
+			}
+		}({ [key]: ModernUIDensity.Compact });
+		for (const service of [defaults, workspace, configuration]) {
+			store.add(service.onDidChangeConfigurationEmitter);
+		}
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		const model = store.add(instantiationService.createInstance(SearchResultModel, { settingsTarget }, null, true));
+		model.setResult(SearchResultIdx.Local, {
+			filterMatches: [{
+				setting: new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'string';
+					override enum = [ModernUIDensity.Default, ModernUIDensity.Compact];
+					override description = [];
+					override scope = ConfigurationScope.WINDOW;
+				}(),
+				matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0,
+			}],
+			exactMatch: false,
+		});
+		const read = () => {
+			const element = model.getElementsByName(key)![0];
+			element.inspectSelf();
+			return { value: element.value, defaultValue: element.defaultValue, configured: element.isConfigured };
+		};
+		return { workspace, read, key };
+	}
+
+	test('shows inherited density until an Agents Window override is set', async () => {
+		const { workspace, read, key } = createModel(true, ConfigurationTarget.WORKSPACE);
+		const inherited = read();
+		await workspace.setUserConfiguration(key, ModernUIDensity.Default);
+		const overridden = read();
+		await workspace.setUserConfiguration(key, undefined);
+
+		const inheritedState = { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: false };
+		assert.deepStrictEqual({ inherited, overridden, reset: read() }, {
+			inherited: inheritedState,
+			overridden: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: true },
+			reset: inheritedState,
+		});
+	});
+
+	test('preserves the existing editor-window and User scope display', () => {
+		assert.deepStrictEqual({
+			editorWorkspace: createModel(false, ConfigurationTarget.WORKSPACE).read(),
+			agentsUser: createModel(true, ConfigurationTarget.USER_LOCAL).read(),
+		}, {
+			editorWorkspace: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: false },
+			agentsUser: { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: true },
+		});
+	});
+});
 
 suite('SettingsTree managed sandbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
