@@ -3750,20 +3750,20 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			} else {
 				if (shouldAvoidCurrentSession) {
 					this.logService.info('[voice] avoiding composer session for voice send; using fallback session routing');
-					const activeSessionId = this._getActiveSessionId();
-					if (activeSessionId) {
+					const shownSessionId = this._shownSessionId();
+					if (shownSessionId) {
 						try {
-							const activeSessionResource = URI.parse(activeSessionId);
-							if (!(activeSessionResource.scheme === 'sessions-voice' && activeSessionResource.path === '/composer')) {
-								const activeResult = await this._sendVoiceRequest(activeSessionResource, text);
-								accepted = !!activeResult && !ChatSendResult.isRejected(activeResult);
+							const shownSessionResource = URI.parse(shownSessionId);
+							if (!(shownSessionResource.scheme === 'sessions-voice' && shownSessionResource.path === '/composer')) {
+								const shownResult = await this._sendVoiceRequest(shownSessionResource, text);
+								accepted = !!shownResult && !ChatSendResult.isRejected(shownResult);
 								if (accepted) {
-									this._watchResponseForFloatingWindow(activeSessionResource);
+									this._watchResponseForFloatingWindow(shownSessionResource);
 									return true;
 								}
 							}
 						} catch {
-							// ignore malformed active session ids and continue fallback
+							// ignore malformed shown session ids and continue fallback
 						}
 					}
 				}
