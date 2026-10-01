@@ -3,39 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Delayer, SequencerByKey } from '../../../../base/common/async.js';
+import { Delayer } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { supportsAgentHostRepositoryPluginReconciliation } from '../../../../platform/agentHost/common/meta/agentHostRepositoryPluginsMeta.js';
+import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContexts, IAgentHostRepositoryPluginContextsSnapshot } from '../../../../platform/agentHost/common/repositoryPluginContexts.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IExtraMarketplaceObjectEntry, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
+import { IRuntimeRepositoryPluginContextService } from '../common/plugins/runtimeRepositoryPluginContextService.js';
 import { IRuntimeRepositoryPluginService } from '../common/plugins/runtimeRepositoryPluginService.js';
-import { IRuntimeRepositoryPluginReconciliationService } from '../common/plugins/runtimeRepositoryPluginReconciliationService.js';
-import { IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 
-export class RuntimeRepositoryPluginReconciliationService extends Disposable implements IRuntimeRepositoryPluginReconciliationService {
+export class RuntimeRepositoryPluginContextService extends Disposable implements IRuntimeRepositoryPluginContextService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _reconcileDelayer = this._register(new Delayer<void>(100));
-	private readonly _reconcileSequencer = new SequencerByKey<string>();
+	private readonly _publishDelayer = this._register(new Delayer<void>(100));
+	private readonly _connectionListener = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _retainedWorkingDirectories = new Map<string, { readonly uri: URI; count: number }>();
+	private _boundContexts: IAgentHostRepositoryPluginContexts | undefined;
+	private _publishTail = Promise.resolve();
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
-		@IWorkspacePluginSettingsService workspacePluginSettingsService: IWorkspacePluginSettingsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IRuntimeRepositoryPluginService private readonly _runtimeRepositoryPluginService: IRuntimeRepositoryPluginService,
@@ -56,70 +56,43 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 				|| event.affectsConfiguration(ChatConfiguration.EnabledPlugins)
 				|| event.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
 				|| event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
-		)(() => this._requestReconciliation()));
+		)(() => this._requestPublication()));
 		this._register(autorun(reader => {
-			workspacePluginSettingsService.enabledPlugins.read(reader);
-			workspacePluginSettingsService.extraMarketplaces.read(reader);
 			this._connectionsService.ambientConnection.initializeResult.read(reader);
-			this._requestReconciliation();
+			this._requestPublication();
 		}));
 	}
 
-	private _requestReconciliation(): void {
-		this._reconcileDelayer.trigger(() => this.reconcile()).catch(error => {
-			this._logService.error('[RuntimeRepositoryPluginReconciliation] Reconciliation failed', error);
+	private _requestPublication(): void {
+		this._publishDelayer.trigger(() => this.publish()).catch(error => {
+			this._logService.error('[RuntimeRepositoryPluginContexts] Publication failed', error);
 		});
 	}
 
-	async reconcile(workingDirectories?: readonly URI[]): Promise<void> {
-		const directories = workingDirectories ?? this._getTrackedWorkingDirectories();
-		if (!workingDirectories) {
-			this._runtimeRepositoryPluginService.retainWorkingDirectories(directories);
-		}
-		if (directories.length === 0
-			|| this._chatEntitlementService.sentiment.hidden
-			|| !this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._logService.debug('[RuntimeRepositoryPluginReconciliation] Skipping: no eligible workspace context');
+	async publish(): Promise<void> {
+		const directories = this._getTrackedWorkingDirectories();
+		this._runtimeRepositoryPluginService.retainWorkingDirectories(directories);
+		const contexts = this._bindConnection();
+		if (!contexts) {
+			this._runtimeRepositoryPluginService.retainWorkingDirectories([]);
+			this._logService.debug('[RuntimeRepositoryPluginContexts] Skipping: Agent Host capability unavailable');
 			return;
 		}
 
-		const connection = this._connectionsService.ambientConnection;
-		if (!connection.reconcileRepositoryPlugins
-			|| !supportsAgentHostRepositoryPluginReconciliation(connection.initializeResult.get())) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._logService.debug('[RuntimeRepositoryPluginReconciliation] Skipping: Agent Host capability unavailable');
-			return;
-		}
-
-		const trusted = this._workspaceTrustService.isWorkspaceTrusted();
-		const automaticUpdatesAllowed = this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
-		const managedSettings = this._managedSettings();
-
-		await Promise.all(directories.map(workingDirectory =>
-			this._reconcileSequencer.queue(this._uriIdentityService.extUri.getComparisonKey(workingDirectory), async () => {
-				try {
-					this._logService.debug(`[RuntimeRepositoryPluginReconciliation] Reconciling ${workingDirectory.toString()}`);
-					const result = await connection.reconcileRepositoryPlugins!({
-						workingDirectory: workingDirectory.toString(),
-						trusted,
-						automaticUpdatesAllowed,
-						managedSettings,
-					});
-					this._logService.debug(`[RuntimeRepositoryPluginReconciliation] Reconciled ${workingDirectory.toString()}: ${result.repositoryPlugins.length} repository plugin(s)`);
-					this._runtimeRepositoryPluginService.setSnapshot(workingDirectory, result);
-					for (const warning of result.warnings) {
-						this._logService.warn(`[RuntimeRepositoryPluginReconciliation] ${warning}`);
-					}
-					for (const failure of [...result.installResults, ...result.updateResults].filter(result => result.action === 'failed')) {
-						this._logService.error(`[RuntimeRepositoryPluginReconciliation] Failed to reconcile '${failure.spec}': ${failure.error ?? 'Unknown error'}`);
-					}
-				} catch (error) {
-					this._runtimeRepositoryPluginService.removeSnapshots([workingDirectory]);
-					throw error;
-				}
-			})
-		));
+		const eligible = !this._chatEntitlementService.sentiment.hidden
+			&& this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled);
+		const request = eligible ? this._createContexts(directories) : [];
+		const run = this._publishTail.then(async () => {
+			try {
+				const snapshot = await contexts.set(request);
+				this._applySnapshot(snapshot);
+			} catch (error) {
+				this._runtimeRepositoryPluginService.retainWorkingDirectories([]);
+				throw error;
+			}
+		});
+		this._publishTail = run.catch(() => undefined);
+		await run;
 	}
 
 	whenDiscoverySettled(): Promise<void> {
@@ -137,6 +110,7 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 			}
 		}
 		this._retainSnapshots();
+		this._requestPublication();
 		return toDisposable(() => {
 			for (const workingDirectory of workingDirectories) {
 				const key = this._uriIdentityService.extUri.getComparisonKey(workingDirectory);
@@ -151,7 +125,59 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 				}
 			}
 			this._retainSnapshots();
+			this._requestPublication();
 		});
+	}
+
+	private _bindConnection(): IAgentHostRepositoryPluginContexts | undefined {
+		const contexts = this._connectionsService.ambientConnection.repositoryPluginContexts;
+		if (contexts === this._boundContexts) {
+			return contexts;
+		}
+		this._boundContexts = contexts;
+		const store = new DisposableStore();
+		if (contexts) {
+			store.add(contexts.onDidChange(snapshot => this._applySnapshot(snapshot)));
+			const snapshot = contexts.getSnapshot();
+			if (snapshot) {
+				this._applySnapshot(snapshot);
+			}
+		}
+		this._connectionListener.value = store;
+		return contexts;
+	}
+
+	private _createContexts(directories: readonly URI[]): readonly IAgentHostRepositoryPluginContext[] {
+		const trusted = this._workspaceTrustService.isWorkspaceTrusted();
+		const automaticUpdatesAllowed = this._extensionsWorkbenchService.getAutoUpdateValue() !== 'off';
+		const managedSettings = this._managedSettings();
+		return directories.map(workingDirectory => ({
+			id: workingDirectory.toString(),
+			workingDirectory: workingDirectory.toString(),
+			trusted,
+			automaticUpdatesAllowed,
+			managedSettings,
+		}));
+	}
+
+	private _applySnapshot(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void {
+		this._runtimeRepositoryPluginService.applySnapshot(snapshot);
+		this._logService.debug(`[RuntimeRepositoryPluginContexts] Applied runtime snapshot ${snapshot.revision} with ${snapshot.contexts.length} context(s)`);
+		for (const context of snapshot.contexts) {
+			if (context.state === 'error') {
+				this._logService.error(`[RuntimeRepositoryPluginContexts] Failed '${context.id}': ${context.error ?? 'Unknown error'}`);
+				continue;
+			}
+			for (const warning of context.result?.warnings ?? []) {
+				this._logService.warn(`[RuntimeRepositoryPluginContexts] ${warning}`);
+			}
+			for (const failure of [
+				...(context.result?.installResults ?? []),
+				...(context.result?.updateResults ?? []),
+			].filter(result => result.action === 'failed')) {
+				this._logService.error(`[RuntimeRepositoryPluginContexts] Failed to reconcile '${failure.spec}': ${failure.error ?? 'Unknown error'}`);
+			}
+		}
 	}
 
 	private _getTrackedWorkingDirectories(): readonly URI[] {
@@ -194,11 +220,11 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 	}
 }
 
-export class RuntimeRepositoryPluginReconciliationContribution implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.runtimeRepositoryPluginReconciliation';
+export class RuntimeRepositoryPluginContextsContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.runtimeRepositoryPluginContexts';
 
 	constructor(
-		@IRuntimeRepositoryPluginReconciliationService _reconciliationService: IRuntimeRepositoryPluginReconciliationService,
+		@IRuntimeRepositoryPluginContextService _contextService: IRuntimeRepositoryPluginContextService,
 	) { }
 }
 

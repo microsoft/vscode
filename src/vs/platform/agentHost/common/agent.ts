@@ -19,7 +19,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from './repositoryPluginReconciliation.js';
+import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContextsSnapshot } from './repositoryPluginContexts.js';
 
 /** User-selected permission action and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -1448,8 +1448,11 @@ export interface IAgent {
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
 
-	/** Reconcile repository plugin declarations through the provider-owned runtime. */
-	reconcileRepositoryPlugins?(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
+	/** Latest runtime-owned repository plugin contexts changed. */
+	readonly onDidChangeRepositoryPluginContexts?: Event<IAgentHostRepositoryPluginContextsSnapshot>;
+
+	/** Replace the provider runtime's complete host-owned repository context set. */
+	setRepositoryPluginContexts?(contexts: readonly IAgentHostRepositoryPluginContext[]): Promise<IAgentHostRepositoryPluginContextsSnapshot>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;

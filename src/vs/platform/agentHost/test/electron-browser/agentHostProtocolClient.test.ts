@@ -18,7 +18,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, AgentHostRepositoryPluginContextsChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostRepositoryPluginContextsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
@@ -1157,6 +1157,67 @@ suite('AgentHostProtocolClient', () => {
 				{ chat: chat.toString(), canvases: [] },
 			],
 			current: [],
+		});
+	});
+
+	test('sets repository plugin contexts and applies runtime-pushed snapshots', async () => {
+		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta());
+		transport.sentMessages.length = 0;
+		const contexts = client.repositoryPluginContexts;
+		assert.ok(contexts);
+		const workspace = URI.file('/workspace').toString();
+		const changes: number[] = [];
+		disposables.add(contexts.onDidChange(snapshot => changes.push(snapshot.revision)));
+		const setPromise = contexts.set([{
+			id: workspace,
+			workingDirectory: workspace,
+			trusted: true,
+			automaticUpdatesAllowed: false,
+		}]);
+		const setRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
+		assert.deepStrictEqual(setRequest, {
+			jsonrpc: '2.0',
+			id: setRequest.id,
+			method: SetAgentHostRepositoryPluginContextsExtensionMethod,
+			params: {
+				contexts: [{
+					id: workspace,
+					workingDirectory: workspace,
+					trusted: true,
+					automaticUpdatesAllowed: false,
+				}],
+			},
+		});
+		const first = {
+			revision: 1,
+			contexts: [{
+				id: workspace,
+				workingDirectory: workspace,
+				state: 'ready',
+				result: {
+					repositoryEnabledPlugins: {},
+					repositoryPlugins: [],
+					installResults: [],
+					updateResults: [],
+					warnings: [],
+				},
+			}],
+		};
+		transport.fireMessage({ jsonrpc: '2.0', id: setRequest.id, result: first });
+		await setPromise;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			method: AgentHostRepositoryPluginContextsChangedNotification,
+			params: { revision: 2, contexts: [] },
+		} as unknown as ProtocolMessage);
+
+		assert.deepStrictEqual({
+			changes,
+			current: contexts.getSnapshot(),
+		}, {
+			changes: [1, 2],
+			current: { revision: 2, contexts: [] },
 		});
 	});
 

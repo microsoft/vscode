@@ -69,7 +69,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IRuntimeRepositoryPluginReconciliationService } from '../../../common/plugins/runtimeRepositoryPluginReconciliationService.js';
+import { IRuntimeRepositoryPluginContextService } from '../../../common/plugins/runtimeRepositoryPluginContextService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -134,8 +134,8 @@ suite('AgentHostClientTools', () => {
 		instantiationService.stub(IAgentPluginService, {
 			plugins: observableValue('plugins', []),
 		});
-		instantiationService.stub(IRuntimeRepositoryPluginReconciliationService, {
-			reconcile: async () => { },
+		instantiationService.stub(IRuntimeRepositoryPluginContextService, {
+			publish: async () => { },
 			whenDiscoverySettled: async () => { },
 			retainWorkingDirectories: () => toDisposable(() => { }),
 		});
@@ -910,8 +910,8 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
-			instantiationService.stub(IRuntimeRepositoryPluginReconciliationService, {
-				reconcile: async () => { },
+			instantiationService.stub(IRuntimeRepositoryPluginContextService, {
+				publish: async () => { },
 				whenDiscoverySettled: async () => { },
 				retainWorkingDirectories: () => toDisposable(() => { }),
 			});
