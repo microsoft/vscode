@@ -20,6 +20,14 @@ Keep these meanings separate:
 - Latest model-call cost is not whole-turn cost.
 - Current context usage is not account quota.
 
+## Temporary Copilot app tool presentation
+
+[agentToolCallMeta.ts](./agentToolCallMeta.ts) exposes a separate presentation reader for unclassified server tool calls. Its private [Copilot compatibility table](./copilotd/toolPresentation.ts) follows the Copilot app's client-side aliases and label conventions (app revision `9a05a3ee1e0`). It is a temporary replacement for missing host presentation hints, not metadata synthesized into protocol state.
+
+The fallback only replaces absent or generic `Running <name>` / `Tool finished` labels. Explicit VS Code metadata, specific host messages, MCP/client contributors, and MCP Apps remain authoritative. Exact known names are matched; arbitrary prefixes, tool metrics, and permission decisions are not used for classification. Search aliases use the existing search card, shell tools with valid commands use a display-only terminal card, and read aliases suppress incomplete file arguments. Other known tools receive meaningful running/completed/failed labels in existing cards. Unknown tools keep their host-provided presentation.
+
+App-specific widgets, workflow controls, result counters, and automatic hiding/grouping are not reproduced. In particular, housekeeping or widget tool calls are not hidden merely because the Copilot app hides them. Existing VS Code interactions, subagent discovery, content/edit processing, and permission handling are unchanged. Both live and restored tool calls use the same presentation reader, and argument-derived labels are bounded and escaped.
+
 The open `_meta` map and unknown attachment fields remain intact. See [generation and pin-update commands](../../../../../../build/agentHost/README.md).
 
 A model-text override supplies the model-bound prompt before outgoing contributions add context. Stored display text is restored using both native and provider turn identities, including interrupted and provider-started steering turns. Ordinary Chat retries retain that metadata unless the caller explicitly supplies replacement metadata.

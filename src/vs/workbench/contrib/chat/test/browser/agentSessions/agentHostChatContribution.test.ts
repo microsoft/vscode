@@ -1567,6 +1567,101 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		const appToolCases = [
+			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
+			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },
+			{ name: 'read_file', args: { file_path: '/remote/file.ts' }, kind: undefined, running: 'Reading `/remote/file.ts`', completed: 'Read `/remote/file.ts`' },
+			{ name: 'write_file', args: { path: '/remote/file.ts' }, kind: undefined, running: 'Creating file `/remote/file.ts`', completed: 'Created file `/remote/file.ts`' },
+			{ name: 'bash', args: { command: 'echo output', description: 'Check output' }, kind: 'terminal', running: 'Running command `Check output`', completed: 'Ran command `Check output`' },
+			{ name: 'write_bash', args: {}, kind: undefined, running: 'Sending input to shell', completed: 'Sent input to shell' },
+			{ name: 'web_search', args: { query: 'auth' }, kind: undefined, running: 'Searching the web `auth`', completed: 'Searched the web `auth`' },
+			{ name: 'apply_patch', args: {}, kind: undefined, running: 'Applying patch', completed: 'Applied patch' },
+			{ name: 'sql', args: { description: 'Find active sessions' }, kind: undefined, running: 'Running SQL `Find active sessions`', completed: 'Ran SQL `Find active sessions`' },
+			{ name: 'update_todo', args: {}, kind: undefined, running: 'Updating todo list', completed: 'Updated todo list' },
+			{ name: 'run_dynamic_workflow', args: {}, kind: undefined, running: 'Running workflow', completed: 'Ran workflow' },
+			{ name: 'unknown_tool', args: {}, kind: undefined, running: 'Running unknown_tool', completed: 'Tool finished' },
+		];
+		for (const entry of appToolCases) {
+			test(`Copilot app name fallback renders ${entry.name} through the live handler and restored history`, async () => {
+				const { startRequest, fire } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				const input = JSON.stringify(entry.args);
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'app-tool', toolName: entry.name, displayName: entry.name });
+				fire({ type: ActionType.ChatToolCallDelta, turnId, toolCallId: 'app-tool', content: input });
+				fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId: 'app-tool', invocationMessage: `Running ${entry.name}`, toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded });
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const running = textOf(invocation.invocationMessage);
+				fire({
+					type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'app-tool',
+					result: { success: true, pastTenseMessage: 'Tool finished', content: [{ type: ToolResultContentType.Text, text: 'tool result' }] },
+				});
+				await finish();
+				const sourceCall = {
+					status: ToolCallStatus.Completed as const, toolCallId: 'app-tool', toolName: entry.name, displayName: entry.name,
+					invocationMessage: `Running ${entry.name}`, toolInput: input, confirmed: ToolCallConfirmationReason.NotNeeded,
+					success: true, pastTenseMessage: 'Tool finished', content: [{ type: ToolResultContentType.Text as const, text: 'tool result' }],
+				};
+				const reopened = await openWireSession({
+					chat: {
+						turns: [{
+							id: 'restored-turn', state: TurnState.Complete, usage: undefined,
+							message: { text: 'Hello', origin: { kind: MessageKind.User } },
+							responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: sourceCall }],
+						}]
+					}
+				});
+				const response = reopened.chatSession.history.find(item => item.type === 'response');
+				const restoredTool = response?.type === 'response' ? response.parts.find((part): part is IChatToolInvocationSerialized => part.kind === 'toolInvocationSerialized') : undefined;
+				const terminal = invocation.toolSpecificData?.kind === 'terminal' && hasKey(invocation.toolSpecificData, { commandLine: true }) ? invocation.toolSpecificData : undefined;
+				assert.deepStrictEqual({
+					running,
+					completed: textOf(invocation.pastTenseMessage),
+					kind: invocation.toolSpecificData?.kind,
+					restored: restoredTool && { completed: textOf(restoredTool.pastTenseMessage), kind: restoredTool.toolSpecificData?.kind },
+					command: terminal?.commandLine.original, terminalUri: terminal?.terminalCommandUri,
+					sourceInput: sourceCall.toolInput,
+				}, {
+					running: entry.running,
+					completed: entry.completed,
+					kind: entry.kind,
+					restored: { completed: entry.completed, kind: entry.kind },
+					command: entry.name === 'bash' ? 'echo output' : undefined, terminalUri: undefined,
+					sourceInput: input,
+				});
+			});
+		}
+		test('explicit VS Code search metadata keeps its messages even when the tool has a Copilot app alias', async () => {
+			const { startRequest, fire } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			const meta = { toolKind: 'search' };
+			fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'native-search', toolName: 'grep', displayName: 'Grep', _meta: meta });
+			fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId: 'native-search', invocationMessage: 'Search native workspace', confirmed: ToolCallConfirmationReason.NotNeeded, _meta: meta });
+			fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'native-search', _meta: meta, result: { success: true, pastTenseMessage: 'Found 7 native matches', content: [] } });
+			await finish();
+			const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.deepStrictEqual(invocation && { running: textOf(invocation.invocationMessage), completed: textOf(invocation.pastTenseMessage), kind: invocation.toolSpecificData?.kind }, {
+				running: 'Search native workspace', completed: 'Found 7 native matches', kind: 'search',
+			});
+		});
+		test('later host metadata replaces an inferred search card rather than leaving the fallback active', async () => {
+			const { startRequest, fire } = await openWireSession();
+			const { turnId, progress, finish } = await startRequest();
+			fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'late-kind', toolName: 'grep', displayName: 'Grep' });
+			fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId: 'late-kind', invocationMessage: 'Running Grep', confirmed: ToolCallConfirmationReason.NotNeeded });
+			const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			const inferredKind = invocation.toolSpecificData?.kind;
+			fire({
+				type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'late-kind', _meta: { toolKind: 'read' },
+				result: { success: true, pastTenseMessage: 'Read host resource', content: [] },
+			});
+			await finish();
+			assert.deepStrictEqual({ inferredKind, completedKind: invocation.toolSpecificData?.kind, message: textOf(invocation.pastTenseMessage) }, {
+				inferredKind: 'search', completedKind: undefined, message: 'Read host resource',
+			});
+		});
+
 		test('a generic confirmed tool receives Copilot output on the same live invocation card', async () => {
 			const { startRequest, fire, echo, peer } = await openWireSession();
 			const { turnId, progress, finish } = await startRequest();

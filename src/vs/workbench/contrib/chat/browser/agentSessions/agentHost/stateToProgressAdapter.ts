@@ -18,8 +18,8 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { buildSubagentChatUri, getTurnError, MessageKind, parseChatUri, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { readToolCallMeta, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
@@ -60,6 +60,10 @@ import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChat
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
+
+function getToolKind(call: ToolCallState) {
+	return getProtocolToolKind(call) ?? readToolCallPresentation(call).toolKind;
+}
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
 const imageGenerationToolName = 'image_gen.imagegen';
@@ -2020,7 +2024,8 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatToolInvocationSerialized {
 	const isTerminal = isTerminalToolCall(tc);
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
-	let invocationMsg = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	const presentation = readToolCallPresentation(tc);
+	let invocationMsg = stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority) ?? tc.displayName;
 
 	// Check for subagent content
 	const subagentContent = tc.status === ToolCallStatus.Completed ? getToolSubagentContent(tc) : undefined;
@@ -2029,7 +2034,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	if (isSubagent && (tc.status === ToolCallStatus.Completed || fusionPhaseData)) {
 		const resultText = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
 		const pastTenseMsg = isSuccess
-			? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
+			? stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority) ?? invocationMsg
 			: invocationMsg;
 		return {
 			kind: 'toolInvocationSerialized',
@@ -2073,7 +2078,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	}
 
 	let pastTenseMsg = isSuccess
-		? stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority) ?? invocationMsg
+		? stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg;
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
@@ -2096,7 +2101,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 		source: ToolDataSource.Internal,
 		invocationMessage: invocationMsg,
 		originMessage: toolCallOriginMessage(tc),
-		pastTenseMessage: isTerminal ? undefined : pastTenseMsg,
+		pastTenseMessage: isTerminal && (tc.status !== ToolCallStatus.Completed || presentation.pastTenseMessage === tc.pastTenseMessage) ? undefined : pastTenseMsg,
 		isConfirmed: completedToolCallConfirmedReason(tc),
 		isComplete: true,
 		presentation: shouldHideAutomaticTitleRename(tc)
@@ -2585,7 +2590,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 
 		return new ChatToolInvocation(
 			{
-				invocationMessage: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+				invocationMessage: stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority),
 				originMessage: toolCallOriginMessage(tc),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
@@ -2599,7 +2604,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 	}
 
 	const invocation = new ChatToolInvocation({ originMessage: toolCallOriginMessage(tc) }, toolData, tc.toolCallId, subAgentInvocationId, undefined);
-	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? tc.displayName;
+	invocation.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? tc.displayName;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		invocation.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
 		invocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;
@@ -2662,7 +2667,7 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};
@@ -2739,7 +2744,7 @@ export function updateStreamingToolInvocation(existing: ChatToolInvocation, tc: 
 	if (partialInput !== undefined) {
 		existing.updatePartialInput(partialInput);
 	}
-	const invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority);
+	const invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority);
 	if (invocationMessage) {
 		existing.updateStreamingMessage(invocationMessage);
 	}
@@ -2776,7 +2781,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 	if (tc.status !== ToolCallStatus.Running) {
 		return;
 	}
-	existing.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? existing.invocationMessage;
+	existing.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? existing.invocationMessage;
 	existing.originMessage = toolCallOriginMessage(tc) ?? existing.originMessage;
 	if (isAgentHostAskUserTool(tc.toolName)) {
 		existing.invocationMessage = localize('agentHost.askUser.waiting', "Waiting for answer...");
@@ -2862,6 +2867,12 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			existing.toolSpecificData = next;
 			existing.notifyToolSpecificDataChanged();
 		}
+	} else if (getToolKind(tc) === 'search' && existing.toolSpecificData?.kind !== 'search') {
+		existing.toolSpecificData = { kind: 'search' };
+		existing.notifyToolSpecificDataChanged();
+	} else if (getToolKind(tc) !== 'search' && existing.toolSpecificData?.kind === 'search') {
+		existing.toolSpecificData = undefined;
+		existing.notifyToolSpecificDataChanged();
 	}
 }
 
@@ -2898,8 +2909,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const isTerminal = isTerminalToolCall(tc, invocation.toolSpecificData?.kind);
 
+	if (!isTerminal && invocation.toolSpecificData?.kind === 'search' && getToolKind(tc) !== 'search') {
+		invocation.toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
+	}
+
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
-		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
+		invocation.invocationMessage = stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority) ?? invocation.invocationMessage;
 		invocation.originMessage = toolCallOriginMessage(tc) ?? invocation.originMessage;
 	}
 	// Tools that render a bespoke, client-authored message override the
@@ -2963,8 +2978,12 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 			...buildTerminalToolSpecificData(tc, backendSession, existing),
 			terminalCommandState: getTerminalCommandState(tc, isCompleted && tc.success),
 		};
-	} else if (isCompleted && tc.pastTenseMessage) {
-		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage, connectionAuthority);
+	}
+	if (isCompleted) {
+		const presentation = readToolCallPresentation(tc);
+		if (!isTerminal || presentation.pastTenseMessage !== tc.pastTenseMessage) {
+			invocation.pastTenseMessage = stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority);
+		}
 	}
 	// Tools that render a bespoke, client-authored message override the
 	// past-tense text here. Add new per-tool cases alongside this branch.

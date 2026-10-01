@@ -1807,7 +1807,7 @@ export class ChatService extends Disposable implements IChatService {
 					// ephemeral — re-collected every turn, never rendered in
 					// the UI, and not needed in serialized session history.
 					const storedVariables = allContext.filter(v => !(isPromptTextVariableEntry(v) && v.automaticallyAdded));
-					model.updateRequest(request, { variables: storedVariables });
+					model.updateRequest(request, { variables: storedVariables }, options?.metadata);
 
 					// The full set (including instructions) is passed to the
 					// agent request only — not stored on the request model.

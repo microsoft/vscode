@@ -441,7 +441,7 @@ export interface IChatRequestModelParameters {
 }
 
 export class ChatRequestModel implements IChatRequestModel {
-	public readonly agentHostMetadata?: Record<string, unknown>;
+	private _agentHostMetadata?: Record<string, unknown>;
 	public readonly id: string;
 	public response: ChatResponseModel | undefined;
 	public shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
@@ -496,6 +496,15 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
+	public get agentHostMetadata(): Record<string, unknown> | undefined {
+		return this._agentHostMetadata;
+	}
+
+	public set agentHostMetadata(metadata: Record<string, unknown> | undefined) {
+		this._version++;
+		this._agentHostMetadata = metadata;
+	}
+
 	public get confirmation(): string | undefined {
 		return this._confirmation;
 	}
@@ -518,7 +527,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	constructor(params: IChatRequestModelParameters) {
-		this.agentHostMetadata = params.agentHostMetadata;
+		this._agentHostMetadata = params.agentHostMetadata;
 		this._session = params.session;
 		this.message = params.message;
 		this._variableData = params.variableData;
@@ -3421,8 +3430,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setCustomTitle', title });
 	}
 
-	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData) {
+	updateRequest(request: ChatRequestModel, variableData: IChatRequestVariableData, agentHostMetadata?: Record<string, unknown>) {
 		request.variableData = variableData;
+		if (agentHostMetadata !== undefined) {
+			request.agentHostMetadata = agentHostMetadata;
+		}
 		this._onDidChange.fire({ kind: 'changedRequest', request });
 	}
 
