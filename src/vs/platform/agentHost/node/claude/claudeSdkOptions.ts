@@ -180,8 +180,7 @@ export async function buildOptions(
 		allowDangerouslySkipPermissions: true,
 		canUseTool: input.canUseTool,
 		onElicitation: input.onElicitation,
-		// CAPI (the Copilot proxy) doesn't support the WebSearch tool, so it is
-		// disabled there. Native sessions talk to Anthropic directly, where it works.
+		// The Copilot proxy (CAPI) doesn't support WebSearch; native Anthropic sessions do.
 		...(isProxy ? { disallowedTools: ['WebSearch'] } : {}),
 		includePartialMessages: true,
 		forwardSubagentText: true,
