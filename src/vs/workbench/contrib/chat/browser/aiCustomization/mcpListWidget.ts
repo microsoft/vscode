@@ -3179,7 +3179,7 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
-	revealAndSelectServer(serverId: string | undefined, serverName: string): boolean {
+	revealAndSelectServer(serverId: string | undefined, serverName: string, connectorName?: string): boolean {
 		if (this.searchQuery) {
 			this.searchInput.value = '';
 			this.searchQuery = '';
@@ -3188,16 +3188,28 @@ export class McpListWidget extends Disposable {
 			return false;
 		}
 		const entry = this.getVisibleMcpEntries().find(entry => {
+			if (connectorName) {
+				return entry.type === 'builtin-item' && entry.connector?.connector.name === connectorName;
+			}
+			if (serverId) {
+				switch (entry.type) {
+					case 'server-item':
+					case 'session-server-item':
+						return entry.server.id === serverId;
+					case 'builtin-item':
+						return entry.id === serverId || entry.activeSessionServer?.id === serverId;
+					case 'group-header':
+					case 'marketplace-item':
+						return false;
+				}
+			}
 			switch (entry.type) {
 				case 'server-item':
-					return entry.server.id === serverId || entry.server.label === serverName;
+					return entry.server.label === serverName;
 				case 'session-server-item':
-					return entry.server.id === serverId || entry.server.name === serverName;
+					return entry.server.name === serverName;
 				case 'builtin-item':
-					return entry.id === serverId
-						|| entry.activeSessionServer?.id === serverId
-						|| entry.label === serverName
-						|| entry.connector?.connector.displayName === serverName;
+					return entry.label === serverName || entry.connector?.connector.displayName === serverName;
 				case 'group-header':
 				case 'marketplace-item':
 					return false;

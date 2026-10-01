@@ -111,6 +111,7 @@ interface IInstalledDiscoveryItem {
 	readonly itemId?: string;
 	readonly removable?: boolean;
 	readonly mcpServerId?: string;
+	readonly mcpConnectorName?: string;
 	readonly disabled?: boolean;
 	readonly catalogResource?: ICustomizationMarketplaceResource;
 	readonly promptDetail?: IAICustomizationListItem;
@@ -391,6 +392,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const type = installed ? element.type : getCatalogType(element.resource);
 		const resource = installed ? element.catalogResource : element.resource;
 		const marketplaceState = installed && element.catalogResource ? this.getInstallState(element.catalogResource) : undefined;
+		const opensInstalled = installed && (!marketplaceState || marketplaceState.kind === 'installed');
 		const installationDetail = marketplaceState && marketplaceState.kind !== 'installed' ? getInstallationStateLabel(marketplaceState, isCopilotConnectorResource(resource)) : undefined;
 		const detail = [
 			type ? getTypeLabel(type) : !installed ? element.resource.mediaType : undefined,
@@ -412,7 +414,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.name.removeAttribute('rel');
 		templateData.detail.textContent = detail;
 		templateData.description.textContent = description;
-		templateData.primaryAction.setAttribute('aria-label', installed
+		templateData.primaryAction.setAttribute('aria-label', opensInstalled
 			? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", name)
 			: localize('customizationDiscovery.openDetails', "View details for {0}", name));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
@@ -424,10 +426,10 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				open();
 			}));
 		};
-		if (element.kind === 'installed') {
+		if (element.kind === 'installed' && opensInstalled) {
 			registerOpenListeners(() => this.onOpenInstalled(element));
 		} else {
-			registerOpenListeners(() => this.onOpenDetails(element.resource));
+			registerOpenListeners(() => this.onOpenDetails(element.kind === 'installed' ? element.catalogResource! : element.resource));
 		}
 
 		if (!installed) {
@@ -736,7 +738,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		));
 		this._register(this.resultList.onDidOpen(event => {
 			if (event.element?.kind === 'installed') {
-				this.openInstalledItem(event.element);
+				const resource = event.element.catalogResource;
+				if (!resource || this.getInstallState(resource).kind === 'installed') {
+					this.openInstalledItem(event.element);
+				} else {
+					this.openMarketplaceItem(resource, 'search');
+				}
 			} else if (event.element?.kind === 'available') {
 				this.openMarketplaceItem(event.element.resource, 'search');
 			}
@@ -1427,6 +1434,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 						catalogResource: resource,
 						uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
 						mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
+						mcpConnectorName: state.target.kind === 'copilotConnector' ? state.target.name : undefined,
 					});
 				}
 			} else {
@@ -1573,7 +1581,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const state = this.getInstallState(item);
 		const primaryAction = createCustomizationCardPrimaryAction(
 			card,
-			hasInstallationTarget(state)
+			state.kind === 'installed'
 				? localize('customizationDiscovery.openInstalled', "Open installed customization {0}", item.displayName)
 				: localize('customizationDiscovery.openDetails', "View details for {0}", item.displayName),
 			'customization-discovery-card-primary',
@@ -1863,12 +1871,13 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 	private openCatalogItem(resource: ICustomizationMarketplaceResource, mode: ICustomizationMarketplaceOrigin['mode']): void {
 		const type = getCatalogType(resource);
 		const state = this.getInstallState(resource);
-		if (type && hasInstallationTarget(state) && this.callbacks.openInstalled) {
+		if (type && state.kind === 'installed' && this.callbacks.openInstalled) {
 			this.callbacks.openInstalled({
 				section: getSectionForCatalogType(type),
 				name: resource.displayName,
 				uri: state.target.kind === 'skill' || state.target.kind === 'plugin' ? state.target.uri : undefined,
 				mcpServerId: state.target.kind === 'mcp' ? state.target.id : undefined,
+				mcpConnectorName: state.target.kind === 'copilotConnector' ? state.target.name : undefined,
 			});
 			return;
 		}
@@ -1881,6 +1890,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			name: item.name,
 			uri: item.uri,
 			mcpServerId: item.mcpServerId,
+			mcpConnectorName: item.mcpConnectorName,
 		});
 	}
 

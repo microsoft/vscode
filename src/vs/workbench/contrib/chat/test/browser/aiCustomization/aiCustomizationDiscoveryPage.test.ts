@@ -933,7 +933,57 @@ suite('AICustomizationDiscoveryPage', () => {
 				name: 'Security skill',
 				uri: skillUri,
 				mcpServerId: undefined,
+				mcpConnectorName: undefined,
 			}],
+		});
+	});
+
+	test('installed Connector browse cards preserve the Connector identity', async () => {
+		const candidate = resource('mail', {
+			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
+			displayName: 'Mail',
+			installation: { kind: 'copilotConnector', name: 'mail' },
+		});
+		const fixture = createPage([CustomizationMarketplaceSources.CopilotConnectors.id]);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'copilotConnector', name: 'mail' } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+
+		assert.deepStrictEqual(fixture.openedInstalled, [{
+			section: AICustomizationManagementSection.McpServers,
+			name: 'Mail',
+			uri: undefined,
+			mcpServerId: undefined,
+			mcpConnectorName: 'mail',
+		}]);
+	});
+
+	test('recorded missing browse cards open details instead of an installed list', async () => {
+		const candidate = resource('missing-skill', {
+			displayName: 'Missing skill',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+		});
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'missing', target: { kind: 'skill', uri: URI.file('/workspace/.github/skills/missing/SKILL.md') } });
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+
+		assert.deepStrictEqual({
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedInstalled: fixture.openedInstalled,
+		}, {
+			ariaLabel: 'View details for Missing skill',
+			openedDetails: ['missing-skill'],
+			openedInstalled: [],
 		});
 	});
 
@@ -1064,16 +1114,30 @@ suite('AICustomizationDiscoveryPage', () => {
 			detail: fixture.container.querySelector('.customization-discovery-result-detail')?.textContent,
 			actions: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
 		};
+		const primaryAction = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-result-primary');
+		assert.ok(primaryAction);
+		primaryAction.click();
+		const navigation = {
+			ariaLabel: primaryAction.getAttribute('aria-label'),
+			openedDetails: fixture.openedDetails.map(resource => resource.identifier),
+			openedInstalled: [...fixture.openedInstalled],
+		};
 		const repair = [...fixture.container.querySelectorAll<HTMLButtonElement>('.customization-discovery-result-actions .monaco-button')].find(button => button.textContent === 'Repair');
 		assert.ok(repair);
 		repair.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			before,
+			navigation,
 			repairs: fixture.repairs,
 			actionsAfter: [...fixture.container.querySelectorAll('.customization-discovery-result-actions .monaco-button')].map(element => element.textContent),
 		}, {
 			before: { detail: 'Skill · GitHub Feed · Missing files', actions: ['Repair', 'Uninstall'] },
+			navigation: {
+				ariaLabel: 'View details for Repair mail skill',
+				openedDetails: ['repair-mail'],
+				openedInstalled: [],
+			},
 			repairs: ['repair-mail'],
 			actionsAfter: ['Uninstall'],
 		});

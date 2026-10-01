@@ -3688,7 +3688,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
 				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
 				: target.section === AICustomizationManagementSection.McpServers
-					? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name)
+					? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
 					: true;
 			if (revealed !== false) {
 				return;

@@ -57,6 +57,7 @@ export interface IInstalledCustomizationTarget {
 	readonly name: string;
 	readonly uri?: URI;
 	readonly mcpServerId?: string;
+	readonly mcpConnectorName?: string;
 }
 
 export interface ICustomizationMarketplaceOrigin {

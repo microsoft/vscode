@@ -102,8 +102,8 @@ suite('aiCustomizationManagementEditor', () => {
 				},
 			},
 			mcpListWidget: {
-				revealAndSelectServer: (serverId: string | undefined, name: string) => {
-					calls.push(`mcp:${serverId}:${name}`);
+				revealAndSelectServer: (serverId: string | undefined, name: string, connectorName?: string) => {
+					calls.push(`mcp:${serverId}:${name}:${connectorName}`);
 					return true;
 				},
 			},
@@ -120,6 +120,7 @@ suite('aiCustomizationManagementEditor', () => {
 		await skillNavigation;
 		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.Plugins, name: 'Security plugin', uri: pluginUri });
 		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Security server', mcpServerId: 'security-server' });
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Mail', mcpConnectorName: 'mail' });
 
 		assert.deepStrictEqual({
 			beforeSectionLoaded,
@@ -132,7 +133,9 @@ suite('aiCustomizationManagementEditor', () => {
 				`section:${AICustomizationManagementSection.Plugins}`,
 				'plugin:/plugins/security',
 				`section:${AICustomizationManagementSection.McpServers}`,
-				'mcp:security-server:Security server',
+				'mcp:security-server:Security server:undefined',
+				`section:${AICustomizationManagementSection.McpServers}`,
+				'mcp:undefined:Mail:mail',
 			],
 		});
 	});

@@ -78,6 +78,8 @@
 .ai-customization-management-editor .sidebar-home-button.selected {
 	background-color: var(--vscode-list-inactiveSelectionBackground);
 	color: var(--vscode-list-inactiveSelectionForeground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
 }
 
 .ai-customization-management-editor .sidebar-home-button:focus-visible {
