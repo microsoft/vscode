@@ -5,8 +5,10 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -26,6 +28,12 @@ export interface IDesktopLayoutContext {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
+	/** [R1/R13] Whether `sessions.experimental.chatSpecificLayout` is in effect for the current (desktop, non-suspended) presentation. Pass `reader` from inside a derive/autorun so a phone transition reactively re-evaluates it. */
+	chatLayoutActive(reader?: IReader): boolean;
+	/** [R2/R5] Resolves the chat-layout owner key (main chat maps to the session resource unchanged) for a session's currently active chat. Collapses to the plain session resource while {@link chatLayoutActive} is `false`. */
+	ownerKeyFor(session: IActiveSession, reader?: IReader): URI;
+	/** [R5] Each owner's remembered last-open side-pane (Editor/Details) composition. Only consulted while {@link chatLayoutActive}. */
+	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 
 /**

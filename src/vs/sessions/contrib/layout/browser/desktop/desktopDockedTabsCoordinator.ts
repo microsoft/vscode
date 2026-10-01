@@ -79,7 +79,7 @@ function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTr
 	};
 }
 
-/** Accumulated reconcile intents scoped to the session (`sessionKey`) they were queued for. */
+/** Accumulated reconcile intents scoped to the owner (`sessionKey` — the chat-layout owner key when enabled, else the session resource) they were queued for. */
 interface IPendingReconcile {
 	readonly sessionKey: string | undefined;
 	readonly target: IManagedTabsTarget;
@@ -276,8 +276,22 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
 	}
 
+	/**
+	 * [R9] The reconcile-intent scoping key for the active session: the chat-layout owner key
+	 * (session or peer chat) when chat-specific layout is enabled, so a peer-chat switch within
+	 * the same session drops stale intents/collapsed-tab state the same way a session switch
+	 * does; otherwise the plain session resource.
+	 */
+	private _ownerKeyString(): string | undefined {
+		const session = this._sessionsService.activeSession.get();
+		if (!session) {
+			return undefined;
+		}
+		return (this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(session) : session.resource).toString();
+	}
+
 	prepareWorkingSetRestore(hasSavedWorkingSet: boolean): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		this._preserveMissingFilesForSessionKey = hasSavedWorkingSet && this._filesTabDismissed ? sessionKey : undefined;
 	}
 
@@ -290,7 +304,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** Queues a reconcile for the active session, merging `trigger` with any not-yet-applied pending intents for that session. */
 	queueReconcile(target: IManagedTabsTarget, trigger: IReconcileTrigger): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		// Accumulate intents only within the same session; a session switch drops the previous
 		// session's pending intents (and takes the latest target).
 		const mergedTrigger = this._pending && this._pending.sessionKey === sessionKey
@@ -376,7 +390,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 				return;
 			}
 			this._updateFilesEditors(group, target.workspace);
-			const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+			const sessionKey = this._ownerKeyString();
 			const preserveMissingFiles = !!trigger.workingSetRestored && this._preserveMissingFilesForSessionKey === sessionKey;
 			if (preserveMissingFiles) {
 				await this._removeFilesTab(group);
@@ -439,7 +453,7 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 
 	/** On a session change, drop editors captured while the previous session's editor area was hidden so they are not reopened here. */
 	private _resetCollapsedEditorsOnSessionChange(): void {
-		const sessionKey = this._sessionsService.activeSession.get()?.resource.toString();
+		const sessionKey = this._ownerKeyString();
 		if (sessionKey !== this._lastSyncedSessionKey) {
 			this._collapsedEditors = undefined;
 			this._lastSyncedSessionKey = sessionKey;

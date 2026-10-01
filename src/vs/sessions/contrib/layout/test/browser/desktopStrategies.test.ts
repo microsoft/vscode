@@ -27,6 +27,7 @@ import { DesktopDockedTabsCoordinator } from '../../browser/desktop/desktopDocke
 import { DesktopDraftSessionStrategy } from '../../browser/desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from '../../browser/desktop/desktopExistingSessionStrategy.js';
 import { IDesktopLayoutContext } from '../../browser/desktop/desktopLayoutStrategy.js';
+import { DesktopOwnerCompositionStore } from '../../browser/desktop/desktopOwnerCompositionStore.js';
 import { isFileEditorInput } from '../../browser/desktop/desktopSharedHelpers.js';
 import { SessionVisibilityProfile, DesktopVisibilityProfileStore } from '../../browser/desktop/desktopVisibilityProfileStore.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, TestStubEditorInput } from './layoutControllerTestUtils.js';
@@ -81,6 +82,9 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		activeSessionResourceObs: derived(reader => harness.activeSessionObs.read(reader)?.resource),
 		hasSavedWorkingSet: sessionResource => savedWorkingSets.has(sessionResource.toString()),
 		completeChangesEditorTransition: () => { },
+		chatLayoutActive: () => false,
+		ownerKeyFor: session => session.resource,
+		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore),
 	};
 	return { ctx, state };
 }

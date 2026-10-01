@@ -29,8 +29,9 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IDecorationsService } from '../../../../../workbench/services/decorations/common/decorations.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { CHAT_SPECIFIC_LAYOUT_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -141,6 +142,41 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
+/**
+ * [R5/R8] Adds a peer chat to a session created by {@link makeSession}, appending
+ * it onto the session's (runtime-settable) `chats` observable. Does not change
+ * which chat is active — call {@link setActiveChat} for that.
+ */
+export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
+	const mainChat = session.mainChat.get();
+	const chat: IChat = {
+		resource,
+		createdAt: new Date(),
+		workspace: mainChat.workspace,
+		title: observableValue('title', opts?.title ?? 'Peer'),
+		updatedAt: observableValue('updatedAt', new Date()),
+		status: observableValue('status', SessionStatus.Completed),
+		checkpoints: observableValue('checkpoints', undefined),
+		changes: observableValue('changes', []),
+		changesets: constObservable([]),
+		modelId: observableValue('modelId', undefined),
+		modelSource: observableValue('modelSource', undefined),
+		mode: observableValue('mode', undefined),
+		isArchived: observableValue('isArchived', false),
+		isRead: observableValue('isRead', true),
+		interactivity: observableValue('interactivity', ChatInteractivity.Full),
+		lastTurnEnd: observableValue('lastTurnEnd', undefined),
+		description: observableValue('description', undefined),
+	};
+	(session.chats as ISettableObservable<readonly IChat[]>).set([...session.chats.get(), chat], undefined);
+	return chat;
+}
+
+/** [R5/R8] Switches which chat of `session` (created by {@link makeSession}) is active. */
+export function setActiveChat(session: IActiveSession, chat: IChat): void {
+	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
+}
+
 export interface ICreateOptions {
 	readonly useModal?: 'off' | 'some' | 'all';
 	readonly workspaceFolders?: readonly { readonly uri: URI }[];
@@ -164,6 +200,8 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
+	/** [R1] When true, `chatLayoutPresentation.enabled` is `true` for the harness's lifetime (mirrors the `sessions.experimental.chatSpecificLayout` setting being on at startup). */
+	readonly chatLayoutEnabled?: boolean;
 }
 
 /**
@@ -179,6 +217,14 @@ export interface ITestLayoutHarness {
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	/** [R2] Fires when a chat is deleted; carries `{session, sessionResource, chatResource}` so owner-key bookkeeping can forget it. */
+	onDidDeleteChat: Emitter<IChatDeletedEvent>;
+	/** [R2/R8] Fires when a draft session is replaced by its newly-committed session. */
+	onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	/** [R1] Mirrors `IAgentWorkbenchLayoutService.chatLayoutPresentation`. `.enabled` is fixed for the harness's lifetime (per the `chatLayoutEnabled`/`desktopLayout` create options); drive {@link chatLayoutIsPhoneObs} to exercise phone suspension. */
+	readonly chatLayoutPresentation: ChatLayoutPresentation;
+	/** [R13] Settable `isPhoneLayout` feeding {@link chatLayoutPresentation}, so phone-suspension tests can flip it at runtime. */
+	chatLayoutIsPhoneObs: ISettableObservable<boolean>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onWillToggleSidePane: Emitter<void>;
 	onDidToggleSidePane: Emitter<ISidePaneToggleEvent>;
@@ -276,6 +322,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
+	configService.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, options.chatLayoutEnabled ?? false);
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
@@ -283,6 +330,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override publicLog2(): void { }
 	});
 	instaService.stub(ILogService, store.add(new NullLogService()));
+
+	const chatLayoutIsPhoneObs = observableValue<boolean>('chatLayoutIsPhone', false);
+	const chatLayoutPresentation = store.add(new ChatLayoutPresentation(configService, options.desktopLayout ?? false, chatLayoutIsPhoneObs));
 
 	const harness: ITestLayoutHarness = {
 		instaService,
@@ -292,6 +342,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		onDidDeleteChat: store.add(new Emitter<IChatDeletedEvent>()),
+		onDidReplaceNewDraftSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
+		chatLayoutPresentation,
+		chatLayoutIsPhoneObs,
 		onDidChangePartVisibility: store.add(new Emitter<IPartVisibilityChangeEvent>()),
 		onWillToggleSidePane: store.add(new Emitter<void>()),
 		onDidToggleSidePane: store.add(new Emitter<ISidePaneToggleEvent>()),
@@ -400,6 +454,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 		override readonly onDidChangeSessions = harness.onDidChangeSessions.event;
 		override readonly onDidReplaceSession = harness.onDidReplaceSession.event;
+		override readonly onDidDeleteChat = harness.onDidDeleteChat.event;
+		override readonly onDidReplaceNewDraftSession = harness.onDidReplaceNewDraftSession.event;
 		override getSessions() { return []; }
 	});
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -544,6 +600,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			return this.isSidePaneVisible();
 		}
 		get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
+		get chatLayoutPresentation() { return harness.chatLayoutPresentation; }
 		readonly onDidChangeEditorMaximized = harness.onDidChangeEditorMaximized.event;
 		override readonly onDidLayoutMainContainer = harness.onDidLayoutMainContainer.event;
 		override get mainContainerDimension(): IDimension { return { width: harness.mainContainerWidth, height: 1000 }; }

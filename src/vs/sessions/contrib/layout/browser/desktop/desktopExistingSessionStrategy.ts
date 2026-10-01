@@ -132,11 +132,14 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousQuickChatResource: URI | undefined;
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
+		let previousOwnerKey: URI | undefined;
 		let togglingSidePane = false;
 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
+			// Read so a peer-chat switch within the same session re-runs this autorun too.
+			activeSession?.activeChat.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
 			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
@@ -145,28 +148,37 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				this._captureExistingProfile();
 			}
 
+			const ownerKey = this._ctx.chatLayoutActive(reader) && activeSession ? this._ctx.ownerKeyFor(activeSession, reader) : undefined;
+
 			if (multipleSessionsVisible) {
 				const activeChat = activeSession?.activeChat.read(reader);
 				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
 				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
-					this._ctx.withSessionLayoutRestore(() => this._reveal(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
+					this._ctx.withSessionLayoutRestore(() => this._reveal(this._resolveComposition(activeSession, ownerKey)));
 				}
 				wasExistingActive = false;
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (!activeSession) {
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			if (isQuickChat) {
 				wasExistingActive = false;
+				previousOwnerKey = ownerKey;
 				return;
 			}
 
 			const isCreated = activeSession.isCreated.read(reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
+			// Covers both a different owner taking over and an owner entering or
+			// leaving phone suspension (ownerKey flipping to/from undefined),
+			// so the shared or resumed composition is reapplied on either edge.
+			const ownerChanged = !sessionChanged && !isEqual(previousOwnerKey, ownerKey);
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
 			if (isSubmit) {
@@ -174,8 +186,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 
 			if (isCreated) {
-				if (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged)) {
-					this._ctx.withSessionLayoutRestore(() => this._apply(this._visibilityStore.get(SessionVisibilityProfile.Existing)));
+				if (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged || ownerChanged)) {
+					this._ctx.withSessionLayoutRestore(() => this._apply(this._resolveComposition(activeSession, ownerKey)));
 				}
 				wasExistingActive = true;
 			} else {
@@ -184,6 +196,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			previousIsCreated = isCreated;
 			previousSession = activeSession;
+			previousOwnerKey = ownerKey;
 			initialized = true;
 		}));
 
@@ -208,6 +221,27 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}));
 	}
 
+	/**
+	 * [R5] Resolves the composition to apply/reveal for `activeSession`'s current
+	 * owner: its own remembered last-open composition if chat-specific layout is
+	 * enabled and one was ever captured; otherwise, for the session's main chat,
+	 * the shared legacy Existing profile (one-time seed); otherwise (a peer chat's
+	 * first visit) a fully hidden side pane.
+	 */
+	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
+		if (!ownerKey) {
+			return this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		}
+		const stored = this._ctx.compositionStore.get(ownerKey);
+		if (stored) {
+			return { editorVisible: stored.editor, auxiliaryBarVisible: stored.auxiliaryBar };
+		}
+		if (isEqual(ownerKey, activeSession.resource)) {
+			return this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		}
+		return { editorVisible: false, auxiliaryBarVisible: false };
+	}
+
 	private _captureExistingProfileIfApplicable(): void {
 		if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get()) {
 			return;
@@ -226,6 +260,19 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 			auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 		};
+
+		// [R5/R13] While chat-owned layout is in effect, the on-screen composition
+		// belongs to the active owner alone: remember it there and leave the shared
+		// Existing profile untouched, so a phone suspension (or the feature being
+		// off) still resolves to the last composition seen *outside* chat ownership
+		// rather than whichever owner happened to be on screen when it suspended.
+		if (this._ctx.chatLayoutActive()) {
+			const activeSession = this._sessionsService.activeSession.get();
+			if (activeSession) {
+				this._ctx.compositionStore.set(this._ctx.ownerKeyFor(activeSession), { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
+			}
+			return;
+		}
 		this._visibilityStore.set(SessionVisibilityProfile.Existing, state);
 	}
 

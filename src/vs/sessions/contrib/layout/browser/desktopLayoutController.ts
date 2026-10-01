@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
@@ -15,12 +16,15 @@ import { DesktopDetailPanelCoordinator } from './desktop/desktopDetailPanelCoord
 import { DesktopDockedTabsCoordinator } from './desktop/desktopDockedTabsCoordinator.js';
 import { DesktopDraftSessionStrategy } from './desktop/desktopDraftSessionStrategy.js';
 import { DesktopExistingSessionStrategy } from './desktop/desktopExistingSessionStrategy.js';
+import { DesktopOwnerCompositionStore } from './desktop/desktopOwnerCompositionStore.js';
 import { DesktopVisibilityProfileStore } from './desktop/desktopVisibilityProfileStore.js';
 
 export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrategy.js';
 
 /** Storage key for per-session desktop layout state. */
 const DESKTOP_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
+/** Storage key for per-owner (session or chat) desktop layout state, used only when chat-specific layout is enabled. */
+const DESKTOP_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.chatLayoutState';
 
 type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
 
@@ -48,12 +52,13 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private _context: IDesktopLayoutContext | undefined;
 	private _existingSession: DesktopExistingSessionStrategy | undefined;
 	private _managedTabs: DesktopDockedTabsCoordinator | undefined;
+	protected _compositionStore: DesktopOwnerCompositionStore | undefined;
 	private _changesEditorTransitionPhase: ChangesEditorTransitionPhase = 'idle';
 	private _onDidChangeChangesEditorTransition: Emitter<void> | undefined;
 	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
 
 	protected override get _layoutStateStorageKey(): string {
-		return DESKTOP_LAYOUT_STATE_KEY;
+		return this._chatLayoutEnabled ? DESKTOP_CHAT_LAYOUT_STATE_KEY : DESKTOP_LAYOUT_STATE_KEY;
 	}
 
 	protected override get _legacyWorkingSetsStorageKey(): string | undefined {
@@ -81,6 +86,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 						that._setChangesEditorTransitionPhase('idle');
 					}
 				},
+				chatLayoutActive: reader => that._chatLayoutActive(reader),
+				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
+				get compositionStore() { return that._compositionStore!; },
 			};
 		}
 		return this._context;
@@ -90,6 +98,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _registerViewStateManagement(): void {
 		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
+		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore);
 		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 
@@ -150,12 +159,23 @@ export class DesktopLayoutController extends BaseLayoutController {
 	}
 
 	/**
-	 * Governs the panel at the workbench level (like the side pane). Flipping this
-	 * single gate off makes the base remember the panel's *view* per session instead
-	 * (defaulting to the Terminal).
+	 * Governs the panel at the workbench level (like the side pane), per owner,
+	 * when chat-specific layout is enabled — disabled (`false`), the panel stays
+	 * workbench-global and the base remembers the panel's *view* per session
+	 * instead (defaulting to the Terminal), exactly as before.
 	 */
 	protected override get _isPanelVisibilityPerSession(): boolean {
-		return false;
+		return this._chatLayoutEnabled;
+	}
+
+	/**
+	 * The panel's remembered *view* is always tracked per owner for desktop,
+	 * independent of {@link _isPanelVisibilityPerSession} — when chat-specific
+	 * layout is enabled both the panel's visibility and its active view are
+	 * owned per (session, chat), rather than the two being mutually exclusive.
+	 */
+	protected override get _isPanelViewPerSession(): boolean {
+		return true;
 	}
 
 	protected override _shouldRevealEditorPartOnApply(_editorPartHidden: boolean, _isModal: boolean): boolean {
@@ -193,5 +213,13 @@ export class DesktopLayoutController extends BaseLayoutController {
 		if ((previousPhase === 'idle') !== (phase === 'idle')) {
 			this._onDidChangeChangesEditorTransition?.fire();
 		}
+	}
+
+	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
+		this._compositionStore?.remap(oldKey, newKey);
+	}
+
+	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
+		this._compositionStore?.forget(keys);
 	}
 }
