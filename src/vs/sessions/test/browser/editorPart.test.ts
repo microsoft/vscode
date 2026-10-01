@@ -120,7 +120,7 @@ suite('Sessions - EditorPart', () => {
 									active: true,
 									laterRow: wrapped,
 									leadingEdge: wrapped,
-									backgroundClip: wrapped ? 'border-box' : 'padding-box',
+									backgroundClip: 'border-box',
 									leftBorder: wrapped ? 'rgba(0, 0, 0, 0)' : border,
 									leftCorner: wrapped ? '0px' : '5px',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
