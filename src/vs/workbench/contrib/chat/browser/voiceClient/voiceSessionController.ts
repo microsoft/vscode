@@ -48,6 +48,7 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../..
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { INotificationService, IPromptChoice, Severity } from '../../../../../platform/notification/common/notification.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { getVoiceWebSocketUrl, shouldUseOpenAiWebSocketSubprotocolAuth } from './voiceEndpoint.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatEntitlement, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import {
@@ -394,6 +395,8 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 	private _pttHeld = false;
 	/** True once speech is detected in the current passive hands-free turn. */
 	private _speechDetectedInTurn = false;
+	private _lastOpenAiAutoSentTranscription: string | undefined;
+	private _lastOpenAiAutoSentAt = 0;
 	/**
 	 * Whether the current held turn's `ptt_start` was passive (a hands-free
 	 * open mic: auto-listen or barge-in). A passive turn tells the backend not
@@ -2190,6 +2193,46 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 		return this.configurationService.getValue<boolean>('agents.voice.enabled') === true;
 	}
 
+	private _isOpenAiRealtimeVoiceMode(): boolean {
+		const endpoint = getVoiceWebSocketUrl(this.configurationService, this.productService);
+		return shouldUseOpenAiWebSocketSubprotocolAuth(endpoint);
+	}
+
+	private _autoForwardOpenAiTranscription(text: string): void {
+		const strippedText = this._stripStopPhrase(text).trim();
+		if (!strippedText) {
+			return;
+		}
+
+		const now = Date.now();
+		if (this._lastOpenAiAutoSentTranscription === strippedText && now - this._lastOpenAiAutoSentAt < 2000) {
+			return;
+		}
+		this._lastOpenAiAutoSentTranscription = strippedText;
+		this._lastOpenAiAutoSentAt = now;
+
+		this._statusText.set(VoiceToolDispatchService.getActionLabel('send_to_chat'), undefined);
+		this._persistEntry('agent_tool_call', this._renderToolCallSummary('send_to_chat', { text: strippedText }), {
+			toolName: 'send_to_chat',
+			toolArgs: { text: strippedText },
+		});
+		this._setAwaitingReply();
+		void this._sendTranscriptionToChat(strippedText).then(sent => {
+			if (!sent) {
+				this._clearAwaitingReply();
+			}
+			this._voiceState.set(this._awaitingReplyAudio ? 'processing' : 'idle', undefined);
+			this._statusText.set(this._awaitingReplyAudio ? 'Waiting for response...' : 'Hold to speak...', undefined);
+			this._sendContext();
+		}, err => {
+			this.logService.warn('[voice] auto send_to_chat delivery failed:', err);
+			this._clearAwaitingReply();
+			this._voiceState.set('idle', undefined);
+			this._statusText.set('Hold to speak...', undefined);
+			this._sendContext();
+		});
+	}
+
 	setActiveWindow(window: Window & typeof globalThis): void {
 		this._window = window;
 		this._windowFocusDisposables.clear();
@@ -2770,6 +2813,9 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._statusText.set('Processing...', undefined);
 		}
 		this._persistTurn('user', event.text);
+		if (this._isOpenAiRealtimeVoiceMode()) {
+			this._autoForwardOpenAiTranscription(event.text);
+		}
 		if (event.turnId && state) {
 			state.phase = 'final';
 		}

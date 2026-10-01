@@ -63,6 +63,12 @@ const OPENAI_REALTIME_VOICE_BY_AGENTS_VOICE: Record<string, string> = {
 	junho_neutral: 'echo',
 	oak_neutral: 'sage',
 };
+const OPENAI_VOICE_COMMAND_ROUTER_INSTRUCTIONS = [
+	'You are the voice front-end for VS Code.',
+	'The app forwards the user\'s final transcript to the coding agent as a command in most cases.',
+	'Keep spoken acknowledgements concise, for example: "Got it, I\'ll send that off."',
+	'Do not claim command execution is complete before results are available; only acknowledge forwarding and that results will follow.',
+].join(' ');
 function asOptionalString(value: unknown): string | undefined {
 	return typeof value === 'string' ? value : undefined;
 }
@@ -231,6 +237,11 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 	private _getOpenAiVoice(): string {
 		const voice = this._getVoice();
 		return OPENAI_REALTIME_VOICE_BY_AGENTS_VOICE[voice] ?? 'alloy';
+	}
+
+	private _getOpenAiSessionInstructions(voiceInstructions: string | undefined): string {
+		const customInstructions = voiceInstructions?.trim();
+		return customInstructions ? `${OPENAI_VOICE_COMMAND_ROUTER_INSTRUCTIONS}\n\n${customInstructions}` : OPENAI_VOICE_COMMAND_ROUTER_INSTRUCTIONS;
 	}
 
 	private _sendSetVoice(): void {
@@ -1055,7 +1066,7 @@ export class VoiceClientService extends Disposable implements IVoiceClientServic
 					type: 'session.update',
 					session: {
 						type: 'realtime',
-						instructions: voiceInstructions,
+						instructions: this._getOpenAiSessionInstructions(voiceInstructions),
 						output_modalities: ['audio'],
 						audio: {
 							output: {
