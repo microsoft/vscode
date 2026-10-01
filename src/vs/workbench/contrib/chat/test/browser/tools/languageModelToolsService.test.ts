@@ -2902,15 +2902,32 @@ suite('LanguageModelToolsService', () => {
 		}, /Tool "duplicateTool" is already registered/);
 	});
 
-	test('tool implementation registration without data throws', () => {
-		const toolImpl: IToolImpl = {
-			invoke: async () => ({ content: [] }),
+	test('tool implementation registered before data is attached when data registers', async () => {
+		const toolData: IToolData = {
+			id: 'lateDataTool',
+			modelDescription: 'Late Data Tool',
+			displayName: 'Late Data Tool',
+			source: ToolDataSource.Internal,
 		};
 
-		// Should throw when registering implementation for non-existent tool
-		assert.throws(() => {
-			service.registerToolImplementation('nonExistentTool', toolImpl);
-		}, /Tool "nonExistentTool" was not contributed/);
+		let invoked = false;
+		const toolImpl: IToolImpl = {
+			invoke: async () => { invoked = true; return { content: [] }; },
+		};
+
+		// Implementation arrives before the tool data contribution is processed; it must be buffered, not throw.
+		store.add(service.registerToolImplementation('lateDataTool', toolImpl));
+		store.add(service.registerToolData(toolData));
+
+		const dto: IToolInvocation = {
+			callId: '1',
+			toolId: 'lateDataTool',
+			tokenBudget: 100,
+			parameters: {},
+			context: undefined,
+		};
+		await service.invokeTool(dto, async () => 0, CancellationToken.None);
+		assert.strictEqual(invoked, true);
 	});
 
 	test('tool implementation duplicate registration throws', () => {
