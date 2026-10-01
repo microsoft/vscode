@@ -133,6 +133,7 @@ suite('aiCustomizationManagementEditor', () => {
 		selectedCustomizationMigrationItems: ResourceMap<Set<PromptsStorage>>;
 		selectedMcpServerMigrationItems: Set<string>;
 		knownMcpServerMigrationItems: Set<string>;
+		recentlyMigratedCustomizationItems: Set<string>;
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
@@ -293,6 +294,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.selectedCustomizationMigrationItems = new ResourceMap();
 		editor.selectedMcpServerMigrationItems = new Set();
 		editor.knownMcpServerMigrationItems = new Set();
+		editor.recentlyMigratedCustomizationItems = new Set();
 		editor.migrationFlowId = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.currentCustomizationDetail = false;
@@ -1990,7 +1992,10 @@ suite('aiCustomizationManagementEditor', () => {
 			info: message => notifications.push(`info:${message}`),
 			warn: message => notifications.push(`warn:${message}`),
 		};
-		editor.refreshCustomizationMigrationInfo = async () => { };
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [server]]]), new Map());
+		editor.refreshCustomizationMigrationInfo = async () => {
+			editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.McpServers, [server]]]), new Map());
+		};
 
 		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
 
@@ -2000,6 +2005,7 @@ suite('aiCustomizationManagementEditor', () => {
 			dashboardShown,
 			inProgress: editor.customizationMigrationInProgress,
 			writesInProgress: editor.customizationMigrationWritesInProgress,
+			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers)),
 			activity: editor.getMigrationActivityState(PromptsStorage.local).activity.map(({ id, ...entry }) => entry),
 		}, {
 			migrated: [[server]],
@@ -2007,6 +2013,7 @@ suite('aiCustomizationManagementEditor', () => {
 			dashboardShown: 1,
 			inProgress: false,
 			writesInProgress: false,
+			remainingCandidates: [],
 			activity: [{
 				categoryLabel: 'MCP Servers',
 				scopeLabel: 'vscode',
@@ -2117,6 +2124,7 @@ suite('aiCustomizationManagementEditor', () => {
 			type: PromptsType.prompt,
 			source: PromptFileSource.GitHubWorkspace,
 		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), new Map());
 		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, {
 			uri: URI.file('/workspace/.github/skills'),
 			label: '.github',
@@ -2134,7 +2142,9 @@ suite('aiCustomizationManagementEditor', () => {
 				migratedSources: [{ uri: prompt.uri, storage: prompt.storage }],
 			};
 		};
-		editor.refreshCustomizationMigrationInfo = async () => { };
+		editor.refreshCustomizationMigrationInfo = async () => {
+			editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), new Map());
+		};
 		let dashboardShown = 0;
 		editor.showCustomizationMigrationDashboard = () => dashboardShown++;
 		editor.migrationFlowId = 'migration-flow-id';
@@ -2146,9 +2156,11 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({
 			dashboardShown,
 			migrationCompleted,
+			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles)),
 		}, {
 			dashboardShown: 1,
 			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, [], 'migration-flow-id']],
+			remainingCandidates: [],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

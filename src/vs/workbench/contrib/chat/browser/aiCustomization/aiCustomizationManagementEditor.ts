@@ -414,6 +414,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private selectedCustomizationMigrationItems = new ResourceMap<Set<PromptsStorage>>();
 	private selectedMcpServerMigrationItems = new Set<string>();
 	private knownMcpServerMigrationItems = new Set<string>();
+	private readonly recentlyMigratedCustomizationItems = new Set<string>();
 	private selectedCustomizationMigrationTargets = new Map<string, ICustomizationSourceFolder>();
 	private readonly explicitlySelectedCustomizationMigrationTargets = new Set<string>();
 
@@ -1362,6 +1363,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.selectedCustomizationMigrationItems.clear();
 			this.selectedMcpServerMigrationItems.clear();
 			this.knownMcpServerMigrationItems.clear();
+			this.recentlyMigratedCustomizationItems.clear();
 			this.selectedCustomizationMigrationTargets.clear();
 			this.explicitlySelectedCustomizationMigrationTargets.clear();
 			this.customizationsByMigrationCategory.clear();
@@ -1444,6 +1446,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 		targetFoldersByType: Map<PromptsType, readonly ICustomizationSourceFolder[]>,
 		mcpServerMigrationExclusions: readonly IMcpServerCustomizationMigrationExclusion[] = this.mcpServerMigrationExclusions,
 	): void {
+		const discoveredCandidateKeys = new Set([...candidatesByCategory.values()].flat().map(candidate => this.getCustomizationMigrationCandidateKey(candidate)));
+		for (const key of this.recentlyMigratedCustomizationItems) {
+			if (!discoveredCandidateKeys.has(key)) {
+				this.recentlyMigratedCustomizationItems.delete(key);
+			}
+		}
+		candidatesByCategory = new Map([...candidatesByCategory].map(([categoryId, candidates]) => [
+			categoryId,
+			candidates.filter(candidate => !this.recentlyMigratedCustomizationItems.has(this.getCustomizationMigrationCandidateKey(candidate))),
+		]));
 		const previousFileItems = this.createCustomizationMigrationItemMap(this.getAllMigrationCandidates().filter(candidate => !isMcpServerCustomizationMigrationCandidate(candidate)));
 		const selectedItems = new ResourceMap<Set<PromptsStorage>>();
 		for (const customization of [...candidatesByCategory.values()].flat()) {
@@ -1551,6 +1563,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 		return isMcpServerCustomizationMigrationCandidate(customization)
 			? `mcp:${getMcpServerCustomizationMigrationCandidateKey(customization)}`
 			: `file:${customization.storage}:${getComparisonKey(customization.uri)}`;
+	}
+
+	private markCustomizationMigrationsCompleted(category: ICustomizationMigrationCategory, candidates: readonly CustomizationMigrationCandidate[]): void {
+		const completedKeys = new Set(candidates.map(candidate => this.getCustomizationMigrationCandidateKey(candidate)));
+		for (const candidate of candidates) {
+			this.recentlyMigratedCustomizationItems.add(this.getCustomizationMigrationCandidateKey(candidate));
+			if (isMcpServerCustomizationMigrationCandidate(candidate)) {
+				const key = getMcpServerCustomizationMigrationCandidateKey(candidate);
+				this.knownMcpServerMigrationItems.delete(key);
+				this.selectedMcpServerMigrationItems.delete(key);
+			} else {
+				this.setCustomizationSelectedForMigration(candidate, false);
+			}
+		}
+		const currentCandidates = this.customizationsByMigrationCategory.get(category.id) ?? [];
+		this.customizationsByMigrationCategory.set(category.id, currentCandidates.filter(candidate => !completedKeys.has(this.getCustomizationMigrationCandidateKey(candidate))));
+		this.refreshCustomizationMigrationUi();
 	}
 
 	private reconcileMigrationActivity(candidatesByCategory: ReadonlyMap<CustomizationMigrationCategoryId, readonly CustomizationMigrationCandidate[]>): void {
@@ -1743,6 +1772,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 			}
 			if (deleteOriginalFiles) {
+				const migratedFiles = result.migratedSources.flatMap(source => files.filter(file => file.storage === source.storage && isEqual(file.uri, source.uri)));
+				this.markCustomizationMigrationsCompleted(category, migratedFiles);
 				await this.refreshCustomizationMigrationInfo();
 			}
 			const unsupportedKeys = result.unsupportedHeaderKeys.join(', ');
@@ -1797,6 +1828,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		);
 		const migratedServers = servers.filter(server => !result.failures.some(failure => failure.id === server.id && isEqual(failure.sourceUri, server.sourceUri)));
 		if (result.migratedCount > 0) {
+			this.markCustomizationMigrationsCompleted(category, migratedServers);
 			for (const [storage, context] of contexts) {
 				this.recordMigrationActivity(category, context, migratedServers.filter(server => server.storage === storage).map(server => ({
 					label: server.name,
