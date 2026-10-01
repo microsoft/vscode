@@ -542,6 +542,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			experiment: { mode: 'auto' },
 		},
 		[DevContainerIdleTimeoutSettingId]: {
 			type: 'integer',

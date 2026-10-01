@@ -46,12 +46,18 @@ suite('Dev Container Agent Host Connector', () => {
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
 	const devContainerSamplesProperty = configurationRegistry.getConfigurationProperties()[DevContainerSamplesEnabledSettingId];
 
-	test('sample setting is application scoped, experimental, and off by default', () => {
+	test('sample setting is application scoped, experiment controlled, and off by default', () => {
 		assert.deepStrictEqual({
 			scope: devContainerSamplesProperty.scope,
 			default: devContainerSamplesProperty.default,
 			tags: devContainerSamplesProperty.tags,
-		}, { scope: ConfigurationScope.APPLICATION, default: false, tags: ['experimental'] });
+			experiment: devContainerSamplesProperty.experiment,
+		}, {
+			scope: ConfigurationScope.APPLICATION,
+			default: false,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
 	});
 
 	test('routes sample lifecycle with a sample identity and reconnects after the picker opt-in is disabled', async () => {
