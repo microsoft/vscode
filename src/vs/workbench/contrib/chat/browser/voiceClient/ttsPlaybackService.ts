@@ -138,6 +138,17 @@ export class TtsPlaybackService extends Disposable implements ITtsPlaybackServic
 			if (gen !== this._playbackGen) { return; }
 			try {
 				const ctx = this.ensureContext(this._window!);
+				if (ctx.state !== 'running') {
+					try {
+						await ctx.resume();
+					} catch (err) {
+						this.logService.warn('[voice] TTS resume failed', err);
+					}
+				}
+				if (ctx.state !== 'running') {
+					this.logService.warn(`[voice] TTS context not running (state=${ctx.state}), skipping chunk`);
+					return;
+				}
 				let decoded: AudioBuffer | undefined;
 				if (audioFormatHint === 'pcm16') {
 					decoded = decodePcm16Chunk(ctx, bytes);
