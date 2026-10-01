@@ -1866,7 +1866,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		// spinner/"Editing files" label. See https://github.com/microsoft/vscode/issues/288701.
 		for (const part of this._response.value) {
 			if (part.kind === 'toolInvocation' && part instanceof ChatToolInvocation) {
-				part.cancelFromStreaming(ToolConfirmKind.Skipped);
+				part.cancelFromStreaming({ type: ToolConfirmKind.Skipped });
 			} else if (part instanceof ChatPlanReviewData) {
 				part.dismiss();
 			} else if (part instanceof ChatQuestionCarouselData) {
