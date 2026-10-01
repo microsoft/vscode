@@ -3421,6 +3421,34 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		}, { presentation: false, provenance: false });
 	});
 
+	test('a direct import call does not adopt a non-external sandbox session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { provider } = createSandbox(storage);
+		const importedSessions: URI[] = [];
+		const connection = disposables.add(new class extends MockAgentConnection {
+			override readonly initializeResult = constObservable({
+				protocolVersion: '1', serverSeq: 0, snapshots: [],
+				automations: { create: {}, schedules: {}, runCancellation: {} },
+				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, true),
+			});
+			override async importSession(session: URI): Promise<void> {
+				importedSessions.push(session);
+			}
+		}());
+		connection.addSession(createSession('not-imported', { provider: 'ahp-session', _meta: withSessionExternal(undefined, true) }));
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.importSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			importedSessions,
+			provenance: isExternalInternally(storage, provider, 'not-imported'),
+			external: session.isExternal?.get(),
+			supportsImport: session.capabilities.get().supportsImport,
+		}, { importedSessions: [], provenance: true, external: false, supportsImport: false });
+	}));
+
 	test('host-listed sandbox sessions are non-external without prior discovery or local provenance', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const { provider, connection } = createSandbox(storage);

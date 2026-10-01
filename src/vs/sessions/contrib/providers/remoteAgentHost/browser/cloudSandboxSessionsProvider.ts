@@ -60,14 +60,6 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
 	}
 
-	override async importSession(sessionId: string): Promise<void> {
-		await super.importSession(sessionId);
-		const rawId = this._rawIdFromChatId(sessionId);
-		if (rawId) {
-			this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
 	}
