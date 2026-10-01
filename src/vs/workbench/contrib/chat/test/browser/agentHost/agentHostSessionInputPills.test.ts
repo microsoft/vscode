@@ -23,6 +23,8 @@ import { ChangesetKind } from '../../../../../../platform/agentHost/common/chang
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionArtifact, SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { AgentHostArtifactRemovalCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
+import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
+import { BackgroundWorkKind, type BackgroundShellWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, ChangesetStatus, ChatOriginKind, ChatState, ChatSummary, ComponentToState, CustomizationType, ResponsePartKind, SessionState, SessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, Turn, withSessionGitHubState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -1895,5 +1897,70 @@ suite('AgentHostSessionInputPills', () => {
 			canonicalSubagent: { pills: [], hidden: true, persistentContentHeight: undefined },
 			backToSession: { pills: ['1 Artifact'], hidden: false, persistentContentHeight: 28 },
 		});
+	});
+
+	test('shows the chat\'s background shells until they finish', () => {
+		const instantiationService = createInstantiationService();
+		const sessionResource = URI.parse('agent-host-copilot:/session');
+		const backendSession = URI.parse('copilot:/session');
+		const shell: BackgroundShellWork = {
+			kind: BackgroundWorkKind.Shell, id: 'shell:dev-server', label: 'Start dev server', command: 'npm run dev',
+			startedAt: new Date(0).toISOString(), _meta: toCopilotBackgroundShellMeta('dev-server', 'detached'),
+		};
+		const connection = new StaticAgentConnection(new Map<StateComponents, SessionState | ChatState>([
+			[StateComponents.Session, upcastPartial<SessionState>({ defaultChat: buildDefaultChatUri(backendSession), chats: [] })],
+			[StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [shell] })],
+		]));
+		const connectionsService = upcastPartial<IAgentHostConnectionsService>({
+			onDidChangeConnections: Event.None,
+			onDidChangeSessionResolution: Event.None,
+			connections: [],
+			resolveSessionResource: () => ({ connection, connectionAuthority: 'local', backendSession }),
+		});
+		const browserViewService = upcastPartial<IBrowserViewWorkbenchService>({
+			onDidChangeBrowserViews: Event.None,
+			getKnownBrowserViews: () => new Map(),
+		});
+		const visibility = store.add(instantiationService.createInstance(SessionChatPillVisibility));
+		instantiationService.stub(ISessionChatPillVisibilityService, visibility);
+		const [clipboardService, configurationService, editorService, openerService] = instantiationService.invokeFunction(accessor => [
+			accessor.get(IClipboardService),
+			accessor.get(IConfigurationService),
+			accessor.get(IEditorService),
+			accessor.get(IOpenerService),
+		] as const);
+		const persistentContent = document.createElement('div');
+		document.body.appendChild(persistentContent);
+		store.add(toDisposable(() => persistentContent.remove()));
+		const widget = upcastPartial<ChatWidget>({
+			inputPart: upcastPartial<ChatInputPart>({
+				persistentContentContainerElement: persistentContent,
+				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
+			}),
+			onDidChangeViewModel: Event.None,
+			viewModel: upcastPartial<ChatViewModel>({ sessionResource }),
+			setPersistentContentHeight: () => { },
+		});
+		store.add(new AgentHostSessionInputPills(
+			widget,
+			false,
+			connectionsService,
+			browserViewService,
+			clipboardService,
+			configurationService,
+			editorService,
+			instantiationService,
+			openerService,
+			visibility,
+			noProvisionalSessions,
+			labelService,
+			notificationService,
+			instantiationService.get(ICommandService),
+		));
+		const pills = () => Array.from(persistentContent.querySelectorAll('.chat-pill-label')).map(label => label.textContent);
+		const running = pills();
+		connection.setState(StateComponents.Chat, upcastPartial<ChatState>({ backgroundWork: [] }));
+
+		assert.deepStrictEqual({ running, finished: pills() }, { running: ['1 Background Shell'], finished: [] });
 	});
 });

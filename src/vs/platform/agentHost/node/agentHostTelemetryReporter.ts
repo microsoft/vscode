@@ -99,6 +99,33 @@ export type IAgentHostExecutionModeChangedClassification = IAgentHostEventClassi
 	comment: 'Reports agent host execution mode changes.';
 };
 
+/** How a first-turn workspace snapshot was prepared relative to the send. */
+export type AgentHostWorkspaceSnapshotPreparation = 'prepared' | 'startedAtSend' | 'directoriesChanged';
+
+export interface IAgentHostWorkspaceSnapshotEvent {
+	preparation: AgentHostWorkspaceSnapshotPreparation;
+	rootCount: number;
+	includedRootCount: number;
+	pendingRootCount: number;
+	emptyRootCount: number;
+	failedRootCount: number;
+	waitMs: number;
+	snapshotLength: number;
+}
+
+type IAgentHostWorkspaceSnapshotClassification = {
+	preparation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the snapshot was prepared before the send, started at the send, or restarted because the turn ran in different directories.' };
+	rootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of working-directory roots the first turn runs in.' };
+	includedRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots whose file-name tree was included in the first turn.' };
+	pendingRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because their tree was not ready within the send wait.' };
+	emptyRootCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of roots omitted because they had no visible files or are Git storage directories.' };
+	failedRootCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of roots omitted because they could not be read.' };
+	waitMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds the first send waited for unfinished roots.' };
+	snapshotLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length in characters of the file-name tree included in the first turn, or 0 when none was.' };
+	owner: 'bhavyaus';
+	comment: 'Reports whether the first turn of a new Copilot Agent Host conversation included its initial workspace file-name snapshot, and why roots were left out.';
+};
+
 export interface IAgentHostUserMessageSentEvent extends IAgentHostCopilotSkuTelemetry {
 	provider: string;
 	hostLaunchKind: AgentHostLaunchKind;
@@ -240,6 +267,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	sendStageModelSelectionMs: number | undefined;
 	sendStageAttachmentsMs: number | undefined;
 	sendStageContributionsMs: number | undefined;
+	sendStageProviderPreparationMs: number | undefined;
 	sendStageCheckpointMs: number | undefined;
 	timeToProviderDispatch: number | undefined;
 	providerStageQueueMs?: number;
@@ -294,6 +322,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	sendStageModelSelectionMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent applying the model and agent selection on the provider before dispatching the turn.' };
 	sendStageAttachmentsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent resolving chat attachments before dispatching the turn.' };
 	sendStageContributionsMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent running outgoing-turn chat contributions before dispatching the turn.' };
+	sendStageProviderPreparationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host still waited on provider turn preparation before dispatching the turn, after it overlapped the earlier pre-send stages and the checkpoint capture.' };
 	sendStageCheckpointMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds the host spent still waiting on the turn-start checkpoint before dispatching the turn, after it overlapped the earlier pre-send stages.' };
 	timeToProviderDispatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start until the message was handed to the provider, covering all host pre-send stages.' };
 	providerStageQueueMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds after dispatch the provider waited behind earlier operations on the same chat, before first progress.' };
@@ -809,11 +838,13 @@ export interface IAgentHostToolApprovalReport extends IAgentHostTurnAttributedRe
 	toolId: string;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
 	confirmationNotNeededReason: string | undefined;
 	requestUnsandboxedExecution: boolean | undefined;
 }
 
-type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied';
+type AgentHostToolApprovalConfirmKind = 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied' | 'unknown';
 
 export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	provider: string;
@@ -825,6 +856,9 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 	toolExtensionId: string | undefined;
 	toolSourceKind: string;
 	confirmKind: AgentHostToolApprovalConfirmKind;
+	decisionSource?: string;
+	permissionResult?: string;
+	approvalTelemetryVersion: number;
 	settingId: string | undefined;
 	lmServiceScope: string | undefined;
 	customButtonKind: string | undefined;
@@ -834,6 +868,9 @@ export interface IAgentHostToolApprovalEvent extends IAgentHostEventTelemetry {
 }
 
 export type IAgentHostToolApprovalClassification = IAgentHostEventClassification & LanguageModelToolApprovalClassification & {
+	decisionSource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission decision source. human_response is explicit human attribution; missing is unattributed, not human.' };
+	permissionResult?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'SDK permission result category, distinguishing rule, hook, policy, cancellation and unavailable-responder outcomes.' };
+	approvalTelemetryVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the approval classification. Version 2 requires explicit human attribution for userAction.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider handling the agent host session.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool approval belongs to a subagent session.' };
@@ -1069,6 +1106,10 @@ export class AgentHostTelemetryReporter {
 		});
 	}
 
+	workspaceSnapshotSent(event: IAgentHostWorkspaceSnapshotEvent): void {
+		this._telemetryService.publicLog2<IAgentHostWorkspaceSnapshotEvent, IAgentHostWorkspaceSnapshotClassification>('agentHost.workspaceSnapshot', event);
+	}
+
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
 		const copilotSku = this._copilotSku(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
@@ -1298,6 +1339,9 @@ export class AgentHostTelemetryReporter {
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
 			confirmKind: report.confirmKind,
+			...(report.decisionSource !== undefined ? { decisionSource: report.decisionSource } : {}),
+			...(report.permissionResult !== undefined ? { permissionResult: report.permissionResult } : {}),
+			approvalTelemetryVersion: 2,
 			settingId: undefined,
 			lmServiceScope: undefined,
 			customButtonKind: undefined,
@@ -1476,6 +1520,7 @@ export class AgentHostTelemetryReporter {
 			sendStageModelSelectionMs: report.sendStageDurationsMs?.get('modelSelection'),
 			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
 			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
+			sendStageProviderPreparationMs: report.sendStageDurationsMs?.get('providerPreparation'),
 			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
 			...providerStages,
 			hostRootTurnOrdinal: report.hostRootTurnOrdinal,
@@ -1507,6 +1552,7 @@ export class AgentHostTelemetryReporter {
 			sendStageModelSelectionMs: report.sendStageDurationsMs?.get('modelSelection'),
 			sendStageAttachmentsMs: report.sendStageDurationsMs?.get('attachments'),
 			sendStageContributionsMs: report.sendStageDurationsMs?.get('contributions'),
+			sendStageProviderPreparationMs: report.sendStageDurationsMs?.get('providerPreparation'),
 			sendStageCheckpointMs: report.sendStageDurationsMs?.get('checkpoint'),
 			timeToProviderDispatch: report.sendDispatchedMs,
 			...providerStages,

@@ -29,7 +29,7 @@ import { isLocation, type Location } from '../../../../../../editor/common/langu
 import type { ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
-import { AgentHostAllowSignedOutWhenUsableSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnabledSettingId, AgentProvider, AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
@@ -37,6 +37,7 @@ import { AgentHostElementAttachmentDisplayKind, getElementAttachmentCorrelationI
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { BrowserViewAttachmentDisplayKind, BrowserViewAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readToolCallMeta } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -124,7 +125,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { activeTurnToProgress, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
+import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
 import { AgentHostSubagentProgress, isUnstartedSubagent } from './agentHostSubagentProgress.js';
 export { toolDataToDefinition };
 
@@ -507,6 +508,28 @@ function confirmedReasonToProtocol(reason: ConfirmedReason | undefined): ToolCal
 			return ToolCallConfirmationReason.Setting;
 		default:
 			return ToolCallConfirmationReason.UserAction;
+	}
+}
+
+function confirmedReasonToDecisionSource(reason: ConfirmedReason, cancellationToken: CancellationToken): AgentPermissionDecisionSource | undefined {
+	switch (reason.type) {
+		case ToolConfirmKind.UserAction:
+			return 'human_response';
+		case ToolConfirmKind.ConfirmationNotNeeded:
+		case ToolConfirmKind.Setting:
+		case ToolConfirmKind.LmServicePerTool:
+			return 'host_policy';
+		case ToolConfirmKind.Denied:
+		case ToolConfirmKind.Skipped:
+			switch (reason.source) {
+				case 'user':
+					return 'human_response';
+				case 'hook':
+				case 'riskAssessment':
+					return 'host_policy';
+				default:
+					return cancellationToken.isCancellationRequested ? 'unattended_fallback' : undefined;
+			}
 	}
 }
 
@@ -1149,13 +1172,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * above is only released when the last of them goes away.
 	 */
 	private readonly _clientToolRetainCounts = new Map<string, number>();
-	/**
-	 * Per-session set of MCP server ids that already had an authentication
-	 * prompt surfaced in the current conversation. A server is removed from the
-	 * set once it reaches the running state ({@link McpServerStatus.Ready}), so
-	 * that a later auth requirement for the same server prompts again instead of
-	 * the prompt repeating on every message.
-	 */
 	private readonly _surfacedMcpAuthServers = new ResourceMap<Set<string>>();
 	private readonly _pendingMcpAutoAuthentication = new Map<string, Promise<boolean>>();
 	/** Turn IDs dispatched by this client, used to distinguish server-originated turns. */
@@ -1277,11 +1293,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._inputNeededWatcherBackends.clear();
 			this._terminalChatURIs.clear();
 		}));
-		// Drop MCP servers from the per-session surfaced set once they reach the
-		// running state so a later auth requirement for the same server prompts
-		// again.
 		this._register(this._customizationService.onDidChangeCustomizations(() => this._reconcileSurfacedMcpAuthServers()));
-
 		this._register(toDisposable(() => {
 			for (const entry of this._activeClientEntries.values()) {
 				entry.dispose();
@@ -2350,6 +2362,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const target = isChatAction(action)
 			? this._requireChatURI(chatURI, action.type)
 			: channel.toString();
+		if (action.type === ActionType.ChatToolCallConfirmed && action._meta) {
+			const { turnId, toolCallId } = action;
+			const parsed = parseChatUri(target);
+			const state = parsed ? this._getSessionState(parsed.session, target) : undefined;
+			const turn = state?.activeTurn?.id === turnId ? state.activeTurn : state?.turns.find(turn => turn.id === turnId);
+			const part = turn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
+			const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+			// Confirmation metadata replaces the whole bag in the protocol reducer.
+			action = {
+				...action,
+				_meta: toAgentPermissionResponseMeta(readAgentPermissionResponseMeta(action), { _meta: { ...toolCall?._meta, ...action._meta } }),
+			};
+		}
 		this._config.connection.dispatch(target, action);
 	}
 
@@ -3426,6 +3451,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const approved = selectedOption
 				? selectedOption.kind === ConfirmationOptionKind.Approve
 				: reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
+			const responseMeta = toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(reason, cancellationToken) });
 
 			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			const target = this._requireChatURI(chatURI, ActionType.ChatToolCallConfirmed);
@@ -3435,7 +3461,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					turnId,
 					toolCallId,
 					approved: true,
-					confirmed: ToolCallConfirmationReason.UserAction,
+					confirmed: confirmedReasonToProtocol(reason),
+					_meta: responseMeta,
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				}
 				: {
@@ -3444,6 +3471,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
+					_meta: responseMeta,
 					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 		}).catch(err => {
@@ -3631,7 +3659,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			let lastAutoModeResolution: IChatAutoModeResolutionPart | undefined;
 			const modelLookup = this._createTurnModelLookup(opts.sessionResource, undefined);
 
-			this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
+			if (this._configurationService.getValue<boolean>(AgentHostMcpToolRoutingEnabledSettingId) !== true) {
+				this._setupMcpAuthPrompt(mcpAuthRequired$, store, opts);
+			}
 
 			// Surface the host's chat activity — e.g. the live "Creating
 			// isolated worktree (42%)" progress reported while the session's
@@ -3893,20 +3923,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return store;
 	}
 
-	/**
-	 * Surfaces the "MCP server … requires authentication" prompt for a turn.
-	 *
-	 * Each server is prompted at most once per conversation: {@link mcpAuthRequired$}
-	 * is session-wide, so without this guard the prompt would repeat on every
-	 * message. The per-session {@link _surfacedMcpAuthServers surfaced set} tracks
-	 * which servers were already prompted; it is pruned by
-	 * {@link _reconcileSurfacedMcpAuthServers} once a server reaches the running
-	 * state, so a server that is re-required after being authenticated (e.g.
-	 * after a restart) prompts again.
-	 *
-	 * The emitted part lists only the servers it introduced and shrinks as they
-	 * authenticate.
-	 */
 	private _setupMcpAuthPrompt(
 		mcpAuthRequired$: IObservable<readonly IChatMcpAuthenticationRequiredServer[]>,
 		store: DisposableStore,
@@ -3920,14 +3936,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const pendingAuth = mcpAuthRequired$.read(reader);
 			const currentRunId = ++runId;
 			this._filterAutoGrantedMcpAuthentication(opts.sessionResource, pendingAuth).then(servers => {
-				// Ignore stale completions: a newer run has superseded this one
-				// (guards against out-of-order resolution of the async filter).
 				if (currentRunId !== runId) {
 					return;
 				}
 				const surfaced = this._getSurfacedMcpAuthServers(opts.sessionResource);
 				const newServers = servers.filter(server => !surfaced.has(server.id));
-				// Nothing new to prompt and no live prompt to update/hide.
 				if (!newServers.length && (!part || part.isUsed)) {
 					return;
 				}
@@ -3954,10 +3967,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 	}
 
-	/**
-	 * Returns the mutable set of MCP server ids already surfaced for
-	 * authentication in the given session, creating it on first use.
-	 */
 	private _getSurfacedMcpAuthServers(sessionResource: URI): Set<string> {
 		let surfaced = this._surfacedMcpAuthServers.get(sessionResource);
 		if (!surfaced) {
@@ -3967,14 +3976,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return surfaced;
 	}
 
-	/**
-	 * Prunes servers that reached the running ({@link McpServerStatus.Ready})
-	 * state from every session's {@link _surfacedMcpAuthServers surfaced set} so
-	 * a subsequent auth requirement surfaces a fresh prompt instead of being
-	 * suppressed. Only the running state counts as actioned — a server that
-	 * merely left {@link McpServerStatus.AuthRequired} for an error/stopped
-	 * state was not authenticated and stays suppressed.
-	 */
 	private _reconcileSurfacedMcpAuthServers(): void {
 		for (const [sessionResource, surfaced] of this._surfacedMcpAuthServers) {
 			if (surfaced.size === 0) {
@@ -4012,21 +4013,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (pending) {
 			return pending;
 		}
-		const operation = this._instantiationService.invokeFunction(resolveMcpServerAuthentication, {
-			resource: server.resource,
-			resource_name: server.name,
-			authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
-			scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
-		}, {
-			allowInteraction: false,
-			logPrefix: '[AgentHost]',
-			mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.resource),
-			mcpServerName: server.name,
-			mcpServerUrl: server.resource,
+		const operation = this._instantiationService.invokeFunction(autoAuthenticateMcpServer, this._config.connection, sessionResource, server.name, {
+			resource: {
+				resource: server.resource,
+				resource_name: server.name,
+				authorization_servers: server.authorizationServers ? [...server.authorizationServers] : undefined,
+				scopes_supported: server.supportedScopes ? [...server.supportedScopes] : undefined,
+			},
 			oauthClient: server.oauthClient,
-			scopes: server.requiredScopes ?? [],
-			agentHost: { scheme: sessionResource.scheme, authority: sessionResource.authority },
-			authenticate: request => this._config.connection.authenticate(request),
+			requiredScopes: server.requiredScopes ? [...server.requiredScopes] : undefined,
 		}).catch(err => {
 			this._logService.error(`[AgentHost] Failed to auto-authenticate MCP server '${server.name}'`, err);
 			return false;
@@ -4167,7 +4162,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 		this._resolvedToolCalls.add(key);
-		this._config.connection.dispatch(chatURI, action);
+		this._dispatchAction(URI.parse(chatURI), action, chatURI);
 	}
 
 	private _forgetResolvedToolCall(toolCallKey: string): void {
@@ -4228,6 +4223,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						approved: false,
 						reason: ToolCallCancellationReason.Skipped,
 						reasonMessage,
+						_meta: toAgentPermissionResponseMeta({ decisionSource: 'human_response' }),
 					}
 					: {
 						type: ActionType.ChatToolCallComplete,
@@ -4640,6 +4636,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						toolCallId,
 						approved: true,
 						confirmed: confirmedReasonToProtocol(state.confirmed),
+						_meta: toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(state.confirmed, opts.cancellationToken) }),
 						...(selectedOptionId ? { selectedOptionId } : {}),
 					}
 					: {
@@ -4648,6 +4645,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						toolCallId,
 						approved: false,
 						reason: ToolCallCancellationReason.Denied,
+						_meta: toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource(state.confirmed, opts.cancellationToken) }),
 						...(selectedOptionId ? { selectedOptionId } : {}),
 					});
 			} else if (state.type === IChatToolInvocation.StateKind.Cancelled) {
@@ -4665,6 +4663,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
+					_meta: toAgentPermissionResponseMeta({ decisionSource: confirmedReasonToDecisionSource({ type: state.reason, source: state.source }, opts.cancellationToken) }),
 				});
 			}
 		}));
@@ -4680,7 +4679,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				: tc.status === ToolCallStatus.Completed && !tc.success && tc.error?.code === 'cancelled'
 					? { reason: ToolConfirmKind.Skipped, reasonMessage: tc.error.message } as const
 					: undefined;
-			if (cancellation && !invocation.cancelFromStreaming(cancellation.reason, cancellation.reasonMessage)) {
+			if (cancellation && !invocation.cancelFromStreaming({ type: cancellation.reason }, cancellation.reasonMessage)) {
 				IChatToolInvocation.confirmWith(invocation, { type: cancellation.reason });
 			}
 			if ((tc.status === ToolCallStatus.Cancelled || tc.status === ToolCallStatus.Completed)

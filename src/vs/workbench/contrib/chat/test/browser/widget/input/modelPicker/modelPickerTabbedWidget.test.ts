@@ -259,6 +259,13 @@ suite('TabbedModelPicker', () => {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
 	}
 
+	/** The active list's rows, with separators prefixed by `--` and followed by their heading. */
+	function listRows(popup: HTMLElement): string[] {
+		return Array.from(popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row'), row => row.classList.contains('separator')
+			? `--${row.textContent ?? ''}`
+			: row.querySelector('.title')?.textContent ?? '');
+	}
+
 	for (const initiallyAuto of [false, true]) {
 		test(`mode and provider changes retain the popup size when opened in ${initiallyAuto ? 'Auto' : 'manual'} mode`, () => {
 			const older = model('example-5.5');
@@ -668,31 +675,33 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('Free plans show HydraFusion as an unavailable upgrade instead of a routing choice', () => {
-		const auto = createAutoModel();
-		const hydra = createHydraFusionModel();
-		const result = createPicker({
-			models: [auto, hydra, ...models],
-			selectedModelId: auto.identifier,
-			entitlement: ChatEntitlement.Free,
-			showUnavailable: false,
-			controlModels: {},
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+			const auto = createAutoModel();
+			const hydra = createHydraFusionModel();
+			const result = createPicker({
+				models: [auto, hydra, ...models],
+				selectedModelId: auto.identifier,
+				entitlement,
+				showUnavailable: false,
+				controlModels: {},
+			});
+			result.picker.refresh([auto, hydra, ...models]);
+			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+			unavailableHydra.click();
+			assert.deepStrictEqual({
+				label: unavailableHydra.querySelector('.title')?.textContent,
+				upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+				selected: selectedModels(result.popup),
+				selections: result.selections,
+			}, {
+				label: 'HydraFusion',
+				upgrade: true,
+				selected: ['Balance'],
+				selections: [],
+			});
 		});
-		result.picker.refresh([auto, hydra, ...models]);
-		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
-		unavailableHydra.click();
-		assert.deepStrictEqual({
-			label: unavailableHydra.querySelector('.title')?.textContent,
-			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
-			selected: selectedModels(result.popup),
-			selections: result.selections,
-		}, {
-			label: 'HydraFusion',
-			upgrade: true,
-			selected: ['Balance'],
-			selections: [],
-		});
-	});
+	}
 
 	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
 		const auto = createAutoModel();
@@ -788,6 +797,56 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ initial, emptyProvider: !!result.popup.querySelector('.tabbed-action-list-empty'), selections: result.selections }, {
 			initial: { tabs: ['Auto', 'Ollama'], switchHidden: true, selected: ['Balance'], unavailable: true },
 			emptyProvider: true,
+			selections: [],
+		});
+	});
+
+	test('Free and Student plans head the models that Auto-only access lacks as upgrades, beside the routing choices', () => {
+		const rows = [ChatEntitlement.Free, ChatEntitlement.EDU].map(entitlement => listRows(createPicker({
+			models: [createAutoModel()],
+			entitlement,
+			showUnavailable: true,
+			controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+		}).popup));
+		assert.deepStrictEqual(rows, Array(2).fill(['--Optimize for · 10% discount', 'Efficiency', 'Balance', 'Intelligence', '--Upgrade for More Models', 'Locked Model']));
+	});
+
+	test('Free and Student plans keep the Copilot tab for upgrades when Copilot relays no selectable model', () => {
+		const local = model('Local');
+		const result = Object.fromEntries([ChatEntitlement.Free, ChatEntitlement.EDU, ChatEntitlement.Pro].map(entitlement => {
+			const { popup, selections } = createPicker({
+				models: [{ ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } }],
+				selectedModelId: createAutoModel().identifier,
+				entitlement,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+			});
+			const tabs = Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label'));
+			const initialRows = listRows(popup);
+			element(popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			return [ChatEntitlement[entitlement], { tabs, initialRows, providerRows: listRows(popup), selections }];
+		}));
+		assert.deepStrictEqual(result, {
+			Free: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			EDU: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			Pro: { tabs: ['Ollama'], initialRows: ['Local'], providerRows: ['Local'], selections: [] },
+		});
+	});
+
+	test('HydraFusion alone stays grouped under the Auto tab without a switch', () => {
+		const hydra = createHydraFusionModel();
+		const { popup, selections } = createPicker({ models: [hydra], selectedModelId: hydra.identifier });
+		assert.deepStrictEqual({
+			tabs: Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			switchHidden: element(popup, '.tabbed-action-list-tab-toggle').hidden,
+			rows: listRows(popup),
+			selected: selectedModels(popup),
+			selections,
+		}, {
+			tabs: ['Auto'],
+			switchHidden: true,
+			rows: ['--Alternative routing', 'HydraFusion'],
+			selected: ['HydraFusion'],
 			selections: [],
 		});
 	});

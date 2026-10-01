@@ -3246,7 +3246,7 @@ suite('SessionsManagementService', () => {
 			sentSessionId,
 		}, {
 			deleted: ['s1'],
-			replacements: [],
+			replacements: ['s1->s2'],
 			sentSessionId: 's2',
 		});
 		completeSendRequest?.();

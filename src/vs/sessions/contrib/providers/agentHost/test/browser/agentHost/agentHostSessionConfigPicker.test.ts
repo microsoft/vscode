@@ -40,6 +40,7 @@ import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -54,8 +55,7 @@ import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PIC
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
-function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string): ISessionWorkspace {
-	const root = URI.file('/repo');
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string, root = URI.file('/repo')): ISessionWorkspace {
 	return {
 		uri: root,
 		label: 'repo',
@@ -1727,6 +1727,31 @@ suite('Agent Host Session Config Picker', () => {
 			reason: 'New Worktree cannot be combined with Dev Container execution.',
 			ariaLabel: 'New Worktree, New Worktree cannot be combined with Dev Container execution.',
 			branchEnabled: true,
+			setSessionConfigValueCalls: 0,
+		});
+	});
+
+	test('disables New Worktree for samples without changing the host schema even when container worktrees are enabled', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(DevContainerWorktreeEnabledSettingId, true);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.provider.devContainerEnabled = true;
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', undefined, devContainerSampleUri(devContainerSamples[0])), undefined);
+		const { container } = renderPicker(store, services);
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const worktreeItem = services.actionWidget.items.find(item => item.item?.value === 'worktree')!;
+		await services.actionWidget.delegate?.onSelect(worktreeItem.item!);
+
+		assert.deepStrictEqual({
+			schemaReadOnly: services.provider.config.schema.properties[SessionConfigKey.Isolation].readOnly,
+			worktreeDisabled: worktreeItem.disabled,
+			folderEnabled: !services.actionWidget.items.find(item => item.item?.value === 'folder')?.disabled,
+			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
+		}, {
+			schemaReadOnly: undefined,
+			worktreeDisabled: true,
+			folderEnabled: true,
 			setSessionConfigValueCalls: 0,
 		});
 	});

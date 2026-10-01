@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { CustomizationMigrationCategoryId } from '../../../../contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
@@ -74,7 +73,7 @@ import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/comm
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, AgentHostMcpSupportReason, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
+import { AgentHostMcpServerApplicability, AgentHostMcpServerDelivery, AgentHostMcpServerEnablementState, AgentHostMcpServerSourceKind, IAgentHostMcpServerSupportSnapshot } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../../contrib/extensions/common/extensions.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IPluginMarketplaceService, IMarketplacePlugin, MarketplaceType, PluginSourceKind } from '../../../../contrib/chat/common/plugins/pluginMarketplaceService.js';
@@ -948,6 +947,13 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	}();
 }
 
+function createEmptyCustomizationMarketplaceService(): ICustomizationMarketplaceService {
+	return new class extends mock<ICustomizationMarketplaceService>() {
+		override readonly sources = [];
+		override readonly onDidChangeSources = Event.None;
+	}();
+}
+
 function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState | undefined): state is RecordedCustomizationMarketplaceInstallState {
 	return state?.kind === 'checking'
 		|| state?.kind === 'installed'
@@ -1016,8 +1022,6 @@ interface IRenderEditorOptions {
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
 	readonly migrationActivity?: boolean;
-	readonly migrationCategory?: CustomizationMigrationCategoryId;
-	readonly migrationPartialSelection?: boolean;
 }
 
 // ============================================================================
@@ -1083,15 +1087,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		.map(file => ({ ...file }));
 	const fileContents = createFixtureContentMap(fixtureFiles, agentInstructions);
 	fileContents.set(URI.file('/workspace/.vscode/mcp.json'), '{\n\t"servers": {\n\t\t"Remote Browser": {\n\t\t\t"type": "http",\n\t\t\t"url": "https://mcp.example.com"\n\t\t}\n\t}\n}\n');
-	if (options.migrationCategory === CustomizationMigrationCategoryId.McpServers) {
-		fileContents.set(URI.file('/workspace/.vscode/mcp.json'), JSON.stringify({
-			servers: {
-				'Remote Browser': { type: 'http', url: 'https://mcp.example.com' },
-				'Development Server': { command: 'node', gallery: true, version: '1', dev: { watch: 'src/**/*.ts' }, sandboxEnabled: true },
-				'Environment File Server': { command: 'node', envFile: '.env' },
-			},
-		}));
-	}
 	const delayedReadFiles = new ResourceSet();
 	if (options.pluginReadmeContent !== undefined) {
 		const pluginReadmeUri = URI.file('/workspace/.copilot/plugins/circleci/README.md');
@@ -1248,7 +1243,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					started: true,
 					activity: Array.from({ length: 4 }, (_, activityIndex) => ({
 						id: `activity-${activityIndex}`,
-						categoryLabel: 'Prompts to skills',
+						categoryLabel: 'Prompt to Skills',
 						scopeLabel: 'Your profile',
 						storage: PromptsStorage.user,
 						items: Array.from({ length: 4 }, (_, itemIndex) => ({
@@ -1337,7 +1332,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			const agentHostCustomizationService = createMockAgentHostCustomizationService(options.activeSessionMcpServers);
 			const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
 				override acquireMcpServerSupportScope() {
-					if (options.migrationCategory !== CustomizationMigrationCategoryId.McpServers && !options.migrationDashboard) {
+					if (!options.migrationDashboard) {
 						return undefined;
 					}
 					const support: IAgentHostMcpServerSupportSnapshot = {
@@ -1364,28 +1359,8 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 						discoveryComplete: true,
 						coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
 					};
-					const migrationSupport: IAgentHostMcpServerSupportSnapshot = options.migrationCategory === CustomizationMigrationCategoryId.McpServers ? {
-						...support,
-						servers: [
-							...support.servers,
-							{
-								...support.servers[0],
-								id: 'mcp.config.ws0.development',
-								name: 'Development Server',
-								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.DevelopmentModeIgnored, AgentHostMcpSupportReason.SandboxConfigurationIgnored, AgentHostMcpSupportReason.GalleryMetadataNotPortable, AgentHostMcpSupportReason.ServerVersionNotPortable] },
-								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
-							},
-							{
-								...support.servers[0],
-								id: 'mcp.config.ws0.env-file',
-								name: 'Environment File Server',
-								compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.EnvironmentFileIgnored] },
-								projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', envFile: '.env' },
-							},
-						],
-					} : support;
 					return {
-						support: constObservable(migrationSupport),
+						support: constObservable(support),
 						isResolved: constObservable(true),
 						whenResolved: () => Promise.resolve(),
 						dispose: () => { },
@@ -1774,7 +1749,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
@@ -2024,22 +1999,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		}
 	}
 
-	if (options.migrationCategory) {
-		await editor.showCustomizationMigrationPage(options.migrationCategory);
-	}
-
-	if (options.migrationPartialSelection) {
-		let firstMigrationCheckbox: HTMLElement | null = null;
-		for (let attempt = 0; attempt < 20 && !firstMigrationCheckbox; attempt++) {
-			firstMigrationCheckbox = ctx.container.querySelector<HTMLElement>('.prompt-migration-checkbox [role="checkbox"]');
-			if (!firstMigrationCheckbox) {
-				await new Promise(resolve => setTimeout(resolve, 50));
-			}
-		}
-		firstMigrationCheckbox?.click();
-		await new Promise(resolve => setTimeout(resolve, 50));
-	}
-
 	if (options.scrollToBottom) {
 		editor.revealLastItem();
 		if (options.selectedSection === AICustomizationManagementSection.McpServers) {
@@ -2208,6 +2167,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2420,6 +2380,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				}
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2509,6 +2470,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
@@ -2595,6 +2557,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2968,13 +2931,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported begins its red message with a compact red error icon while Partially supported begins its yellow message with a compact yellow warning icon. Both messages include a Migrations link; compatibility icons do not appear beside the row actions, and configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpServerCompatibility: [
 				{ id: 'component-explorer', kind: 'partiallySupported' },
-				{ id: 'mcp-postgres', kind: 'unsupported' },
+				{ id: 'mcp-github', kind: 'unsupported' },
 			],
 		}),
 	}),
@@ -2982,7 +2945,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3174,7 +3137,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	MigrationDashboard: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The migration dashboard groups customizations under Your profile and vscode. Both scopes include a Custom location settings row for customizations found in unsupported configured locations.'],
+		expectedVisualDescriptions: ['The migration dashboard shows a flat tree of numbered migration types scoped to Workspace or Profile. Each expanded type lists the specific customizations and their source locations.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
@@ -3269,64 +3232,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 				AICustomizationManagementSection.Tools,
 			],
 			emptyToolExtensions: true,
-		}),
-	}),
-
-	PromptMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.PromptFiles,
-		}),
-	}),
-
-	UserDataMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.UserData,
-		}),
-	}),
-
-	McpMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The Migrate MCP Servers page has three sections: Ready to migrate with Remote Browser, Migrates with changes with Development Server and wrapped explanations of each property removal in its row, and Not migratable with Environment File Server. Each migratable section has its own Select all checkbox. The page scrolls when the explanations exceed the available height.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-		}),
-	}),
-
-	McpMigrationNarrow: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			migrationCategory: CustomizationMigrationCategoryId.McpServers,
-			width: 650,
-			height: 650,
-		}),
-	}),
-
-	ConfiguredLocationsMigration: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: false },
-		deferPaint: true,
-		expectedVisualDescriptions: ['The Migrate Configured Locations page shows one Agents section containing only SuperAgent. Instructions and Skills sections are not shown because they have no files to migrate.'],
-		render: ctx => renderEditor(ctx, {
-			sessionResource: agentHostCopilotSessionResource,
-			files: [{
-				uri: URI.file('/workspace/.custom/agents/super.agent.md'),
-				storage: PromptsStorage.local,
-				type: PromptsType.agent,
-				source: PromptFileSource.ConfigWorkspace,
-				name: 'SuperAgent',
-			}],
-			configuration: {
-				[PromptsConfig.AGENTS_LOCATION_KEY]: {
-					'.custom/agents': true,
-				},
-			},
-			migrationCategory: CustomizationMigrationCategoryId.ConfiguredLocations,
 		}),
 	}),
 
@@ -3447,7 +3352,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,

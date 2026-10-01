@@ -427,6 +427,15 @@ export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
 }
 
+/** Returns the registered agent implementation handling the session. */
+export function getAgentHostProviderForTelemetry(sessionType: string | undefined, chatSessionsService: IChatSessionsService): string | undefined {
+	if (!sessionType) {
+		return 'unknown';
+	}
+	const provider = chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId;
+	return provider !== undefined ? provider || 'unknown' : (isAgentHostTarget(sessionType) ? 'unknown' : undefined);
+}
+
 /**
  * The session type used for local agent chat sessions.
  */

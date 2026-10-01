@@ -42,6 +42,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
@@ -402,6 +403,7 @@ export class SessionChatInputToolbar extends Disposable {
 
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -506,6 +508,7 @@ export class SessionChatInputToolbar extends Disposable {
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
+			backgroundShells,
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {
