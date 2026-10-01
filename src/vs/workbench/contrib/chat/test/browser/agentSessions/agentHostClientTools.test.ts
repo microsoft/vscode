@@ -69,7 +69,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
-import { IRuntimeRepositoryPluginReconciliationService } from '../../../common/plugins/runtimeRepositoryPluginReconciliationService.js';
+import { IRuntimeRequiredPluginService } from '../../../common/plugins/runtimeRequiredPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -99,7 +99,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
-		reconciliationState?: { error?: Error },
+		requiredPluginState?: { error?: Error },
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let semanticSearchEnabled = false;
@@ -134,10 +134,10 @@ suite('AgentHostClientTools', () => {
 		}());
 		const plugins = observableValue('plugins', []);
 		instantiationService.stub(IAgentPluginService, { plugins });
-		instantiationService.stub(IRuntimeRepositoryPluginReconciliationService, {
-			reconcile: async () => {
-				if (reconciliationState?.error) {
-					throw reconciliationState.error;
+		instantiationService.stub(IRuntimeRequiredPluginService, {
+			ensure: async () => {
+				if (requiredPluginState?.error) {
+					throw requiredPluginState.error;
 				}
 			},
 			whenDiscoverySettled: async () => { },
@@ -183,12 +183,12 @@ suite('AgentHostClientTools', () => {
 
 	test('rejects required plugin failures and recovers after successful reconciliation', async () => {
 		const failure = new Error('Required plugins could not be reconciled: required@market');
-		const reconciliationState = { error: failure as Error | undefined };
-		const { service, refreshPlugins } = createActiveClientService(constObservable([]), constObservable([]), undefined, reconciliationState);
+		const requiredPluginState = { error: failure as Error | undefined };
+		const { service, refreshPlugins } = createActiveClientService(constObservable([]), constObservable([]), undefined, requiredPluginState);
 		const scope = disposables.add(service.acquireScope('agent-host-claude', [URI.file('/workspace')]));
 
 		await assert.rejects(scope.whenResolved(), failure);
-		reconciliationState.error = undefined;
+		requiredPluginState.error = undefined;
 		refreshPlugins();
 		await scope.whenResolved();
 		assert.strictEqual(scope.isResolved.get(), true);
@@ -928,8 +928,8 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
 			});
-			instantiationService.stub(IRuntimeRepositoryPluginReconciliationService, {
-				reconcile: async () => { },
+			instantiationService.stub(IRuntimeRequiredPluginService, {
+				ensure: async () => { },
 				whenDiscoverySettled: async () => { },
 				retainWorkingDirectories: () => toDisposable(() => { }),
 			});

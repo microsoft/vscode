@@ -8,7 +8,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../common/requiredPlugins.js';
 import type { IAgentService, IConnectionTrackerService } from '../../common/agentService.js';
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
@@ -17,13 +17,13 @@ suite('AgentHostManagementService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('converts repository plugin workspace URIs to runtime paths', async () => {
-		const requests: IAgentHostRepositoryPluginReconcileRequest[] = [];
-		const result: IAgentHostRepositoryPluginReconcileResult = {
-			repositoryPlugins: [],
+		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
+		const result: IAgentHostEnsureRequiredPluginsResult = {
+			plugins: [],
 			warnings: [],
 		};
 		const agentService = new class extends mock<IAgentService>() {
-			override async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+			override async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 				requests.push(request);
 				return result;
 			}
@@ -37,7 +37,7 @@ suite('AgentHostManagementService', () => {
 		);
 
 		assert.deepStrictEqual({
-			result: await service.reconcileRepositoryPlugins({
+			result: await service.ensureRequiredPlugins({
 				workingDirectory: URI.file('/workspace').toString(),
 			}),
 			requests,

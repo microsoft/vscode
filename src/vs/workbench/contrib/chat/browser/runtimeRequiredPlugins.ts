@@ -9,7 +9,7 @@ import { Disposable, IDisposable, toDisposable } from '../../../../base/common/l
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { supportsAgentHostRepositoryPluginReconciliation } from '../../../../platform/agentHost/common/meta/agentHostRepositoryPluginsMeta.js';
+import { supportsAgentHostEnsureRequiredPlugins } from '../../../../platform/agentHost/common/meta/agentHostRepositoryPluginsMeta.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -20,14 +20,14 @@ import { IChatEntitlementService } from '../../../services/chat/common/chatEntit
 import { ChatConfiguration } from '../common/constants.js';
 import { IExtraMarketplaceObjectEntry, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 import { IRuntimeRepositoryPluginService } from '../common/plugins/runtimeRepositoryPluginService.js';
-import { IRuntimeRepositoryPluginReconciliationService } from '../common/plugins/runtimeRepositoryPluginReconciliationService.js';
+import { IRuntimeRequiredPluginService } from '../common/plugins/runtimeRequiredPluginService.js';
 import { IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 
-export class RuntimeRepositoryPluginReconciliationService extends Disposable implements IRuntimeRepositoryPluginReconciliationService {
+export class RuntimeRequiredPluginService extends Disposable implements IRuntimeRequiredPluginService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _reconcileDelayer = this._register(new Delayer<void>(100));
-	private readonly _reconcileSequencer = new SequencerByKey<string>();
+	private readonly _ensureDelayer = this._register(new Delayer<void>(100));
+	private readonly _ensureSequencer = new SequencerByKey<string>();
 	private readonly _retainedWorkingDirectories = new Map<string, { readonly uri: URI; count: number }>();
 
 	constructor(
@@ -53,22 +53,22 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 				|| event.affectsConfiguration(ChatConfiguration.EnabledPlugins)
 				|| event.affectsConfiguration(ChatConfiguration.ExtraMarketplaces)
 				|| event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)),
-		)(() => this._requestReconciliation()));
+		)(() => this._requestEnsure()));
 		this._register(autorun(reader => {
 			this._workspacePluginSettingsService.enabledPlugins.read(reader);
 			this._workspacePluginSettingsService.extraMarketplaces.read(reader);
 			this._connectionsService.ambientConnection.initializeResult.read(reader);
-			this._requestReconciliation();
+			this._requestEnsure();
 		}));
 	}
 
-	private _requestReconciliation(): void {
-		this._reconcileDelayer.trigger(() => this.reconcile()).catch(error => {
-			this._logService.error('[RuntimeRepositoryPluginReconciliation] Reconciliation failed', error);
+	private _requestEnsure(): void {
+		this._ensureDelayer.trigger(() => this.ensure()).catch(error => {
+			this._logService.error('[RuntimeRequiredPlugins] Required plugin enforcement failed', error);
 		});
 	}
 
-	async reconcile(workingDirectories?: readonly URI[]): Promise<void> {
+	async ensure(workingDirectories?: readonly URI[]): Promise<void> {
 		const directories = workingDirectories ?? this._getTrackedWorkingDirectories();
 		if (!workingDirectories) {
 			this._runtimeRepositoryPluginService.retainWorkingDirectories(directories);
@@ -77,41 +77,41 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 			|| this._chatEntitlementService.sentiment.hidden
 			|| !this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._logService.debug('[RuntimeRepositoryPluginReconciliation] Skipping: no eligible workspace context');
+			this._logService.debug('[RuntimeRequiredPlugins] Skipping: no eligible workspace context');
 			return;
 		}
 
 		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
 			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._logService.debug('[RuntimeRepositoryPluginReconciliation] Skipping: workspace is not trusted');
+			this._logService.debug('[RuntimeRequiredPlugins] Skipping: workspace is not trusted');
 			return;
 		}
 
 		const connection = this._connectionsService.ambientConnection;
-		if (!connection.reconcileRepositoryPlugins
-			|| !supportsAgentHostRepositoryPluginReconciliation(connection.initializeResult.get())) {
+		if (!connection.ensureRequiredPlugins
+			|| !supportsAgentHostEnsureRequiredPlugins(connection.initializeResult.get())) {
 			this._runtimeRepositoryPluginService.removeSnapshots(directories);
 			if (this._hasRequiredPlugins()) {
-				throw new Error('The Agent Host does not support required repository plugin reconciliation.');
+				throw new Error('The Agent Host does not support required plugin enforcement.');
 			}
-			this._logService.debug('[RuntimeRepositoryPluginReconciliation] Skipping: Agent Host capability unavailable');
+			this._logService.debug('[RuntimeRequiredPlugins] Skipping: Agent Host capability unavailable');
 			return;
 		}
 
 		const managedSettings = this._managedSettings();
 
 		await Promise.all(directories.map(workingDirectory =>
-			this._reconcileSequencer.queue(this._uriIdentityService.extUri.getComparisonKey(workingDirectory), async () => {
+			this._ensureSequencer.queue(this._uriIdentityService.extUri.getComparisonKey(workingDirectory), async () => {
 				try {
-					this._logService.debug(`[RuntimeRepositoryPluginReconciliation] Reconciling ${workingDirectory.toString()}`);
-					const result = await connection.reconcileRepositoryPlugins!({
+					this._logService.debug(`[RuntimeRequiredPlugins] Ensuring requirements for ${workingDirectory.toString()}`);
+					const result = await connection.ensureRequiredPlugins!({
 						workingDirectory: workingDirectory.toString(),
 						managedSettings,
 					});
-					this._logService.debug(`[RuntimeRepositoryPluginReconciliation] Reconciled ${workingDirectory.toString()}: ${result.repositoryPlugins.length} repository plugin(s)`);
+					this._logService.debug(`[RuntimeRequiredPlugins] Ensured ${result.plugins.length} workspace plugin projection(s) for ${workingDirectory.toString()}`);
 					this._runtimeRepositoryPluginService.setSnapshot(workingDirectory, result);
 					for (const warning of result.warnings) {
-						this._logService.warn(`[RuntimeRepositoryPluginReconciliation] ${warning}`);
+						this._logService.warn(`[RuntimeRequiredPlugins] ${warning}`);
 					}
 				} catch (error) {
 					this._runtimeRepositoryPluginService.removeSnapshots([workingDirectory]);
@@ -201,11 +201,11 @@ export class RuntimeRepositoryPluginReconciliationService extends Disposable imp
 	}
 }
 
-export class RuntimeRepositoryPluginReconciliationContribution implements IWorkbenchContribution {
-	static readonly ID = 'workbench.contrib.runtimeRepositoryPluginReconciliation';
+export class RuntimeRequiredPluginsContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.runtimeRequiredPlugins';
 
 	constructor(
-		@IRuntimeRepositoryPluginReconciliationService _reconciliationService: IRuntimeRepositoryPluginReconciliationService,
+		@IRuntimeRequiredPluginService _requiredPluginService: IRuntimeRequiredPluginService,
 	) { }
 }
 

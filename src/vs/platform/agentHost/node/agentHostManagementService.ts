@@ -9,7 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { toRepositoryPluginRuntimeWorkingDirectory, type IAgentHostRepositoryPluginReconcileRequest, type IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
+import { toRequiredPluginRuntimeWorkingDirectory, type IAgentHostEnsureRequiredPluginsRequest, type IAgentHostEnsureRequiredPluginsResult } from '../common/requiredPlugins.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -73,13 +73,13 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
 	}
 
-	reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
-		if (!this._agentService.reconcileRepositoryPlugins) {
-			throw new Error('Repository plugin reconciliation is unavailable');
+	ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		if (!this._agentService.ensureRequiredPlugins) {
+			throw new Error('Required plugin enforcement is unavailable');
 		}
-		return this._runMutation(() => this._agentService.reconcileRepositoryPlugins!({
+		return this._runMutation(() => this._agentService.ensureRequiredPlugins!({
 			...request,
-			workingDirectory: toRepositoryPluginRuntimeWorkingDirectory(request.workingDirectory),
+			workingDirectory: toRequiredPluginRuntimeWorkingDirectory(request.workingDirectory),
 		}));
 	}
 

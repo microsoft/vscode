@@ -43,7 +43,7 @@ suite('RuntimeRepositoryAgentPluginDiscovery', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}()));
 		runtimeService.setSnapshot(URI.from({ scheme: Schemas.inMemory, path: '/workspace' }), {
-			repositoryPlugins: [{
+			plugins: [{
 				plugin: {
 					name: 'repository-plugin',
 					marketplace: 'repository-market',

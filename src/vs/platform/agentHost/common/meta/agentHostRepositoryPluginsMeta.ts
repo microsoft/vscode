@@ -5,8 +5,8 @@
 
 import type { InitializeResult } from '../state/protocol/common/commands.js';
 
-export const AgentHostRepositoryPluginReconciliationCapabilityMetaKey = 'vscode.repositoryPluginReconciliation';
+export const AgentHostEnsureRequiredPluginsCapabilityMetaKey = 'vscode.ensureRequiredPlugins';
 
-export function supportsAgentHostRepositoryPluginReconciliation(result: InitializeResult | undefined): boolean {
-	return result?._meta?.[AgentHostRepositoryPluginReconciliationCapabilityMetaKey] === true;
+export function supportsAgentHostEnsureRequiredPlugins(result: InitializeResult | undefined): boolean {
+	return result?._meta?.[AgentHostEnsureRequiredPluginsCapabilityMetaKey] === true;
 }

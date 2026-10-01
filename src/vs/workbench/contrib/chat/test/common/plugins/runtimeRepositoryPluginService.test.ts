@@ -8,16 +8,16 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import type { IAgentHostRepositoryPluginReconcileResult } from '../../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsResult } from '../../../../../../platform/agentHost/common/requiredPlugins.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { RuntimeRepositoryPluginService } from '../../../common/plugins/runtimeRepositoryPluginService.js';
 
 suite('RuntimeRepositoryPluginService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function result(path: string, enabled: boolean): IAgentHostRepositoryPluginReconcileResult {
+	function result(path: string, enabled: boolean): IAgentHostEnsureRequiredPluginsResult {
 		return {
-			repositoryPlugins: [{
+			plugins: [{
 				plugin: {
 					name: 'demo',
 					marketplace: 'market',

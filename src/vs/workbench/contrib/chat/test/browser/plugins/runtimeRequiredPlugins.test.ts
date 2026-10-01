@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../../../../../platform/agentHost/common/requiredPlugins.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -22,21 +22,21 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { RuntimeRepositoryPluginReconciliationService } from '../../../browser/runtimeRepositoryPluginReconciliation.js';
+import { RuntimeRequiredPluginService } from '../../../browser/runtimeRequiredPlugins.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { RuntimeRepositoryPluginService } from '../../../common/plugins/runtimeRepositoryPluginService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
-suite('RuntimeRepositoryPluginReconciliation', () => {
+suite('RuntimeRequiredPlugins', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspace = URI.file('/workspace');
-	const result: IAgentHostRepositoryPluginReconcileResult = {
-		repositoryPlugins: [],
+	const result: IAgentHostEnsureRequiredPluginsResult = {
+		plugins: [],
 		warnings: [],
 	};
 
 	function createHarness(trusted = true) {
-		const requests: IAgentHostRepositoryPluginReconcileRequest[] = [];
+		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		let failure: Error | undefined;
 		const initializeResult = observableValue('initializeResult', {
 			protocolVersion: '1.0.0',
@@ -46,7 +46,7 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		});
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = initializeResult;
-			override async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+			override async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 				requests.push(request);
 				if (failure) {
 					throw failure;
@@ -57,7 +57,7 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		const runtimeService = store.add(new RuntimeRepositoryPluginService(new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}()));
-		const reconciliationService = store.add(new RuntimeRepositoryPluginReconciliationService(
+		const requiredPluginService = store.add(new RuntimeRequiredPluginService(
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeConnections = Event.None;
@@ -85,7 +85,7 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		return {
 			requests,
 			runtimeService,
-			reconciliationService,
+			requiredPluginService,
 			failWith: (error: Error | undefined) => failure = error,
 			setCapability: (supported: boolean) => initializeResult.set({
 				protocolVersion: '1.0.0',
@@ -96,7 +96,7 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		};
 	}
 
-	test('reconciles plugins only after the workspace is trusted', async () => {
+	test('ensures plugins only after the workspace is trusted', async () => {
 		const harness = createHarness();
 		await timeout(150);
 		assert.deepStrictEqual({
@@ -124,12 +124,12 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		});
 	});
 
-	test('clears stale workspace enablement when reconciliation fails', async () => {
+	test('clears stale workspace enablement when required plugin enforcement fails', async () => {
 		const harness = createHarness();
 		await timeout(150);
-		harness.failWith(new Error('reconciliation failed'));
+		harness.failWith(new Error('required plugin enforcement failed'));
 
-		await assert.rejects(harness.reconciliationService.reconcile([workspace]), /reconciliation failed/);
+		await assert.rejects(harness.requiredPluginService.ensure([workspace]), /required plugin enforcement failed/);
 
 		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
@@ -140,8 +140,8 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 		harness.setCapability(false);
 
 		await assert.rejects(
-			harness.reconciliationService.reconcile([workspace]),
-			/does not support required repository plugin reconciliation/,
+			harness.requiredPluginService.ensure([workspace]),
+			/does not support required plugin enforcement/,
 		);
 
 		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
@@ -150,8 +150,8 @@ suite('RuntimeRepositoryPluginReconciliation', () => {
 	test('retains active session roots while pruning inactive snapshots', async () => {
 		const harness = createHarness();
 		const detached = URI.file('/workspace.worktrees/detached');
-		const retention = store.add(harness.reconciliationService.retainWorkingDirectories([detached]));
-		await harness.reconciliationService.reconcile();
+		const retention = store.add(harness.requiredPluginService.retainWorkingDirectories([detached]));
+		await harness.requiredPluginService.ensure();
 		const retained = harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()).sort();
 
 		retention.dispose();

@@ -23,7 +23,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, EnsureAgentHostRequiredPluginsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -73,7 +73,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
-import { toRepositoryPluginRuntimeWorkingDirectory } from '../common/repositoryPluginReconciliation.js';
+import { toRequiredPluginRuntimeWorkingDirectory } from '../common/requiredPlugins.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -2047,7 +2047,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === ResolveAgentHostCanvasSourceExtensionMethod) {
 			return this._handleResolveCanvasSourceRequest(client, params);
 		}
-		if (this._config.allowExtensionMethods === false && method !== ReconcileAgentHostRepositoryPluginsExtensionMethod) {
+		if (this._config.allowExtensionMethods === false && method !== EnsureAgentHostRequiredPluginsExtensionMethod) {
 			return undefined;
 		}
 
@@ -2187,8 +2187,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				return this._agentService.reconcileDetachedWorktrees(scope, activeHandles);
 			}
-			case ReconcileAgentHostRepositoryPluginsExtensionMethod: {
-				if (!this._agentService.reconcileRepositoryPlugins) {
+			case EnsureAgentHostRequiredPluginsExtensionMethod: {
+				if (!this._agentService.ensureRequiredPlugins) {
 					return undefined;
 				}
 				if (!isParamsObject(params)) {
@@ -2204,11 +2204,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				let workingDirectory: string;
 				try {
-					workingDirectory = toRepositoryPluginRuntimeWorkingDirectory(workingDirectoryParam);
+					workingDirectory = toRequiredPluginRuntimeWorkingDirectory(workingDirectoryParam);
 				} catch {
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a valid URI string'));
 				}
-				return this._agentService.reconcileRepositoryPlugins({
+				return this._agentService.ensureRequiredPlugins({
 					workingDirectory,
 					managedSettings: managedSettings as Record<string, unknown> | undefined,
 				});

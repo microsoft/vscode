@@ -40,7 +40,7 @@ import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnab
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { IRuntimeRepositoryPluginReconciliationService } from '../../../common/plugins/runtimeRepositoryPluginReconciliationService.js';
+import { IRuntimeRequiredPluginService } from '../../../common/plugins/runtimeRequiredPluginService.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -125,10 +125,10 @@ class AgentCustomizationScope extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
-		@IRuntimeRepositoryPluginReconciliationService private readonly _runtimeRepositoryPluginReconciliationService: IRuntimeRepositoryPluginReconciliationService,
+		@IRuntimeRequiredPluginService private readonly _runtimeRequiredPluginService: IRuntimeRequiredPluginService,
 	) {
 		super();
-		this._register(this._runtimeRepositoryPluginReconciliationService.retainWorkingDirectories(this._roots));
+		this._register(this._runtimeRequiredPluginService.retainWorkingDirectories(this._roots));
 		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
@@ -136,8 +136,8 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			this._isResolved.set(false, undefined);
 			try {
-				await this._runtimeRepositoryPluginReconciliationService.reconcile(this._roots);
-				await this._runtimeRepositoryPluginReconciliationService.whenDiscoverySettled();
+				await this._runtimeRequiredPluginService.ensure(this._roots);
+				await this._runtimeRequiredPluginService.whenDiscoverySettled();
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,

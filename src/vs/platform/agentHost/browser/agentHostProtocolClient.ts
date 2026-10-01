@@ -20,9 +20,9 @@ import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../.
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentCanvasAvailability, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type IAgentCanvas, type IAgentCanvasSnapshot } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostCanvases, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, agentHostCanvasesChangedParamsValidator, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceResultValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostCanvases, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
-import { supportsAgentHostRepositoryPluginReconciliation } from '../common/meta/agentHostRepositoryPluginsMeta.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
+import { AgentHostCanvasesChangedNotification, agentHostCanvasesChangedParamsValidator, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, EnsureAgentHostRequiredPluginsExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceResultValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostCanvases, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap } from '../common/agentHostExtensionProtocol.js';
+import { supportsAgentHostEnsureRequiredPlugins } from '../common/meta/agentHostRepositoryPluginsMeta.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../common/requiredPlugins.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -1551,11 +1551,11 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendExtensionRequest(ReconcileAgentHostDetachedWorktreesExtensionMethod, { scope, activeHandles: [...activeHandles] });
 	}
 
-	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
-		if (!supportsAgentHostRepositoryPluginReconciliation(this.initializeResult.get())) {
-			throw new Error('Agent Host does not support repository plugin reconciliation.');
+	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		if (!supportsAgentHostEnsureRequiredPlugins(this.initializeResult.get())) {
+			throw new Error('Agent Host does not support required plugin enforcement.');
 		}
-		return this._sendExtensionRequest(ReconcileAgentHostRepositoryPluginsExtensionMethod, request);
+		return this._sendExtensionRequest(EnsureAgentHostRequiredPluginsExtensionMethod, request);
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

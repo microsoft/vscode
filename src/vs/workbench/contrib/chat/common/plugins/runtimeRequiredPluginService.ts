@@ -7,11 +7,11 @@ import type { URI } from '../../../../../base/common/uri.js';
 import type { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
-export const IRuntimeRepositoryPluginReconciliationService = createDecorator<IRuntimeRepositoryPluginReconciliationService>('runtimeRepositoryPluginReconciliationService');
+export const IRuntimeRequiredPluginService = createDecorator<IRuntimeRequiredPluginService>('runtimeRequiredPluginService');
 
-export interface IRuntimeRepositoryPluginReconciliationService {
+export interface IRuntimeRequiredPluginService {
 	readonly _serviceBrand: undefined;
-	reconcile(workingDirectories?: readonly URI[]): Promise<void>;
+	ensure(workingDirectories?: readonly URI[]): Promise<void>;
 	whenDiscoverySettled(): Promise<void>;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): IDisposable;
 }

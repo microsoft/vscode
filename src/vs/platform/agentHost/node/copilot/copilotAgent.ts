@@ -72,7 +72,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../common/requiredPlugins.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -156,17 +156,17 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	}
 }
 
-interface ICopilotRepositoryPluginSdk {
+interface ICopilotRequiredPluginSdk {
 	readonly rpc: {
 		readonly plugins: {
-			reconcileRepository(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
+			ensureRequired(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult>;
 		};
 	};
 }
 
-function isCopilotRepositoryPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRepositoryPluginSdk {
+function isCopilotRequiredPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRequiredPluginSdk {
 	const plugins: object = client.rpc.plugins;
-	return 'reconcileRepository' in plugins && typeof plugins.reconcileRepository === 'function';
+	return 'ensureRequired' in plugins && typeof plugins.ensureRequired === 'function';
 }
 
 function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
@@ -1599,12 +1599,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 		const client = await this._ensureClientForSession();
-		if (!isCopilotRepositoryPluginSdk(client)) {
-			throw new Error(`The installed Copilot SDK does not support repository plugin reconciliation. Available plugin methods: ${Object.keys(client.rpc.plugins).join(', ')}`);
+		if (!isCopilotRequiredPluginSdk(client)) {
+			throw new Error(`The installed Copilot SDK does not support required plugin enforcement. Available plugin methods: ${Object.keys(client.rpc.plugins).join(', ')}`);
 		}
-		return client.rpc.plugins.reconcileRepository(request);
+		return client.rpc.plugins.ensureRequired(request);
 	}
 
 	getCustomizations(): readonly Customization[] {

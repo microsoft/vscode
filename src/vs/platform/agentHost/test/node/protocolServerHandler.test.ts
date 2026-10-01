@@ -22,8 +22,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, EnsureAgentHostRequiredPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../common/requiredPlugins.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -172,7 +172,7 @@ class MockAgentService implements IAgentService {
 	readonly deleteDetachedWorktreeCalls: string[] = [];
 	readonly claimDetachedWorktreeCalls: string[] = [];
 	readonly reconcileDetachedWorktreesCalls: { scope: string; activeHandles: readonly string[] }[] = [];
-	readonly reconcileRepositoryPluginsCalls: IAgentHostRepositoryPluginReconcileRequest[] = [];
+	readonly ensureRequiredPluginsCalls: IAgentHostEnsureRequiredPluginsRequest[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -302,10 +302,10 @@ class MockAgentService implements IAgentService {
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
 	}
-	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
-		this.reconcileRepositoryPluginsCalls.push(request);
+	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		this.ensureRequiredPluginsCalls.push(request);
 		return {
-			repositoryPlugins: [],
+			plugins: [],
 			warnings: [],
 		};
 	}
@@ -514,7 +514,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
-				'vscode.repositoryPluginReconciliation': true,
+				'vscode.ensureRequiredPlugins': true,
 			},
 		});
 	});
@@ -1504,17 +1504,17 @@ suite('ProtocolServerHandler', () => {
 			workingDirectory: URI.file('/workspace').toString(),
 		};
 
-		transport.simulateMessage(request(24, ReconcileAgentHostRepositoryPluginsExtensionMethod, params));
+		transport.simulateMessage(request(24, EnsureAgentHostRequiredPluginsExtensionMethod, params));
 
 		assert.deepStrictEqual({
 			response: await responsePromise,
-			calls: agentService.reconcileRepositoryPluginsCalls,
+			calls: agentService.ensureRequiredPluginsCalls,
 		}, {
 			response: {
 				jsonrpc: '2.0',
 				id: 24,
 				result: {
-					repositoryPlugins: [],
+					plugins: [],
 					warnings: [],
 				},
 			},
@@ -1676,7 +1676,7 @@ suite('ProtocolServerHandler', () => {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
 		const reconcileResponsePromise = waitForResponse(transport, 5);
-		transport.simulateMessage(request(5, ReconcileAgentHostRepositoryPluginsExtensionMethod, {
+		transport.simulateMessage(request(5, EnsureAgentHostRequiredPluginsExtensionMethod, {
 			workingDirectory: URI.file('/workspace').toString(),
 		}));
 
@@ -1687,7 +1687,7 @@ suite('ProtocolServerHandler', () => {
 			removeSessionArtifactCalls: agentService.removeSessionArtifactCalls,
 			managedSettingsPermissions: managedSettingsService.permissions,
 			reconcileResponse: await reconcileResponsePromise,
-			reconcileRepositoryPluginsCalls: agentService.reconcileRepositoryPluginsCalls,
+			ensureRequiredPluginsCalls: agentService.ensureRequiredPluginsCalls,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
@@ -1697,9 +1697,9 @@ suite('ProtocolServerHandler', () => {
 			reconcileResponse: {
 				jsonrpc: '2.0',
 				id: 5,
-				result: { repositoryPlugins: [], warnings: [] },
+				result: { plugins: [], warnings: [] },
 			},
-			reconcileRepositoryPluginsCalls: [{ workingDirectory: '/workspace', managedSettings: undefined }],
+			ensureRequiredPluginsCalls: [{ workingDirectory: '/workspace', managedSettings: undefined }],
 		});
 	});
 

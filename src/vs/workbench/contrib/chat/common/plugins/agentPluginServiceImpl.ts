@@ -964,7 +964,7 @@ export class RuntimeRepositoryAgentPluginDiscovery extends AbstractAgentPluginDi
 		const userHome = await this._pathService.userHome();
 		const sources = new Map<string, IPluginSource>();
 		for (const snapshot of this._runtimeRepositoryPlugins.snapshots.get()) {
-			for (const activation of snapshot.result.repositoryPlugins) {
+			for (const activation of snapshot.result.plugins) {
 				const pluginPath = activation.plugin.cache_path ?? activation.plugin.installed_from;
 				if (!pluginPath) {
 					continue;

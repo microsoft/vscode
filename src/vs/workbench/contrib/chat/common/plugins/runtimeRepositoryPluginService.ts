@@ -7,13 +7,13 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { IAgentHostRepositoryPluginReconcileResult } from '../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsResult } from '../../../../../platform/agentHost/common/requiredPlugins.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export interface IRuntimeRepositoryPluginSnapshot {
 	readonly workingDirectory: URI;
-	readonly result: IAgentHostRepositoryPluginReconcileResult;
+	readonly result: IAgentHostEnsureRequiredPluginsResult;
 }
 
 export interface IRuntimeRepositoryPluginIdentity {
@@ -27,7 +27,7 @@ export interface IRuntimeRepositoryPluginService {
 	readonly _serviceBrand: undefined;
 	readonly snapshots: IObservable<readonly IRuntimeRepositoryPluginSnapshot[]>;
 	readonly snapshotRevision: IObservable<number>;
-	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginReconcileResult): void;
+	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void;
 	removeSnapshots(workingDirectories: readonly URI[]): void;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void;
 	getEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined, isRuntimeSource: boolean, workingDirectory: URI | undefined): boolean | undefined;
@@ -50,7 +50,7 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		super();
 	}
 
-	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginReconcileResult): void {
+	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void {
 		const key = this._key(workingDirectory);
 		if (equals(this._snapshots.get().get(key)?.result, result)) {
 			return;
@@ -84,7 +84,7 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 			return undefined;
 		}
 		const snapshot = this._snapshots.get().get(this._key(workingDirectory));
-		const activation = snapshot?.result.repositoryPlugins.find(candidate =>
+		const activation = snapshot?.result.plugins.find(candidate =>
 			candidate.plugin.name === pluginIdentity.name
 			&& candidate.plugin.marketplace === pluginIdentity.marketplace
 		);

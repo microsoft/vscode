@@ -66,7 +66,7 @@ import {
 	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
-import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../common/requiredPlugins.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -485,8 +485,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
 	}
 
-	reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
-		return this._getManagementService().reconcileRepositoryPlugins(request);
+	ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		return this._getManagementService().ensureRequiredPlugins(request);
 	}
 
 	refreshCopilotConnectorSessions(): Promise<void> {
