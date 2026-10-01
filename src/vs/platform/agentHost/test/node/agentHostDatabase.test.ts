@@ -235,7 +235,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				sessionV2ForeignKeys,
 				sessionChatColumns: sessionChatColumns.map(row => row.name),
 			}, {
-				version: [{ user_version: 12 }],
+				version: [{ user_version: 13 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 				sessionColumns: ['session_uri', 'provider', 'start_time', 'external', 'registration_source', 'modified_time'],
 				sessionV2Columns: [
@@ -243,7 +243,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					'source_revision', 'payload_version', 'payload_hash', 'verified', 'payload', 'is_chat_backing', 'modified_time',
 				],
 				sessionV2ForeignKeys: [],
-				sessionChatColumns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived'],
+				sessionChatColumns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'is_read'],
 			});
 
 		} finally {
@@ -262,7 +262,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		const before = await database.getSessionChatCatalog(session);
 		const firstResult = await database.replaceSessionChatCatalog(session, [
-			{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+			{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
 			{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
 		], undefined);
 		if (firstResult.status !== 'applied') {
@@ -302,7 +302,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0, providerData: 'first', origin: '{"kind":"user"}' },
+					{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
 					{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
 				],
 			},
@@ -492,7 +492,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 					directCurrent: await upgraded.getSessionV2Registration(direct),
 				}, {
 					version,
-					schemaVersion: [{ user_version: 12 }],
+					schemaVersion: [{ user_version: 13 }],
 					foreignKeys: [],
 					published: undefined,
 					directLegacy: undefined,
@@ -539,7 +539,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				version: await all(rawDatabase, 'PRAGMA user_version'),
 				tables: (await all(rawDatabase, `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)).map(row => row.name),
 			}, {
-				version: [{ user_version: 12 }],
+				version: [{ user_version: 13 }],
 				tables: ['metadata', 'session_chat_catalogs', 'session_chats', 'sessions', 'sessions_v2'],
 			});
 		} finally {
@@ -632,7 +632,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 0,
 				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
 			},
-			version: [{ user_version: 12 }],
+			version: [{ user_version: 13 }],
 		});
 	});
 
@@ -670,7 +670,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				external: false,
 				source: 'explicit',
 			},
-			version: [{ user_version: 12 }],
+			version: [{ user_version: 13 }],
 			marker: [{ name: 'future_v6_marker' }],
 		});
 	}).timeout(10_000);

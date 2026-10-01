@@ -20901,12 +20901,12 @@ suite('AgentService (node dispatcher)', () => {
 					{ uri: peer.toString(), title: 'Lazy Central Peer' },
 				],
 				beforeAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 2,
 					legacyEnumerations: 0,
 					peerMaterializations: 0,
 				},
 				afterAccess: {
-					peerCatalogReads: 1,
+					peerCatalogReads: 2,
 					legacyEnumerations: 0,
 					peerMaterializations: 1,
 				},
@@ -21533,9 +21533,14 @@ suite('AgentService (node dispatcher)', () => {
 				chatIds: (state?.chats ?? []).map(chat => parseChatUri(chat.resource)?.chatId),
 				summary: (() => {
 					const summary = state?.chats.find(chat => chat.resource.toString() === peerUri.toString());
-					return summary && { title: summary.title, origin: summary.origin };
+					return summary && {
+						title: summary.title,
+						origin: summary.origin,
+						isRead: (summary.status & SessionStatus.IsRead) !== 0,
+					};
 				})(),
 				chatState: getStateManager(localService).getChatState(peerUri.toString()),
+				persistedRead: (JSON.parse(await db.getMetadata('peerChats') ?? '[]') as IPersistedPeerChat[]).find(chat => chat.uri === peerUri.toString())?.isRead,
 			};
 			await localService.subscribe(peerUri, 'first-peer-reader');
 			const hydrated = getStateManager(localService).getChatState(peerUri.toString());
@@ -21556,8 +21561,10 @@ suite('AgentService (node dispatcher)', () => {
 					summary: {
 						title: 'Persisted Peer Title',
 						origin: peerOrigin,
+						isRead: true,
 					},
 					chatState: undefined,
+					persistedRead: true,
 				},
 				firstAccessCalls: [
 					{ call: 'materialize', uri: peerUri.toString(), providerData: 'blob-1' },
@@ -22817,7 +22824,7 @@ suite('AgentService (node dispatcher)', () => {
 				catalog,
 				restoredChats: getStateManager(localService).getSessionState(session.toString())?.chats.map(chat => chat.resource),
 			}, {
-				catalog: [{ uri: peer.toString(), providerData: 'new-peer-backing' }],
+				catalog: [{ uri: peer.toString(), isRead: true, providerData: 'new-peer-backing' }],
 				restoredChats: [buildDefaultChatUri(session), peer.toString()],
 			});
 		});

@@ -325,6 +325,12 @@ function getSessionRowStatus(session: ISession, reader: IReader | undefined, der
 	return rowStatus;
 }
 
+function getSessionRowIsRead(session: ISession, reader: IReader | undefined, deriveFromMainChat: boolean): boolean {
+	return deriveFromMainChat
+		? session.mainChat.read(reader).isRead.read(reader)
+		: session.isRead.read(reader);
+}
+
 function isSessionActive(session: ISession, reader: IReader | undefined): boolean {
 	return isActiveSessionStatus(session.status.read(reader));
 }
@@ -791,6 +797,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.title.set(getChatTitle(element.chat, reader), createMatches(node.filterData));
 			const status = element.chat.status.read(reader);
 			const isArchived = element.chat.isArchived.read(reader);
+			const isRead = element.chat.isRead.read(reader);
 			const completedStateIcon = (element.session.workspace.read(reader)?.folders.length ?? 0) > 1
 				? getHighestPriorityPullRequestIcon(
 					element.chat.workspace.read(reader)?.folders.flatMap(folder =>
@@ -803,12 +810,13 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
 				status,
-				true,
+				isRead,
 				isArchived,
 				completedStateIcon,
 				element.chat.resource,
 			);
 			template.container.classList.toggle('archived', isArchived);
+			template.container.classList.toggle('unread', !isRead && !isArchived);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
 		template.elementDisposables.add(autorun(reader => {
@@ -1615,8 +1623,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
 			);
 			template.statusContext.set(sessionStatus);
-			const isRead = element.isRead.read(reader);
-			template.isReadContext.set(isRead);
+			const sessionIsRead = element.isRead.read(reader);
+			const isRead = getSessionRowIsRead(element, reader, !!this.options.deriveStatusFromMainChat);
+			template.isReadContext.set(sessionIsRead);
 			const isArchived = element.isArchived.read(reader);
 			template.isArchivedContext.set(isArchived);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -2059,6 +2068,13 @@ const enum SessionHeaderStatus {
 	Unread,
 }
 
+function hasUnreadSessionListChat(session: ISession, reader: IReader): boolean {
+	if (!session.mainChat.read(reader).isRead.read(reader)) {
+		return true;
+	}
+	return getSessionListChats(session, reader).some(chat => !chat.isRead.read(reader));
+}
+
 function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, sessionsWithFailingCI: ReadonlySet<string> | undefined): SessionHeaderStatus | undefined {
 	let hasFailingCI = false;
 	let hasUnread = false;
@@ -2071,7 +2087,7 @@ function getSessionHeaderStatus(sessions: readonly ISession[], reader: IReader, 
 			return SessionHeaderStatus.NeedsInput;
 		}
 		hasFailingCI ||= status !== SessionStatus.InProgress && sessionsWithFailingCI?.has(session.sessionId) === true;
-		hasUnread ||= !session.isRead.read(reader);
+		hasUnread ||= hasUnreadSessionListChat(session, reader);
 	}
 	return hasFailingCI ? SessionHeaderStatus.FailingCI : hasUnread ? SessionHeaderStatus.Unread : undefined;
 }
@@ -2099,7 +2115,7 @@ function couldShowSessionHeaderStatus(sessions: readonly ISession[], reader: IRe
 		}
 		const status = session.status.read(reader);
 		return status === SessionStatus.NeedsInput
-			|| !session.isRead.read(reader)
+			|| hasUnreadSessionListChat(session, reader)
 			|| (status !== SessionStatus.InProgress && !!session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)?.pullRequest);
 	});
 }
@@ -2846,9 +2862,13 @@ class SessionsAccessibilityProvider {
 					: folderLabel
 						? localize('sessionChatItemFolderWithoutTimeAria', "{0}, chat in folder {1}, {2}", title, folderLabel, status)
 						: localize('sessionChatItemWithoutTimeAria', "{0}, chat, {1}", title, status);
-				return element.chat.isArchived.read(reader)
-					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
+				const isArchived = element.chat.isArchived.read(reader);
+				const readLabel = !isArchived && !element.chat.isRead.read(reader)
+					? localize('sessionChatItemUnreadAria', "{0}, unread", label)
 					: label;
+				return isArchived
+					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
+					: readLabel;
 			});
 		}
 		if (isSessionGroupItem(element)) {
@@ -2940,6 +2960,9 @@ class SessionsAccessibilityProvider {
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
+			}
+			if (!element.isArchived.read(reader) && !getSessionRowIsRead(element, reader, !!this.options?.deriveStatusFromMainChat)) {
+				label = localize('sessionItemUnreadAria', "{0}, unread", label);
 			}
 			const inputNeededMessage = this.options
 				? getCompactInputNeededMessage(element, reader, this.options, this.options.approvalModel)

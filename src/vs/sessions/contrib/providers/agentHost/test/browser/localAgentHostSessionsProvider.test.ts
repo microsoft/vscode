@@ -7298,6 +7298,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('peer read state follows the exact chat summary', () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'multi-read-state');
+			const sessionUri = AgentSession.uri('copilotcli', 'multi-read-state').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead),
+			], { defaultChat }));
+			const peer = session.chats.get()[1];
+			const read = peer.isRead.get();
+
+			agentHost.setSessionState('multi-read-state', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({ read, unread: peer.isRead.get() }, { read: true, unread: false });
+		});
+
 		test('Agent Merge settings are per folder: a peer chat writes its own folder while the session folder keeps earlier settings', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/workspace-primary');

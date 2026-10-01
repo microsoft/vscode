@@ -288,6 +288,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostClientConnectionService, clientConnectionService],
 			[IAgentHostPeerChatPersistenceService, {
 				_serviceBrand: undefined,
+				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {

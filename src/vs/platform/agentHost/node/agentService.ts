@@ -8471,8 +8471,9 @@ export class AgentService extends Disposable implements IAgentService {
 				...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 			})));
 		}
+		const entriesWithReadState = entries.map(entry => entry.isRead === undefined ? { ...entry, isRead: true } : entry);
 		const cachedWorkingDirectories = new Map(cached?.filter(chat => chat.kind === 'peer' && chat.workingDirectories !== undefined).map(chat => [chat.uri, chat.workingDirectories]));
-		const enrichedEntries = entries.map(entry => entry.workingDirectories === undefined && cachedWorkingDirectories.get(entry.uri) !== undefined
+		const enrichedEntries = entriesWithReadState.map(entry => entry.workingDirectories === undefined && cachedWorkingDirectories.get(entry.uri) !== undefined
 			? { ...entry, workingDirectories: cachedWorkingDirectories.get(entry.uri) }
 			: entry);
 		const toolChatUris = new Set([
@@ -8555,6 +8556,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (cached?.some(chat => chat.kind === 'peer')) {
 			const projectedPeers: IPersistedPeerChat[] = cached.filter(chat => chat.kind === 'peer').map(chat => ({
 				uri: chat.uri,
+				isRead: true,
 				...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
 				...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
@@ -8587,6 +8589,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const entries: IPersistedPeerChat[] = legacy.map(chat => ({
 			uri: chat.uri.toString(),
+			isRead: true,
 			...(chat.providerData !== undefined ? { providerData: chat.providerData } : {}),
 		}));
 		return this._peerChatStore.initialize(session, entries, database);
@@ -8622,13 +8625,14 @@ export class AgentService extends Disposable implements IAgentService {
 				inheritedTurnId: entry.inheritedTurnId,
 				workingDirectories: entry.workingDirectories ?? cachedChat?.workingDirectories,
 				archived: entry.archived,
+				isRead: entry.isRead,
 			};
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived } = item;
+			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, isRead } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -8641,6 +8645,7 @@ export class AgentService extends Disposable implements IAgentService {
 				inheritedTurnId,
 				workingDirectories,
 				archived,
+				isRead,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}

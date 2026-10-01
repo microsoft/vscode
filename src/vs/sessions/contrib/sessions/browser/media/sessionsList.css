@@ -928,6 +928,7 @@
 		}
 	}
 
+	&.unread .session-chat-title,
 	&.needs-input .session-chat-title {
 		color: var(--vscode-strongForeground);
 	}

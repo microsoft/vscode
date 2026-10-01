@@ -246,6 +246,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			[IAgentHostClientConnectionService, clientConnections],
 			[IAgentHostPeerChatPersistenceService, {
 				_serviceBrand: undefined,
+				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {

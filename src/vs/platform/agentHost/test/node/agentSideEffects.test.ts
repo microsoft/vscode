@@ -232,6 +232,7 @@ function createTestSideEffects(
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async () => { },
 		}],
 	);

@@ -57,6 +57,7 @@ import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSes
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
+import { MarkUnreadContribution } from '../../node/chatContributions/markUnread/markUnreadContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
 import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { SessionWorkspaceConversionContribution } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionContribution.js';
@@ -901,6 +902,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async () => { },
 		}],
 	);
@@ -1117,6 +1119,7 @@ suite('AgentHostChatContributions', () => {
 		};
 		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async (session: URI, chat: URI, archived: boolean) => {
 				if (chat.toString() === failingChat) {
 					throw new Error('write failed');
@@ -1149,6 +1152,50 @@ suite('AgentHostChatContributions', () => {
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
 		});
+	});
+
+	test('mark unread contribution persists each completed peer while the session is already unread', () => {
+		const session = 'agent-host-session://unread';
+		const firstPeer = buildChatUri(session, 'first-peer');
+		const secondPeer = buildChatUri(session, 'second-peer');
+		const persisted: { session: string; chat: string; isRead: boolean }[] = [];
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		stateManager.createSession({
+			resource: session,
+			provider: 'test',
+			title: 'Unread',
+			status: SessionStatus.IsRead,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+		});
+		stateManager.addChat(session, firstPeer);
+		stateManager.addChat(session, secondPeer);
+		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
+			_serviceBrand: undefined,
+			setRead: async (session: URI, chat: URI, isRead: boolean) => {
+				persisted.push({ session: session.toString(), chat: chat.toString(), isRead });
+			},
+			setArchived: async () => { },
+		};
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
+			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(MarkUnreadContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.turnEnd({ session, channel: firstPeer, turnId: 'first', reason: { kind: 'success' } });
+		contributions.turnEnd({ session, channel: secondPeer, turnId: 'second', reason: { kind: 'success' } });
+		contributions.turnEnd({ session, channel: buildDefaultChatUri(session), turnId: 'default', reason: { kind: 'success' } });
+		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' } } });
+
+		assert.deepStrictEqual(persisted, [
+			{ session, chat: firstPeer, isRead: false },
+			{ session, chat: secondPeer, isRead: false },
+		]);
 	});
 
 	test('deleteMemento drops a keyed entry so it is recreated from its factory', () => {

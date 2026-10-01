@@ -107,7 +107,8 @@ function createSession(id: string, opts: {
 	const createdAt = opts.createdAt ?? new Date();
 	const updatedAt = opts.updatedAt ?? createdAt;
 	const isArchived = observableValue(`isArchived-${id}`, opts.isArchived ?? false);
-	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), changes: constObservable([]), changesets: constObservable([]) });
+	const isRead = observableValue(`isRead-${id}`, opts.isRead ?? true);
+	const mainChat = upcastPartial<IChat>({ updatedAt: constObservable(updatedAt), isRead, changes: constObservable([]), changesets: constObservable([]) });
 	return {
 		sessionId: id,
 		resource: opts.resource ?? URI.parse(`session://${id}`),
@@ -133,7 +134,7 @@ function createSession(id: string, opts: {
 		mode: observableValue(`mode-${id}`, undefined),
 		loading: observableValue(`loading-${id}`, false),
 		isArchived,
-		isRead: observableValue(`isRead-${id}`, opts.isRead ?? true),
+		isRead,
 		description: observableValue(`description-${id}`, undefined),
 		lastTurnEnd: observableValue(`lastTurnEnd-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
@@ -1073,6 +1074,31 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(header, `Expected section ${label}`);
 			return header;
 		}
+
+		test('derives collapsed section unread state from its chats', () => {
+			const built = buildTestSession({
+				id: 'section-chat-read-state',
+				title: 'Main chat',
+				workspace: 'Workspace',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const { list, container } = renderList([built.session]);
+			list.collapseAllSections();
+
+			const peerUnread = unreadSections(container);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const chatsRead = unreadSections(container);
+			built.mainChat.isRead.set(false, undefined);
+			const mainUnread = unreadSections(container);
+
+			assert.deepStrictEqual({ peerUnread, chatsRead, mainUnread }, {
+				peerUnread: ['Workspace'],
+				chatsRead: [],
+				mainUnread: ['Workspace'],
+			});
+		});
 
 		test('reports the experiment trigger where a header could show a status, whether or not the setting shows it', () => {
 			const trigger = [`config.${SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING}`];
@@ -2327,7 +2353,7 @@ suite('Sessions - SessionsList', () => {
 			title: constObservable('Fix the redirect loop'),
 			isQuickChat: constObservable(false),
 			worktreePending: constObservable(false),
-			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), changes: constObservable([]), changesets: constObservable([]) })),
+			mainChat: constObservable(upcastPartial<IChat>({ updatedAt: constObservable(new Date()), isRead: constObservable(true), changes: constObservable([]), changesets: constObservable([]) })),
 			workspace: constObservable({
 				uri: root,
 				label: 'vscode',
@@ -4083,6 +4109,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt,
 				status: constObservable(status),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(interactivity),
@@ -4144,6 +4171,45 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('renders main and peer unread state from each chat', () => {
+			const built = buildTestSession({
+				id: 'chat-read-state',
+				title: 'Main chat',
+				isRead: false,
+				mainChatIsRead: true,
+				chats: [{ id: 'peer', title: 'Peer chat', isRead: false }],
+			});
+			const container = renderSessionChats(built.session);
+			const mainItem = container.querySelector<HTMLElement>('.session-item');
+			const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+			const snapshot = () => ({
+				mainUnread: mainItem?.classList.contains('unread'),
+				mainAriaLabel: mainItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+				peerUnread: peerItem?.classList.contains('unread'),
+				peerAriaLabel: peerItem?.closest('.monaco-list-row')?.getAttribute('aria-label'),
+			});
+
+			const initial = snapshot();
+			built.mainChat.isRead.set(false, undefined);
+			built.chats.get('peer')?.isRead.set(true, undefined);
+			const updated = snapshot();
+
+			assert.deepStrictEqual({ initial, updated }, {
+				initial: {
+					mainUnread: false,
+					mainAriaLabel: 'Main chat, updated now, State: Completed',
+					peerUnread: true,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed, unread',
+				},
+				updated: {
+					mainUnread: true,
+					mainAriaLabel: 'Main chat, updated now, State: Completed, unread',
+					peerUnread: false,
+					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
+				},
+			});
+		});
+
 		test('shows each resolved chat modified time independently and omits unresolved times', () => {
 			const built = buildTestSession({
 				id: 'chat-times',
@@ -4204,6 +4270,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5157,6 +5224,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -5230,6 +5298,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
 			});
@@ -5488,6 +5557,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: mainStatus,
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),
@@ -6691,6 +6761,7 @@ suite('Sessions - SessionsList', () => {
 				updatedAt: constObservable(new Date()),
 				status: constObservable(SessionStatus.Completed),
 				isArchived: constObservable(false),
+				isRead: constObservable(true),
 				changes: constObservable([]),
 				changesets: constObservable([]),
 				interactivity: constObservable(ChatInteractivity.Full),

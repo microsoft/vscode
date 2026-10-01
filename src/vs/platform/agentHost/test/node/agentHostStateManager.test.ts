@@ -1474,7 +1474,7 @@ suite('AgentHostStateManager', () => {
 				action: {
 					type: ActionType.SessionChatUpdated,
 					chat: peerChat,
-					changes: { status: SessionStatus.Idle | SessionStatus.IsArchived, activity: undefined },
+					changes: { status: SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived, activity: undefined },
 				},
 			});
 		});
@@ -2095,7 +2095,7 @@ suite('AgentHostStateManager', () => {
 
 			assert.strictEqual(
 				manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat)?.status,
-				SessionStatus.Idle | SessionStatus.IsArchived,
+				SessionStatus.Idle | SessionStatus.IsRead | SessionStatus.IsArchived,
 			);
 		});
 

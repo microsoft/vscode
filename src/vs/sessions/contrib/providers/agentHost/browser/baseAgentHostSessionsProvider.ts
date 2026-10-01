@@ -1012,6 +1012,7 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 	private readonly _isArchived: ISettableObservable<boolean>;
+	private readonly _isRead: ISettableObservable<boolean>;
 
 	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
@@ -1029,6 +1030,7 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this._isArchived = observableValue<boolean>('chatIsArchived', isSessionStatusArchived(summary.status));
+		this._isRead = observableValue<boolean>('chatIsRead', isSessionStatusRead(summary.status));
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
 		const workspace = derived(this, reader => {
 			const workingDirectories = this._workingDirectories.read(reader);
@@ -1065,7 +1067,7 @@ class AdditionalChat extends Disposable {
 			modelSource: this._withDetails(this._modelSource),
 			mode: this._withDetails(this._mode),
 			isArchived: this._isArchived,
-			isRead: constObservable(true),
+			isRead: this._withDetails(this._isRead),
 			// Archived or replay-only chats must not expose mutating controls.
 			interactivity,
 			description: this._withDetails(this._description),
@@ -1101,6 +1103,7 @@ class AdditionalChat extends Disposable {
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 			this._isArchived.set(isSessionStatusArchived(summary.status), tx);
+			this._isRead.set(isSessionStatusRead(summary.status), tx);
 		});
 	}
 
@@ -1674,7 +1677,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				entry = this._createAdditionalChat(chatId, {
 					resource: chat.chat.toString(),
 					title: chat.summary ?? '',
-					status: withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
+					status: withSessionStatusFlag(
+						withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
+						ProtocolSessionStatus.IsRead,
+						true,
+					),
 					origin: chat.origin,
 					interactivity: chat.interactivity,
 				});

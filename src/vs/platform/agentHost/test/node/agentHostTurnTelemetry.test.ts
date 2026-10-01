@@ -284,6 +284,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 			[IAgentHostPeerChatPersistenceService, {
 				_serviceBrand: undefined,
+				setRead: async () => { },
 				setArchived: async () => { },
 			}],
 			[ISessionWorkspaceConversionService, {
