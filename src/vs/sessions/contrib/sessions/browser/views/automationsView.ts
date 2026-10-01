@@ -555,7 +555,13 @@ class AutomationCardsSection extends Disposable {
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
-		disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.FOCUS, () => {
+			if (main.matches(':focus-visible')) {
+				promptHover.show();
+			}
+		}));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.BLUR, () => promptHover.hide()));
 
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));

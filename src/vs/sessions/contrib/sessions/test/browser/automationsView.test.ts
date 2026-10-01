@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
@@ -1582,6 +1583,57 @@ suite('AutomationsCardsWidget', () => {
 			});
 		});
 	}
+
+	test('card keyboard focus exposes the full current prompt without changing pointer hover targets', () => {
+		const shown: string[] = [];
+		let target: HTMLElement | undefined;
+		let hidden = 0;
+		let disposed = false;
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupManagedHover: (delegate, element, content, options) => {
+				if (!element.classList.contains('automations-card-prompt')) {
+					return NullHoverService.setupManagedHover(delegate, element, content, options);
+				}
+				target = element;
+				return {
+					show: () => {
+						const value = typeof content === 'function' ? content() : content;
+						assert.ok(typeof value === 'string');
+						shown.push(value);
+					},
+					hide: () => { hidden++; },
+					update: () => { },
+					dispose: () => { disposed = true; },
+				};
+			},
+		};
+		const { automationService, widget } = setup('archive', hoverService);
+		const prompt = 'Review recent changes and summarize follow-up work. '.repeat(6);
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation({ prompt })]);
+		const main = widget.element.querySelector<HTMLElement>('.automations-card-main')!;
+		const matches = stub(main, 'matches');
+		disposables.add(toDisposable(() => matches.restore()));
+		const focusVisible = matches.withArgs(':focus-visible').returns(false);
+		main.dispatchEvent(new FocusEvent('focus'));
+		assert.deepStrictEqual(shown, []);
+		focusVisible.returns(true);
+		main.dispatchEvent(new FocusEvent('focus'));
+		main.dispatchEvent(new FocusEvent('blur'));
+		automationService.setAutomations([automation({ prompt: `${prompt}Updated.` })]);
+		main.dispatchEvent(new FocusEvent('focus'));
+		main.dispatchEvent(new FocusEvent('blur'));
+		widget.dispose();
+		assert.deepStrictEqual({
+			target: target?.className, shown, hidden, disposed,
+		}, {
+			target: 'automations-card-prompt',
+			shown: [prompt, `${prompt}Updated.`],
+			hidden: 2,
+			disposed: true,
+		});
+	});
 
 	test('template hovers expose full text once and are disposed with the widget', () => {
 		const hovers: { target: HTMLElement; content: IDelayedHoverOptions['content']; disposed: boolean }[] = [];
