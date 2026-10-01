@@ -1567,7 +1567,7 @@ export interface IXtermTerminal extends IDisposable {
 
 	/**
 	 * Gets the contents of the buffer from a start marker (or line 0) to the end marker (or the
-	 * last line).
+	 * last line). Rows that the terminal soft-wrapped are joined into a single line.
 	 */
 	getContentsAsText(startMarker?: IXtermMarker, endMarker?: IXtermMarker): string;
 

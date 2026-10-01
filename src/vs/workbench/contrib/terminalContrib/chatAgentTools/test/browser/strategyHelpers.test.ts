@@ -94,6 +94,122 @@ suite('stripCommandEchoAndPrompt', () => {
 		);
 	});
 
+	test('strips multi-line command echo, with and without output', () => {
+		// bash 5.2 echoes a bracketed paste with each line of the command on its own row
+		const commandLine = 'cat > /tmp/hello.py <<\'EOF\'\nimport sys\nprint(\'hello from\', sys.version_info[:2])\nEOF';
+		const withOutput = [
+			'user@host:~/src $ cat > /tmp/hello.py <<\'EOF\'',
+			'import sys',
+			'print(\'hello from\', sys.version_info[:2])',
+			'EOF',
+			'python3 /tmp/hello.py',
+			'hello from (3, 12)',
+			'user@host:~/src $ ',
+		].join('\n');
+		const withoutOutput = [
+			'user@host:~/src $ cat > /tmp/hello.py <<\'EOF\'',
+			'import sys',
+			'print(\'hello from\', sys.version_info[:2])',
+			'EOF',
+			'user@host:~/src $ ',
+		].join('\n');
+
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(withOutput, `${commandLine}\npython3 /tmp/hello.py`),
+			stripCommandEchoAndPrompt(withoutOutput, commandLine),
+		], [
+			'hello from (3, 12)',
+			'',
+		]);
+	});
+
+	test('strips command echo that zsh broke into rows', () => {
+		// zsh doesn't soft-wrap the rows of a long command line, and a row break can replace a space
+		const commandLine = ` echo xx${Array(59).fill('ab').join(' ')} | wc -c`;
+		const output = [
+			'➜  app git:(main) ✗  echo xxab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab a',
+			'b ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab',
+			'ab ab ab ab ab ab ab ab ab ab ab ab ab ab ab | wc -c',
+			'     179',
+		].join('\n');
+
+		assert.strictEqual(stripCommandEchoAndPrompt(output, commandLine), '     179');
+	});
+
+	test('strips multi-line command echo with a right prompt on the first row', () => {
+		const output = [
+			'➜  app git:(main) ✗ python3 - <<\'EOF\'                                       [0]',
+			'print(\'first\')',
+			'print(\'second\')',
+			'EOF',
+			'first',
+			'second',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'python3 - <<\'EOF\'\nprint(\'first\')\nprint(\'second\')\nEOF'),
+			'first\nsecond'
+		);
+	});
+
+	test('preserves output of a multi-line command when there is no echo', () => {
+		// getOutput() starts after the echo, and the output must not be mistaken for it
+		const commandLine = 'cat <<\'EOF\'\nfirst\nsecond\nEOF';
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt('first\nsecond\n', commandLine),
+			'first\nsecond'
+		);
+	});
+
+	test('preserves output that contains the command without its whitespace', () => {
+		const listing = [
+			'total 16',
+			'-rw-r--r--  1 user  staff  1203 Sep 30 12:00 README.md',
+			'-rw-r--r--  1 user  staff   311 Sep 30 12:00 skills-lock.json',
+			'drwxr-xr-x  4 user  staff   128 Sep 30 12:00 src',
+		].join('\n');
+
+		assert.deepStrictEqual([
+			stripCommandEchoAndPrompt(listing, 'ls -l'),
+			stripCommandEchoAndPrompt(`user@host:~/src $ ls -l\n${listing}\nuser@host:~/src $ `, 'ls -l'),
+			stripCommandEchoAndPrompt('.\n..\nREADME.md\ntools-api', 'ls -a'),
+		], [
+			listing,
+			listing,
+			'.\n..\nREADME.md\ntools-api',
+		]);
+	});
+
+	test('preserves output that repeats the command', () => {
+		const output = [
+			'user@host:~/src $  sh -xc \'echo same text\'',
+			'+ echo same text',
+			'same text',
+			'user@host:~/src $ ',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, ' sh -xc \'echo same text\''),
+			'+ echo same text\nsame text'
+		);
+	});
+
+	test('preserves output when a multi-line echo diverges from the command', () => {
+		const output = [
+			'user@host:~/src $ cat > /tmp/a.py <<\'EOF\'',
+			'import os',
+			'garbage row',
+			'1',
+			'user@host:~/src $ ',
+		].join('\n');
+
+		assert.strictEqual(
+			stripCommandEchoAndPrompt(output, 'cat > /tmp/a.py <<\'EOF\'\nimport os\nprint(1)\nEOF\npython3 /tmp/a.py'),
+			'user@host:~/src $ cat > /tmp/a.py <<\'EOF\'\nimport os\ngarbage row\n1'
+		);
+	});
+
 	test('strips trailing prompt with various prompt styles', () => {
 		// bash user@host:path $
 		assert.strictEqual(

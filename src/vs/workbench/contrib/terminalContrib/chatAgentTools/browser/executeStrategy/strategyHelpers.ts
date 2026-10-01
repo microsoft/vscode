@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { DisposableStore, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { escapeRegExpCharacters } from '../../../../../../base/common/strings.js';
 
 /**
  * Sets up a recreating start marker which is resilient to prompts that clear/re-render (eg. transient
@@ -107,8 +108,9 @@ export function stripCommandEchoAndPrompt(output: string, commandLine: string, l
 function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log?: (message: string) => void): string {
 	// Strip leading lines that are part of the command echo using findCommandEcho.
 	// Allow suffix matching to handle partial command echoes from getOutput()
-	// where the prompt line is not included.
-	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true);
+	// where the prompt line is not included, and layout matching to handle
+	// echoes that the terminal wrapped or the shell redrew.
+	const echoResult = findCommandEcho(output, commandLine, /*allowSuffixMatch*/ true, /*allowLayoutMatch*/ true);
 	const lines = echoResult ? echoResult.linesAfter : output.split('\n');
 	const startIndex = 0;
 
@@ -197,7 +199,7 @@ function _stripCommandEchoAndPromptOnce(output: string, commandLine: string, log
 	return result;
 }
 
-export function findCommandEcho(output: string, commandLine: string, allowSuffixMatch?: boolean): { contentBefore: string; linesAfter: string[] } | undefined {
+export function findCommandEcho(output: string, commandLine: string, allowSuffixMatch?: boolean, allowLayoutMatch?: boolean): { contentBefore: string; linesAfter: string[] } | undefined {
 	const trimmedCommand = commandLine.trim();
 	if (trimmedCommand.length === 0) {
 		return undefined;
@@ -207,14 +209,18 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 	// contiguous substring even when terminal wrapping splits it across lines.
 	const { strippedOutput, indexMapping } = stripNewLinesAndBuildMapping(output);
 	const matchIndex = strippedOutput.indexOf(trimmedCommand);
+	const layoutMatch = matchIndex === -1 && allowLayoutMatch ? findCommandEchoByLayout(output, trimmedCommand) : undefined;
 
-	let matchEndInStripped: number;
+	let originalEnd: number;
 	let contentBefore: string;
 
 	if (matchIndex !== -1) {
 		// Full command found in the output
 		contentBefore = strippedOutput.substring(0, matchIndex).trim();
-		matchEndInStripped = matchIndex + trimmedCommand.length - 1;
+		originalEnd = indexMapping[matchIndex + trimmedCommand.length - 1];
+	} else if (layoutMatch) {
+		contentBefore = output.substring(0, layoutMatch.start).replace(/\n/g, '').trim();
+		originalEnd = layoutMatch.end;
 	} else if (allowSuffixMatch) {
 		// If the full command wasn't found, check if the output starts with a
 		// suffix of the command. This happens when getOutput() doesn't include
@@ -239,15 +245,12 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 			return undefined;
 		}
 		contentBefore = '';
-		matchEndInStripped = suffixLen - 1;
+		originalEnd = indexMapping[suffixLen - 1];
 	} else {
 		return undefined;
 	}
 
-	// Map the match end back to the original output position and determine
-	// which line it falls on to split linesAfter.
-	const originalEnd = indexMapping[matchEndInStripped];
-
+	// Determine which line the match end falls on to split linesAfter.
 	const lines = output.split('\n');
 	let echoEndLine = 0;
 	let offset = 0;
@@ -264,6 +267,25 @@ export function findCommandEcho(output: string, commandLine: string, allowSuffix
 		contentBefore,
 		linesAfter: lines.slice(echoEndLine),
 	};
+}
+
+/**
+ * Finds a command echo whose layout differs from the command text: each run of whitespace in the
+ * command may be any whitespace in the echo, a row break may split a word, and text such as a
+ * right prompt may follow the first line of a multi-line command on the prompt row.
+ *
+ * @returns The offsets in the output of the first and last characters of the echo.
+ */
+function findCommandEchoByLayout(output: string, command: string): { start: number; end: number } | undefined {
+	const pattern = (text: string) => text.trim().split(/\s+/).map(word => Array.from(word, escapeRegExpCharacters).join('\\n?')).join('\\s+');
+	const [firstLine, ...otherLines] = command.split(/\r\n|\r|\n/);
+	let source = pattern(firstLine);
+	if (otherLines.length > 0) {
+		// zsh may draw a right prompt after the first line
+		source += `(?:[^\\S\\n]+[^\\n]*)?\\s+${pattern(otherLines.join('\n'))}`;
+	}
+	const match = new RegExp(source).exec(output);
+	return match ? { start: match.index, end: match.index + match[0].length - 1 } : undefined;
 }
 
 export function stripNewLinesAndBuildMapping(output: string): { strippedOutput: string; indexMapping: number[] } {

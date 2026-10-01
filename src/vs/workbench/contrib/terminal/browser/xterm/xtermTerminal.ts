@@ -401,8 +401,16 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the buffer rather than losing all output.
 		const startLine = (startMarker === undefined || startMarker.line === -1) ? 0 : startMarker.line;
 		const endLine = endMarker?.line ?? buffer.length - 1;
+		let currentLine = '';
 		for (let y = startLine; y <= endLine; y++) {
-			lines.push(buffer.getLine(y)?.translateToString(true) ?? '');
+			// NOTE: xterm stores wrapping state on the *next* line, so a row is joined with the
+			// following row when that row is a soft wrap of it.
+			const isWrapped = y < endLine && !!buffer.getLine(y + 1)?.isWrapped;
+			currentLine += buffer.getLine(y)?.translateToString(!isWrapped) ?? '';
+			if (!isWrapped) {
+				lines.push(currentLine);
+				currentLine = '';
+			}
 		}
 		return lines.join('\n');
 	}
