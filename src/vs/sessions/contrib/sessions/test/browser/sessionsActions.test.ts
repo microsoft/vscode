@@ -574,7 +574,7 @@ suite('Sessions - Actions', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => [TOGGLE_PIN_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', CLOSE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID].includes(item.command.id))
-			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id) || (a.group ?? '').localeCompare(b.group ?? ''))
 			.map(item => ({
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -610,12 +610,16 @@ suite('Sessions - Actions', () => {
 		assert.deepStrictEqual({
 			chatTabIcon: chatTabClose?.command.icon,
 			chatHeaderIcon: chatHeaderClose?.command.icon,
+			chatHeaderTooltip: chatHeaderClose?.command.tooltip,
 			sessionHeaderIcon: sessionHeaderClose?.command.icon,
+			sessionHeaderTooltip: typeof sessionHeaderClose?.command.tooltip === 'string' ? sessionHeaderClose.command.tooltip : sessionHeaderClose?.command.tooltip?.value,
 			editorClass: editorClose.class,
 		}, {
 			chatTabIcon: Codicon.closeSmall,
 			chatHeaderIcon: Codicon.close,
+			chatHeaderTooltip: 'Close Chat Group',
 			sessionHeaderIcon: Codicon.close,
+			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});
 	});
@@ -624,7 +628,8 @@ suite('Sessions - Actions', () => {
 		const getCloseItems = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id === commandId)
-			.map(item => ({ group: item.group, when: item.when?.serialize() }));
+			.map(item => ({ group: item.group, when: item.when?.serialize() }))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''));
 
 		assert.deepStrictEqual({
 			toolbar: {

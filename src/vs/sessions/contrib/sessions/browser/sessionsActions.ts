@@ -923,6 +923,7 @@ MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
 	command: {
 		id: CLOSE_CHAT_COMMAND_ID,
 		title: localize('closeChatGroup', "Close"),
+		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
 		icon: Codicon.close,
 	},
 	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
@@ -1905,6 +1906,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		super({
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
+			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
 			icon: Codicon.close,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
