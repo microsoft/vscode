@@ -324,7 +324,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
-	test('title and menu buttons use title casing', () => {
+	test('title and menu buttons use the expected casing', () => {
 		const fixture = createPage(['agentFinder'], [AICustomizationManagementSection.Agents]);
 		const title = fixture.container.querySelector<HTMLElement>('.customization-discovery-title');
 		const addCustomizationButton = fixture.container.querySelector<HTMLElement>('.customization-discovery-title-row .monaco-button');
@@ -339,7 +339,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				hasPopup: button?.getAttribute('aria-haspopup'),
 			})),
 		}, {
-			title: 'Discover Customizations',
+			title: 'Discover customizations',
 			buttons: [
 				{ label: 'Add Customization', small: true, hasChevron: true, hasPopup: 'menu' },
 				{ label: 'All Sources', small: true, hasChevron: true, hasPopup: 'menu' },
