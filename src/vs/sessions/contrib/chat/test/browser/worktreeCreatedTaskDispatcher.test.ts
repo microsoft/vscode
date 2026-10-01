@@ -105,10 +105,6 @@ class FakeSessionsTasksService implements Partial<ISessionsTasksService> {
 		return this._tasks.get(session.sessionId) ?? [];
 	}
 
-	async getAllTasks(session: ISession): Promise<readonly ISessionTaskWithTarget[]> {
-		return this._tasks.get(session.sessionId) ?? [];
-	}
-
 	async runTask(task: ITaskEntry, session: ISession): Promise<IDisposable | undefined> {
 		this.ranTasks.push({ label: task.label, sessionId: session.sessionId });
 		if (this.runTaskFails) {
@@ -180,17 +176,13 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
 	});
 
-	test('only runs user tasks that cannot resolve to worktree tasks when confirmation is declined', async () => {
+	test('only runs user tasks when running worktree tasks is declined', async () => {
 		createDispatcher();
 		dialogService.setConfirmResult({ confirmed: false });
-		const userTask = (label: string, dependsOn?: string): ISessionTaskWithTarget => ({ task: { ...entry(label, 'worktreeCreated').task, dependsOn }, target: 'user' });
 		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
 		tasks.setTasks(session.sessionId, [
 			entry('worktree-setup', 'worktreeCreated'),
-			entry('shadowed'),
-			userTask('shadowed'),
-			userTask('with-dependency', 'worktree-setup'),
-			userTask('user-setup'),
+			{ ...entry('user-setup', 'worktreeCreated'), target: 'user' },
 		]);
 
 		mgmt.sessionStartedEmitter.fire(session);

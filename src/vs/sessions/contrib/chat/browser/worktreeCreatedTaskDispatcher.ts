@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../../workbench/common/contributio
 import { isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsTasksService, ISessionTaskWithTarget } from './sessionsTasksService.js';
+import { ISessionsTasksService } from './sessionsTasksService.js';
 
 const LOG_PREFIX = '[WorktreeCreatedTaskDispatcher]';
 
@@ -110,35 +110,29 @@ export class WorktreeCreatedTaskDispatcher extends Disposable implements IWorkbe
 		}
 
 		let tasks;
-		let allTasks;
 		try {
 			tasks = await this._sessionsTasksService.getSessionTasksOnce(session);
-			allTasks = await this._sessionsTasksService.getAllTasks(session);
 		} catch (err) {
 			this._logService.warn(`${LOG_PREFIX} Failed to read tasks for session '${session.sessionId}': ${err}`);
 			return;
 		}
 
-		// The worktree's own tasks.json comes from the checked-out branch. Ask before
-		// running a task it defines, or one that could resolve to it by label or dependency.
-		const workspaceTaskLabels = new Set(allTasks.filter(({ target }) => target === 'workspace').map(({ task }) => task.label));
-		const requiresConfirmation = ({ task, target }: ISessionTaskWithTarget) => target === 'workspace' || workspaceTaskLabels.has(task.label) || task.dependsOn !== undefined;
-		const worktreeCreatedTasks = tasks.filter(({ task }) => task.runOptions?.runOn === 'worktreeCreated');
-		let confirmed = false;
-		if (worktreeCreatedTasks.some(requiresConfirmation)) {
-			confirmed = (await this._dialogService.confirm({
-				type: Severity.Warning,
-				message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
-				detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
-				primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
-			})).confirmed;
-		}
-
-		for (const entry of worktreeCreatedTasks) {
-			const { task } = entry;
-			if (!confirmed && requiresConfirmation(entry)) {
-				this._logService.trace(`${LOG_PREFIX} Skipping worktreeCreated task '${task.label}' for session '${session.sessionId}' — not confirmed.`);
+		let confirmed: boolean | undefined;
+		for (const { task, target } of tasks) {
+			if (task.runOptions?.runOn !== 'worktreeCreated') {
 				continue;
+			}
+			// The worktree's own tasks.json comes from the checked-out branch, so ask before running its tasks
+			if (target === 'workspace') {
+				confirmed ??= (await this._dialogService.confirm({
+					type: Severity.Warning,
+					message: localize('confirmWorktreeCreatedTasks', "Run Automatic Tasks from This Worktree?"),
+					detail: localize('confirmWorktreeCreatedTasksDetail', "The selected branch defines automatic task commands in .vscode/tasks.json. Only run them if you trust this worktree."),
+					primaryButton: localize('runWorktreeCreatedTasks', "&&Run Tasks"),
+				})).confirmed;
+				if (!confirmed) {
+					continue;
+				}
 			}
 			this._logService.trace(`${LOG_PREFIX} Running worktreeCreated task '${task.label}' for session '${session.sessionId}'`);
 			try {
