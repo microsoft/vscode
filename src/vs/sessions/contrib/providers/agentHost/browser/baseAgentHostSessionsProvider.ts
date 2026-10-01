@@ -3097,17 +3097,7 @@ class NewSession extends Disposable {
 			if (seq !== this._configRequestSeq) {
 				return false;
 			}
-			this._config = this.isDevContainerSample && result.schema.properties[SessionConfigKey.Isolation] ? {
-				...result,
-				schema: {
-					...result.schema,
-					properties: {
-						...result.schema.properties,
-						[SessionConfigKey.Isolation]: { ...result.schema.properties[SessionConfigKey.Isolation], readOnly: true },
-					},
-				},
-				values: { ...result.values, [SessionConfigKey.Isolation]: 'folder' },
-			} : result;
+			this._config = result;
 			this._unresolvedConfigValues = undefined;
 			this._syncWorktreePending();
 			return true;

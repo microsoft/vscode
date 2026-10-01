@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
-import { spy } from 'sinon';
+import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -3993,6 +3993,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
 				values: { isolation: 'worktree' },
 			};
+			const resolveConfig = stub(agentHost, 'resolveSessionConfig').callsFake(async request => {
+				agentHost.resolveSessionConfigRequests.push(request);
+				return {
+					...agentHost.resolveSessionConfigResult,
+					values: { ...agentHost.resolveSessionConfigResult.values, ...request.config },
+				};
+			});
+			disposables.add(toDisposable(() => resolveConfig.restore()));
 			const provider = createProvider(disposables, agentHost, undefined, {
 				configurationService: new TestConfigurationService({
 					[DevContainerSamplesEnabledSettingId]: true,
@@ -4023,10 +4031,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 				before,
 				after: { containerStarts, trustRequests, localCreates: agentHost.createdSessionUris.length },
 				isolation: provider.getSessionConfig(session.sessionId)?.values.isolation,
+				schema: provider.getSessionConfig(session.sessionId)?.schema,
 			}, {
-				before: { containerStarts: 0, trustRequests: 0, localCreates: 0, enabled: true, workingDirectories: [undefined] },
+				before: { containerStarts: 0, trustRequests: 0, localCreates: 0, enabled: true, workingDirectories: available ? [undefined, undefined] : [undefined] },
 				after: { containerStarts: available ? 1 : 0, trustRequests: available ? 1 : 0, localCreates: 0 },
-				isolation: 'folder',
+				isolation: available ? 'folder' : 'worktree',
+				schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
 			});
 		});
 	}
