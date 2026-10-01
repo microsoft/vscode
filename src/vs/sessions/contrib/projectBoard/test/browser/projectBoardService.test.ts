@@ -16,11 +16,13 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -58,7 +60,9 @@ import { IChatSessionsService } from '../../../../../workbench/contrib/chat/comm
 import { ChatRequestModel, IChatChangeEvent, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { ProjectBoardChatSidePanel } from '../../browser/projectBoardChatSidePanel.js';
+import { IProjectBoardTopicSource, IProjectBoardTopic, ProjectBoardSupervisor } from '../../browser/projectBoardSupervisor.js';
 import { createListHarness, createTestSession } from '../../../sessions/test/browser/sessionsListTestUtils.js';
+import { COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID } from '../../../../common/sessionCommands.js';
 
 function toggleCardSelection(element: HTMLElement): void {
 	element.dispatchEvent(new mainWindow.MouseEvent('click', { ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true, cancelable: true }));
@@ -142,6 +146,7 @@ suite('ProjectBoardService', () => {
 			archiveErrors: new Set<string>(),
 			archiveBarrier: undefined as DeferredPromise<void> | undefined,
 			providerAvailable: true,
+			logErrors: [] as unknown[][],
 		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
 		const sessionReplaced = store.add(new Emitter<{ from: ISession; to: ISession }>());
@@ -174,6 +179,7 @@ suite('ProjectBoardService', () => {
 		const onOpened = store.add(new Emitter<URI>());
 		const errors = store.add(new Emitter<string>());
 		const instantiationService = withSessionLists ? createListHarness(store, state.sessions).instantiationService : workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IChatPetService, { variant: constObservable('insiders') });
 		const actionWidget = store.add(instantiationService.createInstance(ActionWidgetService));
 		instantiationService.stub(IActionWidgetService, actionWidget);
 		const copy = sinon.stub().resolves();
@@ -366,7 +372,11 @@ suite('ProjectBoardService', () => {
 				override error(message: string): void { errors.fire(message); }
 				override warn(message: string): void { errors.fire(message); }
 			}(),
-			store.add(new NullLogService()),
+			store.add(new class extends NullLogService {
+				override error(message: string | Error, ...args: unknown[]): void {
+					state.logErrors.push([message, ...args]);
+				}
+			}()),
 			new class extends mock<IHostService>() {
 				override async focus(target: Window): Promise<void> {
 					if (target === mainWindow) {
@@ -404,6 +414,490 @@ suite('ProjectBoardService', () => {
 		h.state.sessions = chats.map((chat, index) => new TestBoardSession([chat], `independent-${String(index).padStart(3, '0')}`));
 		return h;
 	}
+
+	async function filterBoard(container: HTMLElement, value: string): Promise<HTMLInputElement> {
+		const input = container.querySelector<HTMLInputElement>('[data-board-control="search"]')!;
+		input.value = value;
+		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		await timeout(130);
+		return input;
+	}
+
+	async function toggleArchived(h: ReturnType<typeof createBoard>): Promise<void> {
+		const settings = h.currentContainer.querySelector<HTMLElement>('[data-board-control="settings"]');
+		if (!settings) {
+			h.service.toggleArchived();
+			return;
+		}
+		settings.click();
+		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.archived')!.run();
+	}
+
+	test('fuzzy filtering finds overflow and multiple fields without opening, reading or moving chats', async () => {
+		const chats = ['Alpha', 'Beta', 'Gamma', 'Zebra Deployment API'].map(title => new TestChat(title));
+		chats[3].description.set({ value: 'Retry network requests' }, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		await h.service.open();
+		for (const chat of chats) {
+			await h.moveViaPicker('General, P0', chat.resource);
+		}
+		h.container.querySelector<HTMLElement>('.project-board-less')?.click();
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 3);
+		assert.ok(![...h.container.querySelectorAll('h4')].some(element => element.textContent === 'Zebra Deployment API'));
+		const placements = h.catalog.boards.get()[0].configuration.placements.map(({ cardId, rowId, columnId }) => ({ cardId, rowId, columnId }));
+		await filterBoard(h.container, 'dpl api retry');
+		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(element => element.textContent), ['Zebra Deployment API']);
+		assert.strictEqual(h.container.querySelector('.project-board-filter-summary')?.textContent, '1 matching chat');
+		assert.ok(h.service.getAccessibleContent().includes('Deployment API'));
+		assert.ok(!h.service.getAccessibleContent().includes('Alpha,'));
+		chats[3].title.set('Unrelated replacement', undefined);
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 0);
+		await filterBoard(h.container, '');
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 3, 'Clearing search must restore the cell limit');
+		assert.deepStrictEqual(h.catalog.boards.get()[0].configuration.placements.map(({ cardId, rowId, columnId }) => ({ cardId, rowId, columnId })), placements);
+		assert.deepStrictEqual(h.opened, []);
+		assert.ok(chats.every(chat => !chat.isRead.get()));
+	});
+
+	test('search reveals matching children without changing default child folds or retaining hidden selection', async () => {
+		const parent = new TestChat('Parent implementation');
+		const child = new TestChat('Database migration');
+		const h = createBoard(mainWindow.document, [parent, child]);
+		await h.service.open();
+		toggleCardSelection(h.container.querySelector<HTMLElement>('.project-board-card')!);
+		await filterBoard(h.container, 'db mgr');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 2);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, false);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card-selected').length, 0);
+		await filterBoard(h.container, '');
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true);
+		assert.deepStrictEqual(h.state.archiveAttempts, []);
+	});
+
+	test('search and its native input remain view-local across board switches and rerenders', async () => {
+		const h = createIndependentChatBoard(mainWindow.document, [new TestChat('Alpha'), new TestChat('Beta')]);
+		const header = mainWindow.document.createElement('div');
+		h.container.before(header);
+		store.add(toDisposable(() => header.remove()));
+		store.add(h.service.createView(h.container, header));
+		const input = await filterBoard(header, 'Alpha');
+		input.setSelectionRange(1, 3);
+		const second = h.catalog.createBoard('Other search');
+		h.catalog.selectBoard(second);
+		assert.strictEqual(header.querySelector<HTMLInputElement>('input')!.value, '');
+		await filterBoard(header, 'Beta');
+		h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+		assert.strictEqual(header.querySelector('input'), input);
+		assert.strictEqual(input.value, 'Alpha');
+		assert.deepStrictEqual([input.selectionStart, input.selectionEnd], [1, 3]);
+		await h.service.open();
+		assert.strictEqual(h.currentContainer.querySelector<HTMLInputElement>('input')!.value, '');
+	});
+
+	for (const embedded of [true, false]) {
+		test(`Unassigned disclosure includes its label with inline counts (${embedded ? 'embedded' : 'standalone'})`, async () => {
+			const h = createBoard(mainWindow.document, [new TestChat('Tray item')]);
+			h.container.style.cssText = 'width: 760px; height: 600px;';
+			if (embedded) {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const toggle = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
+			const label = toggle().querySelector<HTMLElement>('.project-board-axis-label');
+			assert.ok(label, 'The Unassigned label belongs to the disclosure button');
+			assert.strictEqual(label.textContent, 'Unassigned');
+			const summary = toggle().nextElementSibling!;
+			assert.ok(summary.classList.contains('project-board-unassigned-summary'));
+			const bounds = toggle().getBoundingClientRect();
+			const counts = summary.getBoundingClientRect();
+			assert.ok(counts.left >= bounds.right);
+			assert.ok(Math.abs(counts.top + counts.height / 2 - bounds.top - bounds.height / 2) < 1);
+			label.click();
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!.hidden, true);
+			toggle().dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'true');
+			assert.deepStrictEqual(h.opened, []);
+		});
+	}
+
+	test('grid cell summaries align right without moving tray or child summaries', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Placed')]);
+		await h.service.open();
+		await h.moveViaPicker('General, P0');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+		const summary = h.container.querySelector<HTMLElement>('[aria-label="General, P0"] > .project-board-collapsed-summary')!;
+		assert.strictEqual(mainWindow.getComputedStyle(summary).textAlign, 'right');
+		assert.notStrictEqual(mainWindow.getComputedStyle(h.container.querySelector('.project-board-unassigned-summary')!).textAlign, 'right');
+	});
+
+	test('banner state filters toggle, retain facets and compose with search without changing chats', async () => {
+		const chats = [new TestChat('Alpha busy'), new TestChat('Beta error'), new TestChat('Alpha read'), new TestChat('Alpha unread'), new TestChat('Approval')];
+		[SessionStatus.InProgress, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed, SessionStatus.NeedsInput].forEach((status, index) => chats[index].status.set(status, undefined));
+		chats[2].isRead.set(true, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		await h.service.open();
+		const button = (state: string) => {
+			const element = h.container.querySelector<HTMLElement>(`[data-board-control="state-filter:${state}"]`);
+			assert.ok(element, `State filter ${state} is reachable`);
+			return element;
+		};
+		const titles = () => [...h.container.querySelectorAll('.project-board-card h4')].map(element => element.textContent).sort();
+		for (const [state, title] of [['busy', 'Alpha busy'], ['error', 'Beta error'], ['read', 'Alpha read'], ['unread', 'Alpha unread'], ['needsInput', 'Approval']]) {
+			button(state).click();
+			assert.strictEqual(button(state).getAttribute('aria-pressed'), 'true');
+			assert.deepStrictEqual(titles(), [title]);
+			assert.ok(h.container.querySelector('.project-board-total-summary')?.textContent?.startsWith('5 chats'));
+			button(state).click();
+			assert.strictEqual(titles().length, 5);
+		}
+		await filterBoard(h.container, 'Alpha');
+		button('busy').click();
+		assert.deepStrictEqual(titles(), ['Alpha busy']);
+		assert.ok(h.container.querySelector('.project-board-total-summary')?.textContent?.startsWith('3 chats'));
+		chats[0].status.set(SessionStatus.Completed, undefined);
+		assert.deepStrictEqual(titles(), []);
+		assert.ok(button('busy').textContent?.includes('0 Busy'), 'A now-empty active filter remains clearable');
+		button('all').click();
+		assert.strictEqual(titles().length, 3, 'Clearing state retains the text search');
+		button('unread').click();
+		h.container.querySelector<HTMLInputElement>('[data-board-control="search"]')!.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+		assert.strictEqual(titles().length, 5, 'Escape clears all filters');
+		assert.deepStrictEqual(chats.map(chat => chat.isRead.get()), [false, false, true, false, false]);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('state filter focus reveals clipped controls and preserves horizontal scroll across updates', async () => {
+		const chats = [new TestChat('Busy'), new TestChat('Input'), new TestChat('Error'), new TestChat('Unread'), new TestChat('Read')];
+		[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed].forEach((status, index) => chats[index].status.set(status, undefined));
+		chats[4].isRead.set(true, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'width: 480px; height: 600px;';
+		await h.service.open();
+		const summary = () => h.container.querySelector<HTMLElement>('.project-board-total-summary')!;
+		assert.ok(summary().scrollWidth > summary().clientWidth);
+		const button = h.container.querySelector<HTMLElement>('[data-board-control="state-filter:read"]')!;
+		button.focus({ preventScroll: true });
+		if (!mainWindow.document.hasFocus()) {
+			// The hidden Electron runner updates activeElement without dispatching native focus.
+			button.dispatchEvent(new mainWindow.FocusEvent('focus'));
+		}
+		const bounds = button.getBoundingClientRect();
+		const viewport = summary().getBoundingClientRect();
+		assert.ok(bounds.left >= viewport.left - 1 && bounds.right <= viewport.right + 1, 'Restored keyboard focus must reveal the state');
+		h.container.querySelector<HTMLElement>('[data-board-control="search"]')!.focus();
+		summary().scrollLeft = 35;
+		chats[0].title.set('Busy updated', undefined);
+		assert.strictEqual(summary().scrollLeft, 35, 'Live updates preserve manual horizontal scrolling');
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('state filters include drafts, unavailable placements and matching nested chats', async () => {
+		const parent = new TestChat('Idle parent');
+		parent.status.set(SessionStatus.Completed, undefined);
+		const child = new TestChat('Busy child');
+		const h = createBoard(mainWindow.document, [parent, child]);
+		h.drafts.set([
+			{ id: 'draft', resource: URI.parse('test-draft:/new'), hasContent: true, submitted: false },
+			{ id: 'starting', resource: URI.parse('test-draft:/starting'), hasContent: true, submitted: true },
+		], undefined);
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, config => ({ ...config, placements: [{ cardId: 'missing', rowId: 'general', columnId: 'p0' }] }));
+		await h.service.open();
+		const click = (state: string) => {
+			const button = h.container.querySelector<HTMLElement>(`[data-board-control="state-filter:${state}"]`);
+			assert.ok(button);
+			button.click();
+		};
+		click('busy');
+		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card h4')].map(element => element.textContent), ['Idle parent', 'Busy child'], 'Retain the matching child and its ancestor context');
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, false);
+		click('draft');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 1);
+		assert.ok(h.container.querySelector('[data-draft-id="draft"]'));
+		click('starting');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 1);
+		assert.ok(h.container.querySelector('[data-draft-id="starting"]'));
+		click('unavailable');
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card').length, 1);
+		assert.ok(h.container.querySelector('.project-board-card-unavailable'));
+		assert.strictEqual(h.catalog.boards.get()[0].configuration.placements.length, 1);
+	});
+
+	test('state filters use owning session state in Session List mode', () => {
+		const h = createBoard(mainWindow.document, [], store.add(new InMemoryStorageService()), true);
+		const state = observableValue('owning-status', SessionStatus.Error);
+		const read = observableValue('owning-read', false);
+		const chats = [new TestChat('Busy main'), new TestChat('Busy child')];
+		h.state.sessions = [{ ...createTestSession('Owner').session, status: state, isRead: read, chats: constObservable(chats), mainChat: constObservable(chats[0]) }];
+		store.add(h.service.createView(h.container));
+		h.service.toggleDisplayOption('showSessionList');
+		const error = h.container.querySelector<HTMLElement>('[data-board-control="state-filter:error"]');
+		assert.ok(error);
+		error.click();
+		assert.ok(h.container.querySelector('.project-board-unassigned-summary')?.textContent?.includes('1 Error'));
+		state.set(SessionStatus.Completed, undefined);
+		assert.ok(h.container.querySelector('.project-board-unassigned-summary')?.textContent?.startsWith('0 chats'));
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:unread"]')!.click();
+		assert.ok(h.container.querySelector('.project-board-unassigned-summary')?.textContent?.includes('1 Idle, unread'));
+		read.set(true, undefined);
+		assert.ok(h.container.querySelector('.project-board-unassigned-summary')?.textContent?.startsWith('0 chats'));
+	});
+
+	test('working pets wear the native construction hard hat in animated and static images', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Construction')]);
+		const variant = observableValue<'stable' | 'insiders'>('hatVariant', 'stable');
+		const composites = new Set<string>();
+		h.instantiationService.stub(IChatPetService, { variant, enabled: constObservable(false) });
+		h.container.classList.add('monaco-enable-motion');
+		await h.service.open();
+		for (const quality of ['stable', 'insiders'] as const) {
+			variant.set(quality, undefined);
+			const icon = h.container.querySelector<HTMLElement>('.project-board-card-status-icon')!;
+			for (let attempt = 0; attempt < 40 && !icon.classList.contains('project-board-card-status-pet'); attempt++) {
+				await timeout(25);
+			}
+			assert.deepStrictEqual(h.state.logErrors, []);
+			assert.strictEqual(icon.dataset.petAccessory, 'constructionHardHat');
+			composites.add(icon.style.getPropertyValue('--project-board-pet-image'));
+			for (const property of ['--project-board-pet-image', '--project-board-pet-static']) {
+				const image = mainWindow.document.createElement('img');
+				image.src = icon.style.getPropertyValue(property).slice(5, -2);
+				await image.decode();
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = image.naturalWidth;
+				canvas.height = image.naturalHeight;
+				const context = canvas.getContext('2d')!;
+				context.drawImage(image, 0, 0);
+				for (let frame = 0; frame < image.naturalWidth / 168; frame++) {
+					const pixels = context.getImageData(frame * 168, 0, 168, 96).data;
+					let hatPixels = 0;
+					for (let i = 0; i < pixels.length; i += 4) {
+						if (pixels[i] > 150 && pixels[i + 1] > 60 && pixels[i + 1] < 220 && pixels[i + 2] < 80 && pixels[i + 3] > 200) {
+							hatPixels++;
+						}
+					}
+					assert.ok(hatPixels > 20, `${quality} ${property} frame ${frame} contains the colored hat`);
+				}
+			}
+		}
+		assert.strictEqual(composites.size, 2, 'Each variant retains its own body');
+		assert.strictEqual(h.container.querySelector('.chat-pet'), null);
+	});
+
+	test('filtering retains pending-answer DOM and text while hiding a nonmatching card', async () => {
+		const chat = new TestChat('Approval request');
+		chat.status.set(SessionStatus.NeedsInput, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		const carousel = new ChatQuestionCarouselData([{
+			id: 'answer', type: 'singleSelect', title: 'Answer', options: [{ id: 'one', label: 'One', value: 'one' }], allowFreeformInput: true,
+		}], false, 'filter-preservation');
+		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+		h.questionCarousels.set([{ carousel, requestId: 'filter-request' }], undefined);
+		await h.service.open();
+		const textarea = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
+		textarea.value = 'Keep my answer';
+		textarea.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:needsInput"]')!.click();
+		await filterBoard(h.container, 'unrelated');
+		assert.strictEqual(h.container.querySelector('textarea'), null);
+		await filterBoard(h.container, '');
+		assert.strictEqual(h.container.querySelector('textarea'), textarea);
+		assert.strictEqual(textarea.value, 'Keep my answer');
+		assert.strictEqual(h.container.querySelector('[data-board-control="state-filter:needsInput"]')!.getAttribute('aria-pressed'), 'true');
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:all"]')!.click();
+		assert.strictEqual(h.container.querySelector('textarea'), textarea);
+		assert.deepStrictEqual(h.submittedAnswers, []);
+	});
+
+	test('header removes creation and archive buttons, settings retains archive and rows span the grid', async () => {
+		const chat = new TestChat('Archived item');
+		chat.isArchived.set(true, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelector('[data-board-control="new-session"], [data-board-control="show-archived"]'), null);
+		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
+		const action = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.archived')!;
+		assert.strictEqual(action.checked, false);
+		await action.run();
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 1);
+		assert.strictEqual(h.container.querySelector('.project-board-axis-corner'), null);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-row-heading')!.style.gridColumn, '1 / -1');
+		assert.strictEqual(h.container.querySelector('[aria-label="General, P0"] h3'), null);
+		const header = h.container.querySelector('.project-board-header')!;
+		assert.ok([...header.children].indexOf(h.container.querySelector('.project-board-filter')!) < [...header.children].indexOf(h.container.querySelector('.project-board-tools')!));
+	});
+
+	test('topic chips filter exact chats independently of words and preserve query composition', async () => {
+		const chats = [new TestChat('Alpha request'), new TestChat('Beta request')];
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		const changed = store.add(new Emitter<void>());
+		let sources: readonly IProjectBoardTopicSource[] = [];
+		let transcriptOpens = 0;
+		const supervisor = new class extends mock<ProjectBoardSupervisor>() {
+			override enabled = false;
+			override busy = false;
+			override error = undefined;
+			override omitted = 0;
+			override topics: readonly IProjectBoardTopic[] = [];
+			override readonly onDidChange = changed.event;
+			override get hasTranscript() { return true; }
+			override update(value: readonly IProjectBoardTopicSource[]) { sources = value; }
+			override setEnabled(enabled: boolean) { this.enabled = enabled; changed.fire(); }
+			override setActive() { }
+			override async refresh() { }
+			override async openTranscript() { transcriptOpens++; }
+			override dispose() { }
+		}();
+		h.instantiationService.stubInstance(ProjectBoardSupervisor, supervisor);
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[data-topic-control="toggle"]')!.click();
+		await timeout(0);
+		assert.strictEqual(supervisor.enabled, true);
+		assert.strictEqual(sources.length, 2);
+		supervisor.topics = [{ label: 'Unrelated display label', cardIds: new Set([getProjectBoardCardId(h.state.sessions[1], chats[1])]) }];
+		changed.fire();
+		h.container.querySelector<HTMLElement>('[data-topic-control="topic-0"]')!.click();
+		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(node => node.textContent), ['Beta request']);
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, '1 chat · ⚙️ 1 Busy');
+		assert.strictEqual(sources.length, 2, 'The supervisor monitors the board, not its current filter');
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:busy"]')!.click();
+		chats[1].status.set(SessionStatus.Error, undefined);
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 0);
+		assert.ok(h.container.querySelector('[data-board-control="state-filter:busy"]')!.textContent?.includes('0 Busy'));
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:error"]')!.click();
+		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(node => node.textContent), ['Beta request']);
+		h.container.querySelector<HTMLElement>('[data-board-control="state-filter:all"]')!.click();
+		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(node => node.textContent), ['Beta request'], 'Clearing state keeps the selected topic');
+		await filterBoard(h.container, 'alpha');
+		assert.strictEqual(h.container.querySelectorAll('h4').length, 0);
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, '0 chats');
+		h.container.querySelector<HTMLElement>('[data-topic-control="topic-0"]')!.click();
+		assert.deepStrictEqual([...h.container.querySelectorAll('h4')].map(node => node.textContent), ['Alpha request']);
+		h.container.querySelector<HTMLElement>('[data-topic-control="transcript"]')!.click();
+		assert.strictEqual(transcriptOpens, 1);
+		h.container.querySelector<HTMLElement>('[data-topic-control="toggle"]')!.click();
+		assert.strictEqual(supervisor.enabled, false);
+		chats[1].isArchived.set(true, undefined);
+		assert.strictEqual(h.container.querySelector('[data-topic-control="topic-0"]'), null, 'Stopped topics must reflect current archive visibility');
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('declining topic consent does not construct a supervisor or send a request', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Private chat')]);
+		h.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: false }) });
+		h.instantiationService.stubInstance(ProjectBoardSupervisor, new class extends mock<ProjectBoardSupervisor>() {
+			override update() { assert.fail('No snapshot without consent'); }
+			override setEnabled() { assert.fail('No analysis without consent'); }
+		}());
+		await h.service.open();
+		h.container.querySelector<HTMLElement>('[data-topic-control="toggle"]')!.click();
+		await timeout(0);
+		assert.strictEqual(h.container.querySelector('[data-topic-control="refresh"]'), null);
+	});
+
+	test('filtering temporarily expands row, column and child folds and restores them on Escape', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Parent'), new TestChat('Matching child')]);
+		await h.service.open();
+		await h.moveViaPicker('General, P0');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
+		const input = await filterBoard(h.container, 'matching');
+		assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .project-board-card-list')!.hidden, false);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, false);
+		assert.strictEqual(h.container.querySelector('[data-board-control="collapse:row:general"]')!.getAttribute('aria-disabled'), 'true');
+		input.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 27, bubbles: true }));
+		assert.strictEqual(input.value, '');
+		assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .project-board-card-list')!.hidden, true);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true);
+	});
+
+	for (const embedded of [true, false]) {
+		test(`row labels share a left-aligned disclosure and retain a separate menu (${embedded ? 'embedded' : 'standalone'})`, async () => {
+			const h = createBoard(mainWindow.document, [new TestChat('Row controls')]);
+			if (embedded) {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			await h.moveViaPicker('General, P0');
+			const toggle = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!;
+			const menu = () => h.container.querySelector<HTMLElement>('[data-board-control="axis:row:general"]')!;
+			assert.strictEqual(toggle().querySelector('.project-board-axis-label')?.textContent, 'General');
+			assert.ok(toggle().querySelector('.codicon-chevron-down'));
+			assert.strictEqual(toggle().parentElement!.firstElementChild, toggle());
+			assert.strictEqual(toggle().nextElementSibling, menu());
+			assert.ok(menu().classList.contains('codicon-ellipsis'));
+			assert.strictEqual(menu().getAttribute('aria-label'), 'Edit row: General');
+			assert.strictEqual(menu().getAttribute('aria-haspopup'), 'menu');
+			const style = mainWindow.getComputedStyle(toggle());
+			assert.strictEqual(style.display, 'flex');
+			assert.strictEqual(style.justifyContent, 'flex-start');
+			assert.strictEqual(style.textAlign, 'left');
+			assert.strictEqual(style.fontWeight, '600');
+			assert.strictEqual(style.whiteSpace, 'nowrap');
+			const originalMenu = h.contextMenu.delegate;
+			const placements = h.catalog.boards.get()[0].configuration.placements;
+			toggle().querySelector<HTMLElement>('.project-board-axis-label')!.click();
+			assert.strictEqual(h.contextMenu.delegate, originalMenu, 'Clicking the row label must not open the menu');
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+			assert.ok(toggle().querySelector('.codicon-chevron-right'));
+			const summary = menu().nextElementSibling;
+			assert.ok(summary);
+			assert.ok(summary.classList.contains('project-board-collapsed-summary'), 'Row counts follow the menu on the same line');
+			assert.ok(summary.textContent?.startsWith('1 chat'));
+			const center = (element: Element) => {
+				const rect = element.getBoundingClientRect();
+				return rect.top + rect.height / 2;
+			};
+			assert.ok(summary.getBoundingClientRect().left > menu().getBoundingClientRect().right);
+			assert.ok(Math.abs(center(summary) - center(toggle())) < 1);
+			assert.ok(Math.abs(center(menu()) - center(toggle())) < 1);
+			assert.deepStrictEqual({
+				display: mainWindow.getComputedStyle(menu()).display,
+				align: mainWindow.getComputedStyle(menu()).alignItems,
+				justify: mainWindow.getComputedStyle(menu()).justifyContent,
+			}, { display: 'flex', align: 'center', justify: 'center' });
+			assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P0"] .project-board-card-list')!.hidden, true);
+			toggle().dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true }));
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'true');
+			toggle().dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true }));
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
+			menu().click();
+			assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false', 'Opening the menu must not toggle the row');
+			assert.strictEqual(menu().getAttribute('aria-expanded'), 'true');
+			assert.deepStrictEqual(h.contextMenu.delegate!.getActions().map(action => action.id), [
+				'projectBoard.axis.rename', 'projectBoard.axis.previous', 'projectBoard.axis.next', 'projectBoard.axis.delete',
+			]);
+			h.contextMenu.delegate!.onHide?.(false);
+			assert.strictEqual(menu().getAttribute('aria-expanded'), 'false');
+			assert.deepStrictEqual(h.catalog.boards.get()[0].configuration.placements, placements);
+			assert.deepStrictEqual(h.opened, []);
+		});
+	}
+
+	test('board label text stays on one line without changing prompt wrapping', async () => {
+		const chat = new TestChat('A long chat title with several words');
+		chat.description.set({ value: 'Description text can continue wrapping across lines' }, undefined);
+		const h = createBoard(mainWindow.document, [chat]);
+		h.session.workspace.set(new class extends mock<ISessionWorkspace>() {
+			override readonly label = 'A workspace label with multiple words';
+			override readonly folders = [];
+		}(), undefined);
+		await h.service.open();
+		const selectors = [
+			'.project-board-header h1', '.project-board-row-heading [data-board-control^="collapse:"]',
+			'.project-board-column-heading [data-board-control^="axis:"]', '.project-board-card h4',
+			'.project-board-card-status', '.project-board-card-workspace', '[data-topic-control="toggle"]',
+		];
+		for (const selector of selectors) {
+			const label = h.container.querySelector<HTMLElement>(selector)!;
+			assert.ok(label, selector);
+			assert.strictEqual(mainWindow.getComputedStyle(label).whiteSpace, 'nowrap', selector);
+		}
+		assert.strictEqual(mainWindow.getComputedStyle(h.container.querySelector('.project-board-card-description')!).whiteSpace, 'normal');
+	});
 
 	test('PB-01 renders in an auxiliary document and reuses the window', async () => {
 		const document = mainWindow.document.implementation.createHTMLDocument();
@@ -446,9 +940,9 @@ suite('ProjectBoardService', () => {
 				nested: nestedFamily.querySelector(':scope > .project-board-child-cards > .project-board-card h4')?.textContent,
 				summary: cell().querySelector('.project-board-child-summary')?.textContent,
 				readOnly: cell().querySelectorAll('.project-board-card-lifecycle').length,
-			}, { unassigned: 0, titles: ['Main', 'Peer', 'Worker', 'Nested worker'], nested: 'Nested worker', summary: '3 child chats · 🏃 3 Busy', readOnly: 2 });
+			}, { unassigned: 0, titles: ['Main', 'Peer', 'Worker', 'Nested worker'], nested: 'Nested worker', summary: '3 child chats · ⚙️ 3 Busy', readOnly: 2 });
 			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
-			assert.strictEqual(cell().querySelector('.project-board-collapsed-summary')?.textContent, '4 sessions · 🏃 4 Busy');
+			assert.strictEqual(cell().querySelector('.project-board-collapsed-summary')?.textContent, '4 chats · ⚙️ 4 Busy');
 			assert.ok(h.service.getAccessibleContent().includes('Nested worker, Busy'));
 			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p0"]')!.click();
 			await h.moveViaPicker('General, P1', worker.resource);
@@ -654,7 +1148,7 @@ suite('ProjectBoardService', () => {
 				axis: h.container.querySelector('.project-board-column-heading .project-board-collapsed-summary')?.textContent,
 				cell: h.container.querySelector('[aria-label="General, P0"] .project-board-collapsed-summary')?.textContent,
 				attention: h.container.querySelector('[aria-label="General, P0"] .project-board-attention')?.textContent,
-			}, { axis: '2 sessions · 🏃 1 Busy · 🙋 1 Needs Input', cell: '2 sessions · 🏃 1 Busy · 🙋 1 Needs Input', attention: undefined });
+			}, { axis: '2 chats · ⚙️ 1 Busy · 🙋 1 Needs Input', cell: '2 chats · ⚙️ 1 Busy · 🙋 1 Needs Input', attention: undefined });
 		});
 
 		test('archiving or losing a parent preserves its visible children and folds survive live additions', async () => {
@@ -670,7 +1164,7 @@ suite('ProjectBoardService', () => {
 			}, { hidden: true, children: 2 });
 			parent.isArchived.set(true, undefined);
 			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card h4')].map(e => e.textContent), ['Another child', 'Child']);
-			h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			await toggleArchived(h);
 			assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-child-cards')!.hidden, true);
 			h.session.chats.set([child, another], undefined);
 			assert.deepStrictEqual({
@@ -889,7 +1383,7 @@ suite('ProjectBoardService', () => {
 			return container.querySelector<HTMLElement>('[data-board-control="mark-done"]')!;
 		}
 
-		test('archives multiple selected conversations once per session without deleting, moving or marking read', async () => {
+		test('archives multiple selected chats once per session without deleting, moving or marking read', async () => {
 			const chats = [new TestChat('First'), new TestChat('Selected sibling'), new TestChat('Unselected sibling'), new TestChat('Other session')];
 			const h = createBoard(mainWindow.document, chats.slice(0, 3));
 			const other = new TestBoardSession([chats[3]], 'other');
@@ -906,7 +1400,7 @@ suite('ProjectBoardService', () => {
 			assert.deepStrictEqual({
 				count: count(h.container), selected: h.container.querySelectorAll('.project-board-card-selected').length,
 				enabled: done(h.container).getAttribute('aria-disabled'), opened: h.opened, read: chats.map(chat => chat.isRead.get()),
-			}, { count: '3 conversations selected', selected: 3, enabled: 'false', opened: [], read: [false, false, false, false] });
+			}, { count: '3 chats selected', selected: 3, enabled: 'false', opened: [], read: [false, false, false, false] });
 			done(h.container).click();
 			await timeout(0);
 			assert.deepStrictEqual({
@@ -914,10 +1408,10 @@ suite('ProjectBoardService', () => {
 				count: count(h.container), cards: h.container.querySelectorAll('[data-chat-resource]').length,
 				deleted: h.state.deletedSessions, configuration: h.catalog.boards.get(), read: chats.map(chat => chat.isRead.get()),
 			}, {
-				attempts: [h.session, other], archived: [true, true], count: '0 conversations selected', cards: 0,
+				attempts: [h.session, other], archived: [true, true], count: '0 chats selected', cards: 0,
 				deleted: [], configuration, read: [false, false, false, false],
 			});
-			h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			await toggleArchived(h);
 			assert.deepStrictEqual({
 				cards: h.container.querySelectorAll('[data-chat-resource]').length,
 				selectable: h.container.querySelectorAll('.project-board-card-selectable').length,
@@ -940,15 +1434,15 @@ suite('ProjectBoardService', () => {
 				countRole: h.container.querySelector('.project-board-selection-count')?.getAttribute('role'),
 				description: mainWindow.document.getElementById(describedBy)?.textContent,
 				help: control.getAttribute('aria-description')?.includes('+Shift+Enter'),
-				content: h.service.getAccessibleContent().includes('1 conversation selected') && h.service.getAccessibleContent().includes('  Selected'),
+				content: h.service.getAccessibleContent().includes('1 chat selected') && h.service.getAccessibleContent().includes('  Selected'),
 				checkboxes: control.querySelectorAll('[role="checkbox"]').length, opened: h.opened, read: chat.isRead.get(),
 			}, {
 				role: 'group', selected: 'Selected', cardRole: 'group', focus: true,
-				countRole: 'status', description: 'Archives the selected conversations\' sessions, including their other chats. No conversations are deleted.',
+				countRole: 'status', description: 'Archives the selected chats\' sessions, including their other chats. No chats are deleted.',
 				help: true, content: true, checkboxes: 0, opened: [], read: false,
 			});
 			control.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, shiftKey: true, ctrlKey: !isMacintosh, metaKey: isMacintosh, bubbles: true, cancelable: true }));
-			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(count(h.container), '0 chats selected');
 			assert.strictEqual(done(h.container).getAttribute('aria-disabled'), 'true');
 		});
 
@@ -973,10 +1467,10 @@ suite('ProjectBoardService', () => {
 					{ tag, key: false, menu: false, drag: true });
 			}
 			assert.deepStrictEqual({ selected: count(h.container), opened: h.opened, menu: h.contextMenu.delegate },
-				{ selected: '1 conversation selected', opened: [], menu: undefined });
+				{ selected: '1 chat selected', opened: [], menu: undefined });
 		});
 
-		test('partial failure leaves only failed conversations selected and retries without duplicate operations', async () => {
+		test('partial failure leaves only failed chats selected and retries without duplicate operations', async () => {
 			const failed = new TestChat('Failed');
 			const success = new TestChat('Success');
 			const h = createBoard(mainWindow.document, [failed]);
@@ -1001,21 +1495,21 @@ suite('ProjectBoardService', () => {
 				attempts: h.state.archiveAttempts, count: count(h.container), disabled: done(h.container).getAttribute('aria-disabled'),
 				selected: selection(h.container, failed),
 				cardDone: card(h.container, failed).querySelector('[aria-label="Mark as Done"]'),
-			}, { attempts: [h.session], count: 'Marking conversations as done…', disabled: 'true', selected: 'Selected', cardDone: null });
+			}, { attempts: [h.session], count: 'Marking chats as done…', disabled: 'true', selected: 'Selected', cardDone: null });
 			await barrier.complete();
 			await timeout(0);
 			assert.deepStrictEqual({
 				attempts: h.state.archiveAttempts, selected: count(h.container), checked: selection(h.container, failed),
 				archived: other.isArchived.get(), errors,
 			}, {
-				attempts: [h.session, other], selected: '1 conversation selected', checked: 'Selected', archived: true,
-				errors: ['1 of 2 sessions could not be marked as done. The remaining selected conversations can be retried.'],
+				attempts: [h.session, other], selected: '1 chat selected', checked: 'Selected', archived: true,
+				errors: ['1 of 2 sessions could not be marked as done. The remaining selected chats can be retried.'],
 			});
 			h.state.archiveErrors.clear();
 			done(h.container).click();
 			await timeout(0);
 			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container), archived: h.session.isArchived.get() },
-				{ attempts: [h.session, other, h.session], selected: '0 conversations selected', archived: true });
+				{ attempts: [h.session, other, h.session], selected: '0 chats selected', archived: true });
 		});
 
 		test('selection and card focus survive live rerenders, moves and collapsed groups', async () => {
@@ -1036,13 +1530,13 @@ suite('ProjectBoardService', () => {
 			assert.deepStrictEqual({
 				count: count(h.container), checked: selection(h.container, chat),
 				hidden: !!card(h.container, chat).closest('[hidden]'),
-			}, { count: '1 conversation selected', checked: 'Selected', hidden: true });
+			}, { count: '1 chat selected', checked: 'Selected', hidden: true });
 			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p1"]')!.click();
 			assert.strictEqual(selection(h.container, chat), 'Selected');
 			h.container.querySelector<HTMLElement>('[data-board-control="clear-selection"]')!.click();
 			assert.deepStrictEqual({
 				count: count(h.container), checked: selection(h.container, chat), enabled: done(h.container).getAttribute('aria-disabled'),
-			}, { count: '0 conversations selected', checked: 'Not selected', enabled: 'true' });
+			}, { count: '0 chats selected', checked: 'Not selected', enabled: 'true' });
 		});
 
 		test('stale selections are removed for archived, hidden and removed chats and excluded placements', async () => {
@@ -1053,13 +1547,13 @@ suite('ProjectBoardService', () => {
 			chats[0].isArchived.set(true, undefined);
 			chats[1].interactivity.set(ChatInteractivity.Hidden, undefined);
 			h.session.chats.set([chats[0], chats[1], chats[3]], undefined);
-			assert.strictEqual(count(h.container), '1 conversation selected');
+			assert.strictEqual(count(h.container), '1 chat selected');
 			const toggleAutoInclude = async () => {
 				h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
 				await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.autoIncludeSessions')!.run();
 			};
 			await toggleAutoInclude();
-			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(count(h.container), '0 chats selected');
 			await toggleAutoInclude();
 			h.session.chats.set(chats, undefined);
 			chats[0].isArchived.set(false, undefined);
@@ -1070,7 +1564,7 @@ suite('ProjectBoardService', () => {
 			}, { checked: ['Not selected', 'Not selected', 'Not selected', 'Not selected'], attempts: [] });
 		});
 
-		test('drafts and unavailable conversations cannot be selected and reconnecting never restores stale selection', async () => {
+		test('drafts and unavailable chats cannot be selected and reconnecting never restores stale selection', async () => {
 			const chat = new TestChat('Available');
 			const untitled = new TestChat('Untitled');
 			untitled.status.set(SessionStatus.Untitled, undefined);
@@ -1089,14 +1583,14 @@ suite('ProjectBoardService', () => {
 			}, { selectable: 1, draft: null, missing: null, doneActions: 0 });
 			select(h.container, chat);
 			h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
-			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(count(h.container), '0 chats selected');
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card-selectable').length, 0);
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length, 0);
 			h.session.remoteConnectionStatus.set({ kind: 'connected' }, undefined);
 			select(h.container, chat);
 			h.state.providerAvailable = false;
 			h.providersChanged.fire({ added: [], removed: [h.provider] });
-			assert.strictEqual(count(h.container), '0 conversations selected');
+			assert.strictEqual(count(h.container), '0 chats selected');
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card-selectable').length, 0);
 			assert.strictEqual(h.container.querySelectorAll('.project-board-card [aria-label="Mark as Done"]').length, 0);
 			h.state.providerAvailable = true;
@@ -1120,7 +1614,7 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(single.label, 'Mark as Done');
 			await single.run();
 			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container) },
-				{ attempts: [thirdSession], selected: '2 conversations selected' });
+				{ attempts: [thirdSession], selected: '2 chats selected' });
 			card(h.container, first).dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
 			const multiple = h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markDone')!;
 			assert.strictEqual(multiple.label, 'Mark 2 Selected as Done');
@@ -1135,13 +1629,13 @@ suite('ProjectBoardService', () => {
 			await h.service.open(DEFAULT_PROJECT_BOARD_ID);
 			select(h.container, chat);
 			await h.service.open(other);
-			assert.strictEqual(count(h.currentContainer), '0 conversations selected');
+			assert.strictEqual(count(h.currentContainer), '0 chats selected');
 			select(h.currentContainer, chat);
 			h.currentContainer.querySelector<HTMLElement>('[data-board-control="clear-selection"]')!.click();
-			assert.strictEqual(count(h.container), '1 conversation selected');
+			assert.strictEqual(count(h.container), '1 chat selected');
 			h.closeBoard();
 			await h.service.open(other);
-			assert.strictEqual(count(h.currentContainer), '0 conversations selected');
+			assert.strictEqual(count(h.currentContainer), '0 chats selected');
 			const embedded = mainWindow.document.createElement('div');
 			mainWindow.document.body.appendChild(embedded);
 			store.add(toDisposable(() => embedded.remove()));
@@ -1149,9 +1643,9 @@ suite('ProjectBoardService', () => {
 			store.add(h.service.createView(embedded));
 			select(embedded, chat);
 			h.catalog.selectBoard(other);
-			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '0 conversations selected');
+			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '0 chats selected');
 			h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
-			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '1 conversation selected');
+			assert.strictEqual(count(embedded.querySelector<HTMLElement>('.project-board-view-container:not([hidden])')!), '1 chat selected');
 		});
 
 		test('an open context menu revalidates targets removed before activation', async () => {
@@ -1165,7 +1659,7 @@ suite('ProjectBoardService', () => {
 			h.sessionsChanged.fire({ added: [], removed: [h.session], changed: [] });
 			await action.run();
 			assert.deepStrictEqual({ attempts: h.state.archiveAttempts, selected: count(h.container) },
-				{ attempts: [], selected: '0 conversations selected' });
+				{ attempts: [], selected: '0 chats selected' });
 		});
 
 		test('closing a view during archiving does not start additional session operations', async () => {
@@ -1203,7 +1697,7 @@ suite('ProjectBoardService', () => {
 			await timeout(0);
 			assert.deepStrictEqual({
 				attempts: h.state.archiveAttempts, otherArchived: other.isArchived.get(), selected: count(h.container), errors: errors.length,
-			}, { attempts: [h.session], otherArchived: false, selected: '0 conversations selected', errors: 1 });
+			}, { attempts: [h.session], otherArchived: false, selected: '0 chats selected', errors: 1 });
 		});
 
 		test('concurrent views share a pending session archive and can retry a shared failure', async () => {
@@ -1221,18 +1715,18 @@ suite('ProjectBoardService', () => {
 			assert.deepStrictEqual(h.state.archiveAttempts, [h.session]);
 			await barrier.complete();
 			await timeout(0);
-			assert.deepStrictEqual([count(h.container), count(h.currentContainer)], ['1 conversation selected', '1 conversation selected']);
+			assert.deepStrictEqual([count(h.container), count(h.currentContainer)], ['1 chat selected', '1 chat selected']);
 			h.state.archiveErrors.clear();
 			done(h.currentContainer).click();
 			await timeout(0);
 			assert.deepStrictEqual({
 				attempts: h.state.archiveAttempts, counts: [count(h.container), count(h.currentContainer)],
-			}, { attempts: [h.session, h.session], counts: ['0 conversations selected', '0 conversations selected'] });
+			}, { attempts: [h.session, h.session], counts: ['0 chats selected', '0 chats selected'] });
 		});
 	});
 
 	test('multiple board windows share live chats but isolate placements, settings and selection', async () => {
-		const chat = new TestChat('Shared conversation');
+		const chat = new TestChat('Shared chat');
 		const h = createBoard(mainWindow.document, [chat]);
 		h.metadata.set({ kind: 'ready', prompt: 'Shared prompt', context: [] }, undefined);
 		const releaseId = h.catalog.createBoard('Release');
@@ -1349,8 +1843,8 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual(h.state.deletedSessions, []);
 	});
 
-	test('deleting a board closes only its window and never deletes conversations or recreates it on chat close', async () => {
-		const chat = new TestChat('Keep conversation');
+	test('deleting a board closes only its window and never deletes chats or recreates it on chat close', async () => {
+		const chat = new TestChat('Keep chat');
 		const h = createBoard(mainWindow.document, [chat]);
 		const other = h.catalog.createBoard('Keep this board');
 		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
@@ -1371,7 +1865,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.catalog.boards.get().length, 1);
 	});
 
-	test('newly discovered conversations appear independently in every auto-including board', async () => {
+	test('newly discovered chats appear independently in every auto-including board', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Existing')]);
 		const other = h.catalog.createBoard('Another board');
 		await h.service.open(DEFAULT_PROJECT_BOARD_ID);
@@ -1421,7 +1915,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.catalog.boards.get()[0].name, 'Fresh board');
 		assert.ok(h.container.querySelector('[data-chat-resource]'));
 		assert.deepStrictEqual(h.state.deletedSessions, []);
-		assert.strictEqual(h.state.createdCount, 0, 'Creating a board must not create a conversation');
+		assert.strictEqual(h.state.createdCount, 0, 'Creating a board must not create a chat');
 	});
 
 	suite('session list presentation', () => {
@@ -1481,11 +1975,13 @@ suite('ProjectBoardService', () => {
 				list: { sessions: 1, groups: 0, nested: 0, cards: 0 }, cards: 2,
 			});
 			toggleCardSelection(h.container.querySelector<HTMLElement>('.project-board-card-selectable')!);
-			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '1 conversation selected');
+			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '1 chat selected');
 			h.service.toggleDisplayOption('showSessionList');
-			assert.strictEqual(h.container.querySelector('.project-board-selection-tools'), null);
+			assert.strictEqual(h.container.querySelector('.project-board-selection-count'), null);
+			assert.strictEqual(h.container.querySelector('[data-board-control="mark-done"]'), null);
+			assert.ok(h.container.querySelector('.project-board-total-summary')?.textContent?.startsWith('1 chat'));
 			h.service.toggleDisplayOption('showSessionList');
-			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '0 conversations selected');
+			assert.strictEqual(h.container.querySelector('.project-board-selection-count')?.textContent, '0 chats selected');
 		});
 
 		test('session drags move rather than copy, including collapsed cells and Unassigned', () => {
@@ -1898,7 +2394,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(chat.isRead.get(), false);
 	});
 
-	test('PB-22 collapse controls follow labels at the right edge and axis buttons are frameless', async () => {
+	test('PB-22 row and tray disclosures start at the left, column disclosures stay right and controls are frameless', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Header controls')]);
 		h.container.style.setProperty('--vscode-button-border', 'red');
 		h.container.style.setProperty('--vscode-button-secondaryBorder', 'red');
@@ -1906,9 +2402,14 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		for (const header of h.container.querySelectorAll<HTMLElement>('.project-board-axis-controls, .project-board-tray-heading')) {
 			const collapse = header.querySelector<HTMLElement>('.project-board-collapse')!;
-			assert.strictEqual(header.lastElementChild, collapse, 'DOM and tab order must match the right-side position');
-			assert.ok(collapse.getBoundingClientRect().left >= header.firstElementChild!.getBoundingClientRect().right);
-			assert.ok(Math.abs(collapse.getBoundingClientRect().right - header.getBoundingClientRect().right) < 1);
+			if (collapse.classList.contains('project-board-row-toggle') || collapse.classList.contains('project-board-tray-toggle')) {
+				assert.strictEqual(header.firstElementChild, collapse, 'Row and tray disclosures come first in DOM and tab order');
+				assert.ok(Math.abs(collapse.getBoundingClientRect().left - header.getBoundingClientRect().left) < 1);
+			} else {
+				assert.strictEqual(header.lastElementChild, collapse, 'Other disclosures remain at the right');
+				assert.ok(collapse.getBoundingClientRect().left >= header.firstElementChild!.getBoundingClientRect().right);
+				assert.ok(Math.abs(collapse.getBoundingClientRect().right - header.getBoundingClientRect().right) < 1);
+			}
 			for (const button of header.querySelectorAll<HTMLElement>('.monaco-button')) {
 				assert.strictEqual(mainWindow.getComputedStyle(button).borderTopWidth, '0px');
 				assert.strictEqual(mainWindow.getComputedStyle(button).backgroundColor, 'rgba(0, 0, 0, 0)');
@@ -1917,6 +2418,87 @@ suite('ProjectBoardService', () => {
 			assert.strictEqual(mainWindow.document.activeElement, collapse, 'Frameless controls remain keyboard-focusable');
 			collapse.blur();
 		}
+	});
+
+	test('board banner totals include all groups, folded descendants and overflow independently of selection', async () => {
+		const chats = ['Busy', 'Input', 'Error', 'Unread', 'Read', 'Starting', 'Archived'].map(title => new TestChat(title));
+		[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed, SessionStatus.Untitled, SessionStatus.Completed]
+			.forEach((state, index) => chats[index].status.set(state, undefined));
+		chats[4].isRead.set(true, undefined);
+		chats[6].isArchived.set(true, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		h.container.style.cssText = 'width: 900px; height: 600px;';
+		const parent = h.state.sessions[0];
+		assert.ok(parent instanceof TestBoardSession);
+		const child = new TestChat('Child error');
+		child.status.set(SessionStatus.Error, undefined);
+		parent.chats.set([chats[0], child], undefined);
+		h.drafts.set([
+			{ id: 'draft', resource: URI.parse('test-draft:/banner'), hasContent: true, submitted: false },
+			{ id: 'starting', resource: URI.parse('test-draft:/banner-starting'), hasContent: true, submitted: true },
+		], undefined);
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, config => ({
+			...config,
+			placements: [
+				...chats.slice(0, 4).map((chat, index) => ({ cardId: getProjectBoardCardId(h.state.sessions[index], chat), rowId: 'general', columnId: 'p0' })),
+				{ cardId: 'missing', rowId: 'general', columnId: 'p1' },
+			],
+		}));
+		await h.service.open();
+		const summary = () => h.container.querySelector<HTMLElement>('.project-board-total-summary')!;
+		const expected = '10 chats · ⚙️ 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 👀 1 Idle, unread · 😴 1 Idle, read · ⏳ 2 Starting · ✏️ 1 Draft · 🚫 1 Unavailable';
+		assert.strictEqual(summary()?.textContent, expected);
+		assert.strictEqual(summary().nextElementSibling?.textContent, '0 chats selected');
+		assert.strictEqual(summary().title, expected);
+		const icons = [...summary().querySelectorAll<HTMLElement>('.project-board-state-count-icon')];
+		assert.deepStrictEqual(icons.map(icon => icon.dataset.petState), ['typing', 'worry', 'speechless', 'waking', 'sleep', 'rendering', 'idle', 'dizzy']);
+		for (let attempt = 0; attempt < 40 && icons.some(icon => !icon.classList.contains('project-board-card-status-pet')); attempt++) {
+			await timeout(25);
+		}
+		assert.ok(icons.every(icon => icon.classList.contains('project-board-card-status-pet')), 'Every state bucket must load a valid pet sprite');
+		assert.deepStrictEqual({
+			singleLine: mainWindow.getComputedStyle(summary()).whiteSpace,
+			clipped: summary().scrollWidth > summary().clientWidth,
+			leftOfSelection: summary().getBoundingClientRect().right < summary().nextElementSibling!.getBoundingClientRect().left,
+		}, { singleLine: 'nowrap', clipped: true, leftOfSelection: true });
+		assert.ok(h.service.getAccessibleContent().includes('Board totals: 10 chats · 1 Busy · 1 Needs Input · 2 Error · 1 Idle, unread · 1 Idle, read · 2 Starting · 1 Draft · 1 Unavailable'));
+		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
+		toggleCardSelection(card);
+		assert.strictEqual(summary().nextElementSibling?.textContent, '1 chat selected');
+		h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!.click();
+		assert.strictEqual(summary().textContent, expected);
+		child.status.set(SessionStatus.Completed, undefined);
+		assert.ok(summary().textContent?.includes('⚠️ 1 Error · 👀 2 Idle, unread'));
+		await toggleArchived(h);
+		assert.ok(summary().textContent?.startsWith('11 chats'));
+		assert.ok(summary().textContent?.includes('👀 3 Idle, unread'));
+		assert.deepStrictEqual(h.opened, []);
+		assert.ok([...chats.filter((_, index) => index !== 4), child].every(chat => !chat.isRead.get()));
+	});
+
+	test('board banner totals honor text filters, auto inclusion and empty results', async () => {
+		const chats = [new TestChat('Placed target'), new TestChat('Tray target'), new TestChat('Hidden')];
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, config => ({
+			...config, autoIncludeSessions: false,
+			placements: [{ cardId: getProjectBoardCardId(h.state.sessions[0], chats[0]), rowId: 'general', columnId: 'p0' }],
+		}));
+		h.drafts.set([{ id: 'draft', resource: URI.parse('test-draft:/excluded'), hasContent: true, submitted: false }], undefined);
+		await h.service.open();
+		const summary = () => h.container.querySelector('.project-board-total-summary')?.textContent;
+		assert.strictEqual(summary(), '1 chat · ⚙️ 1 Busy');
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, config => ({ ...config, autoIncludeSessions: true }));
+		assert.strictEqual(summary(), '4 chats · ⚙️ 3 Busy · ✏️ 1 Draft');
+		await filterBoard(h.container, 'target');
+		assert.strictEqual(summary(), '2 chats · ⚙️ 2 Busy');
+		assert.strictEqual(h.container.querySelector('.project-board-filter-summary')?.textContent, '2 matching chats');
+		await filterBoard(h.container, 'Placed');
+		assert.strictEqual(summary(), '1 chat · ⚙️ 1 Busy');
+		assert.strictEqual(h.container.querySelector('.project-board-filter-summary')?.textContent, '1 matching chat');
+		await filterBoard(h.container, 'no such title');
+		assert.strictEqual(summary(), '0 chats');
+		assert.ok(h.container.textContent?.includes('No matching chats'));
+		assert.deepStrictEqual(h.opened, []);
 	});
 
 	test('PB-22 collapsed Unassigned retains counts, live attention and drafts without changing chats', async () => {
@@ -1930,9 +2512,9 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		assert.strictEqual(toggle().getAttribute('aria-controls'), tray().querySelector('.project-board-card-list')!.id);
 		assert.strictEqual(mainWindow.getComputedStyle(tray().querySelector('.project-board-card-list')!).display, 'none');
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 🏃 2 Busy · ✏️ 1 Draft');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 chats · ⚙️ 2 Busy · ✏️ 1 Draft');
 		chats[1].status.set(SessionStatus.NeedsInput, undefined);
-		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ✏️ 1 Draft');
+		assert.strictEqual(tray().querySelector('.project-board-collapsed-summary')?.textContent, '3 chats · ⚙️ 1 Busy · 🙋 1 Needs Input · ✏️ 1 Draft');
 		assert.strictEqual(tray().querySelector('.project-board-attention'), null);
 		assert.strictEqual(toggle().getAttribute('aria-expanded'), 'false');
 		toggle().click();
@@ -1962,7 +2544,7 @@ suite('ProjectBoardService', () => {
 		assert.ok(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden);
 		toggle('column:p1');
 		assert.ok(cell('P1').getBoundingClientRect().width < width);
-		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 session · 🏃 1 Busy');
+		assert.strictEqual(cell('P1').querySelector('.project-board-collapsed-summary')?.textContent, '1 chat · ⚙️ 1 Busy');
 		toggle('row:general');
 		assert.strictEqual(cell('P0').querySelector<HTMLElement>('.project-board-card-list')!.hidden, false);
 		assert.strictEqual(cell('P1').querySelector<HTMLElement>('.project-board-card-list')!.hidden, true);
@@ -1995,10 +2577,10 @@ suite('ProjectBoardService', () => {
 		const toggle = (key: string) => h.container.querySelector<HTMLElement>(`[data-board-control="collapse:${key}"]`)!.click();
 		const summary = (selector: string) => h.container.querySelector(`${selector} .project-board-collapsed-summary`)?.textContent;
 		toggle('unassigned');
-		assert.strictEqual(summary('.project-board-unassigned'), '8 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 👀 1 Idle, unvisited · ⏳ 2 Starting · ✏️ 1 Draft');
+		assert.strictEqual(summary('.project-board-unassigned'), '8 chats · ⚙️ 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 👀 1 Idle, unread · ⏳ 2 Starting · ✏️ 1 Draft');
 		assert.deepStrictEqual(
-			[...h.container.querySelectorAll('.project-board-unassigned > .project-board-collapsed-summary .project-board-state-count-icon')].map(icon => [icon.textContent, icon.getAttribute('aria-hidden')]),
-			[['🏃', 'true'], ['🙋', 'true'], ['⚠️', 'true'], ['👀', 'true'], ['⏳', 'true'], ['✏️', 'true']],
+			[...h.container.querySelectorAll('.project-board-unassigned-summary .project-board-state-count-icon')].map(icon => [icon.textContent, icon.getAttribute('aria-hidden')]),
+			[['⚙️', 'true'], ['🙋', 'true'], ['⚠️', 'true'], ['👀', 'true'], ['⏳', 'true'], ['✏️', 'true']],
 		);
 		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
 			...configuration,
@@ -2010,17 +2592,17 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelectorAll('[aria-label="General, P0"] > .project-board-card-list > .project-board-card, [aria-label="General, P0"] > .project-board-card-list > .project-board-card-family').length, 3);
 		toggle('row:general');
 		toggle('column:p0');
-		const expected = '7 sessions · 🏃 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 👀 1 Idle, unvisited · ⏳ 1 Starting · 🚫 1 Unavailable';
+		const expected = '7 chats · ⚙️ 1 Busy · 🙋 1 Needs Input · ⚠️ 2 Error · 👀 1 Idle, unread · ⏳ 1 Starting · 🚫 1 Unavailable';
 		for (const selector of ['.project-board-row-heading', '.project-board-column-heading', '[aria-label="General, P0"]']) {
 			assert.strictEqual(summary(selector), expected);
 		}
-		assert.strictEqual(summary('.project-board-unassigned'), '2 sessions · ⏳ 1 Starting · ✏️ 1 Draft');
-		assert.ok(h.service.getAccessibleContent().includes('7 sessions · 1 Busy · 1 Needs Input · 2 Error · 1 Idle, unvisited · 1 Starting · 1 Unavailable'));
+		assert.strictEqual(summary('.project-board-unassigned'), '2 chats · ⏳ 1 Starting · ✏️ 1 Draft');
+		assert.ok(h.service.getAccessibleContent().includes('7 chats · 1 Busy · 1 Needs Input · 2 Error · 1 Idle, unread · 1 Starting · 1 Unavailable'));
 		assert.ok([...h.container.querySelectorAll('.project-board-state-count-icon')].every(icon => icon.getAttribute('aria-hidden') === 'true'));
 		chats[0].status.set(SessionStatus.Completed, undefined);
 		child.status.set(SessionStatus.Completed, undefined);
-		assert.strictEqual(summary('[aria-label="General, P0"]'), '7 sessions · 🙋 1 Needs Input · ⚠️ 1 Error · 👀 3 Idle, unvisited · ⏳ 1 Starting · 🚫 1 Unavailable');
-		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '1 child chat · 👀 1 Idle, unvisited');
+		assert.strictEqual(summary('[aria-label="General, P0"]'), '7 chats · 🙋 1 Needs Input · ⚠️ 1 Error · 👀 3 Idle, unread · ⏳ 1 Starting · 🚫 1 Unavailable');
+		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '1 child chat · 👀 1 Idle, unread');
 		assert.deepStrictEqual(h.opened, []);
 		assert.ok([...chats, child].every(chat => !chat.isRead.get()));
 	});
@@ -2035,30 +2617,34 @@ suite('ProjectBoardService', () => {
 		h.service.toggleDisplayOption('showSessionList');
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
 		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '1 session · 🙋 1 Needs Input');
+		assert.strictEqual(summary(), '1 chat · 🙋 1 Needs Input');
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, summary());
 		status.set(SessionStatus.Completed, undefined);
-		assert.strictEqual(summary(), '1 session · 👀 1 Idle, unvisited');
+		assert.strictEqual(summary(), '1 chat · 👀 1 Idle, unread');
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, summary());
 		isRead.set(true, undefined);
-		assert.strictEqual(summary(), '1 session · 😴 1 Idle, visited');
+		assert.strictEqual(summary(), '1 chat · 😴 1 Idle, read');
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, summary());
 		h.service.toggleDisplayOption('showSessionList');
-		assert.strictEqual(summary(), '2 sessions · 🏃 2 Busy');
+		assert.strictEqual(summary(), '2 chats · ⚙️ 2 Busy');
+		assert.strictEqual(h.container.querySelector('.project-board-total-summary')?.textContent, summary());
 	});
 
-	test('collapsed card and child summaries separate visited and unvisited idle counts and react to reading', async () => {
-		const chats = [new TestChat('Parent'), new TestChat('Unvisited child'), new TestChat('Visited child')];
+	test('collapsed card and child summaries separate read and unread idle counts and react to reading', async () => {
+		const chats = [new TestChat('Parent'), new TestChat('Unread child'), new TestChat('Read child')];
 		chats.forEach(chat => chat.status.set(SessionStatus.Completed, undefined));
 		chats[0].isRead.set(true, undefined);
 		chats[2].isRead.set(true, undefined);
 		const h = createBoard(mainWindow.document, chats);
 		await h.service.open();
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
-		const summary = () => h.container.querySelector('.project-board-unassigned > .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '3 sessions · 👀 1 Idle, unvisited · 😴 2 Idle, visited');
-		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '2 child chats · 👀 1 Idle, unvisited · 😴 1 Idle, visited');
-		assert.ok(h.service.getAccessibleContent().includes('3 sessions · 1 Idle, unvisited · 2 Idle, visited'));
+		const summary = () => h.container.querySelector('.project-board-unassigned-summary')?.textContent;
+		assert.strictEqual(summary(), '3 chats · 👀 1 Idle, unread · 😴 2 Idle, read');
+		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '2 child chats · 👀 1 Idle, unread · 😴 1 Idle, read');
+		assert.ok(h.service.getAccessibleContent().includes('3 chats · 1 Idle, unread · 2 Idle, read'));
 		chats[1].isRead.set(true, undefined);
-		assert.strictEqual(summary(), '3 sessions · 😴 3 Idle, visited');
-		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '2 child chats · 😴 2 Idle, visited');
+		assert.strictEqual(summary(), '3 chats · 😴 3 Idle, read');
+		assert.strictEqual(h.container.querySelector('.project-board-child-summary')?.textContent, '2 child chats · 😴 2 Idle, read');
 		assert.deepStrictEqual(h.opened, []);
 	});
 
@@ -2158,13 +2744,13 @@ suite('ProjectBoardService', () => {
 		store.add(h.service.createView(h.container));
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
 		const summary = () => h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent;
-		assert.strictEqual(summary(), '2 sessions · 🏃 1 Busy · ✏️ 1 Draft');
+		assert.strictEqual(summary(), '2 chats · ⚙️ 1 Busy · ✏️ 1 Draft');
 		h.service.toggleAutoIncludeSessions();
-		assert.strictEqual(summary(), '0 sessions');
+		assert.strictEqual(summary(), '0 chats');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 0);
 		assert.strictEqual(h.drafts.get().length, 1);
 		h.service.toggleAutoIncludeSessions();
-		assert.strictEqual(summary(), '2 sessions · 🏃 1 Busy · ✏️ 1 Draft');
+		assert.strictEqual(summary(), '2 chats · ⚙️ 1 Busy · ✏️ 1 Draft');
 		assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned .project-board-card').length, 2);
 		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!.hidden, true);
 		assert.deepStrictEqual(h.state.deletedDrafts, []);
@@ -2480,7 +3066,7 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual(notifications, ['Could not read AI credit usage for "Billing".']);
 		assert.strictEqual(h.container.querySelector('.project-board-card-credits')?.getAttribute('aria-label'), 'AI credits: unavailable');
 		chat.isArchived.set(true, undefined);
-		h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		await toggleArchived(h);
 		assert.strictEqual(h.container.querySelector('.project-board-card-duration'), null);
 		assert.ok(h.container.querySelector('.project-board-card-credits'));
 	});
@@ -2527,13 +3113,67 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		h.newSession.set(h.session, undefined);
 		h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
-		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent, '0 sessions');
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-collapsed-summary')?.textContent, '0 chats');
 		h.newSession.set(undefined, undefined);
 		assert.deepStrictEqual({
 			cards: h.container.querySelectorAll('.project-board-card').length,
 			ownedDrafts: h.drafts.get().length,
 			opened: h.opened.length,
 		}, { cards: 0, ownedDrafts: 0, opened: 0 });
+	});
+
+	test('Copy Chat Link uses the native exact-chat command for local and remote read-only children on both surfaces', async () => {
+		for (const providerId of ['local-agent-host', 'agenthost-remote']) {
+			for (const embedded of [true, false]) {
+				const main = new TestChat('Main');
+				const child = new TestChat('Child');
+				child.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+				const h = createBoard(mainWindow.document, [main, child]);
+				sinon.stub(h.provider, 'id').value(providerId);
+				sinon.stub(h.session, 'providerId').value(providerId);
+				const executeCommand = sinon.stub().resolves();
+				h.instantiationService.stub(ICommandService, { executeCommand });
+				if (embedded) {
+					store.add(h.service.createView(h.container));
+				} else {
+					await h.service.open();
+				}
+				h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+				const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === child.resource.toString())!;
+				toggleCardSelection(h.container.querySelector<HTMLElement>('.project-board-card')!);
+				card.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				const action = h.contextMenu.delegate!.getActions().find(action => action.id === COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID);
+				assert.ok(action);
+				assert.strictEqual(action.label, 'Copy Chat Link');
+				await action.run();
+				assert.deepStrictEqual({
+					calls: executeCommand.args,
+					read: [main.isRead.get(), child.isRead.get()],
+					opened: h.opened,
+					selected: h.container.querySelector('.project-board-selection-count')?.textContent,
+				}, { calls: [[COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, { session: h.session, chat: child }]], read: [false, false], opened: [], selected: '1 chat selected' });
+			}
+		}
+	});
+
+	test('Copy Chat Link is absent for unsupported providers and reports command failures', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Copy failure')]);
+		const executeCommand = sinon.stub().rejects(new Error('Clipboard unavailable'));
+		h.instantiationService.stub(ICommandService, { executeCommand });
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		await h.service.open();
+		const openMenu = () => {
+			h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true }));
+			return h.contextMenu.delegate!.getActions().find(action => action.id === COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID);
+		};
+		assert.strictEqual(openMenu(), undefined);
+		h.contextMenu.delegate!.onHide?.(true);
+		sinon.stub(h.provider, 'id').value('local-agent-host');
+		await openMenu()!.run();
+		assert.deepStrictEqual({ errors, opened: h.opened, calls: executeCommand.callCount }, {
+			errors: ['The chat link could not be copied.'], opened: [], calls: 1,
+		});
 	});
 
 	test('PB-03 card context menus offer axis moves; keyboard movement retains its searchable picker', async () => {
@@ -3167,7 +3807,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(mainWindow.document.activeElement, cards[0]);
 		press(40);
 		assert.strictEqual(mainWindow.document.activeElement, cards[3]);
-		assert.ok(h.container.querySelector('.project-board')!.scrollTop > 0, 'Keyboard focus reveals below-fold cards');
+		assert.ok(h.container.querySelector('.project-board-unassigned .project-board-card-list')!.scrollTop > 0, 'Keyboard focus reveals below-fold cards inside the pinned tray');
 		press(38);
 		assert.strictEqual(mainWindow.document.activeElement, cards[0]);
 		press(35);
@@ -3259,9 +3899,9 @@ suite('ProjectBoardService', () => {
 				cardCount: 1, selected: true, deleteActions: 0, read: [false, false, false],
 			});
 			if (surface === 'embedded') {
-				h.service.toggleArchived();
+				await toggleArchived(h);
 			} else {
-				h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+				await toggleArchived(h);
 			}
 			assert.strictEqual(card(worker).querySelector('[aria-label="Mark as Done"]'), null);
 			h.session.isArchived.set(false, undefined);
@@ -3283,7 +3923,7 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(document.activeElement, button());
 		const notification = Event.toPromise(h.errors.event);
 		button().click();
-		assert.strictEqual(await notification, '1 of 1 sessions could not be marked as done. The remaining selected conversations can be retried.');
+		assert.strictEqual(await notification, '1 of 1 sessions could not be marked as done. The remaining selected chats can be retried.');
 		assert.deepStrictEqual({
 			deleted: h.state.deletedSessions, archived: h.session.isArchived.get(), enabled: button().getAttribute('aria-disabled'),
 		}, { deleted: [], archived: false, enabled: 'false' });
@@ -3306,15 +3946,14 @@ suite('ProjectBoardService', () => {
 			{ attempts: [h.session], deleted: [] });
 	});
 
-	test('PB-16 top-right New Session delegates creation without owner navigation', async () => {
+	test('PB-16 New Session command retains creation without a header button or owner navigation', async () => {
 		const { service, container, state, opened } = createBoard(mainWindow.document.implementation.createHTMLDocument());
 		await service.open();
-		const button = container.querySelector<HTMLElement>('[data-board-control="new-session"]')!;
-		assert.strictEqual(button.textContent, 'New Session');
-		button.click();
+		assert.strictEqual(container.querySelector('[data-board-control="new-session"]'), null);
+		const creating = service.createSession();
 		assert.strictEqual(state.createdCount, 1);
 		assert.deepStrictEqual(opened, []);
-		await timeout(0);
+		await creating;
 		assert.deepStrictEqual(opened, [state.createdSession!.mainChat.get().resource], 'Only standalone creation opens a chat window after sending');
 		assert.strictEqual(state.ownerFocusCount, 0);
 	});
@@ -3325,15 +3964,12 @@ suite('ProjectBoardService', () => {
 		store.add(h.errors.event(error => errors.push(error)));
 		h.state.createdSession = undefined;
 		await h.service.open();
-		h.container.querySelector<HTMLElement>('[data-board-control="new-session"]')!.click();
-		await timeout(0);
+		await h.service.createSession();
 		assert.deepStrictEqual({
 			created: h.state.createdCount, opened: h.opened, errors,
-			enabled: h.container.querySelector('[data-board-control="new-session"]')?.getAttribute('aria-disabled'),
-		}, { created: 1, opened: [], errors: [], enabled: 'false' });
+		}, { created: 1, opened: [], errors: [] });
 		h.state.createdSession = new TestBoardSession([new TestChat('retry')], 'retry');
-		h.container.querySelector<HTMLElement>('[data-board-control="new-session"]')!.click();
-		await timeout(0);
+		await h.service.createSession();
 		assert.strictEqual(h.state.createdCount, 2, 'Cancellation must release the creation guard');
 	});
 
@@ -3358,7 +3994,8 @@ suite('ProjectBoardService', () => {
 			}, { count: 1, placement: { rowId: 'general', columnId: 'p2' }, board: DEFAULT_PROJECT_BOARD_ID, opened: [], sidePanel: [] });
 			await barrier.complete();
 			await timeout(0);
-			trigger(h.container.querySelector('[aria-label="General, P1"] h3')!);
+			assert.strictEqual(h.container.querySelector('[aria-label="General, P1"] h3'), null);
+			trigger(h.container.querySelector('[aria-label="General, P1"]')!);
 			await timeout(0);
 			assert.strictEqual(h.state.createdCount, 2);
 			assert.deepStrictEqual(h.state.creationOptions?.initialPlacement, { rowId: 'general', columnId: 'p1' });
@@ -3543,7 +4180,7 @@ suite('ProjectBoardService', () => {
 			opened: h.opened,
 			deleted: h.state.deletedSessions,
 		}, { boards: [{ id: DEFAULT_PROJECT_BOARD_ID, placements: [] }], opened: [], deleted: [] });
-		assert.ok(errors.some(error => error.includes('session was created')), 'The committed conversation survives with an explicit placement failure');
+		assert.ok(errors.some(error => error.includes('session was created')), 'The committed chat survives with an explicit placement failure');
 	});
 
 	test('PB-05 closing a session returns focus to its card but never reopens a closed board', async () => {
@@ -3620,7 +4257,7 @@ suite('ProjectBoardService', () => {
 		card.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true }));
 		drafts.set([{ ...draft, hasContent: true, submitted: true }], undefined);
 		assert.strictEqual(document.activeElement, container.querySelector('.project-board-card-draft'));
-		assert.strictEqual(container.querySelector('.project-board-card-status-icon')!.textContent, '\u{1F3C3}');
+		assert.strictEqual(container.querySelector('.project-board-card-status-icon')!.textContent, '\u2699\uFE0F');
 		assert.strictEqual(container.querySelector('.project-board-card-status-label')!.textContent, 'Starting…');
 		assert.ok(container.querySelector('.project-board-card-status-running'));
 		assert.deepStrictEqual(openedDrafts, ['draft', 'draft', 'draft']);
@@ -3732,7 +4369,7 @@ suite('ProjectBoardService', () => {
 		let restoredFocus = 0;
 		store.add(addDisposableListener(container, 'focusin', () => restoredFocus++));
 
-		for (const selector of ['.project-board-card', '[data-board-control="new-session"]', '[data-board-control="show-archived"]']) {
+		for (const selector of ['.project-board-card', '[data-board-control="search"]', '[data-board-control="settings"]']) {
 			nativeFocus.returns(true);
 			const control = container.querySelector<HTMLElement>(selector)!;
 			control.focus();
@@ -3794,40 +4431,293 @@ suite('ProjectBoardService', () => {
 			chat.status.set(status, undefined);
 			labels.push(container.querySelector('.project-board-card-status-label')!.textContent);
 		}
-		assert.deepStrictEqual(labels, ['Busy', 'Needs Input', 'Idle, unvisited']);
+		assert.deepStrictEqual(labels, ['Busy', 'Needs Input', 'Idle, unread']);
 		assert.strictEqual(chat.isRead.get(), false);
 		assert.deepStrictEqual(opened, []);
 		assert.strictEqual(state.ownerFocusCount, 0);
 	});
 
-	test('PB-04 busy animation loads locally and reduced motion retains the static runner', async () => {
-		const chat = new TestChat('Animated runner');
+	test('PB-04 missing working sprites retain a centered static fallback, never a runner GIF', async () => {
+		const chat = new TestChat('Working fallback');
 		const { service, container } = createBoard(mainWindow.document, [chat]);
 		await service.open();
-		const icon = container.querySelector<HTMLElement>('.project-board-card-status-running')!;
-		const reducedMotion = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
-		if (!reducedMotion) {
-			const animation = mainWindow.getComputedStyle(icon, '::before');
-			assert.ok(animation.backgroundImage.endsWith('/running-person.gif")'));
-			assert.strictEqual(animation.display, 'block');
-			assert.strictEqual(mainWindow.getComputedStyle(icon).fontSize, '0px');
-			const image = mainWindow.document.createElement('img');
-			image.src = animation.backgroundImage.slice(5, -2);
-			await image.decode();
-			assert.deepStrictEqual([image.naturalWidth, image.naturalHeight], [48, 48]);
-		}
+		const original = container.querySelector<HTMLElement>('.project-board-card .project-board-card-status-running')!;
+		const icon = original.cloneNode(true) as HTMLElement;
+		icon.classList.remove('project-board-card-status-pet');
+		delete icon.dataset.petState;
+		original.replaceWith(icon);
+		icon.parentElement!.style.lineHeight = '18.2px';
+		assert.strictEqual(mainWindow.getComputedStyle(icon).display, 'flex', 'Flex items blockify inline-flex without creating a trailing baseline line box');
+		const graphic = icon.getBoundingClientRect();
+		const text = icon.nextElementSibling!.getBoundingClientRect();
+		assert.ok(Math.abs(graphic.top + graphic.height / 2 - (text.top + text.height / 2)) < 0.1);
+		assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').backgroundImage, 'none');
 		container.classList.add('monaco-reduce-motion');
 		assert.deepStrictEqual({
-			display: mainWindow.getComputedStyle(icon, '::before').display,
 			background: mainWindow.getComputedStyle(icon, '::before').backgroundImage,
 			glyph: icon.textContent,
 			hidden: icon.getAttribute('aria-hidden'),
-		}, { display: 'none', background: 'none', glyph: '\u{1F3C3}', hidden: 'true' });
+		}, { background: 'none', glyph: '\u2699\uFE0F', hidden: 'true' });
 		assert.notStrictEqual(mainWindow.getComputedStyle(icon).fontSize, '0px');
 		container.classList.remove('monaco-reduce-motion');
-		assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').display, reducedMotion ? 'none' : 'block');
+		assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').backgroundImage, 'none');
 		chat.status.set(SessionStatus.Completed, undefined);
 		assert.strictEqual(container.querySelector('.project-board-card-status-running'), null);
+	});
+
+	test('pet state assets share native metadata without enabling the floating pet', async () => {
+		const chat = new TestChat('Pet states');
+		const { service, container, instantiationService } = createBoard(mainWindow.document, [chat]);
+		const variant = observableValue<'stable' | 'insiders'>('petVariant', 'stable');
+		const enabled = constObservable(false);
+		instantiationService.stub(IChatPetService, { variant, enabled });
+		container.style.cssText = 'height: 500px; width: 900px; position: relative;';
+		container.classList.add('monaco-enable-motion');
+		await service.open();
+		for (const quality of ['stable', 'insiders'] as const) {
+			variant.set(quality, undefined);
+			for (const [status, read, state, width] of [
+				[SessionStatus.InProgress, false, 'typing', 336],
+				[SessionStatus.NeedsInput, false, 'worry', 96],
+				[SessionStatus.Error, false, 'speechless', 96],
+				[SessionStatus.Completed, false, 'waking', 120],
+				[SessionStatus.Completed, true, 'sleep', 120],
+			] as const) {
+				chat.status.set(status, undefined);
+				chat.isRead.set(read, undefined);
+				const icon = container.querySelector<HTMLElement>('.project-board-card-status-icon')!;
+				assert.deepStrictEqual([icon.offsetWidth, icon.offsetHeight], [42, 24], 'Reserve sprite geometry before decoding so live updates cannot clamp tray scroll');
+				for (let attempt = 0; attempt < 40 && !icon.classList.contains('project-board-card-status-pet'); attempt++) {
+					await timeout(25);
+				}
+				assert.ok(icon.classList.contains('project-board-card-status-pet'), `${state} must load successfully`);
+				assert.strictEqual(icon.dataset.petState, state);
+				assert.deepStrictEqual([icon.offsetWidth, icon.offsetHeight, mainWindow.getComputedStyle(icon).fontSize], [42, 24, '0px']);
+				const image = mainWindow.document.createElement('img');
+				image.src = icon.style.getPropertyValue('--project-board-pet-image').slice(5, -2);
+				assert.ok(state === 'typing' ? image.src.startsWith('data:image/png;') : image.src.includes(`-${quality}-96`));
+				await image.decode();
+				assert.deepStrictEqual([image.naturalWidth, image.naturalHeight], [width, 96]);
+				const text = icon.nextElementSibling!.getBoundingClientRect();
+				const graphic = icon.getBoundingClientRect();
+				assert.ok(Math.abs(graphic.top + graphic.height / 2 - text.top - text.height / 2) < 0.1);
+				if (state === 'typing') {
+					const animation = icon.getAnimations({ subtree: true })[0];
+					assert.ok(animation, 'Busy uses the native typing frame cadence');
+					animation.pause();
+					const delay = animation.effect!.getTiming().delay;
+					assert.ok(typeof delay === 'number');
+					animation.currentTime = 800 + delay + 319;
+					assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').backgroundPositionX, '0px');
+					animation.currentTime = 800 + delay + 321;
+					assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').backgroundPositionX, '-42px');
+				}
+				container.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+				const reduced = mainWindow.getComputedStyle(icon, '::before');
+				assert.strictEqual(reduced.animationName, 'none');
+				assert.strictEqual(reduced.display, 'block');
+				assert.ok(!reduced.backgroundImage.includes('spritesheet'));
+				image.src = reduced.backgroundImage.slice(5, -2);
+				await image.decode();
+				assert.deepStrictEqual([image.naturalWidth, image.naturalHeight], [state === 'typing' ? 168 : width, 96]);
+				container.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
+			}
+		}
+		assert.strictEqual(enabled.get(), false);
+		assert.strictEqual(container.querySelector('.chat-pet'), null);
+	});
+
+	test('working pets keep animating without fallback flashes across rapid progress updates', async () => {
+		const chat = new TestChat('Streaming progress');
+		const h = createBoard(mainWindow.document, [chat]);
+		h.container.classList.add('monaco-enable-motion');
+		await h.service.open();
+		const cardIcon = () => h.container.querySelector<HTMLElement>('.project-board-card-status-icon')!;
+		for (let attempt = 0; attempt < 40 && !cardIcon().classList.contains('project-board-card-status-pet'); attempt++) {
+			await timeout(25);
+		}
+		assert.ok(cardIcon().classList.contains('project-board-card-status-pet'));
+		const frames = [new Set<string>(), new Set<string>()];
+		let fallbacks = 0;
+		for (let update = 0; update < 24; update++) {
+			chat.description.set({ value: `Progress ${update}` }, undefined);
+			const icons = [cardIcon(), h.container.querySelector<HTMLElement>('.project-board-total-summary .project-board-state-count-icon')!];
+			fallbacks += icons.filter(icon => !icon.classList.contains('project-board-card-status-pet')).length;
+			await timeout(50);
+			icons.forEach((icon, index) => frames[index].add(mainWindow.getComputedStyle(icon, '::before').backgroundPositionX));
+		}
+		assert.strictEqual(fallbacks, 0, 'Validated sprites must be immediately ready on later renders');
+		assert.deepStrictEqual(frames.map(values => [...values].sort()), [['-42px', '0px'], ['-28px', '0px']], 'Updates faster than a typing frame must not freeze the animation');
+		assert.strictEqual(chat.isRead.get(), false);
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('working pets honor the effective workbench motion setting, including explicit off', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Motion preference')]);
+		h.container.classList.add('monaco-enable-motion');
+		await h.service.open();
+		const icons = [
+			h.container.querySelector<HTMLElement>('.project-board-card-status-icon')!,
+			h.container.querySelector<HTMLElement>('.project-board-total-summary .project-board-state-count-icon')!,
+		];
+		for (let attempt = 0; attempt < 40 && icons.some(icon => !icon.classList.contains('project-board-card-status-pet')); attempt++) {
+			await timeout(25);
+		}
+		for (const icon of icons) {
+			assert.ok(icon.classList.contains('project-board-card-status-pet'));
+			assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').animationName, 'project-board-pet-typing', 'Explicit off overrides the OS preference');
+		}
+		h.container.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+		for (const icon of icons) {
+			const css = mainWindow.getComputedStyle(icon, '::before');
+			assert.strictEqual(css.animationName, 'none');
+			assert.strictEqual(css.backgroundPositionX, '0px');
+			assert.strictEqual(css.backgroundImage, icon.style.getPropertyValue('--project-board-pet-static'));
+		}
+		h.container.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
+		const frames = icons.map(() => new Set<string>());
+		for (let sample = 0; sample < 24; sample++) {
+			icons.forEach((icon, index) => frames[index].add(mainWindow.getComputedStyle(icon, '::before').backgroundPositionX));
+			await timeout(50);
+		}
+		assert.deepStrictEqual(frames.map(values => [...values].sort()), [['-42px', '0px'], ['-28px', '0px']]);
+	});
+
+	test('submitted legacy drafts use the working pet instead of a runner GIF', async () => {
+		const h = createBoard(mainWindow.document);
+		h.drafts.set([{ id: 'working-draft', resource: URI.parse('test-draft:/working'), hasContent: true, submitted: true }], undefined);
+		await h.service.open();
+		const icon = h.container.querySelector<HTMLElement>('.project-board-card-status-icon')!;
+		assert.strictEqual(icon.dataset.petState, 'typing');
+		for (let attempt = 0; attempt < 40 && !icon.classList.contains('project-board-card-status-pet'); attempt++) {
+			await timeout(25);
+		}
+		assert.ok(icon.classList.contains('project-board-card-status-pet'));
+		assert.ok(!mainWindow.getComputedStyle(icon, '::before').backgroundImage.includes('running-person'));
+	});
+
+	test('summary pets use compact native sprites, stay centered and respect reduced motion', async () => {
+		const chats = Array.from({ length: 6 }, (_, index) => new TestChat(`Summary ${index}`));
+		[SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.Completed, SessionStatus.Untitled].forEach((status, index) => chats[index].status.set(status, undefined));
+		chats[4].isRead.set(true, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		const variant = observableValue<'stable' | 'insiders'>('summaryPetVariant', 'stable');
+		h.instantiationService.stub(IChatPetService, { variant, enabled: constObservable(false) });
+		h.container.style.cssText = 'height: 500px; width: 900px; position: relative;';
+		h.container.classList.add('monaco-enable-motion');
+		await h.service.open();
+		for (const quality of ['stable', 'insiders'] as const) {
+			variant.set(quality, undefined);
+			const summary = h.container.querySelector<HTMLElement>('.project-board-total-summary')!;
+			const icons = [...summary.querySelectorAll<HTMLElement>('.project-board-state-count-icon')];
+			assert.deepStrictEqual(icons.map(icon => [icon.dataset.petState, icon.offsetWidth, icon.offsetHeight, icon.getAttribute('aria-hidden')]), [
+				['typing', 28, 16, 'true'], ['worry', 28, 16, 'true'], ['speechless', 28, 16, 'true'],
+				['waking', 28, 16, 'true'], ['sleep', 28, 16, 'true'], ['rendering', 28, 16, 'true'],
+			]);
+			for (let attempt = 0; attempt < 40 && icons.some(icon => !icon.classList.contains('project-board-card-status-pet')); attempt++) {
+				await timeout(25);
+			}
+			for (const icon of icons) {
+				assert.ok(icon.classList.contains('project-board-card-status-pet'));
+				const graphic = icon.getBoundingClientRect();
+				const text = icon.nextElementSibling!.getBoundingClientRect();
+				assert.ok(Math.abs(graphic.top + graphic.height / 2 - text.top - text.height / 2) < 0.1, 'Summary pets must be centered with their labels');
+				assert.ok(icon.dataset.petState === 'typing'
+					? icon.style.getPropertyValue('--project-board-pet-image').includes('data:image/png;')
+					: icon.style.getPropertyValue('--project-board-pet-image').includes(`-${quality}-`));
+				assert.strictEqual(mainWindow.getComputedStyle(icon, '::before').animationName, icon.dataset.petState === 'typing' ? 'project-board-pet-typing' : 'none');
+			}
+			assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned-summary [data-pet-state]').length, 6);
+			h.container.classList.replace('monaco-enable-motion', 'monaco-reduce-motion');
+			assert.ok(icons.every(icon => mainWindow.getComputedStyle(icon, '::before').animationName === 'none'));
+			assert.ok(icons.every(icon => !mainWindow.getComputedStyle(icon, '::before').backgroundImage.includes('spritesheet')));
+			h.container.classList.replace('monaco-reduce-motion', 'monaco-enable-motion');
+			assert.strictEqual(h.container.querySelector('.chat-pet'), null);
+			assert.ok(h.service.getAccessibleContent().includes('6 chats · 1 Busy · 1 Needs Input · 1 Error · 1 Idle, unread · 1 Idle, read · 1 Starting'));
+		}
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('pinned tray keeps its scrollbar and position across updates, folds and viewport changes', async () => {
+		const chats = Array.from({ length: 16 }, (_, index) => new TestChat(`Pinned ${index}`));
+		const h = createIndependentChatBoard(mainWindow.document, chats);
+		h.metadata.set({ kind: 'ready', prompt: 'Known prompt', submittedAt: Date.now() - 60000, context: [] }, undefined);
+		h.container.style.cssText = 'height: 500px; width: 900px; position: relative;';
+		await h.service.open();
+		const board = h.container.querySelector<HTMLElement>('.project-board')!;
+		const list = h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!;
+		const scrollable = list.parentElement!;
+		const pinned = () => h.container.querySelector<HTMLElement>('.project-board-pinned')!;
+		const assertBound = () => {
+			assert.ok(pinned().offsetHeight <= board.clientHeight / 2 + 1, 'At least half the viewport remains for the grid');
+			assert.ok(scrollable.getBoundingClientRect().bottom <= pinned().getBoundingClientRect().bottom + 1, 'The tray body cannot overflow its pinned region');
+		};
+		assertBound();
+		assert.ok(scrollable.classList.contains('monaco-scrollable-element'));
+		assert.ok(list.scrollHeight > list.clientHeight);
+		board.scrollTop = board.scrollHeight;
+		list.scrollTop = list.scrollHeight;
+		const trayTop = list.scrollTop;
+		const outerTop = board.scrollTop;
+		chats[0].title.set('Updated in the pinned tray', undefined);
+		assert.deepStrictEqual([board.scrollTop, list.scrollTop, list.parentElement === scrollable], [outerTop, trayTop, true]);
+		const fold = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!.click();
+		fold();
+		fold();
+		assert.strictEqual(list.scrollTop, trayTop);
+		assertBound();
+		h.container.style.height = '360px';
+		for (let attempt = 0; attempt < 80 && pinned().offsetHeight > board.clientHeight / 2 + 1; attempt++) {
+			await timeout(25);
+		}
+		assertBound();
+		assert.ok(list.clientHeight > 0);
+	});
+
+	test('pinned Session List bounds the native viewport and keeps rows virtualized', async () => {
+		const h = createBoard(mainWindow.document, [], undefined, true);
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		h.state.sessions = Array.from({ length: 20 }, (_, index) => {
+			const chat = new TestChat(`List ${index}`);
+			return { ...createTestSession(`List ${index}`).session, chats: constObservable([chat]), mainChat: constObservable(chat) };
+		});
+		h.container.style.cssText = 'height: 500px; width: 900px; position: relative;';
+		h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+			...configuration, display: { showSessionList: true, showCredits: false, showStateDuration: false },
+		}));
+		await h.service.open();
+		assert.deepStrictEqual(errors, []);
+		const viewport = h.container.querySelector<HTMLElement>('.project-board-unassigned .project-board-card-list')!;
+		assert.ok(viewport, JSON.stringify([...h.container.querySelectorAll('main, section, .project-board-card-list')].map(element => element.className)));
+		const list = viewport.querySelector<HTMLElement>('.project-board-session-list')!;
+		assert.ok(list.clientHeight <= viewport.clientHeight, 'Native list reveal must use the pinned height, not its full content height');
+		const renderedRows = list.querySelectorAll('.monaco-list-row').length;
+		assert.ok(renderedRows > 0 && renderedRows < h.state.sessions.length, 'The native list virtualizes rows beyond the visible tray');
+		assert.deepStrictEqual(h.opened, []);
+	});
+
+	test('selection and expanded Unassigned stay in a bounded pinned area with live state counts', async () => {
+		const busy = new TestChat('Working');
+		const unread = new TestChat('Unread result');
+		unread.status.set(SessionStatus.Completed, undefined);
+		const h = createIndependentChatBoard(mainWindow.document, [busy, unread]);
+		h.container.style.cssText = 'height: 500px; width: 900px; position: relative;';
+		await h.service.open();
+		const pinned = h.container.querySelector<HTMLElement>('.project-board-pinned')!;
+		assert.ok(pinned);
+		assert.ok(pinned.querySelector('.project-board-selection-tools'));
+		assert.ok(pinned.querySelector('.project-board-unassigned'));
+		assert.strictEqual(mainWindow.getComputedStyle(pinned).position, 'sticky');
+		const summary = () => h.container.querySelector('.project-board-unassigned-summary')!;
+		assert.strictEqual(summary().textContent, '2 chats · ⚙️ 1 Busy · 👀 1 Idle, unread');
+		busy.status.set(SessionStatus.NeedsInput, undefined);
+		assert.strictEqual(summary().textContent, '2 chats · 🙋 1 Needs Input · 👀 1 Idle, unread');
+		assert.strictEqual(h.container.querySelector('.project-board-unassigned .project-board-attention'), null);
+		assert.strictEqual(h.container.querySelector('.project-board-header p'), null);
+		assert.strictEqual(mainWindow.getComputedStyle(h.container.querySelector('.project-board-selection-description')!).display, 'none');
+		assert.deepStrictEqual(h.opened, []);
+		assert.ok(!busy.isRead.get() && !unread.isRead.get());
 	});
 
 	test('PB-04 status glyphs accompany accessible text for every runtime and read state', async () => {
@@ -3835,11 +4725,11 @@ suite('ProjectBoardService', () => {
 		const { service, container } = createBoard(mainWindow.document, [chat]);
 		await service.open();
 		for (const [status, isRead, glyph, label] of [
-			[SessionStatus.InProgress, false, '\u{1F3C3}', 'Busy'],
+			[SessionStatus.InProgress, false, '\u2699\uFE0F', 'Busy'],
 			[SessionStatus.NeedsInput, false, '\u{1F64B}', 'Needs Input'],
 			[SessionStatus.Error, false, '\u26A0\uFE0F', 'Error'],
-			[SessionStatus.Completed, false, '\u{1F440}', 'Idle, unvisited'],
-			[SessionStatus.Completed, true, '\u{1F634}', 'Idle, visited'],
+			[SessionStatus.Completed, false, '\u{1F440}', 'Idle, unread'],
+			[SessionStatus.Completed, true, '\u{1F634}', 'Idle, read'],
 		] as const) {
 			chat.status.set(status, undefined);
 			chat.isRead.set(isRead, undefined);
@@ -4017,7 +4907,7 @@ suite('ProjectBoardService', () => {
 			sameInput: h.container.querySelector('textarea') === textarea, text: textarea.value,
 			selection: [textarea.selectionStart, textarea.selectionEnd],
 			selected: h.container.querySelector('.project-board-selection-count')?.textContent,
-		}, { sameInput: true, text: 'Calendar layout', selection: [3, 7], selected: '1 conversation selected' });
+		}, { sameInput: true, text: 'Calendar layout', selection: [3, 7], selected: '1 chat selected' });
 		const collapse = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:unassigned"]')!;
 		collapse().focus();
 		collapse().click();
@@ -4039,7 +4929,7 @@ suite('ProjectBoardService', () => {
 			selection: [textarea.selectionStart, textarea.selectionEnd],
 			submissions: h.submittedAnswers.length,
 			selected: h.container.querySelector('.project-board-selection-count')?.textContent,
-		}, { sameInput: true, focused: true, text: 'Calendar layout', selection: [3, 7], submissions: 0, selected: '1 conversation selected' });
+		}, { sameInput: true, focused: true, text: 'Calendar layout', selection: [3, 7], submissions: 0, selected: '1 chat selected' });
 		textarea.dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, ctrlKey: true, bubbles: true, cancelable: true }));
 		assert.deepStrictEqual(h.submittedAnswers, [{ requestId: 'custom-request', resolveId: 'custom-layout', answers: { layout: { selectedValue: undefined, freeformValue: 'Calendar layout' } } }]);
 		assert.deepStrictEqual(h.opened, []);
@@ -4103,7 +4993,7 @@ suite('ProjectBoardService', () => {
 		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 		assert.ok(h.container.querySelector('.project-board-live-question'));
 		chat.isArchived.set(true, undefined);
-		h.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		h.service.toggleArchived();
 		assert.strictEqual(h.container.querySelector('.project-board-live-question'), null);
 		chat.isArchived.set(false, undefined);
 		assert.ok(h.container.querySelector('.project-board-live-question'));
@@ -4153,9 +5043,9 @@ suite('ProjectBoardService', () => {
 		for (const archived of [chat.isArchived, session.isArchived]) {
 			archived.set(true, undefined);
 			assert.strictEqual(container.querySelectorAll('.project-board-card').length, 0);
-			container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			await toggleArchived(h);
 			assert.strictEqual(container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Archived placement');
-			container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+			await toggleArchived(h);
 			assert.strictEqual(container.querySelectorAll('.project-board-card').length, 0);
 			archived.set(false, undefined);
 			assert.strictEqual(container.querySelector('[aria-label="General, P1"] h4')?.textContent, 'Archived placement');
@@ -4456,13 +5346,13 @@ suite('ProjectBoardService', () => {
 		await first.service.open();
 		first.container.querySelector<HTMLElement>('[data-board-control="add-row"]')!.click();
 		await Promise.resolve();
-		const axis = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Engineering')!;
+		const axis = () => first.container.querySelector<HTMLElement>('[aria-label="Edit row: Engineering"]')!;
 		assert.ok(axis());
 		await first.moveViaPicker('Engineering, P0');
 		axis().click();
 		assert.strictEqual(first.contextMenu.delegate!.domForShadowRoot, first.container, 'Axis menus must be hosted in the board window');
 		await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.rename')!.run();
-		const renamed = () => [...first.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+		const renamed = () => first.container.querySelector<HTMLElement>('[aria-label="Edit row: Product"]')!;
 		assert.strictEqual(first.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
 		renamed().click();
 		await first.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.previous')!.run();
@@ -4476,9 +5366,9 @@ suite('ProjectBoardService', () => {
 		const restored = createBoard(mainWindow.document, [chat], storage);
 		restored.instantiationService.stub(IDialogService, { confirm: async () => ({ confirmed: true }) });
 		await restored.service.open();
-		restored.container.querySelector<HTMLElement>('[data-board-control="show-archived"]')!.click();
+		await toggleArchived(restored);
 		assert.strictEqual(restored.container.querySelector('[aria-label="Product, P0"] h4')?.textContent, 'Persistent card');
-		const product = [...restored.container.querySelectorAll<HTMLElement>('[data-board-control]')].find(element => element.dataset.boardControl?.startsWith('axis:row:') && element.textContent === 'Product')!;
+		const product = restored.container.querySelector<HTMLElement>('[aria-label="Edit row: Product"]')!;
 		product.click();
 		await restored.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.axis.delete')!.run();
 		assert.strictEqual(restored.container.querySelector('.project-board-unassigned h4')?.textContent, 'Persistent card');

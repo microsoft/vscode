@@ -173,7 +173,7 @@ export class ProjectBoardMetadata extends Disposable {
 			this._actions.set(undefined, undefined);
 			this._configuration.set(undefined, undefined);
 			this._credits.set(undefined, undefined);
-			this._unavailable(localize('projectBoard.metadata.modelDisposed', "Last submitted prompt unavailable because the conversation was closed."));
+			this._unavailable(localize('projectBoard.metadata.modelDisposed', "Last submitted prompt unavailable because the chat was closed."));
 			this._modelStore.dispose();
 		}));
 		this._modelStore.add(autorun(reader => {

@@ -136,7 +136,7 @@ registerAction2(class ToggleKanbanArchivedAction extends Action2 {
 			title: localize2('projectBoard.showArchived', "Show Archived"),
 			precondition: ChatContextKeys.enabled,
 			toggled: KanbanShowArchivedContext,
-			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 3 }],
+			menu: [{ id: Menus.CustomViewKanbanSettings, group: 'navigation', order: 2 }],
 		});
 	}
 
@@ -151,7 +151,7 @@ registerAction2(class NewKanbanSessionAction extends Action2 {
 			id: KANBAN_NEW_SESSION_COMMAND_ID,
 			title: localize2('projectBoard.createSession', "New Session"),
 			precondition: ChatContextKeys.enabled,
-			menu: [{ id: Menus.CustomViewKanban, group: 'navigation', order: 4 }],
+			f1: true,
 		});
 	}
 
@@ -166,7 +166,6 @@ MenuRegistry.appendMenuItem(Menus.CustomViewKanban, {
 	icon: Codicon.settingsGear,
 	group: 'navigation',
 	order: 5,
-	when: KanbanBoardEditableContext,
 });
 
 registerAction2(class ToggleKanbanAutoIncludeSessionsAction extends Action2 {

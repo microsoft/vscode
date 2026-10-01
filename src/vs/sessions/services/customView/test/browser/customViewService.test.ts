@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -12,11 +13,12 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AbstractCustomView, ICustomViewDescriptor } from '../../browser/customView.js';
 import { CustomViewService } from '../../browser/customViewService.js';
+import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 
 class TestCustomView extends AbstractCustomView {
 	readonly title: IObservable<string> = constObservable('test');
 	render(): void { }
-	layout(): void { }
+	layout(_width: number, _height: number): void { }
 }
 
 suite('Sessions - CustomViewService', () => {
@@ -29,6 +31,45 @@ suite('Sessions - CustomViewService', () => {
 	function descriptor(id: string): ICustomViewDescriptor {
 		return { id, ctor: new SyncDescriptor(TestCustomView) };
 	}
+
+	test('header content precedes the body and growing it relayouts without content-event recursion', () => {
+		const sizes: { width: number; height: number }[] = [];
+		let header: HTMLElement | undefined;
+		let headerHeight = 40;
+		let view: HeaderView;
+		class HeaderView extends TestCustomView {
+			constructor() {
+				super();
+				view = this;
+			}
+			override renderHeader(container: HTMLElement): void {
+				header = container;
+				container.textContent = 'Filter';
+			}
+			override render(): void { assert.ok(header); }
+			override layout(width: number, height: number): void {
+				assert.ok(sizes.length < 5, 'A content-size event must not recursively relayout unchanged dimensions');
+				sizes.push({ width, height });
+				this.fireDidChangeContentSize();
+			}
+			resizeHeader(): void {
+				headerHeight = 100;
+				this.fireDidChangeContentSize();
+			}
+		}
+		const service = disposables.add(new TestInstantiationService());
+		const node = disposables.add(service.createInstance(CustomViewNode, { id: 'header', ctor: new SyncDescriptor(HeaderView) }));
+		mainWindow.document.body.appendChild(node.element);
+		Object.defineProperty(node.element.querySelector('.custom-view-header')!, 'offsetHeight', { get: () => headerHeight });
+		node.layout(700, 500);
+		assert.strictEqual(sizes.length, 1);
+		view!.resizeHeader();
+		assert.strictEqual(sizes.length, 2);
+		assert.ok(sizes[1].height < sizes[0].height);
+		node.layout(700, 500);
+		assert.strictEqual(sizes.length, 2);
+		assert.ok(node.element.querySelector('.custom-view-header-title + .custom-view-header-content'));
+	});
 
 	test('shows, replaces and hides registered views', () => {
 		const service = createService();

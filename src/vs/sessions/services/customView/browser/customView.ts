@@ -68,6 +68,9 @@ export abstract class AbstractCustomView extends Disposable {
 	/** Renders the content into the host-provided container. Called once. */
 	abstract render(container: HTMLElement): void;
 
+	/** Optional controls between the title and header actions. Called before render. */
+	renderHeader(_container: HTMLElement): void { }
+
 	/** Called whenever the available content area changes. */
 	abstract layout(width: number, height: number): void;
 

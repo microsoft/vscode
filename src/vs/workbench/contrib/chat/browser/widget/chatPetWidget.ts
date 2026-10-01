@@ -408,7 +408,7 @@ export function getChatPetRespawnFrameDurations(): readonly number[] {
 	return RESPAWN_FRAME_DURATIONS;
 }
 
-function getSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPetSpriteSources> {
+export function getChatPetSpriteSources(variant: ChatPetVariant): Record<ChatPetState, ChatPetSpriteSources> {
 	let sources = spriteSources.get(variant);
 	if (!sources) {
 		const createStateSpriteSources = (state: ChatPetState) => createSpriteSources(getChatPetSpriteName(state, variant), state, doesChatPetStateTrackCursor(state));
@@ -3213,7 +3213,7 @@ export class ChatPetWidget extends Disposable {
 		if (state !== 'idle' || useStaticSprite) {
 			this._facingController.setState(state, useStaticSprite);
 		}
-		const sources = getSpriteSources(this._variant)[state];
+		const sources = getChatPetSpriteSources(this._variant)[state];
 		const source = this._motionReduced || useStaticSprite ? sources.reducedMotion : sources.animated;
 		if (!restart && this._activeSprite && isChatPetImageSource(this._activeSprite.image, source.url)) {
 			this._pendingRender = undefined;

@@ -1248,6 +1248,7 @@ suite('Sessions - Workbench', () => {
 		_editorPartAutoVisibilitySuppressionCount: number;
 		partVisibility: { editor: boolean; auxiliaryBar: boolean };
 		editorGroupService: { mainPart: { groups: { id: number }[] } };
+		customViewService: { activeCustomView: { get(): unknown }; hideCustomView(): void };
 		isRestored(): boolean;
 		setEditorHidden(hidden: boolean, explicit?: boolean): void;
 		restoreAttachedEditorMaximizedState(): void;
@@ -1259,12 +1260,31 @@ suite('Sessions - Workbench', () => {
 			_editorPartAutoVisibilitySuppressionCount: 0,
 			partVisibility: { editor: false, auxiliaryBar: false },
 			editorGroupService: { mainPart: { groups: [{ id: 1 }] } },
+			customViewService: { activeCustomView: { get: () => undefined }, hideCustomView: () => { } },
 			isRestored: () => true,
 			setEditorHidden: (hidden, explicit) => setEditorHiddenCalls.push({ hidden, explicit }),
 			restoreAttachedEditorMaximizedState: () => { },
 			...overrides,
 		};
 		return { harness, setEditorHiddenCalls };
+	}
+
+	for (const [label, reveal] of [['grid', revealEditorOnOpen], ['single pane', revealEditorOnOpenSinglePane]] as const) {
+		test(`opening Settings dismisses a custom view on main editor opens only (${label})`, () => {
+			let hidden = 0;
+			const { harness, setEditorHiddenCalls } = createWillOpenHarness({
+				customViewService: { activeCustomView: { get: () => ({ id: 'hub' }) }, hideCustomView: () => { hidden++; } },
+			});
+			reveal.call(harness, { groupId: 99, editor: { typeId: 'workbench.input.settings2' } });
+			assert.strictEqual(hidden, 0, 'Modal/auxiliary opens preserve the board');
+			harness._editorPartAutoVisibilitySuppressionCount = 1;
+			reveal.call(harness, { groupId: 1, editor: { typeId: 'workbench.input.settings2' } });
+			assert.strictEqual(hidden, 0, 'Working-set/background opens preserve the board');
+			harness._editorPartAutoVisibilitySuppressionCount = 0;
+			reveal.call(harness, { groupId: 1, editor: { typeId: 'workbench.input.settings2' } });
+			assert.strictEqual(hidden, 1, 'The board must not cover the opened Settings editor');
+			assert.deepStrictEqual(setEditorHiddenCalls, [{ hidden: false, explicit: true }]);
+		});
 	}
 
 	test('[Scenario 5] base revealEditorOnOpen reveals a hidden editor on open', () => {

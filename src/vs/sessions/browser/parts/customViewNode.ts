@@ -37,6 +37,7 @@ export class CustomViewNode extends Disposable {
 	private readonly _maxWidth: number;
 
 	private _lastLayout: { readonly width: number; readonly height: number } | undefined;
+	private _lastViewLayout: { readonly width: number; readonly height: number } | undefined;
 
 	constructor(
 		descriptor: ICustomViewDescriptor,
@@ -65,6 +66,9 @@ export class CustomViewNode extends Disposable {
 
 		this._titleEl = $('.custom-view-header-title');
 		titleRow.appendChild(this._titleEl);
+		const headerContent = $('.custom-view-header-content');
+		titleRow.appendChild(headerContent);
+		this._view.renderHeader(headerContent);
 
 		this._descriptionEl = $('.custom-view-header-description');
 		this._headerBandEl.appendChild(this._descriptionEl);
@@ -121,7 +125,7 @@ export class CustomViewNode extends Disposable {
 		// after it last fired (for example, expanding a "+more" group), leaving
 		// content unreachable until the next observed resize. Views can request
 		// an immediate rescan instead of waiting for it.
-		this._register(this._view.onDidChangeContentSize(() => this._scrollable.scanDomNode()));
+		this._register(this._view.onDidChangeContentSize(() => this._layoutChildren()));
 
 		this._register(autorun(reader => {
 			const title = this._view.title.read(reader);
@@ -164,7 +168,11 @@ export class CustomViewNode extends Disposable {
 
 		// The scroll container is sized by flex, so only the view needs to be told
 		// how much room is left below the header.
-		this._view.layout(bandWidth, Math.max(0, height - this._headerEl.offsetHeight));
+		const contentHeight = Math.max(0, height - this._headerEl.offsetHeight);
+		if (this._lastViewLayout?.width !== bandWidth || this._lastViewLayout.height !== contentHeight) {
+			this._lastViewLayout = { width: bandWidth, height: contentHeight };
+			this._view.layout(bandWidth, contentHeight);
+		}
 		this._scrollable.scanDomNode();
 	}
 }

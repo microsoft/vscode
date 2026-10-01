@@ -58,13 +58,69 @@
 .project-board-header h1 {
 	margin: 0;
 	font-size: 22px;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .project-board-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 16px;
+}
+
+.project-board-filter {
+	flex: 2 1 280px;
+	min-width: 160px;
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+.project-board-filter > .monaco-inputbox {
+	width: 100%;
+}
+
+.project-board-filter-summary {
+	display: block;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.project-board-filter-summary:empty {
+	display: none;
+}
+
+.project-board-topics {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	margin-top: var(--vscode-spacing-size40);
+}
+
+.project-board-topics > .monaco-button {
+	width: auto;
+	font-size: var(--vscode-fontSize-label1);
+	border-radius: var(--vscode-cornerRadius-circle);
+}
+
+.project-board-topics > [aria-pressed="true"] {
+	background: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+	border-color: var(--vscode-inputOption-activeBorder);
+}
+
+.project-board-topic-status {
+	flex-basis: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.project-board-topic-status:empty {
+	display: none;
 }
 
 .project-board-header > .monaco-button {
@@ -105,9 +161,19 @@
 	margin-top: 0;
 }
 
-.project-board-header p {
-	margin: 6px 0 18px;
-	color: var(--vscode-descriptionForeground);
+.project-board-pinned {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	max-height: var(--project-board-pinned-max-height, 50vh);
+	margin-bottom: var(--vscode-spacing-size80, 8px);
+	background: var(--vscode-editor-background);
+}
+
+.project-board-grid :is(.project-board-card, .project-board-card-group, .project-board-row-heading, .project-board-column-heading) {
+	scroll-margin-top: calc(var(--project-board-pinned-height, 0px) + 8px);
 }
 
 .project-board-selection-tools {
@@ -115,17 +181,54 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
-	margin-bottom: var(--vscode-spacing-size160);
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size80, 8px);
 }
 
 .project-board-selection-tools > .monaco-button {
 	width: auto;
 }
 
-.project-board-selection-description {
-	flex-basis: 100%;
+.project-board-selection-overview {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80, 8px);
+	flex: 1 1 320px;
+	min-width: 0;
+}
+
+.project-board-total-summary {
+	display: flex;
+	align-items: center;
+	min-width: 0;
 	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label1);
+	overflow-x: auto;
+	scrollbar-width: thin;
+	white-space: nowrap;
+}
+
+.project-board-total-summary > .project-board-state-filter {
+	flex: none;
+	width: auto;
+	padding: 0 3px;
+	font-size: inherit;
+	white-space: nowrap;
+}
+
+.project-board-state-filter[aria-pressed="true"] {
+	--project-board-filter-background: var(--vscode-inputOption-activeBackground);
+	--project-board-filter-foreground: var(--vscode-inputOption-activeForeground);
+	--project-board-filter-border: var(--vscode-inputOption-activeBorder);
+}
+
+.project-board-selection-overview > .project-board-selection-count {
+	flex-shrink: 0;
+	border-left: var(--vscode-strokeThickness, 1px) solid var(--vscode-panel-border);
+	padding-left: var(--vscode-spacing-size80, 8px);
+}
+
+.project-board-selection-description {
+	display: none;
 }
 
 .project-board-card-heading {
@@ -151,15 +254,49 @@
 	outline-offset: 1px;
 }
 
-.project-board-unassigned {
-	margin-bottom: 18px;
+.project-board-card-group.project-board-unassigned {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
+.project-board-unassigned > :is(h3, .project-board-unassigned-summary) {
+	flex-shrink: 0;
+}
+
+.project-board-unassigned-summary {
+	min-width: 0;
+	margin: 0;
+}
+
+.project-board-unassigned-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+}
+
+.project-board-unassigned-scrollable[hidden] {
+	display: none;
+}
+
+.project-board-unassigned-scrollable > .project-board-card-list {
+	overflow: hidden;
+	align-content: flex-start;
+	padding: 2px;
+	box-sizing: border-box;
 }
 
 .project-board-grid {
 	display: grid;
-	grid-template-columns: minmax(90px, auto) repeat(4, minmax(180px, 1fr));
+	grid-template-columns: repeat(4, minmax(180px, 1fr));
 	align-items: stretch;
 	gap: 8px;
+}
+
+.project-board-row-heading {
+	grid-column: 1 / -1;
+	background: var(--vscode-sideBarSectionHeader-background);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-panel-border);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
 }
 
 .project-board-axis-corner,
@@ -246,11 +383,70 @@
 .project-board-card-heading > .project-board-collapse,
 .project-board-child-heading > .project-board-collapse,
 .project-board-tray-heading > .project-board-collapse {
+	border: 0;
 	flex: 0 0 22px;
 	box-sizing: border-box;
 	width: 22px;
 	height: 22px;
 	padding: 0;
+}
+
+.project-board-row-heading .project-board-axis-controls {
+	align-items: center;
+	justify-content: flex-start;
+}
+
+.project-board-tray-heading {
+	align-items: center;
+}
+
+.project-board-axis-controls > .project-board-row-toggle,
+.project-board-tray-heading > .project-board-tray-toggle {
+	flex: 0 1 auto;
+	width: auto;
+	margin-left: 0;
+	text-align: left;
+	justify-content: flex-start;
+	font-weight: var(--vscode-fontWeight-semiBold, 600);
+}
+
+.project-board-row-toggle > .codicon,
+.project-board-tray-toggle > .codicon {
+	flex: 0 0 22px;
+	margin: 0;
+}
+
+.project-board-axis-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.project-board-axis-controls > .monaco-button.project-board-axis-menu {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 22px;
+	width: 22px;
+	height: 22px;
+	padding: 0;
+	line-height: 1;
+}
+
+.project-board-row-heading .project-board-collapsed-summary {
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-top: 0;
+}
+
+.project-board-tray-heading > .project-board-unassigned-summary {
+	margin: 0;
+}
+
+.project-board-grid .project-board-card-group > .project-board-collapsed-summary,
+.project-board-grid .project-board-attention {
+	text-align: right;
 }
 
 .project-board-card-group-collapsed {
@@ -268,7 +464,9 @@
 	font-size: var(--vscode-fontSize-label1, 12px);
 	font-weight: var(--vscode-fontWeight-regular, 400);
 	color: var(--vscode-descriptionForeground);
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .project-board-grid .project-board-card-list {
@@ -276,7 +474,11 @@
 }
 
 .project-board-state-count {
-	display: inline-block;
+	display: inline-flex;
+	align-items: center;
+	vertical-align: middle;
+	gap: var(--vscode-spacing-size40, 4px);
+	white-space: nowrap;
 }
 
 .project-board-empty {
@@ -360,7 +562,9 @@
 	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1, 12px);
-	overflow-wrap: anywhere;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .project-board-child-cards {
@@ -417,7 +621,7 @@
 	border-left-color: var(--vscode-descriptionForeground);
 }
 
-.project-board-card-unvisited {
+.project-board-card-unread {
 	border-left-color: var(--vscode-list-highlightForeground);
 }
 
@@ -446,13 +650,17 @@
 	color: var(--vscode-notificationsErrorIcon-foreground);
 }
 
-.project-board-card-unvisited .project-board-card-status {
+.project-board-card-unread .project-board-card-status {
 	color: var(--vscode-list-highlightForeground);
 }
 
-.project-board-card-status-icon {
+.project-board-status-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	flex-shrink: 0;
 	font-size: var(--vscode-fontSize-body1, 13px);
+	line-height: 1;
 }
 
 .project-board-card-duration,
@@ -483,42 +691,48 @@
 	color: var(--vscode-editorError-foreground);
 }
 
-.project-board-card-status-running {
+.project-board-status-icon[data-pet-state] {
+	width: calc(var(--project-board-pet-size) * 1.75);
+	height: var(--project-board-pet-size);
+}
+
+.project-board-status-icon.project-board-card-status-pet {
 	font-size: 0;
 }
 
-.project-board-card-status-running::before {
+.project-board-status-icon.project-board-card-status-pet::before {
 	content: '';
 	display: block;
-	width: var(--vscode-spacing-size200, 20px);
-	height: var(--vscode-spacing-size200, 20px);
-	background: url('./running-person.gif') center / contain no-repeat;
+	width: var(--project-board-pet-width);
+	height: var(--project-board-pet-size);
+	background: var(--project-board-pet-image) 0 0 / auto var(--project-board-pet-size) no-repeat;
 }
 
-.monaco-reduce-motion .project-board-card-status-running {
-	font-size: var(--vscode-fontSize-body1, 13px);
+.project-board-card-status-pet.project-board-card-status-running::before {
+	animation: project-board-pet-typing var(--project-board-pet-duration) var(--project-board-pet-timing) infinite;
+	animation-delay: var(--project-board-pet-delay);
 }
 
-.monaco-reduce-motion .project-board-card-status-running::before {
-	display: none;
-	background-image: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.project-board-card-status-running {
-		font-size: var(--vscode-fontSize-body1, 13px);
+@keyframes project-board-pet-typing {
+	to {
+		background-position-x: var(--project-board-pet-last-frame);
 	}
+}
 
-	.project-board-card-status-running::before {
-		display: none;
-		background-image: none;
-	}
+/* The workbench resolves the OS preference and the explicit user override. */
+.monaco-reduce-motion .project-board-status-icon.project-board-card-status-pet::before {
+	background-image: var(--project-board-pet-static);
+	background-position: 0 0;
+	animation: none;
 }
 
 .project-board-card h4 {
 	margin: 0 0 6px;
 	padding-right: var(--vscode-spacing-size280, 28px);
 	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .project-board-card-heading > h4 {
@@ -671,8 +885,30 @@
 
 .project-board-column-heading .monaco-button,
 .project-board-row-heading .monaco-button {
-	overflow-wrap: anywhere;
-	white-space: normal;
+	overflow-wrap: normal;
+	white-space: nowrap;
+}
+
+.project-board-column-heading [data-board-control^="axis:"] {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.project-board [data-board-control],
+.project-board-filter [data-topic-control],
+.project-board-card-status,
+.project-board-card-lifecycle,
+.project-board-card-workspace,
+.project-board-tray-heading > h3,
+.project-board-selection-count,
+.project-board-filter-summary {
+	white-space: nowrap;
+}
+
+.project-board-card-workspace {
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .monaco-dialog-box.project-board-new-session-dialog {

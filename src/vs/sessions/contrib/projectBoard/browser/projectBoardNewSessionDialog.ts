@@ -309,7 +309,7 @@ export class ProjectBoardNewSessionDialog extends Disposable {
 							}
 						}).catch(error => {
 							this.logService.error('[Agents Hub] Failed to finalize started session', error);
-							this.notificationService.error(localize('projectBoard.newSessionFinalizeFailed', "The session started, but could not be finalized: {0}. Check the conversation before sending again.", toErrorMessage(error)));
+							this.notificationService.error(localize('projectBoard.newSessionFinalizeFailed', "The session started, but could not be finalized: {0}. Check the chat before sending again.", toErrorMessage(error)));
 						}).finally(() => selected.draft.dispose());
 					}
 					return true;

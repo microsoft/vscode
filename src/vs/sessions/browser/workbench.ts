@@ -1293,6 +1293,10 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 			return;
 		}
 
+		if (this.customViewService.activeCustomView.get()) {
+			this.customViewService.hideCustomView();
+		}
+
 		if (!this.partVisibility.editor) {
 			this.setEditorHidden(false, /* explicit */ true);
 			this.restoreAttachedEditorMaximizedState();
