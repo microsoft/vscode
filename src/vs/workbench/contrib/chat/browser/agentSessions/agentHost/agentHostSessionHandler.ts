@@ -85,6 +85,7 @@ import {
 import { coerceImageBuffer } from '../../../common/chatImageExtraction.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatProgress, IChatQuestionAnswers, IChatService, IChatToolInvocation, IRemotePendingRequest, ToolConfirmKind, type IChatAutoModeResolutionPart, type IChatMcpAuthenticationRequired, type IChatMcpAuthenticationRequiredServer, type IChatMcpStartingServer, type IChatMultiSelectAnswer, type IChatPlanReviewResult, type IChatResponseErrorDetails, type IChatSingleSelectAnswer, type IChatTerminalToolInvocationData, type IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import { isInConversationModelChoice } from '../../../common/modelSelection.js';
+import { readAgentRuntimeModelConfiguration } from '../../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionRequestHistoryItem, isTerminalCommandPrompt, SessionType, type IChatInputCompletionItem, type IChatInputCompletionsParams, type IChatInputCompletionsResult, type IChatSessionServerRequest } from '../../../common/chatSessionsService.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
@@ -3802,8 +3803,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				if (hideAutoExplainability === undefined) {
 					return;
 				}
-				const model = this._createTurnModelLookup(opts.sessionResource, turn$.read(reader)?.message.model?.id, hideAutoExplainability)
+				const selection = turn$.read(reader)?.message.model;
+				const modelInfo = this._createTurnModelLookup(opts.sessionResource, selection?.id, hideAutoExplainability)
 					.toBilledModelInfo?.(usage$.read(reader));
+				const model = modelInfo && { ...modelInfo, modelConfiguration: selection?.config };
 				if (model && !equals(model, modelObservable.read(undefined))) {
 					transaction(tx => modelObservable.set(model, tx));
 				}
@@ -4521,9 +4524,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		observationStore.add(autorun(reader => {
 			const model = perInvocationModel.read(reader);
 			if (model && invocation.toolSpecificData?.kind === 'subagent'
-				&& (invocation.toolSpecificData.modelName !== model.modelName || invocation.toolSpecificData.modelId !== model.modelId)) {
+				&& (invocation.toolSpecificData.modelName !== model.modelName || invocation.toolSpecificData.modelId !== model.modelId
+					|| !equals(invocation.toolSpecificData.modelConfiguration, model.modelConfiguration)
+					|| !equals(invocation.toolSpecificData.runtimeModelConfiguration, model.runtimeModelConfiguration))) {
 				invocation.toolSpecificData.modelId = model.modelId;
 				invocation.toolSpecificData.modelName = model.modelName;
+				invocation.toolSpecificData.modelConfiguration = model.modelConfiguration;
+				invocation.toolSpecificData.runtimeModelConfiguration = model.runtimeModelConfiguration;
 				invocation.notifyToolSpecificDataChanged();
 			}
 		}));
@@ -5236,7 +5243,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const turnModel = this._createTurnModelLookup(sessionResource, turn.message.model?.id).toBilledModelInfo?.(turn.usage);
 			if (turnModel) {
-				model = turnModel;
+				model = { ...turnModel, modelConfiguration: turn.message.model?.config };
 			}
 		}
 		if (credits > 0) {
@@ -5247,6 +5254,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (model) {
 			part.toolSpecificData.modelId = model.modelId;
 			part.toolSpecificData.modelName = model.modelName;
+			part.toolSpecificData.modelConfiguration = model.modelConfiguration;
+			part.toolSpecificData.runtimeModelConfiguration = model.runtimeModelConfiguration;
 		}
 		const timing = getSubagentTiming(childState);
 		part.toolSpecificData.hasStarted = !!childState.activeTurn || childState.turns.length > 0;
@@ -6280,7 +6289,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const knownModel = resolved && (resolved.resolvedFromRaw || !billedId) ? resolved : undefined;
 				const modelId = knownModel?.identifier ?? this._toLanguageModelId(sessionResource, billedId ?? fallbackRawModelId);
 				const modelName = knownModel ? displayName(knownModel) : billedId ?? fallbackRawModelId;
-				return modelId && modelName ? { modelId, modelName } : undefined;
+				const runtimeModelConfiguration = readAgentRuntimeModelConfiguration(usage);
+				return modelId && modelName ? { modelId, modelName, ...(runtimeModelConfiguration ? { runtimeModelConfiguration } : {}) } : undefined;
 			},
 			toAutoModeResolution: usage => {
 				const resolution = readUsageInfoMeta(usage).autoModeResolved;

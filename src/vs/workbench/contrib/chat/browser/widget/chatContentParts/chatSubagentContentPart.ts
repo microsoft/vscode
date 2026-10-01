@@ -12,6 +12,7 @@ import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -42,7 +43,7 @@ import { ChatThinkingStyleContentPart, createThinkingIcon } from './chatThinking
 import { ChatToolInvocationPart } from './toolInvocationParts/chatToolInvocationPart.js';
 import { getToolInvocationIcon } from './toolInvocationParts/chatToolPartUtilities.js';
 import { FusionPhasePillActionViewItem, type ISubagentPhaseContext } from './fusionPhasePillActionViewItem.js';
-import { IInlineSubagentDetailsContext, OpenSubagentChatActionViewItem } from './chatSubagentOpenChat.js';
+import { IInlineSubagentDetailsContext, ISubagentActivity, OpenSubagentChatActionViewItem } from './chatSubagentOpenChat.js';
 import './media/chatSubagentContent.css';
 
 const MAX_TITLE_LENGTH = 100;
@@ -139,8 +140,8 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	private currentRunningToolMessage: string | undefined;
 	private currentRunningToolCallId: string | undefined;
 	private currentRunningToolIcon: ThemeIcon | undefined;
-	private readonly activeToolPresentations = new Map<string, { label: string; icon: ThemeIcon }>();
-	private mostRecentToolPresentation: { callId: string; label: string; icon: ThemeIcon } | undefined;
+	private readonly activeToolPresentations = new Map<string, { label: string; icon: ThemeIcon; subagent?: ISubagentActivity }>();
+	private mostRecentToolPresentation: { callId: string; label: string; icon: ThemeIcon; subagent?: ISubagentActivity } | undefined;
 	private subagentActivity: 'markdown' | 'reasoning' | undefined;
 
 	// Model name used by this subagent for hover tooltip
@@ -174,7 +175,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	private toolsWaitingForCarouselConfirmation: number = 0;
 	private _confirmationActive = false;
 
-	/** Per-tool-invocation autoruns observing tool state; each is disposed once its tool reaches a terminal state so listeners don't accumulate for the widget's lifetime. */
+	/** Observes ordinary tools through completion and nested subagents through their retained chat lifetime. */
 	private readonly _toolStateTracking = this._register(new DisposableStore());
 	private _toolPresentationBatchDepth = 0;
 	private _toolPresentationDirty = false;
@@ -195,7 +196,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 	 * Extracts subagent metadata from a tool invocation.
 	 */
 	private static extractSubagentInfo(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { description: string; isDefaultDescription: boolean; agentDisplayName: string | undefined; agentName: string | undefined; prompt: string | undefined; modelName: string | undefined; credits: number | undefined } {
-		const defaultDescription = localize('chat.subagent.defaultDescription', 'Running subagent');
+		const defaultDescription = localize('chat.subagent.defaultDescription', "Running subagent");
 
 		// Only parent subagent tools contain the full subagent info
 		if (!ChatSubagentContentPart.isParentSubagentTool(toolInvocation)) {
@@ -327,7 +328,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			const parentResolvedModelId = typeof resolvedModel === 'string' ? resolvedModel : selectedModel?.metadata.id;
 			const activeTool = Array.from(this.activeToolPresentations.entries()).at(-1);
 			const displayedTool = this.currentRunningToolMessage && !this.currentRunningToolCallId
-				? { callId: undefined, label: this.currentRunningToolMessage, icon: this.currentRunningToolIcon }
+				? { callId: undefined, label: this.currentRunningToolMessage, icon: this.currentRunningToolIcon, subagent: undefined }
 				: activeTool
 					? { callId: activeTool[0], ...activeTool[1] }
 					: this.subagentActivity !== 'markdown'
@@ -346,10 +347,12 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				...(this.credits ? { credits: this.credits } : {}),
 				...(data?.kind === 'subagent' && data.modelId ? { modelId: data.modelId } : {}),
 				...(this.modelName ? { modelName: this.modelName } : {}),
+				...(data?.kind === 'subagent' && data.modelConfiguration ? { modelConfiguration: data.modelConfiguration } : {}),
+				...(data?.kind === 'subagent' && data.runtimeModelConfiguration ? { runtimeModelConfiguration: data.runtimeModelConfiguration } : {}),
 				...(parentModelId ? { parentModelId } : {}),
 				...(parentModelName ? { parentModelName } : {}),
 				...(parentResolvedModelId ? { parentResolvedModelId } : {}),
-				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon } : {}),
+				...(this.isActive && displayedTool ? { activeToolCallId: displayedTool.callId, activeToolLabel: displayedTool.label, activeToolIcon: displayedTool.icon, activeToolSubagent: displayedTool.subagent } : {}),
 			};
 			if (data?.kind === 'subagent' && data.presentation === 'phase') {
 				this._openChatToolbar.context = {
@@ -788,9 +791,29 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		}
 	}
 
+	private getNestedSubagentActivity(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): ISubagentActivity | undefined {
+		const data = toolInvocation.toolSpecificData;
+		if (!toolInvocation.subAgentInvocationId || data?.kind !== 'subagent' || data.presentation === 'phase') {
+			return undefined;
+		}
+		return {
+			title: (data.description?.trim() || data.agentDisplayName?.trim() || data.agentName?.trim() || localize('chat.subagent.defaultDescription', "Running subagent")).replace(/\s+/g, ' '),
+			chatResource: data.chatResource,
+			isChatAvailable: data.isChatAvailable,
+		};
+	}
+
+	private getToolIcon(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, label: string): ThemeIcon {
+		return this.getNestedSubagentActivity(toolInvocation) ? Codicon.agent : getToolInvocationIcon(toolInvocation.toolId, toolInvocation, label);
+	}
+
 	private getToolLabel(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state: IChatToolInvocation.State | undefined): string | undefined {
 		if (state?.type === IChatToolInvocation.StateKind.Streaming) {
 			return undefined;
+		}
+		const subagent = this.getNestedSubagentActivity(toolInvocation);
+		if (subagent) {
+			return localize('chat.subagent.nestedActivity', "Subagent: {0}", subagent.title);
 		}
 		if (toolInvocation.toolSpecificData?.kind === 'terminal' && !isLegacyChatTerminalToolInvocationData(toolInvocation.toolSpecificData)) {
 			const intention = toolInvocation.toolSpecificData.intention?.replace(/\s+/g, ' ').trim();
@@ -832,11 +855,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		if (!wasStreamingForPresentation) {
 			this.currentRunningToolCallId = toolInvocation.toolCallId;
 			this.currentRunningToolMessage = this.getToolLabel(toolInvocation, initialState);
-			this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation, this.currentRunningToolMessage) : undefined;
-			this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
+			this.currentRunningToolIcon = this.currentRunningToolMessage ? this.getToolIcon(toolInvocation, this.currentRunningToolMessage) : undefined;
+			this.updateActiveToolPresentation(toolInvocation, this.currentRunningToolMessage, this.currentRunningToolIcon, initialState);
 			this._updateToolPresentation();
 		}
-		if (toolInvocation.kind !== 'toolInvocation' || IChatToolInvocation.isComplete(toolInvocation)) {
+		if (toolInvocation.kind !== 'toolInvocation' || (IChatToolInvocation.isComplete(toolInvocation) && !this.getNestedSubagentActivity(toolInvocation))) {
 			return;
 		}
 		const addToolToCarousel = this._addToolToCarousel;
@@ -846,20 +869,40 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 		let wasWaitingForCarouselConfirmation = false;
 		const toolStateAutorun = autorun(r => {
 			const state = toolInvocation.state.read(r);
+			toolInvocation.toolSpecificDataKind.read(r);
+			const subagent = this.getNestedSubagentActivity(toolInvocation);
 			if (wasStreamingForPresentation && state.type !== IChatToolInvocation.StateKind.Streaming) {
 				wasStreamingForPresentation = false;
 				this.currentRunningToolCallId = toolInvocation.toolCallId;
 				this.currentRunningToolMessage = this.getToolLabel(toolInvocation, state);
-				this.currentRunningToolIcon = this.currentRunningToolMessage ? getToolInvocationIcon(toolInvocation.toolId, toolInvocation, this.currentRunningToolMessage) : undefined;
-				this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
+				this.currentRunningToolIcon = this.currentRunningToolMessage ? this.getToolIcon(toolInvocation, this.currentRunningToolMessage) : undefined;
+				this.updateActiveToolPresentation(toolInvocation, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 				this._updateToolPresentation();
 			}
 			if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
 				const toolLabel = this.getToolLabel(toolInvocation, state);
-				if (toolLabel && toolLabel !== this.currentRunningToolMessage) {
+				if (toolLabel && (toolLabel !== this.currentRunningToolMessage || !equals(subagent, this.mostRecentToolPresentation?.subagent))) {
 					this.currentRunningToolMessage = toolLabel;
-					this.currentRunningToolIcon = getToolInvocationIcon(toolInvocation.toolId, toolInvocation, this.currentRunningToolMessage);
-					this.updateActiveToolPresentation(toolInvocation.toolCallId, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
+					this.currentRunningToolIcon = this.getToolIcon(toolInvocation, this.currentRunningToolMessage);
+					this.updateActiveToolPresentation(toolInvocation, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
+					this._updateToolPresentation();
+				}
+			} else {
+				const activePresentation = this.activeToolPresentations.get(toolInvocation.toolCallId);
+				const recentPresentation = this.mostRecentToolPresentation?.callId === toolInvocation.toolCallId ? this.mostRecentToolPresentation : undefined;
+				const presentation = activePresentation ?? recentPresentation;
+				if (presentation && !equals(subagent, presentation.subagent)) {
+					const updatedPresentation = {
+						label: this.getToolLabel(toolInvocation, state) ?? presentation.label,
+						icon: this.getToolIcon(toolInvocation, presentation.label),
+						subagent,
+					};
+					if (activePresentation) {
+						this.activeToolPresentations.set(toolInvocation.toolCallId, updatedPresentation);
+					}
+					if (recentPresentation) {
+						this.mostRecentToolPresentation = { callId: toolInvocation.toolCallId, ...updatedPresentation };
+					}
 					this._updateToolPresentation();
 				}
 			}
@@ -911,24 +954,28 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			wasWaitingForConfirmation = isWaitingForConfirmation;
 			wasWaitingForCarouselConfirmation = isWaitingForCarouselConfirmation;
 
-			// On terminal state, dispose this autorun (deferred so we don't dispose it mid-run) to avoid leaking a listener per tool invocation.
+			// A background subagent's chat can become available after its launch tool completes.
 			if (state.type === IChatToolInvocation.StateKind.Completed || state.type === IChatToolInvocation.StateKind.Cancelled) {
 				if (this.activeToolPresentations.delete(toolInvocation.toolCallId)) {
 					this._updateToolPresentation();
 				}
-				queueMicrotask(() => this._toolStateTracking.delete(toolStateAutorun));
+				if (!subagent) {
+					queueMicrotask(() => this._toolStateTracking.delete(toolStateAutorun));
+				}
 			}
 		});
 		this._toolStateTracking.add(toolStateAutorun);
 	}
 
-	private updateActiveToolPresentation(toolCallId: string, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State | undefined): void {
+	private updateActiveToolPresentation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, label: string | undefined, icon: ThemeIcon | undefined, state: IChatToolInvocation.State | undefined): void {
+		const toolCallId = toolInvocation.toolCallId;
+		const subagent = this.getNestedSubagentActivity(toolInvocation);
 		this.activeToolPresentations.delete(toolCallId);
 		if (label && icon) {
-			this.mostRecentToolPresentation = { callId: toolCallId, label, icon };
+			this.mostRecentToolPresentation = { callId: toolCallId, label, icon, subagent };
 		}
 		if (label && icon && state && state.type !== IChatToolInvocation.StateKind.Completed && state.type !== IChatToolInvocation.StateKind.Cancelled) {
-			this.activeToolPresentations.set(toolCallId, { label, icon });
+			this.activeToolPresentations.set(toolCallId, { label, icon, subagent });
 		}
 	}
 

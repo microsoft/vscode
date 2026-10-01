@@ -41,6 +41,7 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../comm
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
+import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSessionEvents } from './copilotTestEvents.js';
@@ -5984,6 +5985,36 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 	}
+
+	test('reports resolved subagent model options and preserves them through usage and model rounds', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'gpt-5.4-mini',
+		}, { agentId: 'agent-1' });
+		const configurations = () => signals.flatMap(signal => signal.kind === 'action'
+			&& signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+			? [readAgentRuntimeModelConfiguration(signal.action.usage)] : []);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'xhigh', contextTier: 'long_context',
+		}, { agentId: 'agent-1' });
+		const configured = configurations().at(-1);
+		mockSession.fire('assistant.usage', { model: 'gpt-5.4-mini', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'agent-1' });
+		const afterUsage = configurations().at(-1);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'low', contextTier: 'default',
+		}, { agentId: 'agent-1' });
+		const changed = configurations().at(-1);
+		mockSession.fire('subagent.configured', { model: 'gpt-5.4-mini', multiTurn: true }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual({ configured, afterUsage, changed, cleared: configurations().at(-1) }, {
+			configured: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			afterUsage: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			changed: { reasoningEffort: 'low', contextTier: 'default' },
+			cleared: {},
+		});
+	});
 
 	test('reports the model when a background child starts after its parent turn finishes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);

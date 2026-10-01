@@ -793,6 +793,89 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('opens single subagent input pills and every dropdown entry beside the parent chat', () => {
+		const { instantiationService, visibility } = createServices();
+		visibility.toggle(SessionChatPillKind.Subagents);
+		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
+		instantiationService.stub(ISessionsService, {
+			visibleSessions: constObservable([]),
+			activeSession: constObservable(undefined),
+			openChatToSide: async (...args) => { opened.push(args); },
+		});
+		let entries: { label: string | undefined; select(): void }[] = [];
+		let hideDropdown: (() => void) | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items, delegate) => {
+				entries = items.map(item => ({
+					label: item.label,
+					select: () => {
+						if (item.item) {
+							delegate.onSelect(item.item);
+						}
+					},
+				}));
+				hideDropdown = () => delegate.onHide?.();
+			},
+			hide: () => hideDropdown?.(),
+		});
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:parent'),
+			title: constObservable('Parent'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const subagents = [
+			{ title: 'Running', status: SessionStatus.InProgress },
+			{ title: 'Waiting', status: SessionStatus.NeedsInput },
+			{ title: 'Completed', status: SessionStatus.Completed },
+		].map(({ title, status }) => upcastPartial<IChat>({
+			resource: URI.parse(`chat:${title}`),
+			title: constObservable(title),
+			status: constObservable(status),
+			origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
+		}));
+		const chats = observableValue<readonly IChat[]>('chats', [chat, subagents[0]]);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			chats,
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		document.body.appendChild(toolbar.element);
+		store.add(toDisposable(() => toolbar.element.remove()));
+		toolbar.setSession(session, chat);
+		const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label'), label => label.textContent);
+		const clickPill = () => {
+			const pill = toolbar.getChatPetPlatformElements()[0];
+			assert.ok(pill);
+			pill.click();
+		};
+		const singleLabels = labels();
+		clickPill();
+		chats.set([chat, ...subagents], undefined);
+		const multipleLabels = labels();
+		for (const subagent of subagents) {
+			clickPill();
+			const entry = entries.find(item => item.label === subagent.title.get());
+			assert.ok(entry);
+			entry.select();
+		}
+
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+			singleLabels: ['Running'],
+			multipleLabels: ['3 Subagents'],
+			opened: [subagents[0], ...subagents].map(subagent => [
+				session, subagent.resource, { referenceChatResource: chat.resource },
+			]),
+		});
+	});
+
 	for (const keyboard of [false, true]) {
 		for (const withChanges of [false, true]) {
 			test(`groups and restores filtered subagents from ${withChanges ? 'another pill' : 'the empty toolbar'} using ${keyboard ? 'the keyboard' : 'the mouse'}`, async () => {

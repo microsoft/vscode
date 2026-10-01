@@ -40,6 +40,7 @@ import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -1231,6 +1232,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Chat-layer model identifier (raw provider id for phases), independent of its display name. */
 	modelId?: string;
 	modelName?: string;
+	modelConfiguration?: Record<string, unknown>;
+	runtimeModelConfiguration?: IAgentRuntimeModelConfiguration;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
 	startedAt?: number;

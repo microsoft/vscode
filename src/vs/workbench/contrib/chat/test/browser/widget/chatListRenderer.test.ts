@@ -1622,6 +1622,7 @@ suite('ChatListRenderer', () => {
 	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
@@ -7830,6 +7831,7 @@ suite('ChatListRenderer', () => {
 	function createBackgroundSubagentRenderer(chatWidgetService?: IChatWidgetService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
@@ -9273,7 +9275,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			subagent.focus();
 			const childControl = mainWindow.document.activeElement;
-			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-widget'));
+			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-content'));
 
 			data.isActive = false;
 			invocation.notifyToolSpecificDataChanged();
@@ -9438,6 +9440,7 @@ suite('ChatListRenderer', () => {
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);
