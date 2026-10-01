@@ -17,7 +17,7 @@ import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { isAhpLogFileFor } from '../../../../../platform/agentHost/common/ahpJsonlLogger.js';
-import { IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentHostService, type AgentHostDebugLogsArtifactKind, type IAgentConnection, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, remoteAgentHostLogOutputChannelId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents, type SessionState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -41,6 +41,7 @@ import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chat
 
 const SHARED_PROCESS_LOG_FILE_NAME = 'sharedprocess.log';
 const OUTPUT_LOG_FOLDER_PREFIX = 'output_';
+const MAX_AHP_LOG_FILES_PER_HOST = 10;
 
 /**
  * Description of the agent-host session whose logs should be exported. If
@@ -210,7 +211,8 @@ export function createHostArtifactStream(
  * Agent Host's own debug-log bundle (collected and packaged by the host), plus
  * the logs this side owns: the window/shared-process output channels, remote
  * forwarded logs, the AHP transport JSONL logs, and the client-local capture
- * sidecars.
+ * sidecars. The combined export is capped at 1,000 files, with at most the ten
+ * most recently modified AHP files per host.
  *
  * Both the workbench-side action (resolves the active session via
  * `IChatWidgetService`) and the sessions-app-side action (resolves it via
@@ -281,8 +283,14 @@ export async function collectAgentHostDebugLogs(
 	}
 
 	const files: IAgentHostDebugLogFile[] = [];
+	const availableEntries = Math.max(0, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - (hostArtifact?.entries.length ?? 0));
+	let omittedFiles = 0;
 	const appendFile = (file: IAgentHostDebugLogFile) => {
-		files.push(file);
+		if (files.length < availableEntries) {
+			files.push(file);
+		} else {
+			omittedFiles++;
+		}
 	};
 	const appendFiles = (collectedFiles: readonly IAgentHostDebugLogFile[]) => {
 		for (const file of collectedFiles) {
@@ -317,30 +325,9 @@ export async function collectAgentHostDebugLogs(
 		logService.warn(`[ExportAgentHostDebugLogs] Failed to collect forwarded Agent Host logs: ${error instanceof Error ? error.message : String(error)}`);
 	}
 
-	// 2. AHP transport JSONL logs (one file per remote connection, written under <logsHome>/ahp/).
-	// These replace the per-connection `agenthost.<clientId>` IPC traffic output channel.
-	try {
-		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
-		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
-		for (const child of stat.children ?? []) {
-			if (child.isDirectory || !child.name.endsWith('.jsonl') || activeSession && (!ahpLogId || !isAhpLogFileFor(ahpLogId, child.name))) {
-				continue;
-			}
-			try {
-				appendFile(await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size));
-			} catch (error) {
-				logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
-			}
-		}
-	} catch (error) {
-		if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
-			logService.warn(`[ExportAgentHostDebugLogs] Failed to enumerate AHP logs: ${error instanceof Error ? error.message : String(error)}`);
-		}
-	}
-
 	const rawSessionId = getCopilotCliSessionRawId(activeSession?.resource);
 
-	// 3. Client-local capture sidecars for the session. These hold data the SDK
+	// 2. Client-local capture sidecars for the session. These hold data the SDK
 	// never persists — per-model-call token/credit usage (`assistant.usage` is
 	// ephemeral) and the loaded customization set (`session.*_loaded` likewise) —
 	// so without them an export cannot explain a usage/cost discrepancy or say
@@ -359,6 +346,37 @@ export async function collectAgentHostDebugLogs(
 				}
 			}
 		}
+	}
+
+	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
+	try {
+		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
+		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
+		const candidates = (stat.children ?? [])
+			.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith('.jsonl') && (!activeSession || ahpLogId && isAhpLogFileFor(ahpLogId, child.name)))
+			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
+		const filesPerHost = new Map<string, number>();
+		for (const child of candidates) {
+			const hostId = /^ahp-(?<hostId>[a-f0-9]{40})-/.exec(child.name)?.groups?.hostId ?? child.name;
+			const hostFileCount = filesPerHost.get(hostId) ?? 0;
+			if (hostFileCount >= MAX_AHP_LOG_FILES_PER_HOST) {
+				omittedFiles++;
+				continue;
+			}
+			try {
+				appendFile(await createDebugLogFile(`ahp/${child.name}`, child.resource, fileService, child.size));
+				filesPerHost.set(hostId, hostFileCount + 1);
+			} catch (error) {
+				logService.warn(`[ExportAgentHostDebugLogs] Failed to read AHP log '${child.name}': ${error instanceof Error ? error.message : String(error)}`);
+			}
+		}
+	} catch (error) {
+		if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to enumerate AHP logs: ${error instanceof Error ? error.message : String(error)}`);
+		}
+	}
+	if (omittedFiles > 0) {
+		logService.warn(`[ExportAgentHostDebugLogs] Omitted ${omittedFiles} log files to keep the export within ${AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES} entries and ${MAX_AHP_LOG_FILES_PER_HOST} AHP files per host`);
 	}
 
 	return {
