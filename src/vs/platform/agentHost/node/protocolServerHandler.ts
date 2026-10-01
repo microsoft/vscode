@@ -23,7 +23,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, AgentHostRepositoryPluginContextsChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, SetAgentHostRepositoryPluginContextsExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -73,7 +73,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
-import { toRepositoryPluginRuntimeWorkingDirectory, type IAgentHostRepositoryPluginContext, type IAgentHostRepositoryPluginContextsSnapshot } from '../common/repositoryPluginContexts.js';
+import { toRepositoryPluginRuntimeWorkingDirectory } from '../common/repositoryPluginReconciliation.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -384,9 +384,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private readonly _replayBuffer: ActionEnvelope[] = [];
 	private readonly _canvasSnapshots = new Map<string, IAgentCanvasSnapshot>();
 	private readonly _canvasSnapshotChatsByClient = new Map<string, Set<string>>();
-	private readonly _repositoryPluginContextsByClient = new Map<string, readonly IAgentHostRepositoryPluginContext[]>();
-	private _repositoryPluginContextsSnapshot: IAgentHostRepositoryPluginContextsSnapshot | undefined;
-	private _repositoryPluginContextsTail = Promise.resolve();
 	private readonly _telemetryReporter: AgentHostTelemetryReporter;
 	private readonly _managedSettingsOwnerId = generateUuid();
 	private readonly _connectionDisposables = this._register(new DisposableMap<IProtocolTransport, DisposableStore>());
@@ -446,9 +443,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		this._register(this._agentService.onDidChangeCanvases(snapshot => {
 			this._recordAndBroadcastCanvasSnapshot(snapshot);
 		}));
-		this._register(this._agentService.onDidChangeRepositoryPluginContexts(snapshot => {
-			this._recordAndBroadcastRepositoryPluginContextsSnapshot(snapshot);
-		}));
 
 		if (this._config.otlpLogEmitter) {
 			this._register(this._config.otlpLogEmitter.onDidLog(record => this._broadcastOtlpLog(record)));
@@ -482,7 +476,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
 							transport.send(jsonRpcSuccess(msg.id, response));
 							this._sendCurrentCanvasSnapshots(result.client);
-							this._sendCurrentRepositoryPluginContextsSnapshot(result.client);
 						};
 						if (result.response instanceof Promise) {
 							this._trackRequest(result.response).then(
@@ -508,7 +501,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							response => {
 								transport.send(jsonRpcSuccess(msg.id, response));
 								this._sendCurrentCanvasSnapshots(reconnectClient);
-								this._sendCurrentRepositoryPluginContextsSnapshot(reconnectClient);
 							},
 							err => transport.send(jsonRpcErrorFrom(msg.id, err)),
 						);
@@ -1137,15 +1129,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
-			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
-			record.disconnectTimeouts.set('repository-plugin-contexts', disposableTimeout(() => {
-				record.disconnectTimeouts.deleteAndDispose('repository-plugin-contexts');
-				void this._queueRepositoryPluginContextMutation(async () => {
-					this._repositoryPluginContextsByClient.delete(clientId);
-					await this._setAggregatedRepositoryPluginContexts();
-				}).catch(error => {
-					this._logService.error('[ProtocolServer] Failed to remove disconnected repository plugin contexts', error);
-				});
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -2064,10 +2047,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === ResolveAgentHostCanvasSourceExtensionMethod) {
 			return this._handleResolveCanvasSourceRequest(client, params);
 		}
-		if (method === SetAgentHostRepositoryPluginContextsExtensionMethod && this._supportsRepositoryPluginContexts(client)) {
-			return this._handleSetRepositoryPluginContexts(client, params);
-		}
-		if (this._config.allowExtensionMethods === false) {
+		if (this._config.allowExtensionMethods === false && method !== ReconcileAgentHostRepositoryPluginsExtensionMethod) {
 			return undefined;
 		}
 
@@ -2206,6 +2186,32 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'activeHandles must contain valid worktree handles'));
 				}
 				return this._agentService.reconcileDetachedWorktrees(scope, activeHandles);
+			}
+			case ReconcileAgentHostRepositoryPluginsExtensionMethod: {
+				if (!this._agentService.reconcileRepositoryPlugins) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const workingDirectoryParam = params['workingDirectory'];
+				const managedSettings = params['managedSettings'];
+				if (typeof workingDirectoryParam !== 'string' || !workingDirectoryParam) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a non-empty URI string'));
+				}
+				if (managedSettings !== undefined && (!managedSettings || typeof managedSettings !== 'object' || Array.isArray(managedSettings))) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'managedSettings must be an object'));
+				}
+				let workingDirectory: string;
+				try {
+					workingDirectory = toRepositoryPluginRuntimeWorkingDirectory(workingDirectoryParam);
+				} catch {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a valid URI string'));
+				}
+				return this._agentService.reconcileRepositoryPlugins({
+					workingDirectory,
+					managedSettings: managedSettings as Record<string, unknown> | undefined,
+				});
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {
@@ -2382,156 +2388,6 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const message = { jsonrpc: '2.0' as const, method: AgentHostCanvasesChangedNotification, params } as unknown as AhpServerNotification;
 		client.transport.send(message);
-	}
-
-	private _supportsRepositoryPluginContexts(client: IConnectedClient): boolean {
-		return this._config.allowExtensionMethods !== false || this._supportsCanvases(client);
-	}
-
-	private _handleSetRepositoryPluginContexts(client: IConnectedClient, params: unknown): Promise<IAgentHostRepositoryPluginContextsSnapshot> | undefined {
-		if (!this._agentService.setRepositoryPluginContexts) {
-			return undefined;
-		}
-		if (!isParamsObject(params)) {
-			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
-		}
-		const contexts = params['contexts'];
-		if (!Array.isArray(contexts)) {
-			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'contexts must be an array'));
-		}
-		let parsed: IAgentHostRepositoryPluginContext[];
-		try {
-			parsed = contexts.map((context, index) => this._parseRepositoryPluginContext(context, index));
-		} catch (error) {
-			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, error instanceof Error ? error.message : String(error)));
-		}
-		return this._queueRepositoryPluginContextMutation(async () => {
-			const previous = this._repositoryPluginContextsByClient.get(client.clientId);
-			this._repositoryPluginContextsByClient.set(client.clientId, parsed);
-			try {
-				const snapshot = await this._setAggregatedRepositoryPluginContexts();
-				return this._snapshotForClient(client.clientId, snapshot);
-			} catch (error) {
-				if (previous) {
-					this._repositoryPluginContextsByClient.set(client.clientId, previous);
-				} else {
-					this._repositoryPluginContextsByClient.delete(client.clientId);
-				}
-				throw error;
-			}
-		});
-	}
-
-	private _parseRepositoryPluginContext(value: unknown, index: number): IAgentHostRepositoryPluginContext {
-		if (!value || typeof value !== 'object' || Array.isArray(value)) {
-			throw new Error(`contexts[${index}] must be an object`);
-		}
-		const context = value as Record<string, unknown>;
-		const id = context['id'];
-		const workingDirectory = context['workingDirectory'];
-		const trusted = context['trusted'];
-		const automaticUpdatesAllowed = context['automaticUpdatesAllowed'];
-		const managedSettings = context['managedSettings'];
-		if (typeof id !== 'string' || !id) {
-			throw new Error(`contexts[${index}].id must be a non-empty string`);
-		}
-		if (typeof workingDirectory !== 'string' || !workingDirectory) {
-			throw new Error(`contexts[${index}].workingDirectory must be a non-empty URI string`);
-		}
-		URI.parse(workingDirectory, true);
-		if (typeof trusted !== 'boolean' || typeof automaticUpdatesAllowed !== 'boolean') {
-			throw new Error(`contexts[${index}] requires boolean trusted and automaticUpdatesAllowed values`);
-		}
-		if (managedSettings !== undefined && (!managedSettings || typeof managedSettings !== 'object' || Array.isArray(managedSettings))) {
-			throw new Error(`contexts[${index}].managedSettings must be an object`);
-		}
-		return {
-			id,
-			workingDirectory,
-			trusted,
-			automaticUpdatesAllowed,
-			managedSettings: managedSettings as Record<string, unknown> | undefined,
-		};
-	}
-
-	private async _setAggregatedRepositoryPluginContexts(): Promise<IAgentHostRepositoryPluginContextsSnapshot> {
-		const contexts: IAgentHostRepositoryPluginContext[] = [];
-		for (const [clientId, ownedContexts] of this._repositoryPluginContextsByClient) {
-			for (const context of ownedContexts) {
-				contexts.push({
-					...context,
-					id: JSON.stringify([clientId, context.id]),
-					workingDirectory: toRepositoryPluginRuntimeWorkingDirectory(context.workingDirectory),
-				});
-			}
-		}
-		const snapshot = await this._agentService.setRepositoryPluginContexts(contexts);
-		this._recordAndBroadcastRepositoryPluginContextsSnapshot(snapshot);
-		return snapshot;
-	}
-
-	private _queueRepositoryPluginContextMutation<T>(mutation: () => Promise<T>): Promise<T> {
-		const run = this._repositoryPluginContextsTail.then(mutation);
-		this._repositoryPluginContextsTail = run.then(() => undefined, () => undefined);
-		return run;
-	}
-
-	private _recordAndBroadcastRepositoryPluginContextsSnapshot(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void {
-		if (this._repositoryPluginContextsSnapshot?.revision !== undefined
-			&& snapshot.revision <= this._repositoryPluginContextsSnapshot.revision) {
-			return;
-		}
-		this._repositoryPluginContextsSnapshot = snapshot;
-		for (const record of this._clients.values()) {
-			const client = this._getActiveClientFromRecord(record);
-			if (client && this._repositoryPluginContextsByClient.has(client.clientId)) {
-				this._sendRepositoryPluginContextsSnapshot(client, snapshot);
-			}
-		}
-	}
-
-	private _sendCurrentRepositoryPluginContextsSnapshot(client: IConnectedClient): void {
-		if (this._repositoryPluginContextsSnapshot && this._repositoryPluginContextsByClient.has(client.clientId)) {
-			this._sendRepositoryPluginContextsSnapshot(client, this._repositoryPluginContextsSnapshot);
-		}
-	}
-
-	private _sendRepositoryPluginContextsSnapshot(client: IConnectedClient, snapshot: IAgentHostRepositoryPluginContextsSnapshot): void {
-		const params = this._snapshotForClient(client.clientId, snapshot);
-		// eslint-disable-next-line local/code-no-dangerous-type-assertions
-		const message = {
-			jsonrpc: '2.0' as const,
-			method: AgentHostRepositoryPluginContextsChangedNotification,
-			params,
-		} as unknown as AhpServerNotification;
-		client.transport.send(message);
-	}
-
-	private _snapshotForClient(clientId: string, snapshot: IAgentHostRepositoryPluginContextsSnapshot): IAgentHostRepositoryPluginContextsSnapshot {
-		const ownedContexts = new Map((this._repositoryPluginContextsByClient.get(clientId) ?? []).map(context => [context.id, context]));
-		return {
-			revision: snapshot.revision,
-			contexts: snapshot.contexts.flatMap(context => {
-				let identity: unknown;
-				try {
-					identity = JSON.parse(context.id);
-				} catch {
-					return [];
-				}
-				if (!Array.isArray(identity)
-					|| identity.length !== 2
-					|| identity[0] !== clientId
-					|| typeof identity[1] !== 'string') {
-					return [];
-				}
-				const owned = ownedContexts.get(identity[1]);
-				return owned ? [{
-					...context,
-					id: owned.id,
-					workingDirectory: owned.workingDirectory,
-				}] : [];
-			}),
-		};
 	}
 
 	private _broadcastNotification(notification: INotification): void {

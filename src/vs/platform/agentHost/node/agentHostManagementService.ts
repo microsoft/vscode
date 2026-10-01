@@ -9,6 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { toRepositoryPluginRuntimeWorkingDirectory, type IAgentHostRepositoryPluginReconcileRequest, type IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -70,6 +71,16 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host detached worktrees are unavailable');
 		}
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
+	}
+
+	reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		if (!this._agentService.reconcileRepositoryPlugins) {
+			throw new Error('Repository plugin reconciliation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.reconcileRepositoryPlugins!({
+			...request,
+			workingDirectory: toRepositoryPluginRuntimeWorkingDirectory(request.workingDirectory),
+		}));
 	}
 
 	refreshCopilotConnectorSessions(): Promise<void> {

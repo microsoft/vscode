@@ -43,7 +43,6 @@ suite('RuntimeRepositoryAgentPluginDiscovery', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}()));
 		runtimeService.setSnapshot(URI.from({ scheme: Schemas.inMemory, path: '/workspace' }), {
-			repositoryEnabledPlugins: { 'repository-plugin@repository-market': true },
 			repositoryPlugins: [{
 				plugin: {
 					name: 'repository-plugin',
@@ -54,8 +53,6 @@ suite('RuntimeRepositoryAgentPluginDiscovery', () => {
 				},
 				enabled: true,
 			}],
-			installResults: [],
-			updateResults: [],
 			warnings: [],
 		});
 		const discovery = store.add(new TestRuntimeRepositoryAgentPluginDiscovery(

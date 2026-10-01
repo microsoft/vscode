@@ -72,7 +72,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
-import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContextsSnapshot } from '../../common/repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -157,11 +157,16 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 }
 
 interface ICopilotRepositoryPluginSdk {
-	setRepositoryPluginContexts(params: { contexts: readonly IAgentHostRepositoryPluginContext[] }): Promise<IAgentHostRepositoryPluginContextsSnapshot>;
+	readonly rpc: {
+		readonly plugins: {
+			reconcileRepository(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
+		};
+	};
 }
 
 function isCopilotRepositoryPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRepositoryPluginSdk {
-	return 'setRepositoryPluginContexts' in client && typeof client.setRepositoryPluginContexts === 'function';
+	const plugins: object = client.rpc.plugins;
+	return 'reconcileRepository' in plugins && typeof plugins.reconcileRepository === 'function';
 }
 
 function isCopilotRuntimeManagedSettingsSdk(value: unknown): value is ICopilotRuntimeManagedSettingsSdk {
@@ -766,8 +771,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidChatProgress = this._onDidChatProgress.event;
 	private readonly _onDidChangeCanvases = this._register(new Emitter<IAgentCanvasSnapshot>());
 	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
-	private readonly _onDidChangeRepositoryPluginContexts = this._register(new Emitter<IAgentHostRepositoryPluginContextsSnapshot>());
-	readonly onDidChangeRepositoryPluginContexts = this._onDidChangeRepositoryPluginContexts.event;
 	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
 		{ owner: this, equalsFn: structuralEquals },
 		undefined,
@@ -1596,12 +1599,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	async setRepositoryPluginContexts(contexts: readonly IAgentHostRepositoryPluginContext[]): Promise<IAgentHostRepositoryPluginContextsSnapshot> {
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
 		const client = await this._ensureClientForSession();
 		if (!isCopilotRepositoryPluginSdk(client)) {
-			throw new Error('The installed Copilot SDK does not support runtime-owned repository plugin contexts.');
+			throw new Error(`The installed Copilot SDK does not support repository plugin reconciliation. Available plugin methods: ${Object.keys(client.rpc.plugins).join(', ')}`);
 		}
-		return client.setRepositoryPluginContexts({ contexts });
+		return client.rpc.plugins.reconcileRepository(request);
 	}
 
 	getCustomizations(): readonly Customization[] {
@@ -2728,9 +2731,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const copilotSdkLogLevelAtStartup = this._resolveCopilotSdkLogLevel(startupConfig.copilotSdkLogLevel);
 			const gitHubToken = startupConfig.enterpriseHost || startupConfig.copilotConnectors ? this._githubCredentials.token : undefined;
 
-			const clientOptions: CopilotClientOptions & {
-				onRepositoryPluginContextsChanged(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void;
-			} = {
+			const clientOptions: CopilotClientOptions = {
 				useLoggedInUser: false,
 				gitHubToken,
 				connection: RuntimeConnection.forStdio({ path: runtimePath }),
@@ -2749,7 +2750,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},
 				onGitHubTelemetry: notification => { void this._routeGitHubTelemetry(notification).catch(err => this._logService.trace(`[Copilot] GitHub telemetry routing failed: ${err instanceof Error ? err.message : String(err)}`)); },
-				onRepositoryPluginContextsChanged: snapshot => this._onDidChangeRepositoryPluginContexts.fire(snapshot),
 			};
 			const client = this._createCopilotClient(clientOptions);
 			await client.start();

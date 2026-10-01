@@ -8,16 +8,15 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import type { IAgentHostRepositoryPluginContextResult } from '../../../../../../platform/agentHost/common/repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileResult } from '../../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { RuntimeRepositoryPluginService } from '../../../common/plugins/runtimeRepositoryPluginService.js';
 
 suite('RuntimeRepositoryPluginService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function result(path: string, enabled: boolean): IAgentHostRepositoryPluginContextResult {
+	function result(path: string, enabled: boolean): IAgentHostRepositoryPluginReconcileResult {
 		return {
-			repositoryEnabledPlugins: { 'demo@market': enabled },
 			repositoryPlugins: [{
 				plugin: {
 					name: 'demo',
@@ -28,8 +27,6 @@ suite('RuntimeRepositoryPluginService', () => {
 				},
 				enabled,
 			}],
-			installResults: [],
-			updateResults: [],
 			warnings: [],
 		};
 	}
@@ -87,31 +84,5 @@ suite('RuntimeRepositoryPluginService', () => {
 		service.removeSnapshots([first]);
 
 		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()), [second.toString()]);
-	});
-
-	test('replaces runtime snapshots and fails closed for error contexts', () => {
-		const service = createService();
-		const first = URI.file('/workspace/first');
-		const second = URI.file('/workspace/second');
-
-		service.applySnapshot({
-			revision: 1,
-			contexts: [
-				{
-					id: first.toString(),
-					workingDirectory: first.toString(),
-					state: 'ready',
-					result: result('/plugins/first', true),
-				},
-				{
-					id: second.toString(),
-					workingDirectory: second.toString(),
-					state: 'error',
-					error: 'failed',
-				},
-			],
-		});
-
-		assert.deepStrictEqual(service.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()), [first.toString()]);
 	});
 });

@@ -66,6 +66,7 @@ import {
 	type IAgentHostDebugLogsChunk,
 } from '../common/agentService.js';
 import type { IRemoteWatchHandle } from '../common/agentHostFileSystemProvider.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { Implementation, InitializeResult } from '../common/state/protocol/common/commands.js';
@@ -154,7 +155,6 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
 	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
-	get repositoryPluginContexts() { return this._protocolClient?.repositoryPluginContexts; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
@@ -483,6 +483,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		return this._getManagementService().reconcileDetachedWorktrees(scope, activeHandles);
+	}
+
+	reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		return this._getManagementService().reconcileRepositoryPlugins(request);
 	}
 
 	refreshCopilotConnectorSessions(): Promise<void> {

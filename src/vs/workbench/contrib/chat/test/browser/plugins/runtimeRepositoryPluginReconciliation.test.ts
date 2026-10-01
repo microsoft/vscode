@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../../base/common/async.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContextResult, IAgentHostRepositoryPluginContexts, IAgentHostRepositoryPluginContextsSnapshot } from '../../../../../../platform/agentHost/common/repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -22,49 +22,22 @@ import { IWorkspaceTrustManagementService } from '../../../../../../platform/wor
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
-import { RuntimeRepositoryPluginContextService } from '../../../browser/runtimeRepositoryPluginContexts.js';
+import { RuntimeRepositoryPluginReconciliationService } from '../../../browser/runtimeRepositoryPluginReconciliation.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { RuntimeRepositoryPluginService } from '../../../common/plugins/runtimeRepositoryPluginService.js';
+import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
-suite('RuntimeRepositoryPluginContexts', () => {
+suite('RuntimeRepositoryPluginReconciliation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const workspace = URI.file('/workspace');
-	const result: IAgentHostRepositoryPluginContextResult = {
-		repositoryEnabledPlugins: { 'demo@market': true },
+	const result: IAgentHostRepositoryPluginReconcileResult = {
 		repositoryPlugins: [],
-		installResults: [{ spec: 'demo@market', action: 'installed' }],
-		updateResults: [],
 		warnings: [],
 	};
 
-	function createHarness() {
-		const requests: (readonly IAgentHostRepositoryPluginContext[])[] = [];
-		const onDidChange = store.add(new Emitter<IAgentHostRepositoryPluginContextsSnapshot>());
+	function createHarness(trusted = true) {
+		const requests: IAgentHostRepositoryPluginReconcileRequest[] = [];
 		let failure: Error | undefined;
-		let supported = true;
-		let revision = 0;
-		let snapshot: IAgentHostRepositoryPluginContextsSnapshot | undefined;
-		const contexts: IAgentHostRepositoryPluginContexts = {
-			onDidChange: onDidChange.event,
-			getSnapshot: () => snapshot,
-			set: async request => {
-				requests.push(request);
-				if (failure) {
-					throw failure;
-				}
-				snapshot = {
-					revision: ++revision,
-					contexts: request.map(context => ({
-						id: context.id,
-						workingDirectory: context.workingDirectory,
-						state: 'ready',
-						result,
-					})),
-				};
-				return snapshot;
-			},
-		};
 		const initializeResult = observableValue('initializeResult', {
 			protocolVersion: '1.0.0',
 			serverSeq: 0,
@@ -73,25 +46,32 @@ suite('RuntimeRepositoryPluginContexts', () => {
 		});
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = initializeResult;
-			override get repositoryPluginContexts() { return supported ? contexts : undefined; }
+			override async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+				requests.push(request);
+				if (failure) {
+					throw failure;
+				}
+				return result;
+			}
 		}();
 		const runtimeService = store.add(new RuntimeRepositoryPluginService(new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}()));
-		const contextService = store.add(new RuntimeRepositoryPluginContextService(
+		const reconciliationService = store.add(new RuntimeRepositoryPluginReconciliationService(
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeConnections = Event.None;
 			}(),
 			new TestContextService(testWorkspace(workspace)),
 			{
-				isWorkspaceTrusted: () => true,
+				isWorkspaceTrusted: () => trusted,
 				onDidChangeTrust: Event.None,
 			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService,
+			{
+				enabledPlugins: observableValue('enabledPlugins', new Map([['demo@market', true]])),
+				extraMarketplaces: observableValue('extraMarketplaces', []),
+			} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService,
 			new TestConfigurationService({ [ChatConfiguration.PluginsEnabled]: true }),
-			new class extends mock<IExtensionsWorkbenchService>() {
-				override getAutoUpdateValue() { return 'on' as const; }
-			}(),
 			runtimeService,
 			new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
@@ -105,94 +85,82 @@ suite('RuntimeRepositoryPluginContexts', () => {
 		return {
 			requests,
 			runtimeService,
-			contextService,
+			reconciliationService,
 			failWith: (error: Error | undefined) => failure = error,
-			setCapability: (value: boolean) => {
-				supported = value;
-				initializeResult.set({
-					protocolVersion: '1.0.0',
-					serverSeq: 0,
-					snapshots: [],
-					_meta: value ? getAgentHostExtensionInitializeResultMeta() : {},
-				}, undefined);
-			},
-			fireSnapshot: (value: IAgentHostRepositoryPluginContextsSnapshot) => {
-				snapshot = value;
-				onDidChange.fire(value);
-			},
+			setCapability: (supported: boolean) => initializeResult.set({
+				protocolVersion: '1.0.0',
+				serverSeq: 0,
+				snapshots: [],
+				_meta: supported ? getAgentHostExtensionInitializeResultMeta() : {},
+			}, undefined),
 		};
 	}
 
-	test('publishes trusted workspace contexts with user update authorization', async () => {
+	test('reconciles plugins only after the workspace is trusted', async () => {
 		const harness = createHarness();
 		await timeout(150);
-
 		assert.deepStrictEqual({
 			requests: harness.requests,
 			snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()),
 		}, {
-			requests: [[{
-				id: workspace.toString(),
+			requests: [{
 				workingDirectory: workspace.toString(),
-				trusted: true,
-				automaticUpdatesAllowed: true,
 				managedSettings: undefined,
-			}]],
+			}],
 			snapshots: [workspace.toString()],
 		});
 	});
 
-	test('applies automatic runtime snapshots without republishing contexts', async () => {
-		const harness = createHarness();
+	test('does not send repository configuration from an untrusted workspace', async () => {
+		const harness = createHarness(false);
 		await timeout(150);
-		const requestCount = harness.requests.length;
-
-		harness.fireSnapshot({ revision: 2, contexts: [] });
 
 		assert.deepStrictEqual({
-			requestCount: harness.requests.length,
+			requests: harness.requests,
 			snapshots: harness.runtimeService.snapshots.get(),
 		}, {
-			requestCount,
+			requests: [],
 			snapshots: [],
 		});
 	});
 
-	test('clears stale workspace enablement when publication fails', async () => {
+	test('clears stale workspace enablement when reconciliation fails', async () => {
 		const harness = createHarness();
 		await timeout(150);
-		harness.failWith(new Error('publication failed'));
+		harness.failWith(new Error('reconciliation failed'));
 
-		await assert.rejects(harness.contextService.publish(), /publication failed/);
+		await assert.rejects(harness.reconciliationService.reconcile([workspace]), /reconciliation failed/);
 
 		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
 
-	test('clears stale workspace enablement when the host capability is unavailable', async () => {
+	test('rejects required plugins when the host capability is unavailable', async () => {
 		const harness = createHarness();
 		await timeout(150);
 		harness.setCapability(false);
 
-		await harness.contextService.publish();
+		await assert.rejects(
+			harness.reconciliationService.reconcile([workspace]),
+			/does not support required repository plugin reconciliation/,
+		);
 
 		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
 
-	test('retains active session roots in the replacement context set', async () => {
+	test('retains active session roots while pruning inactive snapshots', async () => {
 		const harness = createHarness();
 		const detached = URI.file('/workspace.worktrees/detached');
-		const retention = store.add(harness.contextService.retainWorkingDirectories([detached]));
-		await harness.contextService.publish();
-		const published = harness.requests.at(-1)?.map(context => context.id).sort();
+		const retention = store.add(harness.reconciliationService.retainWorkingDirectories([detached]));
+		await harness.reconciliationService.reconcile();
+		const retained = harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()).sort();
 
 		retention.dispose();
-		await timeout(150);
 
 		assert.deepStrictEqual({
-			published,
-			afterRelease: harness.requests.at(-1)?.map(context => context.id),
+			retained,
+			afterRelease: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory.toString()),
 		}, {
-			published: [workspace.toString(), detached.toString()].sort(),
+			retained: [workspace.toString(), detached.toString()].sort(),
 			afterRelease: [workspace.toString()],
 		});
 	});

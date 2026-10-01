@@ -27,7 +27,7 @@ import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SES
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContextsSnapshot } from '../common/repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../common/repositoryPluginReconciliation.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
@@ -619,8 +619,6 @@ export class AgentService extends Disposable implements IAgentService {
 	readonly onMcpNotification: IAgentService['onMcpNotification'];
 	private readonly _onDidChangeCanvases = this._register(new Emitter<IAgentCanvasSnapshot>());
 	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
-	private readonly _onDidChangeRepositoryPluginContexts = this._register(new Emitter<IAgentHostRepositoryPluginContextsSnapshot>());
-	readonly onDidChangeRepositoryPluginContexts = this._onDidChangeRepositoryPluginContexts.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
 	private readonly _stateManager: AgentHostStateManager;
@@ -1397,9 +1395,6 @@ export class AgentService extends Disposable implements IAgentService {
 			subscriptions.add(provider.onDidChangeChatData(e => this._onChatDataChanged(e)));
 			if (provider.onDidChangeCanvases) {
 				subscriptions.add(provider.onDidChangeCanvases(snapshot => this._onDidChangeCanvases.fire(snapshot)));
-			}
-			if (provider.onDidChangeRepositoryPluginContexts) {
-				subscriptions.add(provider.onDidChangeRepositoryPluginContexts(snapshot => this._onDidChangeRepositoryPluginContexts.fire(snapshot)));
 			}
 			if (provider.onDidChangeChatHistory) {
 				subscriptions.add(provider.onDidChangeChatHistory(event => {
@@ -9509,15 +9504,15 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._providerService.getManagedSettingsDiagnostics();
 	}
 
-	async setRepositoryPluginContexts(contexts: readonly IAgentHostRepositoryPluginContext[]): Promise<IAgentHostRepositoryPluginContextsSnapshot> {
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
 		const provider = this._providerService.getProvider('copilotcli');
 		if (!provider) {
 			throw new Error(`The Copilot provider is unavailable. Registered providers: ${this._providerService.getProviders().map(provider => provider.id).join(', ')}`);
 		}
-		if (!provider.setRepositoryPluginContexts) {
-			throw new Error('The registered Copilot provider does not support repository plugin contexts.');
+		if (!provider.reconcileRepositoryPlugins) {
+			throw new Error('The registered Copilot provider does not support repository plugin reconciliation.');
 		}
-		return provider.setRepositoryPluginContexts(contexts);
+		return provider.reconcileRepositoryPlugins(request);
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

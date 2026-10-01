@@ -198,7 +198,7 @@ import { DEFAULT_PLUGIN_MARKETPLACE } from '../common/plugins/marketplaceReferen
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService, WorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
 import { IRuntimeRepositoryPluginService, RuntimeRepositoryPluginService } from '../common/plugins/runtimeRepositoryPluginService.js';
-import { IRuntimeRepositoryPluginContextService } from '../common/plugins/runtimeRepositoryPluginContextService.js';
+import { IRuntimeRepositoryPluginReconciliationService } from '../common/plugins/runtimeRepositoryPluginReconciliationService.js';
 import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/promptFilesLocator.js';
 import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
@@ -231,7 +231,7 @@ import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { CodexStatusBarEntry } from './chatStatus/codexStatusEntry.js';
 import { ChatTipService, IChatTipService } from './chatTipService.js';
 import { ChatWindowNotifier } from './chatWindowNotifier.js';
-import { RuntimeRepositoryPluginContextService, RuntimeRepositoryPluginContextsContribution } from './runtimeRepositoryPluginContexts.js';
+import { RuntimeRepositoryPluginReconciliationContribution, RuntimeRepositoryPluginReconciliationService } from './runtimeRepositoryPluginReconciliation.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ExploreAgentDefaultModel } from './exploreAgentDefaultModel.js';
 import { HasByokModelsContribution } from './hasByokModelsContribution.js';
@@ -3346,7 +3346,7 @@ registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContrib
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(RuntimeRepositoryPluginContextsContribution.ID, RuntimeRepositoryPluginContextsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(RuntimeRepositoryPluginReconciliationContribution.ID, RuntimeRepositoryPluginReconciliationContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(AgentPluginCommandsContribution.ID, AgentPluginCommandsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PluginAutoUpdate.ID, PluginAutoUpdate, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatReferenceAttachmentWidgetContribution.ID, ChatReferenceAttachmentWidgetContribution, WorkbenchPhase.AfterRestored);
@@ -3420,7 +3420,7 @@ registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Delayed);
 registerSingleton(IRuntimeRepositoryPluginService, RuntimeRepositoryPluginService, InstantiationType.Delayed);
-registerSingleton(IRuntimeRepositoryPluginContextService, RuntimeRepositoryPluginContextService, InstantiationType.Delayed);
+registerSingleton(IRuntimeRepositoryPluginReconciliationService, RuntimeRepositoryPluginReconciliationService, InstantiationType.Delayed);
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
 registerSingleton(IWorkspacePluginSettingsService, WorkspacePluginSettingsService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);

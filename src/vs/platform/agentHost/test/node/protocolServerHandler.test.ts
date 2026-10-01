@@ -22,8 +22,8 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, AgentHostRepositoryPluginContextsChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostRepositoryPluginContextsExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
-import { isAgentHostRepositoryPluginContextsSnapshot, type IAgentHostRepositoryPluginContext, type IAgentHostRepositoryPluginContextsSnapshot } from '../../common/repositoryPluginContexts.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, ReconcileAgentHostRepositoryPluginsExtensionMethod, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from '../../common/repositoryPluginReconciliation.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -172,7 +172,7 @@ class MockAgentService implements IAgentService {
 	readonly deleteDetachedWorktreeCalls: string[] = [];
 	readonly claimDetachedWorktreeCalls: string[] = [];
 	readonly reconcileDetachedWorktreesCalls: { scope: string; activeHandles: readonly string[] }[] = [];
-	readonly setRepositoryPluginContextsCalls: (readonly IAgentHostRepositoryPluginContext[])[] = [];
+	readonly reconcileRepositoryPluginsCalls: IAgentHostRepositoryPluginReconcileRequest[] = [];
 	readonly collectDebugLogsCalls: { session: string | undefined; chat: string | undefined; kind: 'archive' | 'directory' }[] = [];
 	shutdownCalls = 0;
 	createSessionBarrier: DeferredPromise<void> | undefined;
@@ -192,8 +192,6 @@ class MockAgentService implements IAgentService {
 	readonly onMcpNotification = this._onMcpNotification.event;
 	private readonly _onDidChangeCanvases = new Emitter<IAgentCanvasSnapshot>();
 	readonly onDidChangeCanvases = this._onDidChangeCanvases.event;
-	private readonly _onDidChangeRepositoryPluginContexts = new Emitter<IAgentHostRepositoryPluginContextsSnapshot>();
-	readonly onDidChangeRepositoryPluginContexts = this._onDidChangeRepositoryPluginContexts.event;
 	readonly resolveCanvasSourceCalls: { chat: string; instanceId: string; revision: number }[] = [];
 
 	private _stateManager!: AgentHostStateManager;
@@ -304,25 +302,13 @@ class MockAgentService implements IAgentService {
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
 	}
-	async setRepositoryPluginContexts(contexts: readonly IAgentHostRepositoryPluginContext[]): Promise<IAgentHostRepositoryPluginContextsSnapshot> {
-		this.setRepositoryPluginContextsCalls.push(contexts);
+	async reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult> {
+		this.reconcileRepositoryPluginsCalls.push(request);
 		return {
-			revision: this.setRepositoryPluginContextsCalls.length,
-			contexts: contexts.map(context => ({
-				id: context.id,
-				workingDirectory: context.workingDirectory,
-				state: 'ready',
-				result: {
-					repositoryEnabledPlugins: { 'demo@market': true },
-					repositoryPlugins: [],
-					installResults: [{ spec: 'demo@market', action: 'installed' }],
-					updateResults: [],
-					warnings: [],
-				},
-			})),
+			repositoryPlugins: [],
+			warnings: [],
 		};
 	}
-	fireRepositoryPluginContexts(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void { this._onDidChangeRepositoryPluginContexts.fire(snapshot); }
 	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
@@ -528,7 +514,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,
 				'vscode.devContainers': true,
-				'vscode.repositoryPluginContexts': true,
+				'vscode.repositoryPluginReconciliation': true,
 			},
 		});
 	});
@@ -1510,96 +1496,32 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
-	test('sets repository plugin contexts through the provider runtime', async () => {
+	test('reconciles repository plugins through the provider runtime', async () => {
 		const transport = connectClient('client-repository-plugins');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 24);
-		const workingDirectory = URI.file('/workspace').toString();
 		const params = {
-			contexts: [{
-				id: workingDirectory,
-				workingDirectory,
-				trusted: true,
-				automaticUpdatesAllowed: false,
-			}],
+			workingDirectory: URI.file('/workspace').toString(),
 		};
 
-		transport.simulateMessage(request(24, SetAgentHostRepositoryPluginContextsExtensionMethod, params));
+		transport.simulateMessage(request(24, ReconcileAgentHostRepositoryPluginsExtensionMethod, params));
 
 		assert.deepStrictEqual({
 			response: await responsePromise,
-			calls: agentService.setRepositoryPluginContextsCalls,
+			calls: agentService.reconcileRepositoryPluginsCalls,
 		}, {
 			response: {
 				jsonrpc: '2.0',
 				id: 24,
 				result: {
-					revision: 1,
-					contexts: [{
-						id: workingDirectory,
-						workingDirectory,
-						state: 'ready',
-						result: {
-							repositoryEnabledPlugins: { 'demo@market': true },
-							repositoryPlugins: [],
-							installResults: [{ spec: 'demo@market', action: 'installed' }],
-							updateResults: [],
-							warnings: [],
-						},
-					}],
+					repositoryPlugins: [],
+					warnings: [],
 				},
 			},
-			calls: [[{
-				id: JSON.stringify(['client-repository-plugins', workingDirectory]),
+			calls: [{
 				workingDirectory: '/workspace',
-				trusted: true,
-				automaticUpdatesAllowed: false,
 				managedSettings: undefined,
-			}]],
-		});
-		assert.strictEqual(findNotifications(transport.sent, AgentHostRepositoryPluginContextsChangedNotification).length, 1);
-	});
-
-	test('keeps repository plugin contexts isolated across connected clients', async () => {
-		const first = connectClient('repository-client-first');
-		const second = connectClient('repository-client-second');
-		first.sent.length = 0;
-		second.sent.length = 0;
-		const firstDirectory = URI.file('/workspace/first').toString();
-		const secondDirectory = URI.file('/workspace/second').toString();
-
-		const firstResponse = waitForResponse(first, 30);
-		first.simulateMessage(request(30, SetAgentHostRepositoryPluginContextsExtensionMethod, {
-			contexts: [{ id: firstDirectory, workingDirectory: firstDirectory, trusted: true, automaticUpdatesAllowed: false }],
-		}));
-		await firstResponse;
-		first.sent.length = 0;
-		second.sent.length = 0;
-
-		const secondResponse = waitForResponse(second, 31);
-		second.simulateMessage(request(31, SetAgentHostRepositoryPluginContextsExtensionMethod, {
-			contexts: [{ id: secondDirectory, workingDirectory: secondDirectory, trusted: true, automaticUpdatesAllowed: false }],
-		}));
-		await secondResponse;
-		const firstParams = findNotifications(first.sent, AgentHostRepositoryPluginContextsChangedNotification).at(-1)?.params;
-		const secondParams = findNotifications(second.sent, AgentHostRepositoryPluginContextsChangedNotification).at(-1)?.params;
-		assert.ok(isAgentHostRepositoryPluginContextsSnapshot(firstParams));
-		assert.ok(isAgentHostRepositoryPluginContextsSnapshot(secondParams));
-
-		assert.deepStrictEqual({
-			aggregated: agentService.setRepositoryPluginContextsCalls.at(-1)?.map(context => ({
-				id: JSON.parse(context.id),
-				workingDirectory: context.workingDirectory,
-			})),
-			first: firstParams.contexts.map(context => context.id),
-			second: secondParams.contexts.map(context => context.id),
-		}, {
-			aggregated: [
-				{ id: ['repository-client-first', firstDirectory], workingDirectory: '/workspace/first' },
-				{ id: ['repository-client-second', secondDirectory], workingDirectory: '/workspace/second' },
-			],
-			first: [firstDirectory],
-			second: [secondDirectory],
+			}],
 		});
 	});
 
@@ -1753,6 +1675,10 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
 		}));
+		const reconcileResponsePromise = waitForResponse(transport, 5);
+		transport.simulateMessage(request(5, ReconcileAgentHostRepositoryPluginsExtensionMethod, {
+			workingDirectory: URI.file('/workspace').toString(),
+		}));
 
 		assert.deepStrictEqual({
 			response: findResponse(transport.sent, 2),
@@ -1760,12 +1686,20 @@ suite('ProtocolServerHandler', () => {
 			removeResponse: await removeResponsePromise,
 			removeSessionArtifactCalls: agentService.removeSessionArtifactCalls,
 			managedSettingsPermissions: managedSettingsService.permissions,
+			reconcileResponse: await reconcileResponsePromise,
+			reconcileRepositoryPluginsCalls: agentService.reconcileRepositoryPluginsCalls,
 		}, {
 			response: { jsonrpc: '2.0', id: 2, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
 			shutdownCalls: 0,
 			removeResponse: { jsonrpc: '2.0', id: 4, result: null },
 			removeSessionArtifactCalls: [{ session: 'copilotcli:/session-1', artifactId: 'artifact-1' }],
 			managedSettingsPermissions: { disableBypassPermissionsMode: 'disable', ask: ['Shell'] },
+			reconcileResponse: {
+				jsonrpc: '2.0',
+				id: 5,
+				result: { repositoryPlugins: [], warnings: [] },
+			},
+			reconcileRepositoryPluginsCalls: [{ workingDirectory: '/workspace', managedSettings: undefined }],
 		});
 	});
 

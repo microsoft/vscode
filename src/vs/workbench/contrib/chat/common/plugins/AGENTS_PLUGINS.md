@@ -11,8 +11,8 @@ Agent plugins are a modular extension system that allows external packages of pr
 | `agentPluginServiceImpl.ts` | `AgentPluginService` implementation, `AbstractAgentPluginDiscovery` base class, and workbench projections for all plugin formats |
 | `agentPluginEnablement.ts` | Plugin collision enablement, canonical plugin identity, and enterprise-policy identity helpers |
 | `agentPluginRepositoryService.ts` | `IAgentPluginRepositoryService` — abstract repository clone/pull/cache operations |
-| `runtimeRepositoryPluginService.ts` | Per-workspace snapshots pushed by runtime-owned repository contexts |
-| `runtimeRepositoryPluginContextService.ts` | Workbench contract for publishing host-owned repository context |
+| `runtimeRepositoryPluginService.ts` | Per-workspace snapshots returned by runtime-owned repository reconciliation |
+| `runtimeRepositoryPluginReconciliationService.ts` | Workbench service contract for immediate repository reconciliation |
 | `pluginMarketplaceService.ts` | `IPluginMarketplaceService` — marketplace metadata, installed-plugin storage, trusted-marketplace tracking, periodic update checks |
 | `pluginInstallService.ts` | `IPluginInstallService` — install/update/uninstall orchestration interface |
 | `pluginSource.ts` | `IPluginSource` — per-source-kind strategy interface (install path, ensure, update, cleanup) |
@@ -23,7 +23,7 @@ Agent plugins are a modular extension system that allows external packages of pr
 | `agentPluginRepositoryService.ts` | Browser implementation of `IAgentPluginRepositoryService` (git clone/pull via Git service) |
 | `pluginSources.ts` | Concrete `IPluginSource` implementations: `GitHubPluginSource`, `GitUrlPluginSource`, `NpmPluginSource`, `PipPluginSource`, `RelativePathPluginSource` |
 | `pluginInstallService.ts` | Browser implementation of `IPluginInstallService` |
-| `runtimeRepositoryPluginContexts.ts` | Publishes host-owned context and consumes runtime-pushed snapshots |
+| `runtimeRepositoryPluginReconciliation.ts` | Workspace lifecycle bridge to the Agent Host runtime reconciliation API |
 | `agentPluginsView.ts` | Installed-plugins tree view UI |
 | `agentPluginActions.ts` | Context-menu actions for plugins |
 | `agentPluginEditor/` | Rich editor for browsing a single plugin's contents |
@@ -90,7 +90,7 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 **CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. Uninstall delegates to the Copilot SDK so the runtime's cross-process lock and state writer own the complete transaction; direct installs carry the runtime-compatible opaque source ID needed to disambiguate same-name sources, and VS Code never deletes CLI-owned cache directories directly.
 
-**RuntimeRepositoryAgentPluginDiscovery** — reads source-resolved plugin activation records pushed by runtime-owned repository contexts. This tier includes both persisted plugins and live directory plugins that cannot be reconstructed from the global installed-plugin inventory. Its enablement is workspace-scoped and is overlaid on the runtime-owned global state.
+**RuntimeRepositoryAgentPluginDiscovery** — reads source-resolved plugin activation records returned by runtime reconciliation. This tier includes both persisted plugins and live directory plugins that cannot be reconstructed from the global installed-plugin inventory. Its enablement is workspace-scoped and is overlaid on the runtime-owned global state.
 
 ### Plugin Formats
 
@@ -150,19 +150,19 @@ Manages the catalog of available and installed plugins:
 
 This service owns plugins installed explicitly through VS Code. Repository-configured plugins use the runtime-owned flow below and do not write VS Code's installed-plugin store or `agentPluginsHome`.
 
-### Runtime-owned repository contexts
+### Runtime-owned repository reconciliation
 
 Repository settings can enable plugins from known marketplaces without first installing them through VS Code. The Copilot runtime owns this workflow:
 
-1. VS Code publishes a complete replacement set whenever its host-owned facts change: active workspace/session roots, workspace trust, `extensions.autoUpdate` authorization, or managed plugin/marketplace controls.
-2. The Agent Host aggregates context sets from connected clients and calls the experimental `plugins.repositoryContexts.set` SDK API.
-3. The runtime reconciles the initial set before the setter resolves, then owns repository settings watches, shared plugin-state watches, serialized installation, and periodic authorized update checks.
-4. Runtime-pushed `plugins.repositoryContexts.changed` snapshots carry exact persisted or live activation records back through the namespaced `vscode.repositoryPluginContexts` Agent Host extension.
-5. VS Code discovers those returned plugin roots and publishes their global plus workspace enablement to Copilot, Claude, and Codex.
+1. VS Code reconciles every workspace folder when the workspace, trust, relevant settings, or Agent Host connection changes.
+2. VS Code sends a request only after workspace trust is established. The request carries the workspace URI and effective managed plugin/marketplace controls.
+3. The local Agent Host converts the URI to the runtime's filesystem path and calls the experimental `plugins.reconcileRepository` SDK API. Remote Agent Hosts may opt into the namespaced `vscode.repositoryPluginReconciliation` capability; hosts that omit it remain interoperable.
+4. The runtime resolves repository settings precedence, combines user and managed settings, installs missing enabled plugins through the existing plugin transaction, applies managed marketplace restrictions, and returns exact persisted or live activation records.
+5. VS Code stores the result per workspace, discovers those returned plugin roots, and publishes their global plus workspace enablement to Copilot, Claude, and Codex.
 
-Repository-only installations are persisted in the runtime's global inventory with `enabled: false`; the repository decision enables them only in the matching workspace. A repository-scoped `false` decision never demotes the shared global record. Enablement precedence is managed policy, repository workspace state, runtime global state, then VS Code user state. Initial Agent Host customization publication waits for the initial context snapshot and discovery projection so a first turn cannot miss a repository plugin. Error snapshots and lost capabilities remove affected workspace state rather than publishing stale enablement.
+Repository-only installations are persisted in the runtime's global inventory with `enabled: false`; the repository decision enables them only in the matching workspace. A repository-scoped `false` decision never demotes the shared global record. Enablement precedence is managed policy, repository workspace state, runtime global state, then VS Code user state. Initial Agent Host customization publication waits for reconciliation so a first turn cannot miss a repository plugin. A repository- or managed-required plugin that cannot be installed and activated rejects reconciliation and blocks initial customization resolution. If the host capability disappears or later reconciliation fails, VS Code removes the affected workspace snapshot rather than publishing stale enablement.
 
-Updates require both sides to opt in. `extensions.autoUpdate` supplies the host authorization and a value of `"off"` always blocks silent runtime updates. When host authorization is on, only repository or managed marketplaces whose `autoUpdate` value is `true` are eligible. A repository cannot override a host or enterprise decision that disables automatic updates.
+Repository reconciliation does not introduce another update scheduler. Explicit and existing automatic update flows continue to use the runtime's `plugins.update` APIs.
 
 ### Marketplace Definition Files
 

@@ -30,7 +30,7 @@ import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction,
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
 import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
-import type { IAgentHostRepositoryPluginContext, IAgentHostRepositoryPluginContexts, IAgentHostRepositoryPluginContextsSnapshot } from './repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileRequest, IAgentHostRepositoryPluginReconcileResult } from './repositoryPluginReconciliation.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -811,6 +811,7 @@ export interface IAgentHostManagementService {
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+	reconcileRepositoryPlugins(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 	getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined>;
 	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
@@ -958,8 +959,7 @@ export interface IAgentService {
 
 	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
-	readonly onDidChangeRepositoryPluginContexts: Event<IAgentHostRepositoryPluginContextsSnapshot>;
-	setRepositoryPluginContexts(contexts: readonly IAgentHostRepositoryPluginContext[]): Promise<IAgentHostRepositoryPluginContextsSnapshot>;
+	reconcileRepositoryPlugins?(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
 
 	/**
 	 * Probe connectivity from the agent host process to a single `url`,
@@ -1107,8 +1107,6 @@ export interface IAgentConnection {
 	readonly devContainerService?: IDevContainerAgentHostMainService;
 	/** Available only for the local VS Code canvas extension contract. */
 	readonly canvases?: IAgentHostCanvases;
-	/** Available for hosts advertising runtime-owned repository plugin contexts. */
-	readonly repositoryPluginContexts?: IAgentHostRepositoryPluginContexts;
 
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
@@ -1225,6 +1223,9 @@ export interface IAgentConnection {
 
 	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+
+	/** Reconcile trusted repository plugin declarations through the host runtime when supported. */
+	reconcileRepositoryPlugins?(request: IAgentHostRepositoryPluginReconcileRequest): Promise<IAgentHostRepositoryPluginReconcileResult>;
 
 	/**
 	 * Probe connectivity from the agent host to a single `url`. Runs on the

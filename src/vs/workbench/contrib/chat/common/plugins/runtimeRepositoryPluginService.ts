@@ -7,13 +7,13 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import { IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { IAgentHostRepositoryPluginContextResult, IAgentHostRepositoryPluginContextsSnapshot } from '../../../../../platform/agentHost/common/repositoryPluginContexts.js';
+import type { IAgentHostRepositoryPluginReconcileResult } from '../../../../../platform/agentHost/common/repositoryPluginReconciliation.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 
 export interface IRuntimeRepositoryPluginSnapshot {
 	readonly workingDirectory: URI;
-	readonly result: IAgentHostRepositoryPluginContextResult;
+	readonly result: IAgentHostRepositoryPluginReconcileResult;
 }
 
 export interface IRuntimeRepositoryPluginIdentity {
@@ -27,8 +27,7 @@ export interface IRuntimeRepositoryPluginService {
 	readonly _serviceBrand: undefined;
 	readonly snapshots: IObservable<readonly IRuntimeRepositoryPluginSnapshot[]>;
 	readonly snapshotRevision: IObservable<number>;
-	applySnapshot(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void;
-	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginContextResult): void;
+	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginReconcileResult): void;
 	removeSnapshots(workingDirectories: readonly URI[]): void;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void;
 	getEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined, isRuntimeSource: boolean, workingDirectory: URI | undefined): boolean | undefined;
@@ -51,7 +50,7 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		super();
 	}
 
-	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginContextResult): void {
+	setSnapshot(workingDirectory: URI, result: IAgentHostRepositoryPluginReconcileResult): void {
 		const key = this._key(workingDirectory);
 		if (equals(this._snapshots.get().get(key)?.result, result)) {
 			return;
@@ -59,20 +58,6 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		const snapshots = new Map(this._snapshots.get());
 		snapshots.set(key, { workingDirectory, result });
 		this._setSnapshots(snapshots);
-	}
-
-	applySnapshot(snapshot: IAgentHostRepositoryPluginContextsSnapshot): void {
-		const snapshots = new Map<string, IRuntimeRepositoryPluginSnapshot>();
-		for (const context of snapshot.contexts) {
-			if (context.state !== 'ready' || !context.result) {
-				continue;
-			}
-			const workingDirectory = URI.parse(context.workingDirectory, true);
-			snapshots.set(this._key(workingDirectory), { workingDirectory, result: context.result });
-		}
-		if (!equals([...this._snapshots.get().entries()], [...snapshots.entries()])) {
-			this._setSnapshots(snapshots);
-		}
 	}
 
 	removeSnapshots(workingDirectories: readonly URI[]): void {
