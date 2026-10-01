@@ -516,7 +516,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 		const definition = collection?.serverDefinitions.get().find(s => s.id === definitionRef.id);
 		if (!collection || !definition) {
-			throw new Error(`Collection or definition not found for ${collectionRef.id} and ${definitionRef.id}`);
+			logger.debug(`Skipping MCP server ${definitionRef.id}: collection ${collectionRef.id} or server definition is no longer registered.`);
+			return undefined;
 		}
 
 		const delegate = this._delegates.get().find(d => d.canStart(collection, definition));

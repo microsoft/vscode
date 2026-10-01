@@ -11,16 +11,18 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
@@ -31,6 +33,11 @@ import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -57,6 +64,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
@@ -254,97 +263,6 @@ export class AICustomizationItemNormalizer {
 
 // #endregion
 
-// #region Built-in skills
-
-/**
- * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
- * into an item provider's items, deduped by URI so a copy the provider
- * re-discovered is replaced by the authoritative entry, and tagged
- * `groupKey: BUILTIN_STORAGE`. User-authored overrides (different URI, same
- * name) are preserved.
- *
- * `enabled` is derived from `getDisabledPromptFiles` alone, so a built-in that
- * the wire dropped from the agent-host bundle stays listed as disabled and can
- * be re-enabled. This is the restore path that `isUserToggleableCustomization`
- * guards, and it is why that predicate must stay in sync with what this merges
- * back. See "Enabling and Disabling Built-in Skills" in
- * `src/vs/sessions/AI_CUSTOMIZATIONS.md`.
- *
- * A workbench that uses the base `PromptsService` contributes no built-in
- * skills, so `builtinPaths` is empty and the items are returned unchanged.
- */
-export async function mergeBuiltinSkills(
-	items: readonly IAICustomizationListItem[],
-	promptType: PromptsType,
-	promptsService: IPromptsService,
-	workspaceService: IAICustomizationWorkspaceService,
-	itemNormalizer: AICustomizationItemNormalizer,
-): Promise<IAICustomizationListItem[]> {
-	const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
-	if (builtinPaths.length === 0) {
-		return [...items];
-	}
-
-	const builtinUris = new ResourceMap<typeof builtinPaths[number]>();
-	for (const p of builtinPaths) {
-		builtinUris.set(p.uri, p);
-	}
-
-	// Drop provider items that are the same URI as a built-in (the provider
-	// re-discovered the bundled copy by scanning disk).
-	const deduped = items.filter(item => !builtinUris.has(item.uri));
-
-	const uiIntegrations = workspaceService.getSkillUIIntegrations();
-	const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
-
-	// Collect names of user/workspace skills so we can hide the built-in
-	// copy once the user has added an override at either level.
-	const overriddenNames = new Set<string>();
-	for (const item of deduped) {
-		if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
-			if (item.name) {
-				overriddenNames.add(item.name);
-			}
-		}
-	}
-
-	// Append authoritative built-in entries (excluding any that have been
-	// overridden by a workspace or user copy with the same name).
-	const uriUseCounts = new ResourceMap<number>();
-	for (const item of deduped) {
-		uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
-	}
-	const appended: IAICustomizationListItem[] = [];
-	const disabledPromptFiles = promptsService.getDisabledPromptFiles(PromptsType.skill);
-	for (const p of builtinPaths) {
-		const name = p.name ?? basename(p.uri);
-		if (overriddenNames.has(name)) {
-			continue;
-		}
-		const folderName = basename(dirname(p.uri));
-		const uiTooltip = uiIntegrations.get(folderName);
-		const builtinItem: ICustomizationItem = {
-			uri: p.uri,
-			type: PromptsType.skill,
-			name,
-			description: p.description,
-			source: AICustomizationSources.builtin,
-			groupKey: BUILTIN_STORAGE,
-			enabled: !disabledPromptFiles.has(p.uri),
-			badge: uiTooltip ? uiIntegrationBadge : undefined,
-			badgeTooltip: uiTooltip,
-			extensionId: undefined,
-			pluginUri: undefined,
-			userInvocable: true,
-		};
-		appended.push(itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
-	}
-
-	return [...deduped, ...appended];
-}
-
-// #endregion
-
 /**
  * Item source backed by a session-scoped customization item provider.
  */
@@ -414,7 +332,7 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 
 		const normalized = this.itemNormalizer.normalizeItems(providerItems, promptType);
 		if (promptType === PromptsType.skill) {
-			return mergeBuiltinSkills(normalized, promptType, this.promptsService, this.workspaceService, this.itemNormalizer);
+			return this.mergeBuiltinSkills(normalized, promptType);
 		}
 		return normalized;
 	}
@@ -425,6 +343,74 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		}
 
 		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
+	/**
+	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
+	 * into the provider's items. The provider may re-discover the bundled
+	 * copies when scanning disk — those duplicates are dropped (deduped by
+	 * URI) and replaced with the authoritative built-in entry tagged
+	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
+	 * group. User-authored overrides (different URI, same name) are preserved.
+	 *
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
+	 */
+	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
+		if (builtinPaths.length === 0) {
+			return [...items];
+		}
+
+		const builtinUris = new ResourceMap<typeof builtinPaths[number]>();
+		for (const p of builtinPaths) {
+			builtinUris.set(p.uri, p);
+		}
+
+		// Drop provider items that are the same URI as a built-in (the provider
+		// re-discovered the bundled copy by scanning disk).
+		const deduped = items.filter(item => !builtinUris.has(item.uri));
+
+		// Collect names of user/workspace skills so we can hide the built-in
+		// copy once the user has added an override at either level.
+		const overriddenNames = new Set<string>();
+		for (const item of deduped) {
+			if (item.source === AICustomizationSources.local || item.source === AICustomizationSources.user) {
+				if (item.name) {
+					overriddenNames.add(item.name);
+				}
+			}
+		}
+
+		// Append authoritative built-in entries (excluding any that have been
+		// overridden by a workspace or user copy with the same name).
+		const uriUseCounts = new ResourceMap<number>();
+		for (const item of deduped) {
+			uriUseCounts.set(item.uri, (uriUseCounts.get(item.uri) ?? 0) + 1);
+		}
+		const appended: IAICustomizationListItem[] = [];
+		const disabledPromptFiles = this.promptsService.getDisabledPromptFiles(PromptsType.skill);
+		for (const p of builtinPaths) {
+			const name = p.name ?? basename(p.uri);
+			if (overriddenNames.has(name)) {
+				continue;
+			}
+			const builtinItem: ICustomizationItem = {
+				uri: p.uri,
+				type: PromptsType.skill,
+				name,
+				description: p.description,
+				source: AICustomizationSources.builtin,
+				groupKey: BUILTIN_STORAGE,
+				enabled: !disabledPromptFiles.has(p.uri),
+				extensionId: undefined,
+				pluginUri: undefined,
+				userInvocable: true,
+			};
+			appended.push(this.itemNormalizer.normalizeItem(builtinItem, promptType, uriUseCounts));
+		}
+
+		return [...deduped, ...appended];
 	}
 
 	private async addSkillDescriptionFallbacks(items: readonly ICustomizationItem[]): Promise<readonly ICustomizationItem[]> {
@@ -478,13 +464,9 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 		readonly sessionResource: URI,
 		private readonly itemProvider: ICustomizationItemProvider,
 		private readonly itemNormalizer: AICustomizationItemNormalizer,
-		private readonly promptsService: IPromptsService,
-		private readonly workspaceService: IAICustomizationWorkspaceService,
 	) {
 		super();
-		// Built-in skills are merged in from the prompts service, so their
-		// enable/disable state changes must refresh the list too.
-		this.onDidAICustomizationItemsChange = Event.any(this.itemProvider.onDidChange, this.promptsService.onDidChangeSkills);
+		this.onDidAICustomizationItemsChange = this.itemProvider.onDidChange;
 
 		// Invalidate cache when the provider changes
 		this._register(this.itemProvider.onDidChange(() => {
@@ -512,11 +494,7 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 
 	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await this.fetchProviderItems();
-		const normalized = this.itemNormalizer.normalizeItems(allItems, promptType);
-		if (promptType === PromptsType.skill) {
-			return mergeBuiltinSkills(normalized, promptType, this.promptsService, this.workspaceService, this.itemNormalizer);
-		}
-		return normalized;
+		return this.itemNormalizer.normalizeItems(allItems, promptType);
 	}
 
 	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {

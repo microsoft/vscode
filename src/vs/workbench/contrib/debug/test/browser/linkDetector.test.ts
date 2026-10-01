@@ -6,13 +6,14 @@
 import assert from 'assert';
 import { isHTMLAnchorElement } from '../../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { DebugLinkHoverBehavior, LinkDetector } from '../../browser/linkDetector.js';
+import { DebugLinkHoverBehavior, fileLinkToUri, LinkDetector } from '../../browser/linkDetector.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHighlight } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 
@@ -329,5 +330,73 @@ suite('Debug - Link Detector', () => {
 		assert.strictEqual(isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34', output.children[0].textContent);
 		assert.strictEqual(isWindows ? 'C:\\baz\\qux.cs:line 6' : '/Users/baz/qux.cs:line 6', output.children[1].textContent);
 		hoverBehavior.store.dispose();
+	});
+
+	test('fileUriWithLineAndColumn', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const input = isWindows ? 'file:///c:/foo/bar.js:12:34' : 'file:///Users/foo/bar.js:12:34';
+		const output = linkDetector.linkify(input, hoverBehavior);
+
+		assert.strictEqual(1, output.children.length);
+		assert.strictEqual('SPAN', output.tagName);
+		assertElementIsLink(output.firstElementChild!);
+		// the whole URI, including the `:line:column` suffix, is part of the link
+		assert.strictEqual(input, output.firstElementChild!.textContent);
+		hoverBehavior.store.dispose();
+	});
+
+	test('fileUriWithoutLineAndColumn', () => {
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const input = isWindows ? 'file:///c:/foo/bar.js' : 'file:///Users/foo/bar.js';
+		const output = linkDetector.linkify(input, hoverBehavior);
+
+		assert.strictEqual(1, output.children.length);
+		assertElementIsLink(output.firstElementChild!);
+		assert.strictEqual(input, output.firstElementChild!.textContent);
+		hoverBehavior.store.dispose();
+	});
+});
+
+suite('Debug - Link Detector - fileLinkToUri', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const nativeSep = isWindows ? '\\' : '/';
+
+	test('keeps the file scheme for a plain file URI', () => {
+		const input = URI.parse(isWindows ? 'file:///c:/foo/bar.js' : 'file:///Users/foo/bar.js');
+		const actual = fileLinkToUri(input, nativeSep);
+
+		assert.strictEqual(actual.scheme, Schemas.file);
+		assert.strictEqual(actual.path, isWindows ? '/c:/foo/bar.js' : '/Users/foo/bar.js');
+	});
+
+	test('does not read the drive letter as a scheme (#334283)', () => {
+		// `URI.parse` on the file system path `c:/foo/bar.js` yields scheme `c`
+		// and drops the drive letter, which left the link unopenable. This holds
+		// on every host OS, so the case is not guarded by `isWindows`.
+		const input = URI.parse('file:///c:/foo/bar.js');
+		const actual = fileLinkToUri(input, nativeSep);
+
+		assert.strictEqual(actual.scheme, Schemas.file);
+		assert.notStrictEqual(actual.scheme, 'c');
+		assert.strictEqual(actual.path, '/c:/foo/bar.js');
+	});
+
+	test('round-trips a URI that already had its line and column stripped', () => {
+		const withSuffix = URI.parse(isWindows ? 'file:///c:/foo/bar.js:12:34' : 'file:///Users/foo/bar.js:12:34');
+		const stripped = withSuffix.with({ path: withSuffix.path.replace(/:\d+:\d+$/, '') });
+		const actual = fileLinkToUri(stripped, nativeSep);
+
+		assert.strictEqual(actual.scheme, Schemas.file);
+		assert.strictEqual(actual.path, isWindows ? '/c:/foo/bar.js' : '/Users/foo/bar.js');
+	});
+
+	test('normalizes separators when the remote uses posix paths', () => {
+		const input = URI.parse(isWindows ? 'file:///c:/foo/../foo/bar.js' : 'file:///Users/foo/../foo/bar.js');
+		const actual = fileLinkToUri(input, '/');
+
+		assert.strictEqual(actual.scheme, Schemas.file);
+		assert.strictEqual(actual.path, isWindows ? '/c:/foo/bar.js' : '/Users/foo/bar.js');
 	});
 });

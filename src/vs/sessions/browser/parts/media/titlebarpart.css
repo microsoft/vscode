@@ -64,7 +64,7 @@
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 	/* Match the VS Code window command center font size. */
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right {
@@ -97,6 +97,8 @@
 	flex-shrink: 0;
 	-webkit-app-region: no-drag;
 	height: 100%;
+	position: relative;
+	z-index: 2500;
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container:not(.has-no-actions) {
@@ -104,7 +106,7 @@
 	align-items: center;
 }
 
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-update-container:not(.has-no-actions) {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-screen-reader-container:not(.has-no-actions) {
 	margin-right: var(--vscode-spacing-size40);
 }
 

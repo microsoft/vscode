@@ -63,6 +63,43 @@ For non-blocking checks (no network, no UI), use the cached properties:
 React to `onDidAuthenticationChange` for identity changes (sign in/out, account switch).
 React to `onDidCopilotTokenChange` for token-level updates (quota, feature flags, routine ~20-minute refreshes).
 
+## GitHub Session Provenance
+
+Both built-in GitHub providers supply the proposed
+`AuthenticationSession.authorizationServer` URI:
+`https://github.com/login/oauth` for public GitHub, and
+`<deployment>/login/oauth` for GitHub Enterprise, including restored sessions.
+The generic API field is optional, but these built-in sessions require it.
+Missing provenance is an incompatible session, not permission to infer a host.
+The extension manifest enables `authIssuers`. A branded product that overrides
+Copilot's proposal allowlist must append it to the complete existing list;
+an `authIssuers`-only override would disable the other required proposals.
+Use `resolveGitHubSessionUri` to validate and derive the deployment base; never
+parse an account's display label or infer its host from its ID. The selected
+provider still determines public versus enterprise routing: a public session
+having an issuer does not make it enterprise. Callers requesting a specific-account
+scope upgrade must pass that account and issuer explicitly. The authentication
+service does not infer those hints from its cache.
+Only the authentication provider owns enterprise host configuration. Copilot
+neither reads nor watches those settings: even a disagreeing setting cannot
+retarget a returned credential. There is no configured-host cross-check, legacy
+fallback, or inferred-session map. An unresolved enterprise session must not use
+GitHub.com as a fallback. Preserve the issuer's deployment path when removing
+`/login/oauth`, then pass it to the CAPI library's existing domain mapping without
+rewriting API paths or ports. MCP retains its existing
+`copilot-api.<authority>/mcp/` mapping.
+Public MCP uses its fixed endpoint, including for static-token sessions without
+issuer metadata; enterprise MCP requires the session's issuer.
+
+The authentication service owns GitHub sessions and publishes their derived enterprise
+URI to the token store. A separate URI-change event lets the domain service update
+routing without reading provider settings or depending on the authentication service.
+The store does not retain GitHub sessions. Token bootstrap checks that its session
+matches the published URI before making requests.
+Token responses and explicit debug overrides remain authoritative for the final
+Copilot API URL. Enterprise MCP definitions include the issuer and reject stale
+definitions before and after acquiring permissions, without adding account-rebinding policy.
+
 ## Copilot Tokens
 
 Most callers just need a valid CAPI token. `getCopilotToken()` handles refresh automatically:

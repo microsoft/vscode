@@ -1030,7 +1030,7 @@ export class CommandCenter {
 	}
 
 	@command('git.clone')
-	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none' }): Promise<string | undefined> {
+	async clone(url?: string, parentPath?: string, options?: { ref?: string; postCloneAction?: 'none'; returnRepositoryPath?: boolean }): Promise<string | undefined> {
 		return this.cloneManager.clone(url, { parentPath, ...options });
 	}
 

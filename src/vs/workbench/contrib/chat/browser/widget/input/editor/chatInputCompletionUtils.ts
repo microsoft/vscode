@@ -17,6 +17,14 @@ export function getAttachedContextCompletionSortText(score: number): string {
 	return `${attachedContextCompletionSortText}${(0x7FFFFFFF - score).toString(16).padStart(8, '0')}`;
 }
 
+export function getPromptSlashCommandFilterText(name: string): string | undefined {
+	const command = `/${name}`;
+	const displayCommand = name.includes(':') ? `/${name.replace(/:/g, ' ')}` : undefined;
+	const skillName = name.slice(name.lastIndexOf(':') + 1);
+	const wordSuffixes = [...skillName.matchAll(/-(?=[^-])/g)].map(match => `/${skillName.slice(match.index + 1)}`);
+	return displayCommand || wordSuffixes.length ? [...wordSuffixes, command, displayCommand].filter(Boolean).join(' ') : undefined;
+}
+
 export function getAttachedContextCompletionMatch(typedWord: string, leader: string, name: string, kind: string, suggestOptions: InternalSuggestOptions): { filterText: string; score: number } | undefined {
 	if (!typedWord) {
 		return { filterText: typedWord, score: 0 };
@@ -105,8 +113,8 @@ export function isAtTriggerCharacterToken(model: ITextModel, position: Position,
 	// start-of-line) up to the cursor.
 	const wsIdx = beforeCursor.search(/\s\S*$/);
 	const token = wsIdx >= 0 ? beforeCursor.slice(wsIdx + 1) : beforeCursor;
-	if (token.length === 0) {
-		return false;
+	if (token.length > 0 && triggerCharacters.includes(token[0])) {
+		return true;
 	}
-	return triggerCharacters.includes(token[0]);
+	return triggerCharacters.includes('/') && /^\s*\//.test(beforeCursor);
 }

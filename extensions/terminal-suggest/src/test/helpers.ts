@@ -22,6 +22,7 @@ export interface ITestSpec {
 	expectedResourceRequests?: {
 		type: 'files' | 'folders' | 'both';
 		cwd?: Uri;
+		fileNames?: string[];
 	};
 	expectedCompletions?: (string | ICompletionResource)[];
 }

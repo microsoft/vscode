@@ -96,7 +96,7 @@ suite('NewChatInputPasteTarget', () => {
 			const local = new DisposableStore();
 			try {
 				const attachments = local.add(new TestAttachments());
-				const completionHandler = local.add(instantiationService.createInstance(AgentHostInputCompletionHandler, editor, attachments));
+				const completionHandler = local.add(instantiationService.createInstance(AgentHostInputCompletionHandler, editor, attachments, async () => false));
 				const target = new NewChatInputPasteTarget(
 					editor,
 					attachments,

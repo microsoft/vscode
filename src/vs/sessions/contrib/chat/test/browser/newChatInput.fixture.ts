@@ -28,7 +28,10 @@ import { ITtsPlaybackService } from '../../../../../workbench/contrib/chat/brows
 import { IMicCaptureService } from '../../../../../workbench/contrib/chat/browser/voiceClient/micCaptureService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
-import { chatInputStackClass, chatInputStackSlotClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
+import { IChatInputNotification, ChatInputNotificationSeverity } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNotificationService.js';
+import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
+import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from '../../../../../workbench/test/browser/componentFixtures/chat/chatPetFixtureUtils.js';
 
 // The new-session input box styling lives in these stylesheets; `style.css`
 // provides the `--vscode-agentsChatInput-*` theme variables and the
@@ -43,7 +46,26 @@ interface NewChatInputFixtureOptions {
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Docks the sub-session tip above the composer. */
 	readonly subSessionTip?: boolean;
+	/** Docks a notification above the input, through the real notification service. */
+	readonly notification?: IChatInputNotification;
+	/** Docks a getting-started tip in the composer's own notice slot. */
+	readonly gettingStartedTip?: boolean;
+	/** Stands the pet on the composer. */
+	readonly pet?: boolean;
 }
+
+/** Tall enough for the composer, its notices, and the pet standing on top. */
+const PET_FIXTURE_HEIGHT = 400;
+
+const petPlatformNotification: IChatInputNotification = {
+	id: 'fixture.petPlatform',
+	severity: ChatInputNotificationSeverity.Info,
+	message: 'Choose how you want to use Copilot.',
+	description: 'Sign in to use GitHub Copilot models, or add a model with your own API key.',
+	actions: [],
+	dismissible: false,
+	autoDismissOnMessage: false,
+};
 
 /**
  * Renders the real {@link NewChatInputWidget} inside the production DOM ancestry
@@ -53,12 +75,21 @@ interface NewChatInputFixtureOptions {
  */
 async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptions: NewChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
-	const { value, selection, subSessionTip } = fixtureOptions;
+	const { value, selection, subSessionTip, notification, gettingStartedTip, pet } = fixtureOptions;
+
+	// Sprite sheets are resolved against the file root.
+	if (pet) {
+		configureChatPetFixtureFileRoot(disposableStore);
+	}
+	const chatPetService = pet ? disposableStore.add(new FixtureChatPetService({ enabled: true })) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			registerChatFixtureServices(reg);
+			registerChatFixtureServices(reg, { notification });
+			if (chatPetService) {
+				reg.defineInstance(IChatPetService, chatPetService);
+			}
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
 				override readonly onShow = Event.None;
 				override readonly onHide = Event.None;
@@ -132,7 +163,7 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	});
 
 	container.style.width = '600px';
-	container.style.height = '160px';
+	container.style.height = pet ? `${PET_FIXTURE_HEIGHT}px` : '160px';
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 
 	// `.new-chat-in-session` scopes the layout overrides and
@@ -142,21 +173,6 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	const root = dom.append(container, dom.$('.new-chat-in-session.sessions-chat-widget'));
 	const widgetContainer = dom.append(root, dom.$('.new-chat-widget-container.revealed'));
 	const content = dom.append(widgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
-
-	// The sub-session tip, docked above the composer. The composer is a stack of
-	// its own, so this covers a notice reaching through a nested stack to square
-	// the input inside it.
-	if (subSessionTip) {
-		const tipSlot = dom.append(content, dom.$(`.sub-session-tip-container.${chatInputStackSlotClass}`));
-		const tip = disposableStore.add(new ChatInputNoticeWidget({
-			container: tipSlot,
-			variant: ChatInputNoticeVariant.Tip,
-			ariaLabel: 'Sub-session tip',
-		}));
-		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
-			'Start a parallel conversation to build on all the changes made in this session.';
-		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
-	}
 
 	const session = observableValue<IActiveSession | undefined>('session', undefined);
 	const widget = disposableStore.add(instantiationService.createInstance(NewChatInputWidget, {
@@ -168,6 +184,33 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 	}));
 
 	widget.render(content, container);
+
+	// Fills the composer's own tip slot, which production drives from ChatInputTipPresenter.
+	const tipSlot = widget.gettingStartedTipContainerElement;
+	if (gettingStartedTip && tipSlot) {
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: tipSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Getting started tip',
+		}));
+		dom.append(tip.domNode, dom.$('span')).textContent =
+			'Tip: Configure default permissions to start new sessions in Bypass Approvals or Autopilot mode.';
+		setChatInputStackSlot(tipSlot, ChatInputStackSlot.Docked);
+	}
+
+	// The sub-session tip, which `NewChatInSessionWidget` docks in the composer's host slot.
+	const hostSlot = widget.hostNoticeContainerElement;
+	if (subSessionTip && hostSlot) {
+		hostSlot.classList.add('sub-session-tip-container');
+		const tip = disposableStore.add(new ChatInputNoticeWidget({
+			container: hostSlot,
+			variant: ChatInputNoticeVariant.Tip,
+			ariaLabel: 'Sub-session tip',
+		}));
+		dom.append(tip.domNode, dom.$('span.sub-session-tip-text')).textContent =
+			'Start a parallel conversation to build on all the changes made in this session.';
+		setChatInputStackSlot(hostSlot, ChatInputStackSlot.Docked);
+	}
 
 	// The widget lays out its editor on the input container's `animationend`; in the
 	// fixture there is no animation, so seed the value and lay out explicitly.
@@ -183,6 +226,10 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 		}
 	}
 	await new Promise(r => setTimeout(r, 50));
+
+	if (pet) {
+		assertChatPetInScreenshot(container);
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
@@ -206,5 +253,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	// squaring the input inside the composer's own nested stack.
 	WithSubSessionTip: defineComponentFixture({
 		render: context => renderNewChatInput(context, { value: 'What are you building?', subSessionTip: true })
+	}),
+
+	// Where the pet lands, for each notice that can dock above the input (#332570).
+	WithPet: defineComponentFixture({
+		render: context => renderNewChatInput(context, { pet: true }),
+	}),
+	WithPetAndNotification: defineComponentFixture({
+		render: context => renderNewChatInput(context, { notification: petPlatformNotification, pet: true }),
+	}),
+	WithPetAndGettingStartedTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { gettingStartedTip: true, pet: true }),
+	}),
+	// The sub-session tip, docked from the composer's host slot.
+	WithPetAndSubSessionTip: defineComponentFixture({
+		render: context => renderNewChatInput(context, { subSessionTip: true, pet: true }),
 	}),
 });

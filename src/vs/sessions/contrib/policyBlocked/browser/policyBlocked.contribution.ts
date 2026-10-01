@@ -12,13 +12,17 @@ import { IDefaultAccountService } from '../../../../platform/defaultAccount/comm
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from './sessionsPolicyBlocked.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../../../workbench/services/policies/common/accountPolicyService.js';
+import { ManagedSettingsFreshnessState } from '../../../../platform/policy/common/managedSettingsFreshness.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { equals } from '../../../../base/common/objects.js';
+import { IManagedSettingsUpdateService } from '../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 
 export class SessionsPolicyBlockedContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsPolicyBlocked';
 
-	private readonly overlayRef = this._register(new MutableDisposable());
-	private currentReason: SessionsBlockedReason | undefined;
+	private readonly overlayRef = this._register(new MutableDisposable<SessionsPolicyBlockedOverlay>());
+	private currentOptions: ISessionsBlockedOverlayOptions | undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -26,10 +30,14 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IManagedSettingsUpdateService private readonly managedSettingsUpdateService: IManagedSettingsUpdateService,
 	) {
 		super();
 
-		this.update();
+		this._register(autorun(reader => {
+			this.managedSettingsUpdateService.updateInfo.read(reader);
+			this.update();
+		}));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
@@ -41,6 +49,11 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 	}
 
 	private update(): void {
+		const updateInfo = this.managedSettingsUpdateService.updateInfo.get();
+		if (updateInfo) {
+			this.showOverlay({ reason: SessionsBlockedReason.UpdateRequired, updateInfo });
+			return;
+		}
 		const gateInfo = this.gateService.gateInfo;
 
 		// The gate forces chat.agent.enabled = false via restrictedValue when stably
@@ -60,12 +73,17 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
 				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
 				this.overlayRef.clear();
-				this.currentReason = undefined;
+				this.currentOptions = undefined;
 				return;
 			}
 
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
+			} else if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh) {
+				const freshness = gateInfo.managedSettingsFreshness;
+				this.showOverlay(freshness?.state === ManagedSettingsFreshnessState.Blocked
+					? { reason: SessionsBlockedReason.ManagedSettingsRefresh, freshness }
+					: { reason: SessionsBlockedReason.Loading });
 			} else {
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 				this.showOverlay({
@@ -78,21 +96,21 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		}
 
 		this.overlayRef.clear();
-		this.currentReason = undefined;
+		this.currentOptions = undefined;
 	}
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
-		// AccountPolicyGate may need re-render when the account name changes.
-		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
+		if (equals(this.currentOptions, options)) {
 			return;
 		}
+		const shouldFocus = options.reason !== SessionsBlockedReason.UpdateRequired || !this.overlayRef.value || this.overlayRef.value.hasFocus();
 		this.overlayRef.clear();
-		this.currentReason = options.reason;
+		this.currentOptions = options;
 
 		this.overlayRef.value = this.instantiationService.createInstance(
 			SessionsPolicyBlockedOverlay,
 			this.layoutService.mainContainer,
-			options,
+			{ ...options, shouldFocus },
 		);
 	}
 }

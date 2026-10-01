@@ -19,7 +19,7 @@ import {
 	PullRequestSubscriptionOptions,
 } from '../../common/githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
-import { GitHubTransport } from '../../common/githubTransport.js';
+import { FetchFunction, GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { PullRequestMutationService } from '../../common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../common/pullRequestResourceService.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
@@ -128,7 +128,7 @@ suite('PullRequestMutationService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeGitHubScheduler): {
+	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeGitHubScheduler, fetch: FetchFunction = nodeFetch): {
 		readonly ref: PullRequestRef;
 		readonly resources: TestResourceService;
 		readonly service: PullRequestMutationService;
@@ -136,7 +136,7 @@ suite('PullRequestMutationService', () => {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
 		const credentials = disposables.add(new TestCredentialService(account));
-		const transport = disposables.add(new GitHubTransport(nodeFetch, undefined, true));
+		const transport = disposables.add(new GitHubTransport(fetch, undefined, true));
 		const resources = new TestResourceService(ref, { ...snapshot, ref });
 		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
 		return { ref, resources, service };
@@ -199,6 +199,8 @@ suite('PullRequestMutationService', () => {
 						node_id: 'PR8',
 						html_url: 'https://example.test/pull/8',
 						created_at: '2026-01-01T00:00:00Z',
+						title: 'Server title',
+						state: 'open',
 					}),
 				}),
 				gitHubGraphQLStep({
@@ -227,8 +229,64 @@ suite('PullRequestMutationService', () => {
 				ref: { ...ref, number: 8 },
 				id: 'PR8',
 				url: 'https://example.test/pull/8',
+				title: 'PR',
 				createdAt: '2026-01-01T00:00:00Z',
+				state: 'open',
 			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('rejects a malformed create response without replaying the write', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubRestStep({ method: 'POST', path: '/repos/octo/repo/pulls', response: gitHubJsonResponse({ number: 8 }) }));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.createPullRequest(ref, { title: 'PR', body: '', head: 'feature', base: 'main', draft: false }, signal()), { kind: 'malformedResponse' });
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('surfaces auto-merge GraphQL failures without replaying the mutation', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostEnablePullRequestAutoMerge',
+				response: gitHubGraphQLResponse(undefined, [{ message: 'Auto-merge is not enabled', type: 'UNPROCESSABLE' }]),
+			}));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.enableAutoMerge(ref, { pullRequestId: 'PR7', method: 'REBASE' }, signal()), /Auto-merge is not enabled/);
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('marks a pull request ready and toggles auto-merge off through node mutations', async () => {
+		await withServers(async server => {
+			server.enqueue(
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						markPullRequestReadyForReview: { pullRequest: { id: 'PR7', isDraft: false } },
+					}),
+				}),
+				gitHubGraphQLStep({
+					queryIncludes: 'AgentHostDisablePullRequestAutoMerge',
+					assert: request => assert.deepStrictEqual(request.graphQl?.variables, { pullRequestId: 'PR7' }),
+					response: gitHubGraphQLResponse({
+						disablePullRequestAutoMerge: { pullRequest: { id: 'PR7' } },
+					}),
+				}),
+			);
+			const { ref, resources, service } = setup(server);
+
+			await service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal());
+			await service.disableAutoMerge(ref, { pullRequestId: 'PR7' }, signal());
+
+			assert.deepStrictEqual(resources.invalidations, [
+				{ fragments: ['core', 'mergeability'] },
+				{ fragments: ['mergeability'] },
+			]);
 			server.assertSatisfied();
 		});
 	});
@@ -302,6 +360,66 @@ suite('PullRequestMutationService', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const kind of ['timeout', 'responseTooLarge'] as const) {
+		test(`reconciles an ambiguous ${kind} without blindly replaying a comment`, async () => {
+			await withServers(async server => {
+				let writes = 0;
+				const { ref, resources, service } = setup(server, completeSnapshot(server), undefined, async () => {
+					writes++;
+					return new Response(new ReadableStream<Uint8Array>({
+						start(controller) { controller.error(new GitHubRequestError('Response unavailable', kind, 200)); },
+					}));
+				});
+				resources.refreshHandler = () => {
+					resources.setSnapshot({
+						...resources.snapshot.get(),
+						topLevelComments: { status: 'ready', complete: false, value: [] },
+					});
+				};
+				const result = await service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal());
+				assert.deepStrictEqual({ result, writes }, { result: { outcome: 'indeterminate' }, writes: 1 });
+			});
+		});
+	}
+
+	for (const operation of ['comment', 'reply'] as const) {
+		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
+			await withServers(async server => {
+				const scheduler = disposables.add(new FakeGitHubScheduler());
+				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+				const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+				const credentials = disposables.add(new TestCredentialService(account));
+				let writes = 0;
+				let refreshes = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					writes++;
+					return new Response('{}');
+				}, scheduler, false, undefined, { requestTimeout: 10 }));
+				for (const resource of ['core', 'graphql']) {
+					transport.rateLimits.updateFromResponse(account, new Response(null, {
+						status: 429, headers: {
+							'retry-after': '1', 'x-ratelimit-resource': resource,
+						}
+					}));
+				}
+				const resources = new TestResourceService(ref, completeSnapshot(server));
+				resources.refreshHandler = () => {
+					refreshes++;
+					throw new Error('A queued write must not require reconciliation');
+				};
+				const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
+				const pending = operation === 'comment'
+					? service.addComment(ref, { operationId: 'operation-1', body: 'hello' }, signal())
+					: service.replyToThread(ref, { operationId: 'operation-1', body: 'hello', threadId: 'T1' }, signal());
+				const rejected = assert.rejects(pending, { kind: 'timeout' });
+				await new Promise(resolve => setTimeout(resolve, 0));
+				scheduler.advanceBy(10);
+				await rejected;
+				assert.deepStrictEqual({ writes, refreshes, timers: scheduler.pendingCount }, { writes: 0, refreshes: 0, timers: 0 });
+			});
+		});
+	}
 
 	test('never resolves a review thread when the reply fails', async () => {
 		await withServers(async server => {
@@ -389,6 +507,46 @@ suite('PullRequestMutationService', () => {
 			server.assertSatisfied();
 		});
 	});
+
+	for (const outcome of ['succeeded', 'indeterminate'] as const) {
+		test(`retries a proven-absent thread reply once and returns ${outcome}`, async () => {
+			await withServers(async server => {
+				server.enqueue(
+					gitHubGraphQLStep({ queryIncludes: 'AgentHostAddPullRequestReviewThreadReply', response: gitHubDisconnectResponse() }),
+					gitHubGraphQLStep({
+						queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+						response: outcome === 'succeeded'
+							? gitHubGraphQLResponse({ addPullRequestReviewThreadReply: { comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}` } } })
+							: gitHubDisconnectResponse(),
+					}),
+				);
+				const { ref, resources, service } = setup(server);
+				let refreshes = 0;
+				resources.refreshHandler = () => {
+					refreshes++;
+					resources.setSnapshot({
+						...resources.snapshot.get(),
+						reviewThreads: {
+							status: 'ready', complete: true, headSha: 'head-1',
+							value: [{ id: 'T1', isResolved: false, comments: [] }],
+						},
+					});
+				};
+				const result = await service.replyToThread(ref, { operationId: 'operation-1', threadId: 'T1', body: 'reply' }, signal());
+				assert.deepStrictEqual({
+					outcome: result.outcome, commentId: result.value?.id, refreshes,
+					requests: server.requests.map(request => request.graphQl?.variables),
+				}, {
+					outcome, commentId: outcome === 'succeeded' ? '2' : undefined, refreshes: 1,
+					requests: [
+						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
+						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
+					],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
 
 	test('leaves a review thread open when resolution fails', async () => {
 		await withServers(async server => {
@@ -577,13 +735,20 @@ suite('PullRequestMutationService', () => {
 				gitHubRestStep({
 					method: 'GET',
 					path: '/repos/octo/repo/actions/jobs/20/logs',
+					assert: request => assert.strictEqual(request.headers.accept, 'application/vnd.github+json'),
 					response: gitHubRedirectResponse(`${download.apiBaseUrl}/signed/log`),
 				}),
 			);
 			download.enqueue(gitHubRestStep({
 				method: 'GET',
 				path: '/signed/log',
-				assert: request => assert.strictEqual(request.headers.authorization, undefined),
+				assert: request => assert.deepStrictEqual({
+					accept: request.headers.accept,
+					authorization: request.headers.authorization,
+				}, {
+					accept: 'text/plain, application/octet-stream',
+					authorization: undefined,
+				}),
 				response: gitHubRawResponse('::add-mask::supersecret\nsupersecret\ntoken=visible\nghp_1234567890123456'),
 			}));
 			const { ref, service } = setup(server);
@@ -604,8 +769,11 @@ suite('PullRequestMutationService', () => {
 					id: '20',
 					runId: '10',
 					name: 'test',
+					headSha: undefined,
+					runAttempt: undefined,
 					status: 'COMPLETED',
 					conclusion: 'FAILURE',
+					steps: undefined,
 					checkRunId: '30',
 					url: undefined,
 					startedAt: undefined,
@@ -623,10 +791,163 @@ suite('PullRequestMutationService', () => {
 				log: {
 					text: '::add-mask::***\n***\ntoken=***\n***',
 					truncated: false,
+					bytesRead: Buffer.byteLength('::add-mask::supersecret\nsupersecret\ntoken=visible\nghp_1234567890123456'),
+					maximumBytes: 16 * 1024 * 1024,
 				},
 			});
 			server.assertSatisfied();
 			download.assertSatisfied();
+		});
+	});
+
+	test('distinguishes known run attempts without changing compatibility attempt values', async () => {
+		await withServers(async server => {
+			const attempts = [undefined, null, '2', 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, 1, 3];
+			server.enqueue(gitHubRestStep({
+				method: 'GET',
+				path: '/repos/octo/repo/actions/runs',
+				query: { head_sha: 'head-1', per_page: 100 },
+				response: gitHubJsonResponse({
+					workflow_runs: attempts.map((attempt, index) => ({
+						...workflowRun(index + 10, 1, 'completed'),
+						run_attempt: attempt,
+					})),
+				}),
+			}));
+			const { ref, service } = setup(server);
+			const runs = await service.listWorkflowRuns(ref, 'head-1', signal());
+			assert.deepStrictEqual(runs.map(run => ({ runAttempt: run.runAttempt, runAttemptKnown: run.runAttemptKnown })), [
+				{ runAttempt: 1, runAttemptKnown: false },
+				{ runAttempt: 1, runAttemptKnown: false },
+				{ runAttempt: 1, runAttemptKnown: false },
+				{ runAttempt: 0, runAttemptKnown: false },
+				{ runAttempt: -1, runAttemptKnown: false },
+				{ runAttempt: 1.5, runAttemptKnown: false },
+				{ runAttempt: Number.MAX_SAFE_INTEGER + 1, runAttemptKnown: false },
+				{ runAttempt: 1, runAttemptKnown: true },
+				{ runAttempt: 3, runAttemptKnown: true },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('paginates jobs for the expected attempt and maps REST evidence without inventing an attempt', async () => {
+		await withServers(async server => {
+			server.enqueue(
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/actions/runs/10/attempts/3/jobs',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse({
+						jobs: [{
+							id: 20, name: 'test', head_sha: 'head-1', run_attempt: 3,
+							check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/30',
+							steps: [{ number: 2, name: 'Unit tests', status: 'completed', conclusion: 'failure' }],
+						}]
+					}, { link: `<${server.apiBaseUrl}/repos/octo/repo/actions/runs/10/attempts/3/jobs?per_page=100&page=2>; rel="next"` }),
+				}),
+				gitHubRestStep({
+					method: 'GET',
+					path: '/repos/octo/repo/actions/runs/10/attempts/3/jobs',
+					query: { per_page: 100, page: 2 },
+					response: gitHubJsonResponse({ jobs: [{ id: 21, name: 'other', check_run_id: 31, check_run_url: 'https://api.github.com/repos/octo/repo/check-runs/999' }] }),
+				}),
+			);
+			const { ref, service } = setup(server);
+			const jobs = await service.listWorkflowJobs(ref, '10', signal(), 3);
+			assert.deepStrictEqual(jobs.map(job => ({
+				id: job.id, runId: job.runId, headSha: job.headSha, runAttempt: job.runAttempt, checkRunId: job.checkRunId, steps: job.steps,
+			})), [
+				{ id: '20', runId: '10', headSha: 'head-1', runAttempt: 3, checkRunId: '30', steps: [{ number: 2, name: 'Unit tests', status: 'COMPLETED', conclusion: 'FAILURE' }] },
+				{ id: '21', runId: '10', headSha: undefined, runAttempt: undefined, checkRunId: '31', steps: undefined },
+			]);
+			server.assertSatisfied();
+		});
+	});
+
+	test('preserves the actual failing summary beyond two MiB and redacts late masks across byte chunks', async () => {
+		await withServers(async server => {
+			const prefix = 'build output\n'.repeat(180_000);
+			const secret = 'late.mask+[value]';
+			const summary = '1 failing\nAssertionError: expected false to be true\n';
+			const raw = `${prefix}${secret}\nghp_1234567890123456\n${summary}::add-mask::${secret}\n`;
+			const bytes = new TextEncoder().encode(raw);
+			const split = prefix.length + 5;
+			const { ref, service } = setup(server, undefined, undefined, async () => new Response(new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(bytes.slice(0, split));
+					controller.enqueue(bytes.slice(split, split + 19));
+					controller.enqueue(bytes.slice(split + 19));
+					controller.close();
+				},
+			})));
+			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			assert.deepStrictEqual({
+				beyondOldLimit: prefix.length > 2 * 1024 * 1024,
+				text: log.text.slice(prefix.length), length: log.text.length,
+				truncated: log.truncated, bytesRead: log.bytesRead, maximumBytes: log.maximumBytes,
+			}, {
+				beyondOldLimit: true,
+				text: `***\n***\n${summary}::add-mask::***\n`, length: prefix.length + `***\n***\n${summary}::add-mask::***\n`.length,
+				truncated: false, bytesRead: bytes.length, maximumBytes: 16 * 1024 * 1024,
+			});
+		});
+	});
+
+	test('reports the hard limit as incomplete and discards a partial secret before redaction', async () => {
+		await withServers(async server => {
+			const maximumBytes = 16 * 1024 * 1024;
+			const prefix = `${'x'.repeat(maximumBytes - 10)}\n`;
+			const raw = `${prefix}ghp_12345678901234567890\nreal EOF failure\n`;
+			let cancelled = false;
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(new TextEncoder().encode(raw));
+				},
+				cancel() { cancelled = true; },
+			});
+			const { ref, service } = setup(server, undefined, undefined, async () => new Response(stream));
+			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			assert.deepStrictEqual({
+				textIsSafePrefix: log.text === prefix, truncated: log.truncated,
+				bytesRead: log.bytesRead, maximumBytes: log.maximumBytes, cancelled, locked: stream.locked,
+			}, {
+				textIsSafePrefix: true, truncated: true,
+				bytesRead: maximumBytes, maximumBytes, cancelled: true, locked: false,
+			});
+		});
+	});
+
+	test('recognizes true EOF exactly at the workflow cap including an unterminated final line', async () => {
+		await withServers(async server => {
+			const maximumBytes = 16 * 1024 * 1024;
+			const summary = '\n1 failing\nAssertionError: exact cap';
+			const raw = `${'x'.repeat(maximumBytes - summary.length)}${summary}`;
+			const { ref, service } = setup(server, undefined, undefined, async () => new Response(raw));
+			const log = await service.downloadWorkflowJobLog(ref, '20', signal());
+			assert.deepStrictEqual({
+				textMatches: log.text === raw, truncated: log.truncated, bytesRead: log.bytesRead, maximumBytes: log.maximumBytes,
+			}, { textMatches: true, truncated: false, bytesRead: maximumBytes, maximumBytes });
+		});
+	});
+
+	test('bounds distinct add-mask work without exposing unredacted logs', async () => {
+		await withServers(async server => {
+			const raw = Array.from({ length: 129 }, (_, index) => `::add-mask::private-${index}\n`).join('');
+			const { ref, service } = setup(server, undefined, undefined, async () => new Response(raw));
+			await assert.rejects(() => service.downloadWorkflowJobLog(ref, '20', signal()), {
+				name: 'GitHubRequestError', kind: 'validation', message: 'GitHub workflow log exceeded redaction safety limits',
+			});
+		});
+	});
+
+	test('rejects invalid expected attempts before fetching jobs', async () => {
+		await withServers(async server => {
+			const { ref, service } = setup(server);
+			for (const attempt of [0, -1, 1.5, NaN, Infinity]) {
+				await assert.rejects(() => service.listWorkflowJobs(ref, '10', signal(), attempt), error => error instanceof GitHubRequestError && error.kind === 'validation');
+			}
+			assert.strictEqual(server.requests.length, 0);
 		});
 	});
 
@@ -885,6 +1206,7 @@ function workflowRunNormalized(id: string, attempt: number, status: string): obj
 		conclusion: status === 'COMPLETED' ? 'FAILURE' : undefined,
 		headSha: 'head-1',
 		runAttempt: attempt,
+		runAttemptKnown: true,
 		url: undefined,
 		createdAt: undefined,
 		updatedAt: undefined,

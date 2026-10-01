@@ -118,7 +118,7 @@ abstract class ClassPropertyBlueprintSearch<T extends MethodDeclaration | Constr
 			if (name === undefined) {
 				continue;
 			}
-			for (const entry of await this.project.checker.getReferencedSymbolsForNode(name, name.getStart())) {
+			for (const entry of await this.project.languageService.getReferencedSymbolsForNode(name, name.getStart())) {
 				for (const reference of entry.references) {
 					token.throwIfCancellationRequested();
 					const node = await reference.resolve(this.project);
@@ -313,8 +313,7 @@ abstract class ClassPropertyContextProvider<T extends MethodDeclaration | Constr
 		const symbols = context.getSymbols(project);
 		for (const heritageClause of classDeclaration.heritageClauses ?? []) {
 			for (const type of heritageClause.types) {
-				// const symbol = isExpressionWithTypeArguments(type) ? await symbols.getLeafSymbolAtLocation(type.expression) : await symbols.getLeafSymbolAtLocation(type.typeName);
-				const symbol = await symbols.getLeafSymbolAtLocation(type.expression);
+				const symbol = isExpressionWithTypeArguments(type) ? await symbols.getLeafSymbolAtLocation(type.expression) : await symbols.getLeafSymbolAtLocation(type.typeName);
 				if (Symbols.isClass(symbol)) {
 					result.add(symbol);
 				}

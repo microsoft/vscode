@@ -560,7 +560,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return true;
 			},
-			autoExpandSingleChildren: true,
+			autoExpandCompressedChildren: true,
 			expandOnlyOnTwistieClick: (e: unknown) => {
 				if (e instanceof ExplorerItem) {
 					if (e.hasNests) {
@@ -698,6 +698,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const stat = e.element;
+		if (stat && !this.tree.getSelection().includes(stat)) {
+			// Do not forward the keyboard event: selecting the context-menu target must not open it.
+			this.tree.setSelection([stat]);
+		}
+
 		let anchor = e.anchor;
 
 		// Adjust for compressed folders (except when mouse is used)

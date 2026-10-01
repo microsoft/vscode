@@ -19,12 +19,13 @@ import type { FetchAutomationRunsParams, ListAutomationTriggerDefinitionsParams,
 /**
  * Operations the host currently permits for an automation.
  *
- * The list on {@link AutomationState.operations} is authoritative and may
+ * The list on {@link AutomationEntry.operations} is authoritative and may
  * change over time. Clients MUST NOT infer permission from capabilities alone:
  * capabilities describe what the host implementation can support, while
  * operations describe what is allowed for this particular automation now.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationOperation {
 	/** Replace editable fields using {@link AutomationUpdateRequestedAction | `automation/updateRequested`}. */
@@ -80,6 +81,7 @@ export interface AutomationSchedule {
  * unavailable.
  *
  * @category Automation State
+ * @nonexhaustive
  */
 export const enum AutomationMisfirePolicy {
 	/** Discard missed occurrences and wait for the next future occurrence. */
@@ -95,6 +97,7 @@ export const enum AutomationMisfirePolicy {
  * Discriminant for automatic trigger definitions.
  *
  * @category Automation State
+ * @exhaustive
  */
 export const enum AutomationTriggerKind {
 	/** A portable recurring {@link AutomationSchedule}. */
@@ -177,6 +180,55 @@ export type AutomationTrigger =
 	| AutomationEventTrigger;
 
 /**
+ * Discriminant for an {@link AutomationDisableCondition}.
+ *
+ * @category Automation State
+ * @exhaustive
+ */
+export const enum AutomationDisableConditionKind {
+	/** Stop scheduling after a fixed number of scheduled runs. */
+	AfterRuns = 'afterRuns',
+	/** Stop scheduling once a wall-clock date passes. */
+	AfterDate = 'afterDate',
+}
+
+/**
+ * Stops scheduling after a fixed number of scheduled runs.
+ *
+ * @category Automation State
+ */
+export interface AutomationAfterRunsCondition {
+	kind: AutomationDisableConditionKind.AfterRuns;
+	/**
+	 * Positive-integer cap on scheduled runs.
+	 * @integer
+	 * @minimum 1
+	 */
+	max: number;
+}
+
+/**
+ * Stops scheduling once a wall-clock date passes.
+ *
+ * @category Automation State
+ */
+export interface AutomationAfterDateCondition {
+	kind: AutomationDisableConditionKind.AfterDate;
+	/** ISO 8601 timestamp after which scheduling stops. */
+	date: string;
+}
+
+/**
+ * One self-disable rule in {@link AutomationDefinition.disableConditions}.
+ * The host disables scheduling once any rule is met (logical OR).
+ *
+ * @category Automation State
+ */
+export type AutomationDisableCondition =
+	| AutomationAfterRunsCondition
+	| AutomationAfterDateCondition;
+
+/**
  * Describes one host-defined trigger event.
  *
  * @category Automation State
@@ -252,7 +304,7 @@ export interface AutomationSessionTemplate {
  * A definition combines the initial automation message, the session template
  * used for each run, and zero or more automatic triggers. Run history,
  * timestamps, and currently allowed operations live on
- * {@link AutomationState} rather than in the definition.
+ * {@link AutomationEntry} rather than in the definition.
  *
  * @category Automation State
  */
@@ -274,6 +326,24 @@ export interface AutomationDefinition {
 	/** Automatic triggers. An empty list means manual-only. */
 	triggers: AutomationTrigger[];
 	/**
+	 * Self-disable rules combined with logical OR: the host sets
+	 * {@link AutomationDefinition.enabled} to `false` when any condition is met.
+	 * Absent or empty means no automatic disable conditions. Each
+	 * {@link AutomationDisableConditionKind} may appear at most once; hosts MUST
+	 * reject create or update requests containing duplicate kinds.
+	 *
+	 * Only automatic (scheduled) runs are governed; manual runs via
+	 * {@link RunAutomationParams | runAutomation} are never blocked. For a
+	 * {@link AutomationAfterRunsCondition}, usage is tracked by the host-owned
+	 * {@link AutomationEntry.runCount}. Adding that kind when absent or
+	 * a disabled→enabled transition starts a fresh allowance. Clearing the
+	 * conditions does not re-enable a disabled automation. See the
+	 * {@link /guide/automations | Automations Guide}.
+	 *
+	 * @uniqueItemsBy kind
+	 */
+	disableConditions?: AutomationDisableCondition[];
+	/**
 	 * Opaque implementation-defined metadata. Clients MUST preserve unknown
 	 * entries when updating the definition.
 	 */
@@ -281,8 +351,7 @@ export interface AutomationDefinition {
 }
 
 /**
- * Authoritative state of one automation in the
- * {@link AutomationCatalogState.automations} catalogue.
+ * Authoritative state of one automation in {@link AutomationState.entries}.
  *
  * The host owns trigger evaluation, run claims, run retention, and operation
  * availability. Clients render this state and submit actions or commands; they
@@ -290,7 +359,7 @@ export interface AutomationDefinition {
  *
  * @category Automation State
  */
-export interface AutomationState {
+export interface AutomationEntry {
 	/** Stable `ahp-automation:/<id>` resource identifier. */
 	resource: URI;
 	/** Current durable definition. */
@@ -298,9 +367,23 @@ export interface AutomationState {
 	/** Earliest schedule occurrence awaiting evaluation, as an ISO 8601 timestamp. It may be in the past while catch-up is pending. */
 	nextRunAt?: string;
 	/**
+	 * Host-owned count of scheduled runs consumed against the current
+	 * {@link AutomationAfterRunsCondition} allowance. Authoritative usage for the
+	 * **current** allowance, not a lifetime total: the host resets it to `0` when
+	 * a disabled→enabled transition starts a fresh allowance or a
+	 * {@link AutomationAfterRunsCondition} is added when none was present. It is NOT
+	 * reconstructed from {@link runs} (a bounded, prunable window). The host
+	 * increments it atomically when it admits a scheduled run, including runs
+	 * later cancelled or failed.
+	 *
+	 * Absent when {@link AutomationDefinition.disableConditions} contains no
+	 * {@link AutomationAfterRunsCondition}.
+	 */
+	runCount?: number;
+	/**
 	 * Newest-first retained run summaries. This is a bounded window; use
 	 * {@link FetchAutomationRunsParams | fetchAutomationRuns} when
-	 * {@link AutomationState.runsNextCursor} is present.
+	 * {@link AutomationEntry.runsNextCursor} is present.
 	 */
 	runs: AutomationRunSummary[];
 	/** Opaque cursor passed as {@link FetchAutomationRunsParams.cursor} for the next older run-history page. */
@@ -326,9 +409,9 @@ export interface AutomationState {
  *
  * @category Automation State
  */
-export interface AutomationCatalogState {
-	/** Full automation states keyed by {@link AutomationState.resource}. */
-	automations: AutomationState[];
+export interface AutomationState {
+	/** Full automation entries keyed by {@link AutomationEntry.resource}. */
+	entries: AutomationEntry[];
 	/** Opaque host-defined catalogue metadata. */
 	_meta?: Record<string, unknown>;
 }

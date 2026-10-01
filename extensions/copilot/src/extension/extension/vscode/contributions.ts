@@ -7,6 +7,7 @@ import { NesActivationTelemetryContribution } from '../../../platform/inlineEdit
 import { asContributionFactory, IExtensionContributionFactory } from '../../common/contributions';
 import * as contextContribution from '../../context/vscode/context.contribution';
 import { LifecycleTelemetryContrib } from '../../telemetry/common/lifecycleTelemetryContrib';
+import { ChatHarnessSwitchFeedbackSurveyForwardingContrib } from '../../telemetry/vscode/chatHarnessSwitchFeedbackSurveyForwardingContrib';
 import { GithubTelemetryForwardingContrib } from '../../telemetry/vscode/githubTelemetryForwardingContrib';
 import { ChatModelFeedbackSurveyForwardingContrib } from '../../telemetry/vscode/chatModelFeedbackSurveyForwardingContrib';
 
@@ -21,6 +22,7 @@ import { ChatModelFeedbackSurveyForwardingContrib } from '../../telemetry/vscode
 const vscodeContributions: IExtensionContributionFactory[] = [
 	asContributionFactory(LifecycleTelemetryContrib),
 	asContributionFactory(NesActivationTelemetryContribution),
+	asContributionFactory(ChatHarnessSwitchFeedbackSurveyForwardingContrib),
 	asContributionFactory(GithubTelemetryForwardingContrib),
 	asContributionFactory(ChatModelFeedbackSurveyForwardingContrib),
 	contextContribution,

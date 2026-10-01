@@ -56,6 +56,7 @@ export interface IDynamicVariable {
 	fullName?: string;
 	icon?: ThemeIcon;
 	modelDescription?: string;
+	promptText?: string;
 	isFile?: boolean;
 	isDirectory?: boolean;
 	isAttachmentReference?: boolean;

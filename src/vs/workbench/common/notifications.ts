@@ -87,6 +87,11 @@ export interface INotificationChangeEvent {
 	 * `NotificationChangeType.CHANGE`.
 	 */
 	detail?: NotificationViewItemContentChangeKind;
+
+	/**
+	 * Whether progress changed between active and inactive.
+	 */
+	activeProgressChanged?: boolean;
 }
 
 export const enum StatusMessageChangeType {
@@ -252,15 +257,15 @@ export class NotificationsModel extends Disposable implements INotificationsMode
 		}
 
 		// Item Events
-		const fireNotificationChangeEvent = (kind: NotificationChangeType, detail?: NotificationViewItemContentChangeKind) => {
+		const fireNotificationChangeEvent = (kind: NotificationChangeType, detail?: NotificationViewItemContentChangeKind, activeProgressChanged?: boolean) => {
 			const index = this._notifications.indexOf(item);
 			if (index >= 0) {
-				this._onDidChangeNotification.fire({ item, index, kind, detail });
+				this._onDidChangeNotification.fire({ item, index, kind, detail, activeProgressChanged });
 			}
 		};
 
 		const itemExpansionChangeListener = item.onDidChangeExpansion(() => fireNotificationChangeEvent(NotificationChangeType.EXPAND_COLLAPSE));
-		const itemContentChangeListener = item.onDidChangeContent(e => fireNotificationChangeEvent(NotificationChangeType.CHANGE, e.kind));
+		const itemContentChangeListener = item.onDidChangeContent(e => fireNotificationChangeEvent(NotificationChangeType.CHANGE, e.kind, e.activeProgressChanged));
 
 		Event.once(item.onDidClose)(() => {
 			itemExpansionChangeListener.dispose();
@@ -311,6 +316,7 @@ export interface INotificationViewItem {
 	readonly visible: boolean;
 	readonly canCollapse: boolean;
 	readonly hasProgress: boolean;
+	readonly hasActiveProgress: boolean;
 
 	readonly onDidChangeExpansion: Event<void>;
 	readonly onDidChangeVisibility: Event<boolean>;
@@ -345,6 +351,7 @@ export const enum NotificationViewItemContentChangeKind {
 
 export interface INotificationViewItemContentChangeEvent {
 	kind: NotificationViewItemContentChangeKind;
+	activeProgressChanged?: boolean;
 }
 
 export interface INotificationViewItemProgressState {
@@ -592,7 +599,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		if (
 			(hasActions && this._severity === Severity.Error) || // notification errors with actions are sticky
 			(!hasActions && this._expanded) ||					 // notifications that got expanded are sticky
-			(this._progress && !this._progress.state.done)		 // notifications with running progress are sticky
+			this.hasActiveProgress								 // notifications with running progress are sticky
 		) {
 			return true;
 		}
@@ -620,10 +627,21 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 		return !!this._progress;
 	}
 
+	get hasActiveProgress(): boolean {
+		const state = this._progress?.state;
+		return !!state && !state.done && (state.infinite === true || typeof state.total === 'number' || typeof state.worked === 'number');
+	}
+
 	get progress(): INotificationViewItemProgress {
 		if (!this._progress) {
 			this._progress = this._register(new NotificationViewItemProgress());
-			this._register(this._progress.onDidChange(() => this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.PROGRESS })));
+			let wasActive = this.hasActiveProgress;
+			this._register(this._progress.onDidChange(() => {
+				const isActive = this.hasActiveProgress;
+				const activeProgressChanged = wasActive !== isActive;
+				wasActive = isActive;
+				this._onDidChangeContent.fire({ kind: NotificationViewItemContentChangeKind.PROGRESS, activeProgressChanged });
+			}));
 		}
 
 		return this._progress;

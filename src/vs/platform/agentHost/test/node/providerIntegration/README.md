@@ -11,3 +11,5 @@ Run one suite with:
 ```bash
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotMockLlm.integrationTest.ts
 ```
+
+`copilotAutoTier.integrationTest.ts` checks that a scalar default selected by the client travels through the existing `ModelSelection.config.tier` / SDK `capi.autoTier` boundary to the actual first `/auto` request and survives resume. It uses the production scalar reader and tier accessor with the bundled SDK and isolated HTTP service. Picker scope/lifecycle and send/model-change ordering are covered separately in the browser store and Copilot agent unit suites. These tests characterize client startup preferences, not runtime policy enforcement or backend authoring semantics; they do not require a real account or modify device policy.

@@ -9,21 +9,29 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
+import { hasKey } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService, type ResourceLabelFormatter } from '../../../../../platform/label/common/label.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import type { RemoteAgentConnectionContext, IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
 import type { PersistentConnectionEvent } from '../../../../../platform/remote/common/remoteAgentConnection.js';
 import { EditorRemoteAgentHostServiceClient } from '../../browser/editorRemoteAgentHostServiceClient.js';
 import { IAgentHostFileSystemService } from '../../common/agentHostFileSystemService.js';
+import { EditorRemoteAgentHostTransport } from '../../common/editorRemoteAgentHostTransport.js';
 import { IRemoteAgentService, type IRemoteAgentConnection } from '../../../remote/common/remoteAgentService.js';
 import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -108,12 +116,21 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			dispose: () => { },
 		};
 		const registeredAuthorities: string[] = [];
+		const registeredFormatters: ResourceLabelFormatter[] = [];
 		const agentHostEnabled = observableValue('agentHostEnabled', false);
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
 			[IRemoteAgentService, remoteAgentService],
 			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: agentHostEnabled, managedSandboxEnforced: constObservable(false) }],
 			[ILogService, new NullLogService()],
 			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({
+				registerFormatter: formatter => {
+					if (hasKey(formatter, { scheme: true })) {
+						registeredFormatters.push(formatter);
+					}
+					return Disposable.None;
+				},
+			})],
 			[IAgentHostFileSystemService, {
 				_serviceBrand: undefined,
 				registerAuthority: (authority: string) => {
@@ -132,7 +149,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
 
-		remoteAgentService.environmentReady.complete(null);
+		remoteAgentService.environmentReady.complete(upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Windows }));
 		while (connectCalls === 0) {
 			await Promise.resolve();
 		}
@@ -140,16 +157,72 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		await started;
 
 		const protocolClientCall = createInstanceSpy.getCalls().find(call => call.args[0] === AgentHostProtocolClient);
+		const createTransport = protocolClientCall?.args[2] as () => IClientTransport;
+		const transport = disposables.add(createTransport());
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
-			clientInfo: protocolClientCall?.args[5],
+			clientInfo: protocolClientCall?.args[3]?.clientInfo,
 			registeredAuthorities,
+			registeredFormatters: registeredFormatters.map(formatter => formatter.formatting),
+			mapsRemoteDirectories: transport instanceof EditorRemoteAgentHostTransport,
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
 			clientInfo: editorWindowAgentHostClientInfo,
 			registeredAuthorities: [agentHostAuthority('vscode-remote://ssh-remote+test')],
+			registeredFormatters: [{
+				label: '${path}',
+				separator: '\\',
+				normalizeDriveLetter: true,
+			}],
+			mapsRemoteDirectories: true,
 		});
+	});
+
+	test('returns remote workspace identities for both session-list directory fields', async () => {
+		const channel: IChannel = {
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		};
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection(channel)));
+		const directory = URI.parse('vscode-remote://ssh-remote+test/workspace');
+		const secondDirectory = URI.parse('vscode-remote://ssh-remote+test/second');
+		const directorySets = [undefined, [], [directory], [directory, secondDirectory]];
+		const sessions: IAgentSessionMetadata[] = directorySets.map((directories, index) => ({
+			session: URI.parse(`copilot:/session-${index}`),
+			startTime: 0,
+			modifiedTime: 0,
+			workingDirectory: directories?.[0] ? toAgentHostUri(directories[0], 'test') : undefined,
+			workingDirectories: directories?.map(directory => toAgentHostUri(directory, 'test')),
+		}));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({
+				registerFormatter: () => Disposable.None,
+			})],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			listSessions: async () => sessions,
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+
+		assert.deepStrictEqual(await service.listSessions(), sessions.map((session, index) => ({
+			...session,
+			workingDirectory: directorySets[index]?.[0],
+			workingDirectories: directorySets[index],
+		})));
 	});
 });

@@ -148,7 +148,8 @@ fn decide_foreground_action(
 	) {
 		return ForegroundAction::ConflictError(format!(
 			"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
-			 Use `code agent kill` to stop it, or pass `--replace` to take over.",
+			 Use `{application_name} agent kill` to stop it, or pass `--replace` to take over.",
+			application_name = constants::APPLICATION_NAME,
 			host_str = host.as_deref().unwrap_or("127.0.0.1"),
 		));
 	}
@@ -282,6 +283,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		}
 	}
 
+	// `--idle-timeout` is opt-in: only build the activity-tracking channel
+	// when requested, so a manually started local host (the default) never
+	// pays for/depends on this bookkeeping and never self-terminates.
+	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
+	let (activity, activity_rx) = match idle_timeout_duration {
+		Some(_) => {
+			let (tracker, rx) = idle_timeout::new_activity_channel();
+			(Some(tracker), Some(rx))
+		}
+		None => (None, None),
+	};
+
 	let manager = AgentHostManager::new(
 		ctx.log.clone(),
 		platform,
@@ -303,6 +316,10 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			connection_token: None,
 			connection_token_file: None,
 		},
+		// The backend counts as activity while it runs, so the idle timeout
+		// can't kill agent sessions that are still working after the last
+		// client disconnects.
+		activity.clone(),
 	);
 
 	// Eagerly resolve the latest version so the first connection is fast,
@@ -349,18 +366,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	let loopback_auth = match args.connection_token.as_deref() {
 		Some(t) => LoopbackAuth::Token(t.to_string()),
 		None => LoopbackAuth::Disabled,
-	};
-
-	// `--idle-timeout` is opt-in: only build the activity-tracking channel
-	// when requested, so a manually started local host (the default) never
-	// pays for/depends on this bookkeeping and never self-terminates.
-	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
-	let (activity, activity_rx) = match idle_timeout_duration {
-		Some(_) => {
-			let (tracker, rx) = idle_timeout::new_activity_channel();
-			(Some(tracker), Some(rx))
-		}
-		None => (None, None),
 	};
 
 	let sidecar = AgentHostSidecar::bind_tcp(
@@ -461,7 +466,7 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
 	output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
-	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
+	print_manage_banner_line();
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
 
@@ -554,13 +559,22 @@ fn print_reuse_banner(
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
 	output::print_network_lines(port, banner_listen_ip, &token_suffix);
-	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
+	print_manage_banner_line();
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
 	log.result(format!(
 		"Agent host supervisor already running (PID {pid}). \
-		 Use `code agent kill` to stop it, or `code agent host --replace` to start a fresh one."
+		 Use `{application_name} agent kill` to stop it, or `{application_name} agent host --replace` to start a fresh one.",
+		application_name = constants::APPLICATION_NAME,
 	));
+}
+
+fn print_manage_banner_line() {
+	let application_name = constants::APPLICATION_NAME;
+	output::print_banner_line(
+		"Manage",
+		&format!("{application_name} agent ps  |  {application_name} agent kill"),
+	);
 }
 
 /// Compare the user's requested supervisor configuration with what's
@@ -665,6 +679,15 @@ async fn daemonize_supervisor() -> Result<i32, AnyError> {
 	// passed in foreground.
 	cmd.args(std::env::args_os().skip(1));
 	cmd.env(SUPERVISOR_ENV, "1");
+	#[cfg(windows)]
+	cmd.env(
+		output::PARENT_STDOUT_SUPPORTS_UTF8_ENV,
+		if output::stdout_supports_utf8() {
+			"1"
+		} else {
+			"0"
+		},
+	);
 	cmd.stdin(std::process::Stdio::null());
 	cmd.stdout(std::process::Stdio::piped());
 	cmd.stderr(std::process::Stdio::piped());

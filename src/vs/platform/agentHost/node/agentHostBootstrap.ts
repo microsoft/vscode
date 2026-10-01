@@ -18,6 +18,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ILoggerService, ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
@@ -25,8 +26,8 @@ import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
 import { activateAgentHostContributions } from './agentHostContributions.js';
 import { createAgentServiceFoundation } from './agentServiceFoundation.js';
-import { AgentHostServiceCollection, instantiateAgentHostServices, registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
-import { IAgentHostWorktreeIsolation, WorktreeIsolation } from './shared/worktreeIsolation.js';
+import { registerAgentHostCoreServices, registerAgentHostHostServices } from './agentHostServices.js';
+import { StrictServiceCollection } from '../../instantiation/common/strictServiceCollection.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
@@ -34,6 +35,12 @@ import { SessionDataService } from './sessionDataService.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
+import { ICopilotApiService } from './shared/copilotApiService.js';
+import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface ICreateAgentHostRuntimeOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -93,6 +100,8 @@ class AgentHostRuntime extends Disposable implements IAgentHostRuntime {
  * transports, providers, and schedulers belong in the activating entry point.
  */
 export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOptions): Promise<IAgentHostRuntime> {
+	const startup = new AgentHostStartupMarks();
+	startup.mark('bootstrapStart');
 	const { environmentService, productService, logService, loggerService } = options;
 	const infrastructure = new DisposableStore();
 	let instantiationService: InstantiationService | undefined;
@@ -102,7 +111,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
 		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
-		const services = new AgentHostServiceCollection(
+		const services = new StrictServiceCollection(
 			[INativeEnvironmentService, environmentService],
 			[ILogService, logService],
 			[IFileService, fileService],
@@ -130,6 +139,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			transientProxyConfiguration: options.transientProxyConfiguration,
 		});
 		const { fetchFn } = foundation;
+		startup.mark('configuration', { since: 'bootstrapStart' });
 		const telemetryService = await createAgentHostTelemetryService({
 			environmentService,
 			productService,
@@ -141,39 +151,67 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			fetchFn,
 			requestService: foundation.requestService,
 		});
+		startup.mark('telemetry', { since: 'configuration' });
 		services.set(ITelemetryService, telemetryService);
 		const byokBridgeRegistry = options.byok.kind === 'renderer' ? options.byok.bridgeRegistry : new NullByokLmBridgeRegistry();
 		services.set(IByokLmBridgeRegistry, byokBridgeRegistry);
-		const coreServiceIds = registerAgentHostCoreServices(services, {
+		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
+			rootConfigResource: agentServiceOptions.rootConfigResource,
+			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
+			hostLaunchKind: options.hostLaunchKind,
+			startupMarks: startup,
 		});
-		const hostServiceIds = registerAgentHostHostServices(services, {
+		registerAgentHostHostServices(services, {
 			userDataPath: URI.file(environmentService.userDataPath),
 			fetchFn,
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		services.seal();
-		instantiateAgentHostServices(instantiationService, [...coreServiceIds, ...hostServiceIds]);
+		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
+		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
+			sessionDataService,
+			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
+			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
+			getGitHubCopilotToken: () => {
+				const resource = foundation.gitHubEndpointService.getCopilotResource();
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubToken: () => {
+				const resource = foundation.gitHubEndpointService.getRepoResource();
+				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
+			},
+			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
+			gitHubService,
+			copilotApiService,
+		})));
+		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		services.set(IAgentHostLocalTurns, localTurns);
+		services.set(IAgentHostLocalCommands, infrastructure.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const agentServiceComposition = instantiationService.invokeFunction(accessor => createAgentServiceComposition(
 			agentServiceOptions,
 			accessor,
 			instantiationService!,
+			services,
 			logService,
 			sessionDataService,
 			foundation,
+			localTurns,
 		));
 		agentService = agentServiceComposition.agentService;
+		services.set(IAgentService, agentService);
+		// Freeze the migrate-legacy gate at host startup, before a setting toggled
+		// without a full restart can be live-propagated into the shared host.
+		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
-		const worktreeIsolation = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostWorktreeIsolation));
-		if (!(worktreeIsolation instanceof WorktreeIsolation)) {
-			throw new Error('The production Agent Host requires the concrete WorktreeIsolation service');
-		}
-		agentService.setWorktreeIsolation(worktreeIsolation);
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
+		const startupPerformance = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));
+		startup.mark('services', { since: 'telemetry' });
+		startupPerformance.mark('bootstrap', { since: 'processStart' });
 
 		return new AgentHostRuntime({
 			instantiationService,

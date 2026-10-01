@@ -8,16 +8,17 @@ import { Codicon } from '../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../nls.js';
 import { Categories } from '../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
+import { Action2, MenuRegistry, registerAction2 } from '../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../platform/contextkey/common/contextkey.js';
 import { Menus } from './menus.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../platform/keybinding/common/keybindingsRegistry.js';
 import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../platform/accessibility/common/accessibility.js';
 import { TogglePanelAction } from '../../workbench/browser/parts/panel/panelActions.js';
-import { AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
+import { IsAuxiliaryWindowContext, IsWindowAlwaysOnTopContext, PanelVisibleContext, SideBarVisibleContext } from '../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts } from '../../workbench/services/layout/browser/layoutService.js';
-import { SessionsWelcomeVisibleContext, SinglePaneLayoutEnabledContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
+import { SessionsWelcomeVisibleContext, CustomViewVisibleContext, IsPhoneLayoutContext } from '../common/contextkeys.js';
 
 // Register Icons
 const panelCloseIcon = registerIcon('agent-panel-close', Codicon.close, localize('agentPanelCloseIcon', "Icon to close the panel."));
@@ -73,6 +74,17 @@ class ToggleSidebarVisibilityAction extends Action2 {
 
 registerAction2(ToggleSidebarVisibilityAction);
 
+MenuRegistry.appendMenuItem(Menus.TitleBarAccessibility, {
+	command: {
+		id: 'editor.action.toggleScreenReaderAccessibilityMode',
+		title: localize('screenReaderOptimizedBadge', "Screen Reader Optimized"),
+		tooltip: localize('disableScreenReaderOptimizedMode', "Disable Screen Reader Optimized Mode"),
+	},
+	group: 'navigation',
+	order: 0,
+	when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, IsPhoneLayoutContext.negate())
+});
+
 const titleBarPanelWhen = ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate());
 
 MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
@@ -98,44 +110,6 @@ MenuRegistry.appendMenuItem(Menus.TitleBarSessionMenu, {
 	order: 10,
 	when: ContextKeyExpr.and(titleBarPanelWhen, PanelVisibleContext)
 });
-
-// The original (non-single-pane) editor-title secondary side bar toggle reuses the core
-// `workbench.action.toggleAuxiliaryBar` command (registered by the workbench auxiliary bar
-// part, which is also loaded in the agents window), using two mutually-exclusive items to
-// avoid the toggled background. The single-pane "Toggle Details" item is a dedicated command
-// registered by `SinglePaneLayoutController`.
-const editorTitleAuxiliaryBarWhen = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	IsAuxiliaryWindowContext.toNegated(),
-	CustomViewVisibleContext.negate(),
-	IsTopRightEditorGroupContext);
-const isSinglePaneDetailPanelDisabled = SinglePaneLayoutEnabledContext.negate();
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-	command: {
-		id: 'workbench.action.toggleAuxiliaryBar',
-		title: localize('hideSecondarySideBar', "Hide Secondary Side Bar"),
-		icon: Codicon.rightPanelHide
-	},
-	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext, isSinglePaneDetailPanelDisabled)
-});
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitleLayout, {
-	command: {
-		id: 'workbench.action.toggleAuxiliaryBar',
-		title: localize('showSecondarySideBar', "Show Secondary Side Bar"),
-		icon: Codicon.rightPanelShow
-	},
-	group: 'navigation',
-	order: 99.5,
-	when: ContextKeyExpr.and(editorTitleAuxiliaryBarWhen, AuxiliaryBarVisibleContext.toNegated(), isSinglePaneDetailPanelDisabled)
-});
-
-// The single-pane "Toggle Details" editor-title item is registered by
-// `SinglePaneLayoutController` (a dedicated command that toggles
-// the detail panel and auto-hides / restores the sessions list in one gesture).
 
 MenuRegistry.appendMenuItem(Menus.PanelTitle, {
 	command: {

@@ -142,7 +142,8 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 		before: renderInline ? {
 			content: noBreakWhitespace,
 			inlineClassName: `debug-breakpoint-placeholder`,
-			inlineClassNameAffectsLetterSpacing: true
+			inlineClassNameAffectsLetterSpacing: true,
+			widthInEm: 0.9
 		} : undefined,
 		overviewRuler: overviewRulerDecoration,
 		zIndex: 9999
@@ -195,7 +196,8 @@ function createCandidateDecorations(model: ITextModel, breakpointDecorations: IB
 					before: breakpointAtPosition ? undefined : {
 						content: noBreakWhitespace,
 						inlineClassName: `debug-breakpoint-placeholder`,
-						inlineClassNameAffectsLetterSpacing: true
+						inlineClassNameAffectsLetterSpacing: true,
+						widthInEm: 0.9
 					},
 				},
 				breakpoint: breakpointAtPosition ? breakpointAtPosition.breakpoint : undefined
