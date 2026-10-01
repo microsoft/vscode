@@ -84,6 +84,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	/** Optional owner-managed deletion, receiving raw session IDs and working without a host connection. */
+	readonly deleteSessionsOnDemand?: (sessionIds: readonly string[]) => Promise<void>;
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
 	readonly showConnectionLog?: () => Promise<void>;
@@ -215,6 +217,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	private readonly _removeOnDemand: (() => Promise<void>) | undefined;
+	private readonly _deleteSessionsOnDemand: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'];
 	private readonly _sessionSchemeAlias: IAgentHostSessionSchemeAlias | undefined;
 	private readonly _omitHostFromWorkspaceLabel: boolean;
 	private readonly _workspaceTypeIcon: ThemeIcon | undefined;
@@ -288,6 +291,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._connectOnDemand = config.connectOnDemand;
 		this._disconnectOnDemand = config.disconnectOnDemand;
 		this._removeOnDemand = config.removeOnDemand;
+		this._deleteSessionsOnDemand = config.deleteSessionsOnDemand;
 		this._sessionSchemeAlias = config.sessionSchemeAlias;
 		this._omitHostFromWorkspaceLabel = config.omitHostFromWorkspaceLabel === true;
 		this._workspaceTypeIcon = config.workspaceTypeIcon;
@@ -565,6 +569,17 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
+		if (this._deleteSessionsOnDemand) {
+			const rawIds = sessionIds.map(sessionId => {
+				const rawId = this._rawIdFromChatId(sessionId);
+				if (!rawId || !this._sessionCache.has(rawId)) {
+					throw new Error(localize('remoteAgentHost.deleteSessionNotFound', "Session not found."));
+				}
+				return rawId;
+			});
+			await this._deleteSessionsOnDemand(rawIds);
+			return;
+		}
 		const hadSessions = sessionIds.some(sessionId => this._hasSession(sessionId));
 		const detachedWorktrees = sessionIds.filter(sessionId => this._hasSession(sessionId)).map(sessionId => ({
 			sessionId,

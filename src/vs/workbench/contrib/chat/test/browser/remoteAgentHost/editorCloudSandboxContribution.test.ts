@@ -27,6 +27,10 @@ import { createChatState, createDefaultChatSummary, createSessionState, MessageK
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { MenuId } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -41,12 +45,15 @@ import { IAgentHostNewSessionFolderService } from '../../../browser/agentSession
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IChatWidgetService } from '../../../browser/chat.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
@@ -133,6 +140,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly scmRepositories?: readonly IGitRepository[];
 	readonly openRepository?: (root: URI) => Promise<IGitRepository | undefined>;
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
+	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -154,7 +162,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[] };
+	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -202,6 +210,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			return toDisposable(() => contentProviders.delete(type));
 		}
 		override getContentProviderSchemes() { return [...contentProviders.keys()]; }
+		override async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
+			const controller = controllers.get(resource.scheme);
+			assert.ok(controller?.deleteChatSessionItem);
+			await controller.deleteChatSessionItem(resource, token);
+		}
 	}();
 	instantiationService.stub(IChatSessionsService, chatSessionsService);
 	instantiationService.stub(IConfigurationService, configuration);
@@ -233,6 +246,10 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override async getSessionHistory(taskId: string) {
 			calls.history.push(taskId);
 			return history();
+		}
+		override async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
+			calls.deletedTasks.push(taskId);
+			await options?.deleteTask?.(taskId, token);
 		}
 	}());
 	instantiationService.stub(ICloudSandboxAgentHostService, new class extends mock<ICloudSandboxAgentHostService>() {
@@ -313,7 +330,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes,
+		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -354,6 +371,70 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('enables the context-menu command and deletes an offline discovered sandbox through Mission Control', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		const removed: string[] = [];
+		store.add(controller.onDidChangeChatSessionItems(delta => removed.push(...delta.removed?.map(resource => resource.toString()) ?? [])));
+		assert.ok(controller.deleteChatSessionItem);
+		const contextKeyService = store.add(new ContextKeyService(h.instantiationService.get(IConfigurationService)));
+		ChatContextKeys.agentSessionType.bindTo(contextKeyService).set(sessionType);
+		const context = contextKeyService.getContext(null);
+		const action = new DeleteAgentSessionAction();
+		const menu = (Array.isArray(action.desc.menu) ? action.desc.menu : [action.desc.menu])
+			.find(menu => menu?.id === MenuId.AgentSessionsContext);
+		let widgetCleared = false;
+		h.instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		h.instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		h.instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override getWidgetBySessionResource() {
+				return upcastPartial<ReturnType<IChatWidgetService['getWidgetBySessionResource']>>({
+					clear: async () => { widgetCleared = true; },
+				});
+			}
+		}());
+		await h.instantiationService.invokeFunction(accessor => action.runWithSessions([upcastPartial<IAgentSession>({
+			resource, providerType: sessionType, label: discovered.name,
+		})], accessor));
+		await h.refresh();
+		assert.deepStrictEqual({
+			menuVisible: menu?.when?.evaluate(context),
+			commandEnabled: action.desc.precondition?.evaluate(context) ?? true,
+			widgetCleared,
+			deletedTasks: h.calls.deletedTasks,
+			connected: h.calls.connected,
+			items: h.items(),
+			controllerRegistered: h.controllers.has(sessionType),
+			removed,
+		}, {
+			menuVisible: true, commandEnabled: true, widgetCleared: true,
+			deletedTasks: [discovered.taskId], connected: [], items: [],
+			controllerRegistered: false, removed: [resource.toString()],
+		});
+	});
+
+	test('keeps the editor session when Mission Control rejects deletion', async () => {
+		const h = createHarness(store, { deleteTask: async () => { throw new Error('delete rejected'); } });
+		await h.refresh();
+		const controller = h.controllers.get(sessionType)!;
+		await assert.rejects(controller.deleteChatSessionItem!(resource, CancellationToken.None), /delete rejected/);
+		assert.deepStrictEqual({
+			items: h.items().map(item => item.resource.toString()),
+			controllerRegistered: h.controllers.has(sessionType),
+			deletedTasks: h.calls.deletedTasks,
+		}, { items: [resource.toString()], controllerRegistered: true, deletedTasks: [discovered.taskId] });
+	});
+
+	test('does not issue a deletion when cancelled', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		await assert.rejects(h.controllers.get(sessionType)!.deleteChatSessionItem!(resource, CancellationToken.Cancelled), isCancellationError);
+		assert.deepStrictEqual(h.calls.deletedTasks, []);
+	});
 
 	test('registering the discovery controller starts exactly one initial scan', async () => {
 		const h = createHarness(store);

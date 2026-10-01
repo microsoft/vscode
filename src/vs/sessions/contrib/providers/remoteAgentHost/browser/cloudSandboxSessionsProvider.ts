@@ -140,6 +140,17 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
 	}
 
+	removeDeletedSession(rawId: string): void {
+		const session = this._removeCachedSession(rawId);
+		this._withheldSessions.delete(rawId);
+		this._provisionalSessions.delete(rawId);
+		this._storageService.remove(this._localSessionStorageKey(rawId), StorageScope.PROFILE);
+		if (session) {
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+		}
+	}
+
 	override getSessions(): ISession[] {
 		const sessions = super.getSessions();
 		return this._withheldSessions.size === 0

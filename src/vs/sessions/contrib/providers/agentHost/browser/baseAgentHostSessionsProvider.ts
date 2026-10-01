@@ -7439,7 +7439,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	protected _onBackendSessionRemoved(_rawId: string): void { }
 
-	private _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
+	protected _removeCachedSession(rawId: string, expected?: AgentHostSessionAdapter): AgentHostSessionAdapter | undefined {
 		const cached = this._sessionCache.get(rawId);
 		if (expected && cached && cached !== expected) {
 			return undefined;

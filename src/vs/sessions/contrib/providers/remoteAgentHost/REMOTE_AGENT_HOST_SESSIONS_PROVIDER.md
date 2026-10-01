@@ -18,6 +18,8 @@ Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
+Remote providers may delegate deletion to their inventory owner instead of AHP. In both windows, sandbox deletion addresses the owning Mission Control task without connecting to the environment; successful deletion removes the cached session, persisted discovery inventory, and environment provider. Failed deletion retains those entries, and stale discovery responses cannot restore a successfully deleted task.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity

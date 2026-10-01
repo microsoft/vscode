@@ -11,6 +11,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import { agentHostAuthority, fromAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -43,6 +44,7 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	constructor(
 		address: string,
 		workspaceRepositories: IObservable<ReadonlySet<string> | undefined>,
+		private readonly _deleteSession: (rawId: string, token: CancellationToken) => Promise<void>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentHostAuthenticationService authenticationService: IRemoteAgentHostAuthenticationService,
 	) {
@@ -167,6 +169,21 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 			this._sessionListStore.resetCache();
 			await this._sessionListStore.refresh(token);
 		}
+	}
+
+	async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
+		if (resource.scheme !== this.sessionType) {
+			throw new Error(localize('cloudSandbox.deleteInvalidSession', "The session does not belong to this sandbox."));
+		}
+		if (resource.fragment) {
+			await this._controller.deleteChatSessionItem(resource, token);
+		} else {
+			await this._deleteSession(AgentSession.id(resource), token);
+		}
+	}
+
+	removeDeletedSession(rawId: string): void {
+		this._sessionListStore.removeSession(CLOUD_SANDBOX_AGENT_PROVIDER, rawId);
 	}
 
 	private _listItem(item: IChatSessionItem, connected: boolean): IChatSessionItem {

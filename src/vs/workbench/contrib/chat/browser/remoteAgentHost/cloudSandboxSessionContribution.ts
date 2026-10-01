@@ -11,6 +11,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { IObservable } from '../../../../../base/common/observable.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -132,6 +133,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	private _lastFullDiscovery: number | undefined;
 	private _discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
 	private _accountKey: string | undefined;
+	private readonly _deletedTaskIds = new Set<string>();
 
 	constructor(
 		@ICloudSandboxAgentHostService private readonly _cloudSandboxService: ICloudSandboxAgentHostService,
@@ -288,7 +290,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const present = new Set<string>();
 		const updatedTasks = new Set<string>();
 		for (const session of result.sessions) {
-			if (!session.environmentId || !session.sessionId) {
+			if (!session.environmentId || !session.sessionId || this._deletedTaskIds.has(session.taskId)) {
 				continue;
 			}
 			const address = cloudSandboxAddress(session.environmentId);
@@ -422,6 +424,34 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._storageService.storeAll(entries, false);
 	}
 
+	protected async _deleteSandboxSession(address: string, sessionIds: readonly string[], removeSession: (rawId: string) => void, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || !environment.sessionId || sessionIds.some(id => id !== environment.sessionId)) {
+			throw new Error(localize('cloudSandbox.deleteSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		if (sessionIds.length === 0) {
+			return;
+		}
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		store.add(token.onCancellationRequested(() => source.cancel()));
+		try {
+			await this._apiService.deleteTask(environment.taskId, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		this._deletedTaskIds.add(environment.taskId);
+		removeSession(environment.sessionId);
+		this._teardownEnvironment(address);
+		this._persistInventory();
+	}
+
 	/**
 	 * Cancel pending work and remove the connection while retaining the provider and its cached sessions.
 	 */
@@ -469,6 +499,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._lastFullDiscovery = undefined;
 		this._discoveryRetryInterval = DISCOVERY_STALE_AFTER_MS;
 		this._accountKey = undefined;
+		this._deletedTaskIds.clear();
 		this._persistedInventory.clear();
 		for (const address of [...this._environments.keys()]) {
 			this._teardownEnvironment(address);
