@@ -165,6 +165,106 @@ suite('Session sandbox configuration', () => {
 		]);
 	});
 
+	test('a forwarded VS Code sandbox requirement prevents direct session opt-out on supported platforms', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('legacy-required', { sandboxEnabled: 'off' });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true, allowUnsandboxedCommands: true } });
+		configuration.setSessionSandboxPolicy(owner, { enabled: false });
+		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+		const effective = getSessionSandboxConfig(configuration, owner);
+		assert.deepStrictEqual({
+			enabled: buildSandboxConfigForSdk(process.platform, effective)?.enabled,
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+			policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
+		}, process.platform === 'win32' ? {
+			enabled: undefined,
+			selection: 'off',
+			policy: { enabled: false },
+		} : {
+			enabled: true,
+			selection: 'default',
+			policy: { enabled: true, allowBypass: true },
+		});
+	});
+
+	test('adding and withdrawing a forwarded requirement republishes the effective policy without losing runtime restrictions', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('legacy-live', { sandboxEnabled: 'off' });
+		configuration.setSessionSandboxEnabled(owner, false);
+		const runtimePolicy = { enabled: false, allowBypass: false, allowOutbound: false };
+		configuration.setSessionSandboxPolicy(owner, runtimePolicy);
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true, allowUnsandboxedCommands: true } });
+		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), process.platform === 'win32'
+			? runtimePolicy
+			: { enabled: true, allowBypass: false, allowOutbound: false });
+		assert.strictEqual(configuration.getSessionSandboxEnabled(owner), process.platform === 'win32' ? false : undefined);
+		configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
+		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), runtimePolicy);
+		assert.deepStrictEqual(configuration.getSessionSandboxPolicy(owner), runtimePolicy);
+	});
+
+	test('new sessions enforce the requirement before runtime policy arrives and publish it on resolution', () => {
+		const { manager, configuration, create } = setupSession();
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true } });
+		const owner = create('legacy-new', { sandboxEnabled: 'off' });
+		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner))?.enabled, process.platform === 'win32' ? undefined : true);
+		configuration.setSessionSandboxPolicy(owner, { enabled: false });
+		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), process.platform === 'win32'
+			? { enabled: false }
+			: { enabled: true, allowBypass: false });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
+		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: false });
+		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner)), undefined);
+	});
+
+	test('clears withdrawn VS Code-only metadata and does not publish it to unsupported sessions', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('legacy-only');
+		const unsupported = create('unsupported');
+		manager.setSessionConfig(unsupported, { schema: { type: 'object', properties: {} }, values: {} });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true } });
+		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), process.platform === 'win32'
+			? undefined
+			: { enabled: true, allowBypass: false });
+		assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(unsupported)), undefined);
+		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
+		assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), undefined);
+	});
+
+	test('a legacy requirement preserves approved bypass only when both local and runtime restrictions permit it', () => {
+		for (const runtimeAllows of [undefined, false, true]) {
+			for (const localAllows of [false, true]) {
+				const { manager, configuration, create } = setupSession();
+				const owner = create(`legacy-bypass-${runtimeAllows}-${localAllows}`);
+				configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true, allowUnsandboxedCommands: localAllows } });
+				configuration.setSessionSandboxPolicy(owner, { enabled: true, ...(runtimeAllows !== undefined ? { allowBypass: runtimeAllows } : {}) });
+				configuration.setSessionSandboxEnabled(owner, false);
+				configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+				const allowed = runtimeAllows === true && (process.platform === 'win32' || localAllows);
+				assert.strictEqual(configuration.getSessionConfigValues(owner)?.sandboxEnabled, allowed ? 'off' : 'default');
+				assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(owner))?.enabled, true);
+			}
+		}
+	});
+
+	test('a known VS Code requirement cannot be disabled through the unresolved-runtime-policy retry path', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('legacy-fail-closed');
+		const runtimePolicy = { enabled: true, allowBypass: false, failClosed: true };
+		configuration.setSessionSandboxPolicy(owner, runtimePolicy);
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true, allowUnsandboxedCommands: true } });
+		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+		assert.deepStrictEqual({
+			policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
+			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+		}, process.platform === 'win32'
+			? { policy: runtimePolicy, selection: 'off' }
+			: { policy: { enabled: true, allowBypass: false, failClosed: false }, selection: 'default' });
+		configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
+		assert.deepStrictEqual(configuration.getSessionSandboxPolicy(owner), runtimePolicy);
+	});
+
 	test('resolved outbound restrictions survive serialization and clear when omitted', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('network');
@@ -275,6 +375,17 @@ suite('Session sandbox configuration', () => {
 			buildChatUri(nested, 'peer'),
 			other,
 		].map(session => configuration.getSessionSandboxPolicy(session)), [policy, policy, policy, policy, policy, undefined]);
+	});
+
+	test('the forwarded requirement also prevents opt-out in peer chats and nested subagents', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('legacy-owner', { sandboxEnabled: 'off' });
+		const child = buildSubagentSessionUri(owner, 'child');
+		const nested = buildSubagentSessionUri(child, 'nested');
+		configuration.updateRootConfig({ sandbox: { enabled: 'on', required: true } });
+		for (const resource of [owner, buildChatUri(owner, 'peer'), child, nested, buildChatUri(nested, 'peer')]) {
+			assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, resource))?.enabled, process.platform === 'win32' ? undefined : true);
+		}
 	});
 
 	test('restored selections retain their values and resolve against the current default and managed policy', () => {

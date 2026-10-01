@@ -625,6 +625,16 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
+The standard-settings forwarder separately preserves `ChatAgentSandboxEnabled: on`
+as the root sandbox `required` flag. On macOS/Linux, the configuration service
+combines that VS Code policy requirement with the runtime floor before resolving
+session overrides or publishing policy metadata. Ordinary user `on` remains
+overridable; Windows continues to use its independent enablement setting.
+Runtime bypass/outbound restrictions cannot be weakened by this requirement.
+Approved bypass also requires the local `allowUnsandboxedCommands` setting.
+An explicit VS Code requirement does not offer the unresolved-runtime-policy
+retry-Off path. Removing it restores the underlying runtime floor, not an
+unconditional permission to disable sandboxing.
 Explicit managed enablement replaces disallowed `off` selections with `default`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
@@ -644,7 +654,8 @@ Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Enforcement remains runtime-owned.
+evidence of an enforced floor. Native managed settings remain runtime-enforced;
+the forwarded VS Code requirement is enforced in host session configuration.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 
