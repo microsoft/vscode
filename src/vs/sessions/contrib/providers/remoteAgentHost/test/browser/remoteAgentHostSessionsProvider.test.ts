@@ -575,6 +575,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(policies, [{
 			authority: agentHostAuthority('sandbox.example'),
 			policy: {
+				connectionAddress: 'sandbox.example',
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				defaultChangesetKind: ChangesetKind.Session,
 			},
