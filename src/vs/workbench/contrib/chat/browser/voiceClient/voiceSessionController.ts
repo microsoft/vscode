@@ -4516,7 +4516,7 @@ export class VoiceSessionController extends Disposable implements IVoiceSessionC
 			this._sendContext();
 			this.voiceClientService.flushSessionContext();
 		}
-		if (this._isOpenAiRealtimeVoiceMode() && kind !== 'response' && kind !== 'checkpoint') {
+		if (this._isOpenAiRealtimeVoiceMode() && kind !== 'checkpoint') {
 			return this._speakOpenAiNarration(sessionId, kind, text, confirmationType, pending);
 		}
 		this.logService.trace(`[voice] narrate kind=${kind} id=${sessionId.slice(-32)}`);
