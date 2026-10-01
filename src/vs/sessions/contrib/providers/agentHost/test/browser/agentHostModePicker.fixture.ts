@@ -91,12 +91,14 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			properties: {
 				mode: {
 					type: 'string', title: 'Mode',
+					sessionMutable: true,
 					enum: ['interactive', 'plan', 'autopilot'],
 					enumLabels: ['Interactive', 'Plan', 'Autopilot'],
 					enumDescriptions: ['Works with you, turn by turn', 'Creates a plan before making changes', 'Works autonomously until the task is done'],
 				},
 				autoApprove: {
 					type: 'string', title: 'Permissions',
+					sessionMutable: true,
 					enum: ['default', 'assisted', 'autoApprove'],
 					enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'],
 					enumDescriptions: ['Asks when approval settings don\'t apply', 'Evaluates risk before running tools', 'Runs tool calls without asking'],
@@ -110,6 +112,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		override readonly id = 'local-agent-host';
 		override readonly onDidChangeSessionConfig = configChanged.event;
 		override getSessionConfig() { return config; }
+		override getCreateSessionConfig() { return newChat ? { ...config.values } : undefined; }
 		override isSessionConfigResolving() { return constObservable(false); }
 		override async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
 			config.values[property] = value;
