@@ -45,6 +45,7 @@ class CodexContinuationContribution extends Disposable {
 					return {
 						onDidOpen: list.onDidOpenSession,
 						getElement: () => list.getSessionElement(resource),
+						open: async token => !token.isCancellationRequested && !!await widgets.openSession(resource),
 						focus: () => list.focus(),
 						dispose: () => revealStore.dispose(),
 					};

@@ -38,6 +38,7 @@ class CodexContinuationNotice extends Disposable {
 				return {
 					onDidOpen: host.onDidOpenSession,
 					getElement: () => findOnboardingTarget(getWindow(host.container), reveal.targetId),
+					open: token => reveal.open(token),
 					focus: host.focusSessionsList,
 					dispose: () => reveal.dispose(),
 				};

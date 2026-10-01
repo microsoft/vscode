@@ -195,6 +195,8 @@ Use:
 
 Spotlights are keyboard operable, dismissible with Escape, and keep interactive targets available when requested. Important state changes remain the responsibility of the owning feature.
 
+For a selection-driven step, `primaryAction` can offer the same action through a labeled callout button. It runs only on an explicit button click and does not advance the tour itself: use `advanceOnTargetSelection` or `advanceWhen` to confirm the outcome. The button is disabled after activation, and the action's cancellation token is cancelled when the step ends or its target is replaced. Check that token after asynchronous preparation and before changing state. End Tour remains available even on the final action step.
+
 ## Own and scope spotlight targets
 
 Feature-owned adapters can register target providers that resolve controls through their owner's API:

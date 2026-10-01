@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -21,7 +22,7 @@ export interface ISessionsListNoticeHost {
 	readonly container: HTMLElement;
 	readonly onDidChangeVisibility: Event<boolean>;
 	readonly onDidOpenSession: Event<URI>;
-	revealSession(resource: URI): IDisposable & { readonly targetId: string };
+	revealSession(resource: URI): IDisposable & { readonly targetId: string; open(token: CancellationToken): Promise<boolean> };
 	isVisible(): boolean;
 	focusSessionsList(): void;
 	announce(message: string): void;

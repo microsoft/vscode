@@ -35,6 +35,7 @@ const WIDGET_MATERIALIZATION_TIMEOUT = 5_000;
 export interface ICodexContinuationSessionTarget extends IDisposable {
 	readonly onDidOpen: Event<URI>;
 	getElement(): HTMLElement | undefined;
+	open(token: CancellationToken): Promise<boolean>;
 	focus(): void;
 }
 
@@ -152,14 +153,18 @@ export class CodexContinuationGuide extends Disposable {
 				const target = row.value;
 				if (!target || !validRun()) { throw new Error('unavailable'); }
 				const opened = store.add(new Emitter<Promise<boolean>>());
+				const onSessionOpened = (token: CancellationToken) => {
+					opened.fire((async () => {
+						const active = await waitForActiveChatWidget(resource, this._widgets, activeWidget, token);
+						if (token.isCancellationRequested || !validRun()) { return false; }
+						widget = active;
+						if (!widget || !await revalidate()) { abortUnavailable(); return false; }
+						return !token.isCancellationRequested;
+					})());
+				};
 				store.add(target.onDidOpen(openedResource => {
 					if (openedResource.toString() !== resource.toString()) { cancellation.cancel(); return; }
-					opened.fire((async () => {
-						widget = await waitForActiveChatWidget(resource, this._widgets, activeWidget, cancellation.token);
-						if (!validRun()) { return false; }
-						if (!widget || !await revalidate()) { abortUnavailable(); return false; }
-						return true;
-					})());
+					onSessionOpened(cancellation.token);
 				}));
 				const rowId = `${id}.session`;
 				store.add(registerOnboardingTargetProvider(rowId, () => {
@@ -170,10 +175,22 @@ export class CodexContinuationGuide extends Disposable {
 					id: 'openSession', targetId: rowId,
 					title: localize('codexContinuation.openSession', "Open a Codex Session"),
 					description: localize('codexContinuation.openSession.description', "This Codex session uses your ChatGPT subscription. Open it to continue with your Copilot subscription."),
-					placement: 'right', allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+					placement: 'right', allowTargetInteraction: true, advanceOnTargetSelection: true,
+					primaryAction: {
+						label: localize('codexContinuation.openSession.action', "Open Session"),
+						run: async token => {
+							if (token.isCancellationRequested || !await revalidate() || token.isCancellationRequested) { return; }
+							try {
+								const didOpen = await target.open(token);
+								if (token.isCancellationRequested || !validRun()) { return; }
+								if (!didOpen) { cancellation.cancel(); return; }
+								onSessionOpened(token);
+							} catch { if (!token.isCancellationRequested && validRun()) { abortUnavailable(); } }
+						},
+					},
 					missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
 					onBeforeShow: async () => { await revalidate(); },
-					onDidShow: () => { didShow(); target.focus(); },
+					onDidShow: didShow,
 				});
 			}
 
@@ -205,7 +222,17 @@ export class CodexContinuationGuide extends Disposable {
 			steps.push({
 				id: 'chooseCopilot', targetId: id, title: CODEX_CONTINUATION_LABEL,
 				description: localize('codexContinuation.guide', "Select {0} from GitHub Copilot to continue this session.", current.target.name),
-				placement: 'left', openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+				placement: 'left', openTarget: true, allowTargetInteraction: true, advanceOnTargetSelection: true,
+				primaryAction: {
+					label: localize('codexContinuation.useCopilot', "Use Copilot"),
+					run: async token => {
+						if (token.isCancellationRequested || !await revalidate() || token.isCancellationRequested) { return; }
+						if (!validOwner() || widget!.viewModel!.model.isInputBlocked.get()) { abortUnavailable(); return; }
+						const target = getTarget();
+						if (target && widget!.input.selectedLanguageModel.get()?.identifier === target.identifier) { cancellation.cancel(); return; }
+						if (!target || !widget!.input.getModelPickerControl()?.select(target.identifier)) { abortUnavailable(); }
+					},
+				},
 				missingTarget: { kind: 'wait', timeoutMs: WIDGET_MATERIALIZATION_TIMEOUT, onTimeout: 'abort' },
 				onDidShow: didShow,
 				onBeforeShow: async () => {

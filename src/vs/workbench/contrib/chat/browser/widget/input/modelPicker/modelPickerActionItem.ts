@@ -71,7 +71,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		delegate: IModelPickerDelegate,
+		private readonly delegate: IModelPickerDelegate,
 		private readonly pickerOptions: IChatInputPickerOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -135,9 +135,20 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._pickerWidget.show(anchor ?? this._getAnchorElement(), false, false, undefined, options);
 	}
 
-	public getModelPickerControl(): { readonly element: HTMLElement; readonly open: (options: IModelPickerOpenOptions) => void } | undefined {
+	public getModelPickerControl(): { readonly element: HTMLElement; readonly open: (options: IModelPickerOpenOptions) => void; readonly select: (identifier: string) => boolean } | undefined {
 		const element = this._pickerWidget.nameButton;
-		return element && this._pickerWidget.canOpenWithFilter() ? { element, open: options => this.show(undefined, options) } : undefined;
+		return element && this._pickerWidget.canOpenWithFilter() ? {
+			element,
+			open: options => this.show(undefined, options),
+			select: identifier => {
+				const model = this.delegate.getModels().find(model => model.identifier === identifier && model.metadata.isUserSelectable !== false);
+				if (!model || !this._pickerWidget.canOpenWithFilter()) {
+					return false;
+				}
+				this.delegate.setModel(model);
+				return true;
+			},
+		} : undefined;
 	}
 
 	public setEnabled(enabled: boolean): void {

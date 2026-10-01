@@ -331,7 +331,16 @@ export class SessionsView extends ViewPane {
 			revealSession: resource => {
 				const session = this.sessionsManagementService.getSession(resource);
 				if (!session) { throw new Error('Session is no longer available'); }
-				return sessionsControl.revealSessionForOnboarding(session);
+				const reveal = sessionsControl.revealSessionForOnboarding(session);
+				return {
+					targetId: reveal.targetId,
+					open: async token => {
+						if (token.isCancellationRequested || !await this.sessionsService.canOpenSession(session) || token.isCancellationRequested) { return false; }
+						await this.sessionsService.openSession(session.resource, { forceMainChat: true, source: 'sessionsList' });
+						return true;
+					},
+					dispose: () => reveal.dispose(),
+				};
 			},
 			announce: status,
 		})) { this._register(notice); }

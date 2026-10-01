@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -37,7 +37,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 
 suite('Codex continuation exact widget guide', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'noSearch', 'rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'blocked'] as const) {
+	for (const scenario of ['accepted', 'wrongModel', 'rejected', 'cancelled', 'replaced', 'restricted', 'noSearch', 'rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'blocked', 'buttonAccepted', 'rowButtonAccepted', 'buttonsAccepted', 'buttonRejected', 'buttonIneligible', 'buttonBlocked', 'buttonAlreadySelected', 'buttonCancelled', 'rowOpenDeclined', 'rowButtonCancelled'] as const) {
 		test(`only a committed exact selection completes: ${scenario}`, async () => {
 			const resource = URI.parse('agent-host-codex:/one');
 			const candidate: ICodexContinuationCandidate = {
@@ -60,19 +60,36 @@ suite('Codex continuation exact widget guide', () => {
 			const viewChanged = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 			const sessionOpened = store.add(new Emitter<URI>());
 			const focused = store.add(new Emitter<void>());
-			const startWithRow = ['rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived'].includes(scenario);
+			const startWithRow = ['rowAccepted', 'rowCancelled', 'wrongSession', 'cancelledDuringOpen', 'rowArchived', 'rowButtonAccepted', 'buttonsAccepted', 'rowOpenDeclined', 'rowButtonCancelled'].includes(scenario);
+			const useRowButton = ['rowButtonAccepted', 'buttonsAccepted', 'rowOpenDeclined', 'rowButtonCancelled'].includes(scenario);
+			const useModelButton = ['buttonAccepted', 'buttonsAccepted', 'buttonRejected', 'buttonIneligible', 'buttonBlocked', 'buttonAlreadySelected', 'buttonCancelled'].includes(scenario);
+			const buttonCancellation = store.add(new CancellationTokenSource());
+			const openPending = new DeferredPromise<void>();
+			const openStarted = new DeferredPromise<void>();
+			const blocked = observableValue('blocked', scenario === 'blocked');
 			let committed: ChatState | undefined;
 			let eligible = true;
 			let replaced = false;
 			const opened: object[] = [];
 			const actions: CodexContinuationAction[] = [];
 			let spotlightShows = 0;
+			let rowOpens = 0;
+			const buttonSelections: string[] = [];
 			const input = upcastPartial<ChatInputPart>({
 				availableLanguageModels: [target], selectedLanguageModel: selected,
 				onDidChangeUserSelectedModel: selections.event,
-				getModelPickerControl: () => scenario === 'noSearch' ? undefined : { element: replaced ? foreign : element, open: options => opened.push(options) },
+				getModelPickerControl: () => scenario === 'noSearch' ? undefined : {
+					element: replaced ? foreign : element, open: options => opened.push(options),
+					select: identifier => {
+						buttonSelections.push(identifier);
+						assert.strictEqual(identifier, target.identifier);
+						selected.set(target, undefined);
+						selections.fire({ fromModelId: 'source', toModelId: identifier });
+						return true;
+					},
+				},
 			});
-			const widget = upcastPartial<IChatWidget>({ input, visible: true, viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource, model: upcastPartial<IChatModel>({ isInputBlocked: observableValue('blocked', scenario === 'blocked') }) }), onDidChangeViewModel: viewChanged.event, focusInput: () => { } });
+			const widget = upcastPartial<IChatWidget>({ input, visible: true, viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: resource, model: upcastPartial<IChatModel>({ isInputBlocked: blocked }) }), onDidChangeViewModel: viewChanged.event, focusInput: () => { } });
 			let active: IChatWidget | undefined = startWithRow ? undefined : widget;
 			const widgets = upcastPartial<IChatWidgetService>({
 				getAllWidgets: () => [widget], onDidAddWidget: Event.None,
@@ -104,17 +121,30 @@ suite('Codex continuation exact widget guide', () => {
 						await rowStep.onBeforeShow?.();
 						const rowTarget = resolveOnboardingTarget(mainWindow, rowStep.targetId)!;
 						assert.strictEqual(rowTarget.element, row);
-						assert.strictEqual(rowStep.hideNext, true);
+						assert.strictEqual(rowStep.primaryAction?.label, 'Open Session');
 						spotlightShows++;
 						rowStep.onDidShow?.();
-						assert.deepStrictEqual({ active, opened }, { active: undefined, opened: [] }, 'revealing a row neither opens the chat nor its picker');
+						assert.deepStrictEqual({ active, opened, rowOpens }, { active: undefined, opened: [], rowOpens: 0 }, 'revealing a row neither opens the chat nor its picker');
 						if (scenario === 'rowCancelled') { return OnboardingOutcome.Skipped; }
 						let rowResult: Promise<boolean> | undefined;
 						const listener = rowTarget.onDidSelect!(result => { rowResult = result; });
 						try {
 							if (scenario === 'rowArchived') { eligible = false; }
-							if (scenario !== 'cancelledDuringOpen') { active = widget; }
-							sessionOpened.fire(scenario === 'wrongSession' ? resource.with({ path: '/other' }) : resource);
+							if (useRowButton) {
+								const action = rowStep.primaryAction!.run(buttonCancellation.token);
+								if (scenario === 'rowButtonCancelled') {
+									await openStarted.p;
+									buttonCancellation.cancel();
+									await openPending.complete();
+									await action;
+									assert.strictEqual(rowResult, undefined, 'late opening must not advance the cancelled step');
+									return OnboardingOutcome.Skipped;
+								}
+								await action;
+							} else {
+								if (scenario !== 'cancelledDuringOpen') { active = widget; }
+								sessionOpened.fire(scenario === 'wrongSession' ? resource.with({ path: '/other' }) : resource);
+							}
 							if (scenario === 'cancelledDuringOpen') {
 								return OnboardingOutcome.Skipped;
 							}
@@ -146,15 +176,25 @@ suite('Codex continuation exact widget guide', () => {
 						initialFocusItemId: target.identifier,
 					})));
 					assert.strictEqual(selected.get(), undefined, 'opening never changes the model');
+					assert.strictEqual(step.primaryAction?.label, 'Use Copilot');
 					if (scenario === 'cancelled') { return OnboardingOutcome.Dismissed; }
 					let result: Promise<boolean> | undefined;
 					const listener = onDidSelectOnboardingTarget(resolved.element)(promise => { result = promise; });
 					try {
-						selected.set(target, undefined);
-						selections.fire({ fromModelId: 'source', toModelId: scenario === 'wrongModel' ? 'other' : target.identifier });
+						if (useModelButton) {
+							if (scenario === 'buttonIneligible') { eligible = false; }
+							if (scenario === 'buttonBlocked') { blocked.set(true, undefined); }
+							if (scenario === 'buttonAlreadySelected') { selected.set(target, undefined); }
+							const action = step.primaryAction!.run(buttonCancellation.token);
+							if (scenario === 'buttonCancelled') { buttonCancellation.cancel(); }
+							await action;
+						} else {
+							selected.set(target, undefined);
+							selections.fire({ fromModelId: 'source', toModelId: scenario === 'wrongModel' ? 'other' : target.identifier });
+						}
 						assert.strictEqual(actions.includes('guideCompleted'), false, 'optimistic changes do not complete');
 						committed = upcastPartial<ChatState>({ draft: upcastPartial<NonNullable<ChatState['draft']>>({ model: { id: target.metadata.id } }) });
-						confirmations.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged, draft: committed.draft }, origin: { clientId: 'client', clientSeq: 1 }, ...(scenario === 'rejected' ? { rejectionReason: 'denied' } : {}) }));
+						confirmations.fire(upcastPartial<ActionEnvelope>({ action: { type: ActionType.ChatDraftChanged, draft: committed.draft }, origin: { clientId: 'client', clientSeq: 1 }, ...(scenario === 'rejected' || scenario === 'buttonRejected' ? { rejectionReason: 'denied' } : {}) }));
 						return result && await result && !token?.isCancellationRequested ? OnboardingOutcome.Completed : OnboardingOutcome.Dismissed;
 					} finally { listener.dispose(); }
 				}
@@ -170,7 +210,16 @@ suite('Codex continuation exact widget guide', () => {
 				revealSession: async requested => {
 					assert.strictEqual(requested.toString(), resource.toString());
 					reveals++;
-					return { getElement: () => row, onDidOpen: sessionOpened.event, focus: () => { }, dispose: () => { releases++; } };
+					return {
+						getElement: () => row, onDidOpen: sessionOpened.event, focus: () => { }, dispose: () => { releases++; },
+						open: async () => {
+							rowOpens++;
+							if (scenario === 'rowOpenDeclined') { return false; }
+							if (scenario === 'rowButtonCancelled') { await openStarted.complete(); await openPending.p; }
+							active = widget;
+							return true;
+						},
+					};
 				},
 			});
 			if (scenario === 'cancelledDuringOpen') {
@@ -180,9 +229,14 @@ suite('Codex continuation exact widget guide', () => {
 				assert.deepStrictEqual(opened, [], 'a late open cannot revive a cancelled guide');
 			}
 			const neverShown = scenario === 'restricted' || scenario === 'noSearch' || scenario === 'blocked';
-			assert.strictEqual(actions.includes('guideCompleted'), scenario === 'accepted' || scenario === 'replaced' || scenario === 'rowAccepted');
+			const completes = ['accepted', 'replaced', 'rowAccepted', 'buttonAccepted', 'rowButtonAccepted', 'buttonsAccepted'].includes(scenario);
+			assert.strictEqual(actions.includes('guideCompleted'), completes);
 			assert.strictEqual(actions.filter(action => action === 'guideShown').length, neverShown ? 0 : 1);
-			assert.strictEqual(spotlightShows, neverShown ? 0 : scenario === 'replaced' || scenario === 'rowAccepted' ? 2 : 1);
+			assert.strictEqual(spotlightShows, neverShown ? 0 : scenario === 'replaced' || (startWithRow && completes) ? 2 : 1);
+			assert.deepStrictEqual({ rowOpens, buttonSelections }, {
+				rowOpens: useRowButton ? 1 : 0,
+				buttonSelections: ['buttonAccepted', 'buttonsAccepted', 'buttonRejected'].includes(scenario) ? [target.identifier] : [],
+			});
 			assert.strictEqual(element.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'run target is disposed');
 			assert.strictEqual(foreign.hasAttribute(ONBOARDING_TARGET_ATTR), false, 'replacement target is disposed');
 			assert.deepStrictEqual({ reveals, releases }, { reveals: startWithRow ? 1 : 0, releases: startWithRow ? 1 : 0 });
