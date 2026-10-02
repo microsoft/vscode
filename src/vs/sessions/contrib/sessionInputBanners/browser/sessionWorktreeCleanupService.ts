@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { status } from '../../../../base/browser/ui/aria/aria.js';
-import { Limiter, raceCancellationError, RunOnceScheduler } from '../../../../base/common/async.js';
+import { Limiter, raceCancellationError, raceTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
@@ -26,6 +26,7 @@ export const CLEANUP_THRESHOLD_WORKTREES = 20;
 const DEFAULT_MINIMUM_SESSION_AGE_DAYS = 15;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCAN_CACHE_DURATION_MS = 60 * 60 * 1000;
+const WORKTREE_MEASUREMENT_TIMEOUT_MS = 30_000;
 
 export const AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING = 'chat.agentSessions.sessionStorageCleanupSuggestion.enabled';
 export const LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING = 'sessions.chat.experimental.worktreeLimitPrompt';
@@ -186,7 +187,11 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		return Promise.all(worktreeSessions.map(session => limiter.queue(async () => {
 			let sizeBytes: number | undefined;
 			try {
-				sizeBytes = await getDiskUsage.call(this.sessionsManagementService, session);
+				sizeBytes = await raceTimeout(
+					getDiskUsage.call(this.sessionsManagementService, session),
+					WORKTREE_MEASUREMENT_TIMEOUT_MS,
+					() => this.logService.warn(`[SessionWorktreeCleanupService] Timed out measuring worktree for session ${session.sessionId}`),
+				);
 			} catch (error) {
 				this.logService.warn(`[SessionWorktreeCleanupService] Failed to measure worktree for session ${session.sessionId}`, error);
 			}

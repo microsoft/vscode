@@ -11,6 +11,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -469,6 +470,22 @@ suite('SessionWorktreeCleanupService', () => {
 
 		assert.deepStrictEqual((await service.getWorktrees(14)).map(worktree => worktree.session.sessionId), ['eligible']);
 	});
+
+	test('times out a stalled disk measurement without blocking other sessions', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const stalledMeasurement = new DeferredPromise<number | undefined>();
+		const stalled = createSession('stalled', oldDate());
+		const measured = createSession('measured', oldDate());
+		const service = disposables.add(createService(
+			[stalled, measured],
+			true,
+			session => session === stalled ? stalledMeasurement.p : ByteSize.GB,
+		));
+
+		const worktrees = await service.getWorktrees(14);
+		stalledMeasurement.complete(ByteSize.GB);
+
+		assert.deepStrictEqual(worktrees.map(worktree => worktree.session.sessionId), ['measured']);
+	}));
 
 	test('retries when the worktree session set changes during measurement', async () => {
 		const firstMeasurement = new DeferredPromise<number | undefined>();
