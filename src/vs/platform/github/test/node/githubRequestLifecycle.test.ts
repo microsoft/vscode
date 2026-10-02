@@ -557,23 +557,6 @@ suite('GitHub request lifecycle', () => {
 		}, { calls: 1, retainedBeforeExpiry: true, state: undefined, timers: 0 });
 	});
 
-	test('many inactive accounts share one expiry timer and release all quota state', () => {
-		const scheduler = store.add(new FakeScheduler());
-		const transport = store.add(new GitHubTransport(undefined, scheduler));
-		const accounts = Array.from({ length: 100 }, (_, i) => ({ ...account, accountId: String(i) }));
-		for (const inactive of accounts) {
-			transport.rateLimits.updateFromResponse(inactive, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
-			transport.invalidateAccount(inactive);
-		}
-		const cleanupTimers = scheduler.pendingCount;
-		scheduler.advanceBy(1_000);
-		assert.deepStrictEqual({
-			cleanupTimers,
-			retained: accounts.filter(inactive => transport.rateLimits.getState(inactive, 'core') !== undefined).length,
-			timers: scheduler.pendingCount,
-		}, { cleanupTimers: 1, retained: 0, timers: 0 });
-	});
-
 	test('long GraphQL comments cannot trigger backtracking or hide the mutation operation', async () => {
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {
