@@ -252,30 +252,30 @@ suite('LazyGitHubResourceHover', () => {
 					}),
 				}),
 				pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
-					subscribePullRequest: (_ref,options) => {
+					subscribePullRequest: (_ref, options) => {
 						initialChecks.push(!!options.checks);
 						return upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
-							resource: { ref: upcastPartial({}),snapshot },
+							resource: { ref: upcastPartial({}), snapshot },
 							update: options => {
-								if(options.checks) {
+								if (options.checks) {
 									checksHeads.push(snapshot.get().core.value?.headSha);
 								}
 							},
 							refresh: async fragment => {
 								operations.push(String(fragment));
-								if(fragment==='core'&&++coreRefreshes===2) {
-									const current=snapshot.get();
+								if (fragment === 'core' && ++coreRefreshes === 2) {
+									const current = snapshot.get();
 									assert.ok(current.core.value);
 									snapshot.set({
 										...current,
-										core: { ...current.core,value: { ...current.core.value,headSha: 'new-head' } },
-										checks: { status: 'missing',complete: false },
-									},undefined);
+										core: { ...current.core, value: { ...current.core.value, headSha: 'new-head' } },
+										checks: { status: 'missing', complete: false },
+									}, undefined);
 								}
-								if(fragment==='checks') {
+								if (fragment === 'checks') {
 									checksStarted.complete();
 									await finishChecks.p;
-									if(failChecks) {
+									if (failChecks) {
 										throw new Error('Checks unavailable');
 									}
 								}
@@ -336,14 +336,18 @@ suite('LazyGitHubResourceHover', () => {
 				subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
 					refresh: async () => { },
 					dispose: () => { },
-					resource: { ref: upcastPartial({}), snapshot: observableValue('evicted', upcastPartial<PullRequestSnapshot>({
-						core: { status: 'ready', complete: true, value: {
-							repositoryNameWithOwner: 'microsoft/vscode', number: 1, title: 'Old PR',
-							url: 'https://github.com/microsoft/vscode/pull/1', state: 'open', draft: false,
-							headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
-						} },
-						checks: { status: 'missing', complete: false },
-					})) },
+					resource: {
+						ref: upcastPartial({}), snapshot: observableValue('evicted', upcastPartial<PullRequestSnapshot>({
+							core: {
+								status: 'ready', complete: true, value: {
+									repositoryNameWithOwner: 'microsoft/vscode', number: 1, title: 'Old PR',
+									url: 'https://github.com/microsoft/vscode/pull/1', state: 'open', draft: false,
+									headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+								}
+							},
+							checks: { status: 'missing', complete: false },
+						}))
+					},
 				}),
 			}),
 		})));
