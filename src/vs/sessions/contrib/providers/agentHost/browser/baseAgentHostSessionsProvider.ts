@@ -7116,7 +7116,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
 		const branchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
-		if (newSession && previousBranchName !== undefined && branchName !== undefined && branchName !== previousBranchName) {
+		if (newSession && branchName !== undefined && branchName !== previousBranchName) {
 			void this._syncFolderDraftBranch(newSession, branchName).catch(error => {
 				if (this._getNewSession(sessionId) === newSession) {
 					this._logService.warn(`[${this.id}] Failed to follow the checked-out branch for ${sessionId}: ${error}`);
