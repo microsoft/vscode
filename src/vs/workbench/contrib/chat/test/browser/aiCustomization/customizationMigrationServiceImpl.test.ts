@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { isEqual, basename } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -28,6 +28,8 @@ import { InMemoryFileSystemProvider } from '../../../../../../platform/files/com
 import { ILogService, ILoggerService, NullLogService, NullLoggerService } from '../../../../../../platform/log/common/log.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { AbstractVariableResolverService } from '../../../../../services/configurationResolver/common/variableResolver.js';
 import { CustomizationMigrationService as BaseCustomizationMigrationService } from '../../../browser/aiCustomization/customizationMigrationServiceImpl.js';
@@ -45,7 +47,8 @@ import { ChatConfiguration } from '../../../common/constants.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IMcpCopilotGlobalConfigurationService } from '../../../../mcp/common/mcpCopilotGlobalConfigurationService.js';
-import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
+import { TestEnablementModel, TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { MockPromptsService } from '../../common/promptSyntax/service/mockPromptsService.js';
 
 class TestPromptsService extends MockPromptsService {
@@ -208,6 +211,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 		copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService = new class extends mock<IMcpCopilotGlobalConfigurationService>() {
 			override async getConfigurationResource() { return undefined; }
 		}(),
+		workspaceContextService: IWorkspaceContextService = createWorkspaceContextService(),
 	) {
 		super(promptsService, harnessService, configurationService, mcpService);
 		harnessService.mcpServerMigrationProvider = this._register(new AgentHostMcpServerMigrationProvider(
@@ -220,6 +224,7 @@ class CustomizationMigrationService extends BaseCustomizationMigrationService {
 			configurationResolverService,
 			mcpService,
 			copilotGlobalConfigurationService,
+			workspaceContextService,
 		));
 	}
 
@@ -238,6 +243,13 @@ function createMigrationConfiguration(enabled = true): DisposableTestConfigurati
 	return new DisposableTestConfigurationService({
 		[ChatConfiguration.ChatCustomizationsMigrationEnabled]: enabled,
 	});
+}
+
+function createWorkspaceContextService(...folders: URI[]): IWorkspaceContextService {
+	const workspace = new Workspace('test-workspace', folders.map((uri, index) => new WorkspaceFolder({ uri, index, name: basename(uri) })));
+	return new class extends mock<IWorkspaceContextService>() {
+		override getWorkspace() { return workspace; }
+	}();
 }
 
 function setMigrationEnabled(configurationService: TestConfigurationService, enabled: boolean): Promise<void> {
@@ -1413,6 +1425,59 @@ suite('CustomizationMigrationService', () => {
 			targets: [
 				{ mcpServers: { server0: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
 				{ mcpServers: { server1: { type: 'local', command: 'node', args: [], tools: ['*'] } } },
+			],
+		});
+	});
+
+	test('preserves disabled state on each migrated server in its own workspace folder', async () => {
+		const roots = [URI.file('/root-one'), URI.file('/root-two')];
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		for (const root of roots) {
+			await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		}
+		const [shadowed, registered] = roots.map((root, index) => ({
+			...createWorkspaceMcpSupportSnapshot(root).servers[0],
+			id: `mcp.config.ws${index}.server`,
+			collectionId: `mcp.config.ws${index}`,
+		}));
+		const supportScope = new MutableMcpServerSupportScope({
+			servers: [
+				{ ...shadowed, enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledNotRegistered }, delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: registered.id },
+				{ ...registered, enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledWorkspace } },
+			],
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		});
+		const enablementCalls: unknown[][] = [];
+		const mcpService = new class extends TestMcpService {
+			override readonly enablementModel = new class extends TestEnablementModel {
+				override readEnabled(key: string) { return key === shadowed.id ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile; }
+				override setEnabled(key: string, state: ContributionEnablementState) { enablementCalls.push(['set', key, state]); }
+				override remove(key: string) { enablementCalls.push(['remove', key]); }
+			}();
+		}();
+		const harnessService = new TestCustomizationHarnessService();
+		const activeClientService = {
+			acquireMcpServerSupportScope: () => supportScope,
+		} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+		// A session whose primary is the second workspace folder lists that folder first.
+		const agentHostCustomizationService = {
+			onDidChangeCustomizations: Event.None,
+			getClientWorkingDirectoryUris: () => [roots[1], roots[0]],
+		} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+		const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService, mcpService, undefined, createWorkspaceContextService(...roots)));
+
+		const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.McpServers);
+		const result = await service.migrateMcpServers(harnessService.activeSessionResource.get(), migration.candidates);
+
+		assert.deepStrictEqual({ result, enablementCalls }, {
+			result: { migratedCount: 2, failures: [] },
+			enablementCalls: [
+				['set', 'workspace-dot-mcp.0.server', ContributionEnablementState.DisabledProfile],
+				['remove', shadowed.id],
+				['set', 'workspace-dot-mcp.1.server', ContributionEnablementState.DisabledWorkspace],
+				['remove', registered.id],
 			],
 		});
 	});
