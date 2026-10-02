@@ -23,6 +23,15 @@ import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
+const clearedOtlpTlsEnv = {
+	OTEL_EXPORTER_OTLP_CERTIFICATE: '',
+	OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE: '',
+	OTEL_EXPORTER_OTLP_CLIENT_KEY: '',
+	OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE: '',
+	OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE: '',
+	OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY: '',
+};
+
 suite('Agent Host E2E — Copilot managed telemetry', function () {
 	const createdSessions: string[] = [];
 	const tempDirs: string[] = [];
@@ -74,6 +83,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		endpoint = collector.baseUrl;
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
+				...clearedOtlpTlsEnv,
 				COPILOT_CACHE_HOME: cacheHome,
 				COPILOT_MANAGED_SETTINGS_CACHE: 'true',
 				COPILOT_OTEL_ENABLED: 'false',
@@ -193,6 +203,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		exportFile = join(directory, 'spans.jsonl');
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
+				...clearedOtlpTlsEnv,
 				COPILOT_OTEL_ENABLED: 'true',
 				COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true',
 				COPILOT_OTEL_EXPORTER_TYPE: 'file',
