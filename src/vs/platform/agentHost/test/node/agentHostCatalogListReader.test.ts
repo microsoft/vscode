@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agent.js';
+import { CODEX_SESSION_MODEL_META_KEY } from '../../common/meta/codexSessionModel.js';
 import { readSessionArtifacts, SESSION_META_ARTIFACTS_KEY } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, SessionOriginKind, type SessionOrigin } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildSubagentChatUri, isSessionStatusArchived, isSessionStatusRead, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionFolderPickerDecision, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY } from '../../common/state/sessionState.js';
@@ -68,6 +69,7 @@ suite('AgentHostCatalogListReader', () => {
 		workingDirectories: ['file:///workspace', 'file:///other'],
 		changes: { additions: 4, deletions: 2, files: 3 },
 		_meta: {
+			[CODEX_SESSION_MODEL_META_KEY]: { id: '@provider=openai:gpt-5.6-sol' },
 			[SESSION_META_MULTI_ROOT_KEY]: { workspaceFile: 'file:///workspace/project.code-workspace' },
 			[SESSION_META_FOLDER_PICKER_KEY]: { hidden: true, primary: 'file:///workspace' },
 			[SESSION_META_GITHUB_KEY]: { owner: 'microsoft', repo: 'vscode', pullRequestUrls: ['https://github.com/microsoft/vscode/pull/1'] },
@@ -76,6 +78,8 @@ suite('AgentHostCatalogListReader', () => {
 				branchName: 'feature',
 				baseBranchName: 'main',
 				upstreamBranchName: 'origin/feature',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 1,
 				outgoingChanges: 2,
 				uncommittedChanges: 3,
@@ -179,6 +183,7 @@ suite('AgentHostCatalogListReader', () => {
 			project: result.metadata.project && { uri: result.metadata.project.uri.toString(), displayName: result.metadata.project.displayName },
 			workingDirectories: result.metadata.workingDirectories?.map(directory => directory.toString()),
 			changes: result.metadata.changes,
+			model: result.metadata.model,
 			external: readSessionExternal(result.metadata._meta),
 			workspaceless: readSessionWorkspaceless(result.metadata._meta),
 			ehcliAdoptable: readSessionEhcliAdoptable(result.metadata._meta),
@@ -202,6 +207,7 @@ suite('AgentHostCatalogListReader', () => {
 			project: { uri: 'file:///workspace', displayName: 'Workspace' },
 			workingDirectories: ['file:///workspace', 'file:///other'],
 			changes: data.changes,
+			model: { id: '@provider=openai:gpt-5.6-sol' },
 			external: true,
 			workspaceless: true,
 			ehcliAdoptable: true,

@@ -116,6 +116,12 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				continue;
 			}
 			const resource = run.sessionResource;
+			const updatedAt = constObservable(new Date(run.completedAt ?? run.startedAt));
+			const status = constObservable(run.status === 'failed'
+				? SessionStatus.Error
+				: run.status === 'completed'
+					? SessionStatus.Completed
+					: SessionStatus.InProgress);
 			this.sessions.set(run.sessionResource.toString(), upcastPartial<ISession>({
 				resource,
 				sessionId: `fixture-session-${index + 1}`,
@@ -133,14 +139,10 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				}),
 				isQuickChat: constObservable(false),
 				title: constObservable(`Run ${index + 1}`),
-				updatedAt: constObservable(new Date(run.completedAt ?? run.startedAt)),
+				updatedAt,
 				isRead: constObservable(index !== 0),
 				capabilities: constObservable({ supportsMultipleChats: false, supportsDelete: true }),
-				status: constObservable(run.status === 'failed'
-					? SessionStatus.Error
-					: run.status === 'completed'
-						? SessionStatus.Completed
-						: SessionStatus.InProgress),
+				status,
 				modelId: constObservable(undefined),
 				mode: constObservable(undefined),
 				loading: constObservable(false),
@@ -149,6 +151,8 @@ class FixtureSessionsManagementService extends mock<ISessionsManagementService>(
 				lastTurnEnd: constObservable(undefined),
 				chats: constObservable<readonly IChat[]>([]),
 				mainChat: constObservable(upcastPartial<IChat>({
+					updatedAt,
+					status,
 					changes: constObservable([]),
 					changesets: constObservable([]),
 				})),
@@ -193,6 +197,7 @@ const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
 export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	Populated: defineComponentFixture({
 		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true }),
 	}),
 	Empty: defineComponentFixture({
@@ -390,12 +395,12 @@ function createPopulatedData(): IAutomationsFixtureData {
 			id: 'daily-review',
 			name: 'Daily code review',
 			prompt: 'Review recent changes for correctness, missing tests, and regressions.',
-			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
+			schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 },
 		}),
 		createAutomation({
 			id: 'dependency-audit',
 			name: 'Dependency audit',
-			prompt: 'Check dependencies for available security updates and summarize recommended changes.',
+			prompt: 'Check dependencies for available security updates and summarize recommended changes, including their impact and any migration steps needed before upgrading.',
 			schedule: { interval: 'weekly', scheduleHour: 10, scheduleMinute: 30, scheduleDay: 1 },
 			enabled: false,
 		}),

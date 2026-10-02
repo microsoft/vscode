@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 
 export const customizationMarketplaceConfigurationProperties = {
 	[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: {
@@ -13,6 +15,7 @@ export const customizationMarketplaceConfigurationProperties = {
 		tags: ['experimental'],
 		description: localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
 		default: false,
+		experiment: { mode: 'auto' },
 	},
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
@@ -21,3 +24,23 @@ export const customizationMarketplaceConfigurationProperties = {
 		default: true,
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
+
+export function isCustomizationDiscoveryAvailable(configurationService: IConfigurationService, marketplaceService: ICustomizationMarketplaceService): boolean {
+	return getVisibleCustomizationMarketplaceSources(configurationService, marketplaceService.sources).length > 0;
+}
+
+export function isCustomizationMarketplaceValueFromDefault(configurationService: IConfigurationService): boolean {
+	const inspected = configurationService.inspect<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+	return inspected.applicationValue === undefined &&
+		inspected.userValue === undefined &&
+		inspected.userLocalValue === undefined &&
+		inspected.userRemoteValue === undefined &&
+		inspected.workspaceValue === undefined &&
+		inspected.workspaceFolderValue === undefined &&
+		inspected.memoryValue === undefined &&
+		inspected.policyValue === undefined;
+}
+
+export function affectsCustomizationDiscoveryAvailability(event: IConfigurationChangeEvent, marketplaceService: ICustomizationMarketplaceService): boolean {
+	return affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
+}

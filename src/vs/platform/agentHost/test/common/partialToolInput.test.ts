@@ -5,10 +5,19 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parsePartialToolInput, parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
+import { getInlineToolInput, parsePartialToolInput, parsePartialToolInputForDisplay } from '../../common/partialToolInput.js';
 
 suite('PartialToolInput', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves inline strings without resolving referenced content', () => {
+		assert.deepStrictEqual([
+			getInlineToolInput('{"pattern":"auth"}'),
+			getInlineToolInput(''),
+			getInlineToolInput({ uri: 'ahp-content:/tool-input', sizeHint: 1_024 }),
+			getInlineToolInput(undefined),
+		], ['{"pattern":"auth"}', '', undefined, undefined]);
+	});
 
 	test('returns useful object fields from incomplete JSON', () => {
 		assert.deepStrictEqual(parsePartialToolInputForDisplay('{"command":"npm test","description":"Run'), {

@@ -22,7 +22,7 @@ import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, type ChatPillsCompac
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
-import { sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
+import { sessionBackgroundShellsPillOptions, sessionBrowsersPillOptions, sessionCustomizationsPillOptions, sessionIssuesPillOptions, sessionPullRequestsPillOptions, sessionReferencesPillOptions, sessionSubagentsPillOptions } from './sessionChatPillOptions.js';
 
 export interface IChatInputPillSource {
 	readonly kind?: SessionChatPillKind;
@@ -71,6 +71,7 @@ export interface IStandardChatInputPillsData {
 	readonly customizations?: IStandardChatInputPillSections;
 	readonly browsers?: IStandardChatInputPillSections;
 	readonly subagents?: IStandardChatInputPillSections;
+	readonly backgroundShells?: IStandardChatInputPillSections;
 }
 
 function setsEqual<T>(first: ReadonlySet<T>, second: ReadonlySet<T>): boolean {
@@ -142,7 +143,13 @@ export class StandardChatInputPillSources extends Disposable {
 				hasData: source.hasData ?? pillSource.hasData,
 				isVisible: pillSource.hasData,
 				getContextMenuActions: () => source.getContextMenuActions?.() ?? [],
-				getContextMenuPrimaryActions: () => source.getContextMenuPrimaryActions?.() ?? [],
+				getContextMenuPrimaryActions: () => {
+					if (source.getContextMenuPrimaryActions) {
+						return source.getContextMenuPrimaryActions();
+					}
+					const entries = getChatPillEntries(source.sections.get());
+					return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
+				},
 			});
 		};
 		addSections(SessionChatPillKind.PullRequests, data.pullRequests, sessionPullRequestsPillOptions);
@@ -152,6 +159,7 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Customizations, data.customizations, sessionCustomizationsPillOptions);
 		addSections(SessionChatPillKind.Browsers, data.browsers, sessionBrowsersPillOptions);
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
+		addSections(SessionChatPillKind.BackgroundShells, data.backgroundShells, sessionBackgroundShellsPillOptions);
 		this.sources = sources;
 	}
 }
@@ -198,13 +206,13 @@ export class ChatInputPills extends Disposable {
 			context: _options.context,
 		};
 		this._pills = this._register(instantiationService.createInstance(ChatPillsWidget, model, {
-			ariaLabel: _options.ariaLabel,
+			ariaLabel: _options.ariaLabel ?? localize('chatInputPills.ariaLabel', "Session status"),
 			actionRunner: _options.actionRunner,
 			allowContextMenu: true,
 		}));
 		this._pills.element.classList.add('show-file-icons');
 		this._row.content.appendChild(this._pills.element);
-		this._row.observe(this._pills.element);
+		this._row.observe(this._pills.element, () => this._pills.getPillElements());
 		this._register(this._pills.onDidRemoveFocusedPill(() => this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback)));
 		this.onDidChange = Event.any(this._row.onDidChangeLayout, this._pills.onDidChangePills);
 

@@ -13,6 +13,10 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { IFileService } from '../../files/common/files.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { AgentHostAutomationCustomizations } from './agentHostAutomationCustomizations.js';
 import { getAutomationTelemetryIsolation, getAutomationTelemetryMode, getAutomationTelemetryPermissionLevel, getAutomationTelemetryProvider, logAutomationCreated, logAutomationUpdated, logAutomationDeleted, logAutomationRunCreated, logAutomationRunCompleted, logAutomationRunStarted, type AutomationRunOutcome, type IAutomationConfigurationTelemetry, type IAutomationDefinitionTelemetry, type IAutomationRunTelemetry } from './agentHostAutomationTelemetry.js';
 import { toTelemetryModel } from './agentHostTelemetryReporter.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -20,20 +24,23 @@ import { AgentSession } from '../common/agent.js';
 import { readAgentHostAutomationHistoryState, withAgentHostAutomationHistoryState } from '../common/meta/agentHostAutomationsMeta.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { ActionType, type ActionEnvelope, type AutomationCreateRequestedAction, type AutomationRemovedAction, type AutomationRunCancelRequestedAction, type AutomationRunLifecycleChangedAction, type AutomationRunPrimarySessionChangedAction, type AutomationRunSessionSetAction, type AutomationUpdateRequestedAction } from '../common/state/sessionActions.js';
-import { AUTOMATION_CATALOG_URI, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type AutomationState, type Message } from '../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, isDefaultChatUri, parseRequiredSessionUriFromChatUri, type AutomationState, type Message, type SessionActiveClient } from '../common/state/sessionState.js';
 import { automationReducer } from '../common/state/sessionReducers.js';
 import type { AutomationCapabilities } from '../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../common/state/protocol/channels-automation/commands.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition, type AutomationEntry, type AutomationSessionTemplate } from '../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunLifecycle, type AutomationRunOrigin, type AutomationRunState, type AutomationRunSummary } from '../common/state/protocol/channels-automation-run/state.js';
 import { MessageKind } from '../common/state/protocol/channels-chat/state.js';
-import { SessionOriginKind, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { nextAutomationCronOccurrence, validateAutomationCron } from './automationCron.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, DEFAULT_AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES, migrateLegacyAutomationSessionConfig } from '../common/automationConfig.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
+import { McpServerStatus, SessionOriginKind, type McpAuthRequirement, type SessionOrigin } from '../common/state/protocol/channels-session/state.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 
 const STORAGE_KEY = 'automations';
 const SCHEDULE_CURSORS_META_KEY = 'vscode.scheduleCursors';
@@ -74,7 +81,7 @@ interface IStoredAutomations {
 export interface IAgentHostAutomationExecution {
 	isSessionTemplateAvailable(template: AutomationSessionTemplate, reader?: IReader): boolean;
 	createSessionResource(template: AutomationSessionTemplate): URI;
-	createSession(template: AutomationSessionTemplate, run: AutomationRunState, session: URI): Promise<URI>;
+	createSession(template: AutomationSessionTemplate, run: AutomationRunState, session: URI, activeClient?: SessionActiveClient): Promise<URI>;
 	hasSession(session: URI, run: AutomationRunState): Promise<boolean>;
 	deleteSession(session: URI): Promise<void>;
 	startSession(session: URI, message: Message): Promise<void>;
@@ -88,8 +95,8 @@ export interface IAgentHostAutomationService {
 	readonly _serviceBrand: undefined;
 	readonly capabilities: AutomationCapabilities | undefined;
 	readonly isAvailable: boolean;
-	handleCreate(action: AutomationCreateRequestedAction): Promise<void>;
-	handleUpdate(action: AutomationUpdateRequestedAction): Promise<void>;
+	handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void>;
+	handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void>;
 	handleRemove(action: AutomationRemovedAction): Promise<void>;
 	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions?: readonly URI[]): Promise<void>;
 	handleCancel(resource: string, action: AutomationRunCancelRequestedAction): Promise<void>;
@@ -121,6 +128,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	private readonly _cancellations = new Map<string, { readonly outcome: 'cancelled' | 'timeout' }>();
 	private readonly _runsToRecover = new Set<string>();
 	private readonly _runRecoveriesInFlight = new Set<string>();
+	private readonly _customizations: AgentHostAutomationCustomizations;
+	private readonly _startup: Promise<void>;
+	private readonly _mcpAuthenticationChallenges = new Map<string, Map<string, Set<string>>>();
 
 	constructor(
 		private readonly _execution: IAgentHostAutomationExecution,
@@ -129,9 +139,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentPluginManager pluginManager: IAgentPluginManager,
+		@IFileService fileService: IFileService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
 	) {
 		super();
+		this._customizations = new AgentHostAutomationCustomizations(pluginManager.hostPluginsPath, fileService, this._logService, environmentService.userHome);
 		this._register(toDisposable(() => this._cancellations.clear()));
+		this._register(toDisposable(() => this._mcpAuthenticationChallenges.clear()));
 		const stored = this._load();
 		this._runs = new Map(stored?.runs?.map(run => [run.resource, run]));
 		this._sessionCreationByRun = new Map(stored?.sessionCreations?.map(creation => [creation.run, creation.session]));
@@ -163,8 +179,13 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 		}
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => this._handleEnvelope(envelope)));
+		this._startup = this._enqueueMutation(async () => {
+			if (this._catalog) {
+				await this._customizations.collectGarbage(this._catalog.entries);
+			}
+		});
 		if (this._catalog) {
-			void Promise.resolve().then(() => {
+			void this._startup.then(() => {
 				if (!this._store.isDisposed) {
 					this._recoverRuns();
 					this._recoverHistoryDeletions();
@@ -187,6 +208,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		return this.isAvailable ? {
 			create: {},
 			schedules: {},
+			customizations: {},
 			runCancellation: {},
 			runHistoryLimit: RUN_HISTORY_PAGE_SIZE,
 		} : undefined;
@@ -237,11 +259,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._scheduleNext();
 	}
 
-	async handleCreate(action: AutomationCreateRequestedAction): Promise<void> {
-		return this._enqueueMutation(() => this._handleCreate(action));
+	async handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleCreate(action, clientId)));
 	}
 
-	private async _handleCreate(action: AutomationCreateRequestedAction): Promise<void> {
+	private async _handleCreate(action: AutomationCreateRequestedAction, clientId?: string): Promise<void> {
 		const catalog = this._requireCatalog();
 		this._validateAutomationResource(action.resource);
 		const definition = action.definition;
@@ -256,9 +278,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 
 		const timestamp = new Date().toISOString();
+		const customizations = await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		const automation = this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
+			customizations,
 			runs: [],
 			operations: [
 				AutomationOperation.Update,
@@ -276,11 +300,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._scheduleNext();
 	}
 
-	async handleUpdate(action: AutomationUpdateRequestedAction): Promise<void> {
-		return this._enqueueMutation(() => this._handleUpdate(action));
+	async handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._handleUpdate(action, clientId)));
 	}
 
-	private async _handleUpdate(action: AutomationUpdateRequestedAction): Promise<void> {
+	private async _handleUpdate(action: AutomationUpdateRequestedAction, clientId?: string): Promise<void> {
 		const catalog = this._requireCatalog();
 		const existing = catalog.entries.find(automation => automation.resource === action.resource);
 		if (!existing) {
@@ -297,6 +321,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			modifiedAt: new Date().toISOString(),
 		};
 		this._validateDefinition(automation.definition);
+		if (action.changes.session !== undefined) {
+			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
+		}
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
 			automation = this._withInitialScheduleState(automation, new Date());
 		}
@@ -323,12 +350,23 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		this._scheduleNext();
 	}
 
+	/** Runs a catalogue mutation, then reclaims copies it left unreferenced, including those of a rejected capture. */
+	private async _collectingCustomizations(mutation: () => Promise<void>): Promise<void> {
+		try {
+			await mutation();
+		} finally {
+			if (this._catalog) {
+				await this._customizations.collectGarbage(this._catalog.entries);
+			}
+		}
+	}
+
 	async handleRemove(action: AutomationRemovedAction): Promise<void> {
 		return this.deleteAutomation(action.resource, true);
 	}
 
 	deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[] = []): Promise<void> {
-		return this._enqueueMutation(() => this._deleteAutomation(resource, deleteHistory, legacySessions));
+		return this._enqueueMutation(() => this._collectingCustomizations(() => this._deleteAutomation(resource, deleteHistory, legacySessions)));
 	}
 
 	private async _deleteAutomation(resource: string, deleteHistory: boolean, legacySessions: readonly URI[]): Promise<void> {
@@ -785,7 +823,15 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 
 	private async _startRun(initialRun: AutomationRunState, definition: AutomationDefinition): Promise<void> {
 		try {
-			const template = getExecutionSessionTemplate(definition);
+			await this._startup;
+			const entry = this._catalog?.entries.find(candidate => candidate.resource === initialRun.automation);
+			if (!entry) {
+				throw new Error(`Automation not found: ${initialRun.automation}`);
+			}
+			definition = entry.definition;
+			const sessionTemplate = getExecutionSessionTemplate(definition);
+			const template = { ...sessionTemplate, agent: this._customizations.resolveAgent(sessionTemplate, entry.customizations ?? []) };
+			const activeClient = this._customizations.toRunActiveClient(entry);
 			if (!this._execution.isSessionTemplateAvailable(template)) {
 				this._logService.info(`[AgentHostAutomationService] Deferring Automation run until its provider is available: run=${initialRun.resource}.`);
 				return;
@@ -800,7 +846,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			let session: URI;
 			this._sessionCreationsInFlight.add(running.resource);
 			try {
-				session = await this._execution.createSession(template, running, sessionResource);
+				session = await this._execution.createSession(template, running, sessionResource, activeClient);
 			} finally {
 				this._sessionCreationsInFlight.delete(running.resource);
 			}
@@ -940,6 +986,14 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (envelope.rejectionReason) {
 			return;
 		}
+		switch (envelope.action.type) {
+			case ActionType.SessionCustomizationsChanged:
+			case ActionType.SessionCustomizationUpdated:
+			case ActionType.SessionCustomizationRemoved:
+			case ActionType.SessionMcpServerStateChanged:
+				this._handleMcpAuthentication(envelope.channel);
+				break;
+		}
 		if (!isDefaultChatUri(envelope.channel)) {
 			return;
 		}
@@ -990,6 +1044,64 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			}
 			await this._commitRun({ ...current, lifecycle }, [{ type: ActionType.AutomationRunLifecycleChanged, lifecycle }]);
 		}).catch(error => this._logService.error(`[AgentHostAutomationService] Failed to persist terminal automation lifecycle: run=${run.resource}, error=${toErrorMessage(error)}`));
+	}
+
+	private _handleMcpAuthentication(session: string): void {
+		if (!this.isAvailable || !this._isAutomationsEnabled() || this._store.isDisposed) {
+			this._mcpAuthenticationChallenges.clear();
+			return;
+		}
+		const runSessions = new Set([...this._runs.values()].flatMap(run => run.sessions));
+		for (const trackedSession of this._mcpAuthenticationChallenges.keys()) {
+			if (!runSessions.has(trackedSession)) {
+				this._mcpAuthenticationChallenges.delete(trackedSession);
+			}
+		}
+		if (!runSessions.has(session)) {
+			return;
+		}
+		const servers = getMcpServerCustomizations(this._stateManager.getSessionState(session)?.customizations ?? []);
+		const challenges = this._mcpAuthenticationChallenges.get(session) ?? new Map<string, Set<string>>();
+		this._mcpAuthenticationChallenges.set(session, challenges);
+		for (const serverName of challenges.keys()) {
+			if (!servers.some(server => server.name === serverName && server.state?.kind === McpServerStatus.AuthRequired)) {
+				challenges.delete(serverName);
+			}
+		}
+		for (const server of servers) {
+			if (server.state?.kind !== McpServerStatus.AuthRequired) {
+				continue;
+			}
+			const { resource, requiredScopes, reason, oauthClient, description } = server.state;
+			const auth: McpAuthRequirement = {
+				resource, reason,
+				...(requiredScopes !== undefined ? { requiredScopes } : {}),
+				...(oauthClient !== undefined ? { oauthClient } : {}),
+				...(description !== undefined ? { description } : {}),
+			};
+			const key = JSON.stringify([resource, requiredScopes, reason, oauthClient?.clientId]);
+			const attempted = challenges.get(server.name) ?? new Set<string>();
+			if (attempted.has(key)) {
+				continue;
+			}
+			attempted.add(key);
+			challenges.set(server.name, attempted);
+			void this._requestMcpAuthentication(session, { serverName: server.name, auth });
+		}
+		if (challenges.size > 0) {
+			this._mcpAuthenticationChallenges.set(session, challenges);
+		} else {
+			this._mcpAuthenticationChallenges.delete(session);
+		}
+	}
+
+	private async _requestMcpAuthentication(session: string, request: IAgentHostMcpAuthenticationRequest): Promise<void> {
+		try {
+			const authenticated = await this._clientConnections.requestMcpAuthentication(request);
+			this._logService.info(`[AgentHostAutomationService] MCP authentication completed: session=${session}, server=${request.serverName}, authenticated=${authenticated}.`);
+		} catch (error) {
+			this._logService.info(`[AgentHostAutomationService] MCP authentication failed: session=${session}, server=${request.serverName}, error=${toErrorMessage(error)}`);
+		}
 	}
 
 	private async _commitRun(

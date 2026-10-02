@@ -10,15 +10,20 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { ActionWidgetService, IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IChatWidget } from '../../../../contrib/chat/browser/chat.js';
 import { OpenAgentHostAutoApprovePickerAction, OpenAgentHostModePickerAction } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { SessionType } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { getNewChatSessionResource } from '../../../../contrib/chat/common/model/chatUri.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
+import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { IArtifactSourceGroup } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
@@ -26,6 +31,7 @@ import { IChatInputNotification } from '../../../../contrib/chat/browser/widget/
 import { IChatEditingSession } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatTodo } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../contrib/chat/common/languageModels.js';
+import { NullLanguageModelsService } from '../../../../contrib/chat/test/common/languageModels.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { ComponentFixtureContext, createEditorServices, ServiceRegistration } from '../fixtureUtils.js';
@@ -33,6 +39,12 @@ import { FixtureMenuService, registerChatFixtureServices } from './chatFixtureUt
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';
 import { IChatPetWidgetService } from '../../../../contrib/chat/browser/widget/chatPetWidgetService.js';
 import { configureChatPetFixtureFileRoot, FixtureChatPetService, assertChatPetInScreenshot } from './chatPetFixtureUtils.js';
+import { IVoiceInputModeService, VoiceInputMode } from '../../../../contrib/chat/browser/voiceInputMode/voiceInputMode.js';
+import { ChatVoiceInputModeAction } from '../../../../contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
+import { IVoiceSessionController } from '../../../../contrib/chat/browser/voiceClient/voiceSessionController.js';
+import { IMicCaptureService } from '../../../../contrib/chat/browser/voiceClient/micCaptureService.js';
+import { ITtsPlaybackService } from '../../../../contrib/chat/browser/voiceClient/ttsPlaybackService.js';
+import { ChatSpeechToTextState, IChatSpeechToTextService } from '../../../../contrib/chat/browser/speechToText/chatSpeechToTextService.js';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -77,6 +89,7 @@ function createFixtureChatViewModel(sessionResource: URI): IChatViewModel {
 	const model = new class extends mock<IChatModel>() {
 		override readonly sessionResource = sessionResource;
 		override readonly lastRequestObs = constObservable(undefined);
+		override getRequests() { return []; }
 	}();
 	return new class extends mock<IChatViewModel>() {
 		override readonly sessionResource = sessionResource;
@@ -117,8 +130,10 @@ export interface ChatInputFixtureOptions {
 	readonly agentHostSessionConfig?: ResolveSessionConfigResult;
 	/** Combines the Agent Host mode and permissions controls in the composer. */
 	readonly combinedModePermissionsPicker?: boolean;
+	readonly tabbedModelPicker?: boolean;
 	/** Renders a standalone dictation / Voice Mode control in the given state. */
 	readonly voiceControl?: VoiceControlState;
+	readonly voiceInputMode?: boolean;
 	/**
 	 * Docks a notification above the input. Drives the real notification service,
 	 * so the seam between the notice and the input is produced by the stack
@@ -148,17 +163,58 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
+			reg.define(IActionWidgetService, ActionWidgetService);
+			reg.define(IContextViewService, ContextViewService);
+			reg.defineInstance(ILayoutService, new class extends mock<ILayoutService>() {
+				override readonly mainContainer = container;
+				override readonly activeContainer = container;
+				override readonly onDidLayoutContainer = Event.None;
+				override getContainer() { return container; }
+			}());
 			if (chatPetService) {
 				reg.defineInstance(IChatPetService, chatPetService);
 			}
+			if (fixtureOptions.voiceInputMode) {
+				reg.defineInstance(IVoiceInputModeService, new class extends mock<IVoiceInputModeService>() {
+					override readonly selectedMode = constObservable<VoiceInputMode>('voice');
+					override readonly voiceAvailable = constObservable(true);
+					override readonly dictationAvailable = constObservable(true);
+					override readonly handsFree = constObservable(true);
+					override readonly simulatedVoiceState = constObservable(undefined);
+					override readonly simulatedHandsFree = constObservable(undefined);
+					override readonly simulatedVersion = constObservable(undefined);
+					override readonly simulatedHover = constObservable(false);
+				}());
+				reg.defineInstance(IVoiceSessionController, new class extends mock<IVoiceSessionController>() {
+					override readonly targetSession = constObservable<URI | undefined>(undefined);
+					override readonly hasDraftTarget = constObservable(false);
+					override readonly isConnected = constObservable(false);
+					override readonly isConnecting = constObservable(false);
+					override readonly isReconnecting = constObservable(false);
+					override readonly isMuted = constObservable(false);
+					override readonly voiceState = constObservable('idle' as const);
+				}());
+				reg.defineInstance(IMicCaptureService, new class extends mock<IMicCaptureService>() {
+					override readonly analyserNode = undefined;
+				}());
+				reg.defineInstance(ITtsPlaybackService, new class extends mock<ITtsPlaybackService>() {
+					override readonly analyserNode = undefined;
+				}());
+				reg.defineInstance(IChatSpeechToTextService, new class extends mock<IChatSpeechToTextService>() {
+					override readonly onDidChangeState = Event.None;
+					override readonly onDidChangePreparingModel = Event.None;
+					override readonly onDidChangeDownloadingModel = Event.None;
+					override readonly state = ChatSpeechToTextState.Idle;
+					override readonly isConfigured = true;
+					override readonly isPreparingModel = false;
+					override readonly isDownloadingModel = false;
+				}());
+			}
 			if (models.length > 0) {
 				const modelsById = new Map(models.map(model => [model.identifier, model]));
-				reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() {
-					override onDidChangeLanguageModels = Event.None;
-					override onDidChangeModelVisibility = Event.None;
-					override onDidChangePinnedModels = Event.None;
+				reg.defineInstance(ILanguageModelsService, new class extends NullLanguageModelsService {
 					override getLanguageModelIds() { return [...modelsById.keys()]; }
-					override getHiddenModelIds() { return []; }
+					override getLanguageModels() { return [...models]; }
 					override getVendors() {
 						return [...new Set(models.map(model => model.metadata.vendor))].map(vendor => ({
 							vendor,
@@ -169,13 +225,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 							when: undefined,
 						}));
 					}
-					override isModelHidden() { return false; }
-					override getRecentlyUsedModelIds() { return []; }
-					override getPinnedModelIds() { return []; }
-					override getModelsControlManifest() { return { free: {}, paid: {} }; }
 					override lookupLanguageModel(modelId: string) { return modelsById.get(modelId)?.metadata; }
-					override getModelConfiguration() { return undefined; }
-					override getLanguageModelGroups() { return []; }
 					override hasResolvedVendor() { return true; }
 				}());
 			}
@@ -199,6 +249,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 		await configService.setUserConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker, true);
 	}
 
+	if (fixtureOptions.tabbedModelPicker) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
+	}
+
 	container.style.width = `${width}px`;
 	container.style.backgroundColor = 'var(--vscode-sideBar-background, var(--vscode-editor-background))';
 	container.classList.add('monaco-workbench');
@@ -215,7 +270,12 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.addCompact }, group: 'navigation', order: -1 });
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
 	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
-	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsCompact }, group: 'navigation', order: 100 });
+	if (!fixtureOptions.voiceInputMode || !isSessionsWindow) {
+		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsCompact }, group: 'navigation', order: 100 });
+	}
+	if (fixtureOptions.voiceInputMode) {
+		menuService.addItem(MenuId.ChatExecute, { command: { id: ChatVoiceInputModeAction.ID, title: 'Voice Input Mode' }, group: 'navigation', order: 2 });
+	}
 	if (voiceControl) {
 		// Order 2 puts the voice control between the pickers and Send, where the
 		// real dictation / Voice Mode actions are contributed.

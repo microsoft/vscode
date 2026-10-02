@@ -19,6 +19,7 @@ import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agen
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -55,7 +56,7 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
 		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
 		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
-		removePendingPullRequest: (session, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, url) ?? Promise.resolve(),
+		removePendingPullRequest: (session, chat, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, chat, url) ?? Promise.resolve(),
 		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
@@ -87,7 +88,7 @@ export interface IAgentServiceFoundation {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 }
 
 export interface ICreateAgentServiceFoundationOptions {
@@ -110,11 +111,13 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
 		},
 	}));
+	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
 		options.rootConfigResource,
 		options.providerConfigurations ?? [],
+		managedSettingsService,
 	));
 	if (options.transientProxyConfiguration) {
 		configurationService.publishRootTransientValues(Object.fromEntries(
@@ -129,6 +132,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
+	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
@@ -145,18 +149,11 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		requestService,
 		fetchFn,
 		gitHubServiceOptions: {
-			endpoint: gitHubEndpointService,
 			telemetrySource: 'agentHost',
 			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
 			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
 				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
 				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
 			fetch: fetchFn,
 		},
 	};

@@ -4,21 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, CopilotHarnessIntroductionMode, getChatPermissionLevelFromDefaultConfiguration, getComputedDefaultSessionResource, getComputedDefaultSessionType, getCopilotHarnessIntroductionMode, getDefaultNewChatSessionResource, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReason, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, IDefaultNewChatSessionTypeOptions, isEditorLocalAgentEnabled, isNewChatSessionTypeUsable, isVisibleEditorChatSessionType, recordUserSelectedSessionType } from '../../common/constants.js';
 import { localChatSessionType, SessionType, IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { MockChatSessionsService } from './mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getRememberedSessionType, storeUserSelectedSessionType } from '../../common/chatSessionTypePreference.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { getAgentHostPolicyGaps } from '../../../../../platform/agentHost/common/agentHostPolicyReadiness.js';
+import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 
 suite('ChatConfiguration defaults', () => {
 
@@ -57,6 +64,249 @@ suite('ChatConfiguration defaults', () => {
 		} satisfies IChatSessionsExtensionPoint)));
 		return service;
 	}
+
+	suite('enterprise policy diagnostics preserve existing rollout selection', () => {
+		const legacyRequirements = [
+			{ policy: 'ChatMCP', setting: 'chat.mcp.access', value: 'none' },
+			{ policy: 'ChatHooks', setting: 'chat.useHooks', value: false },
+			{ policy: 'ChatPluginsEnabled', setting: 'chat.plugins.enabled', value: false },
+			{ policy: 'ChatToolsEligibleForAutoApproval', setting: 'chat.tools.eligibleForAutoApproval', value: { tool: false } },
+			{ policy: 'ChatAgentSandboxEnabled', setting: 'chat.agent.sandbox.enabled', value: 'on' },
+			{ policy: 'ChatAgentSandboxAllowAutoApprove', setting: 'chat.agent.sandbox.allowAutoApprove', value: false },
+		];
+		setup(() => {
+			sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')
+				.returns(new Map([...legacyRequirements.map(({ policy, setting }): [string, string] => [policy, setting]), ['ChatAllowManagedMcpServersOnly', 'chat.mcp.allowManagedServersOnly']]));
+		});
+		teardown(() => sinon.restore());
+
+		function createRestrictedConfiguration(settings: Record<string, unknown> = {}) {
+			const configuration = new TestConfigurationService({ [ChatConfiguration.DefaultToCopilotHarness]: true, ...settings });
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const inspection = sinon.stub(configuration, 'inspect').callThrough();
+			inspection.withArgs('chat.mcp.access').returns({ policyValue: 'none' });
+			inspection.withArgs('chat.useHooks').returns({ policyValue: false });
+			return { configuration, inspection };
+		}
+
+		test('each accepted legacy gap remains visible without changing either rollout default', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			for (const { policy, setting, value } of legacyRequirements) {
+				for (const rolloutDefault of [false, true]) {
+					const { configuration, inspection } = createRestrictedConfiguration({
+						[ChatConfiguration.DefaultToCopilotHarness]: rolloutDefault,
+						'chat.agent.sandbox.enabled': 'on',
+						'chat.agent.sandbox.enabledWindows': 'on',
+					});
+					inspection.withArgs('chat.mcp.access').returns({});
+					inspection.withArgs('chat.useHooks').returns({});
+					inspection.withArgs(setting).returns({ policyValue: value });
+					const expected = rolloutDefault ? SessionType.AgentHostCopilot : localChatSessionType;
+					assert.deepStrictEqual({
+						gaps: getAgentHostPolicyGaps(configuration).map(gap => gap.policyName),
+						computed: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true),
+						resolved: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+					}, { gaps: [policy], computed: expected, resolved: { sessionType: expected, selectionReason: 'computedDefault' } });
+				}
+			}
+		});
+
+		test('applied gaps do not change the Copilot default or expose a hidden Local picker entry', () => {
+			const { configuration } = createRestrictedConfiguration({
+				[ChatConfiguration.EditorPreferCopilotHarness]: true,
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			assert.deepStrictEqual({
+				reported: getAgentHostPolicyGaps(configuration).map(gap => gap.policyName),
+				computed: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true),
+				resolved: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+				visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, localWorkspace),
+				localExperiment: configuration.getValue(ChatConfiguration.EditorLocalAgentEnabled),
+			}, {
+				reported: ['ChatHooks', 'ChatMCP'],
+				computed: SessionType.AgentHostCopilot,
+				resolved: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'computedDefault' },
+				visible: false,
+				localExperiment: false,
+			});
+		});
+
+		test('applied gaps preserve remembered and inherited Copilot choices and selection reasons', () => {
+			const { configuration } = createRestrictedConfiguration();
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const inherited = resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true, { currentSessionType: SessionType.AgentHostCopilot });
+			storeUserSelectedSessionType(storage, SessionType.AgentHostCopilot);
+			assert.deepStrictEqual({
+				inherited,
+				remembered: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+				saved: getRememberedSessionType(storage),
+			}, {
+				inherited: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'currentSession' },
+				remembered: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'rememberedSelection' },
+				saved: SessionType.AgentHostCopilot,
+			});
+		});
+
+		test('explicit selection, other providers, and virtual workspaces retain their semantics', () => {
+			const { configuration } = createRestrictedConfiguration();
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host');
+			const storage = disposables.add(new TestStorageService());
+			assert.deepStrictEqual({
+				explicit: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true, { explicitOverride: SessionType.AgentHostCopilot }),
+				others: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host'].map(type =>
+					getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true, { currentSessionType: type })),
+				virtual: getDefaultNewChatSessionType(configuration, sessions, storage, createWorkspace(URI.parse('vscode-vfs://test/repo')), true),
+			}, {
+				explicit: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'explicitOverride' },
+				others: [SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'remote-agent-host'],
+				virtual: localChatSessionType,
+			});
+		});
+
+		test('diagnostic gaps do not override the enterprise sandbox floor', () => {
+			const { configuration } = createRestrictedConfiguration();
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			assert.deepStrictEqual({
+				resolved: getDefaultNewChatSessionTypeAndReasonFromServices(configuration, sessions, storage, localWorkspace, true, undefined, true),
+				computed: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true, true),
+				localEnabled: isEditorLocalAgentEnabled(configuration, localWorkspace, true),
+			}, {
+				resolved: { sessionType: SessionType.AgentHostCopilot, selectionReason: 'computedDefault' },
+				computed: SessionType.AgentHostCopilot,
+				localEnabled: false,
+			});
+		});
+
+		test('applied gaps preserve provider ordering when Local is hidden', () => {
+			const { configuration } = createRestrictedConfiguration({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			assert.deepStrictEqual(
+				[SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex].map(type =>
+					getComputedDefaultSessionType(configuration, createChatSessionsService(type), localWorkspace, true)),
+				[SessionType.AgentHostCopilot, SessionType.AgentHostClaude, SessionType.AgentHostCodex],
+			);
+		});
+
+		test('policy removal clears diagnostics without changing harness selection', () => {
+			const { configuration, inspection } = createRestrictedConfiguration();
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const resolve = () => getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true);
+			const before = { sessionType: resolve(), gaps: getAgentHostPolicyGaps(configuration).map(gap => gap.policyName) };
+			inspection.withArgs('chat.mcp.access').returns({});
+			inspection.withArgs('chat.useHooks').returns({});
+			assert.deepStrictEqual({
+				before,
+				after: { sessionType: resolve(), gaps: getAgentHostPolicyGaps(configuration).map(gap => gap.policyName) },
+			}, {
+				before: { sessionType: SessionType.AgentHostCopilot, gaps: ['ChatHooks', 'ChatMCP'] },
+				after: { sessionType: SessionType.AgentHostCopilot, gaps: [] },
+			});
+		});
+
+		test('applied gaps neither veto nor enroll users in experiment-driven Agent Host selection', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			for (const rolloutDefault of [false, true]) {
+				for (const applied of [false, true]) {
+					const { configuration, inspection } = createRestrictedConfiguration({
+						[ChatConfiguration.DefaultToCopilotHarness]: rolloutDefault,
+					});
+					if (!applied) {
+						inspection.withArgs('chat.mcp.access').returns({});
+						inspection.withArgs('chat.useHooks').returns({});
+					}
+					const expected = rolloutDefault ? SessionType.AgentHostCopilot : localChatSessionType;
+					assert.deepStrictEqual({
+						computed: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true),
+						resolved: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+						rolloutDefault: configuration.getValue(ChatConfiguration.DefaultToCopilotHarness),
+						remembered: getRememberedSessionType(storage),
+					}, { computed: expected, resolved: { sessionType: expected, selectionReason: 'computedDefault' }, rolloutDefault, remembered: undefined });
+				}
+			}
+		});
+
+		test('applied gaps preserve the Copilot preference and its selection reason', () => {
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const { configuration } = createRestrictedConfiguration({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorPreferCopilotHarness]: true,
+			});
+			assert.deepStrictEqual(resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+				{ sessionType: SessionType.AgentHostCopilot, selectionReason: 'copilotPreference' });
+		});
+
+		test('review-only applied policies do not override experiment selection', () => {
+			const { configuration, inspection } = createRestrictedConfiguration();
+			inspection.withArgs('chat.mcp.access').returns({});
+			inspection.withArgs('chat.useHooks').returns({});
+			inspection.withArgs('chat.mcp.allowManagedServersOnly').returns({ policyValue: true });
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			assert.deepStrictEqual(getAgentHostPolicyGaps(configuration).map(gap => gap.policyName), ['ChatAllowManagedMcpServersOnly']);
+			assert.deepStrictEqual(resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
+				{ sessionType: SessionType.AgentHostCopilot, selectionReason: 'computedDefault' });
+		});
+
+		test('diagnostics cannot enable an unavailable Agent Host', () => {
+			const { configuration } = createRestrictedConfiguration();
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			assert.strictEqual(getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, false), localChatSessionType);
+		});
+
+		test('real configuration layering preserves rollout changes and policy-over-user harness preference', () => {
+			const logService = new NullLogService();
+			const empty = () => ConfigurationModel.createEmptyModel(logService);
+			const defaults = empty();
+			defaults.setValue(ChatConfiguration.DefaultToCopilotHarness, true);
+			const policy = empty();
+			policy.setValue('chat.mcp.access', 'none');
+			policy.setValue(ChatConfiguration.EditorPreferCopilotHarness, false);
+			const user = empty();
+			user.setValue(ChatConfiguration.EditorPreferCopilotHarness, true);
+			const model = new Configuration(defaults, policy, empty(), user, empty(), empty(), new ResourceMap(), empty(), new ResourceMap(), logService);
+			const configuration = new TestConfigurationService();
+			disposables.add(configuration.onDidChangeConfigurationEmitter);
+			const values = sinon.stub(configuration, 'getValue').callThrough();
+			for (const key of [ChatConfiguration.DefaultToCopilotHarness, ChatConfiguration.EditorPreferCopilotHarness]) {
+				values.withArgs(key).callsFake(() => model.getValue(key, {}, localWorkspace));
+			}
+			const inspection = sinon.stub(configuration, 'inspect').callThrough();
+			inspection.withArgs('chat.mcp.access').callsFake(() => model.inspect('chat.mcp.access', {}, localWorkspace));
+			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			const resolve = () => getDefaultNewChatSessionType(configuration, sessions, storage, localWorkspace, true);
+			assert.strictEqual(resolve(), SessionType.AgentHostCopilot);
+			assert.strictEqual(defaults.getValue(ChatConfiguration.DefaultToCopilotHarness), true);
+			defaults.setValue(ChatConfiguration.DefaultToCopilotHarness, false);
+			model.updateDefaultConfiguration(defaults);
+			assert.strictEqual(resolve(), localChatSessionType);
+			policy.setValue(ChatConfiguration.EditorPreferCopilotHarness, true);
+			model.updatePolicyConfiguration(policy);
+			assert.strictEqual(resolve(), SessionType.AgentHostCopilot);
+		});
+
+		test('applied gaps do not make a hidden remembered Local choice usable', () => {
+			const { configuration } = createRestrictedConfiguration({
+				[ChatConfiguration.DefaultToCopilotHarness]: false,
+				[ChatConfiguration.EditorLocalAgentEnabled]: false,
+			});
+			const sessions = createChatSessionsService(SessionType.AgentHostClaude, SessionType.AgentHostCopilot);
+			const storage = disposables.add(new TestStorageService());
+			storeUserSelectedSessionType(storage, localChatSessionType);
+			assert.strictEqual(resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true).sessionType, SessionType.AgentHostClaude);
+		});
+	});
 
 	function resolveSessionType(
 		configurationService: IConfigurationService,

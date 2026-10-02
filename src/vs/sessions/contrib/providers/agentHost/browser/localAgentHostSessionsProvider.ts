@@ -16,6 +16,7 @@ import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContent
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
+import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -38,7 +39,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
-import { IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
+import { areDevContainerSamplesEnabled, IDevContainerAgentHostService } from '../../../../common/devContainerAgentHostService.js';
 import { IGitHubInfo, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
@@ -69,6 +70,7 @@ const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY_LEGACY = 'localAgentHost.cach
 export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
+	readonly environment = { id: 'local', label: localize('environment.local', "Local") };
 	readonly label: string;
 	readonly automations: ISessionsProviderAutomations;
 	readonly icon: ThemeIcon = Codicon.vm;
@@ -258,7 +260,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	}
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
-		return workspaceUri.scheme === Schemas.file;
+		return workspaceUri.scheme === Schemas.file || !!findDevContainerSample(workspaceUri);
 	}
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
@@ -316,6 +318,19 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		const sample = findDevContainerSample(repositoryUri);
+		if (sample && areDevContainerSamplesEnabled(this._configurationService)) {
+			return {
+				uri: repositoryUri,
+				label: localize('devContainerSample.workspaceLabel', "{0} Sample", sample.name),
+				description: getDevContainerSampleUrl(sample),
+				group: SESSION_WORKSPACE_GROUP_LOCAL,
+				icon: Codicon.remote,
+				folders: [{ root: repositoryUri, workingDirectory: repositoryUri, name: sample.name, description: undefined, gitRepository: undefined }],
+				requiresWorkspaceTrust: false,
+				isVirtualWorkspace: true,
+			};
+		}
 		if (repositoryUri.scheme !== Schemas.file) {
 			return undefined;
 		}

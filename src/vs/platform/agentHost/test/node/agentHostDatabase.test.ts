@@ -468,9 +468,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
-	test('upgrades published v4 through v6 rows and invalidates old projections', async () => {
-		const results: object[] = [];
-		for (const version of [4, 5, 6] as const) {
+	for (const version of [4, 5, 6] as const) {
+		test(`upgrades published v${version} rows and invalidates old projections`, async () => {
 			const path = join(temporaryDirectory!, `agent-host-published-v${version}.db`);
 			await createPublishedSessionsV2Database(path, version);
 			const upgraded = new AgentHostDatabase(path);
@@ -485,36 +484,33 @@ suite('AgentHostDatabase sessions_v2', () => {
 					all(rawDatabase, 'PRAGMA foreign_key_list(sessions_v2)'),
 				]);
 				await close(rawDatabase);
-				results.push({
+				assert.deepStrictEqual({
 					version,
 					schemaVersion,
 					foreignKeys,
 					published: await upgraded.getSessionV2(session),
 					directLegacy: await upgraded.getSession(direct),
 					directCurrent: await upgraded.getSessionV2Registration(direct),
+				}, {
+					version,
+					schemaVersion: [{ user_version: 12 }],
+					foreignKeys: [],
+					published: undefined,
+					directLegacy: undefined,
+					directCurrent: {
+						session: `session://direct-${version}`,
+						provider: 'claude',
+						startTime: 200 + version,
+						modifiedTime: 200 + version,
+						external: false,
+						source: 'explicit',
+					},
 				});
-
 			} finally {
 				await upgraded.close();
 			}
-		}
-
-		assert.deepStrictEqual(results, [4, 5, 6].map(version => ({
-			version,
-			schemaVersion: [{ user_version: 12 }],
-			foreignKeys: [],
-			published: undefined,
-			directLegacy: undefined,
-			directCurrent: {
-				session: `session://direct-${version}`,
-				provider: 'claude',
-				startTime: 200 + version,
-				modifiedTime: 200 + version,
-				external: false,
-				source: 'explicit',
-			},
-		})));
-	}).timeout(10_000);
+		}).timeout(10_000);
+	}
 
 	test('applies the catalog migration after upstream v4', async () => {
 		const path = join(temporaryDirectory!, 'agent-host-upstream-v4.db');

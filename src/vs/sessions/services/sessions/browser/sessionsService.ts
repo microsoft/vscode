@@ -514,17 +514,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		let previousActiveSessionId: string | undefined;
 		this._register(autorun(reader => {
 			const activeSession = this.activeSession.read(reader);
+			const isRead = activeSession?.isRead.read(reader);
 			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
 			previousActiveSessionId = activeSession?.sessionId;
-			if (!activeSession) {
-				return;
-			}
-			const activeChat = activeSession.activeChat.read(reader);
-			if (!activeChat.isRead.read(reader)) {
-				this.sessionsManagementService.markChatRead(activeSession, activeChat, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
-			}
-			const allChatsRead = activeSession.chats.read(reader).every(chat => chat.isArchived.read(reader) || chat.isRead.read(reader));
-			if (allChatsRead && !activeSession.isRead.read(reader)) {
+			if (activeSession && (activeSessionChanged || !isRead)) {
 				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
 		}));
@@ -968,10 +961,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			const sessionData = this._getSession(resolved);
-			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
-			if (token.isCancellationRequested) {
-				return;
-			}
 			this._applyActiveChatSelection(sessionData, options);
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
@@ -980,7 +969,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.activeSession.get()?.sessionId === sessionData.sessionId,
 				sessionData.loading.get(),
 			);
+			// Mount the chat before connecting so its existing loading and recovery UI can render.
 			this._showSession(sessionData, options);
+			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 		});
 	}

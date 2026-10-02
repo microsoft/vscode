@@ -508,6 +508,7 @@ export class AgentHostStateManager extends Disposable {
 					title: chat.title,
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				}));
 			this._sessionSummaryChats.set(chats, result);
 		}
@@ -538,7 +539,8 @@ export class AgentHostStateManager extends Disposable {
 			return chat.resource === other.resource
 				&& chat.title === other.title
 				&& equals(chat.origin, other.origin)
-				&& chat.interactivity === other.interactivity;
+				&& chat.interactivity === other.interactivity
+				&& structuralEquals(chat.changes, other.changes);
 		});
 	}
 
@@ -557,11 +559,6 @@ export class AgentHostStateManager extends Disposable {
 		const state = this.getChatState(chat);
 		if (!state || state.activeTurn || state.turns !== previousTurns || equals(state.turns, turns)) {
 			return false;
-		}
-		const session = this._chatEntries.get(chat)?.session;
-		const summary = session && this.getSessionSummary(session);
-		if (session && summary && Date.parse(summary.modifiedAt) > Date.parse(state.modifiedAt)) {
-			this.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat, changes: { modifiedAt: summary.modifiedAt } });
 		}
 		this.dispatchServerAction(chat, { type: ActionType.ChatTruncated });
 		this.dispatchServerAction(chat, { type: ActionType.ChatTurnsLoaded, turns: [...turns] });
@@ -1149,7 +1146,7 @@ export class AgentHostStateManager extends Disposable {
 	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
 	 * so clients update the entry in place instead of dropping it.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatWorkingDirectories?: readonly string[] }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[] }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -1163,7 +1160,7 @@ export class AgentHostStateManager extends Disposable {
 		};
 		const entry = this._newEntry(state, summary, SessionUse.Used);
 		this._sessionStates.set(key, entry);
-		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatWorkingDirectories);
+		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories);
 		for (const chat of summary.chats ?? []) {
 			if (chat.resource === state.defaultChat || isDefaultChatUri(chat.resource)) {
 				continue;
@@ -1172,6 +1169,7 @@ export class AgentHostStateManager extends Disposable {
 				title: chat.title,
 				origin: chat.origin,
 				interactivity: chat.interactivity,
+				changes: chat.changes,
 			});
 		}
 		// A session that was previously surfaced (e.g. announced as an
@@ -1203,14 +1201,17 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, workingDirectories?: readonly string[]): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[]): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
+		const changes = summary.chats?.find(chat => chat.resource === chatUri)?.changes;
 		// Empty title means "inherit the session title"; a persisted independent
 		// rename (`defaultChatTitle`) is seeded back here so it survives restore.
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(summary, chatUri),
 			title: defaultChatTitle ?? '',
+			...(modifiedAt !== undefined ? { modifiedAt } : {}),
 			...(workingDirectories !== undefined ? { workingDirectories: [...workingDirectories] } : {}),
+			...(changes !== undefined ? { changes } : {}),
 		};
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
@@ -1293,7 +1294,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1306,10 +1307,12 @@ export class AgentHostStateManager extends Disposable {
 			if (existingEntry && !existingEntry.state && options.resolver) {
 				const summary: ChatSummary = {
 					...existing,
+					...(options.modifiedAt !== undefined ? { modifiedAt: options.modifiedAt } : {}),
 					...(options.origin !== undefined ? { origin: options.origin } : {}),
 					interactivity: options.interactivity ?? existing.interactivity,
 					...(options.archived !== undefined ? { status: withSessionStatusFlag(existing.status ?? SessionStatus.Idle, SessionStatus.IsArchived, options.archived) } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
+					...(existing.changes === undefined && options.changes !== undefined ? { changes: options.changes } : {}),
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);
 				existingEntry.summary = summary;
@@ -1325,6 +1328,7 @@ export class AgentHostStateManager extends Disposable {
 		const chatSummary: ChatSummary = {
 			...createDefaultChatSummary(this._toSummary(session, entry), chatUri),
 			title: options.title ?? '',
+			...(options.modifiedAt !== undefined ? { modifiedAt: options.modifiedAt } : {}),
 			status: withSessionStatusFlag(SessionStatus.Idle, SessionStatus.IsArchived, options.archived === true),
 			// A persisted catalog entry with no recorded origin is a plain
 			// user-created chat; keep the default rather than restoring it
@@ -1332,6 +1336,7 @@ export class AgentHostStateManager extends Disposable {
 			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
 			...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
+			...(options.changes !== undefined ? { changes: options.changes } : {}),
 		};
 		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
@@ -1625,6 +1630,28 @@ export class AgentHostStateManager extends Disposable {
 		entry.changes = changes;
 
 		this._summaryNotifier.markDirty(session);
+	}
+
+	/**
+	 * Updates a chat's aggregate `changes` through the owning session's chat
+	 * catalog, so session lists receive it with `root/sessionSummaryChanged`
+	 * and session or chat subscribers receive it with `session/chatUpdated`.
+	 * Returns whether the catalog changed.
+	 */
+	setChatSummaryChanges(chat: URI, changes: ChangesSummary): boolean {
+		const session = this._chatEntries.get(chat)?.session;
+		const current = session !== undefined
+			? this._sessionStates.get(session)?.state.chats.find(summary => summary.resource === chat)
+			: undefined;
+		if (session === undefined || !current) {
+			this._logService.warn(`[AgentHostStateManager] setChatSummaryChanges: unknown chat ${chat}`);
+			return false;
+		}
+		if (structuralEquals(current.changes, changes)) {
+			return false;
+		}
+		this.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat, changes: { changes } });
+		return true;
 	}
 
 	/**
@@ -2080,10 +2107,9 @@ export class AgentHostStateManager extends Disposable {
 	 *    keyed by the owning session URI;
 	 *  - mirror the chat's denormalized `status`/`activity`/`modifiedAt`
 	 *    onto the session summary so the session list reflects progress;
-	 *  - forward the chat's own `status`, `activity`, and `modifiedAt` to the
-	 *    session `chats` catalog (via a {@link ActionType.SessionChatUpdated})
-	 *    so per-chat tabs reflect that chat's progress, not just the aggregated
-	 *    session summary; and
+	 *  - forward the chat's own `status` to the session `chats` catalog (via a
+	 *    {@link ActionType.SessionChatUpdated}) so per-chat tabs reflect that
+	 *    chat's progress, not just the aggregated session summary; and
 	 *  - keep the session's `chats` catalog entry in sync.
 	 */
 	private _onChatStateChanged(sessionKey: string, chatUri: string, prev: ChatState, next: ChatState): void {
@@ -2133,19 +2159,19 @@ export class AgentHostStateManager extends Disposable {
 		const prevEntry = sessionState.chats.find(c => c.resource === chatUri);
 		const chats = sessionState.chats.map(c => c.resource === chatUri ? nextEntry : c);
 
-		// Forward chat-local status, activity, and modification time to SessionState
-		// subscribers, not just to the aggregated session summary.
+		// Forward the chat's own fields to the session catalog so full
+		// SessionState subscribers (the per-chat tabs) reflect this chat's
+		// progress and recency — not just the aggregated session summary. Changes
+		// at most a couple of times per turn, so this won't flood the channel.
 		const chatStatusChanged = prevEntry?.status !== nextEntry.status;
-		const chatActivityChanged = prevEntry?.activity !== nextEntry.activity;
 		const chatModifiedAtChanged = prevEntry?.modifiedAt !== nextEntry.modifiedAt;
-		if (chatStatusChanged || chatActivityChanged || chatModifiedAtChanged) {
+		if (chatStatusChanged || chatModifiedAtChanged) {
 			this.dispatchServerAction(sessionKey, {
 				type: ActionType.SessionChatUpdated,
 				chat: chatUri,
 				changes: {
-					...(chatStatusChanged ? { status: nextEntry.status } : undefined),
-					...(chatActivityChanged ? { activity: nextEntry.activity } : undefined),
-					...(chatModifiedAtChanged ? { modifiedAt: nextEntry.modifiedAt } : undefined),
+					...(chatStatusChanged ? { status: nextEntry.status, activity: nextEntry.activity } : {}),
+					...(chatModifiedAtChanged ? { modifiedAt: nextEntry.modifiedAt } : {}),
 				},
 			});
 		}
@@ -2165,10 +2191,12 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		// Roll the aggregated `modifiedAt` into the catalog-only timestamp.
-		const newModifiedAt = aggregate.modifiedAt !== undefined ? new Date(aggregate.modifiedAt).toISOString() : undefined;
-		const modifiedAtChanged = newModifiedAt !== undefined && newModifiedAt !== entry.modifiedAt;
+		const currentModifiedAt = Date.parse(entry.modifiedAt);
+		const aggregateModifiedAt = aggregate.modifiedAt;
+		const modifiedAtChanged = aggregateModifiedAt !== undefined
+			&& (!Number.isFinite(currentModifiedAt) || aggregateModifiedAt > currentModifiedAt);
 		if (modifiedAtChanged) {
-			entry.modifiedAt = newModifiedAt;
+			entry.modifiedAt = new Date(aggregateModifiedAt).toISOString();
 		}
 
 		if (statusChanged || activityChanged || modifiedAtChanged) {

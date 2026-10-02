@@ -200,7 +200,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
-			options.model = await this.getModel(dto.modelId, item.extension);
+			options.model = await this._languageModels.getLanguageModelForRequest(item.extension, dto.modelId);
 		}
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.chatStreamToolCallId) {
 			options.chatStreamToolCallId = dto.chatStreamToolCallId;
@@ -239,21 +239,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
-	}
-
-	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
-		let model: vscode.LanguageModelChat | undefined;
-		if (modelId) {
-			model = await this._languageModels.getLanguageModelByIdentifier(extension, modelId);
-		}
-		if (!model) {
-			model = await this._languageModels.getDefaultLanguageModel(extension);
-			if (!model) {
-				throw new Error('Language model unavailable');
-			}
-		}
-
-		return model;
 	}
 
 	async $handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
