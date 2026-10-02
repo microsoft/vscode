@@ -1139,8 +1139,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, the phone keeps workspace and harness controls centered below the Sessions logo. Worktree and Branch remain available in the horizontally scrollable bottom row without an empty separator block.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
+		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, opening Workspace shows the simple phone workspace sheet without unified search. Worktree and Branch remain configured in the underlying horizontally scrollable row without an empty separator block.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
