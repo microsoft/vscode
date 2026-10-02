@@ -34,7 +34,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IAuxiliaryEditorPart, IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -56,6 +56,8 @@ suite('ProjectBoardNewSession', () => {
 		const window = frame.contentWindow!;
 		ensureCodeWindow(window, 14567);
 		store.add(registerWindow(window));
+		const documentFocus = sinon.stub(window.document, 'hasFocus').returns(true);
+		store.add(toDisposable(() => documentFocus.restore()));
 		const windowId = window.vscodeWindowId;
 		const resource = URI.parse('test-chat:/draft');
 		const closing = store.add(new Emitter<void>());
@@ -123,7 +125,16 @@ suite('ProjectBoardNewSession', () => {
 		instantiation.stub(IWorkspaceTrustRequestService, { requestResourcesTrust: trust });
 		instantiation.stubInstance(ChatEditorInput, input);
 		instantiation.stub(IEditorService, { openEditor, findEditors: () => [], isOpened: () => true });
-		instantiation.stub(IEditorGroupsService, { groups: [], getGroup: id => id === group.id ? group : undefined });
+		instantiation.stub(IEditorGroupsService, {
+			groups: [], getGroup: id => id === group.id ? group : undefined,
+			createAuxiliaryEditorPart: async () => new class extends mock<IAuxiliaryEditorPart>() {
+				override readonly windowId = windowId;
+				override readonly activeGroup = group;
+				override readonly groups = [group];
+				override readonly onWillDispose = Event.None;
+				override close(): boolean { return true; }
+			}(),
+		});
 		instantiation.stub(IHostService, { focus: async () => { } });
 		instantiation.stub(ISessionsManagementService, {
 			markRead: async () => { },

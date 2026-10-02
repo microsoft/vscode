@@ -40,6 +40,16 @@
 	flex-shrink: 0;
 }
 
+.project-board-chat-loading {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
 .project-board-chat-widget {
 	flex: 1;
 	min-width: 0;

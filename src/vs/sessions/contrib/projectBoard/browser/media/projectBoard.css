@@ -35,6 +35,7 @@
 	height: 100%;
 	min-height: 0;
 	overflow: hidden;
+	overflow-anchor: none;
 	background: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
 	padding: 20px;
@@ -113,7 +114,8 @@
 	border-color: var(--vscode-inputOption-activeBorder);
 }
 
-.project-board-topic-status {
+.project-board-topic-status,
+.project-board-topic-coverage {
 	flex-basis: 100%;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
@@ -237,6 +239,12 @@
 	gap: var(--vscode-spacing-size80);
 }
 
+.project-board-card-loading {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+}
+
 .project-board-card-heading > h4 {
 	min-width: 0;
 	flex: 1;
@@ -292,6 +300,12 @@
 	gap: 8px;
 }
 
+.project-board-column-headers {
+	display: grid;
+	flex-shrink: 0;
+	gap: 8px;
+}
+
 .project-board-row-heading {
 	grid-column: 1 / -1;
 	background: var(--vscode-sideBarSectionHeader-background);
@@ -317,6 +331,10 @@
 	padding: 8px;
 	border: 1px solid var(--vscode-panel-border);
 	background: var(--vscode-sideBar-background);
+}
+
+.project-board-grid > .project-board-card-group[hidden] {
+	display: none;
 }
 
 .project-board-card-group:focus-visible {

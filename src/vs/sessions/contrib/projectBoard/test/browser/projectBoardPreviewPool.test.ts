@@ -163,6 +163,43 @@ suite('ProjectBoardPreviewPool', () => {
 			store.add(h.pool.acquireMetadata(chat(String(index)))!);
 			return stub;
 		});
+
+		test('background refresh waits for loading and protected previews and wakes when a helper can yield', async () => {
+			const h = setup();
+			const helpers = Array.from({ length: projectBoardMetadataLimits.activeHelpers }, (_, index) => {
+				const stub = metadataStub(h.instantiation);
+				store.add(h.pool.acquireMetadata(chat(String(index)))!);
+				return stub;
+			});
+			const available = sinon.spy();
+			store.add(h.pool.onDidChangeAvailability(available));
+			assert.strictEqual(h.pool.acquireMetadata(chat('background'), 'background'), undefined);
+			questionStub(h.instantiation);
+			store.add(h.pool.acquireQuestions(chat('0'))!);
+			helpers[0].metadata.set({ kind: 'ready', context: [] }, undefined);
+			helpers[1].actions.set(new class extends mock<IProjectBoardPendingActions>() { }(), undefined);
+			helpers[1].metadata.set({ kind: 'ready', context: [] }, undefined);
+			assert.strictEqual(h.pool.acquireMetadata(chat('background'), 'background'), undefined);
+			helpers[1].actions.set(undefined, undefined);
+			await timeout(0);
+			assert.ok(available.called);
+			metadataStub(h.instantiation);
+			store.add(h.pool.acquireMetadata(chat('background'), 'background')!);
+			assert.deepStrictEqual(helpers.map(helper => helper.calls.disposed), [0, 1, ...Array(14).fill(0)]);
+			assert.strictEqual(h.pool.acquireMetadata(chat('next'), 'background'), undefined, 'The background load itself must not be evicted');
+		});
+
+		test('existing-only acquisition shares warm helpers without loading evicted resources', () => {
+			const h = setup();
+			const stub = metadataStub(h.instantiation);
+			assert.strictEqual(h.pool.acquireExistingMetadata(chat()), undefined);
+			stub.metadata.set({ kind: 'ready', context: [] }, undefined);
+			const first = store.add(h.pool.acquireMetadata(chat())!);
+			first.dispose();
+			const reused = store.add(h.pool.acquireExistingMetadata(chat())!);
+			assert.strictEqual(reused.metadata, stub.metadata);
+			assert.strictEqual(h.created.callCount, 1);
+		});
 		assert.strictEqual(h.pool.acquireMetadata(chat('requested'), true), undefined);
 		assert.ok(helpers.every(helper => helper.calls.disposed === 0));
 		helpers[4].actions.set(undefined, undefined);

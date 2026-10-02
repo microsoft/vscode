@@ -7,8 +7,9 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { registerWindow } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -19,13 +20,13 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IEditorIdentifier, IEditorPane, IUntypedEditorInput, IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { ChatEditorInput } from '../../../../../workbench/contrib/chat/browser/widgetHosts/editor/chatEditorInput.js';
-import { IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
-import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
+import { IAuxiliaryEditorPart, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService, PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
@@ -43,6 +44,8 @@ suite('ProjectBoardChatWindows', () => {
 		const targetWindow = frame.contentWindow!;
 		ensureCodeWindow(targetWindow, 12345);
 		store.add(registerWindow(targetWindow));
+		const documentFocus = sinon.stub(targetWindow.document, 'hasFocus').returns(true);
+		store.add(toDisposable(() => documentFocus.restore()));
 		const windowId = targetWindow.vscodeWindowId;
 		const resource = URI.parse('test-chat:session#child');
 		let inputDisposed = false;
@@ -55,6 +58,7 @@ suite('ProjectBoardChatWindows', () => {
 			override readonly id = 10;
 			override readonly windowId = windowId;
 			override readonly activeEditor = input;
+			override get isEmpty(): boolean { return !state.opened; }
 			override get activeEditorPane(): IVisibleEditorPane { return pane; }
 			override async closeEditor(editor: EditorInput): Promise<boolean> {
 				closed.push(editor);
@@ -84,6 +88,15 @@ suite('ProjectBoardChatWindows', () => {
 			override readonly input = input;
 			override focus(): void { state.editorFocused = true; }
 		}();
+		const partDisposed = store.add(new Emitter<void>());
+		const part = new class extends mock<IAuxiliaryEditorPart>() {
+			override readonly windowId = windowId;
+			override readonly activeGroup = group;
+			override readonly groups = [group];
+			override readonly onWillDispose = partDisposed.event;
+			override readonly close = sinon.stub().returns(true);
+		}();
+		const createPart = sinon.stub().resolves(part);
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
 		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
@@ -99,10 +112,12 @@ suite('ProjectBoardChatWindows', () => {
 			isOpened: () => state.opened,
 		});
 		instantiationService.stub(IEditorGroupsService, {
+			createAuxiliaryEditorPart: createPart,
 			groups: [],
 			parts: [new class extends mock<IEditorPart>() {
 				override readonly windowId = windowId;
 				override readonly activeGroup = group;
+				override readonly onWillDispose = partDisposed.event;
 			}()],
 			getGroup: id => id === group.id ? group : id === mainGroup.id ? mainGroup : undefined,
 		});
@@ -144,7 +159,80 @@ suite('ProjectBoardChatWindows', () => {
 				override readonly resource = resource;
 			}();
 		}();
-		return { opener, card, input, openEditor, createInstance, state, focused, readSessions, errors, targetWindow, group, mainGroup, pane, closed, inputDisposed: () => inputDisposed };
+		return { opener, card, input, openEditor, createInstance, createPart, part, partDisposed, documentFocus, state, focused, readSessions, errors, targetWindow, group, mainGroup, pane, closed, inputDisposed: () => inputDisposed };
+	}
+
+	test('reveals the existing target window before its editor finishes loading', async () => {
+		const h = setup();
+		h.state.existing = [{ editor: h.input, groupId: h.group.id }];
+		const loaded = new DeferredPromise<IEditorPane>();
+		h.openEditor.returns(loaded.p);
+		const opening = h.opener.open(h.card);
+		await timeout(0);
+		assert.deepStrictEqual({ focused: h.focused, reads: h.readSessions }, { focused: [h.targetWindow], reads: [] });
+		await loaded.complete(h.pane);
+		await opening;
+	});
+
+	test('creates and reveals a compact destination window while a new editor is loading', async () => {
+		const h = setup();
+		const loaded = new DeferredPromise<IEditorPane>();
+		h.openEditor.callsFake(() => { h.state.opened = true; return loaded.p; });
+		const opening = h.opener.open(h.card);
+		await timeout(0);
+		assert.deepStrictEqual({
+			created: h.createPart.callCount, target: h.openEditor.firstCall.args[2], focused: h.focused,
+			editorFocused: h.state.editorFocused, reads: h.readSessions,
+		}, { created: 1, target: h.group, focused: [h.targetWindow], editorFocused: false, reads: [] });
+		await loaded.complete(h.pane);
+		await opening;
+		assert.deepStrictEqual({ reads: h.readSessions, closed: h.part.close.callCount }, { reads: [h.card.session], closed: 0 });
+	});
+
+	test('an older editor finishing later does not steal focus or mark its session read', async () => {
+		const h = setup();
+		const firstLoad = new DeferredPromise<IEditorPane>();
+		h.openEditor.onFirstCall().callsFake(() => { h.state.opened = true; return firstLoad.p; });
+		const focus = sinon.spy(h.pane, 'focus');
+		const first = h.opener.open(h.card);
+		await timeout(0);
+		const next = {
+			...h.card, id: 'newer-card', chat: { ...h.card.chat, resource: URI.parse('test-chat:session#newer') },
+			session: { ...h.card.session, sessionId: 'newer-owner' },
+		};
+		await h.opener.open(next);
+		await firstLoad.complete(h.pane);
+		await first;
+		assert.deepStrictEqual({ focuses: focus.callCount, reads: h.readSessions, nativeFocuses: h.focused.length }, { focuses: 1, reads: [next.session], nativeFocuses: 2 });
+	});
+
+	test('finishing a background load does not refocus or mark read after the user leaves its window', async () => {
+		const h = setup();
+		const loaded = new DeferredPromise<IEditorPane>();
+		h.openEditor.callsFake(() => { h.state.opened = true; return loaded.p; });
+		const opening = h.opener.open(h.card);
+		await timeout(0);
+		h.documentFocus.returns(false);
+		await loaded.complete(h.pane);
+		await opening;
+		assert.deepStrictEqual({ nativeFocuses: h.focused.length, editorFocused: h.state.editorFocused, reads: h.readSessions }, { nativeFocuses: 1, editorFocused: false, reads: [] });
+	});
+
+	for (const existing of [true, false]) {
+		test(`closing a ${existing ? 'reused' : 'new'} loading window cancels without refocusing, marking read or closing it again`, async () => {
+			const h = setup();
+			if (existing) {
+				h.state.existing = [{ editor: h.input, groupId: h.group.id }];
+			}
+			const loaded = new DeferredPromise<IEditorPane>();
+			h.openEditor.callsFake(() => { h.state.opened = true; return loaded.p; });
+			const opening = h.opener.open(h.card);
+			await timeout(0);
+			h.partDisposed.fire();
+			await loaded.complete(h.pane);
+			await assert.rejects(opening, isCancellationError);
+			assert.deepStrictEqual({ editorFocused: h.state.editorFocused, reads: h.readSessions, closes: h.part.close.callCount }, { editorFocused: false, reads: [], closes: 0 });
+		});
 	}
 
 	test('PB-05 Escape closure uses the editor close lifecycle only for an auxiliary chat', async () => {
@@ -168,9 +256,10 @@ suite('ProjectBoardChatWindows', () => {
 		assert.ok(h.createInstance.calledWith(ChatEditorInput, h.card.chat.resource, { title: { fallback: 'Child' } }));
 		assert.deepStrictEqual(h.openEditor.firstCall.args, [
 			h.input,
-			{ pinned: true, revealIfOpened: false, auxiliary: { compact: true, bounds: { width: 800, height: 640 } } },
-			AUX_WINDOW_GROUP,
+			{ pinned: true, revealIfOpened: false, auxiliary: { compact: true, bounds: { width: 800, height: 640 } }, preserveFocus: true, showLoading: true },
+			h.group,
 		]);
+		assert.deepStrictEqual(h.createPart.firstCall.args, [{ compact: true, bounds: { width: 800, height: 640 } }]);
 		assert.deepStrictEqual(h.focused, [h.targetWindow]);
 		assert.strictEqual(h.state.editorFocused, true);
 		assert.strictEqual(h.inputDisposed(), false);
@@ -207,7 +296,7 @@ suite('ProjectBoardChatWindows', () => {
 		h.state.existing = [{ editor: h.input, groupId: h.mainGroup.id }];
 		await h.opener.open(h.card);
 		assert.ok(h.createInstance.calledWith(ChatEditorInput, h.card.chat.resource));
-		assert.strictEqual(h.openEditor.firstCall.args[2], AUX_WINDOW_GROUP);
+		assert.strictEqual(h.openEditor.firstCall.args[2], h.group);
 		assert.deepStrictEqual(h.focused, [h.targetWindow]);
 	});
 
@@ -217,7 +306,7 @@ suite('ProjectBoardChatWindows', () => {
 		h.openEditor.callsFake(() => result.p);
 		const first = h.opener.open(h.card);
 		const second = h.opener.open(h.card);
-		await Promise.resolve();
+		await timeout(0);
 		assert.strictEqual(h.openEditor.callCount, 1);
 		await result.complete(h.pane);
 		await Promise.all([first, second]);
@@ -231,7 +320,7 @@ suite('ProjectBoardChatWindows', () => {
 		h.state.opened = false;
 		await h.opener.open(h.card);
 		assert.strictEqual(h.openEditor.callCount, 2);
-		assert.strictEqual(h.openEditor.secondCall.args[2], AUX_WINDOW_GROUP);
+		assert.strictEqual(h.openEditor.secondCall.args[2], h.group);
 	});
 
 	test('PB-05 reports a failed editor open and allows retry', async () => {
@@ -239,7 +328,8 @@ suite('ProjectBoardChatWindows', () => {
 		h.openEditor.onFirstCall().resolves(undefined);
 		await assert.rejects(h.opener.open(h.card), /separate window/);
 		assert.strictEqual(h.inputDisposed(), true);
-		assert.deepStrictEqual(h.focused, []);
+		assert.deepStrictEqual(h.focused, [h.targetWindow]);
+		assert.strictEqual(h.part.close.callCount, 1);
 		await h.opener.open(h.card);
 		assert.strictEqual(h.openEditor.callCount, 2);
 	});
@@ -251,7 +341,7 @@ suite('ProjectBoardChatWindows', () => {
 			override readonly group = h.mainGroup;
 		}());
 		await assert.rejects(h.opener.open(h.card), /separate window/);
-		assert.deepStrictEqual(h.focused, []);
+		assert.deepStrictEqual(h.focused, [h.targetWindow]);
 	});
 
 	test('PB-05 propagates native focus failure without cancelling or disposing an open chat', async () => {
@@ -261,6 +351,20 @@ suite('ProjectBoardChatWindows', () => {
 		assert.strictEqual(h.inputDisposed(), false);
 	});
 
+	for (const failure of ['false', 'throw']) {
+		test(`empty window cleanup reporting ${failure} preserves the original open error`, async () => {
+			const h = setup();
+			h.openEditor.resolves(undefined);
+			if (failure === 'false') {
+				h.part.close.returns(false);
+			} else {
+				h.part.close.throws(new Error('Cleanup failed'));
+			}
+			await assert.rejects(h.opener.open(h.card), /separate window/);
+			assert.deepStrictEqual(h.errors, ['The empty chat window could not be closed.']);
+		});
+	}
+
 	test('PB-05 honours a declined workspace trust prompt without opening or navigating', async () => {
 		const h = setup();
 		h.state.trusted = false;
@@ -268,5 +372,6 @@ suite('ProjectBoardChatWindows', () => {
 		assert.strictEqual(h.openEditor.callCount, 0);
 		assert.strictEqual(h.createInstance.calledWith(ChatEditorInput), false);
 		assert.deepStrictEqual(h.focused, []);
+		assert.strictEqual(h.createPart.callCount, 0);
 	});
 });

@@ -5,10 +5,11 @@
 
 import './media/projectBoardChatSidePanel.css';
 import { $, append, isAncestorOfActiveElement, size } from '../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { raceCancellationError, Sequencer } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { autorun, derived, disposableObservableValue, IObservable, observableValue } from '../../../../base/common/observable.js';
 import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
@@ -29,6 +30,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROU
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
 import { IChatModelReference, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { renderChatLoadingProgress } from '../../../../workbench/contrib/chat/browser/chatLoadingProgress.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { IChatModelInputState } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -54,6 +56,20 @@ export const ProjectBoardChatAvailableContext = new RawContextKey<boolean>('kanb
 export const ProjectBoardChatFocusContext = new RawContextKey<boolean>('kanbanChatFocus', false);
 
 type ProjectBoardChat = Pick<IProjectBoardCard, 'session' | 'chat'>;
+
+function createCloseChatAction(onClose: () => void): Action {
+	return new Action('sessions.kanban.closeChat', localize('kanban.closeChat', "Close Chat"), ThemeIcon.asClassName(Codicon.close), true, onClose);
+}
+
+function appendLoadingMessage(header: HTMLElement): HTMLElement {
+	const message = append(header, $('.project-board-chat-loading'));
+	message.setAttribute('role', 'status');
+	message.setAttribute('aria-live', 'polite');
+	const spinner = renderIcon(ThemeIcon.modify(Codicon.loading, 'spin'));
+	spinner.setAttribute('aria-hidden', 'true');
+	message.append(spinner, localize('kanban.chatLoading', "Loading..."));
+	return message;
+}
 
 /** Owns a borrowed auxiliary pane without changing the window's active session or chat. */
 export class ProjectBoardChatSidePanel extends Disposable {
@@ -110,7 +126,41 @@ export class ProjectBoardChatSidePanel extends Disposable {
 		this.request.value = request;
 		const token = request.token;
 		try {
-			const trusted = await raceCancellationError(this.sessionsService.canOpenSession(card.session), token);
+			this.onClose = onClose;
+			let loadingPane: ProjectBoardChatViewPane | undefined;
+			if (!reusablePane && this.pane) {
+				this.pane.showLoading(card, () => this.close());
+				loadingPane = this.pane;
+			}
+			const preparePane = () => this.paneOperations.queue(async () => {
+				if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
+					return;
+				}
+				if (!this.previousComposite) {
+					this.previousComposite = {
+						id: this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
+							?? this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar),
+						customView,
+					};
+				}
+				this.available.set(true);
+				const pane = await this.viewsService.openView<ProjectBoardChatViewPane>(PROJECT_BOARD_CHAT_VIEW_ID, false);
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (!pane) {
+					throw new Error(localize('kanban.chatPaneUnavailable', "The Agents Hub chat side panel could not be opened."));
+				}
+				this.pane = pane;
+				if (pane !== loadingPane) {
+					pane.showLoading(card, () => this.close());
+				}
+				this.customViewService.setAuxiliaryBarVisible(true);
+			});
+			const [trusted] = await Promise.all([
+				raceCancellationError(this.sessionsService.canOpenSession(card.session), token),
+				raceCancellationError(reusablePane ? Promise.resolve() : preparePane(), token),
+			]);
 			if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
 				return;
 			}
@@ -121,33 +171,11 @@ export class ProjectBoardChatSidePanel extends Disposable {
 			if (reusablePane && this.getReusablePane(card) !== reusablePane) {
 				this.clearPane();
 				reusablePane = undefined;
+				await raceCancellationError(preparePane(), token);
 			}
 			if (reusablePane) {
 				this.onClose = onClose;
 			} else {
-				await this.paneOperations.queue(async () => {
-					if (token.isCancellationRequested || this.customViewService.activeCustomView.get() !== customView) {
-						return;
-					}
-					if (!this.previousComposite) {
-						this.previousComposite = {
-							id: this.paneCompositeService.getActivePaneComposite(ViewContainerLocation.AuxiliaryBar)?.getId()
-								?? this.paneCompositeService.getLastActivePaneCompositeId(ViewContainerLocation.AuxiliaryBar),
-							customView,
-						};
-					}
-					this.onClose = onClose;
-					this.available.set(true);
-					const pane = await this.viewsService.openView<ProjectBoardChatViewPane>(PROJECT_BOARD_CHAT_VIEW_ID, false);
-					if (token.isCancellationRequested) {
-						return;
-					}
-					if (!pane) {
-						throw new Error(localize('kanban.chatPaneUnavailable', "The Agents Hub chat side panel could not be opened."));
-					}
-					this.pane = pane;
-					this.customViewService.setAuxiliaryBarVisible(true);
-				});
 				if (token.isCancellationRequested || !this.pane) {
 					return;
 				}
@@ -257,6 +285,7 @@ export class ProjectBoardChatSidePanel extends Disposable {
 /** The header is inside the body because single-pane layout hides auxiliary composite chrome. */
 export class ProjectBoardChatViewPane extends ViewPane {
 	private readonly content = this._register(disposableObservableValue<ProjectBoardChatContent | undefined>(this, undefined));
+	private readonly loading = this._register(new MutableDisposable<{ element: HTMLElement; dispose(): void }>());
 	readonly activeCardId = derived(reader => this.content.read(reader)?.cardId.read(reader));
 	private readonly viewStates = new LRUCache<string, IChatWidgetViewState>(CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT);
 	private readonly pendingInputs = new LRUCache<string, IChatModelInputState>(CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT);
@@ -274,9 +303,19 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		}));
 	}
 
+	async renderLoading(token: CancellationToken): Promise<void> {
+		if (this.loading.value) {
+			await renderChatLoadingProgress(this.loading.value.element, token);
+		}
+	}
+
 	async open(card: ProjectBoardChat, token: CancellationToken, onClose: () => void): Promise<void> {
 		if (!this.chatContainer) {
 			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
+		}
+		await this.renderLoading(token);
+		if (token.isCancellationRequested) {
+			return;
 		}
 		this.clear();
 		const content = this.instantiationService.createInstance(ProjectBoardChatContent, card, this.viewStates, this.pendingInputs, onClose);
@@ -289,13 +328,38 @@ export class ProjectBoardChatViewPane extends ViewPane {
 		await content.load(token);
 	}
 
+	showLoading(card: ProjectBoardChat, onClose: () => void): void {
+		if (!this.chatContainer) {
+			throw new Error(localize('kanban.chatNotRendered', "The Agents Hub chat side panel has not been rendered."));
+		}
+		this.clear();
+		const store = new DisposableStore();
+		const element = $('.project-board-chat-content');
+		store.add(toDisposable(() => element.remove()));
+		this.loading.value = { element, dispose: () => store.dispose() };
+		element.setAttribute('aria-busy', 'true');
+		element.setAttribute('role', 'region');
+		element.setAttribute('aria-label', localize('kanban.chatLoadingLabel', "Loading Agents Hub chat: {0}", card.chat.title.get()));
+		const header = append(element, $('.project-board-chat-header'));
+		append(header, $('h2.project-board-chat-title')).textContent = card.chat.title.get();
+		appendLoadingMessage(header);
+		const toolbar = store.add(this.instantiationService.createInstance(WorkbenchToolBar, append(header, $('.project-board-chat-actions')), { ariaLabel: localize('kanban.chatActions', "Chat actions") }));
+		toolbar.setActions([store.add(createCloseChatAction(onClose))]);
+		this.chatContainer.appendChild(element);
+		if (this.dimensions) {
+			size(element, this.dimensions.width, this.dimensions.height);
+		}
+	}
+
 	clear(): void {
+		this.loading.clear();
 		this.content.set(undefined, undefined);
 	}
 
 	hasChatFocus(): boolean {
 		const content = this.content.get();
-		return !!content && isAncestorOfActiveElement(content.element);
+		return !!content && isAncestorOfActiveElement(content.element)
+			|| !!this.loading.value && isAncestorOfActiveElement(this.loading.value.element);
 	}
 
 	hasLoadedChat(): boolean {
@@ -309,6 +373,9 @@ export class ProjectBoardChatViewPane extends ViewPane {
 			size(this.chatContainer, width, height);
 		}
 		this.content.get()?.layout(height, width);
+		if (this.loading.value) {
+			size(this.loading.value.element, width, height);
+		}
 	}
 
 	override focus(): void {
@@ -322,6 +389,7 @@ export class ProjectBoardChatContent extends Disposable {
 	private readonly header = append(this.element, $('.project-board-chat-header'));
 	private readonly widgetContainer = append(this.element, $('.project-board-chat-widget'));
 	private readonly widget: ChatWidget;
+	private readonly loadingMessage: HTMLElement;
 	private readonly model = this._register(new MutableDisposable<IChatModelReference>());
 	private readonly loadCancellation = this._register(new CancellationTokenSource());
 	private dimensions: { height: number; width: number } | undefined;
@@ -365,8 +433,10 @@ export class ProjectBoardChatContent extends Disposable {
 			reader.store.add(hoverService.setupDelayedHover(title, { content: title.textContent }));
 		}));
 		this.element.setAttribute('role', 'region');
+		this.loadingMessage = appendLoadingMessage(this.header);
+		this.element.setAttribute('aria-busy', 'true');
 		const toolbar = this._register(scopedInstantiationService.createInstance(WorkbenchToolBar, append(this.header, $('.project-board-chat-actions')), { ariaLabel: localize('kanban.chatActions', "Chat actions") }));
-		toolbar.setActions([this._register(new Action('sessions.kanban.closeChat', localize('kanban.closeChat', "Close Chat"), ThemeIcon.asClassName(Codicon.close), true, onClose))]);
+		toolbar.setActions([this._register(createCloseChatAction(onClose))]);
 		this.widget = this._register(scopedInstantiationService.createInstance(ChatWidget, ChatAgentLocation.Chat, undefined, {
 			autoScroll: mode => mode !== ChatModeKind.Ask,
 			renderFollowups: true,
@@ -465,6 +535,7 @@ export class ProjectBoardChatContent extends Disposable {
 				this.widget.restoreViewState(state);
 			}
 			this.widget.setLoading(false);
+			this.loadingMessage.remove();
 			this.element.removeAttribute('aria-busy');
 			this.element.dataset.boundChatResource = this.card.chat.resource.toString();
 			if (this.dimensions) {

@@ -5,9 +5,11 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
 import { autorun, constObservable, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -122,6 +124,8 @@ suite('ProjectBoardChatSidePanel', () => {
 			override readonly activeCardId = paneActiveCardId;
 			override open = sinon.stub().callsFake(async (card: IProjectBoardCard) => paneActiveCardId.set(getProjectBoardCardId(card.session, card.chat), undefined));
 			override clear = sinon.spy();
+			override readonly showLoading = sinon.spy();
+			override renderLoading = sinon.stub().resolves();
 			override focus = sinon.spy();
 			override hasChatFocus = sinon.stub().returns(true);
 			override hasLoadedChat = sinon.stub().returns(true);
@@ -158,6 +162,21 @@ suite('ProjectBoardChatSidePanel', () => {
 		const panel = store.add(instantiation.createInstance(ProjectBoardChatSidePanel));
 		return { panel, pane, paneActiveCardId, instantiation, customView, auxiliaryBarVisible, paneEvents, active, activeSession, trust, markRead, openView, restorePane, sentiment, sentimentChanged, notifications, getActiveComposite: () => activeComposite, setActiveComposite: (id: string) => activeComposite = id, setUnderlyingAuxiliaryVisible: (visible: boolean) => underlyingAuxiliaryVisible = visible, waitForClose: () => waitForState(auxiliaryBarVisible, visible => !visible) };
 	}
+
+	test('immediately shows the target loading surface while trust is pending without loading a model', async () => {
+		const h = setup();
+		const trust = new DeferredPromise<boolean>();
+		h.trust.returns(trust.p);
+		const card = createCard();
+		const opening = h.panel.open(card, () => { });
+		await timeout(0);
+		assert.deepStrictEqual({
+			visible: h.auxiliaryBarVisible.get(), target: h.pane.showLoading.firstCall?.args[0],
+			loads: h.pane.open.callCount, reads: h.markRead.callCount, current: h.panel.activeCardId.get(),
+		}, { visible: true, target: card, loads: 0, reads: 0, current: undefined });
+		await trust.complete(true);
+		await opening;
+	});
 
 	test('exposes only the successfully loaded exact card and clears immediately while switching or closing', async () => {
 		const h = setup();
@@ -444,11 +463,12 @@ suite('ProjectBoardChatSidePanel', () => {
 		});
 	});
 
-	test('declining trust does not open, focus, or mark read', async () => {
+	test('declining trust closes the loading-only surface without loading, focusing or marking read', async () => {
 		const h = setup();
 		h.trust.resolves(false);
 		await h.panel.open(createCard(), () => { });
-		assert.deepStrictEqual([h.openView.callCount, h.markRead.callCount, h.pane.focus.callCount, h.auxiliaryBarVisible.get()], [0, 0, 0, false]);
+		await h.waitForClose();
+		assert.deepStrictEqual([h.openView.callCount, h.pane.open.callCount, h.markRead.callCount, h.pane.focus.callCount, h.auxiliaryBarVisible.get()], [1, 0, 0, 0, false]);
 	});
 
 	test('close cancels a pending trust check without opening a pane', async () => {
@@ -547,6 +567,7 @@ suite('ProjectBoardChatSidePanel', () => {
 		h.panel.close();
 		await opening.complete(h.pane);
 		await opened;
+		await timeout(0);
 		await h.waitForClose();
 		assert.deepStrictEqual([h.pane.open.callCount, h.markRead.callCount, h.auxiliaryBarVisible.get(), h.restorePane.callCount], [0, 0, false, 1]);
 	});
@@ -654,6 +675,31 @@ suite('ProjectBoardChatSidePanel', () => {
 suite('ProjectBoardChatContent', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
+
+	test('shows an explicit Loading message as soon as content is constructed', () => {
+		const h = setup();
+		assert.deepStrictEqual({
+			message: h.content.element.querySelector('.project-board-chat-loading')?.textContent,
+			role: h.content.element.querySelector('.project-board-chat-loading')?.getAttribute('role'),
+			busy: h.content.element.getAttribute('aria-busy'),
+		}, { message: 'Loading...', role: 'status', busy: 'true' });
+	});
+
+	test('keeps Loading visible through hydration and removes it only after the exact model binds', async () => {
+		const h = setup();
+		const loaded = new DeferredPromise<IChatModelReference>();
+		h.load.returns(loaded.p);
+		const opening = h.content.load(CancellationToken.None);
+		await timeout(0);
+		assert.ok(h.content.element.querySelector('.project-board-chat-loading'));
+		assert.strictEqual(h.widget.setModel.callCount, 0);
+		await loaded.complete(h.ref);
+		await opening;
+		assert.deepStrictEqual({
+			loading: h.content.element.querySelector('.project-board-chat-loading'),
+			busy: h.content.element.getAttribute('aria-busy'), target: h.content.element.dataset.boundChatResource,
+		}, { loading: null, busy: null, target: h.card.chat.resource.toString() });
+	});
 
 	function setup(currentSession?: (card: IProjectBoardCard) => ISession, mainChat = false) {
 		const instantiation = workbenchInstantiationService(undefined, store);
@@ -1026,7 +1072,7 @@ suite('ProjectBoardChatContent', () => {
 suite('ProjectBoardChatViewPane', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('preserves the base pane body while laying out its nested chat container', () => {
+	function createPane() {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IViewDescriptorService, {
 			onDidChangeLocation: Event.None,
@@ -1041,6 +1087,30 @@ suite('ProjectBoardChatViewPane', () => {
 		pane.setVisible(true);
 		pane.orthogonalSize = 640;
 		pane.layout(480);
+		return { pane, instantiation };
+	}
+
+	test('renders a loading-only target header and Close Chat without constructing a chat widget', () => {
+		const { pane, instantiation } = createPane();
+		mainWindow.document.body.appendChild(pane.element);
+		store.add(toDisposable(() => pane.element.remove()));
+		const created = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => created.restore()));
+		let closes = 0;
+		pane.showLoading(createCard('loading target'), () => { closes++; pane.clear(); });
+		assert.deepStrictEqual({
+			title: pane.element.querySelector('.project-board-chat-title')?.textContent,
+			message: pane.element.querySelector('.project-board-chat-loading')?.textContent,
+			busy: pane.element.querySelector('.project-board-chat-content')?.getAttribute('aria-busy'),
+			widgets: created.getCalls().filter(call => call.args[0] === ChatWidget).length,
+			current: pane.activeCardId.get(),
+		}, { title: 'loading target', message: 'Loading...', busy: 'true', widgets: 0, current: undefined });
+		pane.element.querySelector<HTMLElement>('.project-board-chat-actions .action-label')!.click();
+		assert.deepStrictEqual({ closes, loading: pane.element.querySelector('.project-board-chat-loading') }, { closes: 1, loading: null });
+	});
+
+	test('preserves the base pane body while laying out its nested chat container', () => {
+		const { pane } = createPane();
 		const body = pane.element.querySelector<HTMLElement>(':scope > .pane-body');
 		const chat = body?.querySelector<HTMLElement>(':scope > .project-board-chat-pane');
 		assert.deepStrictEqual({
