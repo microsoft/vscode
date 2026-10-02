@@ -38,7 +38,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
-import { IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService } from './shared/copilotApiService.js';
 import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
@@ -170,7 +170,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			byok: options.byok,
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
-		const octoKitService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostOctoKitService));
+		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
 		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
@@ -185,7 +185,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
-			octoKitService,
+			gitHubService,
 			copilotApiService,
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);

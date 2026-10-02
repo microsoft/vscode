@@ -1,6 +1,6 @@
 ---
 name: component-fixtures
-description: Use when creating or updating component fixtures for screenshot testing, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, and common pitfalls.
+description: Use when creating or updating component fixtures for screenshot testing or their shared infrastructure, or when designing UI components to be fixture-friendly. Covers fixture file structure, theming, service setup, CSS scoping, async rendering, validation, and common pitfalls.
 ---
 
 # Component Fixtures
@@ -99,6 +99,10 @@ function renderMyComponent({ disposableStore, theme, fileIconTheme }: ComponentF
 
 Fixtures share the document and workbench stylesheets (`isolation: 'none'`). The helpers scope theme and file-icon styles, but DOM, CSS, and process-wide registrations are not isolated automatically.
 
+### Shared theme initialization
+
+`fixtureUtilsCss.ts` loads the shared workbench color and size registrations before generating and caching theme CSS, including the agent tokens in `vs/workbench/common/agentsColors.ts` and `agentsSizes.ts`. Keep required product-wide registrations in this shared bootstrap, not in individual fixtures: discovering another fixture must not change an existing fixture's typography or colors. Reuse lightweight registration modules from the owning shared layer rather than importing product entry points or higher-layer contributions.
+
 ### Matching production CSS selectors
 
 Many VS Code components have CSS rules scoped to deep ancestor selectors (e.g., `.interactive-session .interactive-input-part > .widget-container .my-element`). In fixtures, you must recreate the required ancestor DOM structure for these selectors to match:
@@ -175,7 +179,11 @@ Fixtures that depend on native browser image decoding or resize/scroll callbacks
 
 For async fixtures with paint-order-sensitive edges, `deferPaint: true` keeps the headless fixture transparent until rendering has finished, without changing its layout or interactive preview. It prevents intermediate paints from affecting the final rasterization; it does **not** replace awaiting readiness.
 
-Validate screenshot fixtures at the same readiness boundary CI uses: capture immediately after the headless `renderFixture()` resolves, after idle callbacks, and after remounting following another fixture. Compare exact hashes on the same platform and separately assert the intended state. The tests in `test/componentFixtures/playwright/tests/screenshotStability.spec.ts` cover these checks for scroll anchoring and image carousels.
+### Validating fixtures
+
+Do not add automated tests whose subject is fixtures or fixture infrastructure (including fixture-only unit, Playwright, and screenshot-stability tests). Validate fixture changes with the existing Component Explorer rendering, screenshot, stability, and error tools, plus direct inspection or temporary browser probes. Ordinary tests for production behavior belong at the owning production API.
+
+Validate at the same readiness boundary CI uses: capture immediately after the headless `renderFixture()` resolves, after idle callbacks, and after remounting following another fixture. Compare exact hashes on the same platform and separately inspect the intended state; do not commit the temporary probes as fixture tests.
 
 ### Pitfall: DOM reparenting causes flickering
 

@@ -126,6 +126,8 @@ The Codex-specific entry point also checks that invalid workspace skills remain 
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
 
+Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
+
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
 Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).
@@ -199,7 +201,7 @@ Both sides go through the same projection, so captures keep their existing shape
 |---|---|
 | Message roles and ordering | `tool_result` payloads |
 | Retained history | Run-time identifiers (`${uuid_0}`, real UUIDs) |
-| Whether a system prompt was sent | Filesystem paths |
+| Whether a system prompt was sent (including Responses `instructions` or system-role `input` messages) | Filesystem paths |
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
@@ -258,7 +260,15 @@ The swap is what makes sharing cheap: the proxy is an `http.Server` running **in
 
 Teardown resolves the default chat's active turn and dispatches the client-supported `chat/turnCancelled` action before disposing the session. Any cancellation, disposal, replay-verification, or server-shutdown failure fails teardown and forces a fresh shared server; cleanup is never silently treated as success.
 
-Windows descendant cleanup verifies process identities before terminating them. Failed kills are rechecked only after all concurrent kills finish, with bounded retries while the process list catches up, so a shared process-list snapshot from an earlier shutdown cannot turn an already-exited process into a teardown failure. A failure remains an error when the same process is still present.
+Windows descendant cleanup checks process creation times at every parent-child edge: an older process with a stale parent PID is not a descendant of the younger process that reused that PID. Process identity checks also include creation time, so PID reuse with the same executable and command line cannot authorize a kill. Graceful and forceful cleanup terminate only the server PID and verified descendants, without `taskkill /T` traversing stale ancestry. Creation times come from Windows CIM because the native process-tree module does not expose them. Descendant capture always starts a fresh query; only concurrent identity checks share an in-flight query.
+
+Before querying CIM for an identity check, a non-terminating PID probe skips processes that are already gone (`ESRCH`). Live PIDs and access-denied probes still require CIM identity verification. This avoids PowerShell launches for naturally exited descendants and, normally, for post-kill polling without caching stale process identities.
+
+Timestamped `[agent-host-cleanup ...]` diagnostics identify the runner/server PIDs, captured descendants, rejected ancestry links, termination attempts, and verified exits. They omit command lines. Diagnostics are written to stdout and `.build/logs/integration-tests/agent-host-cleanup-<runner-pid>.log`, which is retained in the CI logs artifact even when Windows Electron does not forward renderer stdout. Use these to correlate a disappearing CI service with cleanup's exact targets rather than inferring ownership from a later network failure.
+
+Failed kills are rechecked only after all concurrent kills finish, while the process list catches up. All descendant identity checks, terminations, and exit polling share a five-second deadline, and each new CIM query is limited to the remaining budget. Failed kills have at most five rechecks. A failure remains an error when the same process is still present.
+
+A failed test or teardown retains all available Agent Host process logs, including the host incarnations before a restart, and Copilot runtime logs under `.build/logs/integration-tests/agent-host-e2e-<runner-pid>-<isolated-home-directory>/`. The `failures.log` file identifies the failed test or cleanup operation. Teardown captures logs on its first cleanup error and again after shutdown; suite-cleanup failures capture logs before the isolated home is removed. These files survive isolated-home cleanup and are included in the CI logs artifact even when Windows Electron does not forward the failure-log tail to stdout.
 
 A failed test, a failed teardown, routine recycling, or a test that restarted its host makes the next test use fresh home, user-data, and Codex directories. Restarting only the process would retain provider-native conversations discovered during earlier restarts and could contaminate later session-list assertions or protocol snapshots. Retired directories remain available for diagnostics until suite teardown removes all of them. Intentional within-test `restart()` / `crashAndRestart()` calls preserve persistent state for the remainder of that test.
 

@@ -44,6 +44,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 */
 	private readonly _repositoryRoots = new LRUCache<string, URI>(100);
 	private readonly _repositoryRootSequencer = new SequencerByKey<string>();
+	private readonly _indexPaths = new LRUCache<string, string>(100);
 
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
@@ -305,9 +306,8 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * So we: retry with a capped exponential backoff to let the racing process
 	 * finish; switch to `prune` once the working tree is already gone; only retry
 	 * transient lock / "directory not empty" failures (a dirty-tree "use --force"
-	 * still fails fast); treat a non-retryable failure as success when git no
-	 * longer tracks the worktree (idempotent re-removal of an already-removed or
-	 * archived worktree); and verify the worktree is truly de-registered before
+	 * still fails fast); finish forced removal directly when git no longer tracks
+	 * a residual directory; and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
 	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
@@ -322,6 +322,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 			if (attempt > 0) {
 				await timeout(Math.min(WORKTREE_REMOVAL_RETRY_MAX_DELAY_MS, WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)));
 			}
+			let gitCommandSucceeded = false;
 			try {
 				if (await this._pathExists(worktree.fsPath)) {
 					await this._runGit(repositoryRoot, removeArgs, { timeout: 60_000, throwOnError: true });
@@ -329,27 +330,45 @@ export class AgentHostGitService implements IAgentHostGitService {
 					// Working tree already gone (a prior attempt removed it): prune clears the stale admin entry.
 					await this._runGit(repositoryRoot, ['worktree', 'prune'], { timeout: 60_000, throwOnError: true });
 				}
-				// A zero exit is not proof of success (see the doc above), so confirm de-registration.
-				if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-					return;
-				}
-				lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
+				gitCommandSucceeded = true;
 			} catch (error) {
 				lastError = error;
 				if (!isRetryableWorktreeRemovalError(error)) {
-					// Idempotent: if git no longer tracks the worktree the removal goal is already met (e.g. an archived session removed it earlier).
 					if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
-						this._logService.trace(`[agentHostGitService] worktree '${worktree.fsPath}' already de-registered; treating removal as complete`);
+						await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
 						return;
 					}
 					throw error;
 				}
+			}
+			// A zero exit is not proof of success (see the doc above), so confirm de-registration.
+			if (!await this._isWorktreeRegistered(repositoryRoot, worktree)) {
+				await this._removeResidualWorktreeDirectory(worktree, options?.force === true);
+				return;
+			}
+			if (gitCommandSucceeded) {
+				lastError = new Error(`git worktree removal left '${worktree.fsPath}' registered (admin directory not deleted)`);
 			}
 			if (attempt < WORKTREE_REMOVAL_MAX_ATTEMPTS - 1) {
 				this._logService.warn(`[agentHostGitService] worktree removal attempt ${attempt + 1}/${WORKTREE_REMOVAL_MAX_ATTEMPTS} did not complete for '${worktree.fsPath}', retrying: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 			}
 		}
 		throw lastError;
+	}
+
+	private async _removeResidualWorktreeDirectory(worktree: URI, force: boolean): Promise<void> {
+		if (!await this._pathExists(worktree.fsPath)) {
+			return;
+		}
+		if (!force) {
+			throw new Error(`Worktree '${worktree.fsPath}' is de-registered, but its directory remains and cannot be removed without force`);
+		}
+		await fsPromises.rm(worktree.fsPath, {
+			recursive: true,
+			force: true,
+			maxRetries: WORKTREE_REMOVAL_MAX_ATTEMPTS,
+			retryDelay: WORKTREE_REMOVAL_RETRY_BASE_DELAY_MS,
+		});
 	}
 
 	private async _pathExists(fsPath: string): Promise<boolean> {
@@ -655,6 +674,45 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 	}
 
+	private async _stageAndWriteTree(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<string | undefined> {
+		if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
+			return undefined;
+		}
+		return (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim() || undefined;
+	}
+
+	/**
+	 * Resolves the absolute path of the repository's index file, which lives
+	 * under `.git/worktrees/<name>/` for linked worktrees.
+	 */
+	private async _getIndexPath(repositoryRoot: URI): Promise<string | undefined> {
+		const key = repositoryRoot.toString();
+		const cached = this._indexPaths.get(key);
+		if (cached) {
+			return cached;
+		}
+		const indexPath = (await this._runGit(repositoryRoot, ['rev-parse', '--git-path', 'index']))?.trim();
+		if (!indexPath) {
+			return undefined;
+		}
+		const absoluteIndexPath = path.isAbsolute(indexPath) ? indexPath : path.join(repositoryRoot.fsPath, indexPath);
+		this._indexPaths.set(key, absoluteIndexPath);
+		return absoluteIndexPath;
+	}
+
+	private async _tryCopyIndex(source: string, target: string): Promise<boolean> {
+		try {
+			const stat = await fsPromises.stat(source);
+			await fsPromises.copyFile(source, target);
+			// A newer index timestamp can make Git miss racily clean, same-size working-tree edits.
+			await fsPromises.utimes(target, stat.atime, stat.mtime);
+			return true;
+		} catch (error) {
+			this._logService.debug('[agentHostGitService] Copying the index failed; seeding the temp index from HEAD', error);
+			return false;
+		}
+	}
+
 	private async _stageChangedPaths(repositoryRoot: URI, tempDir: URI, changedPaths: readonly string[], env: Record<string, string>): Promise<boolean> {
 		if (changedPaths.length === 0) {
 			return true;
@@ -855,26 +913,46 @@ export class AgentHostGitService implements IAgentHostGitService {
 			return undefined;
 		}
 
-		const statusOut = await this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']);
+		// `git status` dominates this capture, so resolve HEAD's tree and the
+		// repository's index path alongside it.
+		const [statusOut, headTree, indexPath] = await Promise.all([
+			this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']),
+			this.revParse(repositoryRoot, 'HEAD^{tree}'),
+			this._getIndexPath(repositoryRoot),
+		]);
 		if (statusOut === undefined) {
 			return undefined;
 		}
 		const changedPaths = parseChangedPaths(statusOut);
+		// Seeding a temp index from HEAD and staging no paths writes exactly
+		// HEAD's tree, so a clean working tree with a HEAD needs no temp index
+		// or further git processes. An unborn repository still goes through
+		// `write-tree` so the empty tree uses the repository's object format.
+		if (changedPaths.length === 0 && headTree) {
+			return headTree;
+		}
 		const tempDir = URI.joinPath(this._environmentService.tmpDir, `agent-host-checkpoint-${generateUuid()}`);
 		await this._fileService.createFolder(tempDir);
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
 		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
 		try {
+			// Every path where the repository index differs from HEAD or the
+			// working tree is in `changedPaths` and is restaged below, so a copy
+			// of the index yields the same tree as seeding from HEAD while
+			// skipping a `git read-tree` process, which is costly on Windows.
+			if (indexPath && canRestageOntoIndexCopy(statusOut) && await this._tryCopyIndex(indexPath, indexFile)) {
+				const tree = await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
+				if (tree) {
+					return tree;
+				}
+				this._logService.debug('[agentHostGitService] Capturing from a copy of the index failed; seeding the temp index from HEAD');
+			}
 			// Seed the temp index from HEAD; for empty repos seed from the empty tree.
-			const seeded = await this._runGit(repositoryRoot, ['read-tree', 'HEAD'], { env });
+			const seeded = await this._runGit(repositoryRoot, ['read-tree', headTree ?? 'HEAD'], { env });
 			if (seeded === undefined) {
 				await this._runGit(repositoryRoot, ['read-tree', EMPTY_TREE_OBJECT], { env });
 			}
-			if (!(await this._stageChangedPaths(repositoryRoot, tempDir, changedPaths, env))) {
-				return undefined;
-			}
-			const tree = (await this._runGit(repositoryRoot, ['write-tree'], { env }))?.trim();
-			return tree || undefined;
+			return await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
 		} finally {
 			try { await this._fileService.del(tempDir, { recursive: true, useTrash: false }); } catch { /* best-effort */ }
 		}
@@ -1603,6 +1681,32 @@ export function summarizeStderrForError(stderr: string): string {
  */
 export function parseUntrackedPaths(output: string | undefined): string[] {
 	return parseChangedPaths(output, status => status === '??');
+}
+
+/**
+ * Whether every entry of NUL-separated `git status --porcelain=v1 -z` output
+ * can be restaged onto a copy of the repository index to capture the working
+ * tree. Staged deletions, renames, copies, conflicts, and staged additions
+ * later deleted from the working tree leave paths that `git add` cannot
+ * match, so callers seed from HEAD for those instead.
+ *
+ * Exported for tests.
+ */
+export function canRestageOntoIndexCopy(output: string): boolean {
+	for (const segment of output.split('\x00')) {
+		if (!segment) {
+			continue;
+		}
+		const index = segment[0];
+		const workingTree = segment[1];
+		if (index !== ' ' && index !== 'M' && index !== 'A' && index !== 'T' && index !== '?') {
+			return false;
+		}
+		if (workingTree === 'U' || workingTree === 'R' || workingTree === 'C' || (index === 'A' && (workingTree === 'A' || workingTree === 'D'))) {
+			return false;
+		}
+	}
+	return true;
 }
 
 /**

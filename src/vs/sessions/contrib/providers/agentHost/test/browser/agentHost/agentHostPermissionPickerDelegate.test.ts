@@ -88,6 +88,8 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	readonly sessionConfigs = new Map<string, ResolveSessionConfigResult>();
 	readonly sandboxPolicies = new Map<string, ISessionSandboxPolicy>();
 	readonly sandboxStates = new Map<string, boolean>();
+	readonly devContainerDrafts = new Set<string>();
+	readonly pendingDevContainerDrafts = new Set<string>();
 	rootConfig: RootConfigState | undefined;
 	readonly setCalls: Array<[string, string, string]> = [];
 	readonly trackedOperations: Array<[string, Promise<void>]> = [];
@@ -96,11 +98,20 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.sessionConfigs.get(sessionId) ?? this.config;
 	}
+	getCreateSessionConfig(): undefined {
+		return undefined;
+	}
 	getSessionSandboxPolicy(sessionId: string): ISessionSandboxPolicy | undefined {
 		return this.sandboxPolicies.get(sessionId);
 	}
 	getSessionSandboxEnabled(sessionId: string): boolean | undefined {
 		return this.sandboxStates.get(sessionId);
+	}
+	isDevContainerEnabled(sessionId: string): boolean {
+		return this.devContainerDrafts.has(sessionId);
+	}
+	isDevContainerRequested(sessionId: string): boolean {
+		return this.isDevContainerEnabled(sessionId) || this.pendingDevContainerDrafts.has(sessionId);
 	}
 	getRootConfig(): RootConfigState | undefined {
 		return this.rootConfig;
@@ -146,7 +157,7 @@ interface ITestRig {
 	readonly logErrors: readonly (string | Error)[];
 }
 
-function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string): ITestRig {
+function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSession | undefined, configValue?: string, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string, configurationOverride?: IConfigurationService): ITestRig {
 	const provider = new FakeProvider(activeSession?.providerId);
 	store.add({ dispose: () => provider.dispose() });
 	if (configValue !== undefined) {
@@ -164,7 +175,7 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 	const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 	let customTerminalToolEnabled = false;
-	const configurationService = new class extends mock<IConfigurationService>() {
+	const configurationService = configurationOverride ?? new class extends mock<IConfigurationService>() {
 		override readonly onDidChangeConfiguration = Event.None;
 		override getValue<T>(): T;
 		override getValue<T>(section: string): T;
@@ -235,6 +246,71 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('uses Copilot approval keys, effective posture and host-available choices', async () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+				},
+			},
+			values: { approvalMode: 'allow-all', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] },
+		};
+		provider.fireChange();
+		const before = {
+			applicable: delegate.isApplicable.get(),
+			level: delegate.currentPermissionLevel.get(),
+			choices: delegate.availableLevels,
+			hover: delegate.getPermissionLevelHover(ChatPermissionLevel.Default, getPermissionLevelMeta(ChatPermissionLevel.Default)),
+		};
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		assert.deepStrictEqual({ before, writes: provider.setCalls }, {
+			before: {
+				applicable: true, level: ChatPermissionLevel.Default,
+				choices: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+				hover: 'Effective permissions: manual. Requested permissions: allow-all.',
+			},
+			writes: [[SESSION_ID, 'approvalMode', 'assisted']],
+		});
+	});
+
+	test('Copilot approval schema defaults are shown without inventing VS approval defaults', () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: { type: 'object', properties: { approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted'], default: 'assisted', sessionMutable: true } } },
+			values: {},
+		};
+		provider.fireChange();
+		assert.deepStrictEqual({ applicable: delegate.isApplicable.get(), level: delegate.currentPermissionLevel.get(), choices: delegate.availableLevels }, {
+			applicable: true, level: ChatPermissionLevel.Assisted, choices: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+		});
+	});
+
+	test('malformed VS approval keys suppress Copilot fallback and readonly bindings are not editable', () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+					autoApprove: { type: 'string', title: 'Custom approvals', enum: ['custom'], sessionMutable: true },
+				}
+			},
+			values: { approvalMode: 'allow-all' },
+		};
+		provider.fireChange();
+		const malformedApplicable = delegate.isApplicable.get();
+		delete provider.config.schema.properties.autoApprove;
+		provider.config.schema.properties.approvalMode.readOnly = true;
+		provider.fireChange();
+		assert.deepStrictEqual({ malformedApplicable, readOnlyApplicable: delegate.isApplicable.get(), writes: provider.setCalls }, {
+			malformedApplicable: false, readOnlyApplicable: false, writes: [],
+		});
+	});
+
 	for (const os of ['linux', 'win32']) {
 		test(`selects the ${os} host sandbox setting without assuming the UI OS`, async () => {
 			const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
@@ -253,6 +329,77 @@ suite('AgentHostPermissionPickerDelegate', () => {
 			});
 		});
 	}
+
+	for (const providerId of [PROVIDER_ID, 'agenthost-remote']) {
+		test(`previews Dev Container sandbox choices instead of the ${providerId} source host`, async () => {
+			const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();
+			const linuxSetting = getAgentHostCopilotSandboxSettingId(false);
+			const windowsSetting = getAgentHostCopilotSandboxSettingId(true);
+			const configuration = new TestConfigurationService({ [linuxSetting]: 'on', [windowsSetting]: 'off' });
+			const { delegate, provider } = setup(store, { ...makeActiveSession(), providerId }, 'autoApprove', () => pending.p, undefined, configuration);
+			provider.sandboxStates.set(SESSION_ID, false);
+			provider.pendingDevContainerDrafts.add(SESSION_ID);
+			provider.fireChange();
+			const read = () => ({
+				setting: delegate.getSandboxToggleSettingId(),
+				checked: delegate.getSandboxToggle()?.checked,
+				confirmed: delegate.sandboxConfirmedEnabled.get(),
+			});
+			const beforeSourceResolution = read();
+			await pending.complete({ version: '1', os: 'win32', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] });
+			await timeout(0);
+			const beforeContainerResolution = read();
+			provider.pendingDevContainerDrafts.delete(SESSION_ID);
+			provider.devContainerDrafts.add(SESSION_ID);
+			provider.fireChange();
+			const inherited = read();
+			const choices = ['default', 'off', 'on'].map(value => {
+				provider.config!.values[SessionConfigKey.SandboxEnabled] = value;
+				provider.fireChange();
+				return delegate.getSandboxToggle()?.checked;
+			});
+			delete provider.config!.values[SessionConfigKey.SandboxEnabled];
+			provider.devContainerDrafts.delete(SESSION_ID);
+			provider.fireChange();
+			assert.deepStrictEqual({ beforeSourceResolution, beforeContainerResolution, inherited, choices, source: read(), writes: provider.setCalls }, {
+				beforeSourceResolution: { setting: linuxSetting, checked: true, confirmed: undefined },
+				beforeContainerResolution: { setting: linuxSetting, checked: true, confirmed: undefined },
+				inherited: { setting: linuxSetting, checked: true, confirmed: undefined },
+				choices: [true, false, true],
+				source: { setting: windowsSetting, checked: false, confirmed: false },
+				writes: [],
+			});
+		});
+	}
+
+	test('does not project source host policy or authorized bypass into a Dev Container draft', async () => {
+		const { delegate, provider, localManagedSandboxEnforced } = setup(store, makeActiveSession(), 'default');
+		localManagedSandboxEnforced.set(true, undefined);
+		provider.sandboxPolicies.set(SESSION_ID, { enabled: true, allowBypass: true });
+		provider.sandboxStates.set(SESSION_ID, false);
+		provider.config!.values[SessionConfigKey.SandboxEnabled] = 'off';
+		provider.pendingDevContainerDrafts.add(SESSION_ID);
+		provider.fireChange();
+		await timeout(0);
+		const read = () => ({
+			enforced: delegate.managedSandboxEnforced.get(),
+			allowsBypass: delegate.managedSandboxAllowsBypass.get(),
+			confirmed: delegate.sandboxConfirmedEnabled.get(),
+			checked: delegate.getSandboxToggle()?.checked,
+			disabled: delegate.getSandboxToggle()?.disabled,
+		});
+		const draft = read();
+		provider.pendingDevContainerDrafts.delete(SESSION_ID);
+		provider.sandboxPolicies.set(SESSION_ID, { enabled: true, allowBypass: false });
+		provider.sandboxStates.set(SESSION_ID, true);
+		provider.fireChange();
+		delegate.getSandboxToggle()?.onChange(false);
+		assert.deepStrictEqual({ draft, connected: read(), writes: provider.setCalls }, {
+			draft: { enforced: false, allowsBypass: false, confirmed: undefined, checked: false, disabled: false },
+			connected: { enforced: true, allowsBypass: false, confirmed: true, checked: true, disabled: true },
+			writes: [],
+		});
+	});
 
 	test('reuses the host OS lookup for sessions sharing a connection', async () => {
 		const pending = new DeferredPromise<IAgentHostNetworkDiagnosticsInfo>();

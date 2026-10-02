@@ -32,6 +32,7 @@ import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
+import { getSafeNotificationMessage } from './notification';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
 import { createWorktreeSymlink, filterWorktreeSymlinkFolders, getWorktreeSymlinkFolderCandidates, type WorktreeSymlinkStatus } from './worktreeSymlink';
@@ -3146,14 +3147,20 @@ export class Repository implements Disposable {
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
+			const gitWarn = getSafeNotificationMessage(
+				l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root),
+				l10n.t('The git repository has too many active changes, only a subset of Git features will be enabled.'),
+			);
 			const neverAgain = { title: l10n.t('Don\'t Show Again') };
 
 			if (knownHugeFolderPaths.length > 0) {
 				const folderPath = knownHugeFolderPaths[0];
 				const folderName = path.basename(folderPath);
 
-				const addKnown = l10n.t('Would you like to add "{0}" to .gitignore?', folderName);
+				const addKnown = getSafeNotificationMessage(
+					l10n.t('Would you like to add "{0}" to .gitignore?', folderName),
+					l10n.t('Would you like to add the large folder to .gitignore?'),
+				);
 				const yes = { title: l10n.t('Yes') };
 				const no = { title: l10n.t('No') };
 

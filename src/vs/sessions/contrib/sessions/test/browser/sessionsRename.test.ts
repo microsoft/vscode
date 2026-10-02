@@ -160,6 +160,7 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Offscreen peer');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
@@ -380,6 +381,7 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
@@ -456,6 +458,7 @@ suite('Sessions rename', () => {
 				override readonly title = constObservable('Peer chat');
 				override readonly updatedAt = constObservable(new Date());
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
@@ -640,6 +643,7 @@ suite('Sessions rename', () => {
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Grill and Plan');
 				override readonly status = constObservable(options.status ?? SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly capabilities = constObservable({ canRename: options.canRename ?? true, canArchive: true, canDelete: true });
@@ -649,6 +653,7 @@ suite('Sessions rename', () => {
 				override readonly workspace = constObservable(undefined);
 				override readonly title = constObservable('Other Peer');
 				override readonly status = constObservable(SessionStatus.Completed);
+				override readonly description = constObservable(undefined);
 				override readonly interactivity = constObservable(ChatInteractivity.Full);
 				override readonly isArchived = constObservable(false);
 				override readonly capabilities = constObservable({ canRename: true, canArchive: true, canDelete: true });
@@ -913,7 +918,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: content.includes('edits the header title inline when it is visible and opens a prompt otherwise'),
 				hasChatRenameKeybinding: content.includes(`<keybinding:${RENAME_CHAT_COMMAND_ID}>`),
 				hasArchiveKeybinding: content.includes(`<keybinding:${ARCHIVE_SESSION_COMMAND_ID}>`),
-				hasShowArchivedChats: content.includes('toggle Show Archived Chats') && content.includes('This action is always available') && content.includes('a check mark means those chats are shown'),
+				hasGlobalArchivedFilter: content.includes('Sessions list Filter menu') && content.includes('archived sessions and nested chats') && content.includes('A check mark means archived content is shown'),
 				hasPermanentDelete: content.includes('open its context menu and choose Delete'),
 				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
@@ -937,7 +942,7 @@ suite('Sessions rename', () => {
 				hasHeaderRenameInstructions: true,
 				hasChatRenameKeybinding: true,
 				hasArchiveKeybinding: true,
-				hasShowArchivedChats: true,
+				hasGlobalArchivedFilter: true,
 				hasPermanentDelete: true,
 				hasDevContainerAvailability: true,
 				hasRemoteDevContainerPrerequisite: true,

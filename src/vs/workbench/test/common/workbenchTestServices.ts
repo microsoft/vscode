@@ -15,7 +15,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../base/common/platform.js';
-import { basename, isEqual, isEqualOrParent } from '../../../base/common/resources.js';
+import { basename, isEqual, isEqualAuthority, isEqualOrParent } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -370,6 +370,7 @@ export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnabl
 
 export class TestWorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
+	private readonly trustedAuthorities = new Set<{ readonly scheme: string; readonly authority: string }>();
 
 	private _onDidChangeTrust = this._register(new Emitter<boolean>());
 	onDidChangeTrust = this._onDidChangeTrust.event;
@@ -409,7 +410,14 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
+		const authorityTrusted = Array.from(this.trustedAuthorities).some(entry => entry.scheme === uri.scheme && isEqualAuthority(entry.authority, uri.authority));
+		return Promise.resolve({ trusted: authorityTrusted || this.trustedUris.has(uri), uri });
+	}
+
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
+		const entry = { scheme, authority };
+		this.trustedAuthorities.add(entry);
+		return toDisposable(() => this.trustedAuthorities.delete(entry));
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {

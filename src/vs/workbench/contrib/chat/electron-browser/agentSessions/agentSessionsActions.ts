@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import './media/openInAgents.css';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventType } from '../../../../../base/browser/dom.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { disposableLongTimeout } from '../../../../../base/common/async.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -63,7 +63,9 @@ import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAgentSessionsService } from '../../browser/agentSessions/agentSessionsService.js';
 import { AgentSessionStatus, IAgentSession, isAgentHostAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
+import { CopilotHarnessIntroductionButtonVariant, copilotHarnessIntroductionButtonVariants, CopilotHarnessIntroductionCopyVariant, copilotHarnessIntroductionCopyVariants, copilotHarnessIntroductionFeedbackCommandId, copilotHarnessIntroductionLearnMoreCommandId, getCopilotHarnessIntroductionContent } from '../../browser/agentSessions/copilotHarnessIntroduction.js';
 import { isNewConversation } from '../../browser/widget/input/chatInputModelUtils.js';
+import { AgentsWindowUsage } from '../../common/agentsWindowUsage.js';
 
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE = localize2('openWorkspaceInAgentsWindow', "Open in Agents");
 const OPEN_WORKSPACE_IN_AGENTS_WINDOW_CHAT_TITLE_COMMAND_ID = 'workbench.action.chat.openWorkspaceInAgentsWindow.chatTitle';
@@ -298,14 +300,14 @@ export class OpenAgentsWindowAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
 				// On Linux, Ctrl+Shift+A is Toggle Block Comment, so defer to it in a focused writable editor.
-				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated(), ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly)),
+				when: ContextKeyExpr.and(ChatContextKeys.hasCreatedSessionInAgentsWindow, IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED.toNegated(), ContextKeyExpr.or(IsLinuxContext.toNegated(), EditorAreaFocusContext.toNegated(), EditorContextKeys.readOnly)),
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}, {
 				// In screen reader mode, Cmd/Ctrl+Shift+A conflicts with many screen reader keybindings,
 				// so require an additional Alt modifier.
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyA,
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: ContextKeyExpr.and(IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				when: ContextKeyExpr.and(ChatContextKeys.hasCreatedSessionInAgentsWindow, IsSessionsWindowContext.toNegated(), CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 				args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			}],
 		});
@@ -409,31 +411,109 @@ export class OpenChatSessionInAgentsWindowAction extends Action2 {
  */
 class OpenWorkspaceInAgentsTitleBarWidget extends BaseActionViewItem {
 
+	private static readonly LABEL_TREATMENT = 'chatOpenInAgentsTitleBarLabel';
+	private static readonly EXPAND_ON_HOVER_TREATMENT = 'chatOpenInAgentsTitleBarExpandOnHover';
+	private readonly treatments = this._register(new MutableDisposable());
+	private readonly usage: AgentsWindowUsage;
+	private labelElement: HTMLElement | undefined;
+	private hover: IManagedHover | undefined;
+	private treatmentLabel: string | undefined;
+	private treatmentsResolved = false;
+	private expansionTreatmentResolved = false;
+	private isHovered = false;
+
 	constructor(
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IStorageService storageService: IStorageService,
+		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
+		@ILogService private readonly logService: ILogService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super(undefined, action, options);
+		this.usage = new AgentsWindowUsage(storageService);
+		this._register(this.usage.onDidChangeCreatedSessionCount(this._store)(() => {
+			if (!this.isEligible) {
+				this.treatments.clear();
+			}
+			this.updateLabel();
+		}));
+	}
+
+	private get isEligible(): boolean {
+		return this.usage.createdSessionCount === 0;
 	}
 
 	override render(container: HTMLElement): void {
 		super.render(container);
 
-		container.classList.add('open-in-agents-titlebar-widget');
+		container.classList.add('open-in-agents-titlebar-widget', 'expand-on-hover');
 		container.setAttribute('role', 'button');
+		this._register(addDisposableListener(container, EventType.MOUSE_ENTER, () => {
+			this.isHovered = true;
+			this.logExpansionExperimentTrigger();
+		}));
+		this._register(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
+			this.isHovered = false;
+		}));
+		this._register(registerAgentsWindowTreatments<boolean>(
+			[OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT],
+			'OpenWorkspaceInAgentsTitleBarWidget',
+			([expandOnHover]) => {
+				this.expansionTreatmentResolved = true;
+				this.logExpansionExperimentTrigger();
+				container.classList.toggle('expand-on-hover', expandOnHover ?? true);
+			},
+			this.assignmentService,
+			this.logService,
+			value => typeof value === 'boolean',
+		));
 
-		const label = this.action.label;
 		const hoverText = this.keybindingService.appendKeybinding(localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
 		container.setAttribute('aria-label', hoverText);
-		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
+		this.hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, hoverText));
 
 		const icon = append(container, $('span.open-in-agents-titlebar-widget-icon'));
 		icon.setAttribute('aria-hidden', 'true');
 
-		const labelEl = append(container, $('span.open-in-agents-titlebar-widget-label'));
-		labelEl.textContent = label;
+		this.labelElement = append(container, $('span.open-in-agents-titlebar-widget-label'));
+		this.updateLabel();
+		if (this.isEligible) {
+			this.treatments.value = registerAgentsWindowTreatments(
+				[OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT],
+				'OpenWorkspaceInAgentsTitleBarWidget',
+				([label]) => {
+					this.treatmentLabel = label;
+					this.treatmentsResolved = true;
+					this.updateLabel();
+				},
+				this.assignmentService,
+				this.logService,
+			);
+		}
+	}
+
+	private logExpansionExperimentTrigger(): void {
+		if (this.isHovered && this.expansionTreatmentResolved) {
+			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.EXPAND_ON_HOVER_TREATMENT);
+		}
+	}
+
+	protected override updateLabel(): void {
+		if (!this.element || !this.labelElement) {
+			return;
+		}
+		const eligible = this.isEligible;
+		if (eligible && this.treatmentsResolved) {
+			logExperimentTrigger(this.telemetryService, OpenWorkspaceInAgentsTitleBarWidget.LABEL_TREATMENT);
+		}
+		const treatmentLabel = eligible ? this.treatmentLabel : undefined;
+		this.labelElement.textContent = treatmentLabel ?? this.action.label;
+		const hoverText = this.keybindingService.appendKeybinding(treatmentLabel ?? localize('openInAgentsHover', "Open in Agents Window"), OPEN_AGENTS_WINDOW_COMMAND_ID);
+		this.element.setAttribute('aria-label', hoverText);
+		this.hover?.update(hoverText);
 	}
 }
 
@@ -446,26 +526,34 @@ export class OpenWorkspaceInAgentsContribution extends Disposable implements IWo
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService productService: IProductService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		const usage = new AgentsWindowUsage(storageService);
+		const hasCreatedSession = ChatContextKeys.hasCreatedSessionInAgentsWindow.bindTo(contextKeyService);
+		const updateHasCreatedSession = () => hasCreatedSession.set(usage.createdSessionCount > 0);
+		updateHasCreatedSession();
+		this._register(usage.onDidChangeCreatedSessionCount(this._store)(updateHasCreatedSession));
+
 		this._register(actionViewItemService.register(MenuId.TitleBarAdjacentCenter, OPEN_WORKSPACE_IN_AGENTS_WINDOW_TITLE_BAR_COMMAND_ID, (action, options) => {
 			return instantiationService.createInstance(OpenWorkspaceInAgentsTitleBarWidget, action, options);
 		}, undefined));
 	}
 }
 
-function registerAgentsWindowCopyTreatments(
-	titleTreatment: string,
-	descriptionTreatment: string,
+function registerAgentsWindowTreatments<T extends string | number | boolean = string>(
+	treatments: readonly string[],
 	logPrefix: string,
-	onChange: (title: string | undefined, description: string | undefined) => void,
+	onChange: (values: readonly (T | undefined)[]) => void,
 	assignmentService: IWorkbenchAssignmentService,
 	logService: ILogService,
+	isValid: (value: T) => boolean = value => typeof value === 'string' && value.trim().length > 0,
 ): IDisposable {
 	const store = new DisposableStore();
 	let treatmentRequest = 0;
-	const getTreatmentText = (name: string, value: string | undefined): string | undefined => {
-		if (value === undefined || (typeof value === 'string' && value.trim())) {
+	let hasResolved = false;
+	const getTreatmentValue = (name: string, value: T | undefined): T | undefined => {
+		if (value === undefined || isValid(value)) {
 			return value;
 		}
 		logService.warn(`[${logPrefix}] Ignoring invalid ${name} treatment`);
@@ -473,23 +561,26 @@ function registerAgentsWindowCopyTreatments(
 	};
 	const update = async (): Promise<void> => {
 		const request = ++treatmentRequest;
-		let title: string | undefined;
-		let description: string | undefined;
+		let values: (T | undefined)[];
 		try {
-			[title, description] = await Promise.all([
-				assignmentService.getTreatment<string>(titleTreatment),
-				assignmentService.getTreatment<string>(descriptionTreatment),
-			]);
+			values = await Promise.all(treatments.map(name => assignmentService.getTreatment<T>(name)));
 		} catch (error) {
-			if (!store.isDisposed && request === treatmentRequest && !isCancellationError(error)) {
-				logService.warn(`[${logPrefix}] Failed to resolve banner copy treatments`, error);
+			if (store.isDisposed || request !== treatmentRequest) {
+				return;
 			}
-			return;
+			if (!isCancellationError(error)) {
+				logService.warn(`[${logPrefix}] Failed to resolve treatments`, error);
+			}
+			if (hasResolved) {
+				return;
+			}
+			values = treatments.map(() => undefined);
 		}
 		if (store.isDisposed || request !== treatmentRequest) {
 			return;
 		}
-		onChange(getTreatmentText(titleTreatment, title), getTreatmentText(descriptionTreatment, description));
+		hasResolved = true;
+		onChange(values.map((value, index) => getTreatmentValue(treatments[index], value)));
 	};
 	store.add(assignmentService.onDidRefetchAssignments(() => void update()));
 	void update();
@@ -638,11 +729,10 @@ export class AgentsHandoffInputTipContribution extends Disposable implements IWo
 			this._logTipAction('dismiss');
 			this._dismissForWindow();
 		}));
-		this._register(registerAgentsWindowCopyTreatments(
-			AgentsHandoffInputTipContribution.TITLE_TREATMENT,
-			AgentsHandoffInputTipContribution.DESCRIPTION_TREATMENT,
+		this._register(registerAgentsWindowTreatments(
+			[AgentsHandoffInputTipContribution.TITLE_TREATMENT, AgentsHandoffInputTipContribution.DESCRIPTION_TREATMENT],
 			'AgentsHandoffTip',
-			(title, description) => {
+			([title, description]) => {
 				this._titleTreatment = title;
 				this._descriptionTreatment = description;
 				this._update();
@@ -877,15 +967,14 @@ type CopilotHarnessIntroductionLifecycleClassification = {
 export class AgentsParallelWorkContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.agentsParallelWork';
 	private static readonly COPILOT_HARNESS_DOCS_URL = 'https://aka.ms/vscode-copilot-harness';
-	private static readonly COPILOT_HARNESS_FEEDBACK_URL = 'https://github.com/microsoft/vscode/issues';
 	private static readonly COPILOT_HARNESS_INTRODUCTION_TELEMETRY_ID = 'copilotHarnessIntroduction';
 	private static readonly NOTIFICATION_ID = 'chat.agentsParallelWork';
 	private static readonly OPEN_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.open';
-	private static readonly LEARN_MORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.learnMore';
-	private static readonly FEEDBACK_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.feedback';
 	private static readonly IGNORE_COMMAND_ID = 'workbench.action.chat.agentsParallelWork.ignore';
 	private static readonly TITLE_TREATMENT = 'chatAgentsParallelWorkBannerTitle';
 	private static readonly DESCRIPTION_TREATMENT = 'chatAgentsParallelWorkBannerDescription';
+	private static readonly INTRODUCTION_COPY_TREATMENT = 'chatCopilotHarnessIntroductionCopy';
+	private static readonly INTRODUCTION_BUTTONS_TREATMENT = 'chatCopilotHarnessIntroductionButtons';
 
 	private readonly _seen = new ResourceSet();
 	private readonly _eligible = new ResourceSet();
@@ -897,8 +986,11 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 	private readonly _recentWidgets = new Set<IChatWidget>();
 	private _titleTreatment: string | undefined;
 	private _descriptionTreatment: string | undefined;
+	private _introductionCopy: CopilotHarnessIntroductionCopyVariant = 'current';
+	private _introductionButtons: CopilotHarnessIntroductionButtonVariant = 'dismiss';
+	private _introductionTreatmentsReady = false;
 	private _updating = false;
-	private _posted: { readonly widget: IChatWidget; readonly resource: URI; readonly inputUri: URI; readonly kind: AgentsParallelWorkNotificationKind; readonly introductionMode: CopilotHarnessIntroductionMode | undefined; readonly title: string; readonly description: string } | undefined;
+	private _posted: { readonly widget: IChatWidget; readonly resource: URI; readonly inputUri: URI; readonly kind: AgentsParallelWorkNotificationKind; readonly introductionMode: CopilotHarnessIntroductionMode | undefined; readonly introductionCopy: CopilotHarnessIntroductionCopyVariant | undefined; readonly introductionButtons: CopilotHarnessIntroductionButtonVariant | undefined; readonly title: string; readonly description: string } | undefined;
 
 	constructor(
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -925,21 +1017,17 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			this._dismissChat(resource);
 			return openCurrentWorkspaceInAgentsWindow(accessor, AgentsWindowOpenSource.ParallelWorkEmptyChatHandoff, resource, { ...draft, onboardingSessionResource });
 		}));
-		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID, (_accessor, inputUri: URI, resource: URI) => {
+		this._register(CommandsRegistry.registerCommand(copilotHarnessIntroductionLearnMoreCommandId, (_accessor, inputUri: URI, resource: URI) => {
 			if (!this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
 				return;
 			}
 			return this._openerService.open(AgentsParallelWorkContribution.COPILOT_HARNESS_DOCS_URL, { openExternal: true });
 		}));
-		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID, (_accessor, inputUri: URI, resource: URI, helpful: boolean) => {
+		this._register(CommandsRegistry.registerCommand(copilotHarnessIntroductionFeedbackCommandId, (_accessor, inputUri: URI, resource: URI, helpful: boolean) => {
 			if (typeof helpful !== 'boolean' || !this._getPostedWidget(inputUri, resource, AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction)) {
 				return;
 			}
-			if (helpful) {
-				this._dismissChat(resource);
-			} else {
-				this._ignoreCopilotHarnessIntroduction();
-			}
+			this._ignoreCopilotHarnessIntroduction();
 		}));
 		this._register(CommandsRegistry.registerCommand(AgentsParallelWorkContribution.IGNORE_COMMAND_ID, () => {
 			const posted = this._posted;
@@ -978,13 +1066,28 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				this._update();
 			}
 		}));
-		this._register(registerAgentsWindowCopyTreatments(
-			AgentsParallelWorkContribution.TITLE_TREATMENT,
-			AgentsParallelWorkContribution.DESCRIPTION_TREATMENT,
+		this._register(registerAgentsWindowTreatments(
+			[
+				AgentsParallelWorkContribution.TITLE_TREATMENT,
+				AgentsParallelWorkContribution.DESCRIPTION_TREATMENT,
+				AgentsParallelWorkContribution.INTRODUCTION_COPY_TREATMENT,
+				AgentsParallelWorkContribution.INTRODUCTION_BUTTONS_TREATMENT,
+			],
 			'AgentsParallelWork',
-			(title, description) => {
+			([title, description, copy, buttons]) => {
 				this._titleTreatment = title;
 				this._descriptionTreatment = description;
+				const copyVariant = copilotHarnessIntroductionCopyVariants.find(variant => variant === copy);
+				const buttonVariant = copilotHarnessIntroductionButtonVariants.find(variant => variant === buttons);
+				if (copy !== undefined && !copyVariant) {
+					logService.warn(`[AgentsParallelWork] Ignoring invalid ${AgentsParallelWorkContribution.INTRODUCTION_COPY_TREATMENT} treatment`);
+				}
+				if (buttons !== undefined && !buttonVariant) {
+					logService.warn(`[AgentsParallelWork] Ignoring invalid ${AgentsParallelWorkContribution.INTRODUCTION_BUTTONS_TREATMENT} treatment`);
+				}
+				this._introductionCopy = copyVariant ?? 'current';
+				this._introductionButtons = buttonVariant ?? 'dismiss';
+				this._introductionTreatmentsReady = true;
 				this._update();
 			},
 			assignmentService,
@@ -1082,6 +1185,8 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			return;
 		}
 		if (stage === 'shown') {
+			logExperimentTrigger(this._telemetryService, AgentsParallelWorkContribution.INTRODUCTION_COPY_TREATMENT);
+			logExperimentTrigger(this._telemetryService, AgentsParallelWorkContribution.INTRODUCTION_BUTTONS_TREATMENT);
 			let shownModes = this._introductionShownModes.get(widget);
 			if (!shownModes) {
 				shownModes = new Set();
@@ -1123,7 +1228,7 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 		}
 		if (introductionMode !== CopilotHarnessIntroductionMode.Off && !introductionIgnored && this._introductionEligibleWidgets.has(widget)) {
-			return AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction;
+			return this._introductionTreatmentsReady ? AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction : undefined;
 		}
 		return parallelWorkEligible ? AgentsParallelWorkNotificationKind.ParallelWork : undefined;
 	}
@@ -1177,54 +1282,28 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 			}
 			return;
 		}
-		const title = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessTitle', "You're using a new Copilot experience")
-			: this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
+		const introduction = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+			? getCopilotHarnessIntroductionContent(this._introductionCopy, this._introductionButtons)
+			: undefined;
+		const title = introduction?.title ?? this._titleTreatment ?? localize('chat.agentsParallelWorkBanner.defaultTitle', "Run agents side by side");
 		const introductionMode = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? getCopilotHarnessIntroductionMode(this._configurationService) : undefined;
-		const description = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
-			? localize('chat.agentsParallelWorkBanner.copilotHarnessDescription', "This new implementation unlocks exciting new capabilities, while previous agent harnesses remain available. If anything seems off, [let us know]({0}).", AgentsParallelWorkContribution.COPILOT_HARNESS_FEEDBACK_URL)
-			: this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
-		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.introductionMode === introductionMode && this._posted.title === title && this._posted.description === description) {
+		const introductionCopy = introduction ? this._introductionCopy : undefined;
+		const introductionButtons = introduction ? this._introductionButtons : undefined;
+		const description = introduction?.description ?? this._descriptionTreatment ?? localize('chat.agentsParallelWorkBanner.defaultDescription', "Run multiple tasks in the Agents Window, in one workspace or across projects.");
+		if (this._posted?.widget === widget && isEqual(this._posted.inputUri, inputUri) && isEqual(this._posted.resource, resource) && this._posted.kind === kind && this._posted.introductionMode === introductionMode && this._posted.introductionCopy === introductionCopy && this._posted.introductionButtons === introductionButtons && this._posted.title === title && this._posted.description === description) {
 			return;
 		}
 		const previous = this._posted;
-		const posted = { widget, resource, inputUri, kind, introductionMode, title, description };
+		const posted = { widget, resource, inputUri, kind, introductionMode, introductionCopy, introductionButtons, title, description };
 		this._posted = posted;
 		if (previous && (previous.widget !== widget || !isEqual(previous.inputUri, inputUri))) {
 			// Revoke the old render before publishing its successor, retaining announcement de-duplication.
 			this._notificationService.refresh();
 		}
-		const actions: IChatInputNotificationAction[] = kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction ? [{
-			kind: ChatInputNotificationActionKind.Command,
-			label: localize('agentsParallelWork.learnMore', "Learn More"),
-			telemetryActionId: 'docsLink',
-			commandId: AgentsParallelWorkContribution.LEARN_MORE_COMMAND_ID,
-			commandArgs: [posted.inputUri, resource],
-			primary: false,
-			leading: true,
-			outlined: true,
-			keepOpen: true,
-		}, {
-			kind: ChatInputNotificationActionKind.Command,
-			label: localize('agentsParallelWork.gotIt', "{0} Got it!", `$(${Codicon.thumbsup.id})`),
-			ariaLabel: localize('agentsParallelWork.gotItAriaLabel', "Got it!"),
-			telemetryActionId: 'thumbsUp',
-			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
-			commandArgs: [posted.inputUri, resource, true],
-			primary: true,
-			keepOpen: true,
-		}, {
-			kind: ChatInputNotificationActionKind.Command,
-			label: `$(${Codicon.thumbsdown.id})`,
-			ariaLabel: localize('agentsParallelWork.unhelpful', "Not Helpful"),
-			iconOnly: true,
-			tooltip: localize('agentsParallelWork.unhelpfulTooltip', "Not Helpful"),
-			telemetryActionId: 'thumbsDown',
-			commandId: AgentsParallelWorkContribution.FEEDBACK_COMMAND_ID,
-			commandArgs: [posted.inputUri, resource, false],
-			primary: false,
-			keepOpen: true,
-		}] : [{
+		const actions: IChatInputNotificationAction[] = introduction ? introduction.actions.map(action => ({
+			...action,
+			commandArgs: [posted.inputUri, resource, ...(action.commandArgs ?? [])],
+		})) : [{
 			kind: ChatInputNotificationActionKind.Command,
 			label: localize('agentsParallelWork.open', "Open Agents Window"),
 			commandId: AgentsParallelWorkContribution.OPEN_COMMAND_ID,
@@ -1260,10 +1339,10 @@ export class AgentsParallelWorkContribution extends Disposable implements IWorkb
 				&& (kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
 					? introductionMode === CopilotHarnessIntroductionMode.NewSession || context.sessionStarted
 					: !context.sessionStarted),
-			dismissible: kind !== AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction,
-			onDismiss: kind === AgentsParallelWorkNotificationKind.ParallelWork
-				? () => this._dismissChat(resource)
-				: undefined,
+			dismissible: introduction?.dismissible ?? true,
+			onDismiss: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction
+				? introduction?.dismissible ? () => this._ignoreCopilotHarnessIntroduction() : undefined
+				: () => this._dismissChat(resource),
 			onDidShow: kind === AgentsParallelWorkNotificationKind.CopilotHarnessIntroduction && introductionMode
 				? () => this._logIntroductionLifecycle('shown', widget, resource, introductionMode)
 				: undefined,

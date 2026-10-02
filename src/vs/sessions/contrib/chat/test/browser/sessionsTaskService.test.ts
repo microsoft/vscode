@@ -63,7 +63,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
 		modelId: chat.modelId,
 		mode: chat.mode,

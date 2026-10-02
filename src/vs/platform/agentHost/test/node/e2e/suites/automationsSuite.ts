@@ -174,7 +174,7 @@ export function defineAutomationsTests(context: IAgentHostE2ETestContext): void 
 			autonomous: supportsAgentHostAutonomousAutomations(initialized),
 			entries: catalog.entries,
 		}, {
-			automations: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: RUN_HISTORY_LIMIT },
+			automations: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: RUN_HISTORY_LIMIT },
 			autonomous: true,
 			entries: [],
 		});
