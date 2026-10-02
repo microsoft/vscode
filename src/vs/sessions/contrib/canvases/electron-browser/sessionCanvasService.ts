@@ -43,7 +43,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		);
 		this.enabled = observableFromEvent(this, onDidChangeEnablement, () =>
 			!entitlementService.sentiment.hidden
-			&& configurationService.getValue<boolean>(CanvasesEnabledSettingId) !== false
+			&& configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true
 		);
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			for (const session of event.removed) {

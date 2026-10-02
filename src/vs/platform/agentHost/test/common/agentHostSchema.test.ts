@@ -54,9 +54,9 @@ suite('agentHostSchema', () => {
 		assert.strictEqual(property.default, true);
 	});
 
-	test('Canvases are an additive enabled-by-default root setting', () => {
+	test('Canvases are an additive disabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostCanvasesEnabledConfigKey];
-		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: true });
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
 	});
 
 	// ---- schemaProperty / individual validators ---------------------------

@@ -948,7 +948,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	private async _buildSessionConfig(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime, onManagedSettingsResolved: () => void): Promise<ResumeSessionConfig> {
 		const plugins = plan.snapshot.plugins;
 		const canvasRuntimeEnabled = !plan.isEphemeral
-			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) !== false;
+			&& this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) === true;
 		if (canvasRuntimeEnabled && !plan.extensionSdkPath) {
 			throw new Error(`Extension SDK path is unavailable for canvas-enabled Copilot session '${plan.sessionId}'`);
 		}

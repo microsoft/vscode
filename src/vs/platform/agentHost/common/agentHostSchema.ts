@@ -938,7 +938,7 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.canvases.title', "Canvases"),
 		description: localize('agentHost.config.canvases.description', "Whether Copilot sessions can use Canvas extensions to present interactive content."),
-		default: true,
+		default: false,
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

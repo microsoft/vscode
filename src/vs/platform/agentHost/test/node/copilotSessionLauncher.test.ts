@@ -804,7 +804,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 			ask: ['Shell'],
 		};
 		const logService = new CapturingLogService();
-		const launcher = createTestLauncher(managedSettingsPermissions, undefined, logService);
+		const launcher = createTestLauncher(managedSettingsPermissions, { [AgentHostCanvasesEnabledConfigKey]: true }, logService);
 		const pluginDir = URI.file('/tmp/synced-customizations');
 		const syntheticPluginDir = URI.file('/tmp/vscode-synced-customizations');
 		const skillUri = URI.joinPath(pluginDir, 'skills', 'user-skill', 'SKILL.md');
@@ -1106,7 +1106,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('fails closed when a canvas-enabled client residency has no extension SDK path', async () => {
-		const launcher = createTestLauncher();
+		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client: returningSession({
@@ -1144,7 +1144,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
 			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
-		const launcher = createTestLauncher();
+		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: true });
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client,
@@ -1179,7 +1179,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 		}
 	});
 
-	test('does not request canvas extensions or rendering when Canvases are disabled', async () => {
+	test('does not request canvas extensions or rendering by default', async () => {
 		let captured: Parameters<CopilotClient['createSession']>[0] | undefined;
 		const session = {
 			sessionId: 'session-1',
@@ -1195,7 +1195,7 @@ suite('CopilotSessionLauncher canvas config', () => {
 			resumeSession: async () => { throw new Error('Unexpected resume'); },
 			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 		} as unknown as CopilotClient;
-		const launcher = createTestLauncher(undefined, { [AgentHostCanvasesEnabledConfigKey]: false });
+		const launcher = createTestLauncher();
 		const plan: CopilotSessionLaunchPlan = {
 			kind: 'create',
 			client,
