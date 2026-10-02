@@ -423,7 +423,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	private readonly policyReferenceConfigurations: Map<PolicyName, Set<string>>;
 	private readonly agentHostSyncConfigurations: Map<string, IAgentHostConfigurationSync>;
 	/**
-	 * Setting keys per node that were hidden with
+	 * Agent-host-mirrored or experimental setting keys per node hidden with
 	 * `included: false`. Registration deletes those keys from the node's
 	 * `properties`, so deregistration has no other way to find them.
 	 */
@@ -770,30 +770,39 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 
 		const deregisterConfiguration = (configuration: IConfigurationNode) => {
 			// Properties hidden with `included: false` are stripped from
-			// `configuration.properties` at registration time, so include the
-			// keys recorded when they were excluded.
-			const keys = new Set([...Object.keys(configuration.properties ?? {}), ...(this.excludedConfigurationKeys.get(configuration) ?? [])]);
-			this.excludedConfigurationKeys.delete(configuration);
-			for (const key of keys) {
-				bucket.add(key);
-				const property = this.configurationProperties[key] ?? this.excludedConfigurationProperties[key];
-				if (property?.policy?.name) {
-					this.policyConfigurations.delete(property.policy.name);
-				}
-				this.agentHostSyncConfigurations.delete(key);
-				if (property?.policyReference?.name) {
-					const refs = this.policyReferenceConfigurations.get(property.policyReference.name);
-					if (refs) {
-						refs.delete(key);
-						if (refs.size === 0) {
-							this.policyReferenceConfigurations.delete(property.policyReference.name);
-						}
+			// `configuration.properties` at registration time, so the loop below
+			// cannot see them. Clean their mirroring entries and experimental metadata
+			// using the side table recorded when they were excluded.
+			const excludedKeys = this.excludedConfigurationKeys.get(configuration);
+			if (excludedKeys) {
+				for (const key of excludedKeys) {
+					bucket.add(key);
+					this.agentHostSyncConfigurations.delete(key);
+					if (this.excludedConfigurationProperties[key]?.experiment) {
+						delete this.excludedConfigurationProperties[key];
 					}
 				}
-				delete this.configurationProperties[key];
-				delete this.excludedConfigurationProperties[key];
-				if (property) {
-					this.removeFromSchema(key, property);
+				this.excludedConfigurationKeys.delete(configuration);
+			}
+			if (configuration.properties) {
+				for (const key in configuration.properties) {
+					bucket.add(key);
+					const property = this.configurationProperties[key];
+					if (property?.policy?.name) {
+						this.policyConfigurations.delete(property.policy.name);
+					}
+					this.agentHostSyncConfigurations.delete(key);
+					if (property?.policyReference?.name) {
+						const refs = this.policyReferenceConfigurations.get(property.policyReference.name);
+						if (refs) {
+							refs.delete(key);
+							if (refs.size === 0) {
+								this.policyReferenceConfigurations.delete(property.policyReference.name);
+							}
+						}
+					}
+					delete this.configurationProperties[key];
+					this.removeFromSchema(key, configuration.properties[key]);
 				}
 			}
 			configuration.allOf?.forEach(node => deregisterConfiguration(node));
@@ -871,13 +880,13 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						// Hidden settings can participate in experiments and host
 						// mirroring without entering the Settings UI schemas.
 						bucket.add(key);
+						let excludedKeys = this.excludedConfigurationKeys.get(configuration);
+						if (!excludedKeys) {
+							excludedKeys = new Set<string>();
+							this.excludedConfigurationKeys.set(configuration, excludedKeys);
+						}
+						excludedKeys.add(key);
 					}
-					let excludedKeys = this.excludedConfigurationKeys.get(configuration);
-					if (!excludedKeys) {
-						excludedKeys = new Set<string>();
-						this.excludedConfigurationKeys.set(configuration, excludedKeys);
-					}
-					excludedKeys.add(key);
 					delete properties[key];
 				} else {
 					bucket.add(key);
