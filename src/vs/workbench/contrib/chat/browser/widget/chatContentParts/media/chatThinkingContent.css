@@ -64,6 +64,14 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* Preserve the text-column width while anchoring artwork to the icon gutter. */
+.interactive-session .interactive-response .value .chat-tool-call-with-icon :is(.chat-image-generation-placeholder, .chat-generated-image-tool-result) {
+	position: relative;
+	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	margin-left: calc(-1 * var(--vscode-spacing-size240));
+	margin-right: var(--vscode-spacing-size240);
+}
+
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon.chat-tool-call-error .progress-container > .codicon-error-compact,
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-error .chat-confirmation-widget-title > .codicon-error-compact,
 .interactive-session .interactive-response .value .chat-thinking-tool-wrapper .chat-tool-call-error .progress-container > .codicon-error-compact {

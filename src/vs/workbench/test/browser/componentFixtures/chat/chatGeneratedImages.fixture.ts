@@ -363,7 +363,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	CopilotGenerating: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['An expandable tool row with an image icon and no shimmer sits above a compact band of binary digits and denser accent-colored glyphs. Expanding the row reveals the submitted prompt while the band stays visible. Painting-themed phrases rotate only in the persistent footer. Reduced motion and high contrast show a still glyph band.'],
+		expectedVisualDescriptions: ['An expandable tool row with an image icon and no shimmer sits above a compact band of binary digits and denser accent-colored glyphs. The band aligns with the image icon rather than the indented tool label. Expanding the row reveals the submitted prompt while the band stays visible. Painting-themed phrases rotate only in the persistent footer. Reduced motion and high contrast show a still glyph band.'],
 		render: context => renderGeneratedImage(context, { toolId: 'image_generation', running: true, progress: ChatProgressAnimation.Draw }),
 	}),
 	CodexGenerating: defineComponentFixture({
@@ -405,7 +405,7 @@ export default defineThemedFixtureGroup({ path: 'chat/generatedImages/' }, {
 	CompletedTool: defineComponentFixture({
 		virtualTime: { enabled: false },
 		labels: { kind: 'animated' },
-		expectedVisualDescriptions: ['A Generated image tool dropdown with its image icon appears above the large generated image, with the Save action immediately to the right of the image. The image stays visible with the dropdown collapsed, and there is no generation placeholder.'],
+		expectedVisualDescriptions: ['A Generated image tool dropdown with its image icon appears above the large generated image, whose left edge aligns with the icon rather than the indented tool label. The Save action is immediately to the right of the image. The image stays visible with the dropdown collapsed, and there is no generation placeholder.'],
 		render: context => renderGeneratedImage(context, { responseComplete: false }),
 	}),
 });
