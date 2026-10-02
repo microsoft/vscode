@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -486,6 +486,8 @@ suite('Sessions - ChatGroupsView', () => {
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsUntitledContext.key));
 		const headerShowsChatContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const headerTargetsChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderTargetsChatContext.key));
 		const activeChatResources = groups.map(group =>
 			contextKeyService.getContext(group).getValue<string>(SessionActiveChatResourceContext.key));
 		const activeChatHasSideChats = groups.map(group =>
@@ -499,6 +501,7 @@ suite('Sessions - ChatGroupsView', () => {
 			archivedActionContexts,
 			untitledChatContexts,
 			headerShowsChatContexts,
+			headerTargetsChatContexts,
 			activeChatResources,
 			activeChatHasSideChats,
 		}, {
@@ -519,7 +522,8 @@ suite('Sessions - ChatGroupsView', () => {
 			archiveActionContexts: [false, true],
 			archivedActionContexts: [false, false],
 			untitledChatContexts: [false, false],
-			headerShowsChatContexts: [false, true],
+			headerShowsChatContexts: [true, true],
+			headerTargetsChatContexts: [false, true],
 			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
 			activeChatHasSideChats: [true, false],
 		});

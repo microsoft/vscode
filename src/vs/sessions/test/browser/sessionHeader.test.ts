@@ -18,7 +18,7 @@ import { IContextKeyService } from '../../../platform/contextkey/common/contextk
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
-import { SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
@@ -153,13 +153,13 @@ suite('Sessions - Headers', () => {
 		const sessionArgs = describe(getMenuActionArgs(header));
 		const initialChatArgs = describe(getMenuActionArgs(chatHeader));
 		const mainChatContexts = {
-			headerShowsChat: SessionHeaderShowsChatContext.getValue(contextKeyService),
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
 			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
 		};
 		activeChat.set(secondChat, undefined);
 		const nestedSessionArgs = describe(getMenuActionArgs(header));
 		const nestedChatContexts = {
-			headerShowsChat: SessionHeaderShowsChatContext.getValue(contextKeyService),
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
 			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
 		};
 
@@ -175,8 +175,8 @@ suite('Sessions - Headers', () => {
 			initialChatArgs: ['session', 'mainChat'],
 			nestedSessionArgs: ['session', 'secondChat'],
 			updatedChatArgs: ['session', 'secondChat'],
-			mainChatContexts: { headerShowsChat: false, toolbarShowsSession: true },
-			nestedChatContexts: { headerShowsChat: true, toolbarShowsSession: false },
+			mainChatContexts: { headerTargetsChat: false, toolbarShowsSession: true },
+			nestedChatContexts: { headerTargetsChat: true, toolbarShowsSession: true },
 		});
 	});
 

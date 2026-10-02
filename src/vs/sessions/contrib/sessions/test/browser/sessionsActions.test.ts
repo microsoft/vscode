@@ -543,19 +543,19 @@ suite('Sessions - Actions', () => {
 					title: 'Archive',
 					group: 'secondary/1_session',
 					order: 30,
-					when: 'sessionIsCreated && !sessionHeaderShowsChat && !sessionIsArchived',
+					when: 'sessionIsCreated && !sessionHeaderTargetsChat && !sessionIsArchived',
 				}],
 				archiveNestedSession: [{
 					title: 'Archive',
 					group: 'secondary/1_session',
 					order: 30,
-					when: 'sessionActiveChatCanArchive && sessionHeaderShowsChat && !sessionActiveChatIsUntitled',
+					when: 'sessionActiveChatCanArchive && sessionHeaderTargetsChat && !sessionActiveChatIsUntitled',
 				}],
 				deleteChat: [{
 					title: 'Delete Chat',
 					group: 'secondary/1_session',
 					order: 30,
-					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderShowsChat',
+					when: 'sessionActiveChatIsDeletable && sessionActiveChatIsUntitled && sessionHeaderTargetsChat',
 				}],
 			});
 		} finally {

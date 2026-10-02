@@ -19,7 +19,7 @@ import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWor
 import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
@@ -120,6 +120,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _activeChatResourceKey: IContextKey<string>;
 	private readonly _activeChatHasSideChatsKey: IContextKey<boolean>;
 	private readonly _headerShowsChatKey: IContextKey<boolean>;
+	private readonly _headerTargetsChatKey: IContextKey<boolean>;
 	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
@@ -160,6 +161,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._activeChatResourceKey = SessionActiveChatResourceContext.bindTo(scopedContextKeyService);
 		this._activeChatHasSideChatsKey = SessionActiveChatHasSideChatsContext.bindTo(scopedContextKeyService);
 		this._headerShowsChatKey = SessionHeaderShowsChatContext.bindTo(scopedContextKeyService);
+		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(scopedContextKeyService);
 		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(scopedContextKeyService);
 		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
@@ -244,6 +246,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._activeChatResourceKey.reset();
 			this._activeChatHasSideChatsKey.reset();
 			this._headerShowsChatKey.reset();
+			this._headerTargetsChatKey.reset();
 			this._toolbarShowsSessionKey.reset();
 			this._focusedChatIsRenameTargetKey.reset();
 			this._chatHeader.setChat(undefined);
@@ -266,6 +269,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contextDisposables.add(autorun(reader => {
 			const visible = context.chatHeaderVisible.read(reader);
 			this._chatHeader.setVisible(visible);
+			this._headerShowsChatKey.set(visible);
 		}));
 		this._contextDisposables.add(autorun(reader => {
 			this._toolbarShowsSessionKey.set(context.showSessionActions.read(reader));
@@ -297,7 +301,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._activeChatIsPinnedKey.set(context.activeChatIsPinned.read(reader));
 			this._activeChatResourceKey.set(chat?.resource.toString() ?? '');
 			this._activeChatHasSideChatsKey.set(!!chat && context.session.chats.read(reader).some(candidate => isSideChatOf(candidate, chat.resource)));
-			this._headerShowsChatKey.set(context.chatHeaderVisible.read(reader) && isNonMainChat);
+			this._headerTargetsChatKey.set(context.chatHeaderVisible.read(reader) && isNonMainChat);
 			this._focusedChatIsRenameTargetKey.set(isNonMainChat);
 		}));
 		const currentView = observableValue<AbstractChatView | undefined>(this._contextDisposables, this._currentView.value);
