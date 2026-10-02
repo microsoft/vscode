@@ -258,8 +258,61 @@
 	z-index: 1;
 }
 
-.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-item.model-picker-item {
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container:not(.chat-secondary-controls-in-input) .chat-input-toolbar .action-item.model-picker-item {
 	margin-left: auto;
+}
+
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-toolbar {
+	order: 0;
+	flex: 0 1 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-mode-picker {
+	order: 1;
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	min-width: 0;
+}
+
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-responsive-picker-container {
+	order: 2;
+	display: flex;
+	align-items: center;
+	flex: 0 1 auto;
+	min-width: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
+	order: 3;
+	display: flex;
+	align-items: center;
+	flex: 0 0 auto;
+	min-width: 0;
+	margin-left: auto;
+}
+
+.agent-sessions-workbench.phone-layout .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-input-relocated-model-picker {
+	margin-left: 0;
+}
+
+.agent-sessions-workbench.phone-layout .chat-view-chat.experimental-session-composer .interactive-input-part {
+	margin-inline: 0;
+}
+
+.agent-sessions-workbench.phone-layout .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars {
+	column-gap: var(--vscode-spacing-size20);
+}
+
+.agent-sessions-workbench.phone-layout .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-responsive-picker-container {
+	flex: 0 0 auto;
+	overflow: visible;
+}
+
+.agent-sessions-workbench .chat-view-chat.experimental-session-composer .chat-input-container.chat-secondary-controls-in-input .chat-input-toolbars > .chat-execute-toolbar {
+	order: 4;
 }
 
 .sessions-chat-config-toolbar .monaco-toolbar {

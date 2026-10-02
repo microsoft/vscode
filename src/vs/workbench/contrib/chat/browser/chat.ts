@@ -283,6 +283,7 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	/** Whether to create the toolbar backed by {@link MenuId.ChatInputSecondary}. */
 	renderSecondaryToolbar?: boolean;
+	renderSecondaryControlsInInput?: boolean;
 	renderGettingStartedTip?: boolean | (() => boolean);
 	customizationMigrationNotice?: {
 		readonly workspace: IObservable<URI | undefined>;

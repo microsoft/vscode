@@ -310,6 +310,7 @@ export class ChatView extends AbstractChatView {
 		// Matches `AGENTS_VOICE_INITIATED_HERE` in agentsVoice.contribution.ts.
 		this._voiceInitiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
 
+		const experimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService);
 		this._widget = this._register(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
@@ -327,6 +328,7 @@ export class ChatView extends AbstractChatView {
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
 				renderSecondaryToolbar: true,
+				renderSecondaryControlsInInput: experimentalComposerLayout,
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
@@ -436,10 +438,6 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
-			}
-			if (e.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)
-				|| e.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
-				updateExperimentalComposerLayout();
 			}
 		}));
 

@@ -145,7 +145,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8103a4528aa4899566d3316f213ebb0775ba6e6021882c99877aa8c2f131ee77)
 
 #### sessions/chat/view/chatView/PhoneChatComposerExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/4b4b97eab20912d78bb05234b69588e875d1a880650f3d7214e4be30174679d2)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/441789f4161a0428fb09761b85150b8d9653c1c6acb7ef73b3b906b135c72eb2)
 
 #### sessions/chat/view/chatView/PhoneChatComposerSettingsDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae8b46eb64765042325a4b16fc02c6c2117ece87e63185db7be36fea5c887b4f)

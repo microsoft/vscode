@@ -277,6 +277,7 @@ export interface IChatInputPartOptions {
 	renderStyle?: 'compact';
 	renderInputToolbarBelowInput: boolean;
 	renderSecondaryToolbar?: boolean;
+	renderSecondaryControlsInInput?: boolean;
 	menus: {
 		executeToolbar: MenuId;
 		telemetrySource: string;
@@ -567,6 +568,22 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this.inputEditorTrailingSpace = trailingSpace;
 		this.layoutForToolbarChange();
+	}
+
+	private _relocatePrimaryPickersForInputLayout(toolbarsContainer: HTMLElement): void {
+		const pickers = [
+			{ element: this.modeWidget?.element, className: 'chat-input-relocated-mode-picker' },
+			{ element: this.modelWidget?.element, className: 'chat-input-relocated-model-picker' },
+		];
+		for (const { element, className } of pickers) {
+			if (!element) {
+				continue;
+			}
+			element.classList.add(className);
+			if (element.parentElement !== toolbarsContainer) {
+				toolbarsContainer.appendChild(element);
+			}
+		}
 	}
 
 	get customizationMigrationNoticeContainerElement(): HTMLElement {
@@ -3389,9 +3406,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const toolbarsContainer = elements.inputToolbars;
 		this.secondaryToolbarContainer = elements.secondaryToolbar;
 		const responsivePickerContainer = elements.responsivePickerContainer;
-		if (this.options.renderStyle === 'compact') {
+		if (this.options.renderStyle === 'compact' && !this.options.renderSecondaryControlsInInput) {
 			this.secondaryToolbarContainer.style.display = 'none';
 		}
+		inputContainer.classList.toggle('chat-secondary-controls-in-input', !!this.options.renderSecondaryControlsInInput);
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatArtifactsWidgetContainer = elements.chatArtifactsWidgetContainer;
@@ -3619,8 +3637,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const getInputPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
-			compact: getCompactState(inputPickerCompactStates, actionId),
-			minimal: actionId === OpenModelPickerAction.ID ? getCompactState(inputPickerMinimalStates, actionId) : undefined,
+			compact: this.options.renderSecondaryControlsInInput && (actionId === OpenModePickerAction.ID || actionId === OpenModelPickerAction.ID)
+				? constObservable(false)
+				: getCompactState(inputPickerCompactStates, actionId),
+			minimal: actionId === OpenModelPickerAction.ID
+				? (this.options.renderSecondaryControlsInInput ? constObservable(false) : getCompactState(inputPickerMinimalStates, actionId))
+				: undefined,
 		});
 		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),
@@ -3701,9 +3723,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			hoverDelegate,
 			responsiveBehavior: {
-				enabled: true,
+				enabled: !this.options.renderSecondaryControlsInInput,
 				kind: 'last',
-				minItems: 2,
+				minItems: this.options.renderSecondaryControlsInInput ? 3 : 2,
 				actionMinWidth: 48,
 				getActionMinWidth: getInputActionMinWidth,
 				allowOverflow: () => this._inputPickerResponsiveLayout?.areAllItemsCompact() === true,
@@ -3787,6 +3809,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 		this.inputActionsToolbar.getElement().classList.add('chat-input-toolbar');
+		if (this.options.renderSecondaryControlsInInput) {
+			this.inputActionsToolbar.getElement().after(responsivePickerContainer);
+			this._relocatePrimaryPickersForInputLayout(toolbarsContainer);
+		}
 		this.inputActionsToolbar.context = { widget } satisfies IChatExecuteActionContext;
 		this._register(this.inputActionsToolbar.onDidChangeMenuItems(() => {
 			// Update container reference for the pickers (cloud sessions host them in the primary toolbar)
@@ -3795,6 +3821,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const primaryPickerContainer = toolbarElement.querySelector('.chat-sessionPicker-container');
 			if (primaryPickerContainer) {
 				this.chatSessionPickerContainer = primaryPickerContainer as HTMLElement;
+			}
+			if (this.options.renderSecondaryControlsInInput) {
+				this._relocatePrimaryPickersForInputLayout(toolbarsContainer);
 			}
 			if (this.cachedWidth && typeof this.cachedInputToolbarWidth === 'number' && this.cachedInputToolbarWidth !== this.inputActionsToolbar.getItemsWidth()) {
 				this._toolbarRelayoutScheduler.schedule();
@@ -4107,7 +4136,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			relayout: () => this.inputActionsToolbar.relayout(),
 		}));
 
-		if (this.options.renderSecondaryToolbar !== false) {
+		if (this.options.renderSecondaryToolbar !== false && !this.options.renderSecondaryControlsInInput) {
 			this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('ChatInputPart.secondaryPicker', responsivePickerContainer, {
 				getItems: () => [
 					...getToolbarPickerResponsiveItems(this.secondaryToolbar, secondaryPickerCompactStates),

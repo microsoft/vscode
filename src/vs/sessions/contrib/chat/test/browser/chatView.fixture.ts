@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -15,9 +17,14 @@ import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../.
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { renderModePickerTrigger } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
 import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { IChatInputPickerResponsiveState } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { ChatAgentLocation, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat/test/common/languageModels.js';
 import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
@@ -35,6 +42,40 @@ const fixtureHeight = 720;
 const plainContentHorizontalPadding = 64;
 const backgroundContentHorizontalPadding = 88;
 const codiconsBackground = { kind: 'codicons' } as const;
+
+class FixtureModePermissionsActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
+	private _compact = false;
+
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.classList.toggle('compact-picker', this._compact);
+		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
+		const trigger = dom.append(slot, dom.$('div.action-label'));
+		trigger.role = 'button';
+		trigger.tabIndex = 0;
+		this._register(renderModePickerTrigger(trigger, {
+			label: 'Interactive', icon: Codicon.comment, labelClassName: 'sessions-chat-dropdown-label',
+		}, {
+			label: 'Allow all', level: ChatPermissionLevel.AutoApprove, sandboxed: false,
+		}, () => { }));
+	}
+
+	setCompact(compact: boolean): void {
+		this._compact = compact;
+		this.element?.classList.toggle('compact-picker', compact);
+	}
+
+	isCompact(): boolean {
+		return this._compact;
+	}
+}
+
+class HiddenFixtureActionViewItem extends BaseActionViewItem {
+	override render(container: HTMLElement): void {
+		this.element = container;
+		container.style.display = 'none';
+	}
+}
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
@@ -146,7 +187,37 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext, experim
 			user: 'Keep the phone composer controls aligned.',
 			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
 		}],
+		renderSecondaryControlsInInput: experimentalComposerLayout,
 		...(experimentalComposerLayout ? {
+			inputModelTitle: 'Model',
+			hideConfigureTools: true,
+			additionalServices: registration => registration.defineInstance(ILanguageModelsService, new class extends NullLanguageModelsService {
+				override getLanguageModelIds() { return ['fixture/model']; }
+				override getLanguageModels() {
+					return [{
+						identifier: 'fixture/model',
+						metadata: {
+							extension: new ExtensionIdentifier('github.copilot-chat'),
+							id: 'model',
+							name: 'Model',
+							vendor: 'fixture',
+							version: '1',
+							family: 'fixture',
+							maxInputTokens: 128000,
+							maxOutputTokens: 4096,
+							isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+						},
+					}];
+				}
+				override lookupLanguageModel(identifier: string) {
+					return this.getLanguageModels().find(model => model.identifier === identifier)?.metadata;
+				}
+			}()),
+			secondaryToolbarActionViewItemProvider: action => action.id === 'workbench.action.chat.openSessionTargetPicker'
+				? new HiddenFixtureActionViewItem(undefined, action)
+				: action.id === 'workbench.action.chat.openPermissionPicker'
+					? new FixtureModePermissionsActionViewItem(undefined, action)
+					: undefined,
 			onRendered: ({ inputPart }) => {
 				inputPart.placeContextUsageWidget(inputPart.inputContainerElement);
 				inputPart.setInputEditorTrailingSpace(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE);
@@ -156,6 +227,13 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext, experim
 
 	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
 	const contextUsage = context.container.querySelector<HTMLElement>('.chat-input-container > .chat-context-usage-container');
+	const inputContainer = context.container.querySelector<HTMLElement>('.chat-input-container');
+	const toolbars = context.container.querySelector<HTMLElement>('.chat-input-toolbars');
+	const inputToolbar = toolbars?.querySelector<HTMLElement>(':scope > .chat-input-toolbar');
+	const modePicker = toolbars?.querySelector<HTMLElement>(':scope > .chat-input-relocated-mode-picker');
+	const secondaryControls = toolbars?.querySelector<HTMLElement>(':scope > .chat-responsive-picker-container');
+	const modelPicker = toolbars?.querySelector<HTMLElement>(':scope > .chat-input-relocated-model-picker');
+	const executeToolbar = toolbars?.querySelector<HTMLElement>(':scope > .chat-execute-toolbar');
 	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
 	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
 	const submitBounds = submitButton?.getBoundingClientRect();
@@ -165,6 +243,21 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext, experim
 		|| !submitBounds || !inputActionBounds
 		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
 		throw new Error('The in-chat phone composer must match the selected setting state and align its input actions.');
+	}
+	if (experimentalComposerLayout) {
+		const orderedControls = [inputToolbar, modePicker, secondaryControls, modelPicker, executeToolbar];
+		const controlOrder = orderedControls.map(control => control ? Number.parseInt(dom.getWindow(control).getComputedStyle(control).order, 10) : -1);
+		if (!inputContainer?.classList.contains('chat-secondary-controls-in-input')
+			|| orderedControls.some(control => !control || !control.checkVisibility())
+			|| !controlOrder.every((order, index) => order === index)
+			|| !modePicker?.textContent?.includes('Agent')
+			|| !secondaryControls?.textContent?.includes('Interactive')
+			|| !secondaryControls?.textContent?.includes('Allow all')
+			|| !modelPicker?.textContent?.includes('Model')) {
+			throw new Error('The experimental active-chat composer must keep Agent, Mode/Permissions, Model, and Send visible in new-session order.');
+		}
+	} else if (inputContainer?.classList.contains('chat-secondary-controls-in-input') || secondaryControls?.parentElement === toolbars) {
+		throw new Error('The standard active-chat composer must keep its secondary controls below the input.');
 	}
 }
 
@@ -394,7 +487,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	}),
 	PhoneChatComposerExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, a phone-sized active chat keeps context usage inside the composer, right-aligns the model control, and aligns the send action with the input actions.'],
+		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, a phone-sized active chat shows Add Context, Agent, Interactive/Allow all, Model, and Send in the same visible row as the new-session composer.'],
 		render: context => renderPhoneChatComposer(context, true),
 	}),
 	CheckpointControlsBackground: defineComponentFixture({
