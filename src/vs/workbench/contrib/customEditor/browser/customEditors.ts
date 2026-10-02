@@ -411,8 +411,16 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	}
 
 	private async handleMovedFileInOpenedFileEditors(oldResource: URI, newResource: URI): Promise<void> {
-		if (extname(oldResource).toLowerCase() === extname(newResource).toLowerCase()) {
-			return;
+		const sameExtension = extname(oldResource).toLowerCase() === extname(newResource).toLowerCase();
+		if (sameExtension) {
+			// Even with the same extension, a path-based files.associations rule can change the
+			// effective language (e.g. src/file.txt → docs/file.txt). Only skip if language is
+			// also unchanged — otherwise a newly matching language-targeted editor would be missed.
+			const oldLang = this.editorResolverService.getEffectiveLanguageId(oldResource);
+			const newLang = this.editorResolverService.getEffectiveLanguageId(newResource);
+			if (oldLang === newLang) {
+				return;
+			}
 		}
 
 		const langId = this.editorResolverService.getEffectiveLanguageId(newResource) ?? undefined;

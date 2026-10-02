@@ -27,6 +27,7 @@ import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { diffEditorLanguageAssociationsSettingId, diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, editorLanguageAssociationsSettingId, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
@@ -137,7 +138,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	getEffectiveLanguageId(resource: URI): string | undefined {
-		return this.modelService.getModel(resource)?.getLanguageId() ?? this.languageService.guessLanguageIdByFilepathOrFirstLine(resource) ?? undefined;
+		const modelLang = this.modelService.getModel(resource)?.getLanguageId();
+		if (modelLang) {
+			return modelLang;
+		}
+		const guessed = this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
+		// Normalize null/falsy to 'plaintext', matching the language that the text model
+		// will use for unrecognized files. Without this, plaintext selectors fail during
+		// initial resolution (before the model opens) and the UI shows no effective default.
+		return guessed ?? PLAINTEXT_LANGUAGE_ID;
 	}
 
 	getEffectiveLanguage(resource: URI): { readonly id: string; readonly name: string } | undefined {
