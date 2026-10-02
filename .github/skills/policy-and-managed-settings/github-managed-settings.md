@@ -210,7 +210,7 @@ The **file-based** channel is wired the same way (`src/vs/code/electron-main/mai
 
 It then shows per-key channel precedence, the merged normalized bag, and the final bag delivered to VS Code policy callbacks. Runtime-owned settings can therefore remain visible in a raw source even when VS Code has no corresponding policy declaration and the projected bag is empty.
 
-The report separately queries capable Agent Host providers for their own effective managed-settings snapshot. Copilot uses the platform runtime package's public `sdk/index.js#getManagedSettings()` API, which returns the same payload as `session.managed_settings_resolved` without requiring an active session. This runtime snapshot is not treated as another VS Code delivery channel because the runtime owns its schema and authority resolution independently.
+The report separately queries capable Agent Host providers for their own managed-settings snapshot. Copilot uses `client.rpc.managedSettings.resolve()` through the host's configured SDK client, passing the current GitHub token and `vscode-agent-host` client identity without creating a session. The report retains the resolved snapshot, account, channel layers, and diagnostics, including source failures and cached-policy fallback warnings. This sessionless resolution does not include session-local client contributions or execute policy helpers, and a returned snapshot does not prove a successful live server fetch. This runtime snapshot is not treated as another VS Code delivery channel because the runtime owns its schema and authority resolution independently.
 
 ## Projecting a managed-settings key into VS Code (checklist)
 
