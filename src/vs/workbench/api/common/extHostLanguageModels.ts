@@ -451,8 +451,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	/**
-	 * Resolves the model a chat request runs on. An explicit selection that cannot be resolved
-	 * fails the request rather than silently running it on (and billing it to) the default model.
+	 * Resolves the model a chat request or tool invocation runs on. An explicit selection that cannot be resolved
+	 * fails rather than silently running on (and billing) the default model.
 	 */
 	async getLanguageModelForRequest(extension: IExtensionDescription, userSelectedModelId: string | undefined): Promise<vscode.LanguageModelChat> {
 		if (userSelectedModelId) {
