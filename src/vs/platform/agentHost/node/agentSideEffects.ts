@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -57,7 +58,6 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
-	readUsageInfoMeta,
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	CustomizationType,

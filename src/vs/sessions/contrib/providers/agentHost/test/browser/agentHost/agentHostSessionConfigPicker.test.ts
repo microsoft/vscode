@@ -29,6 +29,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -51,6 +52,7 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
@@ -256,6 +258,9 @@ function setupServices(
 	const notificationErrors: string[] = [];
 
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+		override async input() { return undefined; }
+	}());
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(error: string | Error): void {
 			notificationErrors.push(String(error));
@@ -385,6 +390,63 @@ function otherActiveSession(activeSession: IActiveSession): IActiveSession {
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot repository controls preserve target, baseBranch and new branch keys', async () => {
+		const services = setupServices(store);
+		services.provider.completions = [{ value: 'main', label: 'main' }, { value: 'dev', label: 'dev' }];
+		services.provider.config = {
+			schema: {
+				type: 'object', properties: {
+					target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], enumLabels: ['Workspace', 'Worktree'], default: 'workspace', sessionMutable: false },
+					baseBranch: { type: 'string', title: 'Base branch', enum: [], enumDynamic: true, sessionMutable: false },
+					branch: { type: 'string', title: 'New branch', sessionMutable: false },
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', enum: ['manual', 'assisted', 'allow-all', 'unknown'], readOnly: true },
+				}
+			},
+			values: { target: 'worktree', baseBranch: 'main', approvalMode: 'assisted', effectiveApprovalMode: 'manual' },
+		};
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input() { return 'new-session-branch'; }
+		}());
+		const { container } = renderPicker(store, services);
+		const properties = Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty);
+		const target = container.querySelector<HTMLElement>('[data-session-config-property="target"] .action-label')!;
+		target.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'workspace')!.item!);
+		await timeout(0);
+		container.querySelector<HTMLElement>('[data-session-config-property="baseBranch"] .action-label')!.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'main')!.item!);
+		await timeout(0);
+		container.querySelector<HTMLElement>('[data-session-config-property="branch"] .action-label')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ properties, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
+			properties: ['target', 'baseBranch', 'branch'],
+			writes: [
+				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
+				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
+				{ sessionId: SESSION_ID, property: 'branch', value: 'new-session-branch' },
+			],
+			checkouts: [],
+		});
+	});
+
+	test('malformed VS approval schema uses generic UI rather than a second Copilot control', () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Custom approvals', enum: ['custom'] },
+					approvalMode: { type: 'string', title: 'Copilot approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+				}
+			},
+			values: { autoApprove: 'custom', approvalMode: 'allow-all' },
+		};
+		const { container } = renderPicker(store, services);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty), ['autoApprove']);
+	});
 
 	test('isolation dropdown preserves worktree and branch configuration values', async () => {
 		const services = setupServices(store);

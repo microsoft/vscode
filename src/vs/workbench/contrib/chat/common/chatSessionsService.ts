@@ -318,6 +318,7 @@ export type IChatSessionHistoryItem = {
 	type: 'request';
 	prompt: string;
 	participant: string;
+	metadata?: Record<string, unknown>;
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
@@ -350,6 +351,7 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Identifier of the backing provider turn.
 	 */

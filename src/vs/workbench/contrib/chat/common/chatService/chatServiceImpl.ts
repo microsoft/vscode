@@ -936,6 +936,7 @@ export class ChatService extends Disposable implements IChatService {
 						message.isRequestHidden,
 						getRestoredChatRequestSource(message, requestText),
 						message.modelConfiguration,
+						message.metadata,
 					);
 				} else {
 					// response
@@ -1057,7 +1058,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			// Handle server-initiated requests (e.g. consumed queued messages).
 			if (providedSession.onDidStartServerRequest) {
-				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
+				disposables.add(providedSession.onDidStartServerRequest(({ id, prompt, metadata, variableData, modelId, modelConfiguration, timestamp, isSystemInitiated, requestSource, isHidden, isRequestHidden, systemInitiatedLabel, isTerminalRequest, resume, origin }) => {
 					if (resume) {
 						const request = model.getRequests().find(request => request.id === id);
 						if (!request?.response) {
@@ -1100,6 +1101,7 @@ export class ChatService extends Disposable implements IChatService {
 						isRequestHidden,
 						requestSource,
 						modelConfiguration,
+						metadata,
 					);
 
 					// Reset progress tracking for the new turn
@@ -1227,6 +1229,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		const resendOptions: IChatSendRequestOptions = {
 			...options,
+			metadata: options?.metadata ?? request.agentHostMetadata,
 			locationData: request.locationData,
 			attachedContext: request.attachedContext,
 		};
@@ -1251,6 +1254,7 @@ export class ChatService extends Disposable implements IChatService {
 			isHiddenFromTranscript: options.hideFromTranscript,
 			systemInitiatedLabel: options.systemInitiatedLabel,
 			terminalExecutionId: options.terminalExecutionId,
+			agentHostMetadata: options.metadata,
 		});
 
 		if (transferredMode) {
@@ -1747,7 +1751,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
 					const modelConfiguration = options?.userSelectedModelConfiguration ?? (options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined);
-					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, undefined, modelConfiguration);
+					request = preservedRequest ?? model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), requestId, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId, isTerminalCommand, undefined, options?.hideFromTranscript, undefined, undefined, undefined, modelConfiguration, options?.metadata);
 					preservedRequest?.response?.reopen();
 					const thisRequest = request;
 					completeResponseCreated();
@@ -1771,7 +1775,7 @@ export class ChatService extends Disposable implements IChatService {
 					// ephemeral — re-collected every turn, never rendered in
 					// the UI, and not needed in serialized session history.
 					const storedVariables = allContext.filter(v => !(isPromptTextVariableEntry(v) && v.automaticallyAdded));
-					model.updateRequest(request, { variables: storedVariables });
+					model.updateRequest(request, { variables: storedVariables }, options?.metadata);
 
 					// The full set (including instructions) is passed to the
 					// agent request only — not stored on the request model.
@@ -1805,7 +1809,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							agentHostSessionConfig: options?.agentHostSessionConfig,
 							agentHostMessageOrigin: options?.agentHostMessageOrigin,
-							metadata: options?.metadata,
+							metadata: options?.metadata ?? thisRequest.agentHostMetadata,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration,
 							userSelectedTools: options?.userSelectedTools?.get(),

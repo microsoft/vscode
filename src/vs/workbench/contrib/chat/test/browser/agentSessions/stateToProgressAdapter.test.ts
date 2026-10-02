@@ -23,7 +23,7 @@ import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptConte
 import { ChatRequestOriginKind } from '../../../common/chatRequestOrigin.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatUsage } from '../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -142,6 +142,79 @@ function assertInputOutputDetails(details: unknown): asserts details is IToolRes
 // ---- Tests ------------------------------------------------------------------
 
 suite('stateToProgressAdapter', () => {
+
+	test('appends tool output chunks without changing arguments or creating a terminal resource', () => {
+		const call = createToolCallState({ toolInput: '{"command":"echo output"}' });
+		const plain = toolCallStateToInvocation(createToolCallState());
+		appendToolOutput(plain, call, { output: 'first', isPty: false });
+		appendToolOutput(plain, call, { output: ' second', isPty: false });
+		const pty = toolCallStateToInvocation(call);
+		appendToolOutput(pty, call, { output: 'first', isPty: true });
+		appendToolOutput(pty, call, { output: ' second', isPty: true });
+		assert.deepStrictEqual({
+			input: call.toolInput,
+			plain: plain.toolSpecificData?.kind === 'simpleToolInvocation' ? plain.toolSpecificData.output : undefined,
+			pty: pty.toolSpecificData?.kind === 'terminal' ? { output: pty.toolSpecificData.terminalCommandOutput?.text, terminal: pty.toolSpecificData.terminalCommandUri } : undefined,
+		}, { input: '{"command":"echo output"}', plain: 'first second', pty: { output: 'first second', terminal: undefined } });
+	});
+
+	test('generic confirmed-tool input does not suppress streamed output', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'tc', toolName: 'query', displayName: 'Query',
+			invocationMessage: 'Query', toolInput: '{"query":"example"}',
+		};
+		const invocation = toolCallStateToInvocation(pending);
+		assert.strictEqual(invocation.toolSpecificData?.kind, 'input');
+		const running = createToolCallState({ toolCallId: 'tc', toolInput: pending.toolInput });
+		appendToolOutput(invocation, running, { output: 'first', isPty: false });
+		appendToolOutput(invocation, running, { output: ' second', isPty: false });
+		assert.deepStrictEqual(invocation.toolSpecificData, {
+			kind: 'simpleToolInvocation', input: '{"query":"example"}', output: 'first second',
+		});
+	});
+
+	test('Copilot metadata preserves internal requests, attachments, and latest-call usage', () => {
+		const detail = { type: 'github_reference', number: 7, title: 'Fix', url: 'https://github.com/o/r/issues/7', future: true };
+		const turn = createTurn({
+			message: {
+				text: 'display',
+				origin: { kind: MessageKind.Tool },
+				_meta: { 'copilot.visibility': 'internal' },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'Fix', _meta: { 'copilot.attachmentDetail': detail } }],
+			},
+			usage: { inputTokens: 5, outputTokens: 2, _meta: { 'copilot.usageDetail': { cost: 0.5, duration: 10 } } },
+		});
+		const history = turnsToHistory(URI.parse('copilot:/session'), [turn], 'copilot');
+		const request = history.find(item => item.type === 'request');
+		const usage = usageInfoToChatUsage(turn.usage);
+		assert.deepStrictEqual({
+			request: request?.type === 'request' ? {
+				prompt: request.prompt, hidden: request.isHidden, requestHidden: request.isRequestHidden, metadata: request.metadata, attachment: request.variableData?.variables[0]._meta,
+			} : undefined,
+			usage: { cost: usage?.copilotCredits, latest: usage?.latestModelCall },
+		}, {
+			request: { prompt: 'display', hidden: undefined, requestHidden: true, metadata: turn.message._meta, attachment: { 'copilot.attachmentDetail': detail } },
+			usage: { cost: undefined, latest: { cost: 0.5, duration: 10 } },
+		});
+	});
+
+	test('Copilot attachment details survive history alongside VS Code metadata', () => {
+		const detail = { type: 'selection', text: 'captured text', filePath: '/remote/file.ts', future: { value: true } };
+		const metadata = { 'copilot.attachmentDetail': detail, browserView: null };
+		const turn = createTurn({
+			message: {
+				text: 'Explain this selection',
+				origin: { kind: MessageKind.User },
+				attachments: [{ type: MessageAttachmentKind.Simple, label: 'file.ts', modelRepresentation: 'fallback text', _meta: metadata }],
+			},
+		});
+		const history = turnsToHistory(URI.parse('copilot:/session'), [turn], 'copilot');
+		const request = history.find(item => item.type === 'request');
+		const variable = request?.type === 'request' ? request.variableData?.variables[0] : undefined;
+		assert.deepStrictEqual(variable && { kind: variable.kind, value: variable.value, modelDescription: variable.modelDescription, metadata: variable._meta }, {
+			kind: 'generic', value: 'fallback text', modelDescription: 'captured text', metadata,
+		});
+	});
 
 	test('Fusion phases use subagent pills without inventing child chats', () => {
 		const phase = { fusionId: 'fusion-1', phaseId: 'phase-1', model: 'model-a', status: 'running', startedAt: 1000 };

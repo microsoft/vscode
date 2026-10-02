@@ -184,6 +184,17 @@ export interface IChatUsageModelTotal {
 }
 
 export interface IChatUsage {
+	readonly contextUsage?: { readonly currentTokens: number; readonly tokenLimit: number };
+	/** Optional latest-call diagnostics; costs here must not be added as turn totals. */
+	latestModelCall?: {
+		readonly cost?: number;
+		readonly reasoningTokens?: number;
+		readonly cacheWriteTokens?: number;
+		readonly duration?: number;
+		readonly timeToFirstTokenMs?: number;
+		readonly providerCallId?: string;
+		readonly serviceRequestId?: string;
+	};
 	promptTokens: number;
 	completionTokens: number;
 	outputBuffer?: number;
