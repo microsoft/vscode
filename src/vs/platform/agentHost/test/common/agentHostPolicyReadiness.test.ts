@@ -121,7 +121,6 @@ suite('AgentHostPolicyReadiness', () => {
 			}, {
 				[AgentNetworkDomainSettingId.NetworkFilter]: false,
 				[AgentSandboxSettingId.AgentSandboxEnabled]: enabled,
-				[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: enabled,
 			});
 			assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => gap.policyName),
 				['ChatAgentAllowedNetworkDomains', 'ChatAgentDeniedNetworkDomains']);
@@ -136,7 +135,6 @@ suite('AgentHostPolicyReadiness', () => {
 		}, {
 			[AgentNetworkDomainSettingId.NetworkFilter]: false,
 			[AgentSandboxSettingId.AgentSandboxEnabled]: 'on',
-			[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: 'on',
 		})), []);
 	});
 
@@ -150,7 +148,7 @@ suite('AgentHostPolicyReadiness', () => {
 			{
 				policyName: 'ChatAgentSandboxEnabled',
 				status: 'partial',
-				impact: 'Policy-required sandboxing blocks direct session Off overrides on macOS/Linux. Verify delayed policy loading and loss/reapplication of the last client\'s requirement across disconnect-grace expiry.',
+				impact: 'Policy-required sandboxing blocks direct session Off overrides on supported platforms. Verify delayed policy loading and loss/reapplication of the last client\'s requirement across disconnect-grace expiry.',
 			},
 			{
 				policyName: 'CopilotOtelCaptureIdentity',

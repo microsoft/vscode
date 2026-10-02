@@ -150,13 +150,13 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error) {
+	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess'>, allowLocalNetwork?: boolean) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const owner = 'copilot:/sess-1';
 		manager.createSession({ resource: owner, provider: 'copilot', title: 'sandbox', status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z' });
 		manager.setSessionConfig(owner, { schema: platformSessionSchema.toProtocol(), values: { sandboxEnabled: 'off' } });
-		configuration.updateRootConfig({ sandbox: { enabled: 'on', 'enabled.windows': 'on' } });
+		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 		let disconnected = false;
 		let captured: ResumeSessionConfig | undefined;
 		const updates: Array<{ sandboxConfig?: SandboxConfig }> = [];
@@ -173,6 +173,14 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 						if (allowOutbound === false && options.sandboxConfig?.userPolicy?.network?.allowOutbound === true) {
 							throw new Error('Sandbox configuration update violates managed policy');
 						}
+						if (allowLocalNetwork === false && options.sandboxConfig?.userPolicy?.network?.allowLocalNetwork === true) {
+							throw new Error('Local network access violates managed policy');
+						}
+						for (const [key, managedValue] of [['sandboxMcpServers', true], ['sandboxLspServers', true], ['allowDevToolAccess', false]] as const) {
+							if (sandboxToggles?.[key] === managedValue && options.sandboxConfig && options.sandboxConfig[key] !== managedValue) {
+								throw new Error(`${key} violates managed policy`);
+							}
+						}
 						updates.push(options);
 						return { success: true };
 					}
@@ -185,7 +193,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				config?.onEvent?.({
 					id: 'resolved', parentId: null, timestamp: '2026-01-01T00:00:00Z',
 					type: 'session.managed_settings_resolved', ephemeral: true,
-					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...(allowOutbound !== undefined ? { userPolicy: { network: { allowOutbound } } } : {}) } } : {} },
+					data: { source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: enforced ? ['sandbox'] : [], settings: enforced ? { sandbox: { enabled: true, allowBypass, ...sandboxToggles, userPolicy: { network: { ...(allowOutbound !== undefined ? { allowOutbound } : {}), ...(allowLocalNetwork !== undefined ? { allowLocalNetwork } : {}) } } } } : {} },
 				});
 			}
 			return raw;
@@ -249,7 +257,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 
 		test(`${kind} sends resolved outbound denial and preserves local bypass restrictions`, async () => {
 			const fixture = setup(kind, true, true, true, false);
-			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'off', 'enabled.windows': 'off', allowNetwork: true, allowUnsandboxedCommands: false } });
+			fixture.configuration.updateRootConfig({ sandbox: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false } });
 			store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
 			fixture.captured?.onEvent?.({
 				id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
@@ -262,9 +270,39 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			}, {
 				applied: [{ enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: {}, network: { allowOutbound: false } } }],
 				policy: { enabled: true, allowBypass: false, allowOutbound: false },
-				stored: { enabled: 'off', 'enabled.windows': 'off', allowNetwork: true, allowUnsandboxedCommands: false },
+				stored: { enabled: 'off', allowNetwork: true, allowUnsandboxedCommands: false },
 			});
 		});
+
+		test(`${kind} applies local network denial without widening local restrictions`, async () => {
+			for (const local of [false, true]) {
+				for (const managed of [undefined, false, true]) {
+					const fixture = setup(kind, true, true, false, undefined, undefined, undefined, managed);
+					fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', allowLocalNetwork: local } });
+					store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+					assert.deepStrictEqual(
+						fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.userPolicy?.network?.allowLocalNetwork),
+						[managed === false ? false : local],
+					);
+				}
+			}
+		});
+
+		for (const [key, managedValue] of [['sandboxMcpServers', true], ['sandboxLspServers', true], ['allowDevToolAccess', false]] as const) {
+			test(`${kind} applies the ${key} floor before completing launch`, async () => {
+				for (const local of [false, true]) {
+					for (const managed of [undefined, false, true]) {
+						const fixture = setup(kind, true, true, false, undefined, undefined, { [key]: managed });
+						fixture.configuration.updateRootConfig({ sandbox: { enabled: 'on', [key]: local } });
+						store.add(await fixture.launcher.launch(fixture.plan, testRuntime));
+						assert.deepStrictEqual(
+							fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.[key]),
+							[managed === managedValue ? managedValue : local],
+						);
+					}
+				}
+			});
+		}
 
 		for (const selection of ['on', 'off']) {
 			test(`${kind} applies SDK sandbox ${selection} when the custom terminal tool is enabled`, async () => {

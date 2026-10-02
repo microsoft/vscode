@@ -286,8 +286,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		const owner = resolveAgentHostSession(URI.parse(session)).toString();
 		const runtimePolicy = this._sessionSandboxPolicies.get(owner);
 		const sandbox = this.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		// Windows uses its own enablement setting, not ChatAgentSandboxEnabled.
-		if (process.platform === 'win32' || !this._managedSettingsService?.sandboxRequired) {
+		if (!this._managedSettingsService?.sandboxRequired) {
 			return runtimePolicy;
 		}
 		const runtimeAllowsBypass = runtimePolicy?.allowBypass !== false

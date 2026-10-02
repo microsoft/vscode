@@ -11,14 +11,14 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from '../../../../base/co
 import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { IManagedSettingsPresentationService } from '../../../services/configuration/common/managedSettingsPresentation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
-import { SandboxSettingsResolutionHelper } from '../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
+import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
@@ -187,7 +187,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		private readonly configurationService: IWorkbenchConfigurationService,
 		private readonly isSessionsWindow: boolean,
 		private readonly experimentalSettingsService: IExperimentalSettingsService,
-		private readonly managedSettingsService: IManagedSettingsService,
+		private readonly managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -360,7 +360,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
 		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
-		const policyValue = this.getManagedSandboxValue() ?? inspected.policyValue;
+		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key) ?? inspected.policyValue;
 		this.hasPolicyValue = policyValue !== undefined;
 		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.
@@ -423,23 +423,6 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.tags.add(AGENTS_WINDOW_SETTING_TAG);
 			}
 		}
-	}
-
-	private getManagedSandboxValue(): AgentSandboxEnabledValue | boolean | undefined {
-		if (this.setting.key === AgentSandboxSettingId.AgentSandboxAllowNetwork) {
-			const allowOutbound = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY);
-			return SandboxSettingsResolutionHelper.resolveAllowOutbound(undefined, typeof allowOutbound === 'boolean' ? allowOutbound : undefined);
-		}
-		const isSandboxEnabled = this.setting.key === AgentSandboxSettingId.AgentSandboxEnabled || this.setting.key === AgentSandboxSettingId.AgentSandboxWindowsEnabled;
-		if (!isSandboxEnabled && this.setting.key !== AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands) {
-			return undefined;
-		}
-		const enabled = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true;
-		const allowBypass = this.managedSettingsService.getManagedSettingValue(COPILOT_SANDBOX_ALLOW_BYPASS_KEY);
-		if (isSandboxEnabled) {
-			return SandboxSettingsResolutionHelper.resolveEnabled(undefined, enabled);
-		}
-		return SandboxSettingsResolutionHelper.resolveAllowBypass(undefined, typeof allowBypass === 'boolean' ? allowBypass : undefined, enabled);
 	}
 
 	matchesAllTags(tagFilters?: Set<string>): boolean {
@@ -626,7 +609,7 @@ export class SettingsTreeModel implements IDisposable {
 		@IProductService private readonly _productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IExperimentalSettingsService private readonly _experimentalSettingsService: IExperimentalSettingsService,
-		@IManagedSettingsService private readonly _managedSettingsService: IManagedSettingsService,
+		@IManagedSettingsPresentationService private readonly _managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
 	}
 
@@ -701,7 +684,7 @@ export class SettingsTreeModel implements IDisposable {
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
-				if (!child.setting.deprecationMessage) {
+				if (!child.setting.deprecationMessage || child.setting.deprecationMessageShowInSettings) {
 					children.push(child);
 				} else {
 					child.inspectSelf();
@@ -745,7 +728,7 @@ export class SettingsTreeModel implements IDisposable {
 			this._configurationService,
 			this._environmentService.isSessionsWindow,
 			this._experimentalSettingsService,
-			this._managedSettingsService);
+			this._managedSettingsPresentationService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
@@ -815,6 +798,24 @@ export function sanitizeId(id: string): string {
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
+	let displayLabel: string | undefined;
+	switch (key) {
+		case AgentSandboxSettingId.AgentSandboxAllowNetwork:
+			displayLabel = localize('agentSandbox.allowNetwork.label', "Allow Outbound Connections");
+			break;
+		case AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands:
+			displayLabel = localize('agentSandbox.allowUnsandboxedCommands.label', "Allow Sandbox Bypass");
+			break;
+		case AgentSandboxSettingId.AgentSandboxMcpServers:
+			displayLabel = localize('agentSandbox.mcpServers.label', "Sandbox MCP Servers");
+			break;
+		case AgentSandboxSettingId.AgentSandboxLspServers:
+			displayLabel = localize('agentSandbox.lspServers.label', "Sandbox LSP Servers");
+			break;
+		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
+			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");
+			break;
+	}
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
@@ -831,7 +832,7 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		key = '$(bracket) ' + key;
 	}
 
-	const label = wordifyKey(key);
+	const label = displayLabel ?? wordifyKey(key);
 	return { category, label };
 }
 
@@ -1045,9 +1046,9 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService,
 		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
-		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
+		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsPresentationService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });
