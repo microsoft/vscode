@@ -116,7 +116,7 @@ export interface ClipboardStoredMetadata {
 	version: 1;
 	id: string | undefined;
 	isFromEmptySelection: boolean | undefined;
-	isBlock: boolean;
+	isBlock: boolean | undefined;
 	multicursorText: string[] | null | undefined;
 	mode: string | null;
 }
