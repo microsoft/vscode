@@ -71,6 +71,8 @@ type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<
 const connectionDetails = {
 	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
+	firstFailurePhase: undefined, firstFailureCode: undefined,
+	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
 };
 
 function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T }, 'add'>, results: readonly ScriptedConnectResult[], waitForConnection?: () => Promise<IRemoteAgentHostConnectionInfo>, isSessionsWindow = false) {
@@ -775,7 +777,7 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
 				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, credentialRequests: 1, firstFailurePhase: 'credentials', credentialFailures: 1 } },
 				{ eventName: 'cloudSandboxConnectionHealth', data: { connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
@@ -810,7 +812,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, credentialRequests: 1, credentialsMs: 1700 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', credentialFailures: 1 } },
 			]);
 		}));
 

@@ -10,7 +10,7 @@ import type { URI } from '../../../base/common/uri.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgent } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
-import type { StateAction } from './state/sessionActions.js';
+import type { ActionOrigin, StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
@@ -158,6 +158,8 @@ export interface IDispatchedAction {
 	/** The owning session URI, or the channel itself when it is not a chat channel. */
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
+	/** Identifies a client-dispatched action; absent for server-dispatched actions. */
+	readonly origin?: ActionOrigin;
 	/** Set when the action was rejected and never reached state. */
 	readonly rejectionReason?: string;
 }

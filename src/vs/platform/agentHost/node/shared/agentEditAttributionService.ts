@@ -804,7 +804,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				...(source.chatSessionId !== undefined ? { chatSessionId: source.chatSessionId } : {}),
 				requestId: source.requestId,
 				origin: 'agentHost',
-				harness: source.harness,
+				provider: source.harness || 'unknown',
 				modifiedCount: prepared.retainedBySource.get(source.trackingKey) ?? 0,
 				deltaModifiedCount: source.insertedCount,
 				totalModifiedCount,
@@ -826,7 +826,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					...(data.chatSessionId !== undefined ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					origin: data.origin,
-					harness: data.harness,
+					provider: data.provider,
 				}, {
 					modifiedCount: data.modifiedCount,
 					deltaModifiedCount: data.deltaModifiedCount,

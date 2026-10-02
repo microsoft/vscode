@@ -13,6 +13,19 @@ import { createCloudSandboxConnectionCustomization } from '../../../browser/remo
 suite('CloudSandboxConnectionCustomization authentication', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('only cloud sandbox connections opt out of workspace trust', () => {
+		const service = new class extends mock<ICloudSandboxAgentHostService>() { }();
+		assert.deepStrictEqual({
+			sandbox: createCloudSandboxConnectionCustomization(cloudSandboxAddress('env-1'), service)?.requiresWorkspaceTrust,
+			ssh: createCloudSandboxConnectionCustomization('ssh:host', service),
+			websocket: createCloudSandboxConnectionCustomization('localhost:8080', service),
+		}, {
+			sandbox: false,
+			ssh: undefined,
+			websocket: undefined,
+		});
+	});
+
 	function createFixture(refresh: () => Promise<string | undefined> = async () => 'copilot-sealed.v1.key.fresh') {
 		const requests: string[] = [];
 		const service = new class extends mock<ICloudSandboxAgentHostService>() {

@@ -7,13 +7,14 @@ import { Event, Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { GitHubAccountHandle, GitHubRequestTimeoutError, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
-import { GitHubBackoffGate, GitHubBackoffPolicy } from './githubBackoff.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { GitHubRequestTimeoutError, IGitHubEndpointProvider, IGitHubTokenProvider } from './githubTypes.js';
+import { AccountHandle } from './types.js';
+import { BackoffGate, BackoffPolicy } from './backoff.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 
 export interface GitHubCredential {
-	readonly account: GitHubAccountHandle;
+	readonly account: AccountHandle;
 	readonly token: string;
 	readonly generation: number;
 	readonly signal: AbortSignal;
@@ -37,7 +38,7 @@ export interface IGitHubCredentials {
  * asks for a credential turns an authentication outage into a request storm,
  * because each refusal invalidates the generation the next request rebuilds.
  */
-const defaultBackoffPolicy: GitHubBackoffPolicy = {
+const defaultBackoffPolicy: BackoffPolicy = {
 	immediateRetries: 1,
 	base: 5_000,
 	maximum: 120_000,
@@ -48,7 +49,7 @@ const defaultBackoffPolicy: GitHubBackoffPolicy = {
 const credentialResolutionTimeout = 5 * 60_000;
 
 /** Bounds credential selection and resolution, including providers that do not honor cancellation. */
-export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<T>, scheduler: IGitHubScheduler = systemGitHubScheduler): Promise<T> {
+export async function withGitHubCredentialDeadline<T>(signal: AbortSignal, task: (signal: AbortSignal, deadline: number) => Promise<T>, scheduler: IRequestScheduler = systemRequestScheduler): Promise<T> {
 	const controller = new AbortController();
 	const combinedSignal = AbortSignal.any([signal, controller.signal]);
 	const deadline = scheduler.now() + credentialResolutionTimeout;
@@ -87,13 +88,13 @@ interface IGitHubUserResponse {
 
 export class GitHubCredentialService extends Disposable implements IGitHubCredentials {
 
-	static createBackoff(scheduler: IGitHubScheduler = systemGitHubScheduler, logService?: ILogService): GitHubBackoffGate {
-		return new GitHubBackoffGate('GitHub identity resolution', defaultBackoffPolicy, scheduler, logService);
+	static createBackoff(scheduler: IRequestScheduler = systemRequestScheduler, logService?: ILogService): BackoffGate {
+		return new BackoffGate('GitHub identity resolution', defaultBackoffPolicy, scheduler, logService);
 	}
 
 	private readonly _onDidInvalidate = this._register(new Emitter<GitHubCredentialInvalidation>());
 	readonly onDidInvalidate = this._onDidInvalidate.event;
-	private readonly _backoff: GitHubBackoffGate;
+	private readonly _backoff: BackoffGate;
 	private _current: ICredentialGeneration | undefined;
 	private _lastCredential: GitHubCredential | undefined;
 	private _generation = 0;
@@ -101,17 +102,17 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 	private readonly _identity = generateUuid();
 
 	constructor(
-		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
-		policy: GitHubBackoffPolicy = defaultBackoffPolicy,
+		private readonly _scheduler: IRequestScheduler = systemRequestScheduler,
+		policy: BackoffPolicy = defaultBackoffPolicy,
 		private readonly _transport: IGitHubTransport,
 		private readonly _tokenProvider: IGitHubTokenProvider,
 		private readonly _endpointProvider: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
-		private readonly _bootstrapQuotaAccount?: GitHubAccountHandle,
-		backoff?: GitHubBackoffGate,
+		private readonly _bootstrapQuotaAccount?: AccountHandle,
+		backoff?: BackoffGate,
 	) {
 		super();
-		this._backoff = backoff ?? this._register(new GitHubBackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
+		this._backoff = backoff ?? this._register(new BackoffGate('GitHub identity resolution', policy, this._scheduler, _logService));
 		if (this._tokenProvider.onDidChangeToken) {
 			this._register(this._tokenProvider.onDidChangeToken(() => this._invalidateCurrent('replacement')));
 		}
@@ -205,7 +206,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 			const controller = new AbortController();
 			const apiBaseUri = this._endpointProvider.getApiBaseUri();
 			const host = new URL(apiBaseUri).host.toLowerCase();
-			const bootstrapAccount: GitHubAccountHandle = { host, accountId: `bootstrap:${this._identity}:${generation}` };
+			const bootstrapAccount: AccountHandle = { host, accountId: `bootstrap:${this._identity}:${generation}` };
 			if (this._bootstrapQuotaAccount) {
 				this._transport.rateLimits.preserveCooldown(bootstrapAccount, 'core', this._transport.rateLimits.getDelay(this._bootstrapQuotaAccount, 'core'));
 			}
@@ -271,7 +272,7 @@ export class GitHubCredentialService extends Disposable implements IGitHubCreden
 		return new URL(this._endpointProvider.getApiBaseUri()).host.toLowerCase();
 	}
 
-	private async _resolveIdentity(token: string, generation: number, bootstrapAccount: GitHubAccountHandle, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
+	private async _resolveIdentity(token: string, generation: number, bootstrapAccount: AccountHandle, apiBaseUri: string, signal: AbortSignal): Promise<GitHubCredential> {
 		let response;
 		try {
 			response = await this._transport.rest<IGitHubUserResponse>(bootstrapAccount, token, {
@@ -354,7 +355,7 @@ function credentialErrorKind(error: unknown): string {
 	return error instanceof Error ? error.name : typeof error;
 }
 
-function sameAccount(left: GitHubAccountHandle, right: GitHubAccountHandle): boolean {
+function sameAccount(left: AccountHandle, right: AccountHandle): boolean {
 	return left.host.toLowerCase() === right.host.toLowerCase() && left.accountId === right.accountId;
 }
 

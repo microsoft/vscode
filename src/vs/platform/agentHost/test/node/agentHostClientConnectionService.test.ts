@@ -12,6 +12,29 @@ import { AgentHostClientConnectionService } from '../../node/agentHostClientConn
 suite('AgentHostClientConnectionService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('reports locality from registered sources and drops it when a source is removed', () => {
+		const service = store.add(new AgentHostClientConnectionService());
+		const withoutSources = service.isLocalClient('local');
+		for (const local of [false, true]) {
+			const registration = store.add(service.registerSource({
+				hasSeenClient: () => true,
+				isClientConnected: () => true,
+				isLocalClient: clientId => local && clientId === 'local',
+				getConnectedClientTransportCounts: () => new Map(),
+				requestWorkspaceTrust: async () => false,
+				requestMcpAuthentication: async () => false,
+			}));
+			if (local) {
+				const withLocalSource = service.isLocalClient('local');
+				const otherClient = service.isLocalClient('other');
+				registration.dispose();
+				assert.deepStrictEqual({ withoutSources, withLocalSource, otherClient, afterRemoval: service.isLocalClient('local') }, {
+					withoutSources: false, withLocalSource: true, otherClient: false, afterRemoval: false,
+				});
+			}
+		}
+	});
+
 	test('requests MCP authentication from sources in order until successful', async () => {
 		const service = store.add(new AgentHostClientConnectionService());
 		const request: IAgentHostMcpAuthenticationRequest = {
@@ -24,6 +47,7 @@ suite('AgentHostClientConnectionService', () => {
 			store.add(service.registerSource({
 				hasSeenClient: () => false,
 				isClientConnected: () => false,
+				isLocalClient: () => false,
 				getConnectedClientTransportCounts: () => new Map(),
 				requestWorkspaceTrust: async () => false,
 				requestMcpAuthentication: async request => {

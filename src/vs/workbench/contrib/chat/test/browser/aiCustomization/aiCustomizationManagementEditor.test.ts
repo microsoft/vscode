@@ -19,7 +19,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -40,7 +40,7 @@ import { AICustomizationManagementSection, AICustomizationSources, type AICustom
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { CustomizationMigrationTargetFolders, IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
-import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
+import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -49,6 +49,8 @@ import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatform
 import type { ICustomizationMigrationDashboardActivity, ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -80,6 +82,64 @@ suite('aiCustomizationManagementEditor', () => {
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
 		], [true, false, false, false]);
+	});
+
+	test('routes installed discovery items to their focused list rows', async () => {
+		const skillUri = URI.file('/skills/security/SKILL.md');
+		const pluginUri = URI.file('/plugins/security');
+		const calls: string[] = [];
+		const sectionLoad = new DeferredPromise<void>();
+		const editor = {
+			listWidgetSectionLoad: Promise.resolve(),
+			selectSection: (section: AICustomizationManagementSection) => {
+				calls.push(`section:${section}`);
+				editor.listWidgetSectionLoad = section === AICustomizationManagementSection.Skills ? sectionLoad.p : Promise.resolve();
+			},
+			isPromptsSection: (section: AICustomizationManagementSection) => section === AICustomizationManagementSection.Skills,
+			revealCustomizationByUri: async (uri: URI) => { calls.push(`prompt:${uri.path}`); },
+			pluginListWidget: {
+				revealAndSelectItemByUri: async (uri: URI) => {
+					calls.push(`plugin:${uri.path}`);
+					return true;
+				},
+			},
+			mcpListWidget: {
+				revealAndSelectServer: (serverId: string | undefined, name: string, connectorName?: string) => {
+					calls.push(`mcp:${serverId}:${name}:${connectorName}`);
+					return true;
+				},
+			},
+		};
+		const revealInstalledCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'revealInstalledCustomization') as (
+			this: typeof editor,
+			target: IInstalledCustomizationTarget,
+		) => Promise<void>;
+
+		const skillNavigation = revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.Skills, name: 'Security skill', uri: skillUri });
+		await timeout(0);
+		const beforeSectionLoaded = [...calls];
+		sectionLoad.complete();
+		await skillNavigation;
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.Plugins, name: 'Security plugin', uri: pluginUri });
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Security server', mcpServerId: 'security-server' });
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Mail', mcpConnectorName: 'mail' });
+
+		assert.deepStrictEqual({
+			beforeSectionLoaded,
+			calls,
+		}, {
+			beforeSectionLoaded: [`section:${AICustomizationManagementSection.Skills}`],
+			calls: [
+				`section:${AICustomizationManagementSection.Skills}`,
+				'prompt:/skills/security/SKILL.md',
+				`section:${AICustomizationManagementSection.Plugins}`,
+				'plugin:/plugins/security',
+				`section:${AICustomizationManagementSection.McpServers}`,
+				'mcp:security-server:Security server:undefined',
+				`section:${AICustomizationManagementSection.McpServers}`,
+				'mcp:undefined:Mail:mail',
+			],
+		});
 	});
 
 	test('marks an MCP detail migratable from the authoritative candidate', () => {
@@ -171,6 +231,7 @@ suite('aiCustomizationManagementEditor', () => {
 		hoverService: IHoverService;
 		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
+		telemetryService: ITelemetryService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
 		migrationFlowId: string | undefined;
@@ -256,7 +317,14 @@ suite('aiCustomizationManagementEditor', () => {
 		setVisible(visible: boolean): void;
 	};
 
-	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
+	type MutableConfigurationInspection = {
+		-readonly [Key in keyof IConfigurationValue<boolean>]?: IConfigurationValue<boolean>[Key];
+	};
+
+	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService & {
+		setValue(key: string, value: unknown): void;
+		inspectValues: MutableConfigurationInspection;
+	} {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
@@ -264,17 +332,23 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
+		const inspectValues: MutableConfigurationInspection = {};
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
-			inspect: (key: string) => ({
+			inspect: <T>(key: string) => ({
 				key,
 				value: merged[key],
 				defaultValue: undefined,
 				policyValue: undefined,
-			}),
+				...inspectValues,
+			}) as IConfigurationValue<Readonly<T>>,
+			inspectValues,
 			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
-		} as unknown as IConfigurationService & { setValue(key: string, value: unknown): void };
+		} as unknown as IConfigurationService & {
+			setValue(key: string, value: unknown): void;
+			inspectValues: MutableConfigurationInspection;
+		};
 	}
 
 	function createTestEditor(hoverService?: IHoverService, configurationService?: IConfigurationService): TestableEditor {
@@ -581,7 +655,9 @@ suite('aiCustomizationManagementEditor', () => {
 	test('showing Discover from its navigation button resets its filters', () => {
 		const { editor } = createContributedSectionEditor();
 		const calls: string[] = [];
+		const homeButton = $('button');
 		Object.assign(editor, {
+			homeButton,
 			welcomePage: {
 				container: $('div'),
 				setVisible() { },
@@ -593,7 +669,15 @@ suite('aiCustomizationManagementEditor', () => {
 
 		editor.showWelcomePage({ resetFilters: true });
 
-		assert.deepStrictEqual(calls, ['resetFilters']);
+		assert.deepStrictEqual({
+			calls,
+			selected: homeButton.classList.contains('selected'),
+			ariaCurrent: homeButton.getAttribute('aria-current'),
+		}, {
+			calls: ['resetFilters'],
+			selected: true,
+			ariaCurrent: 'page',
+		});
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {
@@ -686,6 +770,48 @@ suite('aiCustomizationManagementEditor', () => {
 		await editor.setInput(reopenedInput, undefined, {}, CancellationToken.None);
 
 		assert.deepStrictEqual(visibilityChanges, [false, true]);
+	});
+
+	test('triggers the Marketplace experiment only when the default is visible in either arm', async () => {
+		const { editor } = createContributedSectionEditor();
+		const configurationService = editor.configurationService as ReturnType<typeof createConfigurationServiceStub>;
+		const control = new TestExperimentTriggerTelemetryService();
+		const treatment = new TestExperimentTriggerTelemetryService();
+		const userConfigured = new TestExperimentTriggerTelemetryService();
+		const policyConfigured = new TestExperimentTriggerTelemetryService();
+		const controlInput = store.add(new AICustomizationManagementEditorInput());
+		const treatmentInput = store.add(new AICustomizationManagementEditorInput());
+		const userInput = store.add(new AICustomizationManagementEditorInput());
+		const policyInput = store.add(new AICustomizationManagementEditorInput());
+
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		editor.telemetryService = control;
+		await editor.setInput(controlInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.telemetryService = treatment;
+		await editor.setInput(treatmentInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		configurationService.inspectValues.userLocalValue = true;
+		editor.telemetryService = userConfigured;
+		await editor.setInput(userInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		delete configurationService.inspectValues.userLocalValue;
+		configurationService.inspectValues.policyValue = true;
+		editor.telemetryService = policyConfigured;
+		await editor.setInput(policyInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			control: control.triggers,
+			treatment: treatment.triggers,
+			userConfigured: userConfigured.triggers,
+			policyConfigured: policyConfigured.triggers,
+		}, {
+			control: ['config.chat.customizations.marketplace.enabled'],
+			treatment: ['config.chat.customizations.marketplace.enabled'],
+			userConfigured: [],
+			policyConfigured: [],
+		});
 	});
 
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {

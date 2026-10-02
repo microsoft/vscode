@@ -683,6 +683,7 @@ export class NewChatWidget extends Disposable {
 				phrases,
 				this._welcomePhraseIndex,
 			);
+			chatWidgetContent.classList.toggle('welcome-phrases-visible', !!phrase);
 			this._announceWelcomeMessage(phrase, inputVisible);
 		}));
 		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => void this._refreshGitHubProfileName()));

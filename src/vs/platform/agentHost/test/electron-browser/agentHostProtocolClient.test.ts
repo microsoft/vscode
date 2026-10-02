@@ -26,6 +26,7 @@ import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -43,7 +44,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -809,6 +810,38 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		const summary = (id: string, _meta?: Record<string, unknown>) => ({
+			resource: `agent-session://codex/${id}`,
+			provider: 'codex',
+			title: id,
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			...(_meta ? { _meta } : {}),
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [
+					summary('valid', withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					summary('malformed', { [CODEX_SESSION_MODEL_META_KEY]: { id: 'gpt-5.6-sol' } }),
+					summary('absent'),
+				],
+			},
+		});
+
+		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
+			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
+			{ provider: 'codex', model: undefined },
+			{ provider: 'codex', model: undefined },
+		]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
@@ -1758,7 +1791,6 @@ suite('AgentHostProtocolClient', () => {
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1797,10 +1829,40 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
-		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		test(`forwards sandbox policy independently of ordinary settings and the permission bridge (${String(identity)})`, async () => {
+			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+			const configurationService = new class extends TestConfigurationService {
+				policyActive = false;
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === setting && this.policyActive ? inspected.value : undefined };
+				}
+			}({ [setting]: 'on' });
+			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
+			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
+			await connectClient(client, transport);
+			assert.deepStrictEqual(contributions(), [expected(false)]);
+
+			for (const policyActive of [true, false]) {
+				transport.sentMessages.length = 0;
+				configurationService.policyActive = policyActive;
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(policyActive)]);
+			}
+			configurationService.policyActive = true;
+			for (const value of [true, false, 'off', 'on']) {
+				transport.sentMessages.length = 0;
+				await configurationService.setUserConfiguration(setting, value);
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(value === true || value === 'on')]);
+			}
 		});
+	}
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({});
 		// Isolate this setting's notification path from the global auto-approve mapping.
 		configurationService.clearGlobalAutoApprovePolicy();
 		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
@@ -3082,7 +3144,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -3090,10 +3152,11 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
+			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
-			return { client, transports };
+			return { client, transports, configurationService };
 		}
 
 		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>, meta?: Record<string, unknown>): Promise<void> {
@@ -3873,6 +3936,28 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('includes the required root channel in reconnect requests', async () => {
+			const { client, transports } = createFactoryClient();
+			await runWithFakedTimers({}, async () => {
+				await completeHandshake(transports[0], client.connect());
+
+				const { transport, request } = await beginRecovery(client, transports);
+				assert.deepStrictEqual(request.params, {
+					channel: ROOT_STATE_URI,
+					clientId: client.clientId,
+					lastSeenServerSeq: 5,
+					subscriptions: [ROOT_STATE_URI],
+					_meta: { 'vscode.telemetryLevel': 'off' },
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await waitForConnectedWithin(client);
+				client.dispose();
+			});
+		});
+
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
@@ -3981,9 +4066,11 @@ suite('AgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
+				assert.ok(sandboxPolicyIndex >= 0 && sandboxPolicyIndex < listSessionsIndex, 'sandbox policy must be sent before requests triggered by the connected transition');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -3992,7 +4079,13 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+			const inspect = configurationService.inspect.bind(configurationService);
+			configurationService.inspect = <T>(key: string) => {
+				const inspected = inspect<T>(key);
+				return { ...inspected, policyValue: key === AgentSandboxSettingId.AgentSandboxEnabled ? inspected.value : undefined };
+			};
 			const sessionUri = URI.parse('copilot:/test-session');
 			const chatUri = URI.parse('ahp-chat://default/test-session');
 			const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
@@ -4069,6 +4162,10 @@ suite('AgentHostProtocolClient', () => {
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			assert.ok(sandboxPolicy, 'sandbox policy should be restored after fresh initialization');
+			assert.deepStrictEqual(sandboxPolicy, { jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required: true } });
+			assert.ok(reconnectTransport.sentMessages.indexOf(sandboxPolicy) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate));
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),

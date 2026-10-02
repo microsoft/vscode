@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -102,8 +102,10 @@ class TestChat extends mock<IChat>() {
 	override readonly origin: IChat['origin'];
 	override readonly title: IObservable<string>;
 	override readonly status: ISettableObservable<SessionStatus>;
+	override readonly isArchived = observableValue(this, false);
 	override readonly isRead: IObservable<boolean> = constObservable(true);
 	override readonly interactivity: ISettableObservable<ChatInteractivity>;
+	override readonly capabilities = observableValue(this, { canRename: true, canArchive: false, canDelete: true });
 
 	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI, originKind = ChatOriginKind.Tool) {
 		super();
@@ -451,6 +453,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const { instantiationService, view, configurationService } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
+		secondary.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const sideChat = createChat('side', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
 		const session = new TestActiveSession([main, secondary, sideChat], [main, secondary]);
 		view.setSession(session, options);
@@ -472,8 +475,19 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const closeActionContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsClosableContext.key));
+		const deleteActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsDeletableContext.key));
+		const archiveActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		secondary.isArchived.set(true, undefined);
+		const archivedActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		const untitledChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsUntitledContext.key));
 		const headerShowsChatContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const headerTargetsChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderTargetsChatContext.key));
 		const activeChatResources = groups.map(group =>
 			contextKeyService.getContext(group).getValue<string>(SessionActiveChatResourceContext.key));
 		const activeChatHasSideChats = groups.map(group =>
@@ -482,7 +496,12 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({
 			groups: readGroups(),
 			closeActionContexts,
+			deleteActionContexts,
+			archiveActionContexts,
+			archivedActionContexts,
+			untitledChatContexts,
 			headerShowsChatContexts,
+			headerTargetsChatContexts,
 			activeChatResources,
 			activeChatHasSideChats,
 		}, {
@@ -499,7 +518,12 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			],
 			closeActionContexts: [true, true],
+			deleteActionContexts: [false, true],
+			archiveActionContexts: [false, true],
+			archivedActionContexts: [false, false],
+			untitledChatContexts: [false, false],
 			headerShowsChatContexts: [true, true],
+			headerTargetsChatContexts: [false, true],
 			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
 			activeChatHasSideChats: [true, false],
 		});
@@ -1547,21 +1571,27 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const singleGroup = view.element.querySelector<HTMLElement>('.chat-group-view')!;
 		const singleGroupHeaderShowsChat = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionHeaderShowsChatContext.key);
+		const singleGroupToolbarShowsSession = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionToolbarShowsSessionContext.key);
 		view.splitChatToSide(secondary.resource);
-		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
-		const splitGroupHeaderShowsChat = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
-			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const splitGroupActions = splitGroups.map(group => group.querySelector<HTMLElement>('.session-chat-tabs-actions'));
+		const splitGroupHeaderShowsChat = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroupToolbarShowsSession = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionToolbarShowsSessionContext.key));
 
 		assert.deepStrictEqual({
 			singleGroupHidden,
 			singleGroupHeaderShowsChat,
-			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+			singleGroupToolbarShowsSession,
+			splitGroupsHidden: splitGroupActions.map(actions => actions?.classList.contains('hidden')),
 			splitGroupHeaderShowsChat,
+			splitGroupToolbarShowsSession,
 		}, {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
+			singleGroupToolbarShowsSession: true,
 			splitGroupsHidden: [true, true],
 			splitGroupHeaderShowsChat: [false, false],
+			splitGroupToolbarShowsSession: [false, false],
 		});
 	});
 

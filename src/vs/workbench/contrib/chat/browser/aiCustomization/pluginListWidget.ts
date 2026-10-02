@@ -47,6 +47,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
@@ -57,6 +58,7 @@ import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
+import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 
 const $ = DOM.$;
 
@@ -822,6 +824,7 @@ export class PluginListWidget extends Disposable {
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -1834,17 +1837,23 @@ export class PluginListWidget extends Disposable {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
 		try {
-			await this.pluginInstallService.installPlugin({
-				name: item.name,
-				description: item.description,
-				version: item.version ?? '',
-				sourceDescriptor: item.sourceDescriptor,
-				source: item.source,
-				marketplace: item.marketplace,
-				marketplaceReference: item.marketplaceReference,
-				marketplaceType: item.marketplaceType,
-				readmeUri: item.readmeUri,
-			});
+			await runCustomizationMarketplaceInstallWithTelemetry(
+				this.telemetryService,
+				getAvailableCustomizationMarketplaceInstallTelemetryContext('plugin'),
+				async () => {
+					await this.pluginInstallService.installPlugin({
+						name: item.name,
+						description: item.description,
+						version: item.version ?? '',
+						sourceDescriptor: item.sourceDescriptor,
+						source: item.source,
+						marketplace: item.marketplace,
+						marketplaceReference: item.marketplaceReference,
+						marketplaceType: item.marketplaceType,
+						readmeUri: item.readmeUri,
+					});
+				},
+			);
 			button.label = localize('installed', "Installed");
 			void this.refresh();
 		} catch (error) {
@@ -2224,6 +2233,30 @@ export class PluginListWidget extends Disposable {
 		if (entries.length > 0) {
 			this.list.reveal(entries[entries.length - 1]);
 		}
+	}
+
+	async revealAndSelectItemByUri(uri: URI): Promise<boolean> {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
+		if (this.searchQuery) {
+			this.searchInput.value = '';
+			this.searchQuery = '';
+			this.delayedFilter.cancel();
+		}
+		await this.filterPlugins();
+		const entry = this.getVisiblePluginEntries().find(entry =>
+			entry.type === 'plugin-item' && isEqual(entry.item.plugin.uri, uri)
+			|| entry.type === 'remote-item' && isEqual(entry.item.uri, uri)
+		);
+		if (!entry) {
+			return false;
+		}
+		this.list.reveal(entry);
+		this.list.setFocus([entry]);
+		this.list.setSelection([entry]);
+		this.list.domFocus();
+		return true;
 	}
 
 	focus(): void {
