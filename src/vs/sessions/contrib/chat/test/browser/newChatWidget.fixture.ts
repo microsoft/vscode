@@ -941,17 +941,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& permissionsBounds.right <= controlsBounds.right
 				&& permissionsBounds.left >= bottomBounds.left
 				&& permissionsBounds.right <= bottomBounds.right,
-			`The separate phone permissions control must be fully visible at the start of the chip lane. controls=${controlsBounds?.width}/${controlsContainer?.scrollWidth}, session=${sessionControls?.clientWidth}/${sessionControls?.scrollWidth}, permissions=${permissionsBounds?.width}`);
+				`The separate phone permissions control must be fully visible at the start of the chip lane. controls=${controlsBounds?.width}/${controlsContainer?.scrollWidth}, session=${sessionControls?.clientWidth}/${sessionControls?.scrollWidth}, permissions=${permissionsBounds?.width}`);
 		} else if (withControlPickers) {
 			const permissionsLabel = Array.from(promptBox.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label'))
 				.find(label => label.textContent === 'Manual permissions');
 			const permissionsBounds = permissionsLabel?.closest<HTMLElement>('.action-label')?.getBoundingClientRect();
 			const promptBounds = promptBox.getBoundingClientRect();
-			assert(permissionsLabel?.checkVisibility()
+			assert(!!permissionsLabel?.checkVisibility()
 				&& !!permissionsBounds
 				&& permissionsBounds.left >= promptBounds.left
 				&& permissionsBounds.right <= promptBounds.right,
-			'The experimental phone composer must keep the separate permissions control visible inside the input.');
+				'The experimental phone composer must keep the separate permissions control visible inside the input.');
 		}
 		const attachButton = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button');
 		const sendButton = view.element.querySelector<HTMLElement>('.sessions-chat-send-button');
@@ -965,14 +965,18 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
 		const welcomeMessage = view.element.querySelector<HTMLElement>('.new-session-welcome-message');
 		const workspacePickerContainer = view.element.querySelector<HTMLElement>('.new-session-workspace-picker-container');
+		const workspacePicker = view.element.querySelector<HTMLElement>('.sessions-workspace-category-picker');
 		const containerBounds = container.getBoundingClientRect();
 		const contentBounds = content?.getBoundingClientRect();
 		const welcomeBounds = welcomeMessage?.getBoundingClientRect();
 		const workspaceBounds = workspacePickerContainer?.getBoundingClientRect();
-		assert(!!contentBounds && !!welcomeBounds && !!workspaceBounds
-			&& welcomeBounds.top >= containerBounds.top + containerBounds.height * 0.15
-			&& welcomeBounds.bottom < workspaceBounds.top,
-			'Phone welcome phrases must stay grouped above the centered workspace hero.');
+		const workspacePickerBounds = workspacePicker?.getBoundingClientRect();
+		assert(!!contentBounds && !!welcomeBounds && !!workspaceBounds && !!workspacePickerBounds
+			&& welcomeBounds.top >= containerBounds.top + containerBounds.height * 0.2
+			&& welcomeBounds.bottom < workspacePickerBounds.top
+			&& workspacePickerBounds.top >= containerBounds.top + containerBounds.height * 0.4
+			&& workspacePickerBounds.bottom <= containerBounds.top + containerBounds.height * 0.55,
+			'Phone welcome phrases must move toward the centered workspace hero without shifting the hero itself.');
 	}
 	if (withAutoModel) {
 		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
@@ -1015,7 +1019,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			const searchInput = search?.querySelector<HTMLInputElement>('.mobile-picker-sheet-search-input');
 			const sheetBounds = sheet?.getBoundingClientRect();
 			const searchBounds = search?.getBoundingClientRect();
-			assert(!!sheetBounds && !!searchBounds && !!searchInput
+			assert(!!sheetBounds && !!searchBounds && !!search && !!searchInput
 				&& searchBounds.left >= sheetBounds.left && searchBounds.right <= sheetBounds.right
 				&& targetWindow.getComputedStyle(searchInput).outlineStyle === 'none'
 				&& targetWindow.getComputedStyle(search).outlineStyle === 'solid',
