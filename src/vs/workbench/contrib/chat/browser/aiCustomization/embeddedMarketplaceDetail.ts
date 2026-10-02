@@ -32,6 +32,7 @@ const $ = DOM.$;
 export interface IEmbeddedMarketplaceDetailOptions {
 	readonly getSourceLabel: (sourceId: string) => string;
 	readonly install: (resource: ICustomizationMarketplaceResource) => Promise<void>;
+	readonly runPrompt: (prompt: string) => Promise<void>;
 	readonly openExternal: (resource: URI | string) => Promise<void>;
 }
 
@@ -208,7 +209,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		this.renderIcon();
 		this.descriptionEl.textContent = resource.description || localize('marketplaceDetail.noDescription', "No description provided.");
-		this.renderQueries(resource.representativeQueries);
+		this.renderQueries(resource);
 		this.appendFact(localize('marketplaceDetail.type', "Type"), getMarketplaceTypeLabel(resource));
 		if (resource.publisher) {
 			this.appendFact(localize('marketplaceDetail.publisher', "Publisher"), this.createLink(resource.publisher, publisherUrl));
@@ -286,13 +287,36 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		renderCustomizationMarketplaceIcon(this.iconEl, fallbackIcon, resource.icon, this.themeService.getColorTheme().type, this.iconDisposables);
 	}
 
-	private renderQueries(queries: readonly string[]): void {
+	private renderQueries(resource: ICustomizationMarketplaceResource): void {
 		const section = this.queriesEl.parentElement;
 		if (section) {
-			section.style.display = queries.length ? '' : 'none';
+			section.style.display = resource.representativeQueries.length ? '' : 'none';
 		}
-		for (const query of queries) {
-			DOM.append(this.queriesEl, $('li')).textContent = query;
+		for (const query of resource.representativeQueries) {
+			const item = DOM.append(this.queriesEl, $('li'));
+			const button = DOM.append(item, $('button.marketplace-detail-query-button', {
+				type: 'button',
+				'aria-label': localize('marketplaceDetail.runQueryAria', "Install {0} and run prompt: {1}", resource.displayName, query),
+			})) as HTMLButtonElement;
+			DOM.append(button, $('span.marketplace-detail-query-text')).textContent = query;
+			const action = DOM.append(button, $('span.marketplace-detail-query-action'));
+			DOM.append(action, $('span.marketplace-detail-query-action-label')).textContent = localize('marketplaceDetail.runQuery', "Run");
+			const icon = DOM.append(action, $(`span.codicon.codicon-${Codicon.arrowRight.id}`));
+			icon.setAttribute('aria-hidden', 'true');
+			this.renderDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, async () => {
+				button.disabled = true;
+				button.setAttribute('aria-busy', 'true');
+				try {
+					await this.options.install(resource);
+					await this.options.runPrompt(query);
+					status(localize('marketplaceDetail.promptStartedStatus', "Started a new Copilot session with {0}.", resource.displayName));
+				} catch (error) {
+					this.notificationService.error(localize('marketplaceDetail.runPromptError', "Could not run the prompt with {0}. {1}", resource.displayName, getErrorMessage(error)));
+				} finally {
+					button.disabled = false;
+					button.removeAttribute('aria-busy');
+				}
+			}));
 		}
 	}
 

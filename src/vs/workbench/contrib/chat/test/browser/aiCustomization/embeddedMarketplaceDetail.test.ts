@@ -22,11 +22,21 @@ import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallS
 suite('EmbeddedMarketplaceDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(resource: ICustomizationMarketplaceResource, readmeContent?: string, installState: CustomizationMarketplaceInstallState = { kind: 'available' }) {
+	function render(
+		resource: ICustomizationMarketplaceResource,
+		readmeContent?: string,
+		actions: {
+			readonly install?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
+			readonly repair?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
+			readonly runPrompt?: (prompt: string) => Promise<void>;
+			readonly installState?: CustomizationMarketplaceInstallState;
+		} = {},
+	) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const installChangeEmitter = store.add(new Emitter<void>());
+		let installState = actions.installState ?? { kind: 'available' };
 		let requestCount = 0;
 		let installCount = 0;
 		let repairCount = 0;
@@ -36,7 +46,11 @@ suite('EmbeddedMarketplaceDetail', () => {
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChangeEmitter.event;
 			override getInstallState() { return installState; }
-			override async repair() { repairCount++; }
+			override async repair(resource: ICustomizationMarketplaceResource) {
+				repairCount++;
+				await actions.repair?.(resource);
+				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+			}
 			override async uninstall() { uninstallCount++; }
 		}());
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
@@ -50,7 +64,12 @@ suite('EmbeddedMarketplaceDetail', () => {
 		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
 			getSourceLabel: () => 'Marketplace',
-			install: async () => { installCount++; },
+			install: async resource => {
+				installCount++;
+				await actions.install?.(resource);
+				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+			},
+			runPrompt: actions.runPrompt ?? (async () => { }),
 			openExternal: async resource => { openedExternal.push(resource); },
 		}));
 		detail.setInput(resource);
@@ -89,7 +108,8 @@ suite('EmbeddedMarketplaceDetail', () => {
 			publisherHref: parent.querySelector<HTMLAnchorElement>('.embedded-detail-publisher')?.getAttribute('href'),
 			icon: parent.querySelector<HTMLImageElement>('.marketplace-detail-icon img')?.getAttribute('src'),
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			queries: [...parent.querySelectorAll('.marketplace-detail-query-list li')].map(element => element.textContent),
+			queries: [...parent.querySelectorAll('.marketplace-detail-query-text')].map(element => element.textContent),
+			queryActions: [...parent.querySelectorAll('.marketplace-detail-query-action-label')].map(element => element.textContent),
 			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			openedExternal: getOpenedExternal(),
@@ -101,10 +121,44 @@ suite('EmbeddedMarketplaceDetail', () => {
 			icon: 'https://example.com/review.svg',
 			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
 			queries: ['Review this change'],
+			queryActions: ['Run'],
 			links: ['Example', 'Marketplace', 'example/review'],
 			actions: ['Install'],
 			openedExternal: ['https://github.com/example'],
 			accessible: 'Repository review\n\nExample\n\nReviews pull requests.\n\nTry this: Review this change\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
+		});
+	});
+
+	test('installs the item before running a representative query', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent } = render(resource, undefined, {
+			install: async installedResource => { calls.push(`install:${installedResource.identifier}`); },
+			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
+		});
+
+		parent.querySelector<HTMLButtonElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls,
+			label: parent.querySelector('.marketplace-detail-query-text')?.textContent,
+			ariaLabel: parent.querySelector('.marketplace-detail-query-button')?.getAttribute('aria-label'),
+			ariaBusy: parent.querySelector('.marketplace-detail-query-button')?.getAttribute('aria-busy'),
+		}, {
+			calls: ['install:review', 'prompt:Review this change'],
+			label: 'Review this change',
+			ariaLabel: 'Install Repository review and run prompt: Review this change',
+			ariaBusy: null,
 		});
 	});
 
