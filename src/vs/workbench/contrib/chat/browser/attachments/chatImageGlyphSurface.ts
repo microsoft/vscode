@@ -22,7 +22,7 @@ const firstPaletteTone = 12;
 const crestStart = 0.36;
 const waveThreshold = 0.12;
 const wakeLength = 1.8;
-const message = 'HAPPY_CODING!';
+const message = 'HAPPYCODING!';
 const messageBits = [...message].map(character => character.charCodeAt(0).toString(2).padStart(8, '0')).join('');
 const openLength = 900;
 const passLength = 1500;
@@ -32,10 +32,9 @@ function resizeLength(fromWidth: number, toWidth: number): number {
 	return change < 1 ? 0 : Math.min(600, 360 + change * 1.25);
 }
 
-/** Every row spells the greeting in whole 8-bit characters from its left edge. */
-export function getGlyphMessageBit(column: number, row: number): number {
-	const start = Math.floor(hash(row, 0, 9) * message.length) * 8;
-	return messageBits[(start + column) % messageBits.length] === '1' ? 1 : 0;
+/** The greeting repeats left-to-right across rows of the glyph grid. */
+export function getGlyphMessageBit(column: number, row: number, columns: number): number {
+	return messageBits[(row * columns + column) % messageBits.length] === '1' ? 1 : 0;
 }
 
 function flashTone(packed: number): number {
@@ -163,7 +162,7 @@ export class GlyphSurface extends Disposable {
 		const wave = getLoadingWave(width, time);
 		for (let row = 0; (row + 1) * size <= height; row++) {
 			for (let column = 0; column < columns; column++) {
-				this.drawLoadingCell(context, atlas, wave, column, row, offsetX, height, time, 1);
+				this.drawLoadingCell(context, atlas, wave, column, row, columns, offsetX, height, time, 1);
 			}
 		}
 	}
@@ -232,7 +231,7 @@ export class GlyphSurface extends Disposable {
 				const x = offsetX + column * size + size / 2;
 				if (column >= imageColumns) {
 					if (frameWidth > width + 0.5) {
-						this.drawLoadingCell(context, coarse, loading, column, row, offsetX, frameHeight, loadingTime, 1);
+						this.drawLoadingCell(context, coarse, loading, column, row, columns, offsetX, frameHeight, loadingTime, 1);
 					}
 					continue;
 				}
@@ -253,7 +252,7 @@ export class GlyphSurface extends Disposable {
 					if (glow > waveThreshold) {
 						this.drawWaveGlyph(context, coarse, glow, x - size / 2, y - size / 2);
 					} else {
-						this.drawLoadingCell(context, coarse, loading ?? wave, column, row, offsetX, loading ? frameHeight : height, loadingTime, 1);
+						this.drawLoadingCell(context, coarse, loading ?? wave, column, row, columns, offsetX, loading ? frameHeight : height, loadingTime, 1);
 					}
 				}
 			}
@@ -267,7 +266,8 @@ export class GlyphSurface extends Disposable {
 		const y = row * size;
 		if (stage === 0) {
 			const cells = samples.cells(size);
-			const packed = this.imageGlyph(cells[Math.min(cells.length - 1, row * samples.columns(size) + column)], column, row);
+			const columns = samples.columns(size);
+			const packed = this.imageGlyph(cells[Math.min(cells.length - 1, row * columns + column)], column, row, columns);
 			this.draw(context, coarse, packed >> 5, flashing ? flashTone(packed) : packed & 31, x, y);
 			return;
 		}
@@ -279,7 +279,7 @@ export class GlyphSurface extends Disposable {
 			const fineColumn = column * 2 + (part & 1);
 			const fineRow = row * 2 + (part >> 1);
 			const index = Math.min(cells.length - 1, fineRow * columns + fineColumn);
-			const packed = this.imageGlyph(cells[index], fineColumn, fineRow);
+			const packed = this.imageGlyph(cells[index], fineColumn, fineRow, columns);
 			const fineX = x + (part & 1) * half;
 			const fineY = y + (part >> 1) * half;
 			if (colorAlpha < 1) {
@@ -293,7 +293,7 @@ export class GlyphSurface extends Disposable {
 		}
 	}
 
-	private drawLoadingCell(context: CanvasRenderingContext2D, atlas: IGlyphAtlas, wave: ILoadingWave | undefined, column: number, row: number, offsetX: number, height: number, time: number, gain: number): void {
+	private drawLoadingCell(context: CanvasRenderingContext2D, atlas: IGlyphAtlas, wave: ILoadingWave | undefined, column: number, row: number, columns: number, offsetX: number, height: number, time: number, gain: number): void {
 		const size = this.cellSize;
 		const x = offsetX + column * size;
 		const y = row * size;
@@ -309,7 +309,7 @@ export class GlyphSurface extends Disposable {
 		const baseLevel = 0.6 + 2 * swell(x, y, time);
 		const level = Math.max(baseLevel, 3.6 * wake, 3.2 * twinkle(column, row, time)) - shimmer;
 		const tone = Math.max(0, Math.min(binaryTones - 1, Math.floor(level)));
-		this.draw(context, atlas, getGlyphMessageBit(column, row), tone, x, y);
+		this.draw(context, atlas, getGlyphMessageBit(column, row, columns), tone, x, y);
 	}
 
 	private drawWaveGlyph(context: CanvasRenderingContext2D, atlas: IGlyphAtlas, glow: number, x: number, y: number): void {
@@ -326,12 +326,12 @@ export class GlyphSurface extends Disposable {
 		return profile > 0 ? waveIntensity(wave, x) ** 0.75 * (0.7 + 0.3 * waveRipple(wave, x, y, time)) * (0.4 + 0.6 * profile) : 0;
 	}
 
-	private imageGlyph(brightness: number, column: number, row: number): number {
+	private imageGlyph(brightness: number, column: number, row: number, columns: number): number {
 		if (brightness >= crestStart) {
 			const level = Math.min(crestLevels - 1, Math.floor((brightness - crestStart) / (1 - crestStart) * crestLevels));
 			return (firstCrestGlyph + level) * 32 + binaryTones + Math.min(crestLevels - 1, level + 1);
 		}
-		return getGlyphMessageBit(column, row) * 32 + Math.min(binaryTones - 1, Math.floor(brightness / crestStart * binaryTones));
+		return getGlyphMessageBit(column, row, columns) * 32 + Math.min(binaryTones - 1, Math.floor(brightness / crestStart * binaryTones));
 	}
 
 	private draw(context: CanvasRenderingContext2D, atlas: IGlyphAtlas, glyph: number, tone: number, x: number, y: number): void {

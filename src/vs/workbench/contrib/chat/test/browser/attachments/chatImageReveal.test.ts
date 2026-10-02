@@ -192,20 +192,32 @@ suite('ChatImageReveal', () => {
 		assert.deepStrictEqual(snapshot(container, image), { pending: false, revealing: false, effects: 0, imageOpacity: '1' });
 	});
 
-	test('every row of glyph digits spells the greeting as 8-bit ASCII from its left edge', () => {
-		const greeting = 'HAPPY_CODING!'.repeat(6);
-		const rows = Array.from({ length: 8 }, (_, row) => {
+	for (const columns of [7, 24, 28, 31, 32, 51, 64]) {
+		test(`glyph digits wrap HAPPYCODING! continuously across ${columns}-column rows`, () => {
+			const greeting = 'HAPPYCODING!'.repeat(3);
 			let text = '';
-			for (let column = 0; column < 64; column += 8) {
+			for (let index = 0; index < greeting.length * 8; index += 8) {
 				let code = 0;
 				for (let bit = 0; bit < 8; bit++) {
-					code = code * 2 + getGlyphMessageBit(column + bit, row);
+					const position = index + bit;
+					code = code * 2 + getGlyphMessageBit(position % columns, Math.floor(position / columns), columns);
 				}
 				text += String.fromCharCode(code);
 			}
-			return greeting.includes(text) ? 'greeting' : text;
+			assert.strictEqual(text, greeting);
 		});
-		assert.deepStrictEqual(rows, Array(8).fill('greeting'));
+	}
+
+	test('the standard loading band starts with the greeting in reading order', () => {
+		const rows = Array.from({ length: 5 }, (_, row) => {
+			let text = '';
+			for (let column = 0; column < 32; column += 8) {
+				const bits = Array.from({ length: 8 }, (_, bit) => getGlyphMessageBit(column + bit, row, 32)).join('');
+				text += String.fromCharCode(parseInt(bits, 2));
+			}
+			return text;
+		});
+		assert.deepStrictEqual(rows, ['HAPP', 'YCOD', 'ING!', 'HAPP', 'YCOD']);
 	});
 
 	test('the palette holds the colors of the image', async () => {

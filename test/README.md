@@ -39,7 +39,7 @@ The mock does not call CAPI or an image provider, and needs no image-generation 
 
 ### Image reveal preview
 
-`chat/generatedImages/chatGeneratedImages/GlyphRevealFinal` renders the same implementation used by real generation and the mock, with no alternate treatment controls. The compact band sweeps right through binary digits spelling `HAPPY_CODING!`, changes to the image's width, and opens to its height. A single glyph pass resolves into finer glyphs, the image's palette, its true colors, and finally the image itself. Motion starts at 2x speed and settles to normal speed.
+`chat/generatedImages/chatGeneratedImages/GlyphRevealFinal` renders the same implementation used by real generation and the mock, with no alternate treatment controls. The compact band sweeps right through binary digits spelling `HAPPYCODING!`, starting at the top-left and wrapping continuously across rows in 8-bit ASCII. Narrow widths may split a character across rows; concatenating the rows preserves the message. The band changes to the image's width and opens to its height. A single glyph pass resolves into finer glyphs, the image's palette, its true colors, and finally the image itself. Motion starts at 2x speed and settles to normal speed.
 
 The image dimensions are unknown until its bytes load, so the loading band stays 320 px wide (bounded by its container) and 50 px tall. Reduced motion and high-contrast themes hold a still loading frame and show the loaded image without a reveal. Restored results do not replay the animation.
 
