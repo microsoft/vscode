@@ -121,10 +121,10 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/f19dcb001841df87f9bcefb10e6753b6039ca9571396e5578816c14c1f8b9ae4)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/0cf630557535d783bb30944ff16d9801bb841b4f3e579ce8f50b2c9e84795f74)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/302cb1e540f8a0e283a82d3e590eaebd8cc807e3bc8feeaedbdfdf961fdbb5a6)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/59f31b9e7937544a4117c5891e1f03e0f5245dc0a1ee21d4fecb4ad07b702f87)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/879ab0dfe23982b5cdd249b246d3e0e2d5b3b2ce35c7715717b4232134572efe)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)

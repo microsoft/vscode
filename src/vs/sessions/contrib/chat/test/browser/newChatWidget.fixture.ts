@@ -899,6 +899,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 						&& permissionsBounds.right <= modePermissionsBounds.right
 						&& modePermissionsBounds.right <= phoneControlsBounds.right,
 						'The standard phone composer must keep the complete mode and permissions control visible.');
+					const repositoryPickers = [...repositoryConfigContainer.querySelectorAll<HTMLElement>('.action-item:not(.repository-config-separator)')];
+					assert(repositoryPickers.length > 0
+						&& repositoryPickers.every(picker => picker.getBoundingClientRect().right <= bottomBounds.right),
+						'The standard phone composer must not cut off repository controls at the initial scroll position.');
 				}
 			} else {
 				assert(promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
