@@ -5475,7 +5475,7 @@ suite('Editor Controller', () => {
 				'',
 			],
 			languageId: languageId,
-			editorOpts: {
+modelOpts: {
 				insertSpaces: true
 			}
 		}, (editor, model, viewModel) => {
