@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, parseGitBlame, parseRefs, parseLsRemote, parseGitStashes, objectIdRegex } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import { RefType } from '../api/git.constants';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -534,6 +535,31 @@ suite('git', () => {
 				coAuthors: []
 			}]);
 		});
+
+		test('SHA-256 hash commit', function () {
+			const GIT_OUTPUT_SINGLE_PARENT =
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\n' +
+				'John Doe\n' +
+				'john.doe@mail.com\n' +
+				'1580811030\n' +
+				'1580811031\n' +
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22\n' +
+				'main,branch\n' +
+				'This is a commit message.\x00';
+
+			assert.deepStrictEqual(parseGitCommits(GIT_OUTPUT_SINGLE_PARENT), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				message: 'This is a commit message.',
+				parents: ['b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22'],
+				authorDate: new Date(1580811030000),
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				commitDate: new Date(1580811031000),
+				refNames: ['main', 'branch'],
+				shortStat: undefined,
+				coAuthors: []
+			}]);
+		});
 	});
 
 	suite('parseLsTree', function () {
@@ -564,6 +590,36 @@ suite('git', () => {
 				{ mode: '100644', type: 'blob', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', size: '4', file: 'what.js' },
 				{ mode: '100644', type: 'blob', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', size: '24', file: 'what.txt' },
 				{ mode: '100644', type: 'blob', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', size: '261186', file: 'what.txt2' }
+			]);
+		});
+
+		test('SHA-256 hashes', function () {
+			const input = `040000 tree b97f4f0b6769e62fe152d5093cdb6a1026325d2d569e9985f639b4bb69081810       -	.vscode
+100644 blob a9ae1893d6ccafabb2718269c180be0dc3924a7480f5040f6fc28ba7a002f3b7  491570	Screen Shot 2018-06-01 at 14.48.05.png
+100644 blob 0667e7cdcbf2caa1d3a5dd708cd90fe08c778b20d01a10e28c5eb72b0b54026e  764420	Screen Shot 2018-06-07 at 20.04.59.png
+100644 blob 78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1       4	boom.txt
+100644 blob c048ab7ba31f244f98500c3bf7feb7305a460b1bdba0c7e26a993807a152f77a      11	boomcaboom.txt
+100644 blob 3559a563123a2bebf459117d2e66aa9c319f8df8bffa548a7ddc5caf1d9896c1      24	file.js
+100644 blob 59e884c6dbd018ea43e694e821f96a5b08226b5ef345e65e81e665cc44c59d95     201	file.md
+100644 blob f868215c351673fcd5d26414b144a100f986c63e3a0f2822eee1566e766f95ba       8	hello.js
+100644 blob 78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1       4	what.js
+100644 blob 20bf819186af6d79b888c89fd94a010f532544a7d3cd6797fc4344c062e0a303      24	what.txt
+100644 blob dcc9c94a5810b1ac3f3ae52937f7dab8087e205b23b1cdc745308e1227b6713c  261186	what.txt2`;
+
+			const output = parseLsTree(input);
+
+			assert.deepStrictEqual(output, [
+				{ mode: '040000', type: 'tree', object: 'b97f4f0b6769e62fe152d5093cdb6a1026325d2d569e9985f639b4bb69081810', size: '-', file: '.vscode' },
+				{ mode: '100644', type: 'blob', object: 'a9ae1893d6ccafabb2718269c180be0dc3924a7480f5040f6fc28ba7a002f3b7', size: '491570', file: 'Screen Shot 2018-06-01 at 14.48.05.png' },
+				{ mode: '100644', type: 'blob', object: '0667e7cdcbf2caa1d3a5dd708cd90fe08c778b20d01a10e28c5eb72b0b54026e', size: '764420', file: 'Screen Shot 2018-06-07 at 20.04.59.png' },
+				{ mode: '100644', type: 'blob', object: '78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1', size: '4', file: 'boom.txt' },
+				{ mode: '100644', type: 'blob', object: 'c048ab7ba31f244f98500c3bf7feb7305a460b1bdba0c7e26a993807a152f77a', size: '11', file: 'boomcaboom.txt' },
+				{ mode: '100644', type: 'blob', object: '3559a563123a2bebf459117d2e66aa9c319f8df8bffa548a7ddc5caf1d9896c1', size: '24', file: 'file.js' },
+				{ mode: '100644', type: 'blob', object: '59e884c6dbd018ea43e694e821f96a5b08226b5ef345e65e81e665cc44c59d95', size: '201', file: 'file.md' },
+				{ mode: '100644', type: 'blob', object: 'f868215c351673fcd5d26414b144a100f986c63e3a0f2822eee1566e766f95ba', size: '8', file: 'hello.js' },
+				{ mode: '100644', type: 'blob', object: '78ba54c83767be0aa91a2dd8cda6c5d92a3830971099967eaf5931a7532534e1', size: '4', file: 'what.js' },
+				{ mode: '100644', type: 'blob', object: '20bf819186af6d79b888c89fd94a010f532544a7d3cd6797fc4344c062e0a303', size: '24', file: 'what.txt' },
+				{ mode: '100644', type: 'blob', object: 'dcc9c94a5810b1ac3f3ae52937f7dab8087e205b23b1cdc745308e1227b6713c', size: '261186', file: 'what.txt2' }
 			]);
 		});
 	});
@@ -597,6 +653,325 @@ suite('git', () => {
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('objectIdRegex', () => {
+		test('matches full object ids', function () {
+			assert.ok(objectIdRegex.test('9505cacb7c710ed17125fcc6cb3669e8ddca6c8c'));
+			assert.ok(objectIdRegex.test('9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098'));
+			assert.ok(objectIdRegex.test('9505CACB7C710ED17125FCC6CB3669E8DDCA6C8CD8AF6A31F6B3CD64604C3098'));
+		});
+
+		test('rejects anything that is not a full object id', function () {
+			assert.ok(!objectIdRegex.test(''));
+			assert.ok(!objectIdRegex.test('HEAD'));
+			assert.ok(!objectIdRegex.test('9505cac'));
+			// The alternation must not escape the anchors
+			assert.ok(!objectIdRegex.test('9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098-junk'));
+			assert.ok(!objectIdRegex.test('junk-9505cacb7c710ed17125fcc6cb3669e8ddca6c8c'));
+			// A length between the two valid ones is not a valid object id
+			assert.ok(!objectIdRegex.test('9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c30'));
+			assert.ok(!objectIdRegex.test('9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098a'));
+		});
+	});
+
+	suite('parseGitBlame', () => {
+		const blameOutput = (hash1: string, hash2: string) => [
+			`${hash1} 1 1 2`,
+			'author John Doe',
+			'author-mail <john.doe@mail.com>',
+			'author-time 1580811030',
+			'author-tz +0100',
+			'committer John Doe',
+			'committer-mail <john.doe@mail.com>',
+			'committer-time 1580811031',
+			'committer-tz +0100',
+			'summary This is a commit message.',
+			'boundary',
+			'filename file.txt',
+			`${hash2} 3 3 1`,
+			'author Jane Roe',
+			'author-mail <jane.roe@mail.com>',
+			'author-time 1580811040',
+			'author-tz +0100',
+			'committer Jane Roe',
+			'committer-mail <jane.roe@mail.com>',
+			'committer-time 1580811041',
+			'committer-tz +0100',
+			'summary Another commit message.',
+			`previous ${hash1} file.txt`,
+			'filename file.txt',
+		].join('\n');
+
+		test('SHA-1 hashes', function () {
+			assert.deepStrictEqual(parseGitBlame(blameOutput(
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				'5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d'
+			)), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				authorDate: 1580811030000,
+				subject: 'This is a commit message.',
+				ranges: [{ startLineNumber: 1, endLineNumber: 2 }]
+			}, {
+				hash: '5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d',
+				authorName: 'Jane Roe',
+				authorEmail: 'jane.roe@mail.com',
+				authorDate: 1580811040000,
+				subject: 'Another commit message.',
+				ranges: [{ startLineNumber: 3, endLineNumber: 3 }]
+			}]);
+		});
+
+		// The object id is not followed by a delimiter in the pattern that matches
+		// it, so a SHA-256 hash is easily matched as only its first 40 characters.
+		test('SHA-256 hashes are not truncated', function () {
+			assert.deepStrictEqual(parseGitBlame(blameOutput(
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22'
+			)), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				authorDate: 1580811030000,
+				subject: 'This is a commit message.',
+				ranges: [{ startLineNumber: 1, endLineNumber: 2 }]
+			}, {
+				hash: 'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				authorName: 'Jane Roe',
+				authorEmail: 'jane.roe@mail.com',
+				authorDate: 1580811040000,
+				subject: 'Another commit message.',
+				ranges: [{ startLineNumber: 3, endLineNumber: 3 }]
+			}]);
+		});
+
+		// A commit that covers more than one range is emitted again as a bare
+		// header line followed by `filename`, and the ranges are merged by hash.
+		test('SHA-256 hashes across multiple ranges', function () {
+			const output = [
+				'd483d3fdacc369559e9ae8a04a752590a350f137ada78ad31fb88c14442f1e05 2 2 1',
+				'author Jane Roe',
+				'author-mail <jane.roe@mail.com>',
+				'author-time 1580811040',
+				'author-tz +0100',
+				'summary Middle change',
+				'filename file.txt',
+				'3bb440793cf7b136c503d864a0473d3eb6ace7f2e9a7a5c9de98ca46a8b799f8 1 1 1',
+				'author John Doe',
+				'author-mail <john.doe@mail.com>',
+				'author-time 1580811030',
+				'author-tz +0100',
+				'summary Base commit',
+				'filename file.txt',
+				'3bb440793cf7b136c503d864a0473d3eb6ace7f2e9a7a5c9de98ca46a8b799f8 3 3 3',
+				'filename file.txt',
+			].join('\n');
+
+			assert.deepStrictEqual(parseGitBlame(output), [{
+				hash: 'd483d3fdacc369559e9ae8a04a752590a350f137ada78ad31fb88c14442f1e05',
+				authorName: 'Jane Roe',
+				authorEmail: 'jane.roe@mail.com',
+				authorDate: 1580811040000,
+				subject: 'Middle change',
+				ranges: [{ startLineNumber: 2, endLineNumber: 2 }]
+			}, {
+				hash: '3bb440793cf7b136c503d864a0473d3eb6ace7f2e9a7a5c9de98ca46a8b799f8',
+				authorName: 'John Doe',
+				authorEmail: 'john.doe@mail.com',
+				authorDate: 1580811030000,
+				subject: 'Base commit',
+				ranges: [
+					{ startLineNumber: 1, endLineNumber: 1 },
+					{ startLineNumber: 3, endLineNumber: 5 }
+				]
+			}]);
+		});
+	});
+
+	suite('parseRefs', () => {
+		test('SHA-1 hashes', function () {
+			const input = [
+				'refs/heads/main\x009505cacb7c710ed17125fcc6cb3669e8ddca6c8c\x00',
+				'refs/tags/v1.0\x005b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d\x001c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d',
+			].join('\n');
+
+			assert.deepStrictEqual(parseRefs(input), [{
+				name: 'main',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				commitDetails: undefined,
+				ahead: undefined,
+				behind: undefined,
+				type: RefType.Head
+			}, {
+				name: 'v1.0',
+				commit: '1c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d',
+				commitDetails: undefined,
+				type: RefType.Tag
+			}]);
+		});
+
+		test('SHA-256 hashes', function () {
+			const input = [
+				'refs/heads/main\x009505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\x00',
+				'refs/remotes/origin/main\x009505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\x00',
+				// Annotated tag - the peeled object id is the commit the tag points at
+				'refs/tags/v1.0\x001c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d3b1a4c5e6f70819293a4b5c6\x00b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				// Lightweight tag - no peeled object id
+				'refs/tags/v0.9\x00b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22\x00',
+			].join('\n');
+
+			assert.deepStrictEqual(parseRefs(input), [{
+				name: 'main',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				commitDetails: undefined,
+				ahead: undefined,
+				behind: undefined,
+				type: RefType.Head
+			}, {
+				name: 'origin/main',
+				remote: 'origin',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				commitDetails: undefined,
+				type: RefType.RemoteHead
+			}, {
+				name: 'v1.0',
+				commit: 'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				commitDetails: undefined,
+				type: RefType.Tag
+			}, {
+				name: 'v0.9',
+				commit: 'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				commitDetails: undefined,
+				type: RefType.Tag
+			}]);
+		});
+
+		test('SHA-256 hashes with commit details', function () {
+			const input = 'refs/heads/main\x009505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\x00\x00' +
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22\x00\x00' +
+				'John Doe\x00\x001580811030\x00\x00This is a commit message.\x00\x00[ahead 1, behind 2]';
+
+			assert.deepStrictEqual(parseRefs(input), [{
+				name: 'main',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				commitDetails: {
+					hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+					message: 'This is a commit message.',
+					parents: ['b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22'],
+					authorName: 'John Doe',
+					commitDate: new Date(1580811030000)
+				},
+				ahead: 1,
+				behind: 2,
+				type: RefType.Head
+			}]);
+		});
+	});
+
+	suite('parseLsRemote', () => {
+		test('branches and tags', function () {
+			const input = [
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8c\trefs/heads/main',
+				'5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d\trefs/tags/v1.0',
+				// `ls-remote` also lists the peeled tag; the caller deduplicates these
+				'1c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d\trefs/tags/v1.0^{}',
+				'',
+			].join('\n');
+
+			assert.deepStrictEqual(parseLsRemote(input), [{
+				name: 'main',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				type: RefType.Head
+			}, {
+				name: 'v1.0',
+				commit: '5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d',
+				type: RefType.Tag
+			}, {
+				name: 'v1.0^{}',
+				commit: '1c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d',
+				type: RefType.Tag
+			}]);
+		});
+
+		test('SHA-256 hashes', function () {
+			const input = [
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098\trefs/heads/main',
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22\trefs/tags/v1.0',
+				'1c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d3b1a4c5e6f70819293a4b5c6\trefs/tags/v1.0^{}',
+				'',
+			].join('\n');
+
+			assert.deepStrictEqual(parseLsRemote(input), [{
+				name: 'main',
+				commit: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				type: RefType.Head
+			}, {
+				name: 'v1.0',
+				commit: 'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				type: RefType.Tag
+			}, {
+				name: 'v1.0^{}',
+				commit: '1c6b1a1a1e5ab3d05e5ee2e7d1e0b8fd8d8f3a0d3b1a4c5e6f70819293a4b5c6',
+				type: RefType.Tag
+			}]);
+		});
+
+		test('ignores lines that are not branches or tags', function () {
+			const input = [
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8c\tHEAD',
+				'5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d\trefs/pull/1/head',
+				'',
+			].join('\n');
+
+			assert.deepStrictEqual(parseLsRemote(input), []);
+		});
+	});
+
+	suite('parseGitStashes', () => {
+		// A stash created with an explicit message has no `WIP ` prefix
+		test('SHA-1 hashes, explicit stash message', function () {
+			const input = [
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				'5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d',
+				'stash@{1}',
+				'On main: my saved work',
+				'1580811030',
+				'1580811031\x00',
+			].join('\n');
+
+			assert.deepStrictEqual(parseGitStashes(input), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8c',
+				parents: ['5b3f2c9de1e1a5f57c1f5b4c7d9c4f9f0a1b2c3d'],
+				index: 1,
+				branchName: 'main',
+				description: 'my saved work',
+				authorDate: new Date(1580811030000),
+				commitDate: new Date(1580811031000)
+			}]);
+		});
+
+		test('SHA-256 hashes', function () {
+			const input = [
+				'9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				'b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22',
+				'stash@{0}',
+				'WIP on main: 9505cac This is a commit message.',
+				'1580811030',
+				'1580811031\0',
+			].join('\n');
+
+			assert.deepStrictEqual(parseGitStashes(input), [{
+				hash: '9505cacb7c710ed17125fcc6cb3669e8ddca6c8cd8af6a31f6b3cd64604c3098',
+				parents: ['b9469a95e64ad83017429739bd95b527100cdfec700ac1fb15d3d7d1dfd6aa22'],
+				index: 0,
+				branchName: 'main',
+				description: 'WIP (9505cac This is a commit message.)',
+				authorDate: new Date(1580811030000),
+				commitDate: new Date(1580811031000)
+			}]);
 		});
 	});
 
