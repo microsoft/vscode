@@ -13,8 +13,8 @@ flowchart TD
 	UI["Automations UI, blueprints, and tools"] --> Service["IAutomationService<br/>ProviderAutomationService"]
 	Service --> Providers["ISessionsProvider.automations<br/>one per concrete Agent Host"]
 	Providers --> Connection["ReconnectableAgentHostAutomationStore<br/>connection and capability boundary"]
-	Providers --> Cloud["CloudAutomationProvider<br/>account and feature boundary"]
-	Cloud --> CloudStore["CloudAutomationStore<br/>repository cache and operation coordination"]
+	Providers --> Cloud["CloudAutomationStore<br/>account and feature boundary"]
+	Cloud --> CloudStore["GitHubCloudAutomationStore<br/>repository cache and operation coordination"]
 	CloudStore --> GitHub["GitHub cloud execution authority"]
 	Connection --> Projection["AgentHostAutomationStore<br/>AHP dispatch and state projection"]
 	Projection --> Authority["AgentHostAutomationService<br/>durable execution authority"]
@@ -31,8 +31,8 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | One provider's Automation interface and observable capabilities | [`ISessionsProviderAutomations`](services/sessions/common/sessionsProvider.ts) |
 | Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
 | Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
-| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationProvider`](contrib/providers/copilotChatSessions/browser/cloudAutomationProvider.ts) |
-| Cloud repository discovery, mutation serialization, and bounded history reads | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/gitHubCloudAutomationStore.ts) |
 | Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](contrib/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
 | Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
