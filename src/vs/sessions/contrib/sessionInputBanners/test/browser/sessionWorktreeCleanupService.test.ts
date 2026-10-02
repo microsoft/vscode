@@ -369,6 +369,39 @@ suite('SessionWorktreeCleanupService', () => {
 		});
 	});
 
+	test('reports the number of scanned worktrees during measurement', async () => {
+		const firstDiskUsage = new DeferredPromise<number | undefined>();
+		const secondDiskUsage = new DeferredPromise<number | undefined>();
+		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
+		const second = createSession('second', oldDate());
+		const progressService = new TestProgressService();
+		const service = disposables.add(createService(
+			[first, second],
+			true,
+			session => session === first ? firstDiskUsage.p : secondDiskUsage.p,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			Event.None,
+			{ progressService },
+		));
+
+		const measurement = service.getWorktrees(14);
+		firstDiskUsage.complete(ByteSize.GB);
+		await Promise.resolve();
+		secondDiskUsage.complete(ByteSize.GB);
+		await measurement;
+
+		assert.deepStrictEqual(progressService.reports.map(report => report.message), [
+			'Scanned 0 of 3 worktrees',
+			'Scanned 2 of 3 worktrees',
+			'Scanned 3 of 3 worktrees',
+		]);
+	});
+
 	test('reports cleanup scheduling progress after each archived session', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
