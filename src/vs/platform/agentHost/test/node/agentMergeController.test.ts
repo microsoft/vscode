@@ -17,15 +17,17 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, platformRootSchema, plat
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { AgentSystemNotificationKind } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
-import { SessionStatus, buildChatUri, buildDefaultChatUri, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { SessionStatus, buildChatUri, buildDefaultChatUri, createErrorResponsePart, MessageKind, withFolderGitHubState, withSessionGitHubState, withSessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
 import { createTestGitHubService } from './testGitHubService.js';
 import { GitHubCredential, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import { PullRequestSnapshot, PullRequestSubscription } from '../../../github/common/githubPullRequestService.js';
+import { PullRequestReplyAndResolveResult } from '../../../github/common/githubPullRequestMutationService.js';
+import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -417,6 +419,186 @@ suite('AgentMergeController', () => {
 			authorized: { owner: true, sameFolder: false },
 			refreshedAfterRemoval: true,
 		});
+	});
+
+	suite('pending review handoff', () => {
+		const pendingNotice = 'Agent Merge was disabled for this folder because a review reply is unpublished in your pending GitHub review. Handle the pending review on GitHub, then enable Agent Merge again to resume.';
+
+		function createReviewReplyHarness() {
+			const initial = repairSnapshot();
+			const replies: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
+			const mutations = new class extends mock<IPullRequestMutations>() {
+				outcome: 'pending' | 'succeeded' | 'reconciled' | 'indeterminate' = 'pending';
+				override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
+					replies.push(args);
+					const published = this.outcome === 'succeeded' || this.outcome === 'reconciled';
+					const value = { id: `reply-${replies.length}`, state: published ? 'SUBMITTED' : 'PENDING', body: args[1].body, author: { login: 'viewer', association: 'MEMBER' } };
+					const snapshot = h.snapshot.get();
+					h.snapshot.set({
+						...snapshot,
+						reviewThreads: {
+							...snapshot.reviewThreads,
+							value: snapshot.reviewThreads.value!.map(thread => ({
+								...thread,
+								isResolved: published && args[1].resolve,
+								comments: [...thread.comments, value],
+							})),
+						},
+					}, undefined);
+					return { reply: { outcome: this.outcome, value }, resolved: published && args[1].resolve };
+				}
+			}();
+			const h = createPeerRepairHarness(disposables, undefined, {
+				...initial,
+				checks: { ...initial.checks, value: { ...initial.checks.value!, checks: [] } },
+				reviewThreads: {
+					status: 'ready', complete: true, headSha: 'head',
+					value: [{ id: 'T1', isResolved: false, comments: [{ id: 'C1', body: 'Please fix this', author: { login: 'reviewer', association: 'MEMBER' } }] }],
+				},
+			}, mutations);
+			const tools = disposables.add(new AgentMergeTools(
+				() => h.controller.isEnabled(),
+				chat => h.controller.getTurnContext(chat),
+				(chat, enabled, overrides) => h.controller.setEnabled(chat, enabled, overrides),
+				new NullLogService(),
+				h.stateManager,
+				h.configurationService,
+			));
+			const folderState = () => readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), h.otherKey, getWorkingDirectoryKey(REPOSITORY));
+			const completeTurn = () => {
+				const context = h.controller.getTurnContext(h.peerChat);
+				assert.ok(context);
+				h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnComplete, turnId: context.turnId, duration: 0 });
+			};
+			return { ...h, tools, mutations, replies, folderState, completeTurn };
+		}
+
+		function withReviewReply(fn: (h: ReturnType<typeof createReviewReplyHarness>) => Promise<void>): Promise<void> {
+			return runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const h = createReviewReplyHarness();
+				try {
+					await h.start();
+					await fn(h);
+				} finally {
+					h.controller.dispose();
+				}
+			});
+		}
+
+		for (const ending of ['complete', 'cancel', 'error'] as const) {
+			test(`stops after a pending reply when the turn ends with ${ending}, without backstop repairs`, () => withReviewReply(async h => {
+				const context = h.controller.getTurnContext(h.peerChat)!;
+				await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+				const duringTurn = {
+					enabled: h.folderState()?.enabled,
+					active: h.controller.getTurnContext(h.peerChat) === context,
+					signalAborted: context.signal.aborted,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled).length,
+				};
+
+				if (ending === 'complete') {
+					h.completeTurn();
+				} else if (ending === 'cancel') {
+					h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnCancelled, turnId: context.turnId, duration: 0 });
+				} else {
+					h.stateManager.dispatchServerAction(h.peerChat, {
+						type: ActionType.ChatError, turnId: context.turnId, duration: 0,
+						part: createErrorResponsePart({ errorType: 'failed', message: 'Turn failed after replying' }),
+					});
+				}
+				await timeout(31 * 60_000);
+
+				assert.deepStrictEqual({
+					duringTurn,
+					enabled: h.folderState()?.enabled,
+					active: h.controller.getTurnContext(h.peerChat) !== undefined,
+					prompts: h.startTurns,
+					cancelledTurns: h.cancelledTurns,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+					threadResolved: h.snapshot.get().reviewThreads.value![0].isResolved,
+					replyStates: h.snapshot.get().reviewThreads.value![0].comments.map(comment => comment.state),
+				}, {
+					duringTurn: { enabled: true, active: true, signalAborted: false, disabledNotices: 0 },
+					enabled: false,
+					active: false,
+					prompts: [h.peerChat],
+					cancelledTurns: [],
+					disabledNotices: [{ chat: h.peerChat, kind: AgentSystemNotificationKind.AgentMergeDisabled, content: pendingNotice }],
+					threadResolved: false,
+					replyStates: [undefined, 'PENDING'],
+				});
+			}));
+		}
+
+		for (const outcome of ['succeeded', 'reconciled', 'indeterminate'] as const) {
+			test(`does not stop monitoring for a ${outcome} reply`, () => withReviewReply(async h => {
+				h.mutations.outcome = outcome;
+				await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+				h.completeTurn();
+				await timeout(1);
+				assert.deepStrictEqual({
+					enabled: h.folderState()?.enabled,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+				}, { enabled: true, disabledNotices: [] });
+			}));
+		}
+
+		test('requires explicit re-enablement and does not carry a pending handoff into the new turn', () => withReviewReply(async h => {
+			await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', false);
+			h.completeTurn();
+			await timeout(31 * 60_000);
+			const whileStopped = { enabled: h.folderState()?.enabled, prompts: h.startTurns.length };
+
+			h.mutations.outcome = 'succeeded';
+			await h.controller.setEnabled(h.peerChat, true);
+			await timeout(1);
+			await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Published follow-up', true);
+			h.completeTurn();
+			await timeout(31 * 60_000);
+
+			assert.deepStrictEqual({
+				whileStopped,
+				enabled: h.folderState()?.enabled,
+				prompts: h.startTurns,
+				disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled).length,
+			}, {
+				whileStopped: { enabled: false, prompts: 1 },
+				enabled: true,
+				prompts: [h.peerChat, h.peerChat],
+				disabledNotices: 1,
+			});
+		}));
+
+		test('leaves monitoring and active work in another folder unchanged', () => withReviewReply(async h => {
+			const defaultChat = buildDefaultChatUri(h.session);
+			const primaryKey = getWorkingDirectoryKey(REPOSITORY);
+			h.stateManager.dispatchServerAction(defaultChat, {
+				type: ActionType.ChatTurnStarted, turnId: 'other-folder-work', startedAt: new Date().toISOString(),
+				message: { text: 'Other work', origin: { kind: MessageKind.User } },
+			});
+			await h.controller.setEnabled(defaultChat, true, { fixCI: false });
+			const primaryState = readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), primaryKey, primaryKey);
+
+			await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+			h.completeTurn();
+			await timeout(31 * 60_000);
+
+			assert.deepStrictEqual({
+				primaryState: readAgentMergeFolderState(h.configurationService.getSessionConfigValues(h.session), primaryKey, primaryKey),
+				primaryTurn: h.stateManager.getChatState(defaultChat)?.activeTurn?.id,
+				peerEnabled: h.folderState()?.enabled,
+				held: h.controller.holdsSession(h.session),
+				cancelledTurns: h.cancelledTurns,
+				disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+			}, {
+				primaryState,
+				primaryTurn: 'other-folder-work',
+				peerEnabled: false,
+				held: true,
+				cancelledTurns: [],
+				disabledNotices: [{ chat: h.peerChat, kind: AgentSystemNotificationKind.AgentMergeDisabled, content: pendingNotice }],
+			});
+		}));
 	});
 
 	test('does not request authentication for an evaluation from a replaced runtime', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -1358,7 +1540,7 @@ suite('AgentMergeController', () => {
 	 * for that folder and owned by `owningChat` (the peer chat by default). The
 	 * pull request has a failing check, so the controller starts a repair turn.
 	 */
-	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string) {
+	function createPeerRepairHarness(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, owningChat?: (stateManager: AgentHostStateManager) => string, initialSnapshot = repairSnapshot(), mutations?: IPullRequestMutations) {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
@@ -1368,8 +1550,10 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const started = new DeferredPromise<void>();
 		const startTurns: string[] = [];
+		const cancelledTurns: string[] = [];
+		const notices: { readonly chat: string; readonly kind: AgentSystemNotificationKind; readonly content: string }[] = [];
 		const refreshes = { count: 0 };
-		const snapshot = repairSnapshot();
+		const snapshot = observableValue('pullRequestSnapshot', initialSnapshot);
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -1385,23 +1569,24 @@ suite('AgentMergeController', () => {
 					started.complete();
 					return true;
 				},
-				cancelTurn: () => { },
-				postNotice: () => { },
+				cancelTurn: chat => { cancelledTurns.push(chat); },
+				postNotice: (chat, kind, content) => { notices.push({ chat, kind, content }); },
 			},
 			stateManager,
 			configurationService,
 			gitStateService,
 			noopGitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
+				override readonly mutations = mutations ?? new class extends mock<IPullRequestMutations>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
 					override async getCredential(signal: AbortSignal): Promise<GitHubCredential> {
-						return { account: snapshot.ref, token: 'test-token', generation: 1, signal };
+						return { account: snapshot.get().ref, token: 'test-token', generation: 1, signal };
 					}
 				}();
 				override readonly pullRequests = new class extends mock<IPullRequestResources>() {
 					override subscribePullRequest(): PullRequestSubscription {
 						return {
-							resource: { ref: snapshot.ref, snapshot: constObservable(snapshot) },
+							resource: { ref: snapshot.get().ref, snapshot },
 							refresh: async () => { refreshes.count++; },
 							update: () => { },
 							dispose: () => { },
@@ -1424,7 +1609,7 @@ suite('AgentMergeController', () => {
 			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 			return started.p;
 		};
-		return { stateManager, configurationService, gitStateService, controller, session, peerChat, otherKey, startTurns, refreshes, start };
+		return { stateManager, configurationService, gitStateService, controller, session, peerChat, otherKey, startTurns, cancelledTurns, notices, snapshot, refreshes, start };
 	}
 
 

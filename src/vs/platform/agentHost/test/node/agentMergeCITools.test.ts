@@ -575,6 +575,7 @@ class CIHarness extends Disposable {
 			client, session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
 			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
 			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+			onPendingReviewReply: () => { assert.fail('Unexpected pending review reply in a CI turn'); },
 		};
 		const logService = new NullLogService();
 		const stateManager = this._register(new AgentHostStateManager(logService));

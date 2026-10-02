@@ -482,6 +482,7 @@ suite('Agent Merge server tools', () => {
 				resolved: published,
 			};
 			const calls: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
+			let pendingReplyReports = 0;
 			const client = createTestGitHubClient({
 				mutations: new class extends mock<IPullRequestMutations>() {
 					override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>) {
@@ -507,6 +508,7 @@ suite('Agent Merge server tools', () => {
 				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
 				snapshot, signal: new AbortController().signal, commentWatermark: '',
 				deferredCheckIds: new Set(), initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+				onPendingReviewReply: () => { pendingReplyReports++; },
 			};
 			const { host } = createHarness(true, () => context);
 
@@ -520,6 +522,8 @@ suite('Agent Merge server tools', () => {
 				preventsReplay: result.message?.includes('Do not retry') ?? false,
 				preservesReview: result.message?.includes('submit, discard, or replace') ?? false,
 				asksUser: result.message?.includes('Ask the user') ?? false,
+				requiresReenablement: result.message?.includes('explicitly re-enable Agent Merge') ?? false,
+				pendingReplyReports,
 				calls,
 			}, {
 				reply: outcome,
@@ -527,6 +531,8 @@ suite('Agent Merge server tools', () => {
 				preventsReplay: !published,
 				preservesReview: !published,
 				asksUser: !published,
+				requiresReenablement: outcome === 'pending',
+				pendingReplyReports: outcome === 'pending' ? 1 : 0,
 				calls: [[ref, {
 					operationId: 'agent-merge:turn:T1', threadId: 'T1',
 					body: 'Fixed the feedback\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.',
@@ -720,9 +726,10 @@ suite('Agent Merge server tools', () => {
 		assert.deepStrictEqual([
 			'only after publication is confirmed',
 			'pending review remains unpublished',
+			'explicitly re-enable Agent Merge',
 			'Do not retry',
 			'submit, discard, or replace',
-		].map(clause => description?.includes(clause)), [true, true, true, true]);
+		].map(clause => description?.includes(clause)), [true, true, true, true, true]);
 	});
 
 	test('distinguishes published, pending, unconfirmed and failed review replies in the transcript', () => {

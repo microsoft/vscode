@@ -33,6 +33,8 @@ export interface IAgentMergeTurnContext {
 	readonly snapshot: PullRequestSnapshot;
 	readonly signal: AbortSignal;
 	readonly commentWatermark: string;
+	/** Stops this folder's monitoring when the current turn ends after saving an unpublished reply. */
+	readonly onPendingReviewReply: () => void;
 	readonly deferredCheckIds: ReadonlySet<string>;
 	/** Keeps rerun authorization stable when diagnostics are suppressed mid-turn. */
 	readonly initialDeferredCheckIds: ReadonlySet<string>;
@@ -327,8 +329,11 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			resolve,
 		}, context.signal);
 		this._logService.info(`[AgentMergeTools] Review thread reply completed: session=${session}, turn=${context.turnId}, replyOutcome=${result.reply.outcome}, resolved=${result.resolved}`);
+		if (result.reply.outcome === 'pending') {
+			context.onPendingReviewReply();
+		}
 		const message = result.reply.outcome === 'pending'
-			? 'The reply was saved to a pending GitHub review and is not published.'
+			? 'The reply was saved to a pending GitHub review and is not published. Agent Merge will stop monitoring this folder after the current turn. Resuming requires the user to explicitly re-enable Agent Merge.'
 			: result.reply.outcome === 'indeterminate'
 				? 'Could not confirm whether the reply was published.'
 				: undefined;

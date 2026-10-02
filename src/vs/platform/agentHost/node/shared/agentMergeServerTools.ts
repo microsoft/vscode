@@ -59,7 +59,7 @@ const definitions: readonly IAgentServerToolDefinition[] = [
 	{
 		name: replyToAgentMergeReviewThreadToolName,
 		title: 'Reply to Agent Merge Review Thread',
-		description: 'Reply to an unresolved review thread authorized for the active Agent Merge turn and optionally resolve it only after publication is confirmed. A reply added to an existing pending review remains unpublished and the thread is not resolved. Do not retry a pending or indeterminate reply, or submit, discard, or replace the user\'s pending review; ask the user how to proceed.',
+		description: 'Reply to an unresolved review thread authorized for the active Agent Merge turn and optionally resolve it only after publication is confirmed. A reply added to an existing pending review remains unpublished and the thread is not resolved. A pending reply stops this folder\'s monitoring when the turn ends; the user must explicitly re-enable Agent Merge to resume. Do not retry a pending or indeterminate reply, or submit, discard, or replace the user\'s pending review; ask the user how to proceed.',
 		inputSchema: {
 			type: 'object',
 			properties: {

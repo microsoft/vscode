@@ -70,6 +70,10 @@ interface IDeferredWorkflowRerun {
 	settled: boolean;
 }
 
+interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
+	hasPendingReviewReply: boolean;
+}
+
 class AgentMergeRuntime extends Disposable {
 
 	readonly clientReference = this._register(new MutableDisposable<IReference<IGitHubClient>>());
@@ -114,7 +118,7 @@ export class AgentMergeController extends Disposable {
 	private readonly _runtimes = this._register(new DisposableMap<string, AgentMergeRuntime>());
 	private readonly _evaluations = new SequencerByKey<string>();
 	private readonly _evaluatingSessions = new Set<string>();
-	private readonly _activeTurns = new Map<string, IAgentMergeTurnContext>();
+	private readonly _activeTurns = new Map<string, IActiveAgentMergeTurnContext>();
 
 	private readonly _onDidReleaseHold = this._register(new Emitter<string>());
 	/** Fires when Agent Merge stops holding a session, so the host can re-arm its idle release. */
@@ -323,7 +327,7 @@ export class AgentMergeController extends Disposable {
 	}
 
 	/** The runtime key and context of the repair turn `chat` is running. */
-	private _findActiveTurnEntry(chat: string): [string, IAgentMergeTurnContext] | undefined {
+	private _findActiveTurnEntry(chat: string): [string, IActiveAgentMergeTurnContext] | undefined {
 		for (const entry of this._activeTurns) {
 			if (entry[1].chat === chat) {
 				return entry;
@@ -768,7 +772,7 @@ export class AgentMergeController extends Disposable {
 				// worktree records a sentinel that no commit can match, so the
 				// session fails closed rather than authorizing a later merge.
 				const repairBaseCommit = await this._resolveLocalCommit(session, runtime.folderKey) ?? AGENT_MERGE_UNKNOWN_COMMIT;
-				const context: IAgentMergeTurnContext = {
+				const context: IActiveAgentMergeTurnContext = {
 					session,
 					chat,
 					folderKey: runtime.folderKey,
@@ -781,6 +785,8 @@ export class AgentMergeController extends Disposable {
 					client: runtime.client,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
+					hasPendingReviewReply: false,
+					onPendingReviewReply: () => { context.hasPendingReviewReply = true; },
 					deferredCheckIds,
 					initialDeferredCheckIds: new Set(deferredCheckIds),
 					deferWorkflowRerun: (options, checkIds, running) => {
@@ -1242,6 +1248,10 @@ export class AgentMergeController extends Disposable {
 		const runtime = this._runtimes.get(key);
 		if (!agentMerge?.enabled || !runtime?.subscription.value) {
 			this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
+			return;
+		}
+		if (context.hasPendingReviewReply) {
+			this._disable(session, folder.folderKey, agentMerge, agentMergeDisableReasons.pendingReviewReply());
 			return;
 		}
 		const shouldAdvanceWatermark = context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
