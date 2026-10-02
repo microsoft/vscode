@@ -90,8 +90,10 @@ Update the inventory, predicates, descriptions, readiness
 report, and tests as one coherent change. Keep UI descriptions focused on concrete
 admin/user consequences rather than copying a raw status label.
 
-Diagnostics must lead with applied requirements, their source, and impact, not
-the full feature catalog. Collapse the unconfigured-policy inventory, not the
+Append Agent Host Policy Readiness after the existing diagnostic sections so
+their familiar order is preserved. Within readiness, lead with applied
+requirements, their source, and impact, not the full feature catalog.
+Collapse the unconfigured-policy inventory, not the
 unrelated account, delivery, runtime, and authentication sections; preserve their
 existing layout and raw-value disclosures. Distinguish unsupported behavior from
 conditional/source-dependent coverage needing verification; a `partial` catalog

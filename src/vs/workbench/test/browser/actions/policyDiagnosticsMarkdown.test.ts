@@ -81,7 +81,7 @@ suite('Policy diagnostics Markdown', () => {
 		});
 	});
 
-	test('readiness does not hide existing diagnostic sections behind the policy inventory', () => {
+	test('readiness follows all existing diagnostic sections without changing their layout', () => {
 		const readiness = agentHostPolicyReadiness([
 			{ policyName: 'ChatMCP', settingId: 'chat.mcp.access', status: 'partial', source: 'Device' },
 		], false);
@@ -91,8 +91,8 @@ suite('Policy diagnostics Markdown', () => {
 			markdownDetails('Raw values', markdownJsonBlock({ rawPolicyValue: 'sensitive-placeholder' }));
 		const report = policyDiagnosticsReport(readiness, details);
 		const visible = report.slice(0, report.indexOf('<details>'));
-		assert.ok(visible.includes('Agent Host Policy Readiness'));
-		assert.ok(visible.includes('ChatMCP'));
+		assert.ok(report.startsWith('# VS Code Policy Diagnostics\n\n*WARNING: This file may contain sensitive information.*\n\n## Summary\n\n'));
+		assert.strictEqual(report.slice(report.indexOf('## Summary'), report.indexOf('## Agent Host Policy Readiness')), details);
 		for (const heading of headings) {
 			assert.ok(visible.includes(`## ${heading}`), heading);
 		}
@@ -100,7 +100,8 @@ suite('Policy diagnostics Markdown', () => {
 		assert.ok(!visible.includes('sensitive-placeholder'));
 		assert.ok(report.includes('<details>\n<summary>Non-applied policy inventory'));
 		assert.ok(!report.includes('<details open'));
-		assert.ok(report.endsWith(details));
+		assert.ok(report.endsWith(`</details>\n\n${readiness}`));
+		assert.ok(readiness.includes('ChatMCP'));
 	});
 
 	test('readiness escapes applied-source labels and never renders policy values', () => {
