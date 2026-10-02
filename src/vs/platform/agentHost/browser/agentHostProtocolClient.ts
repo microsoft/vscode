@@ -52,7 +52,6 @@ import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostWorkspaceTrustConfigKey, getAgentHostTerminalAutoApproveRulesConfig, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, resolveAgentHostConfigurationSyncPatch, resolveAgentHostConfigurationSyncValue } from '../common/agentHostConfigurationSync.js';
 import { managedPermissionsConfigurationIds, resolveManagedSettingsPermissions, type IAgentHostManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import { AgentHostClientConnectionKind, toAgentHostClientMeta } from '../common/agentHostTelemetry.js';
 import type { OtlpExportLogsParams } from '../common/state/protocol/channels-otlp/notifications.js';
 import type { TelemetryCapabilities } from '../common/state/protocol/channels-otlp/state.js';
@@ -60,6 +59,7 @@ import type { Implementation, InitializeResult } from '../common/state/protocol/
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
@@ -123,7 +123,6 @@ function isConnectionClosedError(error: unknown): boolean {
 
 interface IRemoteAgentHostExtensionNotificationMap {
 	'setClientManagedSettingsPermissions': { params: { permissions: IAgentHostManagedSettingsPermissions } };
-	'setClientSandboxRequired': { params: { required: boolean } };
 }
 
 interface IPendingRequest {
@@ -573,9 +572,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (managedPermissionsConfigurationIds.some(settingId => e.affectsConfiguration(settingId))) {
 				void this._updateManagedSettingsPermissions();
 			}
-			if (e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled)) {
-				this._updateSandboxRequired();
-			}
 		}));
 
 		this._register(Event.any(this._workspaceTrustManagementService.onDidChangeTrustedFolders, this._workspaceTrustManagementService.onDidChangeTrust)(() => {
@@ -701,6 +697,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
+		const watch = StopWatch.create(false);
+		let stage = 'transport';
 		try {
 			if (isClientTransport(this._transport)) {
 				const transport = this._transport;
@@ -710,6 +708,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw transportLostError(this._address);
 			}
 
+			stage = 'initialize';
 			const result = await this._traceConnection('protocol.initialize', () => this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 				channel: ROOT_STATE_URI,
 				// Advertise every compatible version, most-preferred first, so an
@@ -721,6 +720,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
+			this._logService.info(`[RemoteAgentHostProtocol] Initialized: address=${this._address} clientId=${this._clientId} durationMs=${watch.elapsed()}`);
 			this._applyInitializeResult(result);
 			// Keep the snapshot even if authentication must finish on a later replay reconnect.
 			for (const snapshot of result.snapshots ?? []) {
@@ -729,6 +729,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 			}
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+				stage = 'authentication';
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
@@ -745,6 +746,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._diagnostic('connection.ready', `clientId=${this._clientId}`);
 			this._resetLivenessTimers();
 		} catch (error) {
+			this._logService.warn(`[RemoteAgentHostProtocol] Connection failed: address=${this._address} clientId=${this._clientId} stage=${stage} durationMs=${watch.elapsed()} pendingRequests=${this._pendingRequests.size}`);
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
@@ -989,7 +991,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 			this._applyReconnectResult(result, freshInitialize);
 			this._updateManagedSettingsPermissions(true);
-			this._updateSandboxRequired(true);
 			// Re-authenticate on a fresh initialize (the new process holds no
 			// credentials), or when an earlier pass was cut short by a transport
 			// drop — that attempt may have delivered only some of them, and an
@@ -1304,7 +1305,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._updateDisableRepoInfoTelemetry();
 		if (includeManagedSettings) {
 			void this._updateManagedSettingsPermissions();
-			this._updateSandboxRequired();
 		}
 	}
 
@@ -2521,11 +2521,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._sendExtensionNotification('setClientManagedSettingsPermissions', { permissions }, sendDuringReconnect);
 	}
 
-	private _updateSandboxRequired(sendDuringReconnect = false): void {
-		const value = this._configurationService.inspect<string | boolean>(AgentSandboxSettingId.AgentSandboxEnabled)?.policyValue;
-		this._sendExtensionNotification('setClientSandboxRequired', { required: value === true || value === AgentSandboxEnabledValue.On }, sendDuringReconnect);
-	}
-
 	/**
 	 * Common path for outgoing JSON-RPC requests: queue pre-initialize traffic,
 	 * gate on any in-flight reconnect (unless explicitly bypassed for the
@@ -2585,6 +2580,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		const { request, result } = this._createRequest<TResult>(method, params);
+		if (method === 'initialize') {
+			this._logService.info(`[RemoteAgentHostProtocol] Sending initialize: address=${this._address} clientId=${this._clientId} requestId=${request.id}`);
+		}
 		if (this._firstSessionRequestPending && current.kind === AgentHostClientState.Connected && (method === 'createSession' || method === 'listSessions' || method === 'subscribe')) {
 			this._firstSessionRequestPending = false;
 			return this._traceConnection('protocol.firstSessionRequest', async () => {

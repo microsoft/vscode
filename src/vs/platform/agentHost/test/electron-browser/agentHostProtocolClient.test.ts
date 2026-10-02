@@ -1569,6 +1569,41 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
+	for (const succeeds of [true, false]) {
+		test(`logs the initialize request identity and ${succeeds ? 'completion' : 'failed stage'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const infos: string[] = [];
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override info(message: string): void { infos.push(message); }
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClient(transport, undefined, undefined, logService, undefined, 'client-1');
+			const connecting = client.connect();
+			const completed = succeeds ? connecting : assert.rejects(connecting, /Connection closed/);
+			await transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const request = transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true }) && request.method === 'initialize');
+			await timeout(10);
+			if (succeeds) {
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] } });
+			} else {
+				transport.fireClose();
+			}
+			await completed;
+			assert.deepStrictEqual({ infos, warnings }, {
+				infos: [
+					`[RemoteAgentHostProtocol] Sending initialize: address=test.example:1234 clientId=client-1 requestId=${request.id}`,
+					...(succeeds ? ['[RemoteAgentHostProtocol] Initialized: address=test.example:1234 clientId=client-1 durationMs=10'] : []),
+				],
+				warnings: succeeds ? [] : ['[RemoteAgentHostProtocol] Connection failed: address=test.example:1234 clientId=client-1 stage=initialize durationMs=10 pendingRequests=0'],
+			});
+		}));
+	}
+
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
@@ -1829,7 +1864,7 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
-		test(`forwards sandbox policy independently of ordinary settings and the permission bridge (${String(identity)})`, async () => {
+		test(`does not forward a legacy sandbox policy requirement (${String(identity)})`, async () => {
 			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
 			const configurationService = new class extends TestConfigurationService {
 				policyActive = false;
@@ -1840,22 +1875,21 @@ suite('AgentHostProtocolClient', () => {
 			}({ [setting]: 'on' });
 			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
 			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
-			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
 			await connectClient(client, transport);
-			assert.deepStrictEqual(contributions(), [expected(false)]);
+			assert.deepStrictEqual(contributions(), []);
 
 			for (const policyActive of [true, false]) {
 				transport.sentMessages.length = 0;
 				configurationService.policyActive = policyActive;
 				fireConfigurationChange(configurationService, setting);
-				assert.deepStrictEqual(contributions(), [expected(policyActive)]);
+				assert.deepStrictEqual(contributions(), []);
 			}
 			configurationService.policyActive = true;
 			for (const value of [true, false, 'off', 'on']) {
 				transport.sentMessages.length = 0;
 				await configurationService.setUserConfiguration(setting, value);
 				fireConfigurationChange(configurationService, setting);
-				assert.deepStrictEqual(contributions(), [expected(value === true || value === 'on')]);
+				assert.deepStrictEqual(contributions(), []);
 			}
 		});
 	}
@@ -4122,7 +4156,7 @@ suite('AgentHostProtocolClient', () => {
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
-				assert.ok(sandboxPolicyIndex >= 0 && sandboxPolicyIndex < listSessionsIndex, 'sandbox policy must be sent before requests triggered by the connected transition');
+				assert.strictEqual(sandboxPolicyIndex, -1, 'legacy sandbox policy must not be forwarded on reconnect');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -4215,9 +4249,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
 			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
-			assert.ok(sandboxPolicy, 'sandbox policy should be restored after fresh initialization');
-			assert.deepStrictEqual(sandboxPolicy, { jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required: true } });
-			assert.ok(reconnectTransport.sentMessages.indexOf(sandboxPolicy) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate));
+			assert.strictEqual(sandboxPolicy, undefined, 'legacy sandbox policy must not be restored after fresh initialization');
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
