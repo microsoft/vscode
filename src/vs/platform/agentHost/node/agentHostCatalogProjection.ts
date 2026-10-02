@@ -9,6 +9,7 @@ import { stableStringify } from '../../../base/common/objects.js';
 import { URI } from '../../../base/common/uri.js';
 import { IValidator, ValidationError, ValidatorBase, ValidatorType, vArray, vBoolean, vEnum, vObj, vOptionalProp } from '../../../base/common/validation.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, isAgentDevContainerWorktreeHandle } from '../common/meta/agentDevContainerWorktreeMeta.js';
+import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { SESSION_META_ARTIFACTS_KEY } from '../common/sessionArtifacts.js';
 import { ChatInteractivity } from '../common/state/protocol/channels-chat/state.js';
@@ -301,6 +302,7 @@ const sourceControlValidator = new RefinedValidator(plainObject(vObj({
 
 const artifactValidator = plainObject(vObj({
 	id: boundedString(),
+	chat: vOptionalProp(boundedString()),
 	type: vEnum('pullRequest', 'issue', 'commit', 'website', 'file', 'resource'),
 	label: boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT),
 	isArtifact: vOptionalProp(vBoolean()),
@@ -339,6 +341,12 @@ const devContainerWorktreeValidator = new RefinedValidator(plainObject(vObj({
 	? value
 	: { message: 'Expected valid Dev Container worktree metadata.' });
 
+const codexSessionModelValidator = new RefinedValidator(plainObject(vObj({
+	id: boundedString(),
+})), value => readCodexSessionModel({ _meta: { [CODEX_SESSION_MODEL_META_KEY]: value } })
+	? value
+	: { message: 'Expected a canonical Codex provider model selection.' });
+
 /**
  * The session's `_meta` bag, validated slot by slot under the same well-known
  * keys `sessionState.ts` uses, so readers such as `readSessionGitState` accept
@@ -360,6 +368,7 @@ const metadataValidator = plainObject(vObj({
 	[SESSION_META_EHCLI_ADOPTABLE_KEY]: vOptionalProp(vBoolean()),
 	[SESSION_META_EHCLI_ADOPTED_KEY]: vOptionalProp(vBoolean()),
 	[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: vOptionalProp(devContainerWorktreeValidator),
+	[CODEX_SESSION_MODEL_META_KEY]: vOptionalProp(codexSessionModelValidator),
 }));
 
 const workingDirectoriesValidator = new RefinedValidator(

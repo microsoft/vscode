@@ -315,8 +315,74 @@ suite('AgentHostPty', () => {
 		assert.deepStrictEqual(dataReceived, ['hello world\r\n']);
 	});
 
-	test('terminal/exited action finalizes the local PTY exactly once', async () => {
+	test('isCommandExecuting tracks command lifecycle once command detection is available', async () => {
 		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
+		await pty.start();
+
+		const states: (boolean | undefined)[] = [pty.isCommandExecuting];
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandDetectionAvailable });
+		states.push(pty.isCommandExecuting);
+		pty.markCommandPending();
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'c1', commandLine: 'npm run build', timestamp: 0 });
+		states.push(pty.isCommandExecuting);
+		// Input to the foreground process must not leave the terminal busy after the command finishes.
+		pty.input('answer\r');
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandFinished, commandId: 'c1', exitCode: 0 });
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'sentinel', commandLine: 'echo <<<COPILOT_SENTINEL_test>>>', timestamp: 1 });
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandFinished, commandId: 'sentinel', exitCode: 0 });
+		states.push(pty.isCommandExecuting);
+
+		assert.deepStrictEqual(states, [undefined, false, true, true, false, true, false]);
+	});
+
+	test('isCommandExecuting is unknown while reconnecting and restores from the snapshot', async () => {
+		const conn1 = new MockAgentConnection({ supportsCommandDetection: true });
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection({
+			supportsCommandDetection: true,
+			content: [{
+				type: 'command',
+				commandId: 'c1',
+				commandLine: 'npm run build',
+				output: '',
+				timestamp: 0,
+				isComplete: false,
+			}],
+		});
+		disposables.add(conn2);
+		const beforeReconnect = pty.isCommandExecuting;
+		const reconnect = pty.reconnect(conn2);
+		const whileReconnecting = pty.isCommandExecuting;
+		await reconnect;
+		const afterRunningSnapshot = pty.isCommandExecuting;
+
+		const conn3 = new MockAgentConnection();
+		disposables.add(conn3);
+		await pty.reconnect(conn3);
+
+		assert.deepStrictEqual({
+			beforeReconnect,
+			whileReconnecting,
+			afterRunningSnapshot,
+			afterUnknownSnapshot: pty.isCommandExecuting,
+		}, {
+			beforeReconnect: false,
+			whileReconnecting: undefined,
+			afterRunningSnapshot: true,
+			afterUnknownSnapshot: undefined,
+		});
+	});
+
+	test('terminal/exited action finalizes the local PTY exactly once', async () => {
+		const conn = new MockAgentConnection({ supportsCommandDetection: true });
 		disposables.add(conn);
 		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
 
@@ -325,6 +391,7 @@ suite('AgentHostPty', () => {
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
+		const commandStateAfterExit = pty.isCommandExecuting;
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
 		pty.shutdown(false);
 		pty.input('ignored');
@@ -338,12 +405,14 @@ suite('AgentHostPty', () => {
 			disposedSubscriptions: conn.disposedSubscriptions,
 			disposedTerminals: conn.disposedTerminals,
 			dispatchedActions: conn.dispatchedActions,
+			commandStateAfterExit,
 		}, {
 			exitCodes: [42],
 			disposeCount: 1,
 			disposedSubscriptions: 1,
 			disposedTerminals: [],
 			dispatchedActions: [],
+			commandStateAfterExit: undefined,
 		});
 	});
 

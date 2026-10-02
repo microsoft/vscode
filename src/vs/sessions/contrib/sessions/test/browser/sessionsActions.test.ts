@@ -27,13 +27,12 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloseEditorTabAction } from '../../../../../workbench/browser/parts/editor/editorActions.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/common/assignmentService.js';
-import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SESSION_CONVERSATION_SIDE_CHATS_GROUP } from '../../../../browser/sessionConversationGroups.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -42,14 +41,13 @@ import { Action } from '../../../../../base/common/actions.js';
 import { NewSessionActionViewItem, type NewSessionButtonStyle, SessionConversationActionsContribution, SessionListActionsExperimentContribution } from '../../browser/sessionsActions.js';
 import '../../../chat/browser/chat.contribution.js';
 import { NEW_SESSION_ACTION_ID, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
-import { ArchiveSessionAction, SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID, ShowArchivedChatsAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
 import { createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../chat/browser/newSessionComposerService.js';
-import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, SessionsList } from '../../browser/views/sessionsList.js';
-import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
+import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID } from '../../browser/views/sessionsList.js';
 import { ISelectWorkspaceOptions } from '../../../../browser/parts/chatView.js';
 import { WorkspaceSelectionOrigin } from '../../../../common/workspaceSelection.js';
-import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ARCHIVE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -270,67 +268,83 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('contributes per-session archived chat visibility actions', () => {
-		const actionRegistration = new DisposableStore();
-		actionRegistration.add(registerAction2(ShowArchivedChatsAction));
-		try {
-			const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
-				.filter(isIMenuItem)
-				.filter(item => item.command.id === SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID)
-				.map(item => ({
-					id: item.command.id,
-					title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
-					group: item.group,
-					order: item.order,
-					when: item.when?.serialize(),
-					toggled: item.command.toggled
-						? isICommandActionToggleInfo(item.command.toggled)
-							? item.command.toggled.condition.serialize()
-							: item.command.toggled.serialize()
-						: undefined,
-				}));
+	test('the main session context menu opens its main chat to the side', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const { session } = createTestSession('Session');
+		const activeSession = upcastPartial<IActiveSession>({
+			...session,
+			activeChat: session.mainChat,
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
+		});
+		const opens: IOpenSessionOptions[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([activeSession]);
+			override async openSessionToSide(_session: ISession, options?: IOpenSessionOptions): Promise<void> {
+				if (options) {
+					opens.push(options);
+				}
+			}
+		});
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+			override focusSession(): void { }
+		});
 
-			assert.deepStrictEqual(actions, [
-				{
-					id: SHOW_SESSION_ARCHIVED_CHATS_COMMAND_ID,
-					title: 'Show Archived Chats',
-					group: '1_newChat',
-					order: 1,
-					when: undefined,
-					toggled: 'sessionItem.showsArchivedChats',
-				},
-			]);
-		} finally {
-			actionRegistration.dispose();
-		}
+		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
+		assert.ok(command);
+		await command.handler(instantiationService, session);
+
+		assert.deepStrictEqual(opens, [{ source: 'sessionsList', forceMainChat: true }]);
 	});
 
-	test('updates archived chat visibility through the Sessions list', () => {
+	test('the multi-session context menu batches side-opens and selects the last main chat', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		const session = createTestSession('Session').session;
-		const calls: { readonly session: ISession; readonly visible: boolean }[] = [];
-		let visible = false;
-		const sessionsControl = upcastPartial<SessionsList>({
-			setSessionArchivedChatsVisible: (target, nextVisible) => {
-				visible = nextVisible;
-				calls.push({ session: target, visible: nextVisible });
-			},
-			isSessionArchivedChatsVisible: () => visible,
+		const sessions = [createTestSession('First').session, createTestSession('Last').session];
+		const reference = upcastPartial<IActiveSession>({
+			...sessions[1],
+			activeChat: sessions[1].mainChat,
+			isCreated: constObservable(true),
+			sticky: constObservable(false),
 		});
-		const view = upcastPartial<SessionsView>({ sessionsControl });
-		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
-			override getViewWithId<T>(id: string): T | null {
-				return id === SessionsViewId ? view as T : null;
+		const opens: { sessions: readonly ISession[]; reference: string | undefined; direction: string; options: IOpenSessionsOptions | undefined }[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly visibleSessions = constObservable([reference]);
+			override async openSessionsAt(...[sessions, reference, direction, options]: Parameters<ISessionsService['openSessionsAt']>): Promise<void> {
+				opens.push({ sessions, reference, direction, options });
 			}
-		}());
+		});
 
-		instantiationService.invokeFunction(accessor => new ShowArchivedChatsAction().run(accessor, session));
-		instantiationService.invokeFunction(accessor => new ShowArchivedChatsAction().run(accessor, session));
+		const command = CommandsRegistry.getCommand('sessionsViewPane.openToTheSide');
+		assert.ok(command);
+		await command.handler(instantiationService, sessions);
 
-		assert.deepStrictEqual(calls, [
-			{ session, visible: true },
-			{ session, visible: false },
+		assert.deepStrictEqual(opens, [{
+			sessions, reference: reference.sessionId, direction: 'right',
+			options: { source: 'sessionsList', activate: 'last', forceMainChat: true },
+		}]);
+	});
+
+	test('disables single-session context menu actions for multiselection', () => {
+		const actionIds = new Set([
+			'sessions.chatCompositeBar.addChat',
+			RENAME_SESSION_COMMAND_ID,
 		]);
+		const actions = MenuRegistry.getMenuItems(Menus.SessionItemContextMenu)
+			.filter(isIMenuItem)
+			.filter(item => actionIds.has(item.command.id))
+			.map(item => ({
+				id: item.command.id,
+				precondition: item.command.precondition?.serialize(),
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id));
+
+		assert.deepStrictEqual(actions, [{
+			id: 'sessions.chatCompositeBar.addChat',
+			precondition: '!sessionItem.isMultiSelection',
+		}, {
+			id: RENAME_SESSION_COMMAND_ID,
+			precondition: '!sessionItem.isMultiSelection',
+		}]);
 	});
 
 	test('groups session management actions before creation and close', () => {
@@ -342,6 +356,7 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
+			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -559,7 +574,7 @@ suite('Sessions - Actions', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => [TOGGLE_PIN_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', CLOSE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID].includes(item.command.id))
-			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id) || (a.group ?? '').localeCompare(b.group ?? ''))
 			.map(item => ({
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -572,50 +587,77 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
+			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
 	});
 
-	test('uses the same small close icon for chat and side-panel tabs', () => {
-		const chatClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
+	test('uses a compact close icon for tabs and a regular close icon for headers', () => {
+		const chatTabClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
+		const chatHeaderClose = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID && item.group === 'navigation');
+		const sessionHeaderClose = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'navigation');
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 
 		assert.deepStrictEqual({
-			chatIcon: chatClose?.command.icon,
+			chatTabIcon: chatTabClose?.command.icon,
+			chatHeaderIcon: chatHeaderClose?.command.icon,
+			chatHeaderTooltip: chatHeaderClose?.command.tooltip,
+			sessionHeaderIcon: sessionHeaderClose?.command.icon,
+			sessionHeaderTooltip: typeof sessionHeaderClose?.command.tooltip === 'string' ? sessionHeaderClose.command.tooltip : sessionHeaderClose?.command.tooltip?.value,
 			editorClass: editorClose.class,
 		}, {
-			chatIcon: Codicon.closeSmall,
+			chatTabIcon: Codicon.closeSmall,
+			chatHeaderIcon: Codicon.close,
+			chatHeaderTooltip: 'Close Chat Group',
+			sessionHeaderIcon: Codicon.close,
+			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});
 	});
 
 	test('uses mutually exclusive close actions for session and chat group headers', () => {
-		const getCloseWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+		const getCloseItems = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === commandId)
-			?.when?.serialize();
+			.filter(item => item.command.id === commandId)
+			.map(item => ({ group: item.group, when: item.when?.serialize() }))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''));
 
 		assert.deepStrictEqual({
 			toolbar: {
-				chat: getCloseWhen(Menus.SessionBarToolbar, CLOSE_CHAT_COMMAND_ID),
-				session: getCloseWhen(Menus.SessionBarToolbar, CLOSE_SESSION_COMMAND_ID),
+				chat: getCloseItems(Menus.SessionBarToolbar, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseItems(Menus.SessionBarToolbar, CLOSE_SESSION_COMMAND_ID),
 			},
 			contextMenu: {
-				chat: getCloseWhen(Menus.SessionHeaderContext, CLOSE_CHAT_COMMAND_ID),
-				session: getCloseWhen(Menus.SessionHeaderContext, CLOSE_SESSION_COMMAND_ID),
+				chat: getCloseItems(Menus.SessionHeaderContext, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseItems(Menus.SessionHeaderContext, CLOSE_SESSION_COMMAND_ID),
 			},
 		}, {
 			toolbar: {
-				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
-				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+				chat: [
+					{ group: 'navigation', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+					{ group: 'secondary/4_pin', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+				],
+				session: [
+					{ group: 'navigation', when: 'multipleSessionsVisible && sessionToolbarShowsSession' },
+					{ group: 'secondary/4_pin', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+				],
 			},
 			contextMenu: {
-				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
-				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+				chat: [
+					{ group: '1_view', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+				],
+				session: [
+					{ group: '1_view', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+				],
 			},
 		});
 

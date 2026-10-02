@@ -7,10 +7,12 @@ import type { IReference } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import type { ILocalTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import type { IPersistedTurnRecord, ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { Turn } from '../common/state/sessionState.js';
 
 export const IAgentHostLocalTurns = createDecorator<IAgentHostLocalTurns>('agentHostLocalTurns');
+
+type ILocalPersistedTurnRecord = IPersistedTurnRecord & { readonly kind: 'local'; readonly seq: number };
 
 export interface IAgentHostLocalTurns {
 	readonly _serviceBrand: undefined;
@@ -40,7 +42,7 @@ export interface IAgentHostLocalTurns {
  * Everything is scoped to a **chat** (its channel URI): a session's default
  * chat and each of its peer chats are handled identically. Persistence lives in
  * the owning session's database (one per session, shared across its chats),
- * discriminated by {@link ILocalTurnRecord.chatUri}.
+ * discriminated by {@link IPersistedTurnRecord.chatUri}.
  */
 export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	declare readonly _serviceBrand: undefined;
@@ -85,7 +87,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	record(session: string, chat: string, turn: Turn, anchorTurnId: string | undefined): void {
 		const seq = (this._seqBySession.get(session) ?? 0) + 1;
 		this._noteInMemory(session, chat, turn.id, anchorTurnId, seq);
-		const record: ILocalTurnRecord = { turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
+		const record: IPersistedTurnRecord = { kind: 'local', turnId: turn.id, chatUri: chat, anchorTurnId, seq, payload: JSON.stringify(turn) };
 		let ref: IReference<ISessionDatabase>;
 		try {
 			ref = this._sessionDataService.openDatabase(URI.parse(session));
@@ -93,7 +95,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to open database to persist local turn ${turn.id}`, err);
 			return;
 		}
-		ref.object.insertLocalTurn(record).catch(err => {
+		ref.object.insertPersistedTurn(record).catch(err => {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to persist local turn ${turn.id}`, err);
 		}).finally(() => ref.dispose());
 	}
@@ -118,7 +120,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 	 * `seq` order so the caller can interleave them into that chat's SDK-derived
 	 * turns during restore.
 	 */
-	async loadForChat(session: string, chat: string): Promise<ILocalTurnRecord[]> {
+	async loadForChat(session: string, chat: string): Promise<ILocalPersistedTurnRecord[]> {
 		const records = await this._load(session);
 		return records.filter(r => r.chatUri === chat);
 	}
@@ -146,7 +148,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to open database to delete local turns for ${session}`, err);
 			return;
 		}
-		ref.object.deleteLocalTurns(turnIds).catch(err => {
+		ref.object.deletePersistedTurns(turnIds).catch(err => {
 			this._logService.warn(`[AgentHostLocalTurns] Failed to delete local turns for ${session}`, err);
 		}).finally(() => ref.dispose());
 	}
@@ -156,7 +158,7 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		this._byChat.delete(chat);
 	}
 
-	private async _load(session: string): Promise<ILocalTurnRecord[]> {
+	private async _load(session: string): Promise<ILocalPersistedTurnRecord[]> {
 		const ref = this._sessionDataService.tryOpenDatabase?.(URI.parse(session));
 		if (!ref) {
 			return [];
@@ -167,11 +169,14 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 				return [];
 			}
 			try {
-				const records = await db.object.getLocalTurns();
-				for (const r of records) {
-					this._noteInMemory(session, r.chatUri, r.turnId, r.anchorTurnId, r.seq);
+				const persisted = await db.object.getPersistedTurns();
+				for (const record of persisted) {
+					this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, record.seq));
+					if (record.kind === 'local') {
+						this._noteInMemory(session, record.chatUri, record.turnId, record.anchorTurnId, record.seq);
+					}
 				}
-				return records;
+				return persisted.filter((record): record is ILocalPersistedTurnRecord => record.kind === 'local');
 			} finally {
 				db.dispose();
 			}
@@ -190,4 +195,35 @@ export class AgentHostLocalTurns implements IAgentHostLocalTurns {
 		map.set(turnId, { anchorTurnId, seq });
 		this._seqBySession.set(session, Math.max(this._seqBySession.get(session) ?? 0, seq));
 	}
+}
+
+/** Deserializes a host-persisted turn while preserving its complete payload. */
+export function parsePersistedTurn(record: IPersistedTurnRecord, logService: ILogService, source: string): Turn | undefined {
+	let value: unknown;
+	try {
+		value = JSON.parse(record.payload);
+	} catch (error) {
+		logService.warn(`[${source}] Ignoring unreadable persisted turn ${record.turnId}`, error);
+		return undefined;
+	}
+	if (!isPersistedTurn(value) || value.id !== record.turnId) {
+		logService.warn(`[${source}] Ignoring malformed persisted turn ${record.turnId}`);
+		return undefined;
+	}
+	return value;
+}
+
+function isPersistedTurn(value: unknown): value is Turn {
+	return isRecord(value)
+		&& typeof value.id === 'string'
+		&& isRecord(value.message)
+		&& typeof value.message.text === 'string'
+		&& isRecord(value.message.origin)
+		&& typeof value.message.origin.kind === 'string'
+		&& Array.isArray(value.responseParts)
+		&& typeof value.state === 'string';
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }

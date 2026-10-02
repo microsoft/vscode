@@ -58,6 +58,7 @@ import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../pl
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -1813,7 +1814,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					if (e.reachedMaxCursorCount) {
 
 						const multiCursorLimit = this.getOption(EditorOption.multiCursorLimit);
-						const message = nls.localize('cursors.maximum', "The number of cursors has been limited to {0}. Consider using [find and replace](https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace) for larger changes or increase the editor multi cursor limit setting.", multiCursorLimit);
+						const message = NotificationText.format(
+							nls.localize('cursors.maximumLinked', "The number of cursors has been limited to {0}. Consider using {1} for larger changes or increase the editor multi cursor limit setting."),
+							String(multiCursorLimit),
+							NotificationText.link(nls.localize('cursors.findAndReplaceLink', "find and replace"), 'https://code.visualstudio.com/docs/editor/codebasics#_find-and-replace'),
+						);
 						this._notificationService.prompt(Severity.Warning, message, [
 							{
 								label: 'Find and Replace',

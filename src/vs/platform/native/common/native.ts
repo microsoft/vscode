@@ -85,6 +85,8 @@ export interface IOpenAgentsWindowOptions {
 	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
 	readonly folderUriIsDefault?: boolean;
 	readonly sessionResource?: UriComponents;
+	/** Session to reveal in onboarding without replacing the new-session composer. */
+	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
 	readonly draft?: IAgentsWindowDraft;
 }
@@ -246,6 +248,7 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -347,6 +350,8 @@ export interface ICommonNativeHostService {
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 

@@ -25,9 +25,10 @@ const NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
 	title: 'HTTP Client Retry Plan',
 	workspace: 'vscode-tools',
 	minutesAgo: 2,
+	mainChatMinutesAgo: 7,
 	chats: [
-		{ id: 'task-a', title: 'Task A' },
-		{ id: 'task-b', title: 'Task B' },
+		{ id: 'task-a', title: 'Task A', minutesAgo: 18 },
+		{ id: 'task-b', title: 'Task B', minutesAgo: 43 },
 	],
 };
 const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
@@ -38,6 +39,29 @@ const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 	chats: [
 		{ id: 'active', title: 'Compare provider state', canArchive: true },
 		{ id: 'archived', title: 'Previous persistence approach', isArchived: true, canArchive: true },
+	],
+};
+const NESTED_CHAT_APPROVAL_SESSION: ISessionsListFixtureSession = {
+	id: 'a',
+	title: 'HTTP Client Retry Plan',
+	workspace: 'vscode-tools',
+	minutesAgo: 2,
+	status: SessionStatus.NeedsInput,
+	approvalCommand: 'yarn workspace @vscode-tools/server build --watch',
+	chats: [
+		{ id: 'task-a', title: 'Task A', status: SessionStatus.NeedsInput, approvalCommand: 'yarn workspace @vscode-tools/server build' },
+		{ id: 'task-b', title: 'Task B' },
+		{ id: 'task-c', title: 'Task C', status: SessionStatus.NeedsInput, approvalCommand: 'npm run test:integration -- --grep "retry"' },
+	],
+};
+const COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-primary-action',
+	title: 'Move chats',
+	workspace: 'vscode',
+	workspaceFolders: ['vscode', 'vscode-tools'],
+	minutesAgo: 2,
+	chats: [
+		{ id: 'review', title: 'Review chat transfer', workspace: 'vscode', canArchive: true },
 	],
 };
 const GROUPED_SESSIONS: readonly ISessionsListFixtureSession[] = [
@@ -488,6 +512,33 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The nested chat row is being renamed inline. Its input text and border are vertically centered with the compact chat status icon, without shifting the row height.'],
 	}),
+	SessionsList_CompactNestedChats: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 340 },
+		interaction: { hovered: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact expanded session shows an active child and a done child as indented leaves. Only the hovered parent shows Pin and Mark as Done actions and its collapse twistie. The done child retains its completed archive icon, and the hierarchy guides connect both children to the parent.'],
+	}),
+	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 340, collapsed: [{ session: 'nested-archive' }] },
+		interaction: { focused: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Neither its active nor its done child is visible, and the parent remains a single compact row.'],
+	}),
+	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
+		sessions: [NESTED_CHAT_APPROVAL_SESSION],
+		view: { compact: true, width: 340, height: 300 },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A compact session and two of its three nested chats each show their own terminal approval and Allow button. Task B has no approval and remains a single compact row; the expanded approval rows do not overlap adjacent children.'],
+	}),
 
 	//#endregion
 
@@ -496,38 +547,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_PeerChatInProgress: defineSessionsListFixture({
 		sessions: [{
 			id: 'a',
-			title: 'Single-pane details behavior',
+			title: 'Desktop details behavior',
 			workspace: 'vscode',
 			minutesAgo: 0,
 			status: SessionStatus.InProgress,
 			mainChatStatus: SessionStatus.Completed,
 			chats: [
-				{ id: 'layout', title: 'Fix single-pane details layout' },
+				{ id: 'layout', title: 'Fix desktop details layout' },
 				{ id: 'restore', title: 'Fix empty files restore', status: SessionStatus.InProgress },
 			],
 		}],
 		view: { width: 620 },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix single-pane details layout" peer chat shows an inactive dot. The session details say "Working...".'],
+		expectedVisualDescriptions: ['An expanded session has a completed main chat and two nested peer chat rows. The session row and the active "Fix empty files restore" peer chat row both show blue in-progress icons, while the completed "Fix desktop details layout" peer chat shows an inactive dot. The session details say "Working...".'],
 	}),
-	// A session whose nested chats each surface their own pending approval on
-	// their own row, plus an approval on the session's main chat (on the session
-	// row). Exercises the per-chat approval rendering and row-height reservation.
 	SessionsList_NestedChatApprovals: defineSessionsListFixture({
-		sessions: [{
-			id: 'a',
-			title: 'HTTP Client Retry Plan',
-			workspace: 'vscode-tools',
-			minutesAgo: 2,
-			status: SessionStatus.NeedsInput,
-			approvalCommand: 'yarn workspace @vscode-tools/server build --watch',
-			chats: [
-				{ id: 'task-a', title: 'Task A', status: SessionStatus.NeedsInput, approvalCommand: 'yarn workspace @vscode-tools/server build' },
-				{ id: 'task-b', title: 'Task B' },
-				{ id: 'task-c', title: 'Task C', status: SessionStatus.NeedsInput, approvalCommand: 'npm run test:integration -- --grep "retry"' },
-			],
-		}],
+		sessions: [NESTED_CHAT_APPROVAL_SESSION],
 		view: { width: 340 },
 	}),
 	SessionsList_NestedChatApprovals_Phone: defineSessionsListFixture({
@@ -550,7 +586,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { session: 'a' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section has two nested chat rows. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A hovered, expanded session in its workspace section shows the main chat and each nested chat\'s own relative modified time. Its twistie replaces the status icon, and rounded hierarchy connectors run continuously from the parent and stop before each child status icon.'],
 	}),
 	SessionsList_NestedChats_PinnedView: defineSessionsListFixture({
 		sessions: [{ ...NESTED_CHAT_SESSION, sticky: true }],
@@ -573,6 +610,24 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	//#region Archived chats
 
+	SessionsList_NestedChatActions: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { showArchived: true, width: 400 },
+		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The hovered active child shows Mark as Done, while its done sibling keeps its completed archive icon. The parent and done sibling do not show their row actions.'],
+	}),
+	SessionsList_CompactNestedChatActions: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 260 },
+		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['In a narrow compact list, the hovered active child keeps its title clear of its Mark as Done action. Its done sibling remains an indented leaf, and neither child action nor hierarchy guide overlaps the title.'],
+	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
 		view: { showArchived: true, width: 400 },
@@ -580,21 +635,51 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		expectedVisualDescriptions: ['An expanded vscode session shows one active nested chat and one archived nested chat. The archived chat remains under its parent, uses the completed archive status icon, and shows Restore as its primary row action when focused.'],
 	}),
-	SessionsList_ArchivedNestedChatSessionMenu: defineSessionsListFixture({
-		sessions: [{ ...ARCHIVED_CHAT_SESSION, chats: ARCHIVED_CHAT_SESSION.chats?.filter(chat => !chat.isArchived) }],
-		view: { width: 400 },
-		interaction: { contextMenu: { session: 'nested-archive' } },
+	SessionsList_CompactArchivedNestedChat: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 260 },
+		interaction: { selected: [{ session: 'nested-archive', chat: 'archived' }], focused: { session: 'nested-archive', chat: 'archived' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The done child is selected and keyboard-focused in a narrow compact list. Its completed archive icon, focus outline, and Restore action remain visible while its long title truncates; the active sibling and parent remain unselected.'],
+	}),
+	SessionsList_CompactArchivedSessionWithChats: defineSessionsListFixture({
+		sessions: [{ ...ARCHIVED_CHAT_SESSION, isArchived: true }],
+		view: { compact: true, width: 340, expanded: [{ section: 'archived' }] },
+		interaction: { focused: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		deferPaint: true,
+		expectedVisualDescriptions: ['A done parent session is expanded in the Done section with its active and done children still nested beneath it. The focused parent shows Restore rather than Pin or Mark as Done, independently of its children.'],
+	}),
+	SessionsList_ArchivedNestedChatMenu: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { showArchived: true, width: 400 },
+		interaction: { contextMenu: { session: 'nested-archive', chat: 'archived' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 		frame: CONTEXT_MENU_FRAME,
 	}, {
-		labels: { kind: 'screenshot', blocksCi: true },
-		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['An expanded vscode session with no Done chats has its context menu open. Show Done Chats is always available, unchecked, and appears directly after New Chat in This Session in the same action group.'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The done child has its own context menu with Restore instead of Mark as Done. Its parent remains active and both children remain nested beneath it.'],
 	}),
-
+	SessionsList_CompactNestedChatPrimaryAction: defineSessionsListFixture({
+		sessions: [COMPACT_NESTED_CHAT_PRIMARY_ACTION_SESSION],
+		view: { compact: true, width: 400 },
+		interaction: { focused: { session: 'nested-primary-action', chat: 'review' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot', blocksCi: true },
+		deferPaint: true,
+		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
+	}),
 	//#endregion
 
 	//#region Archive onboarding
@@ -689,14 +774,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them and becomes sticky as they scroll away. Automations has a compact right-aligned NEW capsule, Customizations shows its count of 8, and the outlined New button remains in the Sessions header rather than becoming a list entry.'],
+		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them, retains its outlined New button, and becomes sticky as the navigation rows scroll away. Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows a small warning dot right after its label, before the right-aligned count of 8.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],

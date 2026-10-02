@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -70,6 +71,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -538,6 +540,7 @@ suite('CodexAgent model refresh', () => {
 			child: { kill: () => { disposed.push('child'); return true; } },
 		}) as never;
 
+		const startedAt = Date.now();
 		const probe = ctx.runStartupAccountProbe();
 		await Promise.all([rateLimitStarted.p, profileImageStarted.p]);
 		assert.deepStrictEqual(disposed, []);
@@ -548,10 +551,11 @@ suite('CodexAgent model refresh', () => {
 		await profileImageStored.p;
 		await new Promise<void>(resolve => setImmediate(resolve));
 
+		const account = readCodexAccountInfo(ctx.stateManager.rootState);
 		assert.deepStrictEqual({
 			requests,
 			disposed,
-			account: readCodexAccountInfo(ctx.stateManager.rootState),
+			account: { ...account, observedAt: account?.observedAt !== undefined && account.observedAt >= startedAt && account.observedAt <= Date.now() },
 			connection: ctx.agent['_connection'].kind,
 		}, {
 			requests: ['account/read', 'account/rateLimits/read', 'getAuthStatus'],
@@ -562,6 +566,7 @@ suite('CodexAgent model refresh', () => {
 				planType: 'plus',
 				profileImage,
 				requiresOpenaiAuth: true,
+				observedAt: true,
 				rateLimit: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
 				rateLimits: [
 					{ usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
@@ -622,6 +627,7 @@ suite('CodexAgent model refresh', () => {
 				planType: 'plus',
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
+				observedAt: undefined,
 				rateLimit: undefined,
 				rateLimits: undefined,
 				authUrl: undefined,
@@ -668,7 +674,7 @@ suite('CodexAgent model refresh', () => {
 			account: readCodexAccountInfo(ctx.stateManager.rootState),
 		}, {
 			connectionRequests: 0,
-			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, observedAt: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
 		});
 	});
 
@@ -724,7 +730,7 @@ suite('CodexAgent model refresh', () => {
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
 			disposed: ['client', 'proxy', 'child'],
-			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, observedAt: undefined, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
 	});
@@ -774,6 +780,7 @@ suite('CodexAgent model refresh', () => {
 				planType: 'plus',
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
+				observedAt: undefined,
 				rateLimit: undefined,
 				rateLimits: undefined,
 				authUrl: undefined,
@@ -1442,7 +1449,7 @@ suite('CodexAgent model refresh', () => {
 		};
 		agent['_connection'] = staleConnection as never;
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent['_listCodexChats']('discovery');
 		await listStarted.p;
 		agent['_connection'] = createChatGPTConnection() as never;
 		await releaseList.complete();

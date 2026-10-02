@@ -9,6 +9,7 @@ import { getAnchorRect } from '../../../../../base/browser/ui/contextview/contex
 import { Menu } from '../../../../../base/browser/ui/menu/menu.js';
 import { ActionRunner } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -69,6 +70,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
@@ -168,7 +170,7 @@ export interface ISessionsListFixtureHeader {
 	readonly automationRunStatus?: IAutomationRun['status'];
 	/** Shows Automations and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
-	/** Count shown on the Customizations navigation row. */
+	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
@@ -224,7 +226,7 @@ const SETTLE_DELAY = 100;
 /** The sessions list still reads this Copilot-internal service (#320480); fixtures stub it by id instead of importing it. */
 const IFixtureAgentSessionsService = createDecorator<object>('agentSessions');
 
-class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
+export class FixtureActionViewItemService extends Disposable implements IActionViewItemService {
 	declare _serviceBrand: undefined;
 
 	private readonly providers = new Map<string, IActionViewItemFactory>();
@@ -252,7 +254,7 @@ type MenuActionGroups = [string, Array<MenuItemAction | SubmenuItemAction>][];
  * Renders context menus in the fixture with the production menu widget and
  * styles, where the shared fixture services show nothing.
  */
-class FixtureContextMenuService extends Disposable implements IContextMenuService {
+export class FixtureContextMenuService extends Disposable implements IContextMenuService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly shownMenu = this._register(new MutableDisposable());
@@ -304,7 +306,12 @@ class FixtureContextMenuService extends Disposable implements IContextMenuServic
 			getKeyBinding: delegate.getKeyBinding ?? (action => this.keybindingService.lookupKeybinding(action.id)),
 		}, defaultMenuStyles));
 		store.add(menu.onDidCancel(() => this.shownMenu.clear()));
-		store.add(actionRunner.onDidRun(() => this.shownMenu.clear()));
+		store.add(actionRunner.onDidRun(event => {
+			this.shownMenu.clear();
+			if (event.error) {
+				onUnexpectedError(event.error);
+			}
+		}));
 		store.add(toDisposable(() => {
 			delegate.onHide?.(false);
 			this.onDidHideContextMenuEmitter.fire();
@@ -335,7 +342,11 @@ class SessionsListFixtureMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
 			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
-			return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
+			return {
+				onDidChange: Event.None,
+				getActions: () => [['navigation', [newSession]]],
+				dispose: () => { },
+			};
 		}
 		const menu = super.createMenu(id, contextKeyService, options);
 		return {
@@ -492,7 +503,7 @@ let archiveActions: { readonly contribution: SessionsArchiveActionsContribution;
  * {@link SessionsListFixtureMenuService} shows them in each fixture's wording,
  * which keeps concurrently mounted fixtures independent.
  */
-function acquireArchiveActions(): IDisposable {
+export function acquireArchiveActions(): IDisposable {
 	archiveActions ??= {
 		contribution: new SessionsArchiveActionsContribution(new TestConfigurationService({ [ChatSessionArchiveActionWordingSettingId]: REGISTERED_ARCHIVE_WORDING })),
 		refs: 0,
@@ -567,7 +578,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 	const automationRuns = observableValue<readonly IAutomationRun[]>('fixtureAutomationRuns', []);
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
-	const newSessionKeybinding = newSessionButtonStyle ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -650,6 +661,11 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			}());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
+			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
+				override getComparison() { return undefined; }
+				override getComparisonForSession() { return undefined; }
 			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
@@ -841,7 +857,8 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	if (!container.querySelector('.agent-sessions-compact-new-button')) {
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	if (!newSessionButton) {
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;

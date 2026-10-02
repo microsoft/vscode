@@ -5,13 +5,20 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { IWebPubSubRelayTransportOptions, IWebSocketLike, WebPubSubRelayTransport } from '../../browser/webPubSubRelayTransport.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 import { JsonRpcRequest, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { ChunkEnvelope, DEFAULT_MAX_CHUNK_BYTES, DEFAULT_MAX_SEGMENTS_PER_GROUP, chunk } from '../../common/webPubSub/chunking.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 const BROADCAST = 'user.u1.env.e1.client.c1.broadcast';
 const TO_CLIENT = 'user.u1.env.e1.client.c1.to-client';
@@ -163,6 +170,55 @@ suite('WebPubSubRelayTransport', () => {
 			{ message: await received, acknowledgements: fake.sentOfType('sequenceAck') },
 			{ message: ahpMessage, acknowledgements: [] },
 		);
+	});
+
+	test('logs whole AHP messages in both directions without relay framing or duplicate deliveries', async () => {
+		const logService = new NullLogService();
+		const fileService = store.add(new FileService(logService));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger({
+			logsHome: URI.from({ scheme: Schemas.inMemory, path: '/logs' }),
+			logId: 'cloudsandbox:env-1',
+			connectionId: 'cloud-client',
+			transport: 'webpubsub',
+		}, fileService, logService));
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake, { ahpLogger: logger });
+		await connectHandshake(transport, fake);
+		const request: JsonRpcRequest = { jsonrpc: '2.0', id: 7, method: 'resourceRead', params: { uri: 'file:///workspace/test.txt' } };
+		const response = { jsonrpc: '2.0', id: 7, result: { text: '\u00e9'.repeat(1024) } };
+		transport.send(request);
+		const chunks = chunk(response, { maxChunkBytes: 512, newGroupId: () => 'logged-message' });
+		chunks.forEach((data, index) => fake.emitGroupMessage(index + 1, data));
+		fake.emitGroupMessage(chunks.length, chunks[chunks.length - 1], BROADCAST);
+		await logger.flush();
+
+		const entries: { _ahpLog: { ts: string; dir: string; connectionId: string; transport: string; byteLength: number } }[] = (await fileService.readFile(logger.resource)).value.toString().trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual(entries.map(({ _ahpLog: { ts, ...metadata }, ...message }) => ({ message, metadata, hasTimestamp: !isNaN(Date.parse(ts)) })), [
+			{ message: request, metadata: { dir: 'c2s', connectionId: 'cloud-client', transport: 'webpubsub', byteLength: VSBuffer.fromString(JSON.stringify(request)).byteLength }, hasTimestamp: true },
+			{ message: response, metadata: { dir: 's2c', connectionId: 'cloud-client', transport: 'webpubsub', byteLength: VSBuffer.fromString(JSON.stringify(response)).byteLength }, hasTimestamp: true },
+		]);
+	});
+
+	test('reports host chunks of an unfinished message, but not relay service frames', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		const events: string[] = [];
+		store.add(transport.onMessage(() => events.push('message')));
+		store.add(transport.onDidReceiveData(() => events.push('data')));
+		const message = { jsonrpc: '2.0', id: 1, result: 'x'.repeat(2048) };
+		const chunks = chunk(message, { maxChunkBytes: 512, newGroupId: () => 'large-message' });
+
+		fake.emit({ type: 'system', event: 'connected' });
+		fake.emit({ type: 'ack', ackId: 99, success: true });
+		fake.emitGroupMessage(1, chunks[0]);
+		fake.emitGroupMessage(1, chunks[0]);
+		for (let i = 1; i < chunks.length; i++) {
+			fake.emitGroupMessage(i + 1, chunks[i]);
+		}
+
+		assert.deepStrictEqual(events, [...chunks.slice(1).map(() => 'data'), 'message']);
 	});
 
 	test('acknowledges receipt before delivery and filters redeliveries across groups', async () => {

@@ -21,7 +21,7 @@ export const enum SessionConfigKey {
 	AutoApprove = 'autoApprove',
 	/** `'permissions'` — per-tool session allow/deny lists. */
 	Permissions = 'permissions',
-	/** Persisted session sandbox selection; omitted or `default` follows the host default. */
+	/** Session sandbox selection; persistence records the successfully applied value. */
 	SandboxEnabled = 'sandboxEnabled',
 	/** `'isolation'` — host-owned `'folder'` or `'worktree'` selection. */
 	Isolation = 'isolation',
@@ -33,6 +33,8 @@ export const enum SessionConfigKey {
 	WorktreeBranchPrefix = 'worktreeBranchPrefix',
 	/** `'worktreeIncludeFiles'` — host-owned `.gitignore`-syntax patterns for git-ignored files copied into a new worktree. */
 	WorktreeIncludeFiles = 'worktreeIncludeFiles',
+	/** `'worktreeSymlinkFolders'` — host-owned `.gitignore`-syntax patterns for git-ignored folders symlinked into a new worktree. */
+	WorktreeSymlinkFolders = 'worktreeSymlinkFolders',
 	/** `'worktreeBranchTrack'` — host-owned branch tracking preference for programmatic session creation. */
 	WorktreeBranchTrack = 'worktreeBranchTrack',
 	/** `'worktreeCreateNewBranch'` — host-owned choice to create a branch instead of checking out the selected branch. */
@@ -81,6 +83,17 @@ export function omitTransientSessionConfigValues<T>(values: Record<string, T>): 
 	return result;
 }
 
+/** Persists confirmed sandbox enablement rather than a pending or rejected selection. */
+export function getPersistedSessionConfigValues(values: Record<string, unknown>, appliedSandboxEnabled: boolean | undefined): Record<string, unknown> {
+	const result = omitTransientSessionConfigValues(values);
+	if (appliedSandboxEnabled === undefined) {
+		delete result[SessionConfigKey.SandboxEnabled];
+	} else {
+		result[SessionConfigKey.SandboxEnabled] = appliedSandboxEnabled ? 'on' : 'off';
+	}
+	return result;
+}
+
 const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Permissions,
 	SessionConfigKey.SandboxEnabled,
@@ -88,6 +101,7 @@ const automationDefinitionOwnedConfigKeys = [
 	SessionConfigKey.Branch,
 	SessionConfigKey.WorktreeBranchPrefix,
 	SessionConfigKey.WorktreeIncludeFiles,
+	SessionConfigKey.WorktreeSymlinkFolders,
 	SessionConfigKey.WorktreeBranchTrack,
 	SessionConfigKey.WorktreeCreateNewBranch,
 	SessionConfigKey.AgentMerge,
