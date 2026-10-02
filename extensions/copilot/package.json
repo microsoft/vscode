@@ -6905,6 +6905,7 @@
       },
       {
         "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
         "sessionTypes": [
           "copilotcli"
         ]

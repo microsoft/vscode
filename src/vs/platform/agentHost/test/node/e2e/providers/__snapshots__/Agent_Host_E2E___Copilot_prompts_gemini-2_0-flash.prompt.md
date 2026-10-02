@@ -244,100 +244,6 @@
       "type": "function"
     },
     {
-      "name": "list_canvas_capabilities",
-      "description": "Inspect a canvas *type* to discover its open input schema and supported actions (action names + input schemas). Takes a canvasId from the <canvases> section — not a running instanceId.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "extensionId": {
-            "type": "string",
-            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
-          },
-          "canvasId": {
-            "type": "string",
-            "description": "Canvas type to inspect (not a running instance). Must be a canvasId from the <canvases> section."
-          }
-        },
-        "required": [
-          "canvasId"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "open_canvas",
-      "description": "Open or focus a declared canvas. canvasId selects the canvas type (from the <canvases> section); instanceId is a handle you choose for this specific panel and reuse in later invoke_canvas_action calls. Re-opening the same instanceId focuses the existing panel; using a new instanceId opens an additional panel of the same canvas type.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "extensionId": {
-            "type": "string",
-            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
-          },
-          "canvasId": {
-            "type": "string",
-            "description": "Canvas type to open. Must be a canvasId from the <canvases> section — do not invent one."
-          },
-          "instanceId": {
-            "type": "string",
-            "description": "Caller-chosen handle for this panel. Free-form (slug or UUID), unrelated to canvasId. Reuse it in invoke_canvas_action to address the same panel; pick a new value to open another panel of the same type."
-          },
-          "input": {
-            "description": "Canvas open input matching the canvas input schema. Send a JSON object, or null when the canvas takes no input, and never JSON-encoded text",
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "canvasId",
-          "instanceId"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "invoke_canvas_action",
-      "description": "Invoke an action on an open canvas instance. Identify the panel by the instanceId you passed to open_canvas — do not pass canvasId or extensionId here. Action names and schemas come from list_canvas_capabilities for the canvas type.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "The instanceId from a prior open_canvas — the panel handle, NOT canvasId or extensionId."
-          },
-          "actionName": {
-            "type": "string",
-            "description": "Action name to invoke. See list_canvas_capabilities for the actions a canvas supports."
-          },
-          "input": {
-            "description": "Action input matching the action input schema. Send a JSON object, or null when the action takes no input, and never JSON-encoded text",
-            "anyOf": [
-              {
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "instanceId",
-          "actionName"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
       "name": "sql",
       "description": "Query the session SQLite database for structured workflows. `todos` and `todo_deps` already exist—do not recreate them; create other tables as needed. Supports SQLite SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, and DROP.",
       "parameters": {
@@ -350,6 +256,37 @@
           "query": {
             "type": "string",
             "description": "The SQL query to execute. Supports SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, ALTER TABLE, DROP TABLE, and other SQLite-compatible SQL."
+          }
+        },
+        "required": [
+          "description",
+          "query"
+        ]
+      },
+      "strict": false,
+      "type": "function"
+    },
+    {
+      "name": "session_store_sql",
+      "description": "Query cross-session history with read-only DuckDB. Use proactively for recent/past work, prior approaches, project or file changes, sessions linked to PRs/issues/commits, and temporal questions. Prefer this to store_memory because it searches all past sessions in the selected scope (personal by default).\n\nResults may combine cloud and best-effort local data; `_query_source` is `cloud` or `local`. DuckDB-only syntax unsupported by SQLite may omit local results. Each backend is capped at 10,000 rows. Use `source: \"local\"` for local-only SQLite queries.\n\n**DuckDB rules:**\n- Run exactly one read-only query per call; never combine statements with semicolons.\n- Dates: `now() - INTERVAL '1 day'`; durations: `date_diff('minute', start, end)`.\n- Text search uses case-insensitive `ILIKE`, not FTS5/MATCH. String functions include `substr()`, `length()`, and `contains()`.\n- Guard nullable values with `COALESCE()` or `IS NOT NULL` before functions such as `length()`/`substr()`.\n- For `source: \"local\"`, DuckDB-only `INTERVAL`, `ILIKE`, `date_diff`, and `contains` are unavailable; use SQLite `LIKE`, `instr`, `(julianday(end) - julianday(start)) * 1440`, and FTS5 `search_index` + `MATCH`. Local timestamps mix SQLite and ISO formats: compare 10-char date prefixes on both sides, e.g. `substr(created_at, 1, 10) >= date('now', '-7 days')`; never use `created_at > datetime('now', '-7 days')`.\n\n**Performance (required to avoid timeouts):**\n- **For cloud queries, prefer materialized views** (`sessions`, `turns`, `checkpoints`, `session_files`, `session_refs`, `session_usage`, `tool_executions`); use raw tables only for fields or semantics the views cannot provide.\n- Tables are large: `turns` can have 50,000+ rows, `events` 100,000+ rows, `sessions` 1,000+ rows per user.\n- Always time-bound queries: use `timestamp` for turns/events, `created_at` for sessions/session_refs, `last_used_at` for session_usage, and `started_at` or `completed_at` for tool_executions. Start at 7 days and widen only if needed.\n- Never `ILIKE`-scan turns/events or join an unfiltered text-search side. Narrow first by time or `session_id`, and pair `ILIKE` with exact predicates such as `ref_type = 'pr'`, event `type`, or `session_id`.\n- Prefer `session_refs` exact matches for PR/issue lookups over text-scanning turns.\n- Break complex work into queries: find `session_id`s first, then fetch details.\n- Always use `LIMIT` (for example 50), select only needed columns (never `SELECT *`), and filter/join on `session_id` when possible; storage is columnar and partitioned by session.\n\n**Preferred materialized views:**\n- `sessions`: session metadata and discovery. Key fields: id, task_id, cwd, repository, branch, summary, agent_name, agent_description, created_at (TIMESTAMP), updated_at (TIMESTAMP). Cloud `id` is a history identifier; `/resume <id>` can resolve it only when it uniquely maps to an available task or local session. `task_id` is the UUID from a `.../tasks/<id>` URL. Filter exact `agent_name` values such as 'Copilot Code Review', 'Copilot Coding Agent', or 'Copilot CLI', not summary text.\n- `turns`: conversation content grouped into user/assistant turns. Key fields: session_id, turn_index, user_message, assistant_response, timestamp (TIMESTAMP)\n- `checkpoints`: handoff/checkpoint summaries. Key fields: session_id, checkpoint_number, title, overview, created_at (TIMESTAMP)\n- `session_files`: files changed during a session. Key fields: session_id, file_path, tool_name (edit/create/apply_patch), turn_index, first_seen_at (TIMESTAMP)\n- `session_refs`: commit, PR, and issue references. Key fields: session_id, ref_type (commit/pr/issue), ref_value, turn_index, created_at (TIMESTAMP)\n- `session_usage`: model and token usage; one row per session/model. Key fields: session_id, usage_model, api_call_count, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost (sum of model billing multipliers), duration (milliseconds), first_used_at (TIMESTAMP), last_used_at (TIMESTAMP). Filtering `last_used_at` selects session/model rows whose latest usage falls in the period; rows remain whole-session aggregates, so do not interpret or sum them as usage within the filtered period.\n- `tool_executions`: completed tool calls and outcomes. Key fields: session_id, tool_call_id, tool_name, started_at (TIMESTAMP), completed_at (TIMESTAMP), duration_ms, success, error_code. To exclude invalid negative durations, filter `completed_at >= started_at`.\n\n**Raw fallback tables:**\n- `tool_requests`: raw tool request arguments. Key fields: session_id, tool_call_id, name, arguments_json\n- `attachments`: attachments from user messages. Key fields: session_id, display_name, path, type\n- `events`: event history underlying the materialized views. One row per event (~90 columns). Key fields: session_id, timestamp, type ('user.message'/'assistant.message'/'tool.execution_complete'), agent_name, agent_description, user_content, assistant_content, tool_start_name, tool_complete_call_id, tool_complete_success, tool_complete_result_content, usage_model, usage_input_tokens, usage_output_tokens\n\n**Local schema:** `turns`, `checkpoints`, `session_files`, and `session_refs` exist; local `sessions.id` is a separate namespace from cloud `sessions.id` and is accepted by `/resume` only while the corresponding local session state is available. `sessions` has only id, cwd, repository, host_type, branch, summary, created_at, updated_at (no task_id or agent_*); `session_usage`, `tool_executions`, `events`, `tool_requests`, and `attachments` do not exist. Local-only tables include `assistant_usage_events` and FTS5 `search_index`. Querying unavailable tables/columns fails with `no such table`/`no such column`.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "A 2-5 word summary of what this query does (e.g., 'Recent sessions overview', 'Find PR sessions')."
+          },
+          "query": {
+            "type": "string",
+            "description": "One read-only SQL query (SELECT or WITH); DuckDB for cloud, SQLite for `source: \"local\"`; never combine statements with semicolons."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "cloud",
+              "local"
+            ],
+            "description": "Which session store to query. `cloud` (default) queries the cloud store and supplements with local rows when the scope is personal. `local` restricts the query to the local session store only (SQLite syntax, current machine's sessions). Defaults to `cloud`. `local` cannot be combined with `org` or `repo` — the local store only contains this machine's personal sessions."
           }
         },
         "required": [
@@ -935,22 +872,46 @@
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.",
+      "description": "Send, replace, or cancel your message in an existing session or chat. Use `delivery: \"steer\"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: \"queue\"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.",
       "parameters": {
         "type": "object",
         "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send",
+              "replace",
+              "cancel"
+            ],
+            "description": "`send` (default) creates a message, `replace` updates one of your pending queued messages, and `cancel` removes one of your pending queued messages."
+          },
           "session": {
             "type": "string",
             "description": "The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat."
           },
           "message": {
             "type": "string",
-            "description": "The message to send."
+            "description": "The complete message text. Required for `send` and `replace`; omit for `cancel`."
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "queue",
+              "steer"
+            ],
+            "description": "For `send`, use `steer` to update an active turn or `queue` for a separate turn. Defaults to `queue`."
+          },
+          "messageId": {
+            "type": "string",
+            "description": "For `replace` or `cancel`, the ID returned when this chat sent the message."
+          },
+          "expectedRevision": {
+            "type": "number",
+            "description": "For `replace` or `cancel`, the revision returned with a pending queued message. The operation fails if the message changed or started processing."
           }
         },
         "required": [
-          "session",
-          "message"
+          "session"
         ]
       },
       "strict": false,
@@ -958,7 +919,7 @@
     },
     {
       "name": "get_session_context",
-      "description": "Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
+      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1001,17 +962,6 @@
         "required": [
           "session"
         ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "extensions_reload",
-      "description": "Reload all Copilot extensions in the current session after creating or modifying extension files. Do not use this merely to reopen an existing canvas when extension files are unchanged. Reloading stops and restarts every extension provider; open canvases become temporarily unavailable and are rehydrated when their providers reconnect. After this succeeds, call `list_canvas_capabilities` before `open_canvas` or `invoke_canvas_action`.",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
       },
       "strict": false,
       "type": "function"

@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -212,6 +213,31 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
 			name: 'main',
 			startPoint: 'main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('branch', 'release');
+		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
+			baseBranchName: state?.baseBranchName,
+			defaultBranchName: state?.defaultBranchName,
+			defaultRemoteBranchName: state?.defaultRemoteBranchName,
+		});
+
+		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		// `origin/HEAD` outlives its target when the remote renames its default branch.
+		run('update-ref', '-d', 'refs/remotes/origin/main');
+		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+
+		assert.deepStrictEqual({ detected, configured, dangling }, {
+			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 

@@ -168,7 +168,7 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly automations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
+	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
 	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
@@ -740,23 +740,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	let listParent = container;
-	let createSessionsHeader: ((container: HTMLElement, disposables: DisposableStore) => HTMLElement) | undefined;
+	let navigationContainer: HTMLElement | undefined;
 	if (header) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
-		// Like the Sessions view, render the header inside the tree when the navigation rows lead it.
-		createSessionsHeader = (headerContainer, disposables) => {
-			const treeHeader = renderSessionsHeader(headerContainer, false, instantiationService, contextKeyService, disposables);
-			treeHeader.toolbar?.refresh();
-			return treeHeader.row;
-		};
-		if (header.navigationShortcuts) {
-			DOM.hide(renderedHeader.row);
-		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -771,7 +763,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		createSessionsHeader,
+		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));

@@ -1058,6 +1058,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
 			{
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+				isLocalIndexEnabled: () => this._isLocalIndexEnabled(),
 				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => {
 					const session = AgentSession.uri(this.id, sessionId);
@@ -1144,6 +1145,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
+	}
+
+	private _isLocalIndexEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false;
 	}
 
 	private _isRubberDuckEnabled(): boolean {
@@ -1242,6 +1247,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isGitHubMcpServerEnabled(),
 			this._areCopilotConnectorsEnabled(),
 			this._managedSettingsService.permissions,
+			this._isLocalIndexEnabled(),
 		);
 	}
 
@@ -4798,11 +4804,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// The turn `prepareTurn` launched for revalidates against the state already
 		// observed in memory: anything that changed since the launch is still caught,
 		// without re-awaiting the syncs and workspace scans the launch just completed.
-		if (!launchedForTurn) {
+		// A sync or discovery refresh that started since then is not yet reflected
+		// in that state, so the turn then awaits it like any other send.
+		const useObservedState = launchedForTurn === true && !!activeClient?.pluginController.isSettled();
+		if (!useObservedState) {
 			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
 		}
 		const currentSnapshot = !activeClient ? undefined
-			: launchedForTurn ? activeClient.currentSnapshot(context.chatKey)
+			: useObservedState ? activeClient.currentSnapshot(context.chatKey)
 				: await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken);
 		const structuralRestartReason = activeClient && currentSnapshot ? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken) : undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
@@ -5575,17 +5584,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * already has a live session is left to `sendMessage`, which refreshes it.
 	 * The launch records `turnId`, so that turn's send revalidates the configuration
 	 * against the state already observed in memory instead of re-awaiting the
-	 * syncs and workspace scans the launch just completed.
+	 * syncs and workspace scans the launch just completed. Preparation is queued
+	 * like a turn, so Stop releases it even while it waits on a plugin sync.
 	 */
 	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
 		const initial = this._resolveSendChatContext(chat, operationContext);
-		await this._queueChat(initial.configurationId, initial.sequencerKey, 'prepareTurn', async () => {
+		await this._queueChatTurn(initial, 'prepareTurn', turnId, async token => {
 			const current = this._resolveSendChatContext(chat, operationContext);
 			if (current.target) {
 				return;
 			}
 			// Mirrors the send path, so the session is launched with the same plugin state.
-			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const launched = await this._ensureResolvedChatSession(current, workingDirectories);
 			if (launched) {
 				this._preparedTurnLaunches.set(launched, turnId);
@@ -5593,7 +5606,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _queueChatTurn(context: IResolvedCopilotChatContext, operation: 'sendMessage' | 'resumeTurn', turnId: string | undefined, task: (token: CancellationToken, enterUnboundedPhase: () => void) => Promise<void>): Promise<void> {
+	private async _queueChatTurn(context: IResolvedCopilotChatContext, operation: 'sendMessage' | 'resumeTurn' | 'prepareTurn', turnId: string | undefined, task: (token: CancellationToken, enterUnboundedPhase: () => void) => Promise<void>): Promise<void> {
 		if (this._isShuttingDown) {
 			throw new CancellationError();
 		}
@@ -6753,6 +6766,7 @@ class SessionDiscoveredEntry extends Disposable {
 
 	private _customizations: readonly SessionDiscoveredCustomization[] = [];
 	private _settled: Promise<void>;
+	private _pendingRefreshes = 0;
 
 	constructor(
 		workingDirectories: readonly URI[],
@@ -6780,6 +6794,11 @@ class SessionDiscoveredEntry extends Disposable {
 		return this._settled;
 	}
 
+	/** Whether no discovery refresh is queued or running. */
+	get isSettled(): boolean {
+		return this._pendingRefreshes === 0;
+	}
+
 	currentCustomizations(): readonly SessionDiscoveredCustomization[] {
 		return this._customizations;
 	}
@@ -6789,7 +6808,8 @@ class SessionDiscoveredEntry extends Disposable {
 		this._refreshPromise = null;
 		this._pendingRefreshNotify = this._pendingRefreshNotify || notify;
 
-		return this._refreshDelayer.trigger(() => {
+		this._pendingRefreshes++;
+		const settled = this._refreshDelayer.trigger(() => {
 			const shouldNotify = this._pendingRefreshNotify;
 			this._pendingRefreshNotify = false;
 			const refreshPromise = this._refreshPromise = createCancelablePromise(async token => {
@@ -6821,6 +6841,9 @@ class SessionDiscoveredEntry extends Disposable {
 			}
 			throw err;
 		});
+		const done = () => { this._pendingRefreshes--; };
+		settled.then(done, done);
+		return settled;
 	}
 
 	private async _refresh(token: CancellationToken): Promise<boolean> {
@@ -7296,6 +7319,21 @@ class SessionPluginController extends Disposable {
 	 */
 	public currentAppliedPlugins(): readonly ICopilotPluginInfo[] {
 		return this._appliedPlugins(this._parent.hostCustomizations());
+	}
+
+	/**
+	 * Whether no customization sync or discovery refresh is in flight, so
+	 * {@link currentAppliedPlugins} reflects settled state. A sync marks its
+	 * customizations `Loading` as soon as it starts and those are filtered out
+	 * of the applied plugins until it completes.
+	 */
+	public isSettled(): boolean {
+		const isLoading = (items: readonly IResolvedCustomization[]) => items.some(item => item.customization.load?.kind === CustomizationLoadStatus.Loading);
+		return this._isEnablementReady
+			&& !isLoading(this._parent.hostCustomizations())
+			&& ![...this._clients.values()].some(client => isLoading(client.customizations))
+			&& (this._sessionDiscovered.value?.isSettled ?? true)
+			&& (this._sessionMcpDiscovery.value?.discovery.isSettled ?? true);
 	}
 
 	private _appliedPlugins(host: readonly IResolvedCustomization[]): readonly ICopilotPluginInfo[] {

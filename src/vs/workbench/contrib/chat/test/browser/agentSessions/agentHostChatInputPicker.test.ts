@@ -388,12 +388,40 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			queriesAfterFilter,
 			queriesAfterReopen: branchCompletionQueries,
 		}, {
-			initialCount: 25,
+			initialCount: 36,
 			first: 'main',
-			last: 'feature/23',
+			last: 'feature/34',
 			filteredLabels: ['feature/34'],
 			queriesAfterFilter: [undefined],
 			queriesAfterReopen: [undefined, undefined],
+		});
+	});
+
+	test('branch picker includes a selected remote branch that is absent from local completions', async () => {
+		const { config, widget, instantiationService, actionWidget, branchCompletionItems } = setup(false);
+		config.schema.properties[SessionConfigKey.Branch] = { title: 'Branch', type: 'string', enumDynamic: true, default: 'origin/feature', sessionMutable: true };
+		config.values[SessionConfigKey.Branch] = 'origin/feature';
+		branchCompletionItems.push(
+			{ value: 'main', label: 'main' },
+			{ value: 'feature', label: 'feature' },
+		);
+		const viewModel = widget.viewModel!;
+		widget.viewModel = undefined;
+		const branchPicker = store.add(instantiationService.createInstance(AgentHostChatInputPicker, widget, SessionConfigKey.Branch));
+		widget.viewModel = viewModel;
+		branchPicker['_initialResolved'] = { sessionResource: viewModel.sessionResource, result: config };
+		const container = dom.$('div');
+		branchPicker.render(container);
+
+		await branchPicker['_showPicker'](container.querySelector<HTMLElement>('.action-label')!);
+		const filteredLabels = await actionWidget.filterLabels('main');
+
+		assert.deepStrictEqual({
+			labels: actionWidget.items.map(item => item.label),
+			filteredLabels,
+		}, {
+			labels: ['origin/feature', 'main', 'feature'],
+			filteredLabels: ['main'],
 		});
 	});
 
@@ -1455,7 +1483,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? 'Sandboxing is required by your organization'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
 						})),
@@ -1501,7 +1529,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];
@@ -1580,11 +1608,13 @@ suite('AgentHostChatInputPicker - list options', () => {
 		assert.deepStrictEqual({
 			mode: getConfigPickerListOptions(SessionConfigKey.Mode),
 			approvals: getConfigPickerListOptions(SessionConfigKey.AutoApprove),
+			branch: getConfigPickerListOptions(SessionConfigKey.Branch),
 			claudePermissions: getConfigPickerListOptions(ClaudeSessionConfigKey.PermissionMode),
 			codexApprovals: getConfigPickerListOptions(CodexSessionConfigKey.PermissionsPreset),
 		}, {
 			mode: { minWidth: 260 },
 			approvals: { minWidth: 300 },
+			branch: { maxVisibleItems: 10 },
 			claudePermissions: undefined,
 			codexApprovals: {
 				className: 'codex-approvals-picker',

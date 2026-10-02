@@ -26,7 +26,8 @@ import { PullRequestMergeMethod } from '../../../github/common/githubPullRequest
 import { GitHubPullRequestLookup, GitHubRepositoryMergeCapabilities, GitHubRepositoryRef } from '../../../github/common/githubQueryService.js';
 import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { IGitHubClient } from '../../../github/common/githubService.js';
-import { GitHubFetch, GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
+import { GitHubRequestTimeoutError } from '../../../github/common/githubTypes.js';
+import { RequestFetch } from '../../../github/common/types.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
@@ -375,7 +376,7 @@ function agentMergeFolderPatch(session: URI, state: { readonly enabled: boolean;
 suite('AgentHostPullRequestOperationHandler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createNetworkClient(fetch: GitHubFetch): IGitHubClient {
+	function createNetworkClient(fetch: RequestFetch): IGitHubClient {
 		const service = disposables.add(new AgentHostGitHubService({ fetch }, createAuthenticationService(), createTestGitHubEndpointService(), new NullLogService(), NullTelemetryService));
 		return disposables.add(service.acquireRepositoryClient(new AbortController().signal)).object;
 	}
