@@ -45,7 +45,7 @@ suite('ChatInputSpotlightTour', () => {
 				override get triggerElement() { return pickersRendered ? element : undefined; }
 				override get combinesPermissions() { return combinesPermissions; }
 				override get isOpen() { return open; }
-				override open(openPermissions?: boolean) {
+				override show(_anchor: HTMLElement, openPermissions?: boolean) {
 					open = true;
 					opened.push(`${label}${openPermissions ? ':permissions' : ''}`);
 				}
