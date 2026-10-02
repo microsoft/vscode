@@ -141,6 +141,8 @@ append_dir LOCPATH "$SNAP/usr/lib/locale"
 # XDG_RUNTIME_DIR is /run/user/<uid>/snap.$SNAP so look in the parent directory
 # for the socket. For details:
 # https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
+# On hosts where the snap runtime dir is not used, XDG_RUNTIME_DIR points at
+# /run/user/<uid> directly and the socket is found without the parent lookup.
 # Applications that don't support wayland natively may define DISABLE_WAYLAND
 # (to any non-empty value) to skip that logic entirely.
 wayland_available=false
@@ -149,16 +151,25 @@ if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
     if [ -n "$WAYLAND_DISPLAY" ]; then
         wdisplay="$WAYLAND_DISPLAY"
     fi
-    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
-    wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
-    if [ -S "$wayland_sockpath" ]; then
-        # if running under wayland, use it
-        #export WAYLAND_DEBUG=1
-        # shellcheck disable=SC2034
-        wayland_available=true
-        # create the compat symlink for now
-        if [ ! -e "$wayland_snappath" ]; then
-            ln -s "$wayland_sockpath" "$wayland_snappath"
+    if [[ "$wdisplay" = /* ]]; then
+        # WAYLAND_DISPLAY is an absolute path to the socket
+        if [ -S "$wdisplay" ]; then
+            # if running under wayland, use it
+            #export WAYLAND_DEBUG=1
+            wayland_available=true
+        fi
+    else
+        wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
+        wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
+        if [ -S "$wayland_sockpath" ] || [ -S "$wayland_snappath" ]; then
+            # if running under wayland, use it
+            #export WAYLAND_DEBUG=1
+            # shellcheck disable=SC2034
+            wayland_available=true
+            # create the compat symlink for now
+            if [ -S "$wayland_sockpath" ] && [ ! -e "$wayland_snappath" ]; then
+                ln -s "$wayland_sockpath" "$wayland_snappath"
+            fi
         fi
     fi
 fi
