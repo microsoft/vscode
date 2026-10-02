@@ -757,26 +757,44 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	scrollDownLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(1);
 	}
 
 	scrollDownPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(1);
 	}
 
 	scrollToBottom(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToBottom();
 	}
 
 	scrollUpLine(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollLines(-1);
 	}
 
 	scrollUpPage(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollPages(-1);
 	}
 
 	scrollToTop(): void {
+		if (!this._attached) {
+			return;
+		}
 		this.raw.scrollToTop();
 	}
 
