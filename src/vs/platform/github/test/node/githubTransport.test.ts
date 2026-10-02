@@ -707,6 +707,21 @@ suite('GitHubTransport', () => {
 				headers: { ...graphQLHeaders, 'retry-after': new Date(1_007_000).toUTCString() }, remaining: 0, delay: 7_000,
 			},
 			{
+				name: 'primary RATE_LIMIT with RFC 850 Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thursday, 01-Jan-70 00:16:47 GMT' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with UTC asctime Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thu Jan  1 00:16:47 1970' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with zero Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
 				name: 'primary RATE_LIMIT with Retry-After beyond the primary reset',
 				errors: primaryErrors,
 				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1060', 'retry-after': '120' }, remaining: 0, delay: 120_000,
@@ -716,6 +731,33 @@ suite('GitHubTransport', () => {
 				errors: resourceErrors,
 				headers: { ...graphQLHeaders, 'retry-after': '7' }, remaining: 4999, delay: 7_000,
 			},
+			...['0x0', ' \t ', '-1', '0.5', '+7', '7e0', '7.0', '0,5', '9007199254740992'].flatMap(retryAfter => [
+				{
+					name: `exhausted headers ignore malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `primary RATE_LIMIT ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: primaryErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `exhausted payload ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					data: { rateLimit: { remaining: 0 } },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `healthy quota ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 4999, delay: 0,
+				},
+			]),
 		];
 
 	for (const scenario of graphQLThrottlingCases) {
@@ -736,6 +778,7 @@ suite('GitHubTransport', () => {
 			const limited = await transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', query, {}, signal());
 			const remaining = transport.rateLimits.getState(accountA, 'graphql')?.remaining;
 			const delay = transport.rateLimits.getDelay(accountA, 'graphql');
+			assert.strictEqual(delay, scenario.delay);
 			const after = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query After { viewer { id } }', {}, signal());
 			scheduler.advanceBy(delay);
 			const unrelated = await after;

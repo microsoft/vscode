@@ -72,7 +72,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const previous = this._states.get(key);
 		const previousBlockedUntil = previous?.blockedUntil ?? (isGraphQL && previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseSeconds(response.headers.get('retry-after'), now);
+		const retryAfter = parseSeconds(response.headers.get('retry-after'), now, isGraphQL);
 		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
 		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
 		const rateLimited = isRateLimited(response.status, responseBody);
@@ -135,7 +135,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
-		const retryAfterSeconds = parseSeconds(retryAfter?.trim() || null, now);
+		const retryAfterSeconds = parseSeconds(retryAfter, now, true);
 		const hinted = retryAfterSeconds !== undefined ? now + retryAfterSeconds * 1000 : previous?.resetAt;
 		const blockedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
 		this._states.set(key, {
@@ -245,13 +245,22 @@ function parseNumber(value: string | null, nonNegativeInteger = false): number |
 	return Number.isFinite(parsed) && (!nonNegativeInteger || (Number.isSafeInteger(parsed) && parsed >= 0)) ? parsed : undefined;
 }
 
-function parseSeconds(value: string | null, now: number): number | undefined {
-	const parsed = parseNumber(value);
+function parseSeconds(value: string | null, now: number, strict = false): number | undefined {
+	const parsed = parseNumber(value, strict);
 	if (parsed !== undefined) {
 		return Math.max(0, parsed);
 	}
 	if (value === null) {
 		return undefined;
+	}
+	if (strict) {
+		value = value.trim();
+		// Date.parse also accepts numeric lookalikes and treats asctime dates as local time.
+		if (/^[A-Z][a-z]{2} [A-Z][a-z]{2} (?:\d{2}| \d) \d{2}:\d{2}:\d{2} \d{4}$/.test(value)) {
+			value += ' GMT';
+		} else if (!/^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4}|[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2}) \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
+			return undefined;
+		}
 	}
 	const date = Date.parse(value);
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
