@@ -120,6 +120,27 @@ export interface IAgentHostTerminalService {
 	 * is not an agent host terminal or its host is no longer registered.
 	 */
 	getAgentHostAddress(instance: ITerminalInstance): string | undefined;
+
+	/**
+	 * Whether a shell command is pending or executing in the given agent host
+	 * terminal. Returns `undefined` when the command state is unknown.
+	 */
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined;
+
+	/**
+	 * Records that a command line is about to be submitted to the shell
+	 * prompt of the given agent host terminal, so that
+	 * {@link isCommandExecuting} reports it as busy until the shell reports
+	 * that the command started executing.
+	 */
+	markCommandPending(instance: ITerminalInstance): void;
+
+	/**
+	 * The working directory the given agent host terminal started in and its
+	 * current one, as filesystem paths on the host. Returns `undefined` when
+	 * the terminal is not an agent host terminal.
+	 */
+	getCwd(instance: ITerminalInstance): { readonly initial: string; readonly current: string } | undefined;
 }
 
 export class AgentHostTerminalService extends Disposable implements IAgentHostTerminalService {
@@ -480,6 +501,26 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 		// Reconnection moves the terminal's PTY to the new connection.
 		const clientId = this._activePtys.get(registration.key)?.clientId ?? registration.clientId;
 		return this._entries.find(entry => entry.getConnection()?.clientId === clientId)?.address;
+	}
+
+	isCommandExecuting(instance: ITerminalInstance): boolean | undefined {
+		return this._getActivePty(instance)?.isCommandExecuting;
+	}
+
+	markCommandPending(instance: ITerminalInstance): void {
+		this._getActivePty(instance)?.markCommandPending();
+	}
+
+	getCwd(instance: ITerminalInstance): { readonly initial: string; readonly current: string } | undefined {
+		return this._getActivePty(instance)?.cwd;
+	}
+
+	private _getActivePty(instance: ITerminalInstance): AgentHostPty | undefined {
+		const registration = this._instanceKeys.get(instance.instanceId);
+		if (!registration) {
+			return undefined;
+		}
+		return this._activePtys.get(registration.key)?.pty;
 	}
 
 	async reconnectTerminals(newConnection: IAgentConnection, oldClientId: string): Promise<{ recovered: number; total: number }> {

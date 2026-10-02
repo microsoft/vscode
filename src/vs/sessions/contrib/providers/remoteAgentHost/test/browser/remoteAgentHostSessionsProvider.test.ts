@@ -34,11 +34,11 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatService, type ChatSendResult, type IChatSendRequestOptions, type IChatRequestAcceptedEvent } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent, ISessionsProvider, ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
@@ -273,7 +273,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 	};
 }
 
-function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined> }): RemoteAgentHostSessionsProvider {
+function createProvider(disposables: DisposableStore, connection: MockAgentConnection, overrides?: { address?: string; preferenceKey?: string; connectionName?: string | undefined; sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; onDidAcceptRequest?: Event<IChatRequestAcceptedEvent>; openSession?: boolean; storageService?: IStorageService; localAgentHostService?: IAgentHostService; remoteAgentHostService?: IRemoteAgentHostService; noConnection?: boolean; connectOnDemand?: () => Promise<void>; isWebPlatform?: boolean; workspaceTrusted?: boolean; setUrisTrust?: (uris: URI[], trusted: boolean) => Promise<void>; configurationService?: IConfigurationService; composerService?: INewSessionComposerService; omitHostFromWorkspaceLabel?: boolean; workspaceTypeIcon?: ThemeIcon; sessionSchemeAlias?: IAgentHostSessionSchemeAlias; defaultChangesetKind?: IRemoteAgentHostSessionsProviderConfig['defaultChangesetKind']; sessionResolutionPolicies?: Array<{ authority: string; policy: IAgentHostSessionResolutionPolicy }>; devContainerWorktreeScope?: string; devContainerLifecycle?: IRemoteAgentHostSessionsProviderConfig['devContainerLifecycle']; devContainerSourceWorkspace?: URI; resolveDevContainerWorktreeConnection?: IRemoteAgentHostSessionsProviderConfig['resolveDevContainerWorktreeConnection']; readOnlyWhenDisconnected?: boolean; ctor?: typeof RemoteAgentHostSessionsProvider; labelService?: ILabelService; defaultDirectory?: string; activeSession?: IObservable<IActiveSession | undefined>; deleteSessionsOnDemand?: IRemoteAgentHostSessionsProviderConfig['deleteSessionsOnDemand'] }): RemoteAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, new RemoteAgentHostAuthenticationService());
@@ -295,7 +295,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
 	});
 	instantiationService.stub(IChatService, {
-		onDidAcceptRequest: Event.None,
+		onDidAcceptRequest: overrides?.onDidAcceptRequest ?? Event.None,
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: overrides?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
@@ -340,6 +340,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 			tools: constObservable([]),
 			isResolved: constObservable(true),
 			whenResolved: () => Promise.resolve(),
+			getSyncedUri: () => undefined,
 			activeClient: (clientId: string) => constObservable({ clientId, tools: [], customizations: [] }),
 			dispose: () => { },
 		});
@@ -350,6 +351,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		preferenceKey: overrides?.preferenceKey,
 		name: overrides !== undefined && Object.prototype.hasOwnProperty.call(overrides, 'connectionName') ? overrides.connectionName ?? '' : 'Test Host',
 		connectOnDemand: overrides?.connectOnDemand,
+		deleteSessionsOnDemand: overrides?.deleteSessionsOnDemand,
 		omitHostFromWorkspaceLabel: overrides?.omitHostFromWorkspaceLabel,
 		workspaceTypeIcon: overrides?.workspaceTypeIcon,
 		sessionSchemeAlias: overrides?.sessionSchemeAlias,
@@ -2811,6 +2813,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('sendRequest forwards resolved session config to chat service', async () => {
+		connection.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: false } } },
+			values: { isolation: 'worktree' },
+		};
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
@@ -3296,7 +3302,7 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 	teardown(() => disposables.clear());
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSandbox(storageService: IStorageService) {
+	function createSandbox(storageService: IStorageService, onDidAcceptRequest: Event<IChatRequestAcceptedEvent> = Event.None) {
 		const connection = disposables.add(new MockAgentConnection());
 		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:external-test',
@@ -3304,8 +3310,13 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 			noConnection: true,
 			storageService,
+			onDidAcceptRequest,
 		}) as CloudSandboxSessionsProvider;
 		return { provider, connection };
+	}
+
+	function isExternalInternally(storageService: IStorageService, provider: CloudSandboxSessionsProvider, rawId: string): boolean {
+		return !storageService.getBoolean(`sessions.cloudSandbox.localSession.${provider.id}.${rawId}`, StorageScope.PROFILE, false);
 	}
 
 	test('discovered sessions remain non-external when opened, updated by the host, and restored', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3315,11 +3326,13 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		provider.seedSessions([metadata], { updateExisting: true });
 		const session = provider.getSessions()[0];
 		const discovered = session.isExternal?.get();
+		const discoveredProvenance = isExternalInternally(storage, provider, 'created-elsewhere');
 		const backendUri = AgentSession.uri('ahp-session', 'created-elsewhere');
 		connection.addSession({ ...metadata, session: backendUri, _meta: withSessionExternal(undefined, true) });
 		provider.setConnection(connection);
 		await timeout(0);
 		const connected = session.isExternal?.get();
+		const connectedProvenance = isExternalInternally(storage, provider, 'created-elsewhere');
 		const opened = provider.getSessionByResource(session.resource)?.isExternal?.get();
 		connection.fireNotification({
 			channel: 'ahp-root://',
@@ -3331,6 +3344,7 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		const updated = session.isExternal?.get();
 		provider.clearConnection();
 		const disconnected = session.isExternal?.get();
+		const disconnectedProvenance = isExternalInternally(storage, provider, 'created-elsewhere');
 		await storage.flush();
 		const restored = createSandbox(storage).provider;
 		assert.deepStrictEqual({
@@ -3340,7 +3354,14 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 			updated,
 			disconnected,
 			restored: restored.getSessions()[0].isExternal?.get(),
-		}, { discovered: false, connected: false, opened: false, updated: false, disconnected: false, restored: false });
+			provenance: [
+				discoveredProvenance,
+				connectedProvenance,
+				isExternalInternally(storage, provider, 'created-elsewhere'),
+				disconnectedProvenance,
+				isExternalInternally(storage, restored, 'created-elsewhere'),
+			],
+		}, { discovered: false, connected: false, opened: false, updated: false, disconnected: false, restored: false, provenance: [true, true, true, true, true] });
 	}));
 
 	test('sessions created in this profile stay internal after rediscovery and reload', () => {
@@ -3353,14 +3374,84 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		const created = provider.getSessions()[0].isExternal?.get();
 		const restored = createSandbox(storage).provider;
 		restored.seedSessions([metadata], { updateExisting: true });
-		const otherProfile = createSandbox(disposables.add(new InMemoryStorageService())).provider;
+		const otherStorage = disposables.add(new InMemoryStorageService());
+		const otherProfile = createSandbox(otherStorage).provider;
 		otherProfile.seedSessions([metadata], { updateExisting: true });
 		assert.deepStrictEqual({
 			created,
 			restored: restored.getSessions()[0].isExternal?.get(),
 			otherProfile: otherProfile.getSessions()[0].isExternal?.get(),
-		}, { created: false, restored: false, otherProfile: false });
+			provenance: [
+				isExternalInternally(storage, provider, 'created-here'),
+				isExternalInternally(storage, restored, 'created-here'),
+				isExternalInternally(otherStorage, otherProfile, 'created-here'),
+			],
+		}, { created: false, restored: false, otherProfile: false, provenance: [false, false, true] });
 	});
+
+	test('an accepted user message tracks adoption privately without changing the external observable', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
+		const { provider } = createSandbox(storage, accepted.event);
+		const metadata = createSession('adopted', { provider: 'copilot' });
+		provider.seedSessions([metadata, createSession('other', { provider: 'copilot' })]);
+		const session = provider.getCachedSession('adopted')!;
+		const observed: boolean[] = [];
+		disposables.add(autorun(reader => observed.push(session.isExternal!.read(reader))));
+		accepted.fire({ chatSessionResource: session.resource.with({ scheme: 'another-host' }), isNewSession: false });
+		const beforeAdoption = isExternalInternally(storage, provider, 'adopted');
+		accepted.fire({ chatSessionResource: session.resource.with({ fragment: 'peer-chat' }), isNewSession: false });
+		const restored = createSandbox(storage).provider;
+		restored.seedSessions([metadata]);
+		assert.deepStrictEqual({
+			beforeAdoption,
+			observed,
+			other: isExternalInternally(storage, provider, 'other'),
+			restored: isExternalInternally(storage, restored, 'adopted'),
+			presentation: [session.isExternal?.get(), restored.getCachedSession('adopted')!.isExternal?.get()],
+			supportsImport: session.capabilities.get().supportsImport,
+		}, { beforeAdoption: true, observed: [false], other: true, restored: false, presentation: [false, false], supportsImport: false });
+	});
+
+	test('reuses provenance stored before presentation became non-external', () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { provider } = createSandbox(storage);
+		storage.store(`sessions.cloudSandbox.localSession.${provider.id}.legacy`, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+		provider.seedSessions([createSession('legacy', { provider: 'copilot' })]);
+		const session = provider.getSessions()[0];
+		assert.deepStrictEqual({
+			presentation: session.isExternal?.get(),
+			provenance: isExternalInternally(storage, provider, 'legacy'),
+		}, { presentation: false, provenance: false });
+	});
+
+	test('a direct import call does not adopt a non-external sandbox session', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storage = disposables.add(new InMemoryStorageService());
+		const { provider } = createSandbox(storage);
+		const importedSessions: URI[] = [];
+		const connection = disposables.add(new class extends MockAgentConnection {
+			override readonly initializeResult = constObservable({
+				protocolVersion: '1', serverSeq: 0, snapshots: [],
+				automations: { create: {}, schedules: {}, runCancellation: {} },
+				_meta: getAgentHostExtensionInitializeResultMeta(true, false, false, true),
+			});
+			override async importSession(session: URI): Promise<void> {
+				importedSessions.push(session);
+			}
+		}());
+		connection.addSession(createSession('not-imported', { provider: 'ahp-session', _meta: withSessionExternal(undefined, true) }));
+		provider.setConnection(connection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		await provider.importSession(session.sessionId);
+
+		assert.deepStrictEqual({
+			importedSessions,
+			provenance: isExternalInternally(storage, provider, 'not-imported'),
+			external: session.isExternal?.get(),
+			supportsImport: session.capabilities.get().supportsImport,
+		}, { importedSessions: [], provenance: true, external: false, supportsImport: false });
+	}));
 
 	test('host-listed sandbox sessions are non-external without prior discovery or local provenance', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storage = disposables.add(new InMemoryStorageService());
@@ -3371,8 +3462,9 @@ suite('CloudSandboxSessionsProvider external sessions', () => {
 		const session = provider.getSessions()[0];
 		assert.deepStrictEqual({
 			external: session.isExternal?.get(),
+			provenance: isExternalInternally(storage, provider, 'host-listed'),
 			supportsImport: session.capabilities.get().supportsImport,
-		}, { external: false, supportsImport: false });
+		}, { external: false, provenance: true, supportsImport: false });
 	}));
 
 	test('ordinary remote hosts retain host-reported external-session classification', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -3854,6 +3946,143 @@ suite('CloudSandboxSessionsProvider discovery status', () => {
 			after: SessionStatus.Completed,
 		});
 	}));
+});
+
+suite('CloudSandboxSessionsProvider deletion', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const targets of [['additional-session'], ['sandbox-session', 'additional-session'], ['additional-session', 'sandbox-session']]) {
+		test(`routes mixed catalogs to their deletion owners: ${targets.join(', ')}`, async () => {
+			const operations: string[] = [];
+			const connection = store.add(new class extends MockAgentConnection {
+				override async disposeSession(session: URI): Promise<void> {
+					operations.push(`ahp:${session.toString()}`);
+					await super.disposeSession(session);
+				}
+			}());
+			const metadata = ['sandbox-session', 'additional-session'].map(id => createSession(id, { provider: 'copilot' }));
+			for (const session of metadata) {
+				connection.addSession({ ...session, session: session.session.with({ scheme: 'ahp-session' }) });
+			}
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:mixed-delete',
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						operations.push(`missionControl:${ids.join(',')}`);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+						provider.clearConnection();
+					},
+				},
+			});
+			const sandbox = provider as CloudSandboxSessionsProvider;
+			provider.setConnection(connection);
+			await timeout(0);
+			provider.seedSessions(metadata);
+			const sessions = targets.map(id => sandbox.getCachedSession(id)!);
+			await provider.deleteSessions(sessions.map(session => session.sessionId));
+			assert.deepStrictEqual({
+				supportsDelete: sessions.map(session => session.capabilities.get().supportsDelete),
+				operations,
+				remaining: provider.getSessions().map(session => AgentSession.id(session.resource)),
+			}, {
+				supportsDelete: targets.map(() => true),
+				operations: ['ahp:ahp-session:/additional-session', ...(targets.includes('sandbox-session') ? ['missionControl:sandbox-session'] : [])],
+				remaining: targets.includes('sandbox-session') ? [] : ['sandbox-session'],
+			});
+		});
+	}
+
+	test('does not delete the Mission Control task when a mixed batch fails on AHP', async () => {
+		const connection = store.add(new class extends MockAgentConnection {
+			override async disposeSession(): Promise<void> {
+				throw new Error('AHP deletion rejected');
+			}
+		}());
+		const owned: string[] = [];
+		const metadata = [createSession('sandbox-session'), createSession('additional-session')];
+		for (const session of metadata) {
+			connection.addSession(session);
+		}
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			ctor: CloudSandboxSessionsProvider,
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async ids => { owned.push(...ids); },
+			},
+		});
+		provider.seedSessions(metadata);
+		const sessions = provider.getSessions();
+		await assert.rejects(provider.deleteSessions(sessions.map(session => session.sessionId)), /AHP deletion rejected/);
+		assert.deepStrictEqual({ owned, remaining: provider.getSessions().map(session => AgentSession.id(session.resource)) }, {
+			owned: [], remaining: ['sandbox-session', 'additional-session'],
+		});
+	});
+
+	for (const connected of [false, true]) {
+		test(`deletes through the inventory owner without AHP: connected=${connected}`, async () => {
+			const connection = store.add(new MockAgentConnection());
+			const deleted: string[][] = [];
+			const removed: string[] = [];
+			let connects = 0;
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				address: 'cloudsandbox:delete-test',
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				readOnlyWhenDisconnected: true,
+				connectOnDemand: async () => { connects++; },
+				deleteSessionsOnDemand: {
+					ownsSession: id => id === 'sandbox-session',
+					deleteSessions: async ids => {
+						deleted.push([...ids]);
+						for (const id of ids) {
+							sandbox.removeDeletedSession(id);
+						}
+					},
+				},
+			});
+			const sandbox = provider as CloudSandboxSessionsProvider;
+			const metadata = createSession('sandbox-session', { provider: 'copilot' });
+			if (connected) {
+				connection.addSession({ ...metadata, session: AgentSession.uri('ahp-session', 'sandbox-session') });
+				provider.setConnection(connection);
+				await timeout(0);
+			}
+			provider.seedSessions([metadata]);
+			const session = provider.getSessions()[0];
+			store.add(provider.onDidChangeSessions(event => removed.push(...event.removed.map(session => session.sessionId))));
+			const supportsDelete = session.capabilities.get().supportsDelete;
+			await provider.deleteSession(session.sessionId);
+			assert.deepStrictEqual({
+				supportsDelete, deleted, removed, connects,
+				hostDeletions: connection.disposedSessions, remaining: provider.getSessions().map(session => session.sessionId),
+			}, {
+				supportsDelete: true, deleted: [['sandbox-session']], removed: [session.sessionId],
+				connects: 0, hostDeletions: [], remaining: [],
+			});
+		});
+	}
+
+	test('keeps cached sessions when owner deletion fails', async () => {
+		const connection = store.add(new MockAgentConnection());
+		const provider = createProvider(store.add(new DisposableStore()), connection, {
+			ctor: CloudSandboxSessionsProvider, noConnection: true,
+			deleteSessionsOnDemand: {
+				ownsSession: id => id === 'sandbox-session',
+				deleteSessions: async () => { throw new Error('Mission Control rejected deletion'); },
+			},
+		});
+		provider.seedSessions([createSession('sandbox-session')]);
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.deleteSession(session.sessionId), /rejected deletion/);
+		assert.deepStrictEqual(provider.getSessions(), [session]);
+	});
 });
 
 suite('CloudSandboxSessionsProvider archiving', () => {

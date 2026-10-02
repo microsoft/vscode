@@ -29,6 +29,7 @@ import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js
 import { buildMcpChannel, buildMcpTopLevelCustomizationId } from '../shared/mcpCustomizationController.js';
 import { readSimpleAttachmentDisplayKindFromMimeType } from './copilotAttachmentUtils.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 
 function tryStringify(value: unknown): string | undefined {
 	try {
@@ -450,16 +451,24 @@ export async function mapSessionEvents(
 	/** Same, per subagent tool call: applied when that subagent's turn is built. */
 	const pendingSubagentAutoModeResolved = new Map<string, Extract<SessionEvent, { type: 'session.auto_mode_resolved' }>['data']>();
 	const subagentModels = new Map<string, string>();
+	const subagentConfigurations = new Map<string, IAgentRuntimeModelConfiguration>();
 	const fusionReplay = new FusionReplayState(events);
 
-	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined): void => {
+	const recordSubagentModel = (parentToolCallId: string | undefined, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void => {
 		if (!parentToolCallId || !model) {
 			return;
 		}
 		subagentModels.set(parentToolCallId, model);
+		if (configuration && (configuration.reasoningEffort !== undefined || configuration.contextTier !== undefined || subagentConfigurations.has(parentToolCallId))) {
+			subagentConfigurations.set(parentToolCallId, configuration);
+		}
 		const builder = subagentBuilders.get(parentToolCallId);
 		if (builder) {
 			builder.message = { ...builder.message, model: { id: model } };
+			const runtimeConfiguration = subagentConfigurations.get(parentToolCallId);
+			if (runtimeConfiguration) {
+				builder.usage = { ...builder.usage, _meta: { ...builder.usage?._meta, [agentModelConfigurationMetaKey]: runtimeConfiguration } };
+			}
 		}
 	};
 
@@ -506,6 +515,10 @@ export async function mapSessionEvents(
 		if (!builder) {
 			const model = subagentModels.get(parentToolCallId);
 			builder = newTurnBuilder(generateUuid(), '', { startedAt: currentEventTimestamp, model: model ? { id: model } : undefined });
+			const configuration = subagentConfigurations.get(parentToolCallId);
+			if (configuration) {
+				builder.usage = { _meta: { [agentModelConfigurationMetaKey]: configuration } };
+			}
 			subagentBuilders.set(parentToolCallId, builder);
 			if (!subagentTurnStates.has(parentToolCallId)) {
 				subagentTurnStates.set(parentToolCallId, TurnState.Complete);
@@ -767,7 +780,10 @@ export async function mapSessionEvents(
 				break;
 			}
 			case 'subagent.configured': {
-				recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model);
+				recordSubagentModel(resolveParentToolCallId(e.agentId, undefined), e.data.model, {
+					...(e.data.reasoningEffort ? { reasoningEffort: e.data.reasoningEffort } : {}),
+					...(e.data.contextTier ? { contextTier: e.data.contextTier } : {}),
+				});
 				break;
 			}
 			case 'tool.execution_start': {

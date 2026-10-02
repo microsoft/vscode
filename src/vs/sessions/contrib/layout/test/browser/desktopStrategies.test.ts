@@ -740,16 +740,19 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Quick Chat reload preserves an Auxiliary-Bar-only composition', () => {
+	test('Quick Chat reload hides an editorless Auxiliary-Bar-only composition after restoration', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);
 		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		state.isRestoringSessionLayout = true;
+		harness.editorGroupsHaveContent = false;
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		createDraftStrategy(ctx);
 
 		activate(quickChat);
 		harness.setPartHiddenCalls.length = 0;
+		state.isRestoringSessionLayout = false;
 		state.endSessionLayoutRestore();
 
 		assert.deepStrictEqual({
@@ -758,7 +761,39 @@ suite('Desktop layout strategies', () => {
 			visibilityChanges: harness.setPartHiddenCalls,
 		}, {
 			editorVisible: false,
-			auxiliaryBarVisible: true,
+			auxiliaryBarVisible: false,
+			visibilityChanges: [
+				{ hidden: true, part: Parts.EDITOR_PART },
+				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
+			],
+		});
+	});
+
+	test('Quick Chat preserves the side pane when a pending restore crosses a multi-session layout', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		const otherSession = makeSession(URI.parse('session:/other'));
+		state.isRestoringSessionLayout = true;
+		harness.editorGroupsHaveContent = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+
+		activate(quickChat);
+		harness.visibleSessionsObs.set([quickChat, otherSession], undefined);
+		harness.visibleSessionsObs.set([quickChat], undefined);
+		harness.setPartHiddenCalls.length = 0;
+		state.isRestoringSessionLayout = false;
+		state.endSessionLayoutRestore();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
 			visibilityChanges: [],
 		});
 	});
@@ -839,7 +874,7 @@ suite('Desktop layout strategies', () => {
 		});
 	});
 
-	test('Quick Chat preserves incoming side-pane visibility without changing the shared profile', () => {
+	test('Quick Chat hides the incoming side pane when editorless without changing the shared profile', () => {
 		harness = createTestHarness(store);
 		const { ctx, state } = createStrategyTestContext(store, harness);
 		const emptyQuickChat = makeSession(URI.parse('session:/empty-quick'), { isQuickChat: true });
@@ -853,6 +888,7 @@ suite('Desktop layout strategies', () => {
 		harness.partVisibility.set(Parts.EDITOR_PART, true);
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
 		harness.setPartHiddenCalls.length = 0;
+		harness.editorGroupsHaveContent = false;
 
 		activate(emptyQuickChat);
 
@@ -861,8 +897,8 @@ suite('Desktop layout strategies', () => {
 			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
 		}, {
-			editorVisible: true,
-			auxiliaryBarVisible: true,
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
 		});
 

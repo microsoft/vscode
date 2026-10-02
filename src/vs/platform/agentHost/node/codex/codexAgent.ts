@@ -28,7 +28,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { createSchema, platformRootSchema, platformSessionSchema, schemaProperty, AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostCodexMultiRootEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostWorkspaceTrustConfigKey, type ISchemaProperty, type SessionMode } from '../../common/agentHostSchema.js';
-import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createContextSizeConfigSchemaPropertyFromLimits, getModelContextSize } from '../../common/agentModelConfiguration.js';
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -4665,6 +4665,18 @@ export class CodexAgent extends Disposable implements IAgent {
 			return {};
 		}
 		try {
+			const connection = this._connection;
+			if (session.unsubscribeBeforeResume && !session.resumePromise && connection.kind === 'ready') {
+				// Leave pending launch changes for the next send if this app-server still owns the thread.
+				const response = await connection.client.request<'thread/read', ThreadReadResponse>('thread/read', {
+					threadId: session.threadId,
+					includeTurns: false,
+				}).catch(() => undefined);
+				if (response && this._isCurrentConnection(connection) && response.thread.id === session.threadId
+					&& (response.thread.status.type === 'idle' || response.thread.status.type === 'active')) {
+					return {};
+				}
+			}
 			await this._ensureThreadConnection(session);
 			return {};
 		} catch (error) {

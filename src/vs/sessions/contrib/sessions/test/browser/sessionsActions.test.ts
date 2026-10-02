@@ -356,6 +356,7 @@ suite('Sessions - Actions', () => {
 
 		assert.deepStrictEqual(actions, [
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'navigation' },
+			{ id: 'sessions.chatCompositeBar.close', group: 'navigation' },
 			{ id: 'sessions.sessionHeader.rename', group: 'secondary/1_session' },
 			{ id: 'sessions.chatCompositeBar.addChat', group: 'secondary/3_newChat' },
 			{ id: 'sessions.chatCompositeBar.togglePin', group: 'secondary/4_pin' },
@@ -573,7 +574,7 @@ suite('Sessions - Actions', () => {
 		const actions = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
 			.filter(isIMenuItem)
 			.filter(item => [TOGGLE_PIN_SESSION_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, 'sessions.chatCompositeBar.toggleMaximize', CLOSE_SESSION_COMMAND_ID, CLOSE_CHAT_COMMAND_ID].includes(item.command.id))
-			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.command.id.localeCompare(b.command.id) || (a.group ?? '').localeCompare(b.group ?? ''))
 			.map(item => ({
 				id: item.command.id,
 				title: typeof item.command.title === 'string' ? item.command.title : item.command.title.value,
@@ -586,50 +587,77 @@ suite('Sessions - Actions', () => {
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'navigation' },
 			{ id: TOGGLE_PIN_CHAT_COMMAND_ID, title: 'Pin', group: 'secondary/4_pin' },
 			{ id: 'sessions.chatCompositeBar.toggleMaximize', title: 'Maximize', group: 'secondary/4_pin' },
+			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: CLOSE_SESSION_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
+			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'navigation' },
 			{ id: CLOSE_CHAT_COMMAND_ID, title: 'Close', group: 'secondary/4_pin' },
 		]);
 	});
 
-	test('uses the same small close icon for chat and side-panel tabs', () => {
-		const chatClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
+	test('uses a compact close icon for tabs and a regular close icon for headers', () => {
+		const chatTabClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
+		const chatHeaderClose = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID && item.group === 'navigation');
+		const sessionHeaderClose = MenuRegistry.getMenuItems(Menus.SessionBarToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === CLOSE_SESSION_COMMAND_ID && item.group === 'navigation');
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const editorClose = disposables.add(instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 
 		assert.deepStrictEqual({
-			chatIcon: chatClose?.command.icon,
+			chatTabIcon: chatTabClose?.command.icon,
+			chatHeaderIcon: chatHeaderClose?.command.icon,
+			chatHeaderTooltip: chatHeaderClose?.command.tooltip,
+			sessionHeaderIcon: sessionHeaderClose?.command.icon,
+			sessionHeaderTooltip: typeof sessionHeaderClose?.command.tooltip === 'string' ? sessionHeaderClose.command.tooltip : sessionHeaderClose?.command.tooltip?.value,
 			editorClass: editorClose.class,
 		}, {
-			chatIcon: Codicon.closeSmall,
+			chatTabIcon: Codicon.closeSmall,
+			chatHeaderIcon: Codicon.close,
+			chatHeaderTooltip: 'Close Chat Group',
+			sessionHeaderIcon: Codicon.close,
+			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});
 	});
 
 	test('uses mutually exclusive close actions for session and chat group headers', () => {
-		const getCloseWhen = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
+		const getCloseItems = (menu: MenuId, commandId: string) => MenuRegistry.getMenuItems(menu)
 			.filter(isIMenuItem)
-			.find(item => item.command.id === commandId)
-			?.when?.serialize();
+			.filter(item => item.command.id === commandId)
+			.map(item => ({ group: item.group, when: item.when?.serialize() }))
+			.sort((a, b) => (a.group ?? '').localeCompare(b.group ?? ''));
 
 		assert.deepStrictEqual({
 			toolbar: {
-				chat: getCloseWhen(Menus.SessionBarToolbar, CLOSE_CHAT_COMMAND_ID),
-				session: getCloseWhen(Menus.SessionBarToolbar, CLOSE_SESSION_COMMAND_ID),
+				chat: getCloseItems(Menus.SessionBarToolbar, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseItems(Menus.SessionBarToolbar, CLOSE_SESSION_COMMAND_ID),
 			},
 			contextMenu: {
-				chat: getCloseWhen(Menus.SessionHeaderContext, CLOSE_CHAT_COMMAND_ID),
-				session: getCloseWhen(Menus.SessionHeaderContext, CLOSE_SESSION_COMMAND_ID),
+				chat: getCloseItems(Menus.SessionHeaderContext, CLOSE_CHAT_COMMAND_ID),
+				session: getCloseItems(Menus.SessionHeaderContext, CLOSE_SESSION_COMMAND_ID),
 			},
 		}, {
 			toolbar: {
-				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
-				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+				chat: [
+					{ group: 'navigation', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+					{ group: 'secondary/4_pin', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+				],
+				session: [
+					{ group: 'navigation', when: 'multipleSessionsVisible && sessionToolbarShowsSession' },
+					{ group: 'secondary/4_pin', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+				],
 			},
 			contextMenu: {
-				chat: 'sessionActiveChatIsClosable && sessionHeaderShowsChat',
-				session: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat',
+				chat: [
+					{ group: '1_view', when: 'sessionActiveChatIsClosable && sessionHeaderShowsChat' },
+				],
+				session: [
+					{ group: '1_view', when: 'multipleSessionsVisible && !sessionHeaderShowsChat || sessionIsCreated && !sessionHeaderShowsChat' },
+				],
 			},
 		});
 

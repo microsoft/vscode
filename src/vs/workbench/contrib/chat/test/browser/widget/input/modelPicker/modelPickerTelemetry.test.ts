@@ -255,6 +255,10 @@ suite('ModelPickerTelemetry', () => {
 				// Replace the random session id with its open order and check each duration
 				// is a real elapsed time, so events stay deterministic to compare.
 				const normalized: IStringDictionary<unknown> = { ...data };
+				if (name !== 'chat.modelPickerInteraction') {
+					assert.strictEqual(normalized.provider, 'copilotcli');
+					delete normalized.provider;
+				}
 				if (typeof normalized.pickerSessionId === 'string') {
 					if (!pickerSessionIds.includes(normalized.pickerSessionId)) {
 						pickerSessionIds.push(normalized.pickerSessionId);
@@ -304,6 +308,7 @@ suite('ModelPickerTelemetry', () => {
 			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
+			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: true,
 				showFeatured: true, showAutoModel: true, showModelIcon: false,
@@ -340,6 +345,7 @@ suite('ModelPickerTelemetry', () => {
 					getSelectedModel: () => picker.selectedModel,
 					getConfigurationAccess: () => configurationAccess,
 					getChatSessionId: () => 'session-1',
+					getProvider: () => 'copilotcli',
 					isDisabled: () => false,
 					shouldShowCacheBreakHint: () => false,
 					getCacheBreakLearnMoreLink: () => undefined,
@@ -349,19 +355,21 @@ suite('ModelPickerTelemetry', () => {
 		};
 	}
 
-	test('Free entitlement replaces a persisted HydraFusion selection when the picker is constructed', () => {
-		const hydraFusion = createModel('hydrafusion');
-		const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], ChatEntitlement.Free);
-		assert.deepStrictEqual({
-			selected: result.picker.selectedModel?.identifier,
-			delegateSelections: result.delegateSelections,
-			programmaticDelegateSelections: result.programmaticDelegateSelections,
-		}, {
-			selected: autoModel.identifier,
-			delegateSelections: [],
-			programmaticDelegateSelections: [autoModel.identifier],
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} entitlement replaces a persisted HydraFusion selection when the picker is constructed`, () => {
+			const hydraFusion = createModel('hydrafusion');
+			const result = createPicker(false, hydraFusion, undefined, [autoModel, hydraFusion, model], entitlement);
+			assert.deepStrictEqual({
+				selected: result.picker.selectedModel?.identifier,
+				delegateSelections: result.delegateSelections,
+				programmaticDelegateSelections: result.programmaticDelegateSelections,
+			}, {
+				selected: autoModel.identifier,
+				delegateSelections: [],
+				programmaticDelegateSelections: [autoModel.identifier],
+			});
 		});
-	});
+	}
 
 	test('Free entitlement falls back to setModel when the delegate has no programmatic selection', () => {
 		const hydraFusion = createModel('hydrafusion');
@@ -482,24 +490,18 @@ suite('ModelPickerTelemetry', () => {
 		});
 	}
 
-	test('the composite picker tracks whole-name hover separately from its configuration target', () => {
+	test('the composite picker keeps model and configuration as separate accessible targets', () => {
 		const result = createPicker(true);
 		result.picker.render(result.container);
 		const chip = result.picker.domNode!;
 		const name = result.container.querySelector<HTMLElement>('.model-picker-name')!;
 		const config = result.container.querySelector<HTMLElement>('.model-picker-config')!;
-		name.dispatchEvent(new MouseEvent('mouseenter'));
-		const nameHovered = chip.classList.contains('model-picker-name-hovered');
-		name.dispatchEvent(new MouseEvent('mouseleave'));
-		config.dispatchEvent(new MouseEvent('mouseenter'));
 		assert.deepStrictEqual({
 			tabbed: chip.classList.contains('tabbed'),
 			hasConfig: chip.classList.contains('has-config'),
-			nameHovered,
-			configHighlightsWholeChip: chip.classList.contains('model-picker-name-hovered'),
 			targets: [name.getAttribute('role'), config.getAttribute('role')],
 			summary: config.textContent,
-		}, { tabbed: true, hasConfig: true, nameHovered: true, configHighlightsWholeChip: false, targets: ['button', 'button'], summary: 'Medium · 264K' });
+		}, { tabbed: true, hasConfig: true, targets: ['button', 'button'], summary: 'Medium · 264K' });
 	});
 
 	test('opening from the model name keeps the whole chip active in Auto until dismissal', () => {
@@ -508,32 +510,38 @@ suite('ModelPickerTelemetry', () => {
 		result.picker.show(result.container);
 		const chip = result.picker.domNode!;
 		const name = result.container.querySelector<HTMLElement>('.model-picker-name')!;
-		name.dispatchEvent(new MouseEvent('mouseenter'));
 		name.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
-		name.dispatchEvent(new MouseEvent('mouseleave'));
-		const afterOpen = chip.classList.contains('model-picker-name-active');
+		const afterOpen = chip.classList.contains('model-picker-active');
 		result.toggleAuto();
-		const inAuto = chip.classList.contains('model-picker-name-active');
+		const inAuto = chip.classList.contains('model-picker-active');
 		result.picker.show(result.container);
 		assert.deepStrictEqual({
 			afterOpen,
 			inAuto,
-			afterClose: chip.classList.contains('model-picker-name-active'),
+			afterClose: chip.classList.contains('model-picker-active'),
 			nameExpanded: name.getAttribute('aria-expanded'),
 		}, { afterOpen: true, inAuto: true, afterClose: false, nameExpanded: 'false' });
 	});
 
-	test('opening configuration does not activate the whole model-name chip', () => {
-		const result = createPicker(true);
-		result.picker.render(result.container);
-		result.picker.show(result.container);
-		const config = result.container.querySelector<HTMLElement>('.model-picker-config')!;
-		config.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
-		assert.deepStrictEqual({
-			wholeChipActive: result.picker.domNode!.classList.contains('model-picker-name-active'),
-			configExpanded: config.getAttribute('aria-expanded'),
-		}, { wholeChipActive: false, configExpanded: 'true' });
-	});
+	for (const tabbed of [false, true]) {
+		test(`opening configuration keeps the entire picker active until dismissed with tabbed picker ${tabbed}`, () => {
+			const result = createPicker(tabbed);
+			result.picker.render(result.container);
+			result.hide();
+			const config = result.container.querySelector<HTMLElement>('.model-picker-config')!;
+			config.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
+			const state = () => ({
+				wholeChipActive: result.picker.domNode!.classList.contains('model-picker-active'),
+				configExpanded: config.getAttribute('aria-expanded'),
+			});
+			const opened = state();
+			result.hide();
+			assert.deepStrictEqual({ opened, closed: state() }, {
+				opened: { wholeChipActive: true, configExpanded: 'true' },
+				closed: { wholeChipActive: false, configExpanded: 'false' },
+			});
+		});
+	}
 
 	test('a disabled input readout cannot open model details', () => {
 		const result = createPicker(true);
@@ -781,8 +789,11 @@ suite('ModelPickerTelemetry', () => {
 		const logged: { name: string; durationMs: unknown; pickerSessionId: unknown }[] = [];
 		let now = 1000;
 		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
-			publicLog2: (name: string, data?: IStringDictionary<unknown>) => { logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId }); },
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', () => now);
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => {
+				assert.strictEqual(data?.provider, 'codex-openai');
+				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
+			},
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
 		now = 1250.4;
 		session.logModelChange(model, otherModel, 'session-1');
 		now = 2000;

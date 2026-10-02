@@ -23,6 +23,7 @@ import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT } from '../../../../../workbench/con
 import { getCompactCodicon } from '../../../../../workbench/contrib/chat/browser/chatIcons.js';
 import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
+import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
@@ -219,12 +220,13 @@ suite('Sessions - Chat View', () => {
 		const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
 		const item = dom.append(actionBar, dom.$('.action-item.chat-input-picker-item.compact-picker.model-picker-item'));
 		const picker = dom.append(item, dom.$('.action-label.model-picker-split.compact'));
-		const name = dom.append(picker, dom.$('.model-picker-section.model-picker-name'));
+		const { primaryButton: name, secondaryButton: config } = renderChatInputPickerSplit(picker);
+		name.classList.add('model-picker-section', 'model-picker-name');
+		config.classList.add('model-picker-section', 'model-picker-config');
 		name.style.minWidth = '22px';
 		const icon = dom.append(name, dom.$('span.codicon'));
 		icon.style.width = '12px';
 		icon.style.height = '12px';
-		const config = dom.append(picker, dom.$('.model-picker-section.model-picker-config'));
 		const configLabel = dom.append(config, dom.$('span.chat-input-picker-label'));
 		configLabel.textContent = 'High';
 
@@ -345,10 +347,12 @@ suite('Sessions - Chat View', () => {
 			dom.append(agent, dom.$('span.chat-input-picker-label', undefined, 'Agent'));
 			const modelItem = dom.append(actions, dom.$('li.action-item.chat-input-picker-item.model-picker-item'));
 			const model = dom.append(modelItem, dom.$('div.action-label.model-picker-split'));
-			const modelName = dom.append(model, dom.$('a.model-picker-section.model-picker-name'));
+			const { primaryButton: modelName, secondaryButton: modelConfig } = renderChatInputPickerSplit(model);
+			modelName.classList.add('model-picker-section', 'model-picker-name');
+			modelConfig.classList.add('model-picker-section', 'model-picker-config');
 			const modelIcon = dom.append(modelName, dom.$('span.codicon.codicon-rocket-compact'));
 			dom.append(modelName, dom.$('span.chat-input-picker-label', undefined, 'GPT-5.6 Sol Fast'));
-			const modelConfig = dom.append(model, dom.$('a.model-picker-section.model-picker-config', undefined, 'Max'));
+			modelConfig.textContent = 'Max';
 			const bounds = actions.getBoundingClientRect();
 			states.push({
 				newChatInSession,
@@ -1442,6 +1446,31 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('matches the empty composer voice gap without changing other windows', () => {
+		const layouts = [
+			{ sessions: true, phone: false, gap: 8 },
+			{ sessions: true, phone: true, gap: 2 },
+			{ sessions: false, phone: false, gap: 2 },
+		];
+		const gaps = layouts.map(({ sessions, phone }) => {
+			const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+			disposables.add(toDisposable(() => workbench.remove()));
+			workbench.classList.toggle('agent-sessions-workbench', sessions);
+			workbench.classList.toggle('phone-layout', phone);
+			workbench.style.setProperty('--vscode-spacing-size80', '8px');
+			const session = dom.append(workbench, dom.$('.interactive-session'));
+			const toolbars = dom.append(session, dom.$('.chat-input-toolbars'));
+			toolbars.style.width = '400px';
+			const pickers = dom.append(toolbars, dom.$('.chat-input-toolbar'));
+			const execute = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			execute.style.width = '82px';
+
+			return execute.getBoundingClientRect().left - pickers.getBoundingClientRect().right;
+		});
+
+		assert.deepStrictEqual(gaps, layouts.map(layout => layout.gap));
+	});
+
 	test('keeps background-image composer controls on complete opaque surfaces', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
 		workbench.style.setProperty('--session-view-background', '#ffffff');
@@ -1450,6 +1479,7 @@ suite('Sessions - Chat View', () => {
 		workbench.style.setProperty('--vscode-button-secondaryBorder', '#808080');
 		workbench.style.setProperty('--vscode-button-secondaryForeground', '#202020');
 		workbench.style.setProperty('--vscode-commandCenter-inactiveBorder', '#606060');
+		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
 		workbench.style.setProperty('--vscode-cornerRadius-small', '4px');
 		workbench.style.setProperty('--vscode-strokeThickness', '1px');
 		workbench.style.setProperty('--vscode-toolbar-activeBackground', 'rgba(0, 0, 0, 0.2)');
@@ -1484,11 +1514,16 @@ suite('Sessions - Chat View', () => {
 		const productionBottomAction = dom.append(productionBottomContainer, dom.$('.action-label'));
 		const productionCombinedBottomAction = dom.append(dom.append(productionBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
 		const productionExperimentalContent = dom.append(productionNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
-		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalContent, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
+		const productionExperimentalOptions = dom.append(productionExperimentalContent, dom.$('.new-chat-session-options'));
+		const productionExperimentalWorkspaceSlot = dom.append(productionExperimentalOptions, dom.$('.sessions-chat-picker-slot.sessions-workspace-category-picker-slot'));
 		const productionExperimentalWorkspaceAction = dom.append(productionExperimentalWorkspaceSlot, dom.$('.action-label'));
-		const productionExperimentalRepository = dom.append(productionExperimentalContent, dom.$('.new-chat-repo-config-container'));
+		const productionExperimentalRepository = dom.append(productionExperimentalOptions, dom.$('.new-chat-repo-config-container'));
 		const productionExperimentalRepositoryActionBar = dom.append(productionExperimentalRepository, dom.$('.monaco-action-bar'));
 		const productionExperimentalRepositoryAction = dom.append(productionExperimentalRepositoryActionBar, dom.$('.action-label'));
+		const peerNewChatWidget = dom.append(productionNewChatView, dom.$('.sessions-chat-widget.new-chat-in-session'));
+		const peerNewChatContainer = dom.append(peerNewChatWidget, dom.$('.new-chat-widget-container'));
+		const peerExperimentalContent = dom.append(peerNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const peerExperimentalOptions = dom.append(peerExperimentalContent, dom.$('.new-chat-session-options'));
 		const plainPart = dom.append(workbench, dom.$('.part.sessionspart'));
 		const plainChatView = dom.append(plainPart, dom.$('.chat-view'));
 		const plainSession = dom.append(plainChatView, dom.$('.interactive-session'));
@@ -1497,12 +1532,15 @@ suite('Sessions - Chat View', () => {
 		const plainContextUsage = dom.append(plainSecondaryToolbar, dom.$('.chat-context-usage-widget'));
 		const plainNewChatWidget = dom.append(plainChatView, dom.$('.sessions-chat-widget'));
 		const plainNewChatContainer = dom.append(plainNewChatWidget, dom.$('.new-chat-widget-container'));
+		const plainExperimentalContent = dom.append(plainNewChatContainer, dom.$('.new-chat-widget-content.experimental-new-session-composer'));
+		const plainExperimentalOptions = dom.append(plainExperimentalContent, dom.$('.new-chat-session-options'));
 		const plainBottomContainer = dom.append(plainNewChatContainer, dom.$('.new-chat-bottom-container'));
 		const plainBottomAction = dom.append(plainBottomContainer, dom.$('.action-label'));
 		const plainCombinedBottomAction = dom.append(dom.append(plainBottomContainer, dom.$('.sessions-chat-picker-slot')), dom.$('.action-label.agent-host-mode-permissions-trigger'));
 		plainCombinedBottomAction.setAttribute(MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, 'true');
-		const plainCombinedModeAction = dom.append(plainCombinedBottomAction, dom.$('.agent-host-mode-picker-button.agent-host-mode-button'));
-		const plainCombinedPermissionAction = dom.append(plainCombinedBottomAction, dom.$('.agent-host-mode-picker-button.agent-host-permissions-button'));
+		const { primaryButton: plainCombinedModeAction, secondaryButton: plainCombinedPermissionAction } = renderChatInputPickerSplit(plainCombinedBottomAction);
+		plainCombinedModeAction.classList.add('agent-host-mode-picker-button', 'agent-host-mode-button');
+		plainCombinedPermissionAction.classList.add('agent-host-mode-picker-button', 'agent-host-permissions-button');
 		plainCombinedPermissionAction.setAttribute('aria-expanded', 'true');
 		dom.getWindow(workbench).document.body.appendChild(workbench);
 		disposables.add(toDisposable(() => workbench.remove()));
@@ -1540,6 +1578,8 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBorderColor: productionBottomActionStyle.borderColor,
 			productionBottomActionForeground: productionBottomActionStyle.color,
 			productionCombinedBottomActionBackgroundColor: dom.getWindow(productionCombinedBottomAction).getComputedStyle(productionCombinedBottomAction).backgroundColor,
+			productionExperimentalOptionsBackgroundColor: dom.getWindow(productionExperimentalOptions).getComputedStyle(productionExperimentalOptions).backgroundColor,
+			productionExperimentalOptionsBorderRadius: dom.getWindow(productionExperimentalOptions).getComputedStyle(productionExperimentalOptions).borderRadius,
 			productionExperimentalWorkspaceBackgroundColor: productionExperimentalWorkspaceActionStyle.backgroundColor,
 			productionExperimentalWorkspaceBackgroundImage: productionExperimentalWorkspaceActionStyle.backgroundImage,
 			productionExperimentalWorkspaceBorderColor: productionExperimentalWorkspaceActionStyle.borderColor,
@@ -1551,12 +1591,14 @@ suite('Sessions - Chat View', () => {
 			productionExperimentalRepositoryActionBackgroundColor: productionExperimentalRepositoryActionStyle.backgroundColor,
 			productionExperimentalRepositoryActionBackgroundImage: productionExperimentalRepositoryActionStyle.backgroundImage,
 			productionExperimentalRepositoryActionBorderStyle: productionExperimentalRepositoryActionStyle.borderStyle,
+			peerExperimentalOptionsBackgroundColor: dom.getWindow(peerExperimentalOptions).getComputedStyle(peerExperimentalOptions).backgroundColor,
 			plainSecondaryActionBackgroundColor: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).backgroundColor,
 			plainSecondaryActionBorderStyle: dom.getWindow(plainSecondaryAction).getComputedStyle(plainSecondaryAction).borderStyle,
 			plainContextUsageBackgroundColor: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).backgroundColor,
 			plainContextUsageBorderStyle: dom.getWindow(plainContextUsage).getComputedStyle(plainContextUsage).borderStyle,
 			plainBottomActionBackgroundColor: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).backgroundColor,
 			plainBottomActionBorderStyle: dom.getWindow(plainBottomAction).getComputedStyle(plainBottomAction).borderStyle,
+			plainExperimentalOptionsBackgroundColor: dom.getWindow(plainExperimentalOptions).getComputedStyle(plainExperimentalOptions).backgroundColor,
 			plainCombinedBottomActionBackgroundColor: dom.getWindow(plainCombinedBottomAction).getComputedStyle(plainCombinedBottomAction).backgroundColor,
 			plainCombinedModeActionBackgroundColor: dom.getWindow(plainCombinedModeAction).getComputedStyle(plainCombinedModeAction).backgroundColor,
 			plainCombinedPermissionActionBackgroundColor: dom.getWindow(plainCombinedPermissionAction).getComputedStyle(plainCombinedPermissionAction).backgroundColor,
@@ -1582,23 +1624,27 @@ suite('Sessions - Chat View', () => {
 			productionBottomActionBorderColor: 'rgb(128, 128, 128)',
 			productionBottomActionForeground: 'rgb(32, 32, 32)',
 			productionCombinedBottomActionBackgroundColor: 'rgb(255, 255, 255)',
-			productionExperimentalWorkspaceBackgroundColor: 'rgb(255, 255, 255)',
-			productionExperimentalWorkspaceBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
+			productionExperimentalOptionsBackgroundColor: 'rgb(255, 255, 255)',
+			productionExperimentalOptionsBorderRadius: '8px 8px 0px 0px',
+			productionExperimentalWorkspaceBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalWorkspaceBackgroundImage: 'none',
 			productionExperimentalWorkspaceBorderColor: 'rgb(128, 128, 128)',
 			productionExperimentalWorkspaceBorderRadius: '4px',
-			productionExperimentalRepositoryBackgroundColor: 'rgb(255, 255, 255)',
-			productionExperimentalRepositoryBackgroundImage: 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0))',
+			productionExperimentalRepositoryBackgroundColor: 'rgba(0, 0, 0, 0)',
+			productionExperimentalRepositoryBackgroundImage: 'none',
 			productionExperimentalRepositoryBorderColor: 'rgb(128, 128, 128)',
 			productionExperimentalRepositoryBorderRadius: '4px',
 			productionExperimentalRepositoryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			productionExperimentalRepositoryActionBackgroundImage: 'none',
 			productionExperimentalRepositoryActionBorderStyle: 'none',
+			peerExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainSecondaryActionBorderStyle: 'none',
 			plainContextUsageBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainContextUsageBorderStyle: 'none',
 			plainBottomActionBackgroundColor: 'rgb(255, 255, 255)',
 			plainBottomActionBorderStyle: 'none',
+			plainExperimentalOptionsBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainCombinedBottomActionBackgroundColor: 'rgba(0, 0, 0, 0.12)',
 			plainCombinedModeActionBackgroundColor: 'rgba(0, 0, 0, 0)',
 			plainCombinedPermissionActionBackgroundColor: 'rgba(0, 0, 0, 0.2)',

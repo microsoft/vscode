@@ -57,7 +57,7 @@ import { withSessionSandboxState } from '../../../../../../platform/agentHost/co
 import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import type { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker, getAgentHostSandboxSettingId, getConfigPickerAccessibleTriggerLabel, getConfigPickerItemHover, getConfigPickerListOptions, getConfigPickerTriggerHover, getConfigPickerTriggerLabel, isGenericConfigPickerProperty, resolveConfigChipValue } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { getAgentHostPickerProperty, OpenAgentHostAutoApprovePickerAction, OpenAgentHostCodexApprovalsPickerAction, OpenAgentHostModePickerAction, OpenAgentHostPermissionModePickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
@@ -119,8 +119,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			schema: {
 				type: 'object',
 				properties: {
-					mode: { title: 'Mode', type: 'string', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'] },
-					autoApprove: { title: 'Permissions', type: 'string', enum: ['default', 'assisted', 'autoApprove'], enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'] },
+					mode: { title: 'Mode', type: 'string', enum: ['interactive', 'plan', 'autopilot'], enumLabels: ['Interactive', 'Plan', 'Autopilot'], sessionMutable: true },
+					autoApprove: { title: 'Permissions', type: 'string', enum: ['default', 'assisted', 'autoApprove'], enumLabels: ['Manual permissions', 'Assisted permissions', 'Allow all'], sessionMutable: true },
 					[SessionConfigKey.SandboxEnabled]: { title: 'Sandbox', type: 'string', enum: ['default', 'on', 'off'], sessionMutable: true },
 				},
 			},
@@ -132,6 +132,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}();
 		const onDidShow = store.add(new Emitter<void>());
 		const branchCompletionQueries: (string | undefined)[] = [];
+		const branchCompletionProperties: string[] = [];
 		const branchCompletionItems: SessionConfigValueItem[] = [];
 		const actionWidget = new class extends mock<IActionWidgetService>() {
 			override isVisible = false;
@@ -188,6 +189,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			},
 			sessionConfigCompletions: async params => {
 				branchCompletionQueries.push(params.query);
+				branchCompletionProperties.push(params.property);
 				return { items: branchCompletionItems };
 			},
 			dispatch: (_session, action) => {
@@ -230,7 +232,8 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
-		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined, refreshResolvedConfig: async () => { } });
+		const resolvedRefreshes: Record<string, unknown>[] = [];
+		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined, refreshResolvedConfig: async (_resource, _provider, _directory, values) => { resolvedRefreshes.push(values ?? {}); } });
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const managedSandboxAllowsBypass = observableValue('managedSandboxAllowsBypass', false);
 		instantiationService.stub(IAgentHostEnablementService, { managedSandboxEnforced, managedSandboxAllowsBypass });
@@ -269,12 +272,93 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 			return state;
 		};
-		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionItems, dispatches, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
+		return { modePicker, permissionPicker, modeContainer, permissionContainer, configuration, config, actionWidget, widget, instantiationService, branchCompletionQueries, branchCompletionProperties, branchCompletionItems, dispatches, resolvedRefreshes, connection, settingsRequests, hoverTargets, onDidShow: onDidShow.event, sandboxReady, setSession, managedSandboxEnforced, managedSandboxAllowsBypass, logErrors, diagnosticsRequests: () => diagnosticsRequests, fireHostStart: () => onAgentHostStart.fire() };
 	}
+
+	test('native approval bindings restrict combined choices and write the original host key', async () => {
+		const rig = setup();
+		delete rig.config.schema.properties.autoApprove;
+		delete rig.config.schema.properties.sandboxEnabled;
+		rig.config.schema.properties.approvalMode = { type: 'string', title: 'Permissions', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true };
+		rig.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective permissions', readOnly: true };
+		rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available permissions', readOnly: true };
+		rig.config.values = { mode: 'interactive', approvalMode: 'allow-all', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], unsupportedClientValue: 'ignored' };
+		rig.setSession(URI.parse('agent-host-other:/opaque-session'), URI.parse('native-provider:/host-owned-session'), rig.connection);
+		rig.modePicker.render(rig.modeContainer);
+		rig.permissionPicker.render(rig.permissionContainer);
+		const context = rig.permissionPicker['_readContext']();
+		await rig.modePicker['_showPicker'](rig.modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!, true);
+		const choices = rig.actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => item.label);
+		await rig.actionWidget.select('Assisted permissions');
+		assert.deepStrictEqual({
+			choices,
+			effective: context?.value,
+			hover: context?.approvalHover,
+			standaloneHidden: rig.permissionContainer.style.display,
+			dispatches: rig.dispatches,
+			refreshes: rig.resolvedRefreshes,
+		}, {
+			choices: ['Manual permissions', 'Assisted permissions'],
+			effective: 'default',
+			hover: 'Effective permissions: manual. Requested permissions: allow-all.',
+			standaloneHidden: 'none',
+			dispatches: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } }],
+			refreshes: [{ mode: 'interactive', approvalMode: 'assisted' }],
+		});
+	});
+
+	test('malformed VS approval keys use generic fallback without mixing Copilot aliases', () => {
+		const rig = setup(false);
+		rig.config.schema.properties.autoApprove = { type: 'string', title: 'Custom approvals', enum: ['custom'], sessionMutable: true };
+		rig.config.schema.properties.approvalMode = { type: 'string', title: 'Native approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true };
+		rig.config.values = { autoApprove: 'custom', approvalMode: 'allow-all' };
+		rig.permissionPicker.render(rig.permissionContainer);
+		assert.deepStrictEqual({
+			hidden: rig.permissionContainer.style.display,
+			generic: Object.entries(rig.config.schema.properties).filter(([key, schema]) => isGenericConfigPickerProperty(key, schema, true, rig.config.schema)).map(([key]) => key),
+		}, {
+			hidden: 'none', generic: ['autoApprove'],
+		});
+	});
+
+	test('native base-branch completions and selections retain baseBranch rather than the new branch name', async () => {
+		const rig = setup(false);
+		rig.config.schema.properties.target = { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], sessionMutable: false };
+		rig.config.schema.properties.baseBranch = { type: 'string', title: 'Base branch', enumDynamic: true, sessionMutable: true };
+		rig.config.schema.properties.branch = { type: 'string', title: 'New branch', sessionMutable: false };
+		rig.config.values = { target: 'worktree', baseBranch: 'main', branch: 'new-session-branch' };
+		rig.branchCompletionItems.push({ value: 'main', label: 'main' }, { value: 'dev', label: 'dev' });
+		const viewModel = rig.widget.viewModel!;
+		rig.widget.viewModel = undefined;
+		const picker = store.add(rig.instantiationService.createInstance(AgentHostChatInputPicker, rig.widget, SessionConfigKey.Branch));
+		rig.widget.viewModel = viewModel;
+		picker['_initialResolved'] = { sessionResource: viewModel.sessionResource, result: rig.config };
+		const container = dom.$('div');
+		picker.render(container);
+		await picker['_showPicker'](container.querySelector<HTMLElement>('.action-label')!);
+		await rig.actionWidget.select('dev');
+		assert.deepStrictEqual({ properties: rig.branchCompletionProperties, dispatches: rig.dispatches }, {
+			properties: ['baseBranch'],
+			dispatches: [{ type: ActionType.SessionConfigChanged, config: { baseBranch: 'dev' } }],
+		});
+	});
+
+	test('readonly or nonmutable native approval properties never become runtime writes', async () => {
+		const rig = setup(false);
+		delete rig.config.schema.properties.autoApprove;
+		rig.config.schema.properties.approvalMode = { type: 'string', title: 'Permissions', enum: ['manual', 'assisted', 'allow-all'], readOnly: true, sessionMutable: true };
+		rig.config.values = { approvalMode: 'manual' };
+		const anchor = dom.$('div');
+		await rig.permissionPicker['_showPicker'](anchor);
+		rig.config.schema.properties.approvalMode.readOnly = false;
+		rig.config.schema.properties.approvalMode.sessionMutable = false;
+		await rig.permissionPicker['_showPicker'](anchor);
+		assert.deepStrictEqual({ shows: rig.actionWidget.showCount, dispatches: rig.dispatches }, { shows: 0, dispatches: [] });
+	});
 
 	test('branch picker filters the full list locally and reloads it only when reopened', async () => {
 		const { config, widget, instantiationService, actionWidget, branchCompletionItems, branchCompletionQueries } = setup(false);
-		config.schema.properties[SessionConfigKey.Branch] = { title: 'Branch', type: 'string', enumDynamic: true, default: 'main' };
+		config.schema.properties[SessionConfigKey.Branch] = { title: 'Branch', type: 'string', enumDynamic: true, default: 'main', sessionMutable: true };
 		config.values[SessionConfigKey.Branch] = 'main';
 		branchCompletionItems.push(
 			{ value: 'main', label: 'main' },
@@ -784,11 +868,11 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			modeLabelCentered: true,
 			permissionLabelCentered: true,
 			buttonHeights: [surface.buttonHeight, surface.buttonHeight],
-			buttonPadding: ['0px 4px', '0px 4px'],
-			contentInsets: [{ left: 4, right: 4 }, { left: 4, right: 4 }],
+			buttonPadding: ['0px 6px', '0px 6px'],
+			contentInsets: [{ left: 6, right: 6 }, { left: 6, right: 6 }],
 			surfaceGap: 2,
-			labelGap: 10,
-			totalChrome: 18,
+			labelGap: 14,
+			totalChrome: 26,
 			divider: {
 				position: 'absolute',
 				left: '-1px',
@@ -1418,7 +1502,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 				schema: {
 					type: 'object',
 					properties: {
-						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default' },
+						[SessionConfigKey.AutoApprove]: { type: 'string', title: 'Permissions', enum: ['default', 'autoApprove'], default: 'default', sessionMutable: true },
 						[SessionConfigKey.SandboxEnabled]: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 					},
 				},

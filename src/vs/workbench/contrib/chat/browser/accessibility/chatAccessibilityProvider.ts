@@ -86,7 +86,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		messages.push(localize('toolInvocationsHintDetails', "Details: {0}", text.map(t => t.detail ? t.detail : '').join(' ')));
 	}
 	if (authenticationServers.length > 0) {
-		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the Authenticate button in the tool call.", authenticationServers.join(', ')));
+		messages.push(localize('toolAuthenticationHint', "MCP authentication required for {0}. Use the tool call buttons to authenticate, cancel, or disable the server for this session.", authenticationServers.join(', ')));
 	}
 
 	return messages.join(' ');

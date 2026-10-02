@@ -385,8 +385,8 @@ export interface ISessionsManagementService {
 	 */
 	readonly onDidDiscardNewSession: Event<ISession>;
 	/**
-	 * Fires when {@link createNewSession} replaces the current in-progress
-	 * draft with another new-session draft (New Session → New Session).
+	 * Fires when an in-progress draft is replaced before sending,
+	 * either by {@link createNewSession} or new-session preparation.
 	 * Draft graduation uses {@link onDidReplaceSession} instead.
 	 */
 	readonly onDidReplaceNewDraftSession: Event<{ readonly from: ISession; readonly to: ISession }>;

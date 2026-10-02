@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -1547,21 +1547,27 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const singleGroup = view.element.querySelector<HTMLElement>('.chat-group-view')!;
 		const singleGroupHeaderShowsChat = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionHeaderShowsChatContext.key);
+		const singleGroupToolbarShowsSession = contextKeyService.getContext(singleGroup).getValue<boolean>(SessionToolbarShowsSessionContext.key);
 		view.splitChatToSide(secondary.resource);
-		const splitGroupActions = Array.from(view.element.querySelectorAll<HTMLElement>('.session-chat-tabs-actions'));
-		const splitGroupHeaderShowsChat = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'))
-			.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroups = Array.from(view.element.querySelectorAll<HTMLElement>('.chat-group-view'));
+		const splitGroupActions = splitGroups.map(group => group.querySelector<HTMLElement>('.session-chat-tabs-actions'));
+		const splitGroupHeaderShowsChat = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
+		const splitGroupToolbarShowsSession = splitGroups.map(group => contextKeyService.getContext(group).getValue<boolean>(SessionToolbarShowsSessionContext.key));
 
 		assert.deepStrictEqual({
 			singleGroupHidden,
 			singleGroupHeaderShowsChat,
-			splitGroupsHidden: splitGroupActions.map(actions => actions.classList.contains('hidden')),
+			singleGroupToolbarShowsSession,
+			splitGroupsHidden: splitGroupActions.map(actions => actions?.classList.contains('hidden')),
 			splitGroupHeaderShowsChat,
+			splitGroupToolbarShowsSession,
 		}, {
 			singleGroupHidden: false,
 			singleGroupHeaderShowsChat: false,
+			singleGroupToolbarShowsSession: true,
 			splitGroupsHidden: [true, true],
 			splitGroupHeaderShowsChat: [false, false],
+			splitGroupToolbarShowsSession: [false, false],
 		});
 	});
 
@@ -1587,6 +1593,33 @@ suite('Sessions - ChatGroupsView', () => {
 		session.isArchived.set(true, undefined);
 		assert.deepStrictEqual({ readOnly, blocked, archived: readBanner(view).message }, {
 			readOnly: true, blocked: false, archived: 'Archived sessions are read-only.',
+		});
+	});
+
+	test('does not show a transient read-only banner while a peer transcript loads', () => {
+		const { chatViewFactory, view } = createHarness(disposables);
+		const main = createChat('main');
+		const peer = createChat('peer');
+		const session = new TestActiveSession([main, peer]);
+		view.setSession(session, options);
+		const current = chatViewFactory.views[chatViewFactory.views.length - 1];
+		current.isLoadingTranscript.set(true, undefined);
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		session.activeChat.set(peer, undefined);
+		const loading = readBanner(view).visible;
+
+		transaction(tx => {
+			peer.interactivity.set(ChatInteractivity.Full, tx);
+			current.isLoadingTranscript.set(false, tx);
+		});
+		const ready = readBanner(view).visible;
+		peer.interactivity.set(ChatInteractivity.ReadOnly, undefined);
+		const readOnly = readBanner(view).visible;
+		current.isLoadingTranscript.set(true, undefined);
+		session.isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ loading, ready, readOnly, archived: readBanner(view).message }, {
+			loading: false, ready: false, readOnly: true, archived: 'Archived sessions are read-only.',
 		});
 	});
 

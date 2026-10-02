@@ -349,6 +349,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override onDidChangeLanguageModelVendors = Event.None;
 		override onDidChangeModelVisibility = Event.None;
 		override getLanguageModelIds() { return []; }
+		override lookupLanguageModel() { return undefined; }
 		override getVendors() { return []; }
 		override hasResolvedVendor() { return false; }
 		override getModelConfiguration() { return undefined; }

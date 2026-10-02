@@ -15,6 +15,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -86,7 +87,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly taskFetchDelayMs?: number;
 	readonly requestError?: Error;
 	readonly logService?: ILogService;
-	readonly onRequest?: (url: URL, token: CancellationToken) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
+	readonly onRequest?: (url: URL, token: CancellationToken, options: IRequestOptions) => IRequestContext | undefined | Promise<IRequestContext | undefined>;
 	readonly discoveryDate?: () => string;
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
 }): ITestSetup {
@@ -109,7 +110,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			}
 			const url = opts.url ?? '';
 			requestedUrls.push(url);
-			const override = await options.onRequest?.(new URL(url), token);
+			const override = await options.onRequest?.(new URL(url), token, opts);
 			if (override) {
 				return override;
 			}
@@ -1323,6 +1324,87 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
 
+suite('CloudSandboxApiService task deletion', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const statusCode of [200, 204, 404]) {
+		test(`deletes the encoded task through Mission Control: HTTP ${statusCode}`, async () => {
+			const { service, calls } = createServiceForCreate(store, undefined, 200, { deleteStatusCode: statusCode });
+			await service.deleteTask('task/with spaces', CancellationToken.None);
+			assert.deepStrictEqual(calls, [{
+				url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
+				type: 'DELETE',
+				body: undefined,
+				timeout: 10_000,
+				headers: {
+					Accept: 'application/json',
+					'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+					Authorization: 'Bearer tok',
+				},
+			}]);
+		});
+	}
+
+	for (const statusCode of [403, 429, 500]) {
+		test(`surfaces rejected deletion: HTTP ${statusCode}`, async () => {
+			const { service } = createServiceForCreate(store, undefined, 200, { deleteStatusCode: statusCode });
+			await assert.rejects(service.deleteTask('task-1', CancellationToken.None), new RegExp(`task delete failed: HTTP ${statusCode}`));
+		});
+	}
+
+	test('surfaces transport errors', async () => {
+		const { service } = createServiceForCreate(store, undefined, 200, { failDelete: true });
+		await assert.rejects(service.deleteTask('task-1', CancellationToken.None), /delete failed/);
+	});
+
+	test('requires authentication before deleting', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+		await assert.rejects(service.deleteTask('task-1', CancellationToken.None), /signed-in GitHub account/);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('removes deleted tasks from the incremental discovery cache', async () => {
+		const { service } = createService(store, {
+			tasks: [{ ...task('task-1', 'Sandbox', undefined, 'sess-1', 'env-1'), updated_at: '2026-08-01T00:00:00Z' }],
+			repositories: new Map(),
+			onRequest: (_url, _token, options) => options.type === 'DELETE' ? jsonResponse({}, 204) : undefined,
+		});
+		const before = await service.listSessions(CancellationToken.None);
+		await service.deleteTask('task-1', CancellationToken.None);
+		const after = await service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual({
+			before: before.kind !== 'failed' ? before.sessions.map(session => session.taskId) : before.kind,
+			after: after.kind !== 'failed' ? after.sessions.map(session => session.taskId) : after.kind,
+		}, { before: ['task-1'], after: [] });
+	});
+
+	test('invalidates discovery in flight when a task is deleted', async () => {
+		const entered = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const { service } = createService(store, {
+			tasks: [task('task-1', 'Sandbox', undefined, 'sess-1', 'env-1')],
+			repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'DELETE') {
+					return jsonResponse({}, 204);
+				}
+				if (url.pathname.endsWith('/tasks/task-1')) {
+					void entered.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const discovery = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.deleteTask('task-1', CancellationToken.None);
+		await response.complete(jsonResponse(task('task-1', 'Sandbox', undefined, 'sess-1', 'env-1')));
+		assert.strictEqual((await discovery).kind, 'failed');
+	});
+});
+
 suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1438,7 +1520,7 @@ suite('CloudSandboxApiService session creation', () => {
 		await assert.rejects(() => service.createSession({ prompt: 'hello' }, CancellationToken.None));
 
 		assert.deepStrictEqual(warnings.filter(w => w.includes('task-10')), [
-			'[CloudSandboxApi] Could not clean up sandbox task task-10: HTTP 500. It remains and can only be removed server-side.',
+			'[CloudSandboxApi] Could not clean up sandbox task task-10: Mission Control task delete failed: HTTP 500 - {}. It remains and can only be removed server-side.',
 		]);
 	});
 

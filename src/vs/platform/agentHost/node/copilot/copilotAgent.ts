@@ -14,7 +14,7 @@ import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
-import { Disposable, DisposableMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
@@ -39,7 +39,7 @@ import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/wo
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
-import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, hasLongContextSurcharge, normalizeCAPIBilling, type ICAPIModelBilling } from '../../common/meta/agentModelMeta.js';
 import { createContextSizeConfigSchemaProperty } from '../../common/agentModelConfiguration.js';
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -51,7 +51,7 @@ import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasSnapshot, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
-import { isAutoModel } from './modelIdentifiers.js';
+import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -62,7 +62,7 @@ import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
-import { ProtectedResourceMetadata, type AgentSelection, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
+import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
 import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -82,6 +82,7 @@ import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomiza
 import { McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
+import { IByokLmProxyService } from './byokLmProxyService.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns } from './buildSessionEvents.js';
 import { CopilotAgentSession, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
@@ -142,16 +143,13 @@ function setCopilotBuiltinGitHubMcpEnvironment(env: Record<string, string | unde
 	}
 }
 
-/**
- * Forces tgrep indexed search past the runtime's repository-size threshold. The runtime also
- * disables tgrep whenever `USE_BUILTIN_RIPGREP=false`, so enabling drops VS Code's override and
- * lets the runtime use its bundled ripgrep and tgrep.
- */
+/** Keeps tgrep disabled in control, or permits the SDK's size-gated feature flag in treatment. */
 function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, enabled: boolean): void {
 	deleteEnvironmentVariable(env, 'USE_TGREP');
 	if (enabled) {
 		deleteEnvironmentVariable(env, 'USE_BUILTIN_RIPGREP');
-		env['USE_TGREP'] = 'true';
+	} else {
+		env['USE_TGREP'] = 'false';
 	}
 }
 
@@ -745,6 +743,20 @@ interface IExtensionHostCliRequestDetails {
 /** Copilot bills in nano-AIU; the extension host persists whole credits. */
 const NANO_AIU_PER_CREDIT = 1_000_000_000;
 
+/** A client's watch on a chat's background work, which follows whichever session backs the chat. */
+class BackgroundWorkWatch extends Disposable {
+	private readonly _observation = this._register(new MutableDisposable<IDisposable>());
+
+	constructor(private readonly _published: () => readonly BackgroundWork[]) {
+		super();
+	}
+
+	/** Observes the session now backing the chat, starting from the list the chat already shows. */
+	attach(session: CopilotAgentSession): void {
+		this._observation.value = session.observeBackgroundWork(this._published());
+	}
+}
+
 /**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
@@ -796,6 +808,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * picker.
 	 */
 	private _capiModels: readonly IAgentModelInfo[] = [];
+	/** See {@link _getFallbackAutoModel}. */
+	private _fallbackAutoModel: IAgentModelInfo | undefined;
 	private _byokModels: readonly IAgentModelInfo[] = [];
 
 	/** Model IDs whose long-context tier costs the same as the default tier (free long context). */
@@ -898,6 +912,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private readonly _chatEntriesBySdkId = this._register(new DisposableMap<string, CopilotChatEntry>());
+	private readonly _backgroundWorkWatches = this._register(new DisposableResourceMap<BackgroundWorkWatch>());
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
 	private _connectorRefreshGeneration = 0;
@@ -969,6 +984,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	readonly onDidCustomizationsChange: Event<void>;
 	/** Per-session active client state for tools + plugin snapshot tracking. */
 	private readonly _activeClients = new ResourceMap<ActiveClient>();
+	/** Live session -> the turn whose `prepareTurn` launched it; dropped with the session. */
+	private readonly _preparedTurnLaunches = new WeakMap<CopilotAgentSession, string>();
 	/**
 	 * Last host-published customization snapshot per configuration scope (AGENTS.md section 8b).
 	 * Updated only from host call boundaries; absence is distinct from an empty list.
@@ -1000,6 +1017,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
+		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 	) {
 		super();
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
@@ -1046,6 +1064,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					const chat = URI.parse(buildDefaultChatUri(session));
 					return this.getChatCustomizations(chat, { configurationResource: session, resource: chat });
 				},
+				getPluginMarketplaces: sessionId => this._listPluginMarketplaces(sessionId),
+				getPluginMarketplacePlugins: sessionId => this._listPluginMarketplacePlugins(sessionId),
+				getInstalledPlugins: sessionId => this._listInstalledPlugins(sessionId),
 				getSessionConfigState: (sessionId) => this._getSessionConfigState(sessionId),
 			},
 			RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS,
@@ -1077,6 +1098,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._byokBridgeRegistry.onDidChangeModels(() => {
 			this._logService.info('[Copilot] BYOK bridge changed; refreshing models');
 			this._refreshByokModels();
+		}));
+		// The BYOK proxy keeps runs going with a capped tool list; tell the user
+		// in the affected session's active turn.
+		this._register(byokLmProxyService.onDidCapTools(e => {
+			this._findSessionBySdkId(e.sessionId)?.reportByokToolsCapped(e.requestedToolCount, e.sentToolCount);
 		}));
 
 		// `COPILOT_GH_HOST` is a subprocess env var (applied in `_ensureClient`) the
@@ -2659,7 +2685,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 			setCopilotTgrepEnvironment(env, startupConfig.tgrep);
 			if (startupConfig.tgrep) {
-				this._logService.info('[Copilot] Set CLI env: USE_TGREP=true (tgrep indexed search forced on)');
+				this._logService.info('[Copilot] Enabled repository-size-gated tgrep indexed search');
 			}
 
 			// Keep the SDK wrapper and native module paired within the bundled platform
@@ -3446,7 +3472,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 			};
 		});
 		this._logService.info(`[Copilot] Found ${result.length} models: ${result.map(m => m.name).join(', ')}`);
+		if (!result.length) {
+			// Plans such as Copilot Free and Student can list nothing. Offer Auto rather than an
+			// empty picker, as the Copilot CLI integration does.
+			this._logService.info('[Copilot] No models listed; offering Auto');
+			result.push(this._getFallbackAutoModel());
+		}
 		return result;
+	}
+
+	/** The Auto entry offered when the runtime lists no models, with its routing profiles. */
+	private _getFallbackAutoModel(): IAgentModelInfo {
+		if (!this._fallbackAutoModel) {
+			const tier = this._createAutoTierConfigSchemaProperty(AUTO_MODEL_ID);
+			this._fallbackAutoModel = {
+				provider: this.id,
+				id: AUTO_MODEL_ID,
+				name: localize('copilotAgent.autoModelName', "Auto"),
+				supportsVision: false,
+				configSchema: tier ? { type: 'object', properties: { [AutoTierConfigKey]: tier } } : undefined,
+			};
+		}
+		return this._fallbackAutoModel;
 	}
 
 	/**
@@ -3670,10 +3717,54 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._slashCommandProvider.getSlashCommands(options);
 	}
 
+	private async _listPluginMarketplaces(sessionId: string) {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listPluginMarketplaces();
+		}
+		const client = await this._ensureClient();
+		return (await client.rpc.plugins.marketplaces.list()).marketplaces;
+	}
+
+	private async _listInstalledPlugins(sessionId: string) {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listInstalledPlugins();
+		}
+		const client = await this._ensureClient();
+		return (await client.rpc.plugins.list()).plugins;
+	}
+
+	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
+		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		if (session) {
+			return session.listPluginMarketplacePlugins();
+		}
+		const client = await this._ensureClient();
+		const marketplaces = (await client.rpc.plugins.marketplaces.list()).marketplaces
+			.filter(marketplace => marketplace.available !== false);
+		const catalogs = await Promise.all(marketplaces.map(async marketplace => {
+			try {
+				return {
+					marketplace: marketplace.name,
+					plugins: (await client.rpc.plugins.marketplaces.browse({ name: marketplace.name })).plugins,
+				};
+			} catch (error) {
+				this._logService.warn(`[Copilot] Failed to browse plugin marketplace '${marketplace.name}' for completions: ${getErrorMessage(error)}`);
+				return { marketplace: marketplace.name, plugins: [] };
+			}
+		}));
+		return catalogs.flatMap(catalog => catalog.plugins.map(plugin => ({
+			name: plugin.name,
+			marketplace: catalog.marketplace,
+		})));
+	}
+
 	/**
 	 * Chat-addressed surface for the chats within a session.
 	 */
 	readonly chats: IAgentChats = {
+		prepareTurn: (chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, context: URI | IAgentChatContext): Promise<void> => this._prepareTurn(chat, turnId, workingDirectories, context),
 		createChat: (chat: URI, context: URI | IAgentChatContext, options?: IAgentCreateChatOptions): Promise<IAgentCreateChatResult> => {
 			this._noteHostCustomizations(context);
 			return this._createChat(chat, resolveAgentChatContext(context, chat), options);
@@ -4697,15 +4788,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		context: IResolvedCopilotChatContext,
 		entry: CopilotAgentSession,
 		workingDirectories: readonly URI[] | undefined,
-		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken },
+		options: { readonly operation: 'sendMessage' | 'startMcpServer'; readonly allowRestart: 'whenIdle' | 'always'; readonly turnId?: string; readonly token?: CancellationToken; readonly launchedForTurn?: boolean },
 	): Promise<CopilotAgentSession> {
 		const activeClient = this._activeClients.get(context.configurationResource);
 		// MCP Stop still needs the queued sync to finish before it can resolve the server to stop.
 		const waitToken = options.operation === 'sendMessage' ? options.token ?? CancellationToken.None : CancellationToken.None;
-		await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
-		const { operation, allowRestart, turnId } = options;
+		const { operation, allowRestart, turnId, launchedForTurn } = options;
 		const rootsChanged = workingDirectories !== undefined && !areAdditionalWorkingDirectoriesEqual(entry.appliedAdditionalDirectories, this._additionalCustomizationDirectories(workingDirectories));
-		const currentSnapshot = activeClient ? await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken) : undefined;
+		// The turn `prepareTurn` launched for revalidates against the state already
+		// observed in memory: anything that changed since the launch is still caught,
+		// without re-awaiting the syncs and workspace scans the launch just completed.
+		if (!launchedForTurn) {
+			await activeClient?.pluginController.retryFailedClientSyncIfNeeded(waitToken);
+		}
+		const currentSnapshot = !activeClient ? undefined
+			: launchedForTurn ? activeClient.currentSnapshot(context.chatKey)
+				: await raceCancellationError(activeClient.snapshot(context.chatKey), waitToken);
 		const structuralRestartReason = activeClient && currentSnapshot ? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot), waitToken) : undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
 			? await raceCancellationError(this._disabledRootMcpServers(context.configurationResource, entry.sessionId, currentSnapshot), waitToken)
@@ -4755,8 +4853,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			let entry: CopilotAgentSession | undefined = current.target;
 			const hadCachedEntry = !!entry;
 			stageRecorder?.mark('refresh');
+			// The turn `prepareTurn` launched this session for revalidates its
+			// configuration against the state already observed in memory.
+			const launchedForTurn = !!entry && turnId !== undefined && this._preparedTurnLaunches.get(entry) === turnId;
 			if (entry) {
-				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token });
+				this._preparedTurnLaunches.delete(entry);
+				entry = await this._refreshSessionConfiguration(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'always', turnId, token, launchedForTurn });
 			} else {
 				await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(token);
 				if (token.isCancellationRequested) {
@@ -5467,6 +5569,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
+	/**
+	 * Materializes or resumes a chat's SDK session ahead of its first send, so the
+	 * host can overlap that startup with the turn-start checkpoint. A chat that
+	 * already has a live session is left to `sendMessage`, which refreshes it.
+	 * The launch records `turnId`, so that turn's send revalidates the configuration
+	 * against the state already observed in memory instead of re-awaiting the
+	 * syncs and workspace scans the launch just completed.
+	 */
+	private async _prepareTurn(chat: URI, turnId: string, workingDirectories: readonly URI[] | undefined, operationContext: URI | IAgentChatContext): Promise<void> {
+		const initial = this._resolveSendChatContext(chat, operationContext);
+		await this._queueChat(initial.configurationId, initial.sequencerKey, 'prepareTurn', async () => {
+			const current = this._resolveSendChatContext(chat, operationContext);
+			if (current.target) {
+				return;
+			}
+			// Mirrors the send path, so the session is launched with the same plugin state.
+			await this._activeClients.get(current.configurationResource)?.pluginController.retryFailedClientSyncIfNeeded(CancellationToken.None);
+			const launched = await this._ensureResolvedChatSession(current, workingDirectories);
+			if (launched) {
+				this._preparedTurnLaunches.set(launched, turnId);
+			}
+		});
+	}
+
 	private async _queueChatTurn(context: IResolvedCopilotChatContext, operation: 'sendMessage' | 'resumeTurn', turnId: string | undefined, task: (token: CancellationToken, enterUnboundedPhase: () => void) => Promise<void>): Promise<void> {
 		if (this._isShuttingDown) {
 			throw new CancellationError();
@@ -5669,9 +5795,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		await (this._invalidatingModelRefresh ?? this._modelRefreshInFlight);
-		const models = this._models.get();
 		// An empty catalog can mean the provider is unauthenticated or temporarily
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
+		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
+		// whatever HydraFusion or BYOK models are published beside it.
+		if (this._capiModels.includes(this._getFallbackAutoModel())) {
+			return;
+		}
+		const models = this._models.get();
 		if (models.length > 0 && !models.some(candidate => candidate.id === model.id)) {
 			throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
 		}
@@ -6032,6 +6163,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._chatEntriesBySdkId.deleteAndDispose(session.sessionId);
 		this._chatEntriesBySdkId.set(session.sessionId, this._createChatEntry(session, activeClient));
 		this._chatBackings.set(chat.toString(), { ...current, sdkSessionId: session.sessionId });
+		this._backgroundWorkWatches.get(chat)?.attach(session);
+	}
+
+	watchChatBackgroundWork(chat: URI, published: () => readonly BackgroundWork[]): IDisposable {
+		const watch = new BackgroundWorkWatch(published);
+		this._backgroundWorkWatches.set(chat, watch);
+		const session = this._findChatByUri(chat);
+		if (session) {
+			watch.attach(session);
+		}
+		return toDisposable(() => {
+			if (this._backgroundWorkWatches.get(chat) === watch) {
+				this._backgroundWorkWatches.deleteAndDispose(chat);
+			}
+		});
 	}
 
 	private _registerUnboundSession(session: CopilotAgentSession, activeClient: ActiveClient): void {
@@ -7129,8 +7275,6 @@ class SessionPluginController extends Disposable {
 	/** Returns the parsed plugins currently enabled for this session, awaiting any pending sync. */
 	public async getAppliedPlugins(): Promise<readonly ICopilotPluginInfo[]> {
 		await this._customizationEnablementService.initializeSession(this._session.toString());
-		const entry = this._discoveredEntry();
-		const mcpDiscovery = this._mcpDiscoveryEntry();
 		const [host] = await Promise.all([
 			this._parent.hostSync().catch(err => {
 				this._logService.warn('[Copilot:SessionPluginController] Host customization update failed', err);
@@ -7140,10 +7284,23 @@ class SessionPluginController extends Disposable {
 				this._logService.warn('[Copilot:SessionPluginController] Client customization sync failed', err);
 				return client.customizations;
 			})),
-			entry?.whenSettled(),
-			mcpDiscovery?.refresh(),
+			this._discoveredEntry()?.whenSettled(),
+			this._mcpDiscoveryEntry()?.refresh(),
 		]);
+		return this._appliedPlugins(host);
+	}
 
+	/**
+	 * The plugins enabled from the state already observed in memory, without
+	 * awaiting pending syncs or re-scanning workspace MCP configuration.
+	 */
+	public currentAppliedPlugins(): readonly ICopilotPluginInfo[] {
+		return this._appliedPlugins(this._parent.hostCustomizations());
+	}
+
+	private _appliedPlugins(host: readonly IResolvedCustomization[]): readonly ICopilotPluginInfo[] {
+		const entry = this._discoveredEntry();
+		const mcpDiscovery = this._mcpDiscoveryEntry();
 		const resolved = this._resolveCustomizationEnablement();
 		const desiredByUri = new Map(resolved.customizations.map(customization => [customization.uri, customization]));
 		const desiredById = new Map(resolved.customizations.map(customization => [customization.id, customization]));
@@ -7732,11 +7889,27 @@ class ActiveClient extends Disposable {
 		};
 	}
 
+	/**
+	 * The snapshot from the state already observed in memory, without awaiting
+	 * pending customization syncs or re-scanning workspace MCP configuration.
+	 */
+	currentSnapshot(chatKey: string): IActiveClientSnapshot {
+		return {
+			tools: this.toolsForChat(chatKey),
+			plugins: this.pluginController.currentAppliedPlugins(),
+			mcpServers: this._currentMcpServers(),
+		};
+	}
+
 	async configuredMcpServers(): Promise<AgentHostMcpServers> {
 		return this._getMcpServers();
 	}
 
 	private async _getMcpServers(): Promise<AgentHostMcpServers> {
+		return this._currentMcpServers();
+	}
+
+	private _currentMcpServers(): AgentHostMcpServers {
 		const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpServersConfigKey) ?? {};
 		return structuredClone(servers);
 	}

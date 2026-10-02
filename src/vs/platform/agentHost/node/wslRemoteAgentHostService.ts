@@ -58,14 +58,21 @@ const WEBSOCKET_OPEN_TIMEOUT_MS = 30_000;
 /** Max stdout/stderr lines kept buffered for diagnostic context on failure. */
 const OUTPUT_BUFFER_LINES = 50;
 
-interface IWSLConnection {
-	readonly connectionId: string;
+interface IWSLSession {
 	readonly distro: string;
 	readonly name: string;
 	readonly address: string;
 	readonly connectionToken: string | undefined;
 	readonly child: cp.ChildProcess;
+	readonly url: string;
+	readonly disposables: DisposableStore;
+}
+
+interface IWSLRelayLease {
+	readonly connectionId: string;
+	readonly session: IWSLSession;
 	readonly ws: WebSocket;
+	physicalCloseNotified: boolean;
 }
 
 export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRemoteAgentHostMainService {
@@ -88,9 +95,12 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
-	private readonly _connections = new Map<string, IWSLConnection>();
-	private readonly _distroToConnectionId = new Map<string, string>();
-	private readonly _pendingConnects = new Map<string, Promise<IWSLConnectResult>>();
+	private readonly _sessions = new Map<string, IWSLSession>();
+	private readonly _connections = new Map<string, IWSLRelayLease>();
+	private readonly _pendingConnects = new Map<string, Promise<IWSLSession>>();
+	private readonly _pendingReconnects = new Map<string, Promise<IWSLConnectResult>>();
+	private readonly _pendingRelayAcquisitions = new Map<IWSLSession, number>();
+	private readonly _replacements = new Map<string, string>();
 
 	private _nativeRequire: NodeJS.Require | undefined;
 
@@ -102,7 +112,10 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		super();
 		this._register(toDisposable(() => {
 			for (const id of [...this._connections.keys()]) {
-				this._closeConnection(id);
+				this._closeRelay(id);
+			}
+			for (const distro of [...this._sessions.keys()]) {
+				this._closeSession(distro);
 			}
 		}));
 	}
@@ -177,43 +190,29 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 
 	connect(config: IWSLAgentHostConfig): Promise<IWSLConnectResult> {
 		const distro = validateDistroName(config.distro);
+		return this._getOrCreateSession(config, distro).then(session => this._createRelay(session));
+	}
 
-		// Idempotent: a second `connect` for an already-live distro returns
-		// the existing connection so the renderer-side `_setupConnection`
-		// reuses its handle (it dedupes by `connectionId`). Picking
-		// "WSL..." → same distro should be a no-op, not an error.
-		const existingId = this._distroToConnectionId.get(distro);
-		if (existingId) {
-			const existing = this._connections.get(existingId);
-			if (existing) {
-				return Promise.resolve({
-					connectionId: existing.connectionId,
-					address: existing.address,
-					distro: existing.distro,
-					name: existing.name,
-					connectionToken: existing.connectionToken,
-				});
-			}
+	private _getOrCreateSession(config: IWSLAgentHostConfig, distro: string): Promise<IWSLSession> {
+		const existing = this._sessions.get(distro);
+		if (existing) {
+			return Promise.resolve(existing);
 		}
-
-		const existingPendingConnect = this._pendingConnects.get(distro);
-		if (existingPendingConnect) {
-			return existingPendingConnect;
+		const pending = this._pendingConnects.get(distro);
+		if (pending) {
+			return pending;
 		}
-
-		// Reserve synchronously, before _connectUnguarded reaches its first
-		// await, so simultaneous callers cannot start concurrent downloads.
-		const pendingConnect = this._connectUnguarded(config, distro);
-		this._pendingConnects.set(distro, pendingConnect);
-		void pendingConnect.finally(() => {
-			if (this._pendingConnects.get(distro) === pendingConnect) {
+		const create = this._connectUnguarded(config, distro);
+		this._pendingConnects.set(distro, create);
+		void create.finally(() => {
+			if (this._pendingConnects.get(distro) === create) {
 				this._pendingConnects.delete(distro);
 			}
 		}).catch(() => { /* The caller observes the original rejection. */ });
-		return pendingConnect;
+		return create;
 	}
 
-	private async _connectUnguarded(config: IWSLAgentHostConfig, distro: string): Promise<IWSLConnectResult> {
+	private async _connectUnguarded(config: IWSLAgentHostConfig, distro: string): Promise<IWSLSession> {
 		const connectionKey = `wsl:${distro}`;
 		const reportProgress = (message: string) => {
 			this._onDidReportConnectProgress.fire({ connectionKey, message });
@@ -359,6 +358,10 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 
 		child.stdout?.on('data', onStreamData);
 		child.stderr?.on('data', onStreamData);
+		bootstrapProgressDisposables.add(toDisposable(() => {
+			child.stdout?.removeListener('data', onStreamData);
+			child.stderr?.removeListener('data', onStreamData);
+		}));
 
 		// Race the URL parse against the child dying, initial startup silence,
 		// post-output silence, and an overall ceiling. Bootstrap downloads
@@ -374,102 +377,158 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 			rejectForTimeout(`Timed out waiting for agent host in '${distro}' to print its WebSocket URL: exceeded the overall ${AGENT_HOST_READY_OVERALL_TIMEOUT_MS}ms bootstrap ceiling.`);
 		}, AGENT_HOST_READY_OVERALL_TIMEOUT_MS);
 
-		child.once('exit', (code, signal) => {
-			if (!url) {
-				rejectReady(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}) before printing its WebSocket URL.\nOutput: ${outputLines.join('\n')}`));
+		const sessionDisposables = new DisposableStore();
+		let session: IWSLSession | undefined = undefined;
+		let childError: Error | undefined;
+		const onChildFailure = (error: Error) => {
+			childError = error;
+			if (session) {
+				this._logService.warn(error.message);
+				this._closeSession(distro, session);
+			} else {
+				rejectReady(error);
 			}
-		});
-		child.once('error', err => {
-			if (!url) {
-				rejectReady(new Error(`${LOG_PREFIX} Failed to start agent host in '${distro}': ${err.message}\nOutput: ${outputLines.join('\n')}`));
-			}
-		});
+		};
+		const onChildExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			onChildFailure(new Error(`${LOG_PREFIX} Agent host in '${distro}' exited (code=${code}, signal=${signal}).\nOutput: ${outputLines.join('\n')}`));
+		};
+		const onChildError = (err: Error) => {
+			onChildFailure(new Error(`${LOG_PREFIX} Agent host in '${distro}' failed: ${err.message}\nOutput: ${outputLines.join('\n')}`));
+		};
+		child.on('exit', onChildExit);
+		child.on('error', onChildError);
+		sessionDisposables.add(toDisposable(() => {
+			child.removeListener('exit', onChildExit);
+			child.removeListener('error', onChildError);
+		}));
 
 		let resolvedUrl: { url: string; token: string | undefined };
 		try {
 			resolvedUrl = await urlPromise;
+			if (childError) {
+				throw childError;
+			}
 		} catch (err) {
 			clearReadyTimeouts();
 			flushBootstrapProgress();
 			bootstrapProgressDisposables.dispose();
+			sessionDisposables.dispose();
 			this._killChild(child);
 			throw err;
 		}
 		bootstrapProgressDisposables.dispose();
 		clearReadyTimeouts();
 
-		reportProgress(localize('wslProgressConnecting', "Connecting to agent host in {0}...", distro));
-		let ws: WebSocket;
-		try {
-			ws = await this._openWebSocket(resolvedUrl.url);
-		} catch (err) {
-			this._killChild(child);
-			throw err;
-		}
-
-		const connectionId = generateUuid();
-		const connection: IWSLConnection = {
-			connectionId,
+		session = {
 			distro,
 			name: config.name,
 			address: connectionKey,
 			connectionToken: resolvedUrl.token,
 			child,
-			ws,
+			url: resolvedUrl.url,
+			disposables: sessionDisposables,
 		};
-
-		ws.on('message', data => {
-			let text: string;
-			if (typeof data === 'string') {
-				text = data;
-			} else if (Array.isArray(data)) {
-				text = Buffer.concat(data).toString('utf8');
-			} else if (data instanceof ArrayBuffer) {
-				text = Buffer.from(new Uint8Array(data)).toString('utf8');
-			} else {
-				text = (data as Buffer).toString('utf8');
-			}
-			this._onDidRelayMessage.fire({ connectionId, data: text });
-		});
-
-		ws.on('close', () => {
-			this._closeConnection(connectionId);
-		});
-
-		ws.on('error', (err: unknown) => {
-			this._logService.warn(`${LOG_PREFIX} WebSocket error for ${connectionKey}: ${err instanceof Error ? err.message : String(err)}`);
-		});
-
-		this._connections.set(connectionId, connection);
-		this._distroToConnectionId.set(distro, connectionId);
-
+		this._sessions.set(distro, session);
 		this._onDidChangeConnections.fire();
+		return session;
+	}
 
-		return {
-			connectionId,
-			address: connectionKey,
-			distro,
-			name: config.name,
-			connectionToken: resolvedUrl.token,
-		};
+	private async _createRelay(session: IWSLSession): Promise<IWSLConnectResult> {
+		this._onDidReportConnectProgress.fire({
+			connectionKey: session.address,
+			message: localize('wslProgressConnecting', "Connecting to agent host in {0}...", session.distro),
+		});
+		this._pendingRelayAcquisitions.set(session, (this._pendingRelayAcquisitions.get(session) ?? 0) + 1);
+		let ws: WebSocket;
+		let connection: IWSLRelayLease | undefined;
+		try {
+			ws = await this._openWebSocket(session.url);
+			if (this._sessions.get(session.distro) !== session) {
+				ws.close();
+				throw new Error(`${LOG_PREFIX} Agent host session for '${session.distro}' was closed while acquiring a relay.`);
+			}
+			const connectionId = generateUuid();
+			connection = { connectionId, session, ws, physicalCloseNotified: false };
+			ws.on('message', data => {
+				let text: string;
+				if (typeof data === 'string') {
+					text = data;
+				} else if (Array.isArray(data)) {
+					text = Buffer.concat(data).toString('utf8');
+				} else if (data instanceof ArrayBuffer) {
+					text = Buffer.from(new Uint8Array(data)).toString('utf8');
+				} else {
+					text = (data as Buffer).toString('utf8');
+				}
+				this._onDidRelayMessage.fire({ connectionId, data: text });
+			});
+
+			ws.on('close', () => {
+				this._handlePhysicalRelayClose(connectionId);
+			});
+
+			ws.on('error', (err: unknown) => {
+				this._logService.warn(`${LOG_PREFIX} WebSocket error for ${session.address}: ${err instanceof Error ? err.message : String(err)}`);
+			});
+
+			this._connections.set(connectionId, connection);
+			this._onDidChangeConnections.fire();
+
+			return this._toResult(connection);
+		} catch (err) {
+			this._logService.warn(`${LOG_PREFIX} Failed to acquire relay for ${session.address}`, err);
+			this._closeSession(session.distro, session);
+			throw err;
+		} finally {
+			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
+			if (remaining > 0) {
+				this._pendingRelayAcquisitions.set(session, remaining);
+			} else {
+				this._pendingRelayAcquisitions.delete(session);
+				if (!connection && this._canCloseSession(session)) {
+					this._closeSession(session.distro, session);
+				}
+			}
+		}
 	}
 
 	async disconnect(distro: string): Promise<void> {
-		const id = this._distroToConnectionId.get(distro);
-		if (id) {
-			this._closeConnection(id);
+		for (const [connectionId, connection] of this._connections) {
+			if (connection.session.distro === distro) {
+				this._closeRelay(connectionId);
+			}
 		}
+		this._closeSession(distro);
 	}
 
-	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean): Promise<IWSLConnectResult> {
-		const existingId = this._distroToConnectionId.get(distro);
-		if (existingId) {
-			this._closeConnection(existingId);
+	async reconnect(distro: string, name: string, remoteAgentHostCommand?: string, userInitiated?: boolean, expectedConnectionId?: string): Promise<IWSLConnectResult> {
+		if (!expectedConnectionId) {
+			return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
 		}
-		// A pending connection is already a fresh bootstrap. Joining it avoids
-		// starting a competing downloader; callers that reconnect after it
-		// fails receive that failure and a subsequent reconnect starts anew.
-		return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
+		const pending = this._pendingReconnects.get(expectedConnectionId);
+		if (pending) {
+			return pending;
+		}
+		const current = this._connections.get(expectedConnectionId);
+		if (!current || current.session.distro !== distro) {
+			const replacement = this._getCurrentRelay(expectedConnectionId);
+			if (replacement?.session.distro === distro) {
+				return this._toResult(replacement);
+			}
+			return this.connect({ distro, name, remoteAgentHostCommand, userInitiated });
+		}
+		const reconnect = this._createRelay(current.session).then(result => {
+			this._replacements.set(expectedConnectionId, result.connectionId);
+			this._closeRelay(expectedConnectionId, false);
+			return result;
+		});
+		this._pendingReconnects.set(expectedConnectionId, reconnect);
+		void reconnect.finally(() => {
+			if (this._pendingReconnects.get(expectedConnectionId) === reconnect) {
+				this._pendingReconnects.delete(expectedConnectionId);
+			}
+		}).catch(() => { /* The caller observes the original rejection. */ });
+		return reconnect;
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
@@ -485,22 +544,95 @@ export class WSLRemoteAgentHostMainService extends Disposable implements IWSLRem
 		}
 	}
 
-	private _closeConnection(connectionId: string): void {
+	async releaseRelay(connectionId: string): Promise<void> {
+		this._closeRelay(connectionId);
+	}
+
+	private _toResult(connection: IWSLRelayLease): IWSLConnectResult {
+		return {
+			connectionId: connection.connectionId,
+			address: connection.session.address,
+			distro: connection.session.distro,
+			name: connection.session.name,
+			connectionToken: connection.session.connectionToken,
+		};
+	}
+
+	private _closeRelay(connectionId: string, notifyRenderer = true): void {
 		const conn = this._connections.get(connectionId);
 		if (!conn) {
 			return;
 		}
 		this._connections.delete(connectionId);
-		if (this._distroToConnectionId.get(conn.distro) === connectionId) {
-			this._distroToConnectionId.delete(conn.distro);
-		}
+		this._pruneReplacements();
 		try {
 			conn.ws.close();
 		} catch { /* ignore */ }
-		this._killChild(conn.child);
-		this._onDidRelayClose.fire(connectionId);
-		this._onDidCloseConnection.fire(connectionId);
+		if (notifyRenderer) {
+			this._onDidRelayClose.fire(connectionId);
+			this._onDidCloseConnection.fire(connectionId);
+		}
+		if (this._canCloseSession(conn.session)) {
+			this._closeSession(conn.session.distro, conn.session);
+		}
 		this._onDidChangeConnections.fire();
+	}
+
+	private _handlePhysicalRelayClose(connectionId: string): void {
+		const connection = this._connections.get(connectionId);
+		if (!connection || connection.physicalCloseNotified) {
+			return;
+		}
+		connection.physicalCloseNotified = true;
+		this._onDidRelayClose.fire(connectionId);
+	}
+
+	private _getCurrentRelay(connectionId: string): IWSLRelayLease | undefined {
+		let currentId = connectionId;
+		const visited = new Set<string>();
+		while (!visited.has(currentId)) {
+			visited.add(currentId);
+			const connection = this._connections.get(currentId);
+			if (connection) {
+				return connection;
+			}
+			const replacement = this._replacements.get(currentId);
+			if (!replacement) {
+				return undefined;
+			}
+			currentId = replacement;
+		}
+		return undefined;
+	}
+
+	private _pruneReplacements(): void {
+		for (const connectionId of this._replacements.keys()) {
+			if (!this._getCurrentRelay(connectionId)) {
+				this._replacements.delete(connectionId);
+			}
+		}
+	}
+
+	private _closeSession(distro: string, expectedSession?: IWSLSession): void {
+		const session = this._sessions.get(distro);
+		if (!session || (expectedSession && session !== expectedSession)) {
+			return;
+		}
+		this._sessions.delete(distro);
+		session.disposables.dispose();
+		for (const [connectionId, connection] of this._connections) {
+			if (connection.session === session) {
+				this._closeRelay(connectionId);
+			}
+		}
+		this._pruneReplacements();
+		this._killChild(session.child);
+		this._onDidChangeConnections.fire();
+	}
+
+	private _canCloseSession(session: IWSLSession): boolean {
+		return !this._pendingRelayAcquisitions.has(session)
+			&& ![...this._connections.values()].some(connection => connection.session === session);
 	}
 
 	private _killChild(child: cp.ChildProcess): void {

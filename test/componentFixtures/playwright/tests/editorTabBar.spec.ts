@@ -10,7 +10,7 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 	test.setTimeout(60_000);
 
 	const surfaceColors = async (style: 'Legacy' | 'Connected' | 'Pill') => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/TabStyleCompatibility/${style}/DarkModern`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/TabStyles/${style}/DarkModern`, '.tabs-container > .tab.active');
 		return page.locator('.editor-group-container > .title.tabs').evaluate(title => {
 			if (!(title instanceof HTMLElement)) {
 				throw new Error('Expected an editor title element');
@@ -46,7 +46,7 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 	test(`connected tab actions respect disabled hover state in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/editorTabBar/editorTabBar/ConnectedSurface/SingleTab/${theme}`, '.tabs-container > .tab');
+		await openFixture(page, `editor/tabs/Layout/SingleEditor/${theme}`, '.tabs-container > .tab');
 		const action = page.locator('.tab-actions .action-label');
 
 		await action.hover();

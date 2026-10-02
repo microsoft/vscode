@@ -18,16 +18,23 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatSubmitRequestHandlerService } from '../../../../../workbench/contrib/chat/browser/chatSubmitRequestHandlerService.js';
 import { SessionType } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
+import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { NewChatContextAttachments } from '../../browser/newChatContextAttachments.js';
 import { INewChatModelPickerService } from '../../browser/newChatModelPicker.js';
 import { SlashCommandHandler } from '../../browser/slashCommands.js';
+import { VariableCompletionHandler } from '../../browser/variableCompletions.js';
 
 suite('SlashCommandHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -101,6 +108,37 @@ suite('SlashCommandHandler', () => {
 				ownCommands: ['/vscode-pet', '/agents', '/skills', '/instructions', '/hooks', '/models'],
 				foreignCommands: undefined,
 			});
+		});
+	});
+
+	test('does not offer implicit file completions for slash command arguments', async () => {
+		const services = new ServiceCollection(
+			[IConfigurationService, new class extends mock<IConfigurationService>() { }],
+			[IFileService, new class extends mock<IFileService>() { }],
+			[IHistoryService, new class extends mock<IHistoryService>() { }],
+			[ILabelService, new class extends mock<ILabelService>() { }],
+			[ISearchService, new class extends mock<ISearchService>() { }],
+		);
+		const model = store.add(createTextModel('/plugin ', null, undefined, URI.from({ scheme: Schemas.sessionsChatInput, path: '/input' })));
+
+		await withTestCodeEditor(model, { serviceCollection: services }, async (editor, _viewModel, instantiationService) => {
+			store.add(instantiationService.createInstance(
+				VariableCompletionHandler,
+				editor,
+				new class extends mock<NewChatContextAttachments>() { },
+				() => URI.file('/workspace'),
+			));
+
+			const provider = instantiationService.get(ILanguageFeaturesService).completionProvider.ordered(model)
+				.find(candidate => candidate._debugDisplayName === 'sessionsVariableFileAndFolder')!;
+			const completions = await provider.provideCompletionItems(
+				model,
+				new Position(1, model.getLineMaxColumn(1)),
+				{ triggerKind: CompletionTriggerKind.Invoke },
+				CancellationToken.None,
+			);
+
+			assert.strictEqual(completions, null);
 		});
 	});
 });

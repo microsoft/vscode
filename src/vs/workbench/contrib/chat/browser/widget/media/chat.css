@@ -2150,7 +2150,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0.75;
 }
 
-.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container,
+.interactive-session .chat-input-toolbars .monaco-action-bar .actions-container {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+}
+
 .interactive-session .chat-secondary-toolbar .monaco-action-bar .actions-container {
 	display: flex;
 	gap: 2px;
