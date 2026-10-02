@@ -12,7 +12,7 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { IQuickDiffService } from '../common/quickDiff.js';
+import { IQuickDiffService, scmDiffDecorationsGutterWidthDefault, scmDiffDecorationsGutterWidthMax, scmDiffDecorationsGutterWidthMin } from '../common/quickDiff.js';
 import { QuickDiffService } from '../common/quickDiffService.js';
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
 import { IQuickDiffModelService, QuickDiffModelService } from './quickDiffModel.js';
@@ -55,8 +55,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.diffDecorationsGutterWidth': {
 			type: 'number',
-			enum: [1, 2, 3, 4, 5],
-			default: 3,
+			minimum: scmDiffDecorationsGutterWidthMin,
+			maximum: scmDiffDecorationsGutterWidthMax,
+			default: scmDiffDecorationsGutterWidthDefault,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
 		'scm.diffDecorationsGutterVisibility': {
