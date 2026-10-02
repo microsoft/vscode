@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, DisposableStore, RefCountedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { upcast } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -359,8 +359,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				};
 
 				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
-				const editSessionRef = new RefCountedDisposable(editSession);
-				disposables.add(toDisposable(() => editSessionRef.release()));
+				const editSessionOwner = disposables.add(new MutableDisposable<IDisposable>());
+				editSessionOwner.value = editSession;
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -390,7 +390,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 							edit.additionalEdit = resolved.additionalEdit;
 						}
 						return edit;
-					}, token, editSessionRef);
+					}, token, editSessionOwner);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);

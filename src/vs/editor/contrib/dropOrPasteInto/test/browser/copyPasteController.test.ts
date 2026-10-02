@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { createStringDataTransferItem, VSDataTransfer } from '../../../../../base/common/dataTransfer.js';
 import { HierarchicalKind } from '../../../../../base/common/hierarchicalKind.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -21,12 +23,14 @@ import { CopyPasteController } from '../../browser/copyPasteController.js';
 suite('CopyPasteController - paste edit session', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const endInteraction of ['dismiss', 'cursor', 'content', 'model', 'dispose', 'noSelector', 'singleEdit'] as const) {
-		const name = endInteraction === 'noSelector'
-			? 'releases edits after paste when the selector is disabled'
-			: endInteraction === 'singleEdit'
-				? 'releases edits after paste when there are no alternatives'
-				: `resolves alternatives after the initial paste and releases edits on ${endInteraction}`;
+	for (const endInteraction of ['dismiss', 'cursor', 'content', 'model', 'dispose', 'noSelector', 'singleEdit', 'cancelReplacement', 'failedUndo'] as const) {
+		let name = `resolves alternatives after the initial paste and releases edits on ${endInteraction}`;
+		switch (endInteraction) {
+			case 'noSelector': name = 'releases edits after paste when the selector is disabled'; break;
+			case 'singleEdit': name = 'releases edits after paste when there are no alternatives'; break;
+			case 'cancelReplacement': name = 'releases transferred edits when alternative resolution is cancelled'; break;
+			case 'failedUndo': name = 'releases transferred edits when undo fails'; break;
+		}
 		test(name, async () => {
 			await withAsyncTestCodeEditor('', { pasteAs: { enabled: true, showPasteSelector: endInteraction === 'noSelector' ? 'never' : 'afterPaste' } }, async (editor, _viewModel, instantiationService) => {
 				instantiationService.stub(createDecorator<{ add(): () => void }>('IEditorCancelService'), { add: () => () => { } });
@@ -54,6 +58,8 @@ suite('CopyPasteController - paste edit session', () => {
 
 				let released = 0;
 				let resolves = 0;
+				const resolveStarted = new DeferredPromise<void>();
+				const finishResolve = new DeferredPromise<void>();
 				const plainKind = new HierarchicalKind('text.plain');
 				const provider: DocumentPasteEditProvider = {
 					copyMimeTypes: [],
@@ -71,6 +77,10 @@ suite('CopyPasteController - paste edit session', () => {
 					async resolveDocumentPasteEdit(edit) {
 						assert.strictEqual(released, 0, 'Provider edits must still be cached during resolve');
 						++resolves;
+						if (endInteraction === 'cancelReplacement' && edit.title === 'Resolve test') {
+							resolveStarted.complete();
+							await finishResolve.p;
+						}
 						return { ...edit, insertText: edit.title === 'Resolve test' ? 'RESOLVED' : edit.insertText };
 					}
 				};
@@ -89,6 +99,27 @@ suite('CopyPasteController - paste edit session', () => {
 
 				controller.changePasteType();
 				assert.ok(selectEdit);
+				if (endInteraction === 'failedUndo') {
+					const undo = sinon.stub(editor.getModel(), 'undo').rejects(new Error('Undo failed'));
+					try {
+						await assert.rejects(selectEdit(1), /Undo failed/);
+					} finally {
+						undo.restore();
+					}
+					controller.clearWidgets();
+					assert.strictEqual(released, 1);
+					return;
+				}
+				if (endInteraction === 'cancelReplacement') {
+					const selection = selectEdit(1);
+					await resolveStarted.p;
+					editor.getModel().setValue('changed');
+					finishResolve.complete();
+					await selection;
+					controller.clearWidgets();
+					assert.deepStrictEqual({ text: editor.getValue(), released }, { text: 'changed', released: 1 });
+					return;
+				}
 				await selectEdit(1);
 				assert.deepStrictEqual({ text: editor.getValue(), released, resolves }, { text: 'RESOLVED', released: 0, resolves: 2 });
 
