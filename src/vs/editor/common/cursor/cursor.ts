@@ -351,11 +351,11 @@ export class CursorsController extends Disposable {
 		this._autoClosedActions.push(new AutoClosedAction(this._model, autoClosedCharactersDecorations, autoClosedEnclosingDecorations));
 	}
 
-	private _executeEditOperation(opResult: EditOperationResult | null, editReason: TextModelEditSource): void {
+	private _executeEditOperation(opResult: EditOperationResult | null, editReason: TextModelEditSource): boolean {
 
 		if (!opResult) {
 			// Nothing to execute
-			return;
+			return false;
 		}
 
 		if (opResult.shouldPushStackElementBefore) {
@@ -389,6 +389,7 @@ export class CursorsController extends Disposable {
 		if (opResult.shouldPushStackElementAfter) {
 			this._model.pushStackElement();
 		}
+		return result !== null;
 	}
 
 	private _interpretCommandResult(cursorState: Selection[] | null): void {
@@ -571,7 +572,12 @@ export class CursorsController extends Disposable {
 					const chr = text.substr(offset, charLength);
 
 					// Here we must interpret each typed character individually
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr), reason);
+					const operations = TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr);
+					for (const operation of operations) {
+						if (!this._executeEditOperation(operation, reason)) {
+							break;
+						}
+					}
 
 					offset += charLength;
 				}
@@ -964,6 +970,7 @@ export class CommandExecutor {
 		};
 
 		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
+			currentSelection: ctx.selectionsBefore[majorIdentifier],
 			addEditOperation: addEditOperation,
 			addTrackedEditOperation: addTrackedEditOperation,
 			trackSelection: trackSelection

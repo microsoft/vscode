@@ -110,13 +110,13 @@ export class ReplaceCommandWithoutChangingPosition implements ICommand {
 
 export class ReplaceCommandWithOffsetCursorState implements ICommand {
 
-	private readonly _range: Range;
+	private readonly _range: Range | null;
 	private readonly _text: string;
 	private readonly _columnDeltaOffset: number;
 	private readonly _lineNumberDeltaOffset: number;
 	public readonly insertsAutoWhitespace: boolean;
 
-	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, insertsAutoWhitespace: boolean = false) {
+	constructor(range: Range | null, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, insertsAutoWhitespace: boolean = false) {
 		this._range = range;
 		this._text = text;
 		this._columnDeltaOffset = columnDeltaOffset;
@@ -125,7 +125,10 @@ export class ReplaceCommandWithOffsetCursorState implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		builder.addTrackedEditOperation(this._range, this._text);
+		const range = this._range ?? builder.currentSelection;
+		if (range) {
+			builder.addTrackedEditOperation(range, this._text);
+		}
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

@@ -156,17 +156,17 @@ export class TypeOperations {
 
 		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(config, model, selections, ch, true, false);
 		if (autoClosingOpenCharEdits !== undefined) {
-			return autoClosingOpenCharEdits;
+			return autoClosingOpenCharEdits[0];
 		}
 
 		return CompositionEndOvertypeOperation.getEdits(config, compositions);
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult[] {
 
 		const enterEdits = EnterOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (enterEdits !== undefined) {
-			return enterEdits;
+			return [enterEdits];
 		}
 
 		const autoIndentEdits = AutoIndentOperation.getEdits(config, model, selections, ch, isDoingComposition);
@@ -176,7 +176,7 @@ export class TypeOperations {
 
 		const autoClosingOverTypeEdits = AutoClosingOvertypeOperation.getEdits(prevEditOperationType, config, model, selections, autoClosedCharacters, ch);
 		if (autoClosingOverTypeEdits !== undefined) {
-			return autoClosingOverTypeEdits;
+			return [autoClosingOverTypeEdits];
 		}
 
 		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(config, model, selections, ch, false, isDoingComposition);
@@ -186,15 +186,15 @@ export class TypeOperations {
 
 		const surroundSelectionEdits = SurroundSelectionOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (surroundSelectionEdits !== undefined) {
-			return surroundSelectionEdits;
+			return [surroundSelectionEdits];
 		}
 
 		const interceptorElectricCharOperation = InterceptorElectricCharOperation.getEdits(prevEditOperationType, config, model, selections, ch, isDoingComposition);
 		if (interceptorElectricCharOperation !== undefined) {
-			return interceptorElectricCharOperation;
+			return [interceptorElectricCharOperation];
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition);
+		return [SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition)];
 	}
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {

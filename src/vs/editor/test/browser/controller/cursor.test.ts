@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
+import { ReplaceCommandWithOffsetCursorState } from '../../../common/commands/replaceCommand.js';
 import { IEditorOptions } from '../../../common/config/editorOptions.js';
 import { EditOperation } from '../../../common/core/editOperation.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
+import { CommandExecutor } from '../../../common/cursor/cursor.js';
+import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
+import { EditOperationType } from '../../../common/cursorCommon.js';
 import { ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from '../../../common/editorCommon.js';
 import { MetadataConsts, StandardTokenType } from '../../../common/encodedTokenAttributes.js';
@@ -26,6 +31,7 @@ import { TextModel } from '../../../common/model/textModel.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
+import { getEditOperation } from '../testCommand.js';
 import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from '../../common/testTextModel.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InputMode } from '../../../common/inputMode.js';
@@ -5386,6 +5392,370 @@ suite('Editor Controller', () => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
+	suite('autoClosingPairs - undo grouping', () => {
+		teardown(() => sinon.restore());
+
+		function captureUndoRedoStates(editor: ITestCodeEditor, model: TextModel, viewModel: ViewModel) {
+			const captureState = () => ({
+				text: model.getValue(EndOfLinePreference.LF),
+				selections: viewModel.getSelections()
+			});
+			const states = [captureState()];
+			for (const command of [CoreEditingCommands.Undo, CoreEditingCommands.Undo, CoreEditingCommands.Redo, CoreEditingCommands.Redo]) {
+				editor.runCommand(command, null);
+				states.push(captureState());
+			}
+			return states;
+		}
+
+		for (const { open, close } of [{ open: 'begin', close: 'end' }, { open: '/**', close: ' */' }]) {
+			test(`multi-character opening ${open} isolates its last character from the typed prefix`, () => {
+				usingCursor({
+					text: [''],
+					languageId: autoClosingLanguageId
+				}, (editor, model, viewModel) => {
+					viewModel.type(open, 'keyboard');
+
+					assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+						{ text: open + close, selections: [new Selection(1, open.length + 1, 1, open.length + 1)] },
+						{ text: open, selections: [new Selection(1, open.length + 1, 1, open.length + 1)] },
+						{ text: open.slice(0, -1), selections: [new Selection(1, open.length, 1, open.length)] },
+						{ text: open, selections: [new Selection(1, open.length + 1, 1, open.length + 1)] },
+						{ text: open + close, selections: [new Selection(1, open.length + 1, 1, open.length + 1)] },
+					]);
+				});
+			});
+		}
+
+		test('multi-character openings shift multiple cursors on the same line', () => {
+			usingCursor({
+				text: [' '],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(1, 2, 1, 2)]);
+				viewModel.type('begin', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'beginend beginend', selections: [new Selection(1, 6, 1, 6), new Selection(1, 15, 1, 15)] },
+					{ text: 'begin begin', selections: [new Selection(1, 6, 1, 6), new Selection(1, 12, 1, 12)] },
+					{ text: 'begi begi', selections: [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)] },
+					{ text: 'begin begin', selections: [new Selection(1, 6, 1, 6), new Selection(1, 12, 1, 12)] },
+					{ text: 'beginend beginend', selections: [new Selection(1, 6, 1, 6), new Selection(1, 15, 1, 15)] },
+				]);
+			});
+		});
+
+		test('multi-character openings preserve reverse primary cursor order on the same line', () => {
+			usingCursor({
+				text: [' '],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 2, 1, 2), new Selection(1, 1, 1, 1)]);
+				viewModel.type('begin', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'beginend beginend', selections: [new Selection(1, 15, 1, 15), new Selection(1, 6, 1, 6)] },
+					{ text: 'begin begin', selections: [new Selection(1, 12, 1, 12), new Selection(1, 6, 1, 6)] },
+					{ text: 'begi begi', selections: [new Selection(1, 10, 1, 10), new Selection(1, 5, 1, 5)] },
+					{ text: 'begin begin', selections: [new Selection(1, 12, 1, 12), new Selection(1, 6, 1, 6)] },
+					{ text: 'beginend beginend', selections: [new Selection(1, 15, 1, 15), new Selection(1, 6, 1, 6)] },
+				]);
+			});
+		});
+
+		test('typing prepares both command batches without editing the model', () => {
+			usingCursor({
+				text: ['begi begi'],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)]);
+				const operations = TypeOperations.typeWithInterceptors(false, EditOperationType.Other, viewModel.cursorConfig, model, viewModel.getSelections(), [], 'n');
+				const states = [{ text: model.getValue(), selections: viewModel.getSelections() }];
+				for (const operation of operations) {
+					const selections = CommandExecutor.executeCommands(model, viewModel.getSelections(), operation.commands);
+					assert.ok(selections);
+					viewModel.setSelections('test', selections);
+					states.push({ text: model.getValue(), selections: viewModel.getSelections() });
+				}
+
+				assert.deepStrictEqual(states, [
+					{ text: 'begi begi', selections: [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)] },
+					{ text: 'begin begin', selections: [new Selection(1, 6, 1, 6), new Selection(1, 12, 1, 12)] },
+					{ text: 'beginend beginend', selections: [new Selection(1, 6, 1, 6), new Selection(1, 15, 1, 15)] }
+				]);
+			});
+		});
+
+		test('single-cursor closing command uses the offset after the typed character', () => {
+			usingCursor({
+				text: ['begi '],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				const operations = TypeOperations.typeWithInterceptors(false, EditOperationType.Other, viewModel.cursorConfig, model, viewModel.getSelections(), [], 'n');
+
+				assert.deepStrictEqual({
+					text: model.getValue(),
+					operations: operations.map(operation => ({
+						undoStopBefore: operation.shouldPushStackElementBefore,
+						edits: operation.commands.flatMap(command => command ? getEditOperation(model, command) : [])
+					}))
+				}, {
+					text: 'begi ',
+					operations: [
+						{ undoStopBefore: true, edits: [{ range: new Selection(1, 5, 1, 5), text: 'n', forceMoveMarkers: false }] },
+						{ undoStopBefore: true, edits: [{ range: new Selection(1, 6, 1, 6), text: 'end', forceMoveMarkers: false }] }
+					]
+				});
+			});
+		});
+
+		test('closing batch uses normalized selections after cursors merge', () => {
+			usingCursor({
+				text: ['begi begi'],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				const selections = [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)];
+				viewModel.setSelections('test', selections);
+				const operations = TypeOperations.typeWithInterceptors(false, EditOperationType.Other, viewModel.cursorConfig, model, selections, [], 'n');
+				operations[0].commands[1] = new ReplaceCommandWithOffsetCursorState(selections[1], 'n', 0, -6);
+				sinon.stub(TypeOperations, 'typeWithInterceptors').returns(operations);
+
+				viewModel.type('n', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'beginend begin', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'begin begin', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'begi begi', selections },
+					{ text: 'begin begin', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'beginend begin', selections: [new Selection(1, 6, 1, 6)] }
+				]);
+			});
+		});
+
+		test('closing batch is not executed if typing fails', () => {
+			usingCursor({
+				text: ['begi'],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				const executeCommands = sinon.stub(CommandExecutor, 'executeCommands').callThrough();
+				executeCommands.onFirstCall().returns(null);
+
+				viewModel.type('n', 'keyboard');
+
+				assert.deepStrictEqual({
+					text: model.getValue(),
+					selections: viewModel.getSelections(),
+					executions: executeCommands.callCount
+				}, {
+					text: 'begi',
+					selections: [new Selection(1, 5, 1, 5)],
+					executions: 1
+				});
+			});
+		});
+
+		for (const action of ['overtype', 'delete']) {
+			test(`multi-character openings track the closing command for ${action}`, () => {
+				disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+					autoClosingPairs: [{ open: '"', close: '"' }, { open: 'f"', close: '"' }]
+				}));
+				usingCursor({
+					text: [' '],
+					languageId: autoClosingLanguageId
+				}, (editor, model, viewModel) => {
+					viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(1, 2, 1, 2)]);
+					viewModel.type('f"', 'keyboard');
+
+					if (action === 'overtype') {
+						viewModel.type('"', 'keyboard');
+					} else {
+						editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+					}
+
+					assert.deepStrictEqual({
+						text: model.getValue(),
+						selections: viewModel.getSelections()
+					}, action === 'overtype' ? {
+						text: 'f"" f""',
+						selections: [new Selection(1, 4, 1, 4), new Selection(1, 8, 1, 8)]
+					} : {
+						text: 'f f',
+						selections: [new Selection(1, 2, 1, 2), new Selection(1, 4, 1, 4)]
+					});
+				});
+			});
+		}
+
+		test('multi-character opening preserves the contained closing suffix', () => {
+			disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+				autoClosingPairs: [{ open: '(', close: ')' }, { open: '(*', close: '*)' }]
+			}));
+			usingCursor({
+				text: [''],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.type('(*', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: '(**)', selections: [new Selection(1, 3, 1, 3)] },
+					{ text: '(*)', selections: [new Selection(1, 3, 1, 3)] },
+					{ text: '()', selections: [new Selection(1, 2, 1, 2)] },
+					{ text: '(*)', selections: [new Selection(1, 3, 1, 3)] },
+					{ text: '(**)', selections: [new Selection(1, 3, 1, 3)] },
+				]);
+			});
+		});
+
+		test('multi-character opening with full auto indent restores indentation with its last character', () => {
+			disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+				indentationRules: {
+					increaseIndentPattern: /^if$/,
+					decreaseIndentPattern: /^\s*begin$/
+				},
+				autoClosingPairs: [{ open: 'begin', close: 'end' }]
+			}));
+			usingCursor({
+				text: ['if', '\t'],
+				languageId: autoClosingLanguageId,
+				modelOpts: { insertSpaces: false },
+				editorOpts: { autoIndent: 'full' }
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(2, 2, 2, 2)]);
+				viewModel.type('begin', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'if\nbeginend', selections: [new Selection(2, 6, 2, 6)] },
+					{ text: 'if\nbegin', selections: [new Selection(2, 6, 2, 6)] },
+					{ text: 'if\n\tbegi', selections: [new Selection(2, 6, 2, 6)] },
+					{ text: 'if\nbegin', selections: [new Selection(2, 6, 2, 6)] },
+					{ text: 'if\nbeginend', selections: [new Selection(2, 6, 2, 6)] },
+				]);
+			});
+		});
+
+		test('closing batch follows surviving cursors after overlapping indentation edits', () => {
+			disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+				indentationRules: {
+					increaseIndentPattern: /^if$/,
+					decreaseIndentPattern: /\bbegin\b/
+				},
+				autoClosingPairs: [{ open: 'begin', close: 'end' }]
+			}));
+			usingCursor({
+				text: ['if', '\tbegi begi', 'if', '\tbegi'],
+				languageId: autoClosingLanguageId,
+				modelOpts: { insertSpaces: false },
+				editorOpts: { autoIndent: 'full' }
+			}, (editor, model, viewModel) => {
+				const selections = [new Selection(2, 6, 2, 6), new Selection(2, 11, 2, 11), new Selection(4, 6, 4, 6)];
+				viewModel.setSelections('test', selections);
+				viewModel.type('n', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'if\nbeginend begi\nif\nbeginend', selections: [new Selection(2, 6, 2, 6), new Selection(4, 6, 4, 6)] },
+					{ text: 'if\nbegin begi\nif\nbegin', selections: [new Selection(2, 6, 2, 6), new Selection(4, 6, 4, 6)] },
+					{ text: 'if\n\tbegi begi\nif\n\tbegi', selections },
+					{ text: 'if\nbegin begi\nif\nbegin', selections: [new Selection(2, 6, 2, 6), new Selection(4, 6, 4, 6)] },
+					{ text: 'if\nbeginend begi\nif\nbeginend', selections: [new Selection(2, 6, 2, 6), new Selection(4, 6, 4, 6)] }
+				]);
+			});
+		});
+
+		test('closing batch follows reverse primary cursor order with different indentation across lines', () => {
+			disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+				indentationRules: {
+					increaseIndentPattern: /^\s*if$/,
+					decreaseIndentPattern: /\bbegin\b/
+				},
+				autoClosingPairs: [{ open: 'begin', close: 'end' }]
+			}));
+			usingCursor({
+				text: ['if', '\tbegi begi', '\tif', '\t\tbegi'],
+				languageId: autoClosingLanguageId,
+				modelOpts: { insertSpaces: false },
+				editorOpts: { autoIndent: 'full' }
+			}, (editor, model, viewModel) => {
+				const selections = [new Selection(2, 11, 2, 11), new Selection(2, 6, 2, 6), new Selection(4, 7, 4, 7)];
+				viewModel.setSelections('test', selections);
+				viewModel.type('n', 'keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'if\nbegi beginend\n\tif\n\tbeginend', selections: [new Selection(2, 11, 2, 11), new Selection(4, 7, 4, 7)] },
+					{ text: 'if\nbegi begin\n\tif\n\tbegin', selections: [new Selection(2, 11, 2, 11), new Selection(4, 7, 4, 7)] },
+					{ text: 'if\n\tbegi begi\n\tif\n\t\tbegi', selections },
+					{ text: 'if\nbegi begin\n\tif\n\tbegin', selections: [new Selection(2, 11, 2, 11), new Selection(4, 7, 4, 7)] },
+					{ text: 'if\nbegi beginend\n\tif\n\tbeginend', selections: [new Selection(2, 11, 2, 11), new Selection(4, 7, 4, 7)] }
+				]);
+			});
+		});
+
+		for (const { open, close } of [{ open: '(', close: ')' }, { open: '"', close: '"' }]) {
+			test(`single-character opening ${open} keeps the pair in one undo step`, () => {
+				usingCursor({
+					text: [''],
+					languageId: autoClosingLanguageId
+				}, (editor, model, viewModel) => {
+					viewModel.type('x=' + open, 'keyboard');
+
+					assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+						{ text: 'x=' + open + close, selections: [new Selection(1, 4, 1, 4)] },
+						{ text: 'x=', selections: [new Selection(1, 3, 1, 3)] },
+						{ text: '', selections: [new Selection(1, 1, 1, 1)] },
+						{ text: 'x=', selections: [new Selection(1, 3, 1, 3)] },
+						{ text: 'x=' + open + close, selections: [new Selection(1, 4, 1, 4)] },
+					]);
+				});
+			});
+		}
+
+		test('disabled and non-matching auto closing keeps ordinary typing grouped', () => {
+			const cases: { text: string; editorOpts: IEditorOptions }[] = [
+				{ text: 'begin', editorOpts: { autoClosingBrackets: 'never' } },
+				{ text: '/**', editorOpts: { autoClosingComments: 'never' } },
+				{ text: 'again', editorOpts: {} },
+			];
+			for (const { text, editorOpts } of cases) {
+				usingCursor({
+					text: [''],
+					languageId: autoClosingLanguageId,
+					editorOpts
+				}, (editor, model, viewModel) => {
+					viewModel.type(text, 'keyboard');
+
+					assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+						{ text, selections: [new Selection(1, text.length + 1, 1, text.length + 1)] },
+						{ text: '', selections: [new Selection(1, 1, 1, 1)] },
+						{ text: '', selections: [new Selection(1, 1, 1, 1)] },
+						{ text, selections: [new Selection(1, text.length + 1, 1, text.length + 1)] },
+						{ text, selections: [new Selection(1, text.length + 1, 1, text.length + 1)] },
+					], text);
+				});
+			}
+		});
+
+		test('composition does not insert the last opening character twice', () => {
+			usingCursor({
+				text: ['begi'],
+				languageId: autoClosingLanguageId
+			}, (editor, model, viewModel) => {
+				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+				viewModel.startComposition();
+				viewModel.compositionType('n', 0, 0, 0, 'keyboard');
+				viewModel.endComposition('keyboard');
+
+				assert.deepStrictEqual(captureUndoRedoStates(editor, model, viewModel), [
+					{ text: 'beginend', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'begin', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'begi', selections: [new Selection(1, 5, 1, 5)] },
+					{ text: 'begin', selections: [new Selection(1, 6, 1, 6)] },
+					{ text: 'beginend', selections: [new Selection(1, 6, 1, 6)] },
+				]);
+			});
 		});
 	});
 
