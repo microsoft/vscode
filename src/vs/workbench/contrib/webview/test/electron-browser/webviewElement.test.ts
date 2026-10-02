@@ -12,6 +12,8 @@ import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IMainProcessService } from '../../../../../platform/ipc/common/mainProcessService.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
@@ -24,18 +26,20 @@ import { ElectronWebviewElement } from '../../electron-browser/webviewElement.js
 class TestElectronWebviewElement extends ElectronWebviewElement {
 	public override get element(): HTMLIFrameElement | undefined { return super.element; }
 	public get frameName(): string { return this.id; }
+	public override handleFocusChange(isFocused: boolean): void { super.handleFocusChange(isFocused); }
 }
 
 suite('ElectronWebviewElement', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createWebview() {
+	function createWebview(shortcutStates: boolean[] = []) {
 		const calls: { command: string; args: unknown }[] = [];
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ window: { titleBarStyle: 'native' } }));
 		const service: IWebviewManagerService = {
 			_serviceBrand: undefined,
 			onFoundInFrame: Event.None,
-			setIgnoreMenuShortcuts: async () => { },
+			setIgnoreMenuShortcuts: async (_target, value) => { shortcutStates.push(value); },
 			findInFrame: async (...args) => { calls.push({ command: 'findInFrame', args }); },
 			stopFindInFrame: async (...args) => { calls.push({ command: 'stopFindInFrame', args }); },
 		};
@@ -71,6 +75,36 @@ suite('ElectronWebviewElement', () => {
 		assert.ok(frame.contentDocument);
 		return frame.contentDocument;
 	}
+
+	for (const previouslyFocused of [false, true]) {
+		test(`disposing a ${previouslyFocused ? 'previously focused' : 'never focused'} webview preserves another webview's native shortcuts`, () => {
+			const shortcutStates: boolean[] = [];
+			const first = createWebview(shortcutStates).webview;
+			const second = createWebview(shortcutStates).webview;
+			if (previouslyFocused) {
+				first.handleFocusChange(true);
+				first.handleFocusChange(false);
+			}
+			second.handleFocusChange(true);
+			shortcutStates.length = 0;
+
+			first.dispose();
+			assert.deepStrictEqual(shortcutStates, []);
+		});
+	}
+
+	test('disposing a focused webview restores native shortcuts after its view zone is removed', () => {
+		const shortcutStates: boolean[] = [];
+		const { webview } = createWebview(shortcutStates);
+		assert.ok(webview.element);
+		mainWindow.document.body.appendChild(webview.element);
+		webview.handleFocusChange(true);
+		webview.element.remove(); // Inset disposal removes the view zone before disposing the webview.
+		webview.dispose();
+		webview.dispose();
+
+		assert.deepStrictEqual(shortcutStates, [true, false]);
+	});
 
 	for (const auxiliary of [false, true]) {
 		test(`routes initial, next, previous and stop searches to the ${auxiliary ? 'auxiliary' : 'main'} window`, () => runWithFakedTimers({}, async () => {
