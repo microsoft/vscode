@@ -8,7 +8,7 @@ import { ISettableObservable, observableValue } from '../../../../../base/common
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ChatInteractivity, ChatOriginKind, IChat, IChatOrigin, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IChatOrigin, ISession, ISessionCreationReference, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IProjectBoardConfiguration } from '../../common/projectBoardConfiguration.js';
 import { ProjectBoardModel } from '../../common/projectBoardModel.js';
 
@@ -308,6 +308,139 @@ suite('ProjectBoardModel', () => {
 			children: model.getChildCards(parentCard.id).map(card => card.title),
 			placement: model.getPlacement(workerCard.id),
 		}, { unassigned: [], parent: 'parent', children: ['worker'], placement: { rowId: 'general', columnId: 'p1' } });
+	});
+
+	test('new sessions created by a chat follow that exact parent instead of remaining in Unassigned', () => {
+		const main = createChat('creator-main', ChatInteractivity.Full);
+		const peer = createChat('creator-peer', ChatInteractivity.Full);
+		const creator = createSession(main, peer);
+		const child = {
+			...createSession(createChat('created-child', ChatInteractivity.Full)),
+			createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: creator.resource, chat: peer.resource }),
+		};
+		const model = new ProjectBoardModel();
+		model.updateSessions([creator]);
+		const mainId = model.cards.find(card => card.chat === main)!.id;
+		const peerId = model.cards.find(card => card.chat === peer)!.id;
+		model.moveCard(mainId, { rowId: 'general', columnId: 'p0' });
+		model.moveCard(peerId, { rowId: 'general', columnId: 'p1' });
+		model.updateSessions([child, creator]);
+		const childId = model.cards.find(card => card.session === child)!.id;
+		assert.deepStrictEqual({
+			unassigned: model.getUnassignedCards().map(card => card.title),
+			parent: model.getParentCard(childId)?.chat.resource.toString(),
+			placement: model.getPlacement(childId),
+			children: model.getChildCards(peerId).map(card => card.title),
+		}, { unassigned: [], parent: peer.resource.toString(), placement: { rowId: 'general', columnId: 'p1' }, children: ['created-child'] });
+		model.moveCard(childId, { rowId: 'general', columnId: 'p2' });
+		assert.strictEqual(model.getParentCard(childId), undefined);
+		assert.deepStrictEqual(model.getCards('general', 'p2').map(card => card.title), ['created-child']);
+		model.moveCard(peerId, { rowId: 'general', columnId: 'p3' });
+		assert.deepStrictEqual(model.getPlacement(childId), { rowId: 'general', columnId: 'p2' }, 'An explicitly moved child must not follow later parent movement');
+		model.moveCard(childId, undefined);
+		assert.deepStrictEqual(model.getPlacement(childId), { rowId: 'general', columnId: 'p3' });
+	});
+
+	test('created sessions inherit recursively and follow the main chat only when no creator chat is supplied', () => {
+		const root = createSession(createChat('root', ChatInteractivity.Full));
+		const child = {
+			...createSession(createChat('child', ChatInteractivity.Full), createChat('child-peer', ChatInteractivity.Full)),
+			createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: root.resource }),
+		};
+		const grandchild = {
+			...createSession(createChat('grandchild', ChatInteractivity.Full)),
+			createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: child.resource, chat: child.mainChat.get().resource }),
+		};
+		const model = new ProjectBoardModel();
+		model.updateSessions([grandchild, child, root]);
+		const id = (session: ISession) => model.cards.find(card => card.session === session)!.id;
+		model.moveCard(id(root), { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual({
+			roots: model.getCards('general', 'p1').map(card => card.title),
+			unassigned: model.getUnassignedCards().map(card => card.title),
+			childParent: model.getParentCard(id(child))?.session.resource.toString(),
+			grandchildParent: model.getParentCard(id(grandchild))?.session.resource.toString(),
+			placements: model.cards.map(card => model.getPlacement(card.id)),
+		}, { roots: ['root'], unassigned: [], childParent: root.resource.toString(), grandchildParent: child.resource.toString(), placements: Array(4).fill({ rowId: 'general', columnId: 'p1' }) });
+		model.moveCard(id(child), { rowId: 'general', columnId: 'p2' });
+		assert.deepStrictEqual(model.getPlacement(id(grandchild)), { rowId: 'general', columnId: 'p2' });
+	});
+
+	test('late creation metadata and parent discovery regroup without copying persisted placements', () => {
+		const root = createSession(createChat('root', ChatInteractivity.Full));
+		const child = {
+			...createSession(createChat('child', ChatInteractivity.Full)),
+			createdBySession: observableValue<ISessionCreationReference | undefined>('lateCreator', undefined),
+		};
+		const model = new ProjectBoardModel();
+		model.updateSessions([child]);
+		const childId = model.cards[0].id;
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['child']);
+		child.createdBySession.set({ session: root.resource }, undefined);
+		model.updateSessions([child]);
+		assert.strictEqual(model.getParentCard(childId), undefined);
+		model.updateSessions([child, root]);
+		const rootId = model.cards.find(card => card.session === root)!.id;
+		model.moveCard(rootId, { rowId: 'general', columnId: 'p1' });
+		assert.deepStrictEqual({ unassigned: model.getUnassignedCards(), parent: model.getParentCard(childId)?.id }, { unassigned: [], parent: rootId });
+		model.updateConfiguration({
+			version: 1, rows: model.rows, columns: model.columns, autoIncludeSessions: false,
+			placements: [{ cardId: rootId, rowId: 'general', columnId: 'p2' }],
+		});
+		assert.deepStrictEqual(model.getChildCards(rootId).map(card => model.getPlacement(card.id)), [{ rowId: 'general', columnId: 'p2' }]);
+	});
+
+	test('creator lookup is provider-scoped and missing exact chats never fall back to unrelated main chats', () => {
+		const root = createSession(createChat('root', ChatInteractivity.Full));
+		const child = {
+			...createSession(createChat('child', ChatInteractivity.Full)),
+			createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: root.resource, chat: URI.parse('test-chat:session#missing') }),
+		};
+		const model = new ProjectBoardModel();
+		model.updateSessions([root, child]);
+		const childId = model.cards.find(card => card.session === child)!.id;
+		assert.strictEqual(model.getParentCard(childId), undefined);
+		child.createdBySession.set({ session: root.resource }, undefined);
+		const otherProvider = { ...child, providerId: 'another-provider' };
+		model.updateSessions([root, otherProvider]);
+		assert.ok(model.cards.every(card => !model.getParentCard(card.id)));
+		root.isArchived.set(true, undefined);
+		model.updateSessions([root, child]);
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['child']);
+		assert.strictEqual(model.getParentCard(childId, true)?.session, root);
+	});
+
+	test('cycles and self-references in session creation metadata remain visible roots', () => {
+		const root = { ...createSession(createChat('root', ChatInteractivity.Full)), createdBySession: observableValue<ISessionCreationReference | undefined>('creator', undefined) };
+		const child = { ...createSession(createChat('child', ChatInteractivity.Full)), createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: root.resource }) };
+		root.createdBySession.set({ session: child.resource }, undefined);
+		const model = new ProjectBoardModel();
+		model.updateSessions([root, child]);
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['child', 'root']);
+		root.createdBySession.set({ session: root.resource }, undefined);
+		child.createdBySession.set(undefined, undefined);
+		model.updateSessions([root, child]);
+		assert.ok(model.cards.every(card => !model.getParentCard(card.id)));
+	});
+
+	test('session-list mode inherits creator placement without hiding separately owned sessions or resolving conflicts arbitrarily', () => {
+		const root = createSession(createChat('root', ChatInteractivity.Full), createChat('peer', ChatInteractivity.Full));
+		const child = { ...createSession(createChat('child', ChatInteractivity.Full)), createdBySession: observableValue<ISessionCreationReference | undefined>('creator', { session: root.resource }) };
+		const model = new ProjectBoardModel();
+		model.updateSessions([root, child]);
+		const rootId = model.cards.find(card => card.chat === root.mainChat.get())!.id;
+		const peerId = model.cards.find(card => card.chat === root.chats.get()[1])!.id;
+		const childId = model.cards.find(card => card.session === child)!.id;
+		model.updateConfiguration({
+			version: 1, rows: model.rows, columns: model.columns, autoIncludeSessions: true, display: { showSessionList: true, showStateDuration: false, showCredits: false },
+			placements: [{ cardId: rootId, rowId: 'general', columnId: 'p1' }],
+		});
+		assert.deepStrictEqual(model.getCards('general', 'p1').map(card => card.title), ['child', 'peer']);
+		assert.deepStrictEqual(model.getUnassignedCards(), []);
+		model.moveCard(peerId, { rowId: 'general', columnId: 'p2' });
+		assert.deepStrictEqual(model.getUnassignedCards().map(card => card.title), ['child', 'peer']);
+		model.moveCard(childId, { rowId: 'general', columnId: 'p3' });
+		assert.deepStrictEqual(model.getCards('general', 'p3').map(card => card.title), ['child']);
 	});
 
 	test('nested workers inherit through peer chats and follow the nearest explicit placement', () => {

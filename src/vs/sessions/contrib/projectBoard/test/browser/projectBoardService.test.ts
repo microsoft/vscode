@@ -9,9 +9,9 @@ import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { CodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IAction, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, installFakeRunWhenIdle, timeout } from '../../../../../base/common/async.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
@@ -35,7 +35,7 @@ import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../../workbe
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatOriginKind, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCreationReference, ISessionWorkspace, SessionArtifactKind, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ProjectBoardService } from '../../browser/projectBoardService.js';
 import { IProjectBoardDraft, ProjectBoardChatWindows } from '../../browser/projectBoardNavigation.js';
 import { IProjectBoardNewSessionOptions, ProjectBoardNewSessionDialog } from '../../browser/projectBoardNewSessionDialog.js';
@@ -96,7 +96,9 @@ class TestBoardSession extends mock<ISession>() {
 	override readonly chats = observableValue<readonly IChat[]>('chats', this.initialChats);
 	override readonly mainChat = constObservable(this.initialChats[0] ?? new TestChat('Empty session main'));
 	override readonly isArchived = observableValue('archived', false);
+	override readonly isRead = observableValue('sessionRead', false);
 	override readonly artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', []);
+	override readonly createdBySession = observableValue<ISessionCreationReference | undefined>('createdBySession', undefined);
 	override readonly status = observableValue('sessionStatus', SessionStatus.Untitled);
 	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('connection', { kind: 'connected' });
 	override readonly capabilities = observableValue('capabilities', { supportsMultipleChats: true, supportsDelete: true });
@@ -106,6 +108,39 @@ class TestBoardSession extends mock<ISession>() {
 
 suite('ProjectBoardService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let pausedIdle: IDisposable;
+	setup(() => { pausedIdle = store.add(installFakeRunWhenIdle(() => toDisposable(() => { }))); });
+
+	function controlledIdle() {
+		pausedIdle.dispose();
+		const callbacks = new Set<() => void>();
+		let budget = 50;
+		store.add(installFakeRunWhenIdle((_window, callback) => {
+			const run = () => { callbacks.delete(run); callback({ didTimeout: false, timeRemaining: () => budget }); };
+			callbacks.add(run);
+			return toDisposable(() => callbacks.delete(run));
+		}));
+		return {
+			runQueued(timeRemaining = 50) {
+				budget = timeRemaining;
+				for (const run of [...callbacks]) {
+					if (callbacks.has(run)) {
+						run();
+					}
+				}
+			},
+			async drain(onStep?: () => void) {
+				budget = 50;
+				for (let i = 0; callbacks.size; i++) {
+					assert.ok(i < 100, 'Idle metadata refresh must finish rather than rotate forever');
+					[...callbacks][0]();
+					onStep?.();
+					await timeout(0);
+				}
+			},
+		};
+	}
 
 	function createBoardDocument() {
 		const frame = mainWindow.document.createElement('iframe');
@@ -136,6 +171,7 @@ suite('ProjectBoardService', () => {
 			sidePanelCloseCount: 0,
 			sessions: initialSessions,
 			navigationError: undefined as Error | undefined,
+			navigationBarrier: undefined as DeferredPromise<void> | undefined,
 			deletionError: undefined as Error | undefined,
 			closedResource: undefined as URI | undefined,
 			deletedSessions: [] as ISession[],
@@ -146,6 +182,8 @@ suite('ProjectBoardService', () => {
 			archiveErrors: new Set<string>(),
 			archiveBarrier: undefined as DeferredPromise<void> | undefined,
 			providerAvailable: true,
+			unreadAttempts: [] as ISession[],
+			unreadError: undefined as Error | undefined,
 			logErrors: [] as unknown[][],
 		};
 		const sessionsChanged = store.add(new Emitter<ISessionsChangeEvent>());
@@ -164,7 +202,7 @@ suite('ProjectBoardService', () => {
 				const wrapAction = (action: IAction): IAction => action instanceof SubmenuAction
 					? new SubmenuAction(action.id, action.label, action.actions.map(wrapAction))
 					: toAction({
-						id: action.id, label: action.label, enabled: action.enabled, checked: action.checked,
+						id: action.id, label: action.label, tooltip: action.tooltip, enabled: action.enabled, checked: action.checked,
 						run: async () => {
 							delegate.onHide?.(false);
 							await action.run();
@@ -262,6 +300,9 @@ suite('ProjectBoardService', () => {
 				if (state.navigationError) {
 					throw state.navigationError;
 				}
+				if (state.navigationBarrier) {
+					await state.navigationBarrier.p;
+				}
 				opened.push(card.chat.resource);
 				onOpened.fire(card.chat.resource);
 			}
@@ -287,6 +328,9 @@ suite('ProjectBoardService', () => {
 				activeSidePanelCardId.set(undefined, undefined);
 				if (state.navigationError) {
 					throw state.navigationError;
+				}
+				if (state.navigationBarrier) {
+					await state.navigationBarrier.p;
 				}
 				sidePanelOpened.push(card.chat.resource);
 				sidePanelFocusRestorer = onClose;
@@ -338,6 +382,17 @@ suite('ProjectBoardService', () => {
 				override readonly newSession = newSession;
 				override readonly sessionDrafts = sessionDrafts;
 				override getSessions() { return state.sessions; }
+				override async markUnread(session: ISession): Promise<void> {
+					state.unreadAttempts.push(session);
+					if (state.unreadError) {
+						throw state.unreadError;
+					}
+					assert.ok(session instanceof TestBoardSession);
+					session.isRead.set(false, undefined);
+					const main = session.mainChat.get();
+					assert.ok(main instanceof TestChat);
+					main.isRead.set(false, undefined);
+				}
 				override async archiveSession(archived: ISession): Promise<void> {
 					state.archiveAttempts.push(archived);
 					await state.archiveBarrier?.p;
@@ -421,6 +476,12 @@ suite('ProjectBoardService', () => {
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		await timeout(130);
 		return input;
+	}
+
+	function expandCardDetails(container: HTMLElement): void {
+		for (const button of container.querySelectorAll<HTMLElement>('.project-board-card-collapse[aria-expanded="false"]')) {
+			button.click();
+		}
 	}
 
 	async function toggleArchived(h: ReturnType<typeof createBoard>): Promise<void> {
@@ -737,7 +798,7 @@ suite('ProjectBoardService', () => {
 		const supervisor = new class extends mock<ProjectBoardSupervisor>() {
 			override enabled = false;
 			override busy = false;
-			override error = undefined;
+			override error: string | undefined = undefined;
 			override omitted = 0;
 			override topics: readonly IProjectBoardTopic[] = [];
 			override readonly onDidChange = changed.event;
@@ -756,6 +817,18 @@ suite('ProjectBoardService', () => {
 		await timeout(0);
 		assert.strictEqual(supervisor.enabled, true);
 		assert.strictEqual(sources.length, 2);
+		supervisor.error = 'The summary model returned no text answer. Try Refresh Topics.';
+		supervisor.omitted = 3;
+		changed.fire();
+		assert.deepStrictEqual({
+			error: h.container.querySelector('.project-board-topic-status')?.textContent,
+			coverage: h.container.querySelector('.project-board-topic-coverage')?.textContent,
+		}, {
+			error: 'Topic analysis unavailable. The summary model returned no text answer. Try Refresh Topics.',
+			coverage: 'Analysis covers the 60 most recent chats (3 additional chats not included).',
+		});
+		supervisor.error = undefined;
+		supervisor.omitted = 0;
 		supervisor.topics = [{ label: 'Unrelated display label', cardIds: new Set([getProjectBoardCardId(h.state.sessions[1], chats[1])]) }];
 		changed.fire();
 		h.container.querySelector<HTMLElement>('[data-topic-control="topic-0"]')!.click();
@@ -847,6 +920,8 @@ suite('ProjectBoardService', () => {
 			assert.ok(summary);
 			assert.ok(summary.classList.contains('project-board-collapsed-summary'), 'Row counts follow the menu on the same line');
 			assert.ok(summary.textContent?.startsWith('1 chat'));
+			assert.strictEqual(summary.textContent, '1 chat · ⚙️ 1 Busy', 'Collapsed row counts stay beside the row label and menu');
+			assert.strictEqual(h.container.querySelector<HTMLElement>('[aria-label="General, P0"]')!.hidden, true);
 			const center = (element: Element) => {
 				const rect = element.getBoundingClientRect();
 				return rect.top + rect.height / 2;
@@ -1262,6 +1337,91 @@ suite('ProjectBoardService', () => {
 	});
 
 	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} newly created sessions join their creator chat when creation metadata arrives`, async () => {
+			const main = new TestChat('Creating main');
+			const peer = new TestChat('Creating peer');
+			const h = createBoard(mainWindow.document, [main, peer]);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			await h.moveViaPicker('General, P0', main.resource);
+			await h.moveViaPicker('General, P1', peer.resource);
+			const child = new TestBoardSession([new TestChat('Created session')], 'created');
+			h.state.sessions.push(child);
+			h.sessionsChanged.fire({ added: [child], removed: [], changed: [] });
+			const card = (chat: IChat) => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')]
+				.find(card => card.dataset.chatResource === chat.resource.toString())!;
+			assert.ok(card(child.mainChat.get()).closest('.project-board-unassigned'));
+			child.createdBySession.set({ session: h.session.resource, chat: peer.resource }, undefined);
+			assert.strictEqual(h.container.querySelectorAll('.project-board-unassigned [data-chat-resource]').length, 0);
+			assert.strictEqual(card(child.mainChat.get()).closest('.project-board-card-group')?.getAttribute('aria-label'), 'General, P1');
+			assert.ok(card(child.mainChat.get()).closest('.project-board-child-cards'));
+			assert.strictEqual(card(child.mainChat.get()).querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
+			card(peer).closest('.project-board-card-family')!.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			await h.moveViaPicker('General, P2', child.mainChat.get().resource);
+			assert.strictEqual(card(child.mainChat.get()).closest('.project-board-child-cards'), null);
+			await h.moveViaPicker('General, P3', peer.resource);
+			assert.strictEqual(card(child.mainChat.get()).closest('.project-board-card-group')?.getAttribute('aria-label'), 'General, P2');
+			await h.moveViaPicker('Follow Parent', child.mainChat.get().resource);
+			assert.strictEqual(card(child.mainChat.get()).closest('.project-board-card-group')?.getAttribute('aria-label'), 'General, P3');
+			const placed = h.catalog.boards.get()[0].configuration.placements;
+			assert.ok(!placed.some(placement => placement.cardId === getProjectBoardCardId(child, child.mainChat.get())));
+			assert.deepStrictEqual({ opened: h.opened, read: child.mainChat.get().isRead.get() }, { opened: [], read: false });
+		});
+
+		test(`${surface} new live cards start with their details collapsed`, async () => {
+			const parent = new TestChat('Default collapsed parent');
+			const h = createBoard(mainWindow.document, [parent]);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const state = () => [...h.container.querySelectorAll<HTMLElement>('.project-board-card')].map(card => ({
+				title: card.querySelector('h4')?.textContent, hidden: card.querySelector<HTMLElement>('.project-board-card-details')?.hidden,
+				expanded: card.querySelector('.project-board-card-collapse')?.getAttribute('aria-expanded'),
+			}));
+			assert.deepStrictEqual(state(), [{ title: 'Default collapsed parent', hidden: true, expanded: 'false' }]);
+			expandCardDetails(h.container);
+			h.session.chats.set([parent, new TestChat('Late collapsed child')], undefined);
+			assert.deepStrictEqual(state(), [
+				{ title: 'Default collapsed parent', hidden: false, expanded: 'true' },
+				{ title: 'Late collapsed child', hidden: true, expanded: 'false' },
+			]);
+		});
+
+		test(`${surface} creator inheritance respects each board's placement with automatic inclusion disabled`, async () => {
+			const main = new TestChat('Board-local creator');
+			const h = createBoard(mainWindow.document, [main]);
+			const other = h.catalog.createBoard('Other creator board');
+			const rootId = getProjectBoardCardId(h.session, main);
+			for (const [boardId, columnId] of [[DEFAULT_PROJECT_BOARD_ID, 'p1'], [other, 'p2']]) {
+				h.catalog.updateBoard(boardId, configuration => ({
+					...configuration, autoIncludeSessions: false, placements: [{ cardId: rootId, rowId: 'general', columnId }],
+				}));
+			}
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+				h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+			} else {
+				await h.service.open();
+			}
+			const child = new TestBoardSession([new TestChat('Created on both boards')], 'created-local');
+			child.createdBySession.set({ session: h.session.resource }, undefined);
+			h.state.sessions.push(child);
+			h.sessionsChanged.fire({ added: [child], removed: [], changed: [] });
+			const verify = (container: HTMLElement, column: string) => {
+				assert.strictEqual(container.querySelector(`.project-board-card-group[aria-label="General, ${column}"] .project-board-child-cards h4`)?.textContent, 'Created on both boards');
+				assert.strictEqual(container.querySelectorAll('.project-board-unassigned [data-chat-resource]').length, 0);
+			};
+			verify(h.container, 'P1');
+			await h.service.open(other);
+			verify(h.currentContainer, 'P2');
+			assert.ok(h.catalog.boards.get().every(board => board.configuration.placements.length === 1));
+		});
+
 		test(`${surface} card details fold independently of child groups and retain local state through live updates`, async () => {
 			const { document } = createBoardDocument();
 			const parent = new TestChat('Parent details');
@@ -1278,6 +1438,8 @@ suite('ProjectBoardService', () => {
 			const disclosure = () => card().querySelector<HTMLElement>('.project-board-card-collapse')!;
 			const details = () => card().querySelector<HTMLElement>('.project-board-card-details')!;
 			const children = () => h.container.querySelector<HTMLElement>('.project-board-child-cards')!;
+			assert.strictEqual(disclosure().getAttribute('aria-expanded'), 'false');
+			disclosure().click();
 			assert.strictEqual(disclosure().getAttribute('aria-expanded'), 'true');
 			assert.strictEqual(disclosure().getAttribute('aria-controls'), details().id);
 			const heading = card().querySelector('.project-board-card-heading')!;
@@ -1319,6 +1481,7 @@ suite('ProjectBoardService', () => {
 		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 		h.questionCarousels.set([{ carousel, requestId: 'collapsed-card-request' }], undefined);
 		store.add(h.service.createView(h.container));
+		expandCardDetails(h.container);
 		const textarea = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
 		textarea.value = 'Preserve this answer';
 		textarea.setSelectionRange(2, 5);
@@ -1341,7 +1504,7 @@ suite('ProjectBoardService', () => {
 		}, { same: true, hidden: false, value: 'Preserve this answer', selection: [2, 5], sent: [] });
 	});
 
-	test('card details collapse is view-local and survives mode switches but resets on view recreation', async () => {
+	test('card details expansion is view-local and survives mode switches but resets on view recreation', async () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Local detail state')], undefined, true);
 		h.state.sessions = [{ ...createTestSession('Local detail state').session, ...h.session }];
 		const embedded = mainWindow.document.createElement('div');
@@ -1350,16 +1513,16 @@ suite('ProjectBoardService', () => {
 		store.add(h.service.createView(embedded));
 		await h.service.open();
 		h.container.querySelector<HTMLElement>('.project-board-card-collapse')!.click();
-		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
-		assert.strictEqual(embedded.querySelector<HTMLElement>('.project-board-card-details')!.hidden, false);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, false);
+		assert.strictEqual(embedded.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
 		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
 		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.sessionList')!.run();
 		h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
 		await h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.settings.sessionList')!.run();
-		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
+		assert.strictEqual(h.container.querySelector<HTMLElement>('.project-board-card-details')!.hidden, false);
 		h.closeBoard();
 		await h.service.open();
-		assert.strictEqual(h.currentContainer.querySelector<HTMLElement>('.project-board-card-details')!.hidden, false);
+		assert.strictEqual(h.currentContainer.querySelector<HTMLElement>('.project-board-card-details')!.hidden, true);
 	});
 
 	suite('Mark as Done', () => {
@@ -1919,6 +2082,31 @@ suite('ProjectBoardService', () => {
 	});
 
 	suite('session list presentation', () => {
+		test('created sessions follow their creator into the same cell in list mode without losing their own identity', () => {
+			const root = new TestChat('List creator');
+			const h = createBoard(mainWindow.document, [root], undefined, true);
+			h.session.status.set(SessionStatus.InProgress, undefined);
+			h.state.sessions = [{ ...createTestSession('List creator').session, ...h.session }];
+			const child = new TestBoardSession([new TestChat('List created child')], 'list-created');
+			child.status.set(SessionStatus.InProgress, undefined);
+			const childSession = { ...createTestSession('List created child').session, ...child };
+			child.createdBySession.set({ session: h.session.resource }, undefined);
+			h.state.sessions.push(childSession);
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, display: { showSessionList: true, showStateDuration: false, showCredits: false },
+				placements: [{ cardId: getProjectBoardCardId(h.session, root), rowId: 'general', columnId: 'p1' }],
+			}));
+			const view = store.add(h.service.createView(h.container));
+			view.layout(1200, 800);
+			assert.deepStrictEqual({
+				rows: h.container.querySelectorAll('[aria-label="General, P1"] .session-item').length,
+				unassigned: h.container.querySelectorAll('.project-board-unassigned .session-item').length,
+				count: h.container.querySelector('.project-board-total-summary')?.textContent,
+			}, { rows: 2, unassigned: 0, count: '2 chats · ⚙️ 2 Busy' });
+			h.service.toggleDisplayOption('showSessionList');
+			assert.ok(h.container.querySelector('[aria-label="General, P1"] .project-board-child-cards [data-chat-resource]'));
+		});
+
 		function createSessionBoard(document = mainWindow.document) {
 			const storage = store.add(new InMemoryStorageService());
 			const h = createBoard(document, [], storage, true);
@@ -2212,6 +2400,7 @@ suite('ProjectBoardService', () => {
 			h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 			h.questionCarousels.set([{ carousel, requestId: 'current-request' }], undefined);
 			const view = store.add(h.service.createView(h.container));
+			expandCardDetails(h.container);
 			let resizeNotifications = 0;
 			store.add(view.onDidChangeContentSize(() => resizeNotifications++));
 			const card = h.container.querySelector<HTMLElement>('.project-board-card')!;
@@ -2371,6 +2560,7 @@ suite('ProjectBoardService', () => {
 		});
 		h.actions.set(pending, undefined);
 		await h.service.open();
+		expandCardDetails(h.container);
 		button.focus();
 		chat.title.set('Updated approval card', undefined);
 		assert.strictEqual(h.container.querySelector('.project-board-live-actions'), actionElement);
@@ -2557,6 +2747,79 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(cell('P1').querySelector('h4')?.textContent, 'P1 card');
 		assert.deepStrictEqual(h.opened, []);
 	});
+
+	for (const surface of ['embedded', 'standalone'] as const) {
+		for (const presentation of ['cards', 'list'] as const) {
+			test(`${surface} collapsed rows keep aggregate state counts and remove all column cells from layout in ${presentation}`, async () => {
+				const chats = Array.from({ length: 5 }, (_, index) => new TestChat(`Row summary ${index}`));
+				const statuses = [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed, SessionStatus.InProgress];
+				const h = createBoard(mainWindow.document, chats, undefined, presentation === 'list');
+				h.container.style.cssText = 'width: 1200px; height: 700px; position: relative;';
+				const sessions = chats.map((chat, index) => {
+					chat.status.set(statuses[index], undefined);
+					chat.isRead.set(index === 3, undefined);
+					const session = new TestBoardSession([chat], `row-summary-${index}`);
+					session.status.set(statuses[index], undefined);
+					session.isRead.set(index === 3, undefined);
+					return session;
+				});
+				h.state.sessions = sessions.map(session => presentation === 'list' ? { ...createTestSession('Row summary').session, ...session } : session);
+				h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+					...configuration, rows: [...configuration.rows, { id: 'other', label: 'Other' }],
+					display: { showSessionList: presentation === 'list', showCredits: false, showStateDuration: false },
+					placements: sessions.map((session, index) => ({
+						cardId: getProjectBoardCardId(session, chats[index]), rowId: index === 4 ? 'other' : 'general', columnId: `p${index % 4}`,
+					})),
+				}));
+				if (presentation === 'cards') {
+					h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
+					h.questionCarousels.set([{
+						requestId: 'row-collapse-request',
+						carousel: new ChatQuestionCarouselData([{
+							id: 'choice', type: 'singleSelect', title: 'Choice', options: [{ id: 'one', label: 'One', value: 'one' }], allowFreeformInput: true,
+						}], false, 'row-collapse-question'),
+					}], undefined);
+				}
+				if (surface === 'embedded') {
+					store.add(h.service.createView(h.container));
+				} else {
+					await h.service.open();
+				}
+				expandCardDetails(h.container);
+				const input = h.container.querySelector<HTMLTextAreaElement>('textarea');
+				if (input) {
+					input.value = 'Retain my answer';
+					input.setSelectionRange(2, 6);
+					input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
+				}
+				const collapse = () => h.container.querySelector<HTMLElement>('[data-board-control="collapse:row:general"]')!;
+				collapse().click();
+				const cells = () => [...h.container.querySelectorAll<HTMLElement>('.project-board-grid > [aria-label^="General,"]')];
+				assert.deepStrictEqual(cells().map(cell => [cell.hidden, mainWindow.getComputedStyle(cell).display, cell.getBoundingClientRect().height]), Array(4).fill([true, 'none', 0]));
+				const menu = h.container.querySelector<HTMLElement>('[data-board-control="axis:row:general"]')!;
+				assert.strictEqual(menu.nextElementSibling?.textContent, '4 chats · ⚙️ 1 Busy · 🙋 1 Needs Input · ⚠️ 1 Error · 😴 1 Idle, read');
+				const headings = [...h.container.querySelectorAll('.project-board-row-heading')];
+				assert.ok(Math.abs(headings[1].getBoundingClientRect().top - headings[0].getBoundingClientRect().bottom - 8) <= 1, 'The next row follows the collapsed heading without a row of cells');
+				chats[0].status.set(SessionStatus.Completed, undefined);
+				sessions[0].status.set(SessionStatus.Completed, undefined);
+				await timeout(0);
+				assert.strictEqual(h.container.querySelector('[data-board-control="axis:row:general"]')!.nextElementSibling?.textContent, '4 chats · 🙋 1 Needs Input · ⚠️ 1 Error · 👀 1 Idle, unread · 😴 1 Idle, read');
+				await filterBoard(h.container, 'Row summary 2');
+				assert.ok(cells().every(cell => !cell.hidden), 'Search temporarily reveals the folded row');
+				await filterBoard(h.container, '');
+				assert.ok(cells().every(cell => cell.hidden), 'Clearing search restores the hidden row cells');
+				collapse().click();
+				assert.ok(cells().every(cell => !cell.hidden && cell.getBoundingClientRect().height > 0));
+				if (input) {
+					assert.deepStrictEqual({
+						same: h.container.querySelector('textarea') === input, value: input.value,
+						selection: [input.selectionStart, input.selectionEnd], hidden: !!input.closest('[hidden]'), answers: h.submittedAnswers,
+					}, { same: true, value: 'Retain my answer', selection: [2, 6], hidden: false, answers: [] });
+				}
+				assert.deepStrictEqual(h.opened, []);
+			});
+		}
+	}
 
 	test('collapsed state totals include nested and overflow chats, drafts, and unavailable placements', async () => {
 		const chats = ['Busy', 'Input', 'Error', 'Idle', 'Starting', 'Archived'].map(title => new TestChat(title));
@@ -2819,6 +3082,7 @@ suite('ProjectBoardService', () => {
 			h.container.querySelector<HTMLElement>('[data-board-control="settings"]')!.click();
 			await h.contextMenu.delegate!.getActions().find(action => action.id === id)!.run();
 		}
+		expandCardDetails(h.container);
 		const card = h.container.querySelector<HTMLElement>('[data-chat-resource]')!;
 		const metrics = card.querySelector<HTMLElement>('.project-board-card-metrics')!;
 		const credits = metrics.querySelector<HTMLElement>('.project-board-card-credits')!;
@@ -3120,6 +3384,105 @@ suite('ProjectBoardService', () => {
 			ownedDrafts: h.drafts.get().length,
 			opened: h.opened.length,
 		}, { cards: 0, ownedDrafts: 0, opened: 0 });
+	});
+
+	suite('Mark as Unread', () => {
+		function openMenu(h: ReturnType<typeof createBoard>, chat: IChat) {
+			const card = [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(card => card.dataset.chatResource === chat.resource.toString())!;
+			card.dispatchEvent(new mainWindow.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+			return h.contextMenu.delegate!.getActions().find(action => action.id === 'projectBoard.card.markUnread');
+		}
+
+		for (const surface of ['embedded', 'standalone'] as const) {
+			test(`${surface} marks only the clicked card's owning session unread and refreshes summaries`, async () => {
+				const first = new TestChat('Read target');
+				const other = new TestChat('Other selected read chat');
+				for (const chat of [first, other]) {
+					chat.status.set(SessionStatus.Completed, undefined);
+					chat.isRead.set(true, undefined);
+				}
+				const h = createIndependentChatBoard(mainWindow.document, [first, other]);
+				for (const session of h.state.sessions) {
+					assert.ok(session instanceof TestBoardSession);
+					session.isRead.set(true, undefined);
+				}
+				if (surface === 'embedded') {
+					store.add(h.service.createView(h.container));
+				} else {
+					await h.service.open();
+				}
+				for (const card of h.container.querySelectorAll<HTMLElement>('.project-board-card')) {
+					toggleCardSelection(card);
+				}
+				const action = openMenu(h, first)!;
+				assert.strictEqual(action.label, 'Mark as Unread');
+				assert.match(action.tooltip!, /owning session/);
+				await action.run();
+				assert.deepStrictEqual({
+					targeted: h.state.unreadAttempts, read: [first.isRead.get(), other.isRead.get()],
+					opened: h.opened, archived: h.state.archiveAttempts,
+					summary: h.container.querySelector('.project-board-total-summary')?.textContent,
+				}, { targeted: [h.state.sessions[0]], read: [false, true], opened: [], archived: [], summary: '2 chats · 👀 1 Idle, unread · 😴 1 Idle, read' });
+				assert.strictEqual(openMenu(h, first), undefined);
+			});
+		}
+
+		test('read-only child cards use native owning-session state rather than inventing a per-chat overlay', async () => {
+			const main = new TestChat('Read main');
+			const child: IChat = { ...new TestChat('Read worker'), interactivity: constObservable(ChatInteractivity.ReadOnly), isRead: constObservable(true), origin: { kind: ChatOriginKind.Tool, parentChat: main.resource } };
+			main.isRead.set(true, undefined);
+			const h = createBoard(mainWindow.document, [main, child]);
+			h.session.isRead.set(true, undefined);
+			await h.service.open();
+			await openMenu(h, child)!.run();
+			assert.deepStrictEqual({
+				targets: h.state.unreadAttempts, mainRead: main.isRead.get(), workerRead: child.isRead.get(),
+				menu: openMenu(h, child), opened: h.opened,
+			}, { targets: [h.session], mainRead: false, workerRead: true, menu: undefined, opened: [] });
+		});
+
+		for (const unavailable of ['archived', 'disconnected', 'provider'] as const) {
+			test(`omits unread actions for ${unavailable} chats and rechecks a stale menu`, async () => {
+				const chat = new TestChat('Stale unread target');
+				const h = createBoard(mainWindow.document, [chat]);
+				h.session.isRead.set(true, undefined);
+				chat.isRead.set(true, undefined);
+				await h.service.open();
+				const action = openMenu(h, chat)!;
+				const errors: string[] = [];
+				store.add(h.errors.event(error => errors.push(error)));
+				if (unavailable === 'archived') {
+					chat.isArchived.set(true, undefined);
+					await toggleArchived(h);
+				} else if (unavailable === 'disconnected') {
+					h.session.remoteConnectionStatus.set({ kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown }, undefined);
+				} else {
+					h.state.providerAvailable = false;
+				}
+				await action.run();
+				assert.deepStrictEqual({ targets: h.state.unreadAttempts, errors, action: openMenu(h, chat) }, {
+					targets: [], errors: ['This chat is no longer available to mark as unread.'], action: undefined,
+				});
+			});
+		}
+
+		test('provider failures notify and keep the action retryable without changing read state', async () => {
+			const chat = new TestChat('Unread failure');
+			const h = createBoard(mainWindow.document, [chat]);
+			h.session.isRead.set(true, undefined);
+			chat.isRead.set(true, undefined);
+			h.state.unreadError = new Error('Provider read-state failure');
+			const errors: string[] = [];
+			store.add(h.errors.event(error => errors.push(error)));
+			await h.service.open();
+			await openMenu(h, chat)!.run();
+			assert.deepStrictEqual({ errors, read: chat.isRead.get(), logged: h.state.logErrors.length, opened: h.opened }, {
+				errors: ['The session could not be marked as unread.'], read: true, logged: 1, opened: [],
+			});
+			h.state.unreadError = undefined;
+			await openMenu(h, chat)!.run();
+			assert.strictEqual(chat.isRead.get(), false);
+		});
 	});
 
 	test('Copy Chat Link uses the native exact-chat command for local and remote read-only children on both surfaces', async () => {
@@ -4007,6 +4370,48 @@ suite('ProjectBoardService', () => {
 		});
 	}
 
+	for (const surface of ['embedded', 'standalone'] as const) {
+		test(`${surface} a card double-click immediately shows Loading and retains it through live updates`, async () => {
+			const chat = new TestChat('Opening feedback');
+			const h = createBoard(mainWindow.document, [chat]);
+			if (surface === 'embedded') {
+				h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({ ...configuration, openChatInSidePanel: true }));
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			h.state.navigationBarrier = new DeferredPromise<void>();
+			const card = () => h.container.querySelector<HTMLElement>('.project-board-card')!;
+			card().dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+			const feedback = () => card().querySelector<HTMLElement>('.project-board-card-loading')!;
+			assert.deepStrictEqual({ message: feedback().textContent, hidden: feedback().hidden, role: feedback().getAttribute('role') }, { message: 'Loading...', hidden: false, role: 'status' });
+			chat.title.set('Updated while opening', undefined);
+			assert.strictEqual(feedback().hidden, false);
+			await h.state.navigationBarrier.complete();
+			await timeout(0);
+			assert.strictEqual(feedback().hidden, true);
+			assert.deepStrictEqual(surface === 'embedded' ? h.sidePanelOpened : h.opened, [chat.resource]);
+		});
+	}
+
+	test('card loading feedback clears after an open failure and remains retryable', async () => {
+		const h = createBoard(mainWindow.document, [new TestChat('Failed opening')]);
+		h.state.navigationError = new Error('Loading failed');
+		await h.service.open();
+		const errors: string[] = [];
+		store.add(h.errors.event(message => errors.push(message)));
+		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await timeout(0);
+		assert.deepStrictEqual({
+			hidden: h.container.querySelector<HTMLElement>('.project-board-card-loading')!.hidden,
+			errors,
+		}, { hidden: true, errors: ['The chat could not be opened.'] });
+		h.state.navigationError = undefined;
+		h.container.querySelector('.project-board-card')!.dispatchEvent(new mainWindow.MouseEvent('dblclick', { bubbles: true }));
+		await timeout(0);
+		assert.strictEqual(h.opened.length, 1);
+	});
+
 	test('cell double-click leaves existing chats and nested controls alone', async () => {
 		const parent = new TestChat('Parent');
 		const child = new TestChat('Child');
@@ -4638,6 +5043,134 @@ suite('ProjectBoardService', () => {
 		assert.deepStrictEqual(h.opened, []);
 	});
 
+	for (const surface of ['embedded', 'standalone'] as const) {
+		function scrollFixture() {
+			const chats = Array.from({ length: 12 }, (_, index) => new TestChat(`Scroll row ${index}`));
+			const h = createIndependentChatBoard(mainWindow.document, chats);
+			h.container.style.cssText = 'height: 520px; width: 900px; position: relative;';
+			const viewport = mainWindow.document.createElement('div');
+			viewport.className = 'custom-view-scroll-content';
+			viewport.style.cssText = 'height: 520px; width: 900px; overflow: auto; position: relative;';
+			mainWindow.document.body.appendChild(viewport);
+			store.add(toDisposable(() => viewport.remove()));
+			if (surface === 'embedded') {
+				viewport.appendChild(h.container);
+				h.container.classList.add('kanban-custom-view');
+				h.container.style.height = 'auto';
+			}
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, rows: chats.map((_, index) => ({ id: `row-${index}`, label: `Row ${index}` })),
+				placements: chats.map((chat, index) => ({ cardId: getProjectBoardCardId(h.state.sessions[index], chat), rowId: `row-${index}`, columnId: 'p0' })),
+			}));
+			const scroller = () => surface === 'embedded' ? viewport : h.container.querySelector<HTMLElement>('.project-board')!;
+			const card = (index: number) => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(card => card.dataset.chatResource === chats[index].resource.toString())!;
+			return { ...h, chats, scroller, card };
+		}
+
+		test(`${surface} async preview growth above the working row preserves its visible position`, async () => {
+			const h = scrollFixture();
+			h.metadata.set({ kind: 'ready', prompt: 'Short prompt', context: [] }, undefined);
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			h.card(0).querySelector<HTMLElement>('.project-board-card-collapse')!.click();
+			const viewport = h.scroller();
+			viewport.scrollTop += h.card(5).getBoundingClientRect().top - viewport.getBoundingClientRect().top - 160;
+			viewport.dispatchEvent(new mainWindow.Event('scroll'));
+			const before = h.card(5).getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+			for (const prompt of ['Asynchronous background preview growth '.repeat(80), 'Short again', 'Another background refresh '.repeat(80)]) {
+				h.metadata.set({ kind: 'ready', prompt, context: [] }, undefined);
+				await timeout(25);
+				const after = h.card(5).getBoundingClientRect().top - viewport.getBoundingClientRect().top;
+				assert.ok(Math.abs(after - before) <= 1, `The working card moved ${after - before}px during background refresh`);
+			}
+		});
+
+		test(`${surface} new submission timestamps do not reorder a cell while browsing and apply when returning to the top`, async () => {
+			const h = scrollFixture();
+			const request = (timestamp: number) => new class extends mock<ChatRequestModel>() {
+				override readonly requestTimestamp = timestamp;
+			}();
+			const models = h.chats.map((chat, index) => new class extends mock<IChatModel>() {
+				override readonly sessionResource = chat.resource;
+				override readonly lastRequestObs = observableValue<ChatRequestModel | undefined>('request', request((index + 1) * 1000));
+				override get lastRequest() { return this.lastRequestObs.get(); }
+				override readonly onDidChange = Event.None;
+			}());
+			h.loadedModels.set(models, undefined);
+			h.catalog.updateBoard(DEFAULT_PROJECT_BOARD_ID, configuration => ({
+				...configuration, placements: configuration.placements.map((placement, index) => index < 6 ? { ...placement, rowId: 'row-5' } : placement),
+			}));
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const viewport = h.scroller();
+			viewport.scrollTop += h.card(5).getBoundingClientRect().top - viewport.getBoundingClientRect().top - 160;
+			viewport.dispatchEvent(new mainWindow.Event('scroll'));
+			const titles = () => [...h.container.querySelectorAll('[aria-label="Row 5, P0"] h4')].map(element => element.textContent);
+			const before = titles();
+			models[0].lastRequestObs.set(request(999_000), undefined);
+			await timeout(25);
+			assert.deepStrictEqual(titles(), before);
+			viewport.scrollTop = 0;
+			viewport.dispatchEvent(new mainWindow.Event('scroll'));
+			await timeout(25);
+			assert.strictEqual(titles()[0], 'Scroll row 0');
+		});
+
+		test(`${surface} growing Unassigned keeps the working row at the same offset below sticky controls`, async () => {
+			const h = scrollFixture();
+			if (surface === 'embedded') {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const viewport = h.scroller();
+			viewport.scrollTop += h.card(5).getBoundingClientRect().top - viewport.getBoundingClientRect().top - 160;
+			viewport.dispatchEvent(new mainWindow.Event('scroll'));
+			const offset = () => h.card(5).getBoundingClientRect().top - h.container.querySelector('.project-board-pinned')!.getBoundingClientRect().bottom;
+			const before = offset();
+			const added = Array.from({ length: 4 }, (_, index) => new TestBoardSession([new TestChat(`New Unassigned ${index}`)], `new-unassigned-${index}`));
+			h.state.sessions.push(...added);
+			h.sessionsChanged.fire({ added, removed: [], changed: [] });
+			await timeout(25);
+			assert.ok(Math.abs(offset() - before) <= 1, `The working row moved ${offset() - before}px relative to the sticky area`);
+		});
+
+		test(`${surface} column headings stay with the pinned controls while the grid scrolls vertically and horizontally`, async () => {
+			const h = scrollFixture();
+			h.container.style.width = '480px';
+			if (surface === 'embedded') {
+				h.scroller().style.width = '480px';
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			const viewport = h.scroller();
+			assert.strictEqual(h.container.querySelectorAll('.project-board-pinned .project-board-column-heading').length, 4);
+			viewport.scrollTop = 500;
+			viewport.scrollLeft = 120;
+			viewport.dispatchEvent(new mainWindow.Event('scroll'));
+			const aligned = () => {
+				const headings = h.container.querySelectorAll<HTMLElement>('.project-board-column-heading');
+				const bounds = viewport.getBoundingClientRect();
+				const pinned = h.container.querySelector('.project-board-pinned')!.getBoundingClientRect();
+				const cells = h.container.querySelectorAll('[aria-label^="Row 5,"]');
+				assert.ok(pinned.top >= bounds.top - 1 && pinned.bottom <= bounds.bottom + 1, 'The entire sticky region remains on screen');
+				assert.ok([...headings].every(heading => heading.getBoundingClientRect().top >= pinned.top && heading.getBoundingClientRect().bottom <= pinned.bottom + 1));
+				assert.ok([...headings].every((heading, index) => Math.abs(heading.getBoundingClientRect().left - cells[index].getBoundingClientRect().left) <= 1));
+			};
+			aligned();
+			h.container.querySelector<HTMLElement>('[data-board-control="collapse:column:p1"]')!.click();
+			aligned();
+			assert.ok(h.card(5).getBoundingClientRect().top > viewport.getBoundingClientRect().top);
+		});
+	}
+
 	test('pinned tray keeps its scrollbar and position across updates, folds and viewport changes', async () => {
 		const chats = Array.from({ length: 16 }, (_, index) => new TestChat(`Pinned ${index}`));
 		const h = createIndependentChatBoard(mainWindow.document, chats);
@@ -4821,6 +5354,7 @@ suite('ProjectBoardService', () => {
 			}], permissions: [], unsupported: [], truncated: false
 		}, undefined);
 		await service.open();
+		expandCardDetails(container);
 		const preview = container.querySelector('.project-board-card-input')!;
 		assert.deepStrictEqual({
 			title: preview.querySelector('.chat-question-heading')?.textContent,
@@ -4897,6 +5431,7 @@ suite('ProjectBoardService', () => {
 		h.questionPreview.set({ kind: 'ready', questions: [], permissions: [], unsupported: [], truncated: false }, undefined);
 		h.questionCarousels.set([{ carousel, requestId: 'custom-request' }], undefined);
 		await h.service.open();
+		expandCardDetails(h.container);
 		const textarea = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
 		textarea.focus();
 		textarea.value = 'Calendar layout';
@@ -5076,6 +5611,7 @@ suite('ProjectBoardService', () => {
 			],
 		}, undefined);
 		await h.service.open();
+		expandCardDetails(h.container);
 		const pills = [...h.container.querySelectorAll<HTMLElement>('.chat-pill-button')];
 		assert.deepStrictEqual({
 			labels: pills.map(pill => pill.textContent),
@@ -5121,6 +5657,7 @@ suite('ProjectBoardService', () => {
 			} else {
 				await h.service.open();
 			}
+			expandCardDetails(h.container);
 			const pill = h.container.querySelector<HTMLElement>('.chat-pill-button')!;
 			for (const color of ['rgb(79, 193, 255)', 'rgb(0, 95, 184)', 'rgb(255, 255, 0)']) {
 				h.container.style.setProperty('--vscode-button-secondaryForeground', color);
@@ -5145,6 +5682,7 @@ suite('ProjectBoardService', () => {
 			requestId: 'context-question',
 		}], undefined);
 		await h.service.open();
+		expandCardDetails(h.container);
 		const answer = h.container.querySelector<HTMLTextAreaElement>('textarea')!;
 		answer.value = 'Keep this answer';
 		answer.setSelectionRange(2, 7);
@@ -5182,6 +5720,7 @@ suite('ProjectBoardService', () => {
 				id: 'file', kind: SessionArtifactKind.File, label: 'Report', uri: URI.file('/project/report.md'), isArtifact: true,
 			}], undefined);
 			const view = store.add(h.service.createView(h.container));
+			expandCardDetails(h.container);
 			h.container.querySelector<HTMLElement>('.chat-pill-button')!.click();
 			assert.strictEqual(h.actionWidget.isVisible, true);
 			switch (change) {
@@ -5214,6 +5753,7 @@ suite('ProjectBoardService', () => {
 		const childPill = () => h.container.querySelector<HTMLElement>('.project-board-child-cards .chat-pill-button');
 		assert.strictEqual(childPill(), null);
 		toggle().click();
+		expandCardDetails(h.container);
 		childPill()!.click();
 		assert.strictEqual(h.actionWidget.isVisible, true);
 		toggle().click();
@@ -5226,6 +5766,7 @@ suite('ProjectBoardService', () => {
 		const h = createBoard(mainWindow.document, [new TestChat('Deferred context')]);
 		h.metadata.set({ kind: 'loading' }, undefined);
 		await h.service.open();
+		expandCardDetails(h.container);
 		assert.strictEqual(h.container.querySelector('.chat-pill-button'), null);
 		h.metadata.set({ kind: 'ready', context: [{ label: 'Loaded input', uri: URI.file('/project/input.ts') }] }, undefined);
 		await timeout(0);
@@ -5252,6 +5793,7 @@ suite('ProjectBoardService', () => {
 		const notify = sinon.spy(h.instantiationService.get(INotificationService), 'error');
 		store.add(toDisposable(() => { open.restore(); notify.restore(); }));
 		store.add(h.service.createView(h.container));
+		expandCardDetails(h.container);
 		h.container.querySelector<HTMLElement>('.chat-pill-button')!.click();
 		h.copy.rejects(new Error('Clipboard unavailable'));
 		h.popup().querySelector<HTMLElement>('[aria-label="Copy path"]')!.click();
@@ -5285,6 +5827,7 @@ suite('ProjectBoardService', () => {
 		await h.service.open();
 		await timeout(0);
 		h.container.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+		expandCardDetails(h.container);
 		const card = () => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')].find(element => element.dataset.chatResource === target.resource.toString())!;
 		const pr = () => [...card().querySelectorAll<HTMLElement>('.chat-pill-button')].find(pill => pill.textContent === '1 Pull Request')!;
 		const prEntry = () => h.popup().querySelector<HTMLElement>('[aria-label^="example/project#12"]')!;
@@ -5441,8 +5984,124 @@ suite('ProjectBoardService', () => {
 		assert.strictEqual(h.container.querySelector('[data-submitted-at]')?.getAttribute('data-submitted-at'), '1000');
 		h.metadata.set({ kind: 'ready', prompt: 'A prompt without a known timestamp', context: [] }, undefined);
 		await timeout(0);
-		assert.strictEqual(h.container.querySelector('[data-submitted-at]'), null);
+		assert.deepStrictEqual([...h.container.querySelectorAll('[data-submitted-at]')].map(element => ({
+			card: element.closest('[data-chat-resource]')?.getAttribute('data-chat-resource'), time: element.getAttribute('data-submitted-at'),
+		})), []);
 		assert.ok(h.container.textContent?.includes('Recency unavailable'));
+	});
+
+	test('idle refresh eventually fills deferred cards beyond the model budget without discarding earlier snapshots', async () => {
+		const idle = controlledIdle();
+		const chats = Array.from({ length: 19 }, (_, index) => new TestChat(`Idle ${index}`));
+		const h = createBoard(mainWindow.document, chats);
+		h.metadata.set({ kind: 'ready', prompt: 'Loaded during idle', submittedAt: 1000, context: [] }, undefined);
+		await h.service.open();
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card-prompt').length, 16);
+		idle.runQueued(0);
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card-prompt').length, 16, 'No work starts without an idle budget');
+		const created = sinon.spy(h.instantiationService, 'createInstance');
+		store.add(toDisposable(() => created.restore()));
+		let previousLoads = 0;
+		await idle.drain(() => {
+			const loads = created.getCalls().filter(call => call.args[0] === ProjectBoardMetadata).length;
+			assert.ok(loads - previousLoads <= 1, 'Start only one new preview per idle callback');
+			previousLoads = loads;
+		});
+		assert.deepStrictEqual({
+			loaded: h.container.querySelectorAll('.project-board-card-prompt').length,
+			pending: h.container.querySelectorAll('[data-board-control^="refresh:"]').length,
+			opened: h.opened, read: chats.some(chat => chat.isRead.get()), deleted: h.state.deletedSessions,
+		}, { loaded: 19, pending: 0, opened: [], read: false, deleted: [] });
+		chats[0].title.set('Unrelated title change', undefined);
+		await idle.drain();
+		assert.strictEqual(h.container.querySelectorAll('.project-board-card-prompt').length, 19);
+	});
+
+	test('native window idle callbacks refresh deferred cards in embedded and auxiliary documents', async () => {
+		pausedIdle.dispose();
+		for (const embedded of [true, false]) {
+			const { document } = createBoardDocument();
+			const h = createBoard(document, Array.from({ length: 18 }, (_, index) => new TestChat(`Native idle ${index}`)));
+			h.metadata.set({ kind: 'ready', prompt: 'Native idle preview', context: [] }, undefined);
+			if (embedded) {
+				store.add(h.service.createView(h.container));
+			} else {
+				await h.service.open();
+			}
+			for (let attempt = 0; attempt < 100 && h.container.querySelectorAll('.project-board-card-prompt').length !== 18; attempt++) {
+				await timeout(10);
+			}
+			assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), Array(18).fill('Native idle preview'));
+		}
+	});
+
+	test('idle refresh waits for an outstanding load, surfaces failures and continues with other cards', async () => {
+		const idle = controlledIdle();
+		const h = createBoard(mainWindow.document, Array.from({ length: 18 }, (_, index) => new TestChat(`Serial ${index}`)));
+		h.metadata.set({ kind: 'ready', prompt: 'Loaded', context: [] }, undefined);
+		await h.service.open();
+		const pending = observableValue<IProjectBoardMetadata>('backgroundMetadata', { kind: 'loading' });
+		h.instantiationService.stubInstance(ProjectBoardMetadata, {
+			metadata: pending, credits: h.credits, creditsError: h.creditsError, configuration: constObservable(undefined), actions: h.actions,
+			setIncludeCredits() { }, setIncludeConfiguration() { }, dispose() { },
+		});
+		const errors: string[] = [];
+		store.add(h.errors.event(error => errors.push(error)));
+		await idle.drain();
+		assert.deepStrictEqual([...h.container.querySelectorAll('.project-board-card-refresh')].map(button => button.textContent).sort(), ['Pending refresh', 'Refreshing…']);
+		pending.set({ kind: 'error', error: 'History failed', message: 'History failed' }, undefined);
+		await timeout(0);
+		h.instantiationService.stubInstance(ProjectBoardMetadata, {
+			metadata: constObservable({ kind: 'ready', prompt: 'Next card', context: [] }), credits: h.credits, creditsError: h.creditsError,
+			configuration: constObservable(undefined), actions: h.actions, setIncludeCredits() { }, setIncludeConfiguration() { }, dispose() { },
+		});
+		await idle.drain();
+		assert.deepStrictEqual({
+			errors, prompts: [...h.container.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent).sort(),
+			pending: h.container.querySelectorAll('.project-board-card-refresh').length,
+		}, { errors: ['History failed'], prompts: [...Array(16).fill('Loaded'), 'Next card', 'Prompt unavailable'], pending: 0 });
+	});
+
+	test('idle metadata work pauses on board switches, reconnects warm previews and cancels on disposal', async () => {
+		const idle = controlledIdle();
+		const h = createBoard(mainWindow.document, Array.from({ length: 18 }, (_, index) => new TestChat(`Paused ${index}`)));
+		h.metadata.set({ kind: 'ready', prompt: 'Original', context: [] }, undefined);
+		const other = h.catalog.createBoard('Empty');
+		h.catalog.updateBoard(other, configuration => ({ ...configuration, autoIncludeSessions: false }));
+		h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+		const view = store.add(h.service.createView(h.container));
+		const board = h.container.querySelector<HTMLElement>('[data-board-id="default"]')!;
+		h.catalog.selectBoard(other);
+		await idle.drain();
+		assert.strictEqual(board.querySelectorAll('.project-board-card-prompt').length, 16);
+		h.catalog.selectBoard(DEFAULT_PROJECT_BOARD_ID);
+		h.metadata.set({ kind: 'ready', prompt: 'Updated warm model', context: [] }, undefined);
+		await idle.drain();
+		assert.deepStrictEqual([...board.querySelectorAll('.project-board-card-prompt')].map(element => element.textContent), Array(18).fill('Updated warm model'));
+		view.dispose();
+		await idle.drain();
+		assert.strictEqual(h.container.querySelector('.project-board'), null);
+	});
+
+	test('released snapshots refresh after provider updates and runtime-state changes', async () => {
+		const idle = controlledIdle();
+		const first = new class extends TestChat {
+			override readonly updatedAt = observableValue('freshness', new Date(1));
+		}('Freshness 00');
+		const h = createBoard(mainWindow.document, [first, ...Array.from({ length: 17 }, (_, index) => new TestChat(`Freshness ${index + 1}`))]);
+		h.metadata.set({ kind: 'ready', prompt: 'Original prompt', context: [] }, undefined);
+		await h.service.open();
+		await idle.drain();
+		h.metadata.set({ kind: 'ready', prompt: 'New submitted prompt', context: [] }, undefined);
+		first.updatedAt.set(new Date(2), undefined);
+		await idle.drain();
+		const prompt = () => [...h.container.querySelectorAll<HTMLElement>('[data-chat-resource]')]
+			.find(card => card.dataset.chatResource === first.resource.toString())!.querySelector('.project-board-card-prompt')?.textContent;
+		assert.strictEqual(prompt(), 'New submitted prompt');
+		h.metadata.set({ kind: 'ready', prompt: 'Completed prompt', context: [] }, undefined);
+		first.status.set(SessionStatus.Completed, undefined);
+		await idle.drain();
+		assert.strictEqual(prompt(), 'Completed prompt');
 	});
 
 	for (const surface of ['embedded', 'standalone'] as const) {
@@ -5467,6 +6126,8 @@ suite('ProjectBoardService', () => {
 			const origin = h.container.querySelector<HTMLElement>(`.project-board[data-board-id="${DEFAULT_PROJECT_BOARD_ID}"]`)!;
 			const otherBoard = h.currentContainer.querySelector<HTMLElement>(`.project-board[data-board-id="${other}"]`)!;
 			origin.querySelector<HTMLElement>('[data-board-control^="collapse:children:"]')!.click();
+			expandCardDetails(origin);
+			expandCardDetails(otherBoard);
 			const textarea = origin.querySelector<HTMLTextAreaElement>('textarea')!;
 			const otherTextarea = otherBoard.querySelector('textarea');
 			textarea.value = 'Keep my draft';
@@ -5486,7 +6147,7 @@ suite('ProjectBoardService', () => {
 				sharedDeferred: card(otherBoard, chats[1]).querySelector('[data-board-control^="refresh:"]')?.textContent,
 				loaded: origin.querySelectorAll('.project-board-card-prompt').length,
 				opened: h.opened, read: target.isRead.get(), deleted: h.state.deletedSessions,
-			}, { prompt: 'Loaded prompt', sharedPrompt: 'Loaded prompt', firstDeferred: 'Pending refresh', sharedDeferred: 'Pending refresh', loaded: 16, opened: [], read: false, deleted: [] });
+			}, { prompt: 'Loaded prompt', sharedPrompt: 'Loaded prompt', firstDeferred: undefined, sharedDeferred: undefined, loaded: 17, opened: [], read: false, deleted: [] });
 			assert.deepStrictEqual({
 				inputRetained: origin.querySelector('textarea') === textarea, otherInputRetained: otherBoard.querySelector('textarea') === otherTextarea,
 				input: textarea.value, selection: [textarea.selectionStart, textarea.selectionEnd], answers: h.submittedAnswers,

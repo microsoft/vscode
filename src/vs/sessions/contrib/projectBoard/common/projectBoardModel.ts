@@ -208,8 +208,20 @@ export class ProjectBoardModel {
 		this.parents.clear();
 		this.children.clear();
 		const byId = new Map(cards.map(card => [card.id, card]));
+		const bySession = new Map(sessions.map(session => [getProjectBoardSessionKey(session), session]));
 		for (const session of sessions) {
 			const parent = byId.get(getProjectBoardCardId(session, session.mainChat.read(reader)));
+			const creation = session.createdBySession?.read(reader);
+			if (parent && creation) {
+				const creator = bySession.get(getProjectBoardSessionKey({ providerId: session.providerId, resource: creation.session }));
+				if (creator && creator !== session) {
+					const creatorChat = creation.chat ?? creator.mainChat.read(reader).resource;
+					const spawningChat = byId.get(`${getProjectBoardSessionKey(creator)}\0${creatorChat.toString()}`);
+					if (spawningChat) {
+						this.parents.set(parent.id, spawningChat);
+					}
+				}
+			}
 			if (parent) {
 				for (const chat of getSessionChildChats(session, reader)) {
 					const child = byId.get(getProjectBoardCardId(session, chat));
@@ -310,7 +322,22 @@ export class ProjectBoardModel {
 				this.sessionPlacements.set(session, undefined);
 			}
 		}
-		return this.sessionPlacements.get(card.session);
+		return this.getSessionPlacement(card.session, this.sessionPlacements, new Set());
+	}
+
+	private getSessionPlacement(session: ISession, placements: Map<ISession, IProjectBoardPlacement | undefined>, visiting: Set<ISession>): IProjectBoardPlacement | undefined {
+		if (placements.has(session)) {
+			return placements.get(session);
+		}
+		if (visiting.has(session)) {
+			return undefined;
+		}
+		visiting.add(session);
+		const main = this._cards.find(card => card.session === session && card.chat === session.mainChat.get());
+		const creator = main && this.parents.get(main.id);
+		const placement = creator && creator.session !== session ? this.getSessionPlacement(creator.session, placements, visiting) : undefined;
+		placements.set(session, placement);
+		return placement;
 	}
 
 	moveCard(cardId: string, placement: IProjectBoardPlacement | undefined): void {

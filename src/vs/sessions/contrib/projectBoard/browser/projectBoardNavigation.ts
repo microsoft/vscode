@@ -6,6 +6,7 @@
 import { getWindowById } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,7 +26,7 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { getNewChatSessionResource, LocalChatSessionUri } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostNewSessionFolderService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
-import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IAuxiliaryEditorPart, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { AUX_WINDOW_GROUP, IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
@@ -62,6 +63,7 @@ interface IDraftEntry {
 
 export class ProjectBoardChatWindows extends Disposable {
 	private readonly opening = new Map<string, Promise<void>>();
+	private requestedCardId: string | undefined;
 	private readonly entries = new Map<string, IDraftEntry>();
 	readonly drafts = observableValue<readonly IProjectBoardDraft[]>(this, []);
 
@@ -97,6 +99,7 @@ export class ProjectBoardChatWindows extends Disposable {
 	}
 
 	async open(card: Pick<IProjectBoardCard, 'id' | 'session' | 'chat' | 'title'>): Promise<void> {
+		this.requestedCardId = card.id;
 		let pending = this.opening.get(card.id);
 		if (!pending) {
 			pending = this.openEditor(card).finally(() => this.opening.delete(card.id));
@@ -313,7 +316,7 @@ export class ProjectBoardChatWindows extends Disposable {
 		return resource;
 	}
 
-	private async openEditor(card: Pick<IProjectBoardCard, 'session' | 'chat' | 'title'>): Promise<void> {
+	private async openEditor(card: Pick<IProjectBoardCard, 'id' | 'session' | 'chat' | 'title'>): Promise<void> {
 		if (!await this.sessionsService.canOpenSession(card.session)) {
 			return;
 		}
@@ -329,12 +332,16 @@ export class ProjectBoardChatWindows extends Disposable {
 				card.chat.resource));
 		// A typed input avoids the resolver moving a matching editor out of the main window.
 		const input = existing?.editor ?? this.instantiationService.createInstance(ChatEditorInput, card.chat.resource, { title: { fallback: card.title } });
+		let pane: IEditorPane;
 		try {
-			await this.openInput(input, existing?.groupId);
+			pane = await this.openInput(input, existing?.groupId, undefined, () => this.requestedCardId === card.id);
 		} finally {
 			if (!existing && !this.editorService.isOpened(identifier)) {
 				input.dispose();
 			}
+		}
+		if (this.requestedCardId !== card.id || !getWindowById(pane.group.windowId)?.window.document.hasFocus()) {
+			return;
 		}
 		try {
 			await this.sessionsManagementService.markRead(card.session);
@@ -344,20 +351,74 @@ export class ProjectBoardChatWindows extends Disposable {
 		}
 	}
 
-	private async openInput(input: EditorInput, group?: PreferredGroup, modelInputState?: IChatModelInputState): Promise<IEditorPane> {
+	private async openInput(input: EditorInput, group?: PreferredGroup, modelInputState?: IChatModelInputState, isCurrent?: () => boolean): Promise<IEditorPane> {
+		const auxiliary = { compact: true, bounds: { width: 800, height: 640 } };
 		const options: IChatEditorOptions = {
 			pinned: true,
 			revealIfOpened: false,
-			auxiliary: { compact: true, bounds: { width: 800, height: 640 } },
+			auxiliary,
+			...(isCurrent ? { preserveFocus: true, showLoading: true } : {}),
 			...(modelInputState ? { modelInputState } : {}),
 		};
-		const pane = await this.editorService.openEditor(input, options, group ?? AUX_WINDOW_GROUP);
-		const targetWindow = pane && getWindowById(pane.group.windowId)?.window;
-		if (!pane || pane.getId() !== ChatEditorInput.EditorID || !targetWindow || targetWindow === mainWindow) {
-			throw new Error(localize('projectBoard.chatWindowFailed', "The chat could not be opened in a separate window."));
+		let createdPart: IAuxiliaryEditorPart | undefined;
+		const lifecycle = new DisposableStore();
+		let closed = false;
+		try {
+			if (isCurrent && group === undefined) {
+				createdPart = await this.editorGroupsService.createAuxiliaryEditorPart(auxiliary);
+				lifecycle.add(createdPart.onWillDispose(() => { closed = true; }));
+				group = createdPart.activeGroup;
+			}
+			const earlyWindowId = createdPart?.windowId ?? (typeof group === 'number' ? this.editorGroupsService.getGroup(group)?.windowId : undefined);
+			if (isCurrent && !createdPart) {
+				const existingPart = this.editorGroupsService.parts.find(part => part.windowId === earlyWindowId);
+				if (existingPart) {
+					lifecycle.add(existingPart.onWillDispose(() => { closed = true; }));
+				}
+			}
+			const earlyWindow = isCurrent && earlyWindowId !== undefined ? getWindowById(earlyWindowId)?.window : undefined;
+			if (isCurrent && (!earlyWindow || earlyWindow === mainWindow)) {
+				throw new Error(localize('projectBoard.chatWindowFailed', "The chat could not be opened in a separate window."));
+			}
+			const opening = this.editorService.openEditor(input, options, group ?? AUX_WINDOW_GROUP);
+			const [pane] = await Promise.all([
+				opening,
+				earlyWindow && isCurrent?.() ? this.hostService.focus(earlyWindow) : Promise.resolve(),
+			]);
+			if (closed) {
+				throw new CancellationError();
+			}
+			const targetWindow = pane && getWindowById(pane.group.windowId)?.window;
+			if (!pane || pane.getId() !== ChatEditorInput.EditorID || !targetWindow || targetWindow === mainWindow) {
+				throw new Error(localize('projectBoard.chatWindowFailed', "The chat could not be opened in a separate window."));
+			}
+			if (!isCurrent) {
+				await this.hostService.focus(targetWindow);
+			}
+			if (!isCurrent || isCurrent() && targetWindow.document.hasFocus()) {
+				pane.focus();
+			}
+			return pane;
+		} catch (error) {
+			if (closed) {
+				throw new CancellationError();
+			}
+			if (createdPart && createdPart.windowId !== mainWindow.vscodeWindowId && createdPart.groups.every(group => group.isEmpty)) {
+				const reportCloseFailure = (closeError: unknown) => {
+					this.logService.error('[ProjectBoard] Failed to close empty chat window', closeError);
+					this.notificationService.error(localize('projectBoard.emptyChatWindowCloseFailed', "The empty chat window could not be closed."));
+				};
+				try {
+					if (!createdPart.close()) {
+						reportCloseFailure(error);
+					}
+				} catch (closeError) {
+					reportCloseFailure(closeError);
+				}
+			}
+			throw error;
+		} finally {
+			lifecycle.dispose();
 		}
-		await this.hostService.focus(targetWindow);
-		pane.focus();
-		return pane;
 	}
 }
