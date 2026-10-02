@@ -239,6 +239,26 @@ Provider availability:
 - **Claude** — enabled when `node_modules/@anthropic-ai/claude-agent-sdk` is present (dev dep).
 - **Codex** — shared suite enabled when `node_modules/@openai/codex` is present. Codex-specific *steering* tests (real-time, non-deterministic) are extra and gated behind `AGENT_HOST_REAL_CODEX=1`.
 
+### Expected failures
+
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
+operation while keeping its desired-behavior assertions. It logs and accepts
+only the specified error. An unexpected pass fails the run and identifies the
+marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
+Setup errors, different failures, and teardown errors remain failures.
+Skip these scenarios while recording so a known early failure cannot overwrite
+a complete fixture with a partial recording. Remove that recording skip together
+with the marker when the upstream fix is adopted.
+
+The managed-telemetry no-restart scenario runs this way by default. Do not
+replace its marker with a permanent negative assertion.
+
+If a recognized failure prevents later model turns, pass
+`{ allowUnconsumedResponses: true }` to the lease's replay verification at
+release, only after `assertExpectedFailure` returns. This permits unused future
+responses without accepting unrecorded requests or request mismatches. The
+option is per release; normal tests still require complete replay consumption.
+
 ---
 
 ## Server lifecycle
