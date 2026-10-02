@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { localize } from '../../../../nls.js';
 import { AgentSession } from '../../common/agent.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../../common/state/protocol/commands.js';
 import { Customization, CustomizationType, DirectoryCustomization, MessageAttachmentKind, PluginCustomization, SkillCustomization } from '../../common/state/protocol/state.js';
@@ -20,6 +21,7 @@ export { parseLeadingSlashCommand } from '../../common/agentHostSlashCommand.js'
 const HIDDEN_RUNTIME_COMMANDS = new Set<string>(['agent', 'app', 'changelog', 'context', 'copy', 'exit', 'extensions', 'feedback', 'help', 'ide', 'instructions', 'login', 'logout', 'model', 'new', 'rename', 'restart', 'resume', 'sandbox', 'session', 'settings', 'statusline', 'streamer-mode', 'subagents', 'tasks', 'terminal-setup', 'theme', 'undo', 'update', 'user', 'voice', 'worktree', 'autopilot', 'yolo', 'cd', 'cwd', 'after', 'before', 'add-dir', 'allow-all', 'list-dirs', 'reset-allowed-tools']);
 
 export const DEFAULT_RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
+const PLUGIN_MARKETPLACE_COMPLETION_CACHE_TTL_MS = 30_000;
 
 /**
  * Lookup hooks used by {@link CopilotSlashCommandCompletionProvider} to
@@ -31,9 +33,14 @@ export interface ICopilotSlashCommandSessionInfo {
 	 * the agent host config. When provided and `false`, `/rubber-duck` is hidden.
 	 */
 	isRubberDuckEnabled?(): boolean;
+	/** Whether local session indexing and Chronicle commands are enabled. */
+	isLocalIndexEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
+	getPluginMarketplaces?(sessionId: string): Promise<readonly { readonly name: string; readonly isDefault?: boolean; readonly managed?: boolean }[]>;
+	getPluginMarketplacePlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]>;
+	getInstalledPlugins?(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string; readonly enabled: boolean; readonly source?: string; readonly managed?: boolean; readonly installed?: boolean }[]>;
 	/**
 	 * The session's current config state (`mode` / `autoApprove` axes), used to
 	 * filter config-action slash command completions so only the state-changing
@@ -59,6 +66,7 @@ export interface ICopilotRuntimeSlashCommandQueryOptions {
 export class CopilotSlashCommandCompletionProvider implements IAgentHostCompletionItemProvider {
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
 	readonly triggerCharacters = [CompletionTriggerCharacter.Slash, CompletionTriggerCharacter.Space] as const;
+	private readonly _pluginMarketplaceCompletionCache = new Map<string, { readonly expiresAt: number; readonly value: Promise<readonly { readonly name: string; readonly marketplace: string }[]> }>();
 
 	constructor(
 		private readonly copilotcliId: string,
@@ -98,15 +106,115 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		if (!range) {
 			return undefined;
 		}
-		const command = /^\/(?<command>mcp|skills)\s+(?<subcommand>enable|disable|show|info)\s*$/i.exec(text.slice(0, range.start));
+		const prefix = text.slice(0, range.start);
+		if (/^\/plugin\s+marketplace\s+$/i.test(prefix)) {
+			return pluginMarketplaceChoices()
+				.filter(choice => matchesSlashCompletion(text.slice(range.start, offset), choice.name))
+				.map((choice): CompletionItem => ({
+					insertText: `${choice.name} `,
+					rangeStart: range.start,
+					rangeEnd: range.end,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: choice.name,
+						_meta: toCommandCompletionAttachmentMeta({
+							command: 'plugin',
+							description: choice.description,
+							...(choice.name !== 'list' ? { retriggerSuggestions: true } : {}),
+							...(choice.name === 'list' ? { submitOnAccept: true } : {}),
+						}),
+					},
+				}))
+				.sort((a, b) => a.insertText.localeCompare(b.insertText));
+		}
+
+		const marketplaceCommand = /^\/plugin\s+marketplace\s+(?<subcommand>browse|update|remove)\s+$/i.exec(prefix);
+		if (marketplaceCommand?.groups?.subcommand) {
+			const subcommand = marketplaceCommand.groups.subcommand.toLowerCase();
+			const marketplaces = await this._sessionInfo.getPluginMarketplaces?.(sessionId) ?? [];
+			return marketplaces
+				.filter(marketplace => subcommand !== 'remove' || (!marketplace.isDefault && !marketplace.managed))
+				.map(marketplace => marketplace.name)
+				.filter((name, index, names) => names.indexOf(name) === index)
+				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
+				.map((name): CompletionItem => ({
+					insertText: name,
+					rangeStart: range.start,
+					rangeEnd: range.end,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: name,
+					},
+				}))
+				.sort((a, b) => a.insertText.localeCompare(b.insertText));
+		}
+
+		if (/^\/plugin\s+install\s+$/i.test(prefix)) {
+			const plugins = await this._getPluginMarketplacePlugins(sessionId);
+			return plugins
+				.map(plugin => `${plugin.name}@${plugin.marketplace}`)
+				.filter((spec, index, specs) => specs.indexOf(spec) === index)
+				.filter(spec => matchesSlashCompletion(text.slice(range.start, offset), spec))
+				.map((spec): CompletionItem => ({
+					insertText: spec,
+					rangeStart: range.start,
+					rangeEnd: range.end,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: spec,
+					},
+				}))
+				.sort((a, b) => a.insertText.localeCompare(b.insertText));
+		}
+
+		const command = /^\/(?<command>mcp|skills|plugin)\s+(?<subcommand>enable|disable|show|info|uninstall|remove|update)\s*$/i.exec(prefix);
 		if (!command?.groups) {
 			return undefined;
 		}
 
 		const { command: commandName, subcommand } = command.groups;
 		if ((commandName.toLowerCase() === 'mcp' && !['enable', 'disable', 'show'].includes(subcommand.toLowerCase()))
-			|| (commandName.toLowerCase() === 'skills' && subcommand.toLowerCase() !== 'info')) {
+			|| (commandName.toLowerCase() === 'skills' && subcommand.toLowerCase() !== 'info')
+			|| (commandName.toLowerCase() === 'plugin' && !['enable', 'disable', 'uninstall', 'remove', 'update'].includes(subcommand.toLowerCase()))) {
 			return undefined;
+		}
+
+		if (commandName.toLowerCase() === 'plugin') {
+			const plugins = await this._sessionInfo.getInstalledPlugins?.(sessionId) ?? [];
+			const directPluginNameCounts = new Map<string, number>();
+			for (const plugin of plugins) {
+				if (!plugin.marketplace) {
+					directPluginNameCounts.set(plugin.name, (directPluginNameCounts.get(plugin.name) ?? 0) + 1);
+				}
+			}
+			const candidates = plugins
+				.filter(plugin => plugin.installed !== false && !plugin.managed)
+				.filter(plugin => {
+					switch (subcommand.toLowerCase()) {
+						case 'enable':
+							return !!plugin.marketplace && !plugin.enabled;
+						case 'disable':
+							return !!plugin.marketplace && plugin.enabled;
+						case 'uninstall':
+						case 'remove':
+						case 'update':
+							return plugin.source !== 'builtin' && (!!plugin.marketplace || directPluginNameCounts.get(plugin.name) === 1);
+					}
+					return false;
+				})
+				.map(plugin => plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : plugin.name);
+			return Array.from(new Set(candidates))
+				.filter(name => matchesSlashCompletion(text.slice(range.start, offset), name))
+				.map((name): CompletionItem => ({
+					insertText: name,
+					rangeStart: range.start,
+					rangeEnd: range.end,
+					attachment: {
+						type: MessageAttachmentKind.Simple,
+						label: name,
+					},
+				}))
+				.sort((a, b) => a.insertText.localeCompare(b.insertText));
 		}
 
 		const customizations = await this._sessionInfo.getSessionCustomizations(sessionId) ?? [];
@@ -135,6 +243,26 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				},
 			}))
 			.sort((a, b) => a.insertText.localeCompare(b.insertText));
+	}
+
+	private async _getPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
+		const cached = this._pluginMarketplaceCompletionCache.get(sessionId);
+		if (cached && cached.expiresAt > Date.now()) {
+			return cached.value;
+		}
+		const value = this._sessionInfo.getPluginMarketplacePlugins?.(sessionId) ?? Promise.resolve([]);
+		this._pluginMarketplaceCompletionCache.set(sessionId, {
+			expiresAt: Date.now() + PLUGIN_MARKETPLACE_COMPLETION_CACHE_TTL_MS,
+			value,
+		});
+		try {
+			return await value;
+		} catch (error) {
+			if (this._pluginMarketplaceCompletionCache.get(sessionId)?.value === value) {
+				this._pluginMarketplaceCompletionCache.delete(sessionId);
+			}
+			throw error;
+		}
 	}
 
 	private async _getKnownSkills(sessionId: string): Promise<{ readonly known: ReadonlySet<string>; readonly syncedContainerNames: ReadonlySet<string> }> {
@@ -208,6 +336,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		]);
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
+		const localIndexEnabled = this._sessionInfo.isLocalIndexEnabled?.() ?? true;
 		const completionItems: CompletionItem[] = [];
 		const addedAliases = new Set<string>();
 
@@ -234,6 +363,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
 				continue;
 			}
+			if (!localIndexEnabled && command.kind === 'builtin' && command.name === 'chronicle') {
+				continue;
+			}
 			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));
 			const commandMatches = argumentTyped === undefined
 				? aliases.some(alias => matchesSlashCompletion(typedLower, alias))
@@ -243,14 +375,17 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 			}
 			// Use structured input choices as options; if there are none, emit a single item for the command and surface any free-text hint as a prompt.
 			const options: (NonNullable<NonNullable<ICopilotRuntimeSlashCommandInfo['input']>['choices']>[number] & { argumentHint?: string })[] = [];
+			const choices = command.name === 'plugin'
+				? mergePluginCommandChoices(command.input?.choices ?? [])
+				: command.input?.choices ?? [];
 
 			// If we have a hint, then this means we have a structured command with sub commands or options.
 			// I.e. the standalone command is also valie.
-			if (command.input?.hint || !command.input?.choices?.length) {
+			if (command.input?.hint || !choices.length) {
 				options.push({ name: '', description: command.description, argumentHint: command.input?.hint });
 			}
-			if (command.input?.choices?.length) {
-				options.push(...command.input.choices);
+			if (choices.length) {
+				options.push(...choices);
 			}
 
 			// Generate completion items for each alias and option combination.
@@ -270,11 +405,13 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 							const description = option.description ?? command.description;
 							const argumentHint = option.argumentHint;
 							const retriggerSuggestions = !option.name
-								? ['mcp', 'skills'].includes(command.name)
+								? ['mcp', 'plugin', 'skills'].includes(command.name)
 								: command.name === 'mcp'
 									? ['enable', 'disable', 'show'].includes(option.name)
-									: command.name === 'skills' && option.name === 'info';
-							const submitOnAccept = ['mcp', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
+									: command.name === 'skills'
+										? option.name === 'info'
+										: command.name === 'plugin' && ['marketplace', 'install', 'enable', 'disable', 'uninstall', 'remove', 'update'].includes(option.name);
+							const submitOnAccept = ['mcp', 'plugin', 'skills'].includes(command.name) && ['list', 'reload'].includes(option.name);
 							addedAliases.add(alias);
 
 							completionItems.push({
@@ -331,6 +468,36 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		};
 		return completionItems.sort((a, b) => getSortText(a).localeCompare(getSortText(b)));
 	}
+}
+
+function mergePluginCommandChoices(runtimeChoices: readonly { readonly name: string; readonly description: string }[]): { name: string; description: string }[] {
+	const choices = new Map(runtimeChoices.map(choice => [choice.name, { ...choice }]));
+	for (const choice of pluginCommandChoices()) {
+		choices.set(choice.name, choice);
+	}
+	return [...choices.values()];
+}
+
+function pluginCommandChoices(): { name: string; description: string }[] {
+	return [
+		{ name: 'list', description: localize('copilotPlugin.completion.list', "List installed plugins") },
+		{ name: 'install', description: localize('copilotPlugin.completion.install', "Install a plugin") },
+		{ name: 'uninstall', description: localize('copilotPlugin.completion.uninstall', "Uninstall a plugin") },
+		{ name: 'update', description: localize('copilotPlugin.completion.update', "Update a plugin") },
+		{ name: 'enable', description: localize('copilotPlugin.completion.enable', "Enable a plugin") },
+		{ name: 'disable', description: localize('copilotPlugin.completion.disable', "Disable a plugin") },
+		{ name: 'marketplace', description: localize('copilotPlugin.completion.marketplace', "Manage plugin marketplaces") },
+	];
+}
+
+function pluginMarketplaceChoices(): { name: string; description: string }[] {
+	return [
+		{ name: 'add', description: localize('copilotPlugin.completion.marketplaceAdd', "Add a plugin marketplace") },
+		{ name: 'remove', description: localize('copilotPlugin.completion.marketplaceRemove', "Remove a plugin marketplace") },
+		{ name: 'list', description: localize('copilotPlugin.completion.marketplaceList', "List plugin marketplaces") },
+		{ name: 'browse', description: localize('copilotPlugin.completion.marketplaceBrowse', "Browse a plugin marketplace") },
+		{ name: 'update', description: localize('copilotPlugin.completion.marketplaceUpdate', "Update plugin marketplaces") },
+	];
 }
 
 export type ICopilotRuntimeSlashCommandInfo = RuntimeSlashCommandInfo;

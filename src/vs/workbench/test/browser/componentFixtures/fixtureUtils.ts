@@ -88,6 +88,7 @@ import { TestNotificationService } from '../../../../platform/notification/test/
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../platform/opener/test/common/nullOpenerService.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../services/policies/common/accountPolicyService.js';
 import { IApplicationSharedStorageValueChangeEvent, IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageEntry, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../platform/telemetry/common/telemetryUtils.js';
@@ -173,6 +174,9 @@ sourceMapSupport.install({
  * This is useful for fixtures where we want consistent behavior without persisted state.
  */
 class NullStorageService implements IStorageService {
+
+	async readApplicationSharedValue(): Promise<string | undefined> { return undefined; }
+	async compareAndSwapApplicationSharedValue(): Promise<{ swapped: boolean; currentValue: string | undefined }> { return { swapped: false, currentValue: undefined }; }
 
 	declare readonly _serviceBrand: undefined;
 
@@ -875,6 +879,13 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
  */
 export function registerWorkbenchServices(registration: ServiceRegistration): void {
 	registration.defineInstance(IManagedSettingsService, new NullManagedSettingsService());
+	const accountPolicyGateService = {
+		_serviceBrand: undefined,
+		gateInfo: { state: AccountPolicyGateState.Inactive },
+		onDidChangeGateInfo: Event.None,
+		async whenInitialized(): Promise<void> { },
+	};
+	registration.defineInstance(IAccountPolicyGateService, accountPolicyGateService);
 	registration.defineInstance(IContextMenuService, {
 		showContextMenu: () => { },
 		onDidShowContextMenu: () => ({ dispose: () => { } }),
@@ -1021,6 +1032,8 @@ export interface ComponentFixtureContext {
 	readonly input: unknown;
 	/** Whether deterministic fixture focus overrides natural browser focus. */
 	readonly overrideFocus: boolean;
+	/** Fires after the shared Enable Animations control changes the fixture container state. */
+	readonly onDidChangeEnableAnimations: Event<boolean>;
 	/** Applies initial focus only while deterministic fixture focus is enabled. */
 	focus(target: { focus(): void }): void;
 }
@@ -1185,6 +1198,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				await registerFixtureSyntaxHighlighting(disposableStore, fixtureHost, darkTheme, theme);
 
 				const stylesheetOrderOverride = disposableStore.add(new MutableDisposable<IDisposable>());
+				const onDidChangeEnableAnimations = disposableStore.add(new Emitter<boolean>());
 				const updateStylesheetOrder = (input: unknown) => {
 					const option = getReverseStylesheetsOption(input);
 					stylesheetOrderOverride.clear();
@@ -1195,7 +1209,9 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 				context.watchInput('reverseStylesheets', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('reverseStylesheetsRange', (_value, input) => updateStylesheetOrder(input));
 				context.watchInput('enableAnimations', value => {
-					container.classList.toggle('disable-animations', !value);
+					const enabled = value === true;
+					container.classList.toggle('disable-animations', !enabled);
+					onDidChangeEnableAnimations.fire(enabled);
 				});
 
 				let renderTimeApi: IDisposable | undefined;
@@ -1233,6 +1249,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						fileIconTheme,
 						input: context.input,
 						overrideFocus: input.overrideFocus,
+						onDidChangeEnableAnimations: onDidChangeEnableAnimations.event,
 						focus: target => applyFixtureFocus(input.overrideFocus, target),
 					});
 

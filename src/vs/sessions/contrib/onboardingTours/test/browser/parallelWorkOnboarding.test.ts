@@ -29,7 +29,7 @@ import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../w
 import { IOnboardingPresentation, onboardingPresentationRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingPresentation.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { OnboardingDismissReason, OnboardingOutcome } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
-import { ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
+import { ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../workbench/services/assignment/test/common/nullAssignmentService.js';
 import { ChatEntitlement, ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { TestHostService, TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -51,8 +51,11 @@ suite('ParallelWorkOnboarding', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => Memento.clear(StorageScope.APPLICATION));
 
-	function createHarness(options: { enabled?: boolean; hidden?: boolean; outcome?: OnboardingOutcome } = {}) {
-		const configuration = new TestConfigurationService({ [ONBOARDING_ENABLED_CONFIG]: options.enabled ?? true });
+	function createHarness(options: { enabled?: boolean; hidden?: boolean; outcome?: OnboardingOutcome; parallelWorkDeveloperMode?: boolean } = {}) {
+		const configuration = new TestConfigurationService({
+			[ONBOARDING_ENABLED_CONFIG]: options.enabled ?? true,
+			[ONBOARDING_DEVELOPER_MODE_CONFIG]: { [NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID]: options.parallelWorkDeveloperMode ?? false },
+		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		const context = store.add(new ContextKeyService(configuration));
 		ChatContextKeys.enabled.bindTo(context).set(true);
@@ -161,6 +164,13 @@ suite('ParallelWorkOnboarding', () => {
 		assert.deepStrictEqual({ presented: h.presented, events: h.events }, {
 			presented: [NEW_SESSION_VIEW_V2_TOUR_ID], events: ['handoff'],
 		});
+	});
+
+	test('developer mode replays the variation after the regular V2 tour was shown', async () => {
+		const h = createHarness({ parallelWorkDeveloperMode: true });
+		await h.onboarding.runScenario(NEW_SESSION_VIEW_V2_TOUR_ID);
+		await h.runner.runWithHandoff(h.handoff, h.resolveSession, CancellationToken.None);
+		assert.deepStrictEqual(h.presented, [NEW_SESSION_VIEW_V2_TOUR_ID, NEW_SESSION_VIEW_V2_PARALLEL_WORK_TOUR_ID]);
 	});
 
 	for (const options of [{ enabled: false }, { hidden: true }]) {

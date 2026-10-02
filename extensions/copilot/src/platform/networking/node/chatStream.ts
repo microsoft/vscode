@@ -11,6 +11,7 @@ import { toTextParts } from '../../chat/common/globalStringUtils';
 import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, multiplexProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
+import { gitHubCopilotRequestTeProperty } from '../common/fetch';
 import { APIJsonData, CAPIChatMessage, ChatCompletion, rawMessageToCAPI } from '../common/openai';
 import { FinishedCompletion, convertToAPIJsonData } from './stream';
 
@@ -476,6 +477,7 @@ export function sendResponsesApiCompactionTelemetry(
 		headerRequestId: string;
 		gitHubRequestId: string;
 		model: string;
+		gitHubCopilotRequestTe?: string;
 	},
 	measurements: {
 		compactThreshold?: number;
@@ -491,6 +493,7 @@ export function sendResponsesApiCompactionTelemetry(
 			"headerRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Request ID from the response headers." },
 			"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "GitHub request ID from the response headers if present." },
 			"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model identifier reported by the response." },
+			"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for this model call, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 			"compactThreshold": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Compaction threshold configured for the request." },
 			"promptTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Prompt token count reported by the response." },
 			"totalTokens": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total token count reported by the response." }
@@ -501,6 +504,7 @@ export function sendResponsesApiCompactionTelemetry(
 		headerRequestId: properties.headerRequestId,
 		gitHubRequestId: properties.gitHubRequestId,
 		model: properties.model,
+		...gitHubCopilotRequestTeProperty(properties.gitHubCopilotRequestTe),
 	}, {
 		compactThreshold: measurements.compactThreshold,
 		promptTokens: measurements.promptTokens,

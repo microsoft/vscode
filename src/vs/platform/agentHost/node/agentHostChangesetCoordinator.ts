@@ -227,7 +227,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
 		if (parsed && parsed.ownerUri !== parsed.sessionUri && !this._stateManager.getSessionState(parsed.sessionUri)
-			&& (parsed.kind === ChangesetKind.Branch || parsed.kind === ChangesetKind.Uncommitted || parsed.kind === ChangesetKind.Turn)) {
+			&& (parsed.kind === ChangesetKind.Branch || parsed.kind === ChangesetKind.Uncommitted || parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Session)) {
 			this._pendingChangesetSubscriptions.add(resourceStr);
 		}
 
@@ -258,12 +258,12 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 
 		if (parsed?.kind === ChangesetKind.Session) {
-			if (isAhpChatChannel(parsed.ownerUri)) {
-				return;
-			}
 			this._addSubscription(parsed.ownerUri, resourceStr);
 			this._changesets.refreshSessionChangeset(parsed.ownerUri, 'fileEditTracker');
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
+			// Chat-scoped Session Changes come only from tracked edits, which external file changes do not affect.
+			if (!isAhpChatChannel(parsed.ownerUri)) {
+				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
+			}
 			return;
 		}
 
@@ -509,6 +509,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
 			// need to participate.
 			await this._changesets.computeCompareTurnsChangeset(parsed.ownerUri, parsed.originalTurnId, parsed.modifiedTurnId);
+		} else if (parsed.kind === ChangesetKind.Session && isAhpChatChannel(parsed.ownerUri)) {
+			// Chat-scoped Session Changes are not part of the chat's static
+			// changesets; register the subscribed resource so it can be served
+			// before its first computation publishes files.
+			this._stateManager.registerChangeset(resourceStr);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the

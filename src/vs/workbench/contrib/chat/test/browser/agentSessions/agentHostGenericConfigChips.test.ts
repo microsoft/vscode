@@ -15,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentSubscriptionManager, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { type ComponentToState, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -44,6 +44,7 @@ import { IChatWidget, IChatWidgetViewModelChangeEvent } from '../../../browser/c
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { IChatPhoneInputPresenter } from '../../../browser/widget/input/chatPhoneInputPresenter.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { AgentHostGenericConfigChips } from '../../../browser/agentSessions/agentHost/agentHostGenericConfigChips.js';
 import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
@@ -209,6 +210,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		const ambient = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
 			override readonly onAgentHostExit = Event.None;
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 		}();
 		const remoteService = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
@@ -220,7 +222,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return [...remoteConnections].find(([address]) => agentHostAuthority(address) === authority)?.[1];
 			}
 		}();
-		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService));
+		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService, new TestPathService(), new NullLogService()));
 		const registerPolicy = (address: string) => store.add(connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
 			sessionSchemeAlias: { ui: 'test-agent', backend: 'ahp-session' },
 		}));
@@ -327,6 +329,39 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		});
 	});
 
+	test('native approvals and host-owned reports do not create duplicate generic chips', () => {
+		const config = makeConfig();
+		delete config.schema.properties.autoApprove;
+		config.schema.properties.approvalMode = { type: 'string', title: 'Native approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true };
+		config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective approvals', enum: ['manual', 'assisted', 'allow-all', 'unknown'], readOnly: true };
+		config.schema.properties.target = { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], sessionMutable: false };
+		const { container } = setup(config);
+		assert.deepStrictEqual({
+			chips: container.querySelectorAll('.agent-host-generic-chip-slot').length,
+			native: container.querySelector('.agent-host-chat-input-picker-host-approvalMode'),
+			effective: container.querySelector('.agent-host-chat-input-picker-host-effectiveApprovalMode'),
+			target: container.querySelector('.agent-host-chat-input-picker-host-target'),
+		}, { chips: 3, native: null, effective: null, target: null });
+	});
+
+	test('malformed preferred VS approval schemas remain editable through generic fallback only', async () => {
+		const config = makeConfig();
+		config.schema.properties.autoApprove = { type: 'string', title: 'Custom approvals', enum: ['custom', 'other'], sessionMutable: true };
+		config.schema.properties.approvalMode = { type: 'string', title: 'Native approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true };
+		config.values.autoApprove = 'custom';
+		const rig = setup(config);
+		await rig.open('autoApprove');
+		await rig.actionWidget.select('other');
+		assert.deepStrictEqual({
+			fallback: rig.trigger('autoApprove').getAttribute('aria-label'),
+			native: rig.container.querySelector('.agent-host-chat-input-picker-host-approvalMode'),
+			writes: rig.host.connection.dispatches,
+		}, {
+			fallback: 'Custom approvals: custom', native: null,
+			writes: [{ channel: backendSession.toString(), config: { autoApprove: 'other' } }],
+		});
+	});
+
 	test('sends the raw selection to the owning session and refreshes with its advertised provider', async () => {
 		const { open, actionWidget, host, secondHost, refreshes, config, trigger } = setup();
 		await open();
@@ -340,7 +375,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		}, {
 			writes: [{ channel: backendSession.toString(), config: { customChoice: 'second' } }],
 			otherWrites: [],
-			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { ...config.values, customChoice: 'second' }]],
+			refreshes: [[firstResource.toString(), 'test-agent', workingDirectory.toString(), { customChoice: 'second', toggle: false }]],
 			label: 'Custom Choice: Second Option',
 		});
 	});
@@ -526,7 +561,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		assert.deepStrictEqual({
 			requests: host.connection.completionRequests.map(request => ({ ...request, workingDirectory: request.workingDirectory?.toString() })), labels: actionWidget.labels,
 		}, {
-			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: config.values }],
+			requests: [{ provider: 'test-agent', property: 'customChoice', query: undefined, workingDirectory: workingDirectory.toString(), config: { customChoice: 'first', toggle: false } }],
 			labels: ['Dynamic Option'],
 		});
 	});

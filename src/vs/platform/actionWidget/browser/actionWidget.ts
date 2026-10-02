@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as dom from '../../../base/browser/dom.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
-import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
+import { hasRequiredAncestorClasses, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { IAction } from '../../../base/common/actions.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
@@ -21,6 +21,7 @@ import { KeybindingWeight } from '../../keybinding/common/keybindingsRegistry.js
 import { inputActiveOptionBackground, registerColor } from '../../theme/common/colorRegistry.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 
 registerColor(
 	'actionBar.toggledBackground',
@@ -60,6 +61,7 @@ export interface IActionWidgetService {
 	 * rebuilding the list.
 	 */
 	focusItemById(itemId: string): void;
+	setFilter(value: string, focusItemId?: string): void;
 
 	hide(didCancel?: boolean): void;
 
@@ -110,6 +112,9 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 	}
 
 	updateItems<T>(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		if (this._widgetElement) {
+			finishActionWidgetOpeningAnimation(this._widgetElement);
+		}
 		(this._list.value as ActionList<T> | undefined)?.updateItems(items, focusItemId, options);
 	}
 
@@ -141,6 +146,10 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		return this._list?.value?.toggleFocusedSection() ?? false;
 	}
 
+	setFilter(value: string, focusItemId?: string): void {
+		this._list.value?.setFilter(value, focusItemId);
+	}
+
 	clearFilter(): boolean {
 		return this._list?.value?.clearFilter() ?? false;
 	}
@@ -153,7 +162,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		}
 
 		const closeAnimation = list.closeAnimation;
-		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !this._hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
+		if (!widget || !closeAnimation || closeAnimation.duration <= 0 || !hasRequiredAncestorClasses(widget, closeAnimation.requiredAncestorClasses)) {
 			this._closingList = list;
 			list.hide(didCancel);
 			return;
@@ -163,6 +172,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const computedStyle = dom.getWindow(widget).getComputedStyle(widget);
 		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_OPACITY_VARIABLE, computedStyle.opacity);
 		widget.style.setProperty(ACTION_WIDGET_CLOSE_START_TRANSFORM_VARIABLE, computedStyle.transform);
+		widget.classList.remove(ACTION_WIDGET_ANIMATED_CLASS);
 		widget.classList.add(closeAnimation.className);
 		list.hide(didCancel, false);
 		this._closeAnimation.value = disposableTimeout(() => {
@@ -186,7 +196,7 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		widget.classList.add('action-widget');
 		const widgetClassNames = list.widgetClassName?.split(/\s+/).filter(Boolean);
 		if (widgetClassNames?.length) {
-			widget.classList.add(...widgetClassNames);
+			widget.classList.add(...widgetClassNames.filter(className => className !== ACTION_WIDGET_DROPDOWN_MOTION_CLASS));
 		}
 		element.appendChild(widget);
 		this._widgetElement = widget;
@@ -276,6 +286,11 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 			pendingBlurHide.value = disposableTimeout(runBlurHide, 75);
 		}));
 
+		// Measure the popup before applying its entrance transform.
+		if (widgetClassNames?.length) {
+			widget.classList.add(...widgetClassNames);
+		}
+		widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
 		return renderDisposables;
 	}
 
@@ -288,18 +303,6 @@ export class ActionWidgetService extends Disposable implements IActionWidgetServ
 		const actionBar = new ActionBar(container);
 		actionBar.push(actions, { icon: false, label: true });
 		return actionBar;
-	}
-
-	private _hasRequiredAncestorClasses(element: HTMLElement, classNames: readonly string[] | undefined): boolean {
-		if (!classNames?.length) {
-			return true;
-		}
-		for (let candidate: HTMLElement | null = element; candidate; candidate = candidate.parentElement) {
-			if (classNames.every(className => candidate.classList.contains(className))) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	private _onWidgetClosed(didCancel?: boolean): void {
