@@ -19,7 +19,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
-import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationRepository } from '../../browser/cloudAutomationApiClient.js';
+import { CloudAutomationApiClient, CloudAutomationMutationUncertainError, ICloudAutomationDefinition, ICloudAutomationMutation, ICloudAutomationRepository, ICloudAutomationTask } from '../../browser/cloudAutomationApiClient.js';
 import { CloudAutomationStore } from '../../browser/cloudAutomationStore.js';
 
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
@@ -37,6 +37,52 @@ class TestApi extends mock<CloudAutomationApiClient>() {
 	readonly visibility = new Map<string, boolean | Error | Promise<boolean>>();
 	readonly definitions = new Map<string, readonly ICloudAutomationDefinition[] | Error | Promise<readonly ICloudAutomationDefinition[]>>();
 	readonly listStarted = new DeferredPromise<void>();
+	readonly mutations: string[] = [];
+	mutationResult: ICloudAutomationDefinition | Promise<ICloudAutomationDefinition> | Error = definition;
+	tasks: readonly ICloudAutomationTask[] = [];
+	taskDetail: ICloudAutomationTask | Promise<ICloudAutomationTask> | undefined;
+	readonly detailStarted = new DeferredPromise<void>();
+	activeDetails = 0;
+	maxActiveDetails = 0;
+
+	override async create(): Promise<ICloudAutomationDefinition> {
+		this.mutations.push('create');
+		if (this.mutationResult instanceof Error) {
+			throw this.mutationResult;
+		}
+		return this.mutationResult;
+	}
+
+	override async get(): Promise<ICloudAutomationDefinition> {
+		return definition;
+	}
+
+	override async update(_account: string, _repository: ICloudAutomationRepository, _id: string, value: ICloudAutomationMutation): Promise<ICloudAutomationDefinition> {
+		this.mutations.push('update');
+		return { ...definition, ...value };
+	}
+
+	override async delete(): Promise<void> {
+		this.mutations.push('delete');
+	}
+
+	override async run(): Promise<void> {
+		this.mutations.push('run');
+	}
+
+	override async listRuns(): Promise<readonly ICloudAutomationTask[]> {
+		return this.tasks;
+	}
+
+	override async getTask(): Promise<ICloudAutomationTask> {
+		this.maxActiveDetails = Math.max(this.maxActiveDetails, ++this.activeDetails);
+		await this.detailStarted.complete();
+		try {
+			return await this.taskDetail!;
+		} finally {
+			this.activeDetails--;
+		}
+	}
 
 	override async isPrivateRepository(account: string, repository: ICloudAutomationRepository, token: CancellationToken): Promise<boolean> {
 		this.calls.push({ method: 'visibility', account, repository, token });
@@ -104,6 +150,99 @@ suite('CloudAutomationStore', () => {
 			calls: [], entries: [], state: 'ready',
 		});
 	}));
+
+	test('coordinates create, preflight update, acknowledgement-only run and deletion', async () => {
+		const { store, api } = setup();
+		const entry = await store.create(workspace, { name: definition.name, prompt: definition.prompt });
+		const conflict = await store.update(entry, () => undefined);
+		const updated = await store.update(entry, current => ({ name: `${current.name} updated` }));
+		const acknowledgement = await store.run(updated.entry);
+		await store.delete(updated.entry);
+		assert.deepStrictEqual({
+			conflict, updated: updated.entry.definition.name, acknowledgement,
+			mutations: api.mutations, entries: store.entries.get(), history: store.history.get(),
+		}, {
+			conflict: { entry, updated: false }, updated: 'Review updated', acknowledgement: undefined,
+			mutations: ['create', 'update', 'run', 'delete'], entries: [], history: [],
+		});
+	});
+
+	test('pre-dispatch guards and public visibility prevent mutations', async () => {
+		const { store, api } = setup();
+		await assert.rejects(store.create(workspace, {}, () => { throw new Error('Disabled'); }), /Disabled/);
+		api.visibility.set(repository.name, false);
+		await assert.rejects(store.create(workspace, {}), /Private repository/);
+		assert.deepStrictEqual(api.mutations, []);
+	});
+
+	test('uncertain mutations block retries until an explicit successful refresh', async () => {
+		const { store, api } = setup();
+		api.mutationResult = new CloudAutomationMutationUncertainError(new Error('Lost response'));
+		await assert.rejects(store.create(workspace, {}), CloudAutomationMutationUncertainError);
+		await assert.rejects(store.create(workspace, {}), CloudAutomationMutationUncertainError);
+		await store.refresh();
+		api.mutationResult = definition;
+		await store.create(workspace, {});
+		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get() }, { mutations: ['create', 'create'], uncertain: false });
+	});
+
+	test('refresh cannot overwrite a later mutation and queued old-account work never dispatches', async () => {
+		const { store, api, recents, changeAccount } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		const pending = new DeferredPromise<readonly ICloudAutomationDefinition[]>();
+		api.definitions.set(repository.name, pending.p);
+		const refresh = store.refresh();
+		await api.listStarted.p;
+		const created = store.create(workspace, {});
+		const refreshRejected = assert.rejects(refresh, isCancellationError);
+		const createRejected = assert.rejects(created, isCancellationError);
+		changeAccount({ ...account, sessionId: 'new-session' });
+		await pending.complete([]);
+		await Promise.all([refreshRejected, createRejected]);
+		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: [], entries: [] });
+	});
+
+	test('discards late mutation responses after account rotation', async () => {
+		const { store, api, changeAccount } = setup();
+		const pending = new DeferredPromise<ICloudAutomationDefinition>();
+		api.mutationResult = pending.p;
+		const create = store.create(workspace, {});
+		await timeout(0);
+		const rejected = assert.rejects(create, isCancellationError);
+		changeAccount({ ...account, sessionId: 'rotated' });
+		await pending.complete(definition);
+		await rejected;
+		assert.deepStrictEqual(store.entries.get(), []);
+	});
+
+	test('history refresh bounds detail concurrency and cancels queued work on disposal', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		api.definitions.set(repository.name, Array.from({ length: 10 }, (_, i) => ({ ...definition, id: `definition-${i}` })));
+		await store.refresh();
+		const task = { id: 'task', state: 'running', created_at: definition.created_at };
+		api.tasks = [task];
+		const pending = new DeferredPromise<ICloudAutomationTask>();
+		api.taskDetail = pending.p;
+		const refresh = store.refreshHistory();
+		await api.detailStarted.p;
+		const rejected = assert.rejects(refresh, isCancellationError);
+		store.dispose();
+		await pending.complete(task);
+		await rejected;
+		assert.deepStrictEqual({ maxActive: api.maxActiveDetails, history: store.history.get() }, { maxActive: 4, history: [] });
+	});
+
+	test('history projects authoritative detail without inventing manual-run correlation', async () => {
+		const { store, api } = setup();
+		const entry = await store.create(workspace, {});
+		api.tasks = [{ id: 'task', state: 'running', created_at: definition.created_at }];
+		api.taskDetail = { ...api.tasks[0], state: 'waiting_for_user' };
+		await store.run(entry);
+		assert.deepStrictEqual(store.history.get(), []);
+		await store.refreshHistory();
+		assert.deepStrictEqual(store.history.get(), [{ entry, task: api.taskDetail }]);
+	});
 
 	test('discovers only recent GitHub.com repositories and coalesces local, branch and case aliases', async () => {
 		const local = URI.file('C:\\workspace');
