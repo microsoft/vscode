@@ -7213,6 +7213,7 @@ suite('AgentHostChatContribution', () => {
 		for (const [background, delayedMetadata] of [[false, false], [true, false], [true, true]]) {
 			test(`shows the subagent model from its starting message before usage (background=${background}, delayedMetadata=${delayedMetadata})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const modelId = 'agent-host-copilot:claude-sonnet-4.6';
+				const modelConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
 				const metadata = upcastPartial<ILanguageModelChatMetadata>({ name: 'Claude Sonnet 4.6' });
 				const languageModels = new Map<string, ILanguageModelChatMetadata>(delayedMetadata ? [] : [[modelId, metadata]]);
 				const onDidChangeLanguageModels = disposables.add(new Emitter<string>());
@@ -7238,7 +7239,7 @@ suite('AgentHostChatContribution', () => {
 					channel: childChat,
 					action: {
 						type: ActionType.ChatTurnStarted, turnId: 'child-turn', startedAt: '2025-01-01T00:00:00.000Z',
-						message: { text: 'Explore', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6' } },
+						message: { text: 'Explore', origin: { kind: MessageKind.User }, model: { id: 'claude-sonnet-4.6', config: modelConfiguration } },
 					},
 					serverSeq: 1000, origin: undefined,
 				});
@@ -7250,13 +7251,24 @@ suite('AgentHostChatContribution', () => {
 					languageModels.set(modelId, metadata);
 					onDidChangeLanguageModels.fire(modelId);
 				}
-				const whileRunning = { modelId: data?.modelId, model: data?.modelName, active: data?.isActive, credits: data?.credits };
+				const whileRunning = { modelId: data?.modelId, model: data?.modelName, configuration: data?.modelConfiguration, active: data?.isActive, credits: data?.credits };
+				agentHostService.fireAction({
+					channel: childChat,
+					action: {
+						type: ActionType.ChatUsage, turnId: 'child-turn',
+						usage: { model: 'claude-sonnet-4.6', _meta: { 'vscode.modelConfiguration': { reasoningEffort: 'xhigh', contextTier: 'long_context' } } },
+					},
+					serverSeq: 1001, origin: undefined,
+				});
+				await timeout(0);
+				const runtime = data?.runtimeModelConfiguration;
 				fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
 				await turnPromise;
 
-				assert.deepStrictEqual({ atStart, whileRunning }, {
+				assert.deepStrictEqual({ atStart, whileRunning, runtime }, {
 					atStart: delayedMetadata ? 'claude-sonnet-4.6' : 'Claude Sonnet 4.6',
-					whileRunning: { modelId, model: 'Claude Sonnet 4.6', active: true, credits: undefined },
+					whileRunning: { modelId, model: 'Claude Sonnet 4.6', configuration: modelConfiguration, active: true, credits: undefined },
+					runtime: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
 				});
 			}));
 		}
@@ -10571,7 +10583,7 @@ suite('AgentHostChatContribution', () => {
 				activeTurn: {
 					id: 'child-turn-active',
 					startedAt: '2025-01-01T00:00:00.000Z',
-					message: { text: 'continue review', origin: { kind: MessageKind.User } },
+					message: { text: 'continue review', origin: { kind: MessageKind.User }, model: { id: 'openrouter/amazon/nova-micro-v1', config: { reasoningEffort: 'low', contextTier: 'default' } } },
 					responseParts: [{
 						kind: ResponsePartKind.ToolCall,
 						toolCall: {
@@ -10602,6 +10614,7 @@ suite('AgentHostChatContribution', () => {
 				description: toolPart.toolSpecificData.description,
 				chatResource: toolPart.toolSpecificData.chatResource,
 				modelName: toolPart.toolSpecificData.modelName,
+				modelConfiguration: toolPart.toolSpecificData.modelConfiguration,
 				isActive: toolPart.toolSpecificData.isActive,
 			} : undefined, {
 				partKind: 'toolInvocation',
@@ -10609,6 +10622,7 @@ suite('AgentHostChatContribution', () => {
 				description: 'Review agentHost changes',
 				chatResource: childChatUri,
 				modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+				modelConfiguration: { reasoningEffort: 'low', contextTier: 'default' },
 				isActive: true,
 			});
 			assert.deepStrictEqual(activeToolPart && {

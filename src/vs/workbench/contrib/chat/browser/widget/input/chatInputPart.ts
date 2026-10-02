@@ -163,7 +163,7 @@ import { ChatInputNotificationWidget } from './chatInputNotificationWidget.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 import { registerChatInputOnboardingHosts } from './chatInputOnboardingHosts.js';
 import { IChatInputNoticeHubService } from './chatInputNoticeHub.js';
-import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
+import { IChatInputPickerOptions, trackChatInputPickerFocus } from './chatInputPickerActionItem.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem, isChatInputPickerResponsiveState } from './chatInputPickerResponsiveLayout.js';
 import { chatInputStackClass, chatInputStackSlotClass, chatInputSurfaceStackClass, chatInputSurfaceStackSlotClass, ChatInputStackSlot, setChatInputStackInputFocused, setChatInputStackSlot } from './chatInputStack.js';
 import { ChatSessionArchiveNudge, IChatSessionArchiveNudgeOptions } from './chatSessionArchiveNudge.js';
@@ -736,6 +736,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private executeToolbar!: MenuWorkbenchToolBar;
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 	private _inputPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 
 
@@ -3361,6 +3362,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputOverlay = dom.$('.chat-input-overlay');
 		this.chatCustomizationMigrationNoticeContainer = elements.chatCustomizationMigrationNoticeContainer;
 		container.append(this.container);
+		this._pickerFocusListeners.value = trackChatInputPickerFocus(this.container);
 		this.container.append(this.chatInputOverlay);
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 

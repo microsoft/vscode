@@ -3983,7 +3983,7 @@ suite('stateToProgressAdapter', () => {
 			}
 		});
 
-		test('preserves subagent model identity and name when refreshing toolSpecificData from content', () => {
+		test('preserves subagent model identity and configuration when refreshing toolSpecificData from content', () => {
 			const tc = createToolCallState({
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
 			});
@@ -3994,6 +3994,8 @@ suite('stateToProgressAdapter', () => {
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:claude-sonnet-4';
 				invocation.toolSpecificData.modelName = 'Claude Sonnet 4';
+				invocation.toolSpecificData.modelConfiguration = { thinkingLevel: 'high', contextSize: 1000000 };
+				invocation.toolSpecificData.runtimeModelConfiguration = { reasoningEffort: 'xhigh', contextTier: 'long_context' };
 			}
 
 			const runningTc: ToolCallRunningState = {
@@ -4016,7 +4018,14 @@ suite('stateToProgressAdapter', () => {
 				assert.deepStrictEqual({
 					modelId: invocation.toolSpecificData.modelId,
 					modelName: invocation.toolSpecificData.modelName,
-				}, { modelId: 'agent-host-copilotcli:claude-sonnet-4', modelName: 'Claude Sonnet 4' });
+					modelConfiguration: invocation.toolSpecificData.modelConfiguration,
+					runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration,
+				}, {
+					modelId: 'agent-host-copilotcli:claude-sonnet-4',
+					modelName: 'Claude Sonnet 4',
+					modelConfiguration: { thinkingLevel: 'high', contextSize: 1000000 },
+					runtimeModelConfiguration: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+				});
 			}
 		});
 
@@ -4026,6 +4035,8 @@ suite('stateToProgressAdapter', () => {
 				assert.ok(invocation.toolSpecificData?.kind === 'subagent');
 				invocation.toolSpecificData.modelId = 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1';
 				invocation.toolSpecificData.modelName = 'OpenRouter/Amazon: Nova Micro 1.0';
+				invocation.toolSpecificData.modelConfiguration = { reasoningEffort: 'low', contextTier: 'long_context' };
+				invocation.toolSpecificData.runtimeModelConfiguration = { reasoningEffort: 'xhigh', contextTier: 'long_context' };
 				finalizeToolInvocation(invocation, createCompletedToolCall({
 					toolName: 'task',
 					content: withDiscovery ? [{ type: ToolResultContentType.Subagent, resource: 'copilot://session/subagent/tc-1', title: 'Explore' }] : [],
@@ -4034,9 +4045,13 @@ suite('stateToProgressAdapter', () => {
 				assert.deepStrictEqual(serialized.toolSpecificData?.kind === 'subagent' ? {
 					modelId: serialized.toolSpecificData.modelId,
 					modelName: serialized.toolSpecificData.modelName,
+					modelConfiguration: serialized.toolSpecificData.modelConfiguration,
+					runtimeModelConfiguration: serialized.toolSpecificData.runtimeModelConfiguration,
 				} : undefined, {
 					modelId: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
 					modelName: 'OpenRouter/Amazon: Nova Micro 1.0',
+					modelConfiguration: { reasoningEffort: 'low', contextTier: 'long_context' },
+					runtimeModelConfiguration: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
 				});
 			});
 		}

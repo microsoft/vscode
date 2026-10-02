@@ -705,6 +705,8 @@ export interface TurnModelLookup {
 export interface ITurnModelInfo {
 	readonly modelId: string;
 	readonly modelName: string;
+	readonly modelConfiguration?: Record<string, unknown>;
+	readonly runtimeModelConfiguration?: IChatSubagentToolInvocationData['runtimeModelConfiguration'];
 }
 
 /** Minimal model metadata needed to render a turn's response footer (kept small for unit testing). */
@@ -2829,6 +2831,8 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			credits: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.credits : undefined,
 			...(existing.toolSpecificData?.kind === 'subagent' && existing.toolSpecificData.modelId ? { modelId: existing.toolSpecificData.modelId } : {}),
 			modelName: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.modelName : undefined,
+			...(existing.toolSpecificData?.kind === 'subagent' && existing.toolSpecificData.modelConfiguration ? { modelConfiguration: existing.toolSpecificData.modelConfiguration } : {}),
+			...(existing.toolSpecificData?.kind === 'subagent' && existing.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: existing.toolSpecificData.runtimeModelConfiguration } : {}),
 			startedAt: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.startedAt : undefined,
 			duration: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.duration : undefined,
 			chatResource: subagentContent.resource,
@@ -2964,6 +2968,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				credits: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.credits : undefined,
 				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelId ? { modelId: invocation.toolSpecificData.modelId } : {}),
 				modelName: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.modelName : undefined,
+				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.modelConfiguration ? { modelConfiguration: invocation.toolSpecificData.modelConfiguration } : {}),
+				...(invocation.toolSpecificData?.kind === 'subagent' && invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.startedAt : undefined,
 				duration: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.duration : undefined,
 				chatResource: getSubagentChatResource(tc, subagentContent, backendSession),
@@ -2983,6 +2989,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				credits: invocation.toolSpecificData.credits,
 				...(invocation.toolSpecificData.modelId ? { modelId: invocation.toolSpecificData.modelId } : {}),
 				modelName: invocation.toolSpecificData.modelName,
+				...(invocation.toolSpecificData.modelConfiguration ? { modelConfiguration: invocation.toolSpecificData.modelConfiguration } : {}),
+				...(invocation.toolSpecificData.runtimeModelConfiguration ? { runtimeModelConfiguration: invocation.toolSpecificData.runtimeModelConfiguration } : {}),
 				startedAt: invocation.toolSpecificData.startedAt,
 				duration: invocation.toolSpecificData.duration,
 				chatResource: invocation.toolSpecificData.chatResource ?? getSubagentChatResource(tc, undefined, backendSession),

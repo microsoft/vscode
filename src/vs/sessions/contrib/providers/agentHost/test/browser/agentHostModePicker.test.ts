@@ -262,9 +262,12 @@ suite('AgentHostModePicker', () => {
 		});
 	});
 
-	test('new-chat controls keep the same padding and compact dimensions as in-session controls', () => {
+	test('split controls have symmetric padding and preserve compact dimensions in each layout', () => {
 		const states = [];
-		for (const newChat of [false, true]) {
+		const layouts = ['inSession', 'inSessionPrimary', 'newChat', 'experimental'];
+		for (const layout of layouts) {
+			const newChat = layout === 'newChat' || layout === 'experimental';
+			const experimental = layout === 'experimental';
 			const { picker, config, configChanged } = setup();
 			config.values[SessionConfigKey.SandboxEnabled] = 'on';
 			configChanged.fire('test-session');
@@ -275,8 +278,12 @@ suite('AgentHostModePicker', () => {
 			workbench.style.setProperty('--vscode-spacing-size60', '6px');
 			workbench.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 			const host = dom.append(workbench, dom.$(newChat ? '.new-chat-widget-container.revealed' : '.interactive-session'));
-			const toolbar = dom.append(host, dom.$(newChat ? '.new-chat-bottom-container' : '.chat-secondary-toolbar'));
-			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			host.classList.toggle('experimental-new-session-composer', experimental);
+			const toolbar = layout === 'inSessionPrimary'
+				? dom.append(dom.append(host, dom.$('.chat-input-toolbars')), dom.$('.chat-input-toolbar'))
+				: dom.append(host, dom.$(experimental ? '.sessions-chat-toolbar' : newChat ? '.new-chat-bottom-container' : '.chat-secondary-toolbar'));
+			const controls = experimental ? dom.append(toolbar, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls')) : toolbar;
+			const actionBar = dom.append(controls, dom.$('.monaco-action-bar'));
 			const actions = dom.append(actionBar, dom.$('ul.actions-container'));
 			const item = dom.append(actions, dom.$('li.action-item'));
 			const trigger = picker.render(item);
@@ -292,6 +299,8 @@ suite('AgentHostModePicker', () => {
 				leftInset,
 				rightInset,
 				totalChrome: leftInset + gap + rightInset,
+				sectionPadding: [mode, permissions].map(button => dom.getWindow(button).getComputedStyle(button).padding),
+				separatorOffset: dom.getWindow(permissions).getComputedStyle(permissions, '::before').left,
 				iconSizes: Array.from(trigger.querySelectorAll<HTMLElement>('.codicon'), icon => {
 					const bounds = icon.getBoundingClientRect();
 					return { width: bounds.width, height: bounds.height, fontSize: dom.getWindow(icon).getComputedStyle(icon).fontSize };
@@ -303,17 +312,19 @@ suite('AgentHostModePicker', () => {
 				height: trigger.getBoundingClientRect().height,
 				permissions: dom.getWindow(permissions).getComputedStyle(permissions).display,
 			};
-			states.push({ newChat, expanded, compact });
+			states.push({ layout, expanded, compact });
 		}
-		assert.deepStrictEqual(states, [false, true].map(newChat => ({
-			newChat,
+		assert.deepStrictEqual(states, layouts.map(layout => ({
+			layout,
 			expanded: {
 				padding: '0px',
 				height: 22,
-				gap: 10,
-				leftInset: 4,
-				rightInset: 4,
-				totalChrome: 18,
+				gap: 14,
+				leftInset: 6,
+				rightInset: 6,
+				totalChrome: 26,
+				sectionPadding: ['0px 6px', '0px 6px'],
+				separatorOffset: '-1px',
 				iconSizes: [
 					{ width: 12, height: 12, fontSize: '12px' },
 					{ width: 12, height: 12, fontSize: '12px' },

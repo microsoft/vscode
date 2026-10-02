@@ -407,7 +407,7 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 				this._showPicker(anchor, undefined, getModePermissionsPickerOptions(openPermissions, initialFocusItemId));
 			}, previous);
 		} else {
-			trigger.classList.remove('agent-host-mode-permissions-trigger');
+			trigger.classList.remove('agent-host-mode-permissions-trigger', 'chat-input-picker-split');
 			trigger.role = 'button';
 			trigger.tabIndex = 0;
 			trigger.ariaHasPopup = 'listbox';
