@@ -1812,7 +1812,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private _setTruncationMessage(visible: boolean): void {
 		if (visible && this._canOpenFullOutput()) {
 			if (!this._fullOutputLink.value) {
-				this._truncationElement.textContent = localize('chatTerminalOutputTruncated', 'Output truncated.');
+				this._truncationElement.textContent = localize('chatTerminalOutputTruncated', "Output truncated.");
 				this._truncationElement.append(' ');
 				this._fullOutputLink.value = this._instantiationService.createInstance(Link, this._truncationElement, {
 					label: localize('chatTerminalViewFullOutputLink', "View Full Output"),
