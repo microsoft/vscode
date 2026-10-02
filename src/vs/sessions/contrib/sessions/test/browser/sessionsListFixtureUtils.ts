@@ -168,7 +168,7 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly automations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
+	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
 	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;

@@ -139,15 +139,17 @@ suite('Sessions list context menus', () => {
 		sessionsHeader.textContent = 'Sessions';
 		const treeContainer = mainWindow.document.createElement('div');
 		container.append(...[navigationContainer, sessionsHeader, treeContainer].filter(element => element !== undefined));
+		let newSessionFocusCount = 0;
 		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, treeContainer, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			showNavigationShortcuts: () => showNavigationShortcuts,
 			navigationContainer,
 			onSessionOpen: () => { },
+			focusNewSessionInput: () => newSessionFocusCount++,
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed, newSessionFocusCount: () => newSessionFocusCount };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -231,9 +233,9 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
-		const { container, contextMenuService, commandService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+		const { container, contextMenuService, commandService, newSessionFocusCount } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
 		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
-		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New');
+		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New Session');
 		const customizationsRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
 		assert.ok(newRow);
@@ -248,9 +250,11 @@ suite('Sessions list context menus', () => {
 		assert.deepStrictEqual({
 			commands: (commandService as TestCommandService).calls,
 			contextMenu: contextMenuService.delegate,
+			newSessionFocusCount: newSessionFocusCount(),
 		}, {
 			commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
 			contextMenu: undefined,
+			newSessionFocusCount: 1,
 		});
 	});
 

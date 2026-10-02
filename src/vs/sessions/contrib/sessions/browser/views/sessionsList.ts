@@ -3425,6 +3425,7 @@ interface ISessionsListControlBaseOptions {
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly navigationContainer?: HTMLElement;
 	readonly onDidChangeNavigationHeight?: () => void;
+	readonly focusNewSessionInput?: () => void;
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
@@ -4668,7 +4669,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const navigationSections: ISessionSection[] = [];
 		const showNavigationShortcuts = this.options.showNavigationShortcuts?.() === true;
 		if (showNavigationShortcuts) {
-			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('new', "New"), sessions: [] });
+			navigationSections.push({ id: NEW_SESSION_SECTION_ID, label: localize('newSession', "New Session"), sessions: [] });
 		}
 		if (this.contextKeyService.getContextKeyValue<boolean>(ChatAutomationsEnabledContext.key)) {
 			void this.automationsNewBadgeState.initialize().catch(onUnexpectedError);
@@ -4811,6 +4812,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 			case NEW_SESSION_SECTION_ID:
 				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
 				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, sideBySide ? { toSide: true } : undefined);
+				if (this.options.navigationContainer && DOM.isAncestorOfActiveElement(this.options.navigationContainer)) {
+					this.options.focusNewSessionInput?.();
+				}
 				break;
 			case AUTOMATIONS_SECTION_ID:
 				await this.commandService.executeCommand('sessionsView.manageAutomations');

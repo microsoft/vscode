@@ -476,7 +476,7 @@ suite('Sessions - SessionsList', () => {
 			list.layout(300, 400);
 			const findRow = (label: string) => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
 				.find(row => row.querySelector('.session-section-label')?.textContent === label);
-			const newRow = findRow('New');
+			const newRow = findRow('New Session');
 			const automationsRow = findRow('Automations');
 			const before = {
 				newActive: newRow?.classList.contains('active'),
@@ -639,7 +639,7 @@ suite('Sessions - SessionsList', () => {
 				findInput,
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
-				treatmentNavigationLabels: ['New', 'Automations', 'Customizations'],
+				treatmentNavigationLabels: ['New Session', 'Automations', 'Customizations'],
 				treatmentAriaLabels: [`New Session (${initialNewSessionKeybindingAriaLabel})`, 'Automations', 'Customizations, 7 customizations, customization migrations available'],
 				shortcutActionTargets: [0, 0, 0],
 				newSessionKeybindingVisible: true,
@@ -718,9 +718,9 @@ suite('Sessions - SessionsList', () => {
 				notifiedWhenEnabled: enabledHeightChanges > initialHeightChanges,
 				notifiedWhenDisabled: navigationHeightChanges > enabledHeightChanges,
 			}, {
-				initialLabels: ['New', 'Customizations'],
-				enabledLabels: ['New', 'Automations', 'Customizations'],
-				disabledLabels: ['New', 'Customizations'],
+				initialLabels: ['New Session', 'Customizations'],
+				enabledLabels: ['New Session', 'Automations', 'Customizations'],
+				disabledLabels: ['New Session', 'Customizations'],
 				notifiedWhenEnabled: true,
 				notifiedWhenDisabled: true,
 			});
@@ -774,7 +774,7 @@ suite('Sessions - SessionsList', () => {
 					focusedElement: findInput,
 					findInput,
 					headerIsBeforeTree: true,
-					shortcutLabels: ['New', 'Automations', 'Customizations'],
+					shortcutLabels: ['New Session', 'Automations', 'Customizations'],
 					sessionRows: 0,
 				});
 			} finally {
@@ -849,7 +849,7 @@ suite('Sessions - SessionsList', () => {
 					session: '2',
 				},
 				stickySectionLabels: ['Recent'],
-				navigationOrder: ['New', 'Automations', 'Customizations'],
+				navigationOrder: ['New Session', 'Automations', 'Customizations'],
 				navigationAriaLabel: 'Sessions Navigation',
 				treeAriaLabel: 'Sessions',
 				navigationIsOutsideTree: true,
