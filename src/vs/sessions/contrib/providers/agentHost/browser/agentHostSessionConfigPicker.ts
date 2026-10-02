@@ -168,21 +168,6 @@ interface IBranchPickerContext {
 	readonly onShowChanges?: () => Promise<void>;
 }
 
-/** Adds the default branch's remote-tracking ref to worktree branch results. */
-function withDefaultRemoteBranch(items: readonly IConfigPickerItem[], branchContext: IBranchPickerContext | undefined): readonly IConfigPickerItem[] {
-	const defaultRemoteBranchName = branchContext?.isWorktree ? branchContext.defaultRemoteBranchName : undefined;
-	const query = branchContext?.query?.toLowerCase();
-	if (!defaultRemoteBranchName
-		|| (query && !defaultRemoteBranchName.toLowerCase().includes(query))
-		|| items.some(item => item.value === defaultRemoteBranchName)) {
-		return items;
-	}
-	const defaultBranchIndex = items.findIndex(item => item.value === branchContext?.defaultBranchName);
-	const result = [...items];
-	result.splice(Math.max(defaultBranchIndex, 0), 0, { value: defaultRemoteBranchName, label: defaultRemoteBranchName });
-	return result;
-}
-
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext): IActionListItem<IConfigPickerItem>[] {
 	const query = branchContext?.query?.toLowerCase();
 	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
@@ -1281,7 +1266,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	/**
-	 * Returns the picker items for `property`. Base branch results are filtered by `query`.
+	 * Returns the picker items for `property`. Base branch results are filtered by `query`
+	 * and, when `branchResultLimit` is set, capped at that many results.
 	 */
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
@@ -1307,30 +1293,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const dynamicItems = schema.enumDynamic
 			? branchCompletions ?? await provider.getSessionConfigCompletions(sessionId, property, isBaseBranch ? undefined : query || undefined)
 			: undefined;
-		const items = dynamicItems
-			? (isBaseBranch ? filterBranchPickerItems(dynamicItems, query, branchResultLimit) : dynamicItems)
-				.map(item => this._fromCompletionItem(item))
-			: (schema.enum ?? []).map((value, index) => ({
-				value: String(value),
-				label: schema.enumLabels?.[index] ?? String(value),
-				description: schema.enumDescriptions?.[index],
-			}));
-		const config = isBaseBranch ? provider.getSessionConfig(sessionId) : undefined;
-		const isolationKey = config && getSessionWorkspaceProperties(config.schema).isolation?.key;
-		const pickerItems = isBaseBranch
-			? withDefaultRemoteBranch(items, {
-				...this._getRepositoryBranchState(sessionId),
-				isWorktree: isolationKey !== undefined && config?.values[isolationKey] === 'worktree',
-				query,
-			})
-			: items;
+		if (dynamicItems) {
+			const items = (isBaseBranch ? filterBranchPickerItems(dynamicItems, query, branchResultLimit) : dynamicItems)
+				.map(item => this._fromCompletionItem(item));
+			this._cacheDynamicValueLabels(sessionId, property, items);
+			return items;
+		}
 
 		// Static enum: schema.enum/enumLabels already carry a reliable
 		// label mapping, so there's no need to cache these separately.
-		if (dynamicItems) {
-			this._cacheDynamicValueLabels(sessionId, property, pickerItems);
-		}
-		return pickerItems;
+		return (schema.enum ?? []).map((value, index) => ({
+			value: String(value),
+			label: schema.enumLabels?.[index] ?? String(value),
+			description: schema.enumDescriptions?.[index],
+		}));
 	}
 
 	private _fromCompletionItem(item: SessionConfigValueItem): IConfigPickerItem {
@@ -1567,41 +1543,21 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 		});
 
 		const branchSectionTitle = branchSchema?.title ?? localize('mobileAgentHostSessionConfig.repoSheet.branchSection', "Base Branch");
-		const toMobileBranchItems = (items: readonly IConfigPickerItem[], query?: string): IMobilePickerSheetItem[] => {
-			const actionItems = toActionItems(SessionConfigKey.Branch, items, branchValue, undefined, {
-				...repositoryState,
-				isWorktree: isolationValue === 'worktree',
-				query,
-			});
-			const result: IMobilePickerSheetItem[] = [];
-			let sectionTitle: string | undefined;
-			for (const actionItem of actionItems) {
-				if (actionItem.kind === ActionListItemKind.Separator) {
-					sectionTitle = actionItem.label;
-					continue;
-				}
-				const item = actionItem.item;
-				if (!item) {
-					continue;
-				}
-				result.push({
+		if (!branchSchema?.enumDynamic) {
+			branchItems.forEach((item, index) => {
+				const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
+
+				sheetItems.push({
 					id: registerId(branchProperty, item, !!branchSchema?.enumDynamic),
 					label: item.label,
-					description: actionItem.detail,
-					icon: actionItem.group?.icon,
+					description: uncommittedChanges !== undefined
+						? formatUncommittedChanges(uncommittedChanges)
+						: item.description,
+					icon: getConfigIcon(SessionConfigKey.Branch, item.value, uncommittedChanges !== undefined),
 					checked: item.value === branchValue,
-					sectionTitle,
+					sectionTitle: index === 0 ? branchSectionTitle : undefined,
 				});
-				sectionTitle = undefined;
-			}
-			return result;
-		};
-		if (!branchSchema?.enumDynamic) {
-			const mobileBranchItems = toMobileBranchItems(branchItems);
-			if (mobileBranchItems.length > 0) {
-				mobileBranchItems[0] = { ...mobileBranchItems[0], sectionTitle: branchSectionTitle };
-			}
-			sheetItems.push(...mobileBranchItems);
+			});
 		}
 
 		if (sheetItems.length === 0 && !branchSchema?.enumDynamic) {
@@ -1622,7 +1578,19 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 					if (token.isCancellationRequested || !this._isCurrentSession(provider, sessionId)) {
 						return [];
 					}
-					return toMobileBranchItems(items, query);
+					return items.map(item => {
+						const uncommittedChanges = getBranchUncommittedChanges(item.value, repositoryState.branchName, repositoryState.uncommittedChanges);
+
+						return {
+							id: registerId(branchProperty, item, !!branchSchema.enumDynamic),
+							label: item.label,
+							description: uncommittedChanges !== undefined
+								? formatUncommittedChanges(uncommittedChanges)
+								: item.description,
+							icon: getConfigIcon(SessionConfigKey.Branch, item.value, uncommittedChanges !== undefined),
+							checked: item.value === branchValue,
+						};
+					});
 				},
 			};
 		}

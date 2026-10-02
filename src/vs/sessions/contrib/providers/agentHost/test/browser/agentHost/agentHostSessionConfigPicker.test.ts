@@ -1293,7 +1293,7 @@ suite('Agent Host Session Config Picker', () => {
 		]);
 	});
 
-	test('loads the default remote branch through the shared desktop and mobile branch source', async () => {
+	test('keeps the default remote branch out of the branch source shared with the mobile sheet', async () => {
 		const services = setupServices(store);
 		const picker = store.add(services.instantiationService.createInstance(AlwaysRenderConfigPicker, services.sessionObs, undefined));
 		services.provider.config = makeDynamicBranchConfig('feature', 'worktree');
@@ -1301,15 +1301,12 @@ suite('Agent Host Session Config Picker', () => {
 		services.workspaceObs.set(makeWorkspace(undefined, 'feature', 'origin/feature', undefined, { name: 'main', remoteName: 'origin/main' }), undefined);
 		const schema = services.provider.config.schema.properties[SessionConfigKey.Branch]!;
 
-		const worktree = (await picker.getItemsForTest(services.provider, SessionConfigKey.Branch, schema)).map(item => item.value);
+		const all = (await picker.getItemsForTest(services.provider, SessionConfigKey.Branch, schema)).map(item => item.value);
 		const filtered = (await picker.getItemsForTest(services.provider, SessionConfigKey.Branch, schema, 'origin')).map(item => item.value);
-		services.provider.config = makeDynamicBranchConfig('feature', 'folder');
-		const folder = (await picker.getItemsForTest(services.provider, SessionConfigKey.Branch, schema)).map(item => item.value);
 
-		assert.deepStrictEqual({ worktree, filtered, folder }, {
-			worktree: ['feature', 'origin/main', 'main', 'dev'],
-			filtered: ['origin/main'],
-			folder: ['feature', 'main', 'dev'],
+		assert.deepStrictEqual({ all, filtered }, {
+			all: ['feature', 'main', 'dev'],
+			filtered: [],
 		});
 	});
 
