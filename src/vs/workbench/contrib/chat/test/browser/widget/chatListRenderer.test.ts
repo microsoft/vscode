@@ -6203,6 +6203,41 @@ suite('ChatListRenderer', () => {
 	for (const incremental of [false, true]) {
 		for (const fontSize of [13, 20]) {
 			for (const canceled of [false, true]) {
+				test(`persistent progress hands off an empty response without changing height (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, () => {
+					const { container, configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					renderer.renderElement(node, 0, template);
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(progress);
+					const visibleParts = [...template.value.children].filter(part => part.getBoundingClientRect().height > 0);
+					const onlyProgressVisible = visibleParts.length === 1 && visibleParts[0] === progress;
+					const progressTop = progress.getBoundingClientRect().top;
+					const heightBefore = template.rowContainer.getBoundingClientRect().height;
+					const heights = [heightBefore];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+					renderer.renderElement(node, 0, template);
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+
+					assert.deepStrictEqual({
+						onlyProgressVisible,
+						heights: [...new Set(heights)],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						onlyProgressVisible: true,
+						heights: [heightBefore],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+
 				test(`persistent progress hands off to the toolbar without moving content (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, async () => {
 					const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
 					configurePersistentProgressTypography(container, fontSize);
