@@ -25,6 +25,10 @@ interface INonPtyShellStream {
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
+	/** The attached shell that keeps running after the tool call returned, if any. */
+	backgroundShellId?: string;
+	/** Whether the runtime has listed that shell as running since the tool call returned. */
+	backgroundShellListed?: boolean;
 }
 
 /**
@@ -41,6 +45,33 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 		exitCode: Number(match[2]),
 		preview: text.slice(0, match.index),
 	};
+}
+
+/**
+ * The runtime's texts for an attached command that keeps running after its
+ * tool call returns: started in the background, moved there by the user, or
+ * still running past a sync command's initial wait. Detached commands say
+ * "detached background" and stream no partial output, and a shell ID that is
+ * already in use fails without starting anything, so neither matches.
+ */
+const runningShellPatterns = [
+	/<command started in background with shellId: (?<shellId>[^\s>]+)>/,
+	/<command with shellId: (?<shellId>[^\s>]+) moved to background by the user\./,
+	/<command with shellId: (?<shellId>[^\s>]+) is running in the background after the user moved it off the main turn\./,
+	/<command with shellId: (?<shellId>[^\s>]+) is still running after [\d.]+ seconds\./,
+];
+
+function parseRunningShellId(text: string | undefined): string | undefined {
+	if (!text) {
+		return undefined;
+	}
+	for (const pattern of runningShellPatterns) {
+		const shellId = pattern.exec(text)?.groups?.shellId;
+		if (shellId !== undefined) {
+			return shellId;
+		}
+	}
+	return undefined;
 }
 
 const enum StitchConstants {
@@ -79,6 +110,8 @@ export interface INonPtyShellToolCompletion {
 	readonly uri: string;
 	readonly result?: TerminalCommandResult;
 	readonly shouldRetire: boolean;
+	/** Set when the command keeps running after the tool call returns; its output keeps streaming into {@link uri}. */
+	readonly backgroundShellId?: string;
 }
 
 /**
@@ -89,12 +122,18 @@ export interface INonPtyShellToolCompletion {
  * under the emit cap, a rolling tail past the large-output threshold); this
  * class preserves the streamed transcript across those lossy rewrites.
  *
+ * An attached command that keeps running after its tool call returns keeps
+ * receiving the call's partial output, so its channel stays live until the
+ * shell exits.
+ *
  * Created once per chat and disposed with it, matching the pty-backed
  * `ShellManager` lifecycle.
  */
 export class NonPtyShellTerminalStreams extends Disposable {
 
 	private readonly _streams = new Map<string, INonPtyShellStream>();
+	/** Tool call that started each shell still running in the background, keyed by shell ID. */
+	private readonly _backgroundShells = new Map<string, string>();
 
 	constructor(
 		private readonly _sessionUri: URI,
@@ -190,6 +229,10 @@ export class NonPtyShellTerminalStreams extends Disposable {
 
 		const completionResult = shellExit?.result ?? parseCompletedShell(toolOutput);
 		if (!completionResult) {
+			const backgroundShellId = parseRunningShellId(toolOutput);
+			if (backgroundShellId !== undefined) {
+				return this._continueInBackground(toolCallId, stream, backgroundShellId);
+			}
 			if (!stream.created) {
 				this._streams.delete(toolCallId);
 				return undefined;
@@ -224,6 +267,53 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			result,
 			shouldRetire: true,
 		};
+	}
+
+	/** Whether a tool call that already returned still streams partial output for its running command. */
+	isStreamingInBackground(toolCallId: string): boolean {
+		const stream = this._streams.get(toolCallId);
+		return stream?.backgroundShellId !== undefined && !stream.finalized;
+	}
+
+	/** The channel of a shell that keeps running after the tool call that started it returned. */
+	getBackgroundShellTerminal(shellId: string): string | undefined {
+		const toolCallId = this._backgroundShells.get(shellId);
+		return toolCallId === undefined ? undefined : this._streams.get(toolCallId)?.uri;
+	}
+
+	/**
+	 * Settles a background shell's channel once the shell exits. The channel
+	 * stays subscribable, because the completed tool call still references it.
+	 */
+	completeBackgroundShell(shellId: string, exitCode: number | undefined): void {
+		const toolCallId = this._backgroundShells.get(shellId);
+		if (toolCallId === undefined) {
+			return;
+		}
+		this._backgroundShells.delete(shellId);
+		const stream = this._streams.get(toolCallId);
+		if (stream) {
+			this._finalize(stream, exitCode);
+		}
+	}
+
+	/**
+	 * Settles background shells the runtime no longer lists as running, for
+	 * exits that arrive without a `shell_completed` notification. A shell
+	 * counts only after it has been listed once, so a list read before its
+	 * tool call returned can't settle it early.
+	 */
+	reconcileBackgroundShells(runningShellIds: ReadonlySet<string>): void {
+		for (const [shellId, toolCallId] of [...this._backgroundShells]) {
+			const stream = this._streams.get(toolCallId);
+			if (runningShellIds.has(shellId)) {
+				if (stream) {
+					stream.backgroundShellListed = true;
+				}
+			} else if (stream?.backgroundShellListed) {
+				this.completeBackgroundShell(shellId, undefined);
+			}
+		}
 	}
 
 	finalizeToolCall(toolCallId: string, exitCode: number | undefined, authoritativeOutput?: string): void {
@@ -275,5 +365,24 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		const claim = buildNonPtyShellTerminalClaim(this._sessionUri, this._chatUri, toolCallId);
 		this._terminalManager.createOutputTerminal(stream.uri, { title: stream.title, claim });
 		stream.created = true;
+	}
+
+	/**
+	 * Keeps a tool call's channel live after the call returns while its
+	 * command runs on. The runtime keeps sending the call's partial output, so
+	 * the completed tool call and the chat's background work can both show it.
+	 */
+	private _continueInBackground(toolCallId: string, stream: INonPtyShellStream, shellId: string): INonPtyShellToolCompletion {
+		if (!stream.created) {
+			this._createTerminal(toolCallId, stream);
+		}
+		if (this._backgroundShells.get(shellId) !== toolCallId) {
+			// A reused shell ID means the command that held it has finished.
+			this.completeBackgroundShell(shellId, undefined);
+		}
+		stream.backgroundShellId = shellId;
+		stream.backgroundShellListed = false;
+		this._backgroundShells.set(shellId, toolCallId);
+		return { uri: stream.uri, shouldRetire: false, backgroundShellId: shellId };
 	}
 }

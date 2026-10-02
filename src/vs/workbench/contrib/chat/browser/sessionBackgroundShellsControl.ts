@@ -7,11 +7,13 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getDurationString } from '../../../../base/common/date.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import type { IChatPillEntry, IChatPillSection } from '../../../browser/chatPills.js';
-import type { IChatBackgroundShell } from '../common/sessionChatPills.js';
+import type { ChatBackgroundShellOutput, IChatBackgroundShell } from '../common/sessionChatPills.js';
+import { BackgroundShellOutputView } from './sessionBackgroundShellOutputView.js';
 
 /** A chat whose active background shells the Background Shells pill lists. */
 export interface IChatBackgroundShellsSource {
@@ -20,17 +22,34 @@ export interface IChatBackgroundShellsSource {
 
 /** Describes the Background Shells pill in a chat's accessibility help. */
 export function getBackgroundShellsPillAccessibilityHelp(): string {
-	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. This list does not stop commands or stream their output.");
+	return localize('backgroundShells.accessibilityHelp', "The Background Shells pill opens a picker above the chat input, including for a single shell. Each entry includes its elapsed time, and is marked Detached when the shell runs independently of the agent. Use the arrow keys to choose a shell, then Enter or Right Arrow to open its live command details beside the picker. Left Arrow or Escape returns to the list; Escape from the list returns focus to the pill. Elapsed time continues updating while details are open, and a shell disappears when it finishes. When a shell's output is available, its details show the command and its status above a read-only terminal that streams the output. This list does not stop commands.");
 }
 
-function createShellDetails() {
+interface IShellDetails {
+	readonly element: HTMLElement;
+	readonly summary: HTMLElement;
+	readonly command: HTMLElement;
+	readonly shellId: HTMLElement;
+	readonly startedAt: HTMLElement;
+	/** The live output terminal, which exists only while the details are shown. */
+	readonly output: MutableDisposable<BackgroundShellOutputView>;
+	/** Closes the live output terminal; the picker may release it more than once. */
+	readonly releaseOutput: IDisposable;
+	outputSource: IObservable<ChatBackgroundShellOutput> | undefined;
+}
+
+function createShellDetails(): IShellDetails {
 	const element = $('.chat-pill-location-hover');
+	const output = new MutableDisposable<BackgroundShellOutputView>();
 	return {
 		element,
 		summary: append(element, $('div')),
 		command: append(element, $('div')),
 		shellId: append(element, $('div')),
 		startedAt: append(element, $('div')),
+		output,
+		releaseOutput: { dispose: () => output.clear() },
+		outputSource: undefined,
 	};
 }
 
@@ -38,11 +57,12 @@ export class SessionBackgroundShellsControl extends Disposable {
 
 	readonly sections: IObservable<readonly IChatPillSection[]>;
 	// Stable detail nodes let the picker preserve the open panel across clock ticks.
-	private readonly _details = new Map<string, ReturnType<typeof createShellDetails>>();
+	private readonly _details = new Map<string, IShellDetails>();
 	private _currentChat: IChatBackgroundShellsSource | undefined;
 
 	constructor(
 		chat: IObservable<IChatBackgroundShellsSource | undefined>,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 		const now = observableFromEvent(this, listener => {
@@ -58,12 +78,13 @@ export class SessionBackgroundShellsControl extends Disposable {
 			const currentChat = chat.read(reader);
 			if (currentChat !== this._currentChat) {
 				this._currentChat = currentChat;
-				this._details.clear();
+				this._clearDetails();
 			}
 			const shells = currentChat?.backgroundShells?.read(reader) ?? [];
 			const shellIds = new Set(shells.map(shell => shell.id));
-			for (const id of this._details.keys()) {
+			for (const [id, details] of this._details) {
 				if (!shellIds.has(id)) {
+					details.output.dispose();
 					this._details.delete(id);
 				}
 			}
@@ -106,6 +127,14 @@ export class SessionBackgroundShellsControl extends Disposable {
 			}
 		}
 		content.shellId.hidden = shell.shellId === undefined;
+		const output = shell.output;
+		// The live output view shows the command above its output.
+		content.command.hidden = !!output;
+		if (content.outputSource !== output) {
+			// A different output source means a different execution; never show stale output.
+			content.output.clear();
+			content.outputSource = output;
+		}
 		return {
 			id: shell.id,
 			label: name,
@@ -114,7 +143,10 @@ export class SessionBackgroundShellsControl extends Disposable {
 			ariaLabel: localize('backgroundShells.showDetails', "Show details for background shell {0}", name),
 			ariaDescription: detail,
 			hover: {
-				content: content.element,
+				// The output terminal is only built when the details open, and the picker releases it on close.
+				content: output ? () => this._showOutput(content, shell.command, output) : content.element,
+				disposeContent: output ? () => content.output.clear() : undefined,
+				disposable: output ? content.releaseOutput : undefined,
 				expandable: true,
 				alignToParentBottom: true,
 				panelClassName: 'chat-pill-location-hover-panel',
@@ -123,8 +155,24 @@ export class SessionBackgroundShellsControl extends Disposable {
 		};
 	}
 
-	override dispose(): void {
+	private _showOutput(details: IShellDetails, command: string, output: IObservable<ChatBackgroundShellOutput>): HTMLElement {
+		if (!details.output.value) {
+			const view = this._instantiationService.createInstance(BackgroundShellOutputView, command, output);
+			details.output.value = view;
+			details.element.appendChild(view.element);
+		}
+		return details.element;
+	}
+
+	private _clearDetails(): void {
+		for (const details of this._details.values()) {
+			details.output.dispose();
+		}
 		this._details.clear();
+	}
+
+	override dispose(): void {
+		this._clearDetails();
 		this._currentChat = undefined;
 		super.dispose();
 	}

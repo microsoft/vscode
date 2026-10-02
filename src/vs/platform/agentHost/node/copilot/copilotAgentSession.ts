@@ -2027,6 +2027,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _publishBackgroundWork(tasks: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks']): void {
+		this._nonPtyShellTerminals.reconcileBackgroundShells(new Set(tasks.flatMap(task => task.type === 'shell' && (task.status === 'running' || task.status === 'idle') ? [task.id] : [])));
 		const entries = new Map<string, BackgroundWork>();
 		for (const task of tasks) {
 			const work = this._toBackgroundWork(task);
@@ -2058,12 +2059,14 @@ export class CopilotAgentSession extends Disposable {
 
 	private _toBackgroundWork(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): BackgroundWork | undefined {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
+			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
 			return {
 				kind: BackgroundWorkKind.Shell,
 				id: `shell:${task.id}`,
 				label: task.description,
 				command: task.command,
 				startedAt: task.startedAt,
+				...(terminal ? { terminal } : {}),
 				_meta: toCopilotBackgroundShellMeta(task.id, task.attachmentMode === 'detached' ? 'detached' : 'attached'),
 			};
 		}
@@ -6106,6 +6109,9 @@ export class CopilotAgentSession extends Disposable {
 		const sessionId = this.sessionId;
 
 		this._register(wrapper.onSystemNotification(e => {
+			if (e.data.kind.type === 'shell_completed') {
+				this._nonPtyShellTerminals.completeBackgroundShell(e.data.kind.shellId, e.data.kind.exitCode);
+			}
 			this._seedSubagentDisplayNames([e]);
 			const notification = buildCopilotSystemNotification(e, this._resolveAgentName);
 			if (!notification) {
@@ -6701,6 +6707,10 @@ export class CopilotAgentSession extends Disposable {
 			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {
 				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
+				if (nonPtyCompletion?.backgroundShellId !== undefined) {
+					// Republish background work so the shell's entry points at this call's live terminal.
+					this._refreshBackgroundTasks();
+				}
 				if (nonPtyCompletion) {
 					retireNonPtyShellTracking = nonPtyCompletion.shouldRetire;
 					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
@@ -8614,7 +8624,14 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolPartialResult(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
-			if (!tracked || !isShellTool(tracked.toolName)) {
+			if (!tracked) {
+				// A command that keeps running after its tool call returned still streams into that call's terminal.
+				if (this._nonPtyShellTerminals.isStreamingInBackground(e.data.toolCallId)) {
+					this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput);
+				}
+				return;
+			}
+			if (!isShellTool(tracked.toolName)) {
 				return;
 			}
 			if (this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId)) {
