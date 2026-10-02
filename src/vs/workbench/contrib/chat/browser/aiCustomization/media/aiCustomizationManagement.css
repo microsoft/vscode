@@ -1776,6 +1776,14 @@ per-word capitalization does not survive translation. */
 	margin: 0;
 }
 
+.ai-customization-management-editor .marketplace-detail-install-state {
+	padding-inline-start: var(--vscode-spacing-size320);
+}
+
+.ai-customization-management-editor .marketplace-detail-install-state .mcp-detail-diagnostic-card {
+	min-height: 0;
+}
+
 .ai-customization-management-editor .marketplace-detail-source-facts {
 	display: flex;
 	flex-direction: column;

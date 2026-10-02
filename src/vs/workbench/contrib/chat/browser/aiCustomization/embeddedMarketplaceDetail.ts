@@ -88,7 +88,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
 		this.descriptionEl = DOM.append(this.root, $('p.embedded-detail-description.marketplace-detail-description'));
 
-		this.installStateEl = DOM.append(this.root, $('section.mcp-detail-diagnostics'));
+		this.installStateEl = DOM.append(this.root, $('section.mcp-detail-diagnostics.marketplace-detail-install-state'));
 		this.installStateEl.style.display = 'none';
 		const installStateSection = DOM.append(this.installStateEl, $('section.mcp-detail-diagnostic-section'));
 		this.installStateCardEl = DOM.append(installStateSection, $('.mcp-detail-diagnostic-card'));
