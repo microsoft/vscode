@@ -13,7 +13,7 @@ import { EditOperation } from '../../../../common/core/editOperation.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { Selection } from '../../../../common/core/selection.js';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction } from '../../browser/findController.js';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, NextSelectionMatchFindAction, StartFindAction, StartFindReplaceAction, StartFindWithSelectionAction, StartFindWithArgsAction } from '../../browser/findController.js';
 import { CONTEXT_FIND_INPUT_FOCUSED } from '../../browser/findModel.js';
 import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -68,6 +68,30 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 }
 
 suite('FindController', () => {
+
+	test('issue #141683: StartFindWithArgsAction resets findInSelection if explicitly set to false', async () => {
+		await withAsyncTestCodeEditor([
+			'first line',
+			'second line',
+			'third line'
+		], { serviceCollection: serviceCollection }, async (editor, instantiationService) => {
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			
+			// Open find widget with findInSelection: true
+			editor.setSelection(new Selection(1, 1, 1, 5));
+			let startFindAction = new StartFindWithArgsAction();
+			await executeAction(instantiationService, editor, startFindAction, { findInSelection: true, searchString: 'line' });
+			
+			assert.strictEqual(findController.getState().searchScope?.length, 1, 'Search scope is set initially');
+			
+			// Call findWithArgs again with findInSelection: false
+			await executeAction(instantiationService, editor, startFindAction, { findInSelection: false, searchString: 'line' });
+			
+			assert.strictEqual(findController.getState().searchScope, null, 'Search scope should be cleared');
+			
+			findController.dispose();
+		});
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
