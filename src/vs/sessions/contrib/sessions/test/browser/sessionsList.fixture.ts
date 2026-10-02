@@ -774,7 +774,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them, retains its outlined New button, and becomes sticky as the navigation rows scroll away. Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
+		expectedVisualDescriptions: ['New, Automations, and Customizations appear as three full-width navigation rows above the Sessions header. The session tree starts after the header and contains only session sections. New has a plus icon and the platform New Session keybinding aligned on the right, Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
