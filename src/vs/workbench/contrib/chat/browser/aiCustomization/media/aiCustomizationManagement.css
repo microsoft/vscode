@@ -1825,11 +1825,60 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .marketplace-detail-query-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size80);
 	margin: 0;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size100) var(--vscode-spacing-size320);
+	padding: 0;
+	list-style: none;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button {
+	appearance: none;
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	width: 100%;
+	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
 	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-textCodeBlock-background);
+	background: var(--vscode-editorWidget-background);
+	color: var(--vscode-foreground);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:hover {
+	border-color: var(--vscode-focusBorder);
+	background: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:disabled {
+	cursor: wait;
+	opacity: 0.7;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-text {
+	flex: 1;
+	min-width: 0;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-action {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	color: var(--vscode-textLink-foreground);
+	font-size: var(--vscode-fontSize-label1);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-action .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
