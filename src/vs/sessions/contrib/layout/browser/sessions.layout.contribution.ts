@@ -63,7 +63,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[CHAT_SPECIFIC_LAYOUT_SETTING]: {
 			type: 'boolean',
 			default: false,
-			scope: ConfigurationScope.APPLICATION,
+			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
 			description: localize('chatSpecificLayout.description', "Keep editor layout, panel state, and terminals separate for each chat in non-phone Agents windows. Requires a window reload."),
 		},

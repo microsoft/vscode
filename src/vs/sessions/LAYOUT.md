@@ -16,7 +16,7 @@ breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
 `sessions.experimental.chatSpecificLayout` enables focused-chat ownership only
-in a startup desktop workbench. It is an experimental, false-default application
+in a startup desktop workbench. It is an experimental, false-default window
 setting whose effective mode changes only after reload. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
 viewport, experimental layout and terminal operations suspend without discarding

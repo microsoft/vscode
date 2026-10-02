@@ -9,7 +9,7 @@ This document enumerates the user-facing scenarios, states, and transitions for 
 - The main Editor supports exactly one editor group. Editor split/grid commands, keybindings, menus, open-to-side requests, and split drop targets are disabled; programmatic group creation and multi-group layout requests are rejected. This restriction does not apply to the separate chat grid.
 - Companion specs: [Editor presentation](LAYOUT.md#editor-presentation) and [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
-`sessions.experimental.chatSpecificLayout` is false by default, experimental, application-scoped, and requires reload. Unless a scenario below explicitly describes chat ownership, shared-profile rules describe disabled desktop behavior. While experimental desktop ownership is active, the focused chat owns the singleton Editor/Details composition and ordinary editor working set, plus bottom-panel visibility and selected view, even with multiple sessions or chat groups visible. Geometry remains shared. The persistence and lifecycle contracts live in [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
+`sessions.experimental.chatSpecificLayout` is false by default, experimental, window-scoped, and requires reload. Unless a scenario below explicitly describes chat ownership, shared-profile rules describe disabled desktop behavior. While experimental desktop ownership is active, the focused chat owns the singleton Editor/Details composition and ordinary editor working set, plus bottom-panel visibility and selected view, even with multiple sessions or chat groups visible. Geometry remains shared. The persistence and lifecycle contracts live in [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
 ---
 

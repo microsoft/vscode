@@ -24,10 +24,10 @@ suite('Sessions chat layout configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('registers a false-default experimental application setting', () => {
+	test('registers a false-default experimental window setting', () => {
 		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[CHAT_SPECIFIC_LAYOUT_SETTING];
 		assert.deepStrictEqual({ type: property.type, default: property.default, scope: property.scope, tags: property.tags }, {
-			type: 'boolean', default: false, scope: ConfigurationScope.APPLICATION, tags: ['experimental'],
+			type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental'],
 		});
 	});
 
