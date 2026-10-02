@@ -85,10 +85,13 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			focus: help.includes('Use Tab to focus a subagent pill'),
-			open: help.includes('Enter or Space to open its chat'),
+			open: help.includes('Enter or Space to open its chat to the side'),
 			inline: help.includes('Enter or Space expands or collapses its inline details'),
-			status: help.includes('announces its running state and any pending confirmations'),
-		}, { focus: true, open: true, inline: true, status: true });
+			status: help.includes('announces its running state') && help.includes('any pending confirmations'),
+			modelSettings: help.includes('model settings'),
+			resourceLinks: help.includes('File and markdown links in its activity row can be focused with Tab'),
+			nestedSubagent: help.includes('press Enter or Space to open the nested subagent\'s chat to the side'),
+		}, { focus: true, open: true, inline: true, status: true, modelSettings: true, resourceLinks: true, nestedSubagent: true });
 	});
 
 	test('documents the Copilot tab switch and independent provider navigation', () => {
