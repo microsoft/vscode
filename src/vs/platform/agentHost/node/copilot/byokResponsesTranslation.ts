@@ -277,6 +277,45 @@ export function capBridgeTools(request: IByokLmChatRequest, maxTools = BYOK_MAX_
 	};
 }
 
+/**
+ * Whether a request is the first model call of a user turn: the input ends with
+ * a user message (optionally followed by system or developer messages) that does
+ * not directly follow a tool result. Mid-turn requests, which continue after tool
+ * results, return `false`.
+ */
+export function isUserTurnStart(input: readonly IByokLmInputItem[]): boolean {
+	let sawUserMessage = false;
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item = input[i];
+		if (item.type === 'message' && item.role !== 'assistant') {
+			sawUserMessage ||= item.role === 'user';
+			continue;
+		}
+		return sawUserMessage && item.type !== 'function_call_output' && item.type !== 'custom_tool_call_output';
+	}
+	return sawUserMessage;
+}
+
+/**
+ * Whether bridge output contains something the Copilot runtime counts as a
+ * visible response: non-whitespace text, a tool call, or reasoning summary text.
+ * When the first model call of a turn has none of these, the runtime fails the
+ * turn with a generic "No response was returned" error.
+ */
+export function hasVisibleBridgeOutput(output: readonly IByokLmOutputItem[]): boolean {
+	return output.some(item => {
+		switch (item.type) {
+			case 'message':
+				return item.content.some(part => part.text.trim().length > 0);
+			case 'reasoning':
+				return item.summary.some(text => text.length > 0);
+			case 'function_call':
+			case 'custom_tool_call':
+				return true;
+		}
+	});
+}
+
 let responseCounter = 0;
 
 function nextId(prefix: string): string {

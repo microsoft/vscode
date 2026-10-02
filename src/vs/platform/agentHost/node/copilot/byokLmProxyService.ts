@@ -21,7 +21,9 @@ import {
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	hasVisibleBridgeOutput,
 	IResponsesRequest,
+	isUserTurnStart,
 	responsesErrorBody,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
@@ -90,6 +92,16 @@ export interface IByokLmProxyService {
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
+
+/**
+ * Status for a turn's first model call that produced no text or tool calls. The
+ * runtime retries 5xx responses but surfaces 4xx messages to the user directly.
+ */
+const EMPTY_RESPONSE_STATUS = 422;
+
+function emptyResponseMessage(modelId: string): string {
+	return `The model '${modelId}' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model's context window or output token limit. Try again, start a new session, or choose a different model.`;
+}
 
 /**
  * The BYOK proxy keeps no per-bind mutable state: the active renderer bridge is
@@ -266,6 +278,15 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			}
 			if (result.error) {
 				this._writeJsonError(res, 502, result.error, 'api_error');
+				return;
+			}
+			if (isUserTurnStart(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
+				// The runtime would accept an empty 200 and then fail the turn with a
+				// generic "No response was returned" error. Report why instead, using a
+				// 4xx status so the runtime doesn't retry a deterministic outcome.
+				const outputTypes = result.output.map(item => item.type).join(', ') || 'none';
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls for the turn (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
+				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
 				return;
 			}
 			if (body.stream === true) {

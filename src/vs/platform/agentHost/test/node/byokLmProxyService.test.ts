@@ -188,7 +188,7 @@ suite('ByokLmProxyService', () => {
 		await withProxy(
 			async request => {
 				captured.push(request);
-				return { output: [] };
+				return { output: [{ type: 'message', content: [{ type: 'text', text: 'an image' }] }] };
 			},
 			async handle => {
 				for (const input of [
@@ -411,6 +411,53 @@ suite('ByokLmProxyService', () => {
 				assert.strictEqual(response.status, 502);
 				const body = await response.json() as { error?: { message?: string } };
 				assert.strictEqual(body.error?.message, 'bridge exploded');
+			},
+		);
+	});
+
+	test('reports a turn\'s empty first response as a non-retryable error instead of an empty completion', async () => {
+		await withProxy(
+			async () => ({
+				output: [
+					{ type: 'reasoning', id: 'rs_1', summary: [], encryptedContent: 'opaque' },
+					{ type: 'message', content: [{ type: 'text', text: '\n\n' }] },
+				],
+			}),
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({ model: 'qwen', stream: true, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }] }),
+				});
+				const body = await response.json() as { error?: { message?: string } };
+				assert.deepStrictEqual({ status: response.status, message: body.error?.message }, {
+					status: 422,
+					message: 'The model \'qwen\' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model\'s context window or output token limit. Try again, start a new session, or choose a different model.',
+				});
+			},
+		);
+	});
+
+	test('streams an empty response that continues a turn after tool results', async () => {
+		await withProxy(
+			async () => ({ output: [] }),
+			async (handle) => {
+				const response = await fetch(responsesUrl(handle, 'acme'), {
+					method: 'POST',
+					headers: authHeaders(handle),
+					body: JSON.stringify({
+						model: 'qwen',
+						stream: true,
+						input: [
+							{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'weather?' }] },
+							{ type: 'function_call', call_id: 'call_1', name: 'getWeather', arguments: '{}' },
+							{ type: 'function_call_output', call_id: 'call_1', output: 'sunny' },
+						],
+					}),
+				});
+				const text = await response.text();
+				assert.strictEqual(response.status, 200);
+				assert.ok(text.includes('event: response.completed'), `expected completed response: ${text}`);
 			},
 		);
 	});

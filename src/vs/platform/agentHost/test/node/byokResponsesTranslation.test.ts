@@ -5,13 +5,15 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IByokLmChatRequest, IByokLmChatResult, IByokLmTool } from '../../common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmChatResult, IByokLmInputItem, IByokLmOutputItem, IByokLmTool } from '../../common/agentHostByokLm.js';
 import {
 	BYOK_MAX_TOOLS,
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	hasVisibleBridgeOutput,
 	IResponsesRequest,
+	isUserTurnStart,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
 } from '../../node/copilot/byokResponsesTranslation.js';
@@ -111,6 +113,55 @@ suite('byokResponsesTranslation', () => {
 			});
 		});
 
+	});
+
+	test('detects the first model call of a user turn', () => {
+		const user: IByokLmInputItem = { type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] };
+		const developer: IByokLmInputItem = { type: 'message', role: 'developer', content: [{ type: 'text', text: 'reminder' }] };
+		const assistant: IByokLmInputItem = { type: 'message', role: 'assistant', content: [{ type: 'text', text: 'hello' }] };
+		const call: IByokLmInputItem = { type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' };
+		const callOutput: IByokLmInputItem = { type: 'function_call_output', callId: 'c1', output: 'ok' };
+		assert.deepStrictEqual({
+			empty: isUserTurnStart([]),
+			firstTurn: isUserTurnStart([user]),
+			userThenDeveloper: isUserTurnStart([user, developer]),
+			laterTurn: isUserTurnStart([user, call, callOutput, assistant, user]),
+			afterToolResult: isUserTurnStart([user, call, callOutput]),
+			userAfterToolResult: isUserTurnStart([user, call, callOutput, user]),
+			afterAssistant: isUserTurnStart([user, assistant]),
+		}, {
+			empty: false,
+			firstTurn: true,
+			userThenDeveloper: true,
+			laterTurn: true,
+			afterToolResult: false,
+			userAfterToolResult: false,
+			afterAssistant: false,
+		});
+	});
+
+	test('detects output the runtime counts as a visible response', () => {
+		const text = (value: string): IByokLmOutputItem => ({ type: 'message', content: [{ type: 'text', text: value }] });
+		const reasoning = (summary: string[]): IByokLmOutputItem => ({ type: 'reasoning', id: 'rs_1', summary, encryptedContent: 'opaque' });
+		assert.deepStrictEqual({
+			none: hasVisibleBridgeOutput([]),
+			emptyText: hasVisibleBridgeOutput([text('')]),
+			whitespaceText: hasVisibleBridgeOutput([text('\n\n')]),
+			encryptedReasoningOnly: hasVisibleBridgeOutput([reasoning([]), reasoning([''])]),
+			text: hasVisibleBridgeOutput([text('hi')]),
+			reasoningSummary: hasVisibleBridgeOutput([reasoning(['thinking'])]),
+			functionCall: hasVisibleBridgeOutput([{ type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' }]),
+			customToolCall: hasVisibleBridgeOutput([{ type: 'custom_tool_call', callId: 'c1', name: 'tool', input: '' }]),
+		}, {
+			none: false,
+			emptyText: false,
+			whitespaceText: false,
+			encryptedReasoningOnly: false,
+			text: true,
+			reasoningSummary: true,
+			functionCall: true,
+			customToolCall: true,
+		});
 	});
 
 	test('rejects missing models and unsupported input items', () => {
