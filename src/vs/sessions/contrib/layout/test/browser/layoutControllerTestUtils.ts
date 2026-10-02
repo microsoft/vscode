@@ -142,11 +142,6 @@ export function makeSession(resource: URI, opts?: {
 	};
 }
 
-/**
- * [R5/R8] Adds a peer chat to a session created by {@link makeSession}, appending
- * it onto the session's (runtime-settable) `chats` observable. Does not change
- * which chat is active — call {@link setActiveChat} for that.
- */
 export function addPeerChat(session: IActiveSession, resource: URI, opts?: { readonly title?: string }): IChat {
 	const mainChat = session.mainChat.get();
 	const chat: IChat = {
@@ -172,7 +167,6 @@ export function addPeerChat(session: IActiveSession, resource: URI, opts?: { rea
 	return chat;
 }
 
-/** [R5/R8] Switches which chat of `session` (created by {@link makeSession}) is active. */
 export function setActiveChat(session: IActiveSession, chat: IChat): void {
 	(session.activeChat as ISettableObservable<IChat>).set(chat, undefined);
 }
@@ -200,7 +194,6 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
-	/** [R1] When true, `chatLayoutPresentation.enabled` is `true` for the harness's lifetime (mirrors the `sessions.experimental.chatSpecificLayout` setting being on at startup). */
 	readonly chatLayoutEnabled?: boolean;
 }
 
@@ -217,13 +210,9 @@ export interface ITestLayoutHarness {
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
-	/** [R2] Fires when a chat is deleted; carries `{session, sessionResource, chatResource}` so owner-key bookkeeping can forget it. */
 	onDidDeleteChat: Emitter<IChatDeletedEvent>;
-	/** [R2/R8] Fires when a draft session is replaced by its newly-committed session. */
 	onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
-	/** [R1] Mirrors `IAgentWorkbenchLayoutService.chatLayoutPresentation`. `.enabled` is fixed for the harness's lifetime (per the `chatLayoutEnabled`/`desktopLayout` create options); drive {@link chatLayoutIsPhoneObs} to exercise phone suspension. */
 	readonly chatLayoutPresentation: ChatLayoutPresentation;
-	/** [R13] Settable `isPhoneLayout` feeding {@link chatLayoutPresentation}, so phone-suspension tests can flip it at runtime. */
 	chatLayoutIsPhoneObs: ISettableObservable<boolean>;
 	onDidChangePartVisibility: Emitter<IPartVisibilityChangeEvent>;
 	onWillToggleSidePane: Emitter<void>;
@@ -556,6 +545,25 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		hideSidePane(): void {
 			if (this.isSidePaneVisible()) {
 				this.toggleSidePane();
+			}
+		}
+		captureSidePaneComposition(): SidePaneComposition {
+			return { editor: this.isVisible(Parts.EDITOR_PART), auxiliaryBar: this.isVisible(Parts.AUXILIARYBAR_PART) };
+		}
+		restoreSidePaneComposition(composition: SidePaneComposition): void {
+			const before = this.captureSidePaneComposition();
+			if (before.editor === composition.editor && before.auxiliaryBar === composition.auxiliaryBar) {
+				return;
+			}
+			const suppression = this.suppressEditorPartAutoVisibility();
+			try {
+				this.setPartHidden(!composition.editor, Parts.EDITOR_PART);
+				this.setPartHidden(!composition.auxiliaryBar, Parts.AUXILIARYBAR_PART);
+			} finally {
+				suppression.dispose();
+			}
+			if (!before.editor && !before.auxiliaryBar && (composition.editor || composition.auxiliaryBar)) {
+				harness.onDidRevealSidePane.fire();
 			}
 		}
 		toggleSidePane(): boolean {

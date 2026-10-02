@@ -8,6 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,7 +22,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -57,6 +58,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _detailHiddenTransiently = false;
 	private _detailHiddenByEditor = false;
 	private _changingDetailTransiently = false;
+	private readonly _preHideComposition = new ResourceMap<ISidePaneState>();
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -133,14 +135,22 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousIsCreated: boolean | undefined;
 		let previousSession: IActiveSession | undefined;
 		let previousOwnerKey: URI | undefined;
+		let wasSuspended = false;
 		let togglingSidePane = false;
 
 		this._register(autorun(reader => {
 			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
-			// Read so a peer-chat switch within the same session re-runs this autorun too.
 			activeSession?.activeChat.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+
+			if (this._ctx.chatLayoutSuspended(reader)) {
+				wasSuspended = true;
+				return;
+			}
+			const resuming = wasSuspended;
+			wasSuspended = false;
+
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
 			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
 			previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
@@ -154,8 +164,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const activeChat = activeSession?.activeChat.read(reader);
 				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
-				const enteringSuspension = ownerKey === undefined && previousOwnerKey !== undefined;
-				if (!isWorkspaceConversion && !enteringSuspension && activeSession && !isQuickChat && workspace && isCreated === true) {
+				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
 					this._ctx.withSessionLayoutRestore(() => this._reveal(this._resolveComposition(activeSession, ownerKey)));
 				}
 				wasExistingActive = false;
@@ -176,7 +185,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const isCreated = activeSession.isCreated.read(reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
-			const ownerChanged = !sessionChanged && ownerKey !== undefined && !isEqual(previousOwnerKey, ownerKey);
+			const ownerChanged = !sessionChanged && ownerKey !== undefined && (resuming || !isEqual(previousOwnerKey, ownerKey));
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
 			if (isSubmit) {
@@ -209,9 +218,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}));
 		this._register(this._layoutService.onWillToggleSidePane(() => {
 			togglingSidePane = true;
+			this._capturePreHideComposition();
 		}));
-		this._register(this._layoutService.onDidToggleSidePane(() => {
+		this._register(this._layoutService.onDidToggleSidePane(e => {
 			try {
+				this._correctToggleReopen(e);
 				this._captureExistingProfileIfApplicable();
 			} finally {
 				togglingSidePane = false;
@@ -219,13 +230,56 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}));
 	}
 
-	/**
-	 * [R5] Resolves the composition to apply/reveal for `activeSession`'s current
-	 * owner: its own remembered last-open composition if chat-specific layout is
-	 * enabled and one was ever captured; otherwise, for the session's main chat,
-	 * the shared legacy Existing profile (one-time seed); otherwise (a peer chat's
-	 * first visit) a fully hidden side pane.
-	 */
+	private _capturePreHideComposition(): void {
+		if (!this._ctx.chatLayoutActive() || this._ctx.chatLayoutSuspended() || !this._layoutService.isSidePaneVisible()) {
+			return;
+		}
+		const ownerKey = this._activeOwnerKey();
+		if (!ownerKey) {
+			return;
+		}
+		this._preHideComposition.set(ownerKey, this._layoutService.captureSidePaneComposition());
+	}
+
+	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
+		const wasFullyHidden = !e.before.editor && !e.before.auxiliaryBar;
+		const nowVisible = e.after.editor || e.after.auxiliaryBar;
+		if (!wasFullyHidden || !nowVisible || !this._ctx.chatLayoutActive() || this._ctx.chatLayoutSuspended()) {
+			return;
+		}
+		const ownerKey = this._activeOwnerKey();
+		if (!ownerKey) {
+			return;
+		}
+		const preHide = this._preHideComposition.get(ownerKey);
+		if (preHide && (preHide.editor !== e.after.editor || preHide.auxiliaryBar !== e.after.auxiliaryBar)) {
+			this._layoutService.restoreSidePaneComposition(preHide);
+		}
+	}
+
+	private _activeOwnerKey(): URI | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		return activeSession && this._ctx.ownerKeyFor(activeSession);
+	}
+
+	remapPreHideComposition(oldKey: URI, newKey: URI): void {
+		if (isEqual(oldKey, newKey)) {
+			return;
+		}
+		const state = this._preHideComposition.get(oldKey);
+		if (!state) {
+			return;
+		}
+		this._preHideComposition.set(newKey, state);
+		this._preHideComposition.delete(oldKey);
+	}
+
+	forgetPreHideComposition(keys: readonly URI[]): void {
+		for (const key of keys) {
+			this._preHideComposition.delete(key);
+		}
+	}
+
 	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
 		if (!ownerKey) {
 			return this._visibilityStore.get(SessionVisibilityProfile.Existing);
@@ -241,7 +295,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _captureExistingProfileIfApplicable(): void {
-		if (this._ctx.isRestoringSessionLayout) {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended()) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
@@ -258,18 +312,15 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		this._captureExistingProfile();
 	}
 
-	/** Seeds the Existing profile from the on-screen composition for an in-place lifecycle transition. */
 	private _captureExistingProfile(): void {
+		if (this._ctx.chatLayoutSuspended()) {
+			return;
+		}
 		const state = {
 			editorVisible: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
 			auxiliaryBarVisible: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 		};
 
-		// [R5/R13] While chat-owned layout is in effect, the on-screen composition
-		// belongs to the active owner alone: remember it there and leave the shared
-		// Existing profile untouched, so a phone suspension (or the feature being
-		// off) still resolves to the last composition seen *outside* chat ownership
-		// rather than whichever owner happened to be on screen when it suspended.
 		if (this._ctx.chatLayoutActive()) {
 			const activeSession = this._sessionsService.activeSession.get();
 			const ownerKey = activeSession && this._ctx.ownerKeyFor(activeSession);

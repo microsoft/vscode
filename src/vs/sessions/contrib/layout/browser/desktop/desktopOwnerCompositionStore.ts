@@ -9,16 +9,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { StorageScope, StorageTarget, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ISidePaneState } from '../../../../browser/workbench.js';
 
-/** [R5][R7] Storage key for the per-owner (session or chat) side-pane composition, used only when chat-specific layout is enabled. */
 const DESKTOP_OWNER_COMPOSITION_STATE_KEY = 'sessions.chatLayout.sidePaneComposition';
 
-/**
- * [R5] Remembers each chat-layout owner's own last-open side-pane composition
- * (Editor/Details), independent of the legacy, session-type-wide
- * {@link import('./desktopVisibilityProfileStore.js').DesktopVisibilityProfileStore}.
- * Only consulted when chat-specific layout is enabled; the legacy store remains
- * the sole source of truth when it is not.
- */
 export class DesktopOwnerCompositionStore {
 
 	private readonly _byOwner = new ResourceMap<ISidePaneState>();
@@ -36,7 +28,6 @@ export class DesktopOwnerCompositionStore {
 		this._save();
 	}
 
-	/** [R8] Drops the remembered composition for owners that no longer exist. */
 	forget(keys: readonly URI[]): void {
 		let changed = false;
 		for (const key of keys) {
@@ -47,7 +38,6 @@ export class DesktopOwnerCompositionStore {
 		}
 	}
 
-	/** [R8] Carries a remembered composition across a draft→committed promotion. */
 	remap(oldKey: URI, newKey: URI): void {
 		if (isEqual(oldKey, newKey)) {
 			return;

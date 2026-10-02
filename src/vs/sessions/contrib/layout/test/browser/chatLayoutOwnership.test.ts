@@ -98,8 +98,6 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			'the main chat (session-keyed owner) must inherit the working set seeded under the disabled-mode key'
 		);
 
-		// Never removed — switching chat-specific layout back off must still find
-		// the original snapshot under its own (disabled-mode) key untouched.
 		const legacyRaw = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
 		assert.notStrictEqual(legacyRaw, undefined, 'the legacy disabled-mode key must survive the one-time copy-forward read');
 		assert.deepStrictEqual(JSON.parse(legacyRaw!), layoutState, 'the legacy key\'s content must be unchanged by the read');
@@ -139,35 +137,61 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
-		// A (main chat): the initial restore already seeds editor-only (the legacy
-		// default), so open the auxiliary bar too to capture a composition that
-		// genuinely differs from it.
 		setVisible(true, true);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true });
 		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: true, auxiliaryBar: true });
 
-		// B (peer, first visit): hidden/hidden, never copies A's composition.
 		setActiveChat(session, peer);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'a peer chat never inherits the main chat\'s composition on first visit');
 
-		// B: capture auxiliary-bar-only.
 		setVisible(false, true);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true });
 		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: false, auxiliaryBar: true });
 
-		// Back to A: restores A's own remembered composition, not B's.
 		setActiveChat(session, main);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true });
 
-		// Back to B: restores B's own remembered composition, not A's.
 		setActiveChat(session, peer);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true });
 
+	});
+
+	test('[R5] enabled: toggling the side pane closed on A, visiting B, then reopening the side pane on A restores A\'s own composition', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(sessionA)), { editor: true, auxiliaryBar: true });
+
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'toggling closed hides both parts');
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(sessionB)), { editor: false, auxiliaryBar: true });
+
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'toggling closed on B hides both parts');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'reopening via the real toggle must restore A\'s own composition, not B\'s legacy pre-hide state');
 	});
 
 	test('[R5] enabled: all four Editor/Details compositions round-trip per owner', async () => {
@@ -212,8 +236,6 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
-		// The initial restore already seeds editor-only, so open the auxiliary bar
-		// too to capture a composition that genuinely differs from it.
 		setVisible(true, true);
 		await settle();
 		const mainKey = controller.ownerKeyFor(session);
@@ -334,6 +356,40 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		assert.deepStrictEqual(controller.composition(mainKey), mainComposition, 'the main chat\'s own composition must be unaffected by a suspension that occurred while a peer chat was focused');
 	});
-});
 
+	test('[R13] a session switch while suspended does not apply any composition, and resumes with the newly focused session\'s own composition', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		setVisible(true, false);
+		await settle();
+		const keyA = controller.ownerKeyFor(sessionA);
+		const compositionA = controller.composition(keyA);
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		const keyB = controller.ownerKeyFor(sessionB);
+		const compositionB = controller.composition(keyB);
+
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true }, 'suspension must not change the on-screen composition on entry');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true }, 'a session switch while suspended must not apply the newly focused session\'s composition');
+		assert.deepStrictEqual(controller.composition(keyA), compositionA, 'a session switch while suspended must not overwrite the switched-to session\'s stored composition');
+		assert.deepStrictEqual(controller.composition(keyB), compositionB, 'a session switch while suspended must not overwrite the switched-from session\'s stored composition');
+
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming applies the now-focused session A\'s own composition, not the transient suspended on-screen state');
+	});
+});
 

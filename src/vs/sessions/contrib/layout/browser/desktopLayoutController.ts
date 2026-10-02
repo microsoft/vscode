@@ -23,7 +23,6 @@ export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrat
 
 /** Storage key for per-session desktop layout state. */
 const DESKTOP_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
-/** Storage key for per-owner (session or chat) desktop layout state, used only when chat-specific layout is enabled. */
 const DESKTOP_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.chatLayoutState';
 
 type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
@@ -65,13 +64,6 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return undefined;
 	}
 
-	/**
-	 * [R-seed] When chat layout is enabled, its dedicated key starts out empty
-	 * even though the disabled key may already hold this window's existing
-	 * per-session layout — read that once, so the main chat inherits it
-	 * instead of regressing to defaults. Kept intact so disabling the setting
-	 * again still finds it.
-	 */
 	protected override get _legacyLayoutStateStorageKey(): string | undefined {
 		return this._chatLayoutEnabled ? DESKTOP_LAYOUT_STATE_KEY : undefined;
 	}
@@ -98,6 +90,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 					}
 				},
 				chatLayoutActive: reader => that._chatLayoutActive(reader),
+				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
 				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
 				get compositionStore() { return that._compositionStore!; },
 			};
@@ -170,21 +163,11 @@ export class DesktopLayoutController extends BaseLayoutController {
 	}
 
 	/**
-	 * Governs the panel at the workbench level (like the side pane), per owner,
-	 * when chat-specific layout is enabled — disabled (`false`), the panel stays
-	 * workbench-global and the base remembers the panel's *view* per session
-	 * instead (defaulting to the Terminal), exactly as before.
 	 */
 	protected override get _isPanelVisibilityPerSession(): boolean {
 		return this._chatLayoutEnabled;
 	}
 
-	/**
-	 * The panel's remembered *view* is always tracked per owner for desktop,
-	 * independent of {@link _isPanelVisibilityPerSession} — when chat-specific
-	 * layout is enabled both the panel's visibility and its active view are
-	 * owned per (session, chat), rather than the two being mutually exclusive.
-	 */
 	protected override get _isPanelViewPerSession(): boolean {
 		return true;
 	}
@@ -228,9 +211,11 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
 		this._compositionStore?.remap(oldKey, newKey);
+		this._existingSession?.remapPreHideComposition(oldKey, newKey);
 	}
 
 	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
 		this._compositionStore?.forget(keys);
+		this._existingSession?.forgetPreHideComposition(keys);
 	}
 }

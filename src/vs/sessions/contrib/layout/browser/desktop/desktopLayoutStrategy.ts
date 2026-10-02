@@ -28,10 +28,9 @@ export interface IDesktopLayoutContext {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
-	/** [R1/R13] Whether `sessions.experimental.chatSpecificLayout` is in effect for the current (desktop, non-suspended) presentation. Pass `reader` from inside a derive/autorun so a phone transition reactively re-evaluates it. */
 	chatLayoutActive(reader?: IReader): boolean;
+	chatLayoutSuspended(reader?: IReader): boolean;
 	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
-	/** [R5] Each owner's remembered last-open side-pane (Editor/Details) composition. Only consulted while {@link chatLayoutActive}. */
 	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 

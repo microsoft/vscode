@@ -48,9 +48,6 @@ suite('DesktopOwnerCompositionStore', () => {
 		const owner = URI.parse('session:same');
 		composition.set(owner, { editor: false, auxiliaryBar: true });
 
-		// Guards against a same-ID remap momentarily deleting what it just set:
-		// a naive `set(newKey, state); delete(oldKey)` would destroy the entry
-		// whenever oldKey === newKey.
 		composition.remap(owner, owner);
 
 		assert.deepStrictEqual(composition.get(owner), { editor: false, auxiliaryBar: true }, 'a same-ID remap must not lose the owner\'s composition');

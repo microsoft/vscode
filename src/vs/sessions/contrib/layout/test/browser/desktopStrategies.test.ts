@@ -83,6 +83,7 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		hasSavedWorkingSet: sessionResource => savedWorkingSets.has(sessionResource.toString()),
 		completeChangesEditorTransition: () => { },
 		chatLayoutActive: () => false,
+		chatLayoutSuspended: () => false,
 		ownerKeyFor: session => session.resource,
 		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore),
 	};

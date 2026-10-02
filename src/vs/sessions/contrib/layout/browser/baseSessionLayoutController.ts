@@ -156,16 +156,6 @@ export abstract class BaseLayoutController extends Disposable {
 		return WORKING_SETS_STORAGE_KEY;
 	}
 
-	/**
-	 * A presentation-specific legacy key whose snapshot is read (but never
-	 * removed) the first time {@link _layoutStateStorageKey}'s own key is
-	 * empty — used when a presentation keeps a *separate* storage key for its
-	 * chat-owned layout (see the desktop controller's chat-layout key), so the
-	 * main chat transparently inherits whatever per-session state already
-	 * existed under the previous key instead of starting from empty defaults.
-	 * Left intact so switching back later still finds the original snapshot.
-	 * `undefined` (the default) skips this secondary read entirely.
-	 */
 	protected get _legacyLayoutStateStorageKey(): string | undefined {
 		return undefined;
 	}
@@ -189,12 +179,6 @@ export abstract class BaseLayoutController extends Disposable {
 		return true;
 	}
 
-	/**
-	 * The gate for per-session panel *view* tracking [B6]. Coupled to
-	 * {@link _isPanelVisibilityPerSession} by default (mutually exclusive), but a
-	 * layout may decouple it to track both panel visibility and panel view
-	 * per owner at once.
-	 */
 	protected get _isPanelViewPerSession(): boolean {
 		return !this._isPanelVisibilityPerSession;
 	}
@@ -257,12 +241,9 @@ export abstract class BaseLayoutController extends Disposable {
 			return this._sessionsService.visibleSessions.read(reader).length > 1;
 		});
 
-		// [B5] When multiple sessions are visible, drop per-session view/panel state
-		// for each visible session (editor working sets are preserved). This ensures
-		// the default visibility logic runs again after collapsing back to one session.
 		this._register(autorun(reader => {
 			const visibleSessions = this._sessionsService.visibleSessions.read(reader);
-			if (visibleSessions.length <= 1) {
+			if (visibleSessions.length <= 1 || this._chatLayoutActive(reader)) {
 				return;
 			}
 			for (const session of visibleSessions) {
@@ -291,7 +272,8 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
-			if (this.multipleSessionsVisibleObs.read(reader)) {
+			const chatLayoutActive = this._chatLayoutActive(reader);
+			if (this.multipleSessionsVisibleObs.read(reader) && !chatLayoutActive) {
 				return;
 			}
 			if (activeSession && this._chatLayoutSuspended(reader)) {
@@ -305,7 +287,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelVisibilityPerSession || e.partId !== Parts.PANEL_PART) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
+			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -315,13 +297,11 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
-		// [B6] Capture the panel's active view per session (suppressed while
-		// multiple sessions are visible or a custom view covers the grid).
 		this._register(this._paneCompositePartService.onDidPaneCompositeOpen(e => {
 			if (!this._isPanelViewPerSession || e.viewContainerLocation !== ViewContainerLocation.Panel) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
+			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -331,8 +311,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
-		// [B6] Restore the session's remembered panel view on switch and when the
-		// panel is shown.
 		this._register(autorun(reader => {
 			if (!this._isPanelViewPerSession) {
 				return;
@@ -341,7 +319,8 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._chatLayoutEnabled) {
 				activeSession?.activeChat.read(reader);
 			}
-			if (this.multipleSessionsVisibleObs.read(reader)) {
+			const chatLayoutActive = this._chatLayoutActive(reader);
+			if (this.multipleSessionsVisibleObs.read(reader) && !chatLayoutActive) {
 				return;
 			}
 			if (activeSession && this._chatLayoutSuspended(reader)) {
@@ -353,7 +332,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._isPanelViewPerSession || e.partId !== Parts.PANEL_PART || !e.visible) {
 				return;
 			}
-			if (this.multipleSessionsVisibleObs.get() || this._isCustomViewVisible()) {
+			if ((this.multipleSessionsVisibleObs.get() && !this._chatLayoutActive()) || this._isCustomViewVisible()) {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
@@ -396,9 +375,6 @@ export abstract class BaseLayoutController extends Disposable {
 			() => this._workspaceContextService.getWorkspace().folders);
 
 		// [B2] The active session updates before the workspace folders do; hold back
-		// the new session until the folders reflect its working directory. Also
-		// holds the owner key (session, or session+chat when chat layout is
-		// enabled) so a same-session chat switch is detected as a distinct owner.
 		const activeSessionForWorkingSet = derivedObservableWithCache<{ readonly session: IActiveSession | undefined; readonly key: URI | undefined }>(this, (reader, lastValue) => {
 			const workspaceFolders = workspaceFoldersObs.read(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
@@ -454,8 +430,6 @@ export abstract class BaseLayoutController extends Disposable {
 
 		// [B2] Session changed (apply)
 		this._register(runOnChange(activeSessionForWorkingSet, (current, previous) => {
-			// Apply working set for current owner.
-			// On initial load (no previous owner), only apply if we have a saved working set —
 			// skip applying 'empty' to avoid closing editors that are being restored.
 			if (previous.session || (current.key && this._workingSets.has(current.key))) {
 				this._withSessionLayoutRestore(() => this._applyWorkingSet(current.key, { isInitialRestore: !previous.session }));
@@ -478,8 +452,6 @@ export abstract class BaseLayoutController extends Disposable {
 		}));
 		this._register(this._sessionManagementService.onDidReplaceSession(({ from, to }) => this._onSessionReplaced(from, to)));
 
-		// [R8] A confirmed chat deletion (peer or main) clears only that owner's
-		// layout state, never the whole session's.
 		this._register(this._sessionManagementService.onDidDeleteChat(({ sessionResource, chatResource, session }) => {
 			if (!this._chatLayoutEnabled) {
 				return;
@@ -492,8 +464,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}));
 
-		// [R8] A superseded (never-committed) draft is discarded wholesale —
-		// drop any peer-chat state it accrued before being replaced.
 		this._register(this._sessionManagementService.onDidReplaceNewDraftSession(({ from }) => {
 			if (!this._chatLayoutEnabled) {
 				return;
@@ -649,8 +619,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}
 
-		// Carry any chat-owned (non-main) peer state across the replacement too,
-		// so an owner that was never the main chat keeps its layout.
 		if (this._chatLayoutEnabled) {
 			for (const { oldKey, newKey } of this._chatLayoutOwnerKeys.remapSession({ from, to })) {
 				this._remapOwnerKeyState(oldKey, newKey);
@@ -718,18 +686,8 @@ export abstract class BaseLayoutController extends Disposable {
 	 */
 	protected _captureActiveSessionViewState(_sessionResource: URI): void { }
 
-	/**
-	 * [R5/R8] Hook that lets a subclass carry its own owner-keyed state (e.g. the
-	 * desktop side-pane composition) across a draft→committed promotion. The base
-	 * implementation does nothing.
-	 */
 	protected _onOwnerKeyRemapped(_oldKey: URI, _newKey: URI): void { }
 
-	/**
-	 * [R8] Hook that lets a subclass drop its own owner-keyed state for owners
-	 * that no longer exist (confirmed chat deletion, discarded draft, archived or
-	 * removed session). The base implementation does nothing.
-	 */
 	protected _onOwnerKeysForgotten(_keys: readonly URI[]): void { }
 
 	/**
@@ -851,12 +809,6 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}
 
-		// [R-seed] This own key is empty — read (without removing) a
-		// presentation-specific legacy key once, so the main chat (every entry
-		// here is session-level, i.e. main-chat-equivalent) inherits whatever
-		// state already existed under it rather than starting from empty
-		// defaults. Once this controller itself writes an entry, its own key is
-		// no longer empty and this read is skipped on subsequent loads.
 		const legacyPresentationKey = this._legacyLayoutStateStorageKey;
 		if (legacyPresentationKey) {
 			const legacyPresentationRaw = this._storageService.get(legacyPresentationKey, StorageScope.WORKSPACE);
@@ -865,7 +817,6 @@ export abstract class BaseLayoutController extends Disposable {
 					this._applySessionLayoutEntries(JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[]);
 					return;
 				} catch {
-					// ignore corrupted data and fall through to the ancient migration below
 				}
 			}
 		}
@@ -992,12 +943,6 @@ export abstract class BaseLayoutController extends Disposable {
 			: 'empty';
 		this._onWillApplyWorkingSet(workingSet);
 
-		// [R4] Captured before the sequencer's queued work (and every `await`
-		// inside it) runs, so a chat/owner switch or phone suspend/resume that
-		// lands while this apply is in flight is detected: the queued apply must
-		// still finish (the sequencer runs it to completion regardless), but its
-		// visibility side effects below are skipped once stale so they cannot
-		// publish on behalf of an owner that is no longer current.
 		const chatLayoutSnapshot = this._chatLayoutContext?.state.get();
 		const isStaleChatOwner = (): boolean => !!chatLayoutSnapshot?.owner && !this._chatLayoutContext!.isCurrent(chatLayoutSnapshot);
 

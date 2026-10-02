@@ -79,7 +79,6 @@ function mergeTriggers(a: IReconcileTrigger, b: IReconcileTrigger): IReconcileTr
 	};
 }
 
-/** Accumulated reconcile intents scoped to the owner (`sessionKey` — the chat-layout owner key when enabled, else the session resource) they were queued for. */
 interface IPendingReconcile {
 	readonly sessionKey: string | undefined;
 	readonly target: IManagedTabsTarget;

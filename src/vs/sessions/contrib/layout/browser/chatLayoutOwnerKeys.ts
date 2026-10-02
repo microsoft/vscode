@@ -11,34 +11,6 @@ import { ISession } from '../../../services/sessions/common/session.js';
 
 const CHAT_LAYOUT_OWNER_KEY_SCHEME = 'vscode-chat-layout-owner';
 
-/**
- * Resolves the opaque {@link URI} key used to index the existing session-keyed
- * layout maps ({@link ResourceMap}) for a chat-layout owner. The session's main
- * chat is always keyed by the session resource itself — so the main chat
- * transparently inherits whatever legacy per-session state already exists —
- * while every other chat gets a distinct, stable synthetic key, keeping a
- * single flat map shape for both the disabled (session-keyed) and enabled
- * (chat-keyed) presentations.
- *
- * This flat-key shape (rather than a nested `ResourceMap<ResourceMap<V>>` keyed
- * directly by `(sessionResource, chatResource)`, as used by
- * `changesViewService.ts`'s in-memory selection store) is a deliberate reuse of
- * the pre-existing, already-persisted session-keyed maps in
- * {@link baseSessionLayoutController.ts} (`_workingSets`,
- * `_viewStateBySession`, `_editorPartHiddenBySession`, `_panelViewBySession`):
- * restructuring those to a nested shape would be an unrelated, out-of-scope
- * rewrite of code and storage formats that predate chat-specific layout. The
- * synthetic key is a pure, deterministic function of `(sessionResource,
- * chatResource)` (see {@link resolveKey}) — not random — so it regenerates
- * identically across reloads without needing the resolver's own in-memory
- * cache to be persisted; only the *consumers* of the key
- * ({@link DesktopOwnerCompositionStore} and the base controller's maps)
- * persist state against it. No provider resource is ever reconstructed from
- * the synthetic key: it is write-only (derived from, never parsed back into,
- * session/chat resources) and is forgotten/remapped by direct reference via
- * {@link forgetChat}/{@link forgetSession}/{@link remapSession} rather than by
- * decoding its path.
- */
 export class ChatLayoutOwnerKeyRegistry {
 
 	private readonly _keysBySession = new ResourceMap<ResourceMap<URI>>();
@@ -64,7 +36,6 @@ export class ChatLayoutOwnerKeyRegistry {
 		return key;
 	}
 
-	/** Forgets a single non-main chat's key (confirmed per-chat deletion). Returns the forgotten key, if any. */
 	forgetChat(sessionResource: URI, chatResource: URI): URI | undefined {
 		const bySession = this._keysBySession.get(sessionResource);
 		const key = bySession?.get(chatResource);
@@ -78,7 +49,6 @@ export class ChatLayoutOwnerKeyRegistry {
 		return key;
 	}
 
-	/** Forgets every non-main chat key owned by a session (archive/removal). Returns the forgotten keys. */
 	forgetSession(sessionResource: URI): readonly URI[] {
 		const bySession = this._keysBySession.get(sessionResource);
 		if (!bySession) {
@@ -90,12 +60,6 @@ export class ChatLayoutOwnerKeyRegistry {
 		return keys;
 	}
 
-	/**
-	 * Remaps every non-main chat key owned by `replacement.from` onto
-	 * `replacement.to` (main-draft graduation), using the same owner-replacement
-	 * rule as the foundation's {@link getChatLayoutOwnerAfterReplacement}.
-	 * Unrelated peers are left untouched.
-	 */
 	remapSession(replacement: { readonly from: ISession; readonly to: ISession }): readonly { readonly oldKey: URI; readonly newKey: URI }[] {
 		const bySession = this._keysBySession.get(replacement.from.resource);
 		if (!bySession) {
