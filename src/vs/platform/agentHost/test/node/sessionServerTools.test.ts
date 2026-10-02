@@ -2345,20 +2345,17 @@ suite('SessionServerTools', () => {
 		}));
 		const context = executionContext('copilot:/s1');
 
-		const queuedResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' });
-		const steeringResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' });
+		const queuedResult = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' }));
+		const steeringResult = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' }));
 
 		assert.deepStrictEqual({
-			results: [queuedResult, steeringResult],
+			results: [queuedResult.action, steeringResult.action],
 			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
 			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
 			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
 			prompts,
 		}, {
-			results: [
-				queuedResult,
-				steeringResult,
-			],
+			results: ['queued', 'queued'],
 			queuedMessages: ['older', 'after queued'],
 			steeringQueuedMessages: ['after steering'],
 			steeringMessage: 'steering',
@@ -2621,6 +2618,38 @@ suite('SessionServerTools', () => {
 				status: 'processing',
 				message: 'already sent',
 			}]);
+		});
+
+		test('truncates pending message text using the selected detail cap', () => {
+			const sourceChat = URI.parse(buildDefaultChatUri('copilot:/caller'));
+			const context = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, {
+				turns: [],
+				hasMoreHistory: false,
+				pendingMessages: [{
+					kind: PendingMessageKind.Queued,
+					pending: {
+						id: 'long-message',
+						message: {
+							text: 'x'.repeat(200),
+							origin: { kind: MessageKind.Agent },
+							_meta: toAgentMessageDelegationMeta({
+								sourceSession: 'copilot:/caller',
+								sourceChat: sourceChat.toString(),
+								messageId: 'long-message',
+								revision: 1,
+							}),
+						},
+					},
+				}],
+			}, 'summary', 10, sourceChat));
+
+			assert.deepStrictEqual({
+				message: context.messagesSentByMe[0].message,
+				truncated: context.truncated,
+			}, {
+				message: `${'x'.repeat(159)}…`,
+				truncated: true,
+			});
 		});
 
 		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {

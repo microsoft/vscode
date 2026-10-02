@@ -1622,7 +1622,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 			revision: delegation.revision,
 			delivery: kind === PendingMessageKind.Steering ? 'steer' as const : 'queue' as const,
 			status: kind === PendingMessageKind.Steering ? 'processing' as const : 'pending' as const,
-			message: pending.message.text,
+			message: trunc(pending.message.text, caps.user) ?? '',
 		}];
 	}) : undefined;
 
