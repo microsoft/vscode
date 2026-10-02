@@ -2121,7 +2121,16 @@ suite('ProtocolServerHandler', () => {
 				.map(message => (message.params as SessionSummaryChangedParams).changes);
 			assert.deepStrictEqual({ listedMeta, summaryChanges }, {
 				listedMeta: { providerOnly: true, live: 'current' },
-				summaryChanges: [{ modifiedAt: startedAt, status: SessionStatus.InProgress }],
+				summaryChanges: [{
+					chats: [{
+						resource: defaultChatUri,
+						title: '',
+						origin: { kind: MessageKind.User },
+						status: SessionStatus.InProgress,
+					}],
+					modifiedAt: startedAt,
+					status: SessionStatus.InProgress,
+				}],
 			});
 		});
 	});

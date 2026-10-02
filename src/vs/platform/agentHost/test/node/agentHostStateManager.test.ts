@@ -1248,8 +1248,8 @@ suite('AgentHostStateManager', () => {
 					addedTitle: 'Peer',
 					chatResources: [buildDefaultChatUri(sessionUri), peerChat].sort(),
 					summaryChats: [
-						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User } },
-						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User } },
+						{ resource: buildDefaultChatUri(sessionUri), title: 'Test', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
+						{ resource: peerChat, title: 'Peer', origin: { kind: MessageKind.User }, status: SessionStatus.Idle },
 					],
 					defaultChat: buildDefaultChatUri(sessionUri),
 					peerTurns: 0,
