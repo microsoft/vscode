@@ -1320,4 +1320,3 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: false, auxiliaryBar: true }, 'focusing the peer chat restores its own persisted composition, not a default');
 	});
 });
-
