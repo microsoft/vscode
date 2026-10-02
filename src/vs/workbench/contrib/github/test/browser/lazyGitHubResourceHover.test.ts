@@ -213,6 +213,9 @@ suite('LazyGitHubResourceHover', () => {
 	for (const failChecks of [false, true]) {
 		test(`preserves prefetched core metadata while checks ${failChecks ? 'fail' : 'resolve'}`, async () => {
 			const operations: string[] = [];
+			const initialChecks: boolean[] = [];
+			const checksHeads: (string | undefined)[] = [];
+			let coreRefreshes = 0;
 			const checksStarted = new DeferredPromise<void>();
 			const finishChecks = new DeferredPromise<void>();
 			const snapshot = observableValue<PullRequestSnapshot>('prefetchPullRequest', upcastPartial<PullRequestSnapshot>({
@@ -249,21 +252,37 @@ suite('LazyGitHubResourceHover', () => {
 					}),
 				}),
 				pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
-					subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
-						resource: { ref: upcastPartial({}), snapshot },
-						update: () => { },
-						refresh: async fragment => {
-							operations.push(String(fragment));
-							if (fragment === 'checks') {
-								checksStarted.complete();
-								await finishChecks.p;
-								if (failChecks) {
-									throw new Error('Checks unavailable');
+					subscribePullRequest: (_ref,options) => {
+						initialChecks.push(!!options.checks);
+						return upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
+							resource: { ref: upcastPartial({}),snapshot },
+							update: options => {
+								if(options.checks) {
+									checksHeads.push(snapshot.get().core.value?.headSha);
 								}
-							}
-						},
-						dispose: () => { },
-					}),
+							},
+							refresh: async fragment => {
+								operations.push(String(fragment));
+								if(fragment==='core'&&++coreRefreshes===2) {
+									const current=snapshot.get();
+									assert.ok(current.core.value);
+									snapshot.set({
+										...current,
+										core: { ...current.core,value: { ...current.core.value,headSha: 'new-head' } },
+										checks: { status: 'missing',complete: false },
+									},undefined);
+								}
+								if(fragment==='checks') {
+									checksStarted.complete();
+									await finishChecks.p;
+									if(failChecks) {
+										throw new Error('Checks unavailable');
+									}
+								}
+							},
+							dispose: () => { },
+						});
+					},
 				}),
 			});
 			const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
@@ -285,11 +304,15 @@ suite('LazyGitHubResourceHover', () => {
 				afterHover: operations,
 				statusWhileChecking: whileChecking.status,
 				title: details?.pullRequest.title,
+				initialChecks,
+				checksHeads,
 			}, {
 				afterPrefetch: ['core'],
 				afterHover: ['core', 'core', 'checks'],
 				statusWhileChecking: 'resolved',
 				title: 'Pull request title',
+				initialChecks: [false, false],
+				checksHeads: ['new-head'],
 			});
 		});
 	}

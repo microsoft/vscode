@@ -328,8 +328,8 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 	}) : undefined;
 	const gitHubPresentation = gitHubKind && gitHubTarget && gitHubResolver
 		? gitHubKind === 'issue'
-			? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getIssueState(gitHubTarget).read(reader), artifact.label, issue => issue.title)
-			: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getPullRequestState(gitHubTarget).read(reader), artifact.label, details => details.pullRequest.title)
+			? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getIssueState(gitHubTarget).read(reader), link.toString(true), issue => issue.title)
+			: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getPullRequestState(gitHubTarget).read(reader), link.toString(true), details => details.pullRequest.title)
 		: undefined;
 	const displayLabel = gitHubPresentation?.label ?? artifact.label;
 	return withRemoveAction(artifact, {

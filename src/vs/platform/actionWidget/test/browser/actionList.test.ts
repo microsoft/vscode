@@ -2416,9 +2416,15 @@ suite('ActionListWidget', () => {
 		await settleLayout();
 		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
 		list.scrollTop = 240;
+		await settleLayout();
+		widget.updateItems(items.map(item => ({ ...item })), undefined, { preserveScrollPosition: true });
+		list.scrollTop = 241;
+		list.scrollTop = 242;
+		await settleLayout();
 
 		assert.ok(visible.length > 0);
 		assert.ok(visible.every(id => Number(id.slice('item-'.length)) >= 9));
+		assert.strictEqual(new Set(visible).size, visible.length, 'Already visible rows must not be notified again after metadata or pixel scroll updates');
 	});
 
 	test('tabs through a focused row toolbar and hover panel while preserving list navigation', () => {

@@ -329,6 +329,25 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+		const links = [
+			URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			URI.parse('https://github.com/microsoft/vscode/issues/2'),
+		];
+		const { presentation } = createPresentation(links.map((link, index) => ({
+			id: `reference-${index}`, kind: index === 0 ? SessionArtifactKind.PullRequest : SessionArtifactKind.Issue,
+			label: 'Related item', isArtifact: false, isGitHub: true, link,
+		})), undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => { throw new Error('offline'); },
+		}));
+		for (const entry of presentation.referenceSections.get().flatMap(section => section.entries)) {
+			entry.prefetch?.();
+		}
+		await timeout(0);
+		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => entry.label)), links.map(link => link.toString(true)));
+	});
+
 	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
 		const { presentation } = createPresentation([
 			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },

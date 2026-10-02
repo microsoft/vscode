@@ -1177,17 +1177,28 @@ export class ActionListWidget<T> extends Disposable {
 		}));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 		let canPrefetchVisibleItems = false;
+		let visibleItems = new Set<string | IActionListItem<T>>();
+		const visibleItemsUpdate = this._register(new MutableDisposable());
 		this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => canPrefetchVisibleItems = true));
-		this._register(this._list.onDidScroll(() => {
+		this._register(this._list.onDidScroll(event => {
 			if (!this._isMeasuringWidth) {
 				this._layoutSubmenu?.();
 			}
-			if (canPrefetchVisibleItems) {
-				const first = Math.max(0, this._list.firstVisibleIndex);
-				const last = Math.min(this._visibleMenuItems.length - 1, this._list.lastVisibleIndex);
-				for (let index = first; index <= last; index++) {
-					this._visibleMenuItems[index]?.onDidBecomeVisible?.();
-				}
+			if (canPrefetchVisibleItems && !this._isMeasuringWidth && event.scrollTopChanged && !visibleItemsUpdate.value) {
+				visibleItemsUpdate.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
+					visibleItemsUpdate.clear();
+					const first = Math.max(0, this._list.firstVisibleIndex);
+					const last = Math.min(this._visibleMenuItems.length - 1, this._list.lastVisibleIndex);
+					const items = this._visibleMenuItems.slice(first, last + 1);
+					const identity = (item: IActionListItem<T>) => (item.item as { id?: string } | undefined)?.id ?? item;
+					const previous = visibleItems;
+					visibleItems = new Set(items.map(identity));
+					for (const item of items) {
+						if (!previous.has(identity(item))) {
+							item.onDidBecomeVisible?.();
+						}
+					}
+				});
 			}
 		}));
 

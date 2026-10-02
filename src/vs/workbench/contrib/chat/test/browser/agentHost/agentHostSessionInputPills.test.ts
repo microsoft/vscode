@@ -857,6 +857,21 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, links.map((link, index) => ({
+				id: `reference-${index}`, type: index === 0 ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
+				label: 'Related item', link, isGitHub: true, isArtifact: false,
+			}))),
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		activity.dropdown('Reference');
+		await timeout(0);
+		assert.deepStrictEqual(activity.dropdownItems().map(item => item.label).filter(label => label?.startsWith('https://')), links);
+	});
+
 	test('lists each pill newest first, within the section it belongs to', () => {
 		const entries: readonly ISessionArtifact[] = [
 			{ id: 'old-website', type: SessionArtifactType.Website, label: 'Old Preview', link: 'https://example.com/old', isArtifact: true },

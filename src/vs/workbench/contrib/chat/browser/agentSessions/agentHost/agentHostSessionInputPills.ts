@@ -1100,8 +1100,8 @@ export class AgentHostSessionInputPills extends Disposable {
 			}) : undefined;
 			const gitHubPresentation = gitHubKind && gitHubTarget
 				? gitHubKind === 'issue'
-					? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getIssueState(gitHubTarget).read(reader), artifact.label, issue => issue.title)
-					: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getPullRequestState(gitHubTarget).read(reader), artifact.label, details => details.pullRequest.title)
+					? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getIssueState(gitHubTarget).read(reader), link.toString(true), issue => issue.title)
+					: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, this._lazyGitHubResourceResolver.getPullRequestState(gitHubTarget).read(reader), link.toString(true), details => details.pullRequest.title)
 				: undefined;
 			const displayLabel = gitHubPresentation?.label ?? label;
 			return {

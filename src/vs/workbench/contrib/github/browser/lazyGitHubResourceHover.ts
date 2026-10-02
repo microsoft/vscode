@@ -189,17 +189,17 @@ export class LazyGitHubResourceResolver extends Disposable {
 			const subscription = client.pullRequests.subscribePullRequest(ref, {
 				priority: 'interactive',
 				core: true,
-				...(includeChecks ? { checks: { includeOptional: true } } : {}),
 			});
 			try {
-				await Promise.all([
-					subscription.refresh('core'),
-					...(includeChecks ? [subscription.refresh('checks').catch(error => {
+				await subscription.refresh('core');
+				if (includeChecks) {
+					subscription.update({ priority: 'interactive', core: true, checks: { includeOptional: true } });
+					await subscription.refresh('checks').catch(error => {
 						if (!this._lifetime.signal.aborted) {
 							this._logService.warn('[LazyGitHubResourceResolver] Failed to resolve optional pull request checks', error);
 						}
-					})] : []),
-				]);
+					});
+				}
 				const snapshot = subscription.resource.snapshot.get();
 				return snapshot.core.value ? {
 					pullRequest: toPullRequestHoverModel(snapshot.core.value),
