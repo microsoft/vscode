@@ -1461,7 +1461,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 						disabled,
 						title: managed
 							? 'Sandboxing is required by your organization'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (managed || configured === AgentSandboxEnabledValue.On ? ['off', 'on'] : ['on']).map(value => ({
 							channel: 'copilotcli:/test-session', action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: value } },
 						})),
@@ -1507,7 +1507,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
-			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.' },
+			{ disabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.' },
 			{ disabled: true, title: 'Sandboxing is required by your organization' },
 		]);
 		delete sessionConfig.schema.properties[SessionConfigKey.SandboxEnabled];
