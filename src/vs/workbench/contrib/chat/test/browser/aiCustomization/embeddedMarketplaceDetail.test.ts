@@ -13,7 +13,7 @@ import { IRequestContext } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { EmbeddedMarketplaceDetail } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
@@ -37,16 +37,21 @@ suite('EmbeddedMarketplaceDetail', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const installChangeEmitter = store.add(new Emitter<void>());
 		let installState = actions.installState ?? { kind: 'available' };
+		const errors: string[] = [];
 		let requestCount = 0;
 		let installCount = 0;
 		let repairCount = 0;
 		let uninstallCount = 0;
 		const openedExternal: Array<URI | string> = [];
-		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage | NotificationMessage[]): void {
+				errors.push(String(message));
+			}
+		}());
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChangeEmitter.event;
 			override getInstallState() { return installState; }
-			override async repair(resource: ICustomizationMarketplaceResource) {
+			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				repairCount++;
 				await actions.repair?.(resource);
 				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
@@ -80,6 +85,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			getRequestCount: () => requestCount,
 			getActionCounts: () => ({ installCount, repairCount, uninstallCount }),
 			getOpenedExternal: () => openedExternal.map(resource => typeof resource === 'string' ? resource : resource.toString()),
+			getErrors: () => errors,
 		};
 	}
 
@@ -146,7 +152,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
 		});
 
-		parent.querySelector<HTMLButtonElement>('.marketplace-detail-query-button')?.click();
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -159,6 +165,59 @@ suite('EmbeddedMarketplaceDetail', () => {
 			label: 'Review this change',
 			ariaLabel: 'Install Repository review and run prompt: Review this change',
 			ariaBusy: null,
+		});
+	});
+
+	test('repairs a missing item before running a representative query', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent } = render(resource, undefined, {
+			installState: { kind: 'missing', target: { kind: 'skill', uri: URI.file('/missing') } },
+			repair: async repairedResource => { calls.push(`repair:${repairedResource.identifier}`); },
+			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
+		});
+
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(calls, ['repair:review', 'prompt:Review this change']);
+	});
+
+	test('does not run a representative query from a non-runnable install state', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent, getErrors } = render(resource, undefined, {
+			installState: { kind: 'error', target: { kind: 'skill', uri: URI.file('/broken') }, message: 'Broken' },
+			runPrompt: async prompt => { calls.push(prompt); },
+		});
+
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls,
+			errors: getErrors(),
+		}, {
+			calls: [],
+			errors: ['Could not run the prompt with Repository review. The customization cannot run while its state is: Installation error: Broken.'],
 		});
 	});
 
@@ -202,7 +261,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			installation: { kind: 'copilotConnector', name: 'mail' },
 		};
 		const available = render(resource);
-		const installed = render(resource, undefined, { kind: 'installed', target: { kind: 'copilotConnector', name: 'mail' } });
+		const installed = render(resource, undefined, { installState: { kind: 'installed', target: { kind: 'copilotConnector', name: 'mail' } } });
 
 		available.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
 		installed.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
@@ -233,10 +292,10 @@ suite('EmbeddedMarketplaceDetail', () => {
 			representativeQueries: [],
 		};
 		const target = { kind: 'skill' as const, uri: URI.file('C:\\skills\\review') };
-		const missing = render(resource, undefined, { kind: 'missing', target });
-		const blockedMissing = render(resource, undefined, { kind: 'missing', target, repairUnavailableMessage: 'The source is no longer available.' });
-		const error = render(resource, undefined, { kind: 'error', target, message: 'Installation failed.' });
-		const unavailable = render(resource, undefined, { kind: 'unavailable', message: 'This item requires a newer version.' });
+		const missing = render(resource, undefined, { installState: { kind: 'missing', target } });
+		const blockedMissing = render(resource, undefined, { installState: { kind: 'missing', target, repairUnavailableMessage: 'The source is no longer available.' } });
+		const error = render(resource, undefined, { installState: { kind: 'error', target, message: 'Installation failed.' } });
+		const unavailable = render(resource, undefined, { installState: { kind: 'unavailable', message: 'This item requires a newer version.' } });
 
 		missing.parent.querySelector<HTMLElement>('.embedded-detail-title-actions .monaco-button')?.click();
 		await timeout(0);

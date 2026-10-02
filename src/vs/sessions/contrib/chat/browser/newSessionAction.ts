@@ -59,7 +59,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean; prompt?: string; noWorkspace?: boolean }): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean; prompt?: string; noWorkspace?: boolean; sessionTypeId?: string }): Promise<void> {
 		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
@@ -68,18 +68,18 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			if (!options?.prompt) {
 				return;
 			}
-			let sessionId = sessionsService.activeSession.get()?.sessionId;
-			let sessionView = sessionsPartService?.getSessionView(sessionId);
+			const sessionId = sessionsService.activeSession.get()?.sessionId;
+			const sessionView = sessionsPartService?.getSessionView(sessionId);
 			if (!sessionView) {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
-			if (options.noWorkspace) {
-				sessionView.selectNoWorkspace({ userSelection: false, preserveNavigation: true });
-				sessionId = sessionsService.activeSession.get()?.sessionId;
-				sessionView = sessionsPartService?.getSessionView(sessionId) ?? sessionView;
-			}
 			sessionView.sendQuery(options.prompt);
 		};
+		if (options?.noWorkspace) {
+			sessionsService.openQuickChat({ sessionTypeId: options.sessionTypeId }, true);
+			sendPrompt();
+			return;
+		}
 		const activeSession = sessionsService.activeSession.get();
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
