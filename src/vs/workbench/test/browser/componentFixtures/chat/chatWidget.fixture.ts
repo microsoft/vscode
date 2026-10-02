@@ -17,6 +17,8 @@ import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRang
 import { Range } from '../../../../../editor/common/core/range.js';
 import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { IMenuItem, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ChatRequestTextPart } from '../../../../contrib/chat/common/requestParser/chatParserTypes.js';
 import { ChatModel, ChatRequestSource } from '../../../../contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
@@ -115,6 +117,8 @@ export interface IChatWidgetFixtureOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly listHeight?: number;
+	/** Omit the auxiliary-bar ancestry when the caller supplies the owning workbench part. */
+	readonly useAuxiliaryBarWrapper?: boolean;
 	/** Total horizontal padding reserved when laying out response content and embedded editors. */
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
@@ -634,14 +638,18 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// Mirror the product DOM ancestry: the chat widget lives inside
 	// `.part.auxiliarybar > .content`, where auxiliaryBarPart.css recolors
 	// inline editors with `--vscode-sideBar-background` (used by the carousel).
-	const auxBar = dom.$('.part.auxiliarybar');
-	auxBar.style.width = '100%';
-	auxBar.style.height = '100%';
-	const auxContent = dom.$('.content');
-	auxContent.style.width = '100%';
-	auxContent.style.height = '100%';
-	auxBar.appendChild(auxContent);
-	container.appendChild(auxBar);
+	let chatContainer = container;
+	if (options.useAuxiliaryBarWrapper !== false) {
+		const auxBar = dom.$('.part.auxiliarybar');
+		auxBar.style.width = '100%';
+		auxBar.style.height = '100%';
+		const auxContent = dom.$('.content');
+		auxContent.style.width = '100%';
+		auxContent.style.height = '100%';
+		auxBar.appendChild(auxContent);
+		container.appendChild(auxBar);
+		chatContainer = auxContent;
+	}
 
 	const session = dom.$('.interactive-session');
 	session.style.setProperty('--vscode-chat-list-background', listBackground);
@@ -650,7 +658,7 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 		session.classList.add(chatFloatingPersistentContentClass);
 		session.style.setProperty(chatPersistentContentHeightVariable, `${options.persistentContentHeight}px`);
 	}
-	auxContent.appendChild(session);
+	chatContainer.appendChild(session);
 
 	// Build the input part FIRST so the widget (with its inputPart) is registered
 	// in IChatWidgetService before the list widget renders. The renderer queries
@@ -1069,7 +1077,7 @@ const PERSISTENT_PROGRESS_PLAN_REVIEW: IFixtureMessage[] = [{
 	assistant: [{
 		kind: 'planReview',
 		title: 'Review the progress plan',
-		content: '1. Keep one active progress indicator.\n2. Use the Weave logo animation.\n3. Verify questions, confirmations, and streaming tools.',
+		content: '1. Keep one active progress indicator.\n2. Use the Draw logo animation.\n3. Verify questions, confirmations, and streaming tools.',
 	}],
 	responseComplete: false,
 }];
@@ -1188,6 +1196,12 @@ interface IPersistentProgressScenarioOptions {
 
 async function renderPersistentProgressScenario(context: ComponentFixtureContext, messages: readonly IFixtureMessage[], options: IPersistentProgressScenarioOptions = {}): Promise<void> {
 	const { expectedText, progressAnimation = ChatProgressAnimation.Draw, productQuality = 'stable', reducedMotion = false, thinkingStyle = ThinkingDisplayMode.Collapsed } = options;
+	const reducedMotionEmitter = context.disposableStore.add(new Emitter<void>());
+	const accessibilityService = new class extends TestAccessibilityService {
+		override readonly onDidChangeReducedMotion = reducedMotionEmitter.event;
+		override isMotionReduced(): boolean { return reducedMotion; }
+	}();
+	context.disposableStore.add(context.onDidChangeEnableAnimations(() => reducedMotionEmitter.fire()));
 	let handle: IChatWidgetFixtureHandle | undefined;
 	await renderChatWidget(context, {
 		messages,
@@ -1204,6 +1218,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 		width: options.width,
 		height: options.height ?? 560,
 		listHeight: options.listHeight ?? 340,
+		additionalServices: reg => reg.defineInstance(IAccessibilityService, accessibilityService),
 		onRendered: rendered => {
 			handle = rendered;
 			if (!options.activityUpdates || context.container.classList.contains('disable-animations')) {
@@ -1251,6 +1266,7 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	context.container.classList.toggle('monaco-reduce-motion', reducedMotion);
 
 	const targetWindow = dom.getWindow(context.container);
+	const initialDrawPathData = [...context.container.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d') ?? '');
 	const mcpStartup = messages.flatMap(message => message.assistant ?? []).find(part => part.kind === 'mcpStarting');
 	if (hasLocalMcpAutostart(messages)) {
 		await timeout(2600);
@@ -1408,8 +1424,12 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 	if (!iconElement || !logo || !textElement) {
 		throw new Error(`Persistent progress indicator is missing its decorative ${productQuality} VS Code icon`);
 	}
+	const noIcon = progressAnimation === ChatProgressAnimation.DrawMonochromeNoIcon;
 	if (logo.getClientRects().length === 0 || textElement.getClientRects().length === 0) {
 		throw new Error('The active progress icon or text is hidden');
+	}
+	if (targetWindow.getComputedStyle(logo).visibility !== (noIcon ? 'hidden' : 'visible')) {
+		throw new Error('The progress icon visibility does not match the selected style');
 	}
 	const reasoningIcons = response.querySelectorAll<HTMLElement>('.chat-persistent-reasoning > .chat-used-context-label .monaco-button > .codicon-thinking[aria-hidden="true"]');
 	if (reasoningIcons.length !== response.querySelectorAll('.chat-persistent-reasoning').length) {
@@ -1480,8 +1500,26 @@ async function renderPersistentProgressScenario(context: ComponentFixtureContext
 			throw new Error('The terminal activity animation did not retain its original motion behavior');
 		}
 	}
-	if (logo.getAnimations({ subtree: true }).length !== (shouldAnimate ? 3 : 0)) {
-		throw new Error(`${progressAnimation} progress animation did not match reducedMotion=${reducedMotion}`);
+	if (logo.getAnimations({ subtree: true }).length !== 0) {
+		throw new Error(`${progressAnimation} progress must use requestAnimationFrame instead of CSS animations`);
+	}
+	const drawPaths = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+	if (!noIcon && drawPaths.length !== 3) {
+		throw new Error(`${progressAnimation} progress did not render all Draw mask bands`);
+	}
+	const drawPathData = drawPaths.map(path => path.getAttribute('d') ?? '');
+	if (shouldAnimate && !noIcon && drawPathData.every((path, index) => path === initialDrawPathData[index])) {
+		throw new Error(`${progressAnimation} progress did not advance its Draw paths`);
+	}
+	if (!shouldAnimate && !noIcon) {
+		const face = logo.querySelector<HTMLElement>('.chat-working-logo-face');
+		const drawContainer = logo.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+		if (!logo.classList.contains('chat-working-logo-draw-assembled')
+			|| !face || targetWindow.getComputedStyle(face).display === 'none'
+			|| !drawContainer || targetWindow.getComputedStyle(drawContainer).display !== 'none'
+			|| [...face.querySelectorAll('path')].some(path => path.hasAttribute('mask'))) {
+			throw new Error(`${progressAnimation} progress did not resolve to the unmasked assembled product mark`);
+		}
 	}
 	if ((targetWindow.getComputedStyle(textElement).animationName !== 'none') !== shouldAnimate) {
 		throw new Error(`Persistent progress text animation did not match reducedMotion=${reducedMotion}`);
@@ -1534,7 +1572,7 @@ function defineThinkingStyleScenarios(thinkingStyle: ThinkingDisplayMode, defaul
 		PlanReview: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { expectedText: 'Plan review required' }),
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }, false),
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }, false),
 		CompletedSubagentNotices: scenario(parallelSubagentMessages(true), {}, false),
 		// The legacy fixed-scrolling thinking container reports a ResizeObserver loop when
 		// subagent pills expand inside it (independent of this setting), which the headless
@@ -1927,7 +1965,7 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 			{ kind: 'markdown', text: '### What I found\n\nThe existing progress is rendered by several content parts:\n\n- Tool calls keep their own details.\n- Reasoning remains independently collapsible.\n- The response owns a single working indicator.' },
 			{ kind: 'thinking', text: '**Checking the implementation**\nVerify that the setting still restores the original rendering.' },
 			tool('read_file', 'Read `src/progress.test.ts`', true),
-			{ kind: 'markdown', text: 'Persistent progress defaults to Off unless an experiment enables it. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
+			{ kind: 'markdown', text: 'Persistent progress defaults to Draw in Insiders and Off in Stable. Experiments can override either default. Select Draw with Compact tool previews explicitly:\n\n```json\n{\n  "chat.experimental.persistentProgress": "draw",\n  "chat.experimental.persistentProgressVerbosity": "compact"\n}\n```\n\nI am checking the remaining rendering scenarios now.' },
 		])),
 		StreamingToolCall: scenario(PERSISTENT_PROGRESS_STREAMING_TOOL),
 		StandaloneMcpTool: scenario(tools([...before, { kind: 'tool', toolId: 'mcp_documentation_lookup', displayName: 'Documentation', invocationMessage: 'Looking up the progress API...', source: mcpSource }]), { activityRowSpacing: true }),
@@ -1944,20 +1982,19 @@ function defineToolChainScenarios(progressAnimation = ChatProgressAnimation.Draw
 		PlanApproved: scenario(PERSISTENT_PROGRESS_PLAN_REVIEW, { submitInteraction: 'planReview' }),
 		WorktreeCreation: scenario(PERSISTENT_PROGRESS_WORKTREE),
 		McpStarting: scenario(PERSISTENT_PROGRESS_MCP_STARTING),
-		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: 'Waiting for 5 subagents' }),
-		// A single background agent is counted while the parent has nothing of its own in flight.
+		ParallelSubagents: scenario(parallelSubagentMessages(), { expectedText: '5 subagents running' }),
 		BackgroundAgent: scenario(tools([
 			{ kind: 'thinking', text: '**Delegating the investigation**\nHand the faint chronology to a research agent while the plan is drafted.' },
 			{ kind: 'markdown', text: 'I started a research agent to trace every faint.' },
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background agent blocks the parent until the agent reports back.
 		ReadBackgroundAgent: scenario(tools([
 			{ kind: 'subagent', id: 'faint-census', description: 'Track faint investigation' },
 			{ kind: 'thinking', text: '**Reviewing the plan**\nCheck the drafted plan against the notes before reading the agent result.' },
 			{ kind: 'markdown', text: 'The plan is ready. I will wait for the research agent before deciding on the battle strategy.' },
 			tool('read_agent', 'Read agent `faint-census`'),
-		]), { expectedText: 'Waiting for 1 subagent' }),
+		]), { expectedText: '1 subagent running' }),
 		// Reading a background terminal blocks the parent on its output.
 		ReadBackgroundTerminal: scenario(tools([
 			...before,
@@ -2000,7 +2037,7 @@ async function renderToolIconExamples(context: ComponentFixtureContext, grouped:
 	];
 	const height = terminalError || !grouped ? 560 : 420;
 	await renderChatWidget(context, {
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapsedTools: grouped ? CollapsedToolsDisplayMode.Always : CollapsedToolsDisplayMode.Off,
 		collapseCompletedResponses: false,
@@ -2042,7 +2079,7 @@ async function renderPatchCompletion(context: ComponentFixtureContext): Promise<
 		inputVisible: false,
 		height: 440,
 		listHeight: 440,
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		thinkingPhrases: ['Working'],
 		collapseCompletedResponses: false,
@@ -2089,7 +2126,7 @@ async function renderCompletedCodeBlock(context: ComponentFixtureContext, increm
 		width: 900,
 		height: 480,
 		listHeight: 480,
-		persistentProgress: ChatProgressAnimation.Weave,
+		persistentProgress: ChatProgressAnimation.Draw,
 		persistentProgressVerbosity: ChatProgressVerbosity.Compact,
 		collapseCompletedResponses: false,
 		thinkingPhrases: ['Working'],
@@ -2653,11 +2690,9 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 		}),
 		AnimationStyles: defineThemedFixtureGroup({
 			Off: defineProgressAnimationScenarios(ChatProgressAnimation.Off),
-			Weave: defineProgressAnimationScenarios(ChatProgressAnimation.Weave),
 			Draw: defineProgressAnimationScenarios(ChatProgressAnimation.Draw),
-			OrbitAndLock: defineProgressAnimationScenarios(ChatProgressAnimation.Orbit),
-			Accordion: defineProgressAnimationScenarios(ChatProgressAnimation.Accordion),
-			DialRotation: defineProgressAnimationScenarios(ChatProgressAnimation.Dial),
+			DrawMonochrome: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochrome),
+			DrawMonochromeNoIcon: defineProgressAnimationScenarios(ChatProgressAnimation.DrawMonochromeNoIcon),
 		}),
 		ByThinkingStyle: defineThemedFixtureGroup({
 			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed),
@@ -2670,9 +2705,9 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off }),
 		}),
 		OffAfterEnabled: defineThemedFixtureGroup({
-			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
-			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
-			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Weave }),
+			Collapsed: defineThinkingStyleScenarios(ThinkingDisplayMode.Collapsed, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
+			CollapsedPreview: defineThinkingStyleScenarios(ThinkingDisplayMode.CollapsedPreview, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
+			FixedScrolling: defineThinkingStyleScenarios(ThinkingDisplayMode.FixedScrolling, { progressAnimation: ChatProgressAnimation.Off, previousProgressAnimation: ChatProgressAnimation.Draw }),
 		}),
 		ResponseStreaming: defineComponentFixture({
 			labels: { kind: 'animated' },

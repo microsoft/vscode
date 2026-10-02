@@ -113,6 +113,10 @@ suite('AgentHostTelemetryReporter', () => {
 			assert.deepStrictEqual(service.standardEvents.splice(0), baseline.map(event => ({
 				...event, data: { ...event.data, ...(provider === 'codex' ? snapshot : {}) },
 			})));
+			// A legacy/selected model ID cannot determine the dispatch route. The
+			// provider-owned snapshot wins, and only Codex reports this field.
+			reporter.turnCompleted({ ...completion, model: 'legacy-model', codexModelProvider: 'openai' });
+			assert.strictEqual(service.standardEvents.splice(0)[0].data?.codexModelProvider, provider === 'codex' ? 'openai' : undefined);
 		}
 	});
 
@@ -608,6 +612,8 @@ suite('AgentHostTelemetryReporter', () => {
 			telemetryContext: { copilotSku: 'sku-a' },
 			toolId: 'bash', toolSourceKind: 'internal',
 			confirmKind: 'userAction',
+			decisionSource: 'human_response',
+			permissionResult: 'approved',
 			confirmationNotNeededReason: undefined,
 			requestUnsandboxedExecution: true,
 		});
@@ -615,6 +621,8 @@ suite('AgentHostTelemetryReporter', () => {
 			provider: 'copilot', session, turnId: 'turn-3',
 			toolId: 'my-mcp-tool', toolSourceKind: 'mcp',
 			confirmKind: 'denied',
+			decisionSource: 'host_policy',
+			permissionResult: 'denied-interactively-by-user',
 			confirmationNotNeededReason: undefined,
 			requestUnsandboxedExecution: undefined,
 		});
@@ -631,6 +639,7 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'internal',
 				confirmKind: 'confirmationNotNeeded',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,
@@ -654,6 +663,9 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'internal',
 				confirmKind: 'userAction',
+				decisionSource: 'human_response',
+				permissionResult: 'approved',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,
@@ -673,6 +685,9 @@ suite('AgentHostTelemetryReporter', () => {
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
 				confirmKind: 'denied',
+				decisionSource: 'host_policy',
+				permissionResult: 'denied-interactively-by-user',
+				approvalTelemetryVersion: 2,
 				settingId: undefined,
 				lmServiceScope: undefined,
 				customButtonKind: undefined,

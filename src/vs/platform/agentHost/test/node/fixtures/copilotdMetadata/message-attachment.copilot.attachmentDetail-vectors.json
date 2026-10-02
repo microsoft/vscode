@@ -1,0 +1,672 @@
+{
+  "key": "copilot.attachmentDetail",
+  "carrier": "MessageAttachment._meta (SimpleMessageAttachment / MessageResourceAttachment)",
+  "tests": [
+    {
+      "name": "projectFromSdk: github_reference → Simple shell with verbatim _meta",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_reference",
+          "number": 42,
+          "title": "Fix rendering",
+          "referenceType": "issue",
+          "state": "open",
+          "url": "https://github.com/example/repo/issues/42"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_reference",
+              "number": 42,
+              "title": "Fix rendering",
+              "referenceType": "issue",
+              "state": "open",
+              "url": "https://github.com/example/repo/issues/42"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_reference with blank title labels with #number",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_reference",
+          "number": 7,
+          "title": "",
+          "referenceType": "pr",
+          "state": "closed",
+          "url": "https://github.com/example/repo/pull/7"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "#7",
+          "displayKind": "github-reference",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_reference",
+              "number": 7,
+              "title": "",
+              "referenceType": "pr",
+              "state": "closed",
+              "url": "https://github.com/example/repo/pull/7"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_commit → Simple shell, label derived from message",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_commit",
+          "message": "Fix rendering",
+          "oid": "abc123",
+          "repo": { "owner": "octo", "name": "repo" },
+          "url": "https://github.com/octo/repo/commit/abc123"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-commit",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_commit",
+              "message": "Fix rendering",
+              "oid": "abc123",
+              "repo": { "owner": "octo", "name": "repo" },
+              "url": "https://github.com/octo/repo/commit/abc123"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_release → Simple shell, label derived from name",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_release",
+          "name": "v1.0.0",
+          "repo": { "owner": "octo", "name": "repo" },
+          "tagName": "v1.0.0",
+          "url": "https://github.com/octo/repo/releases/tag/v1.0.0"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "v1.0.0",
+          "displayKind": "github-release",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_release",
+              "name": "v1.0.0",
+              "repo": { "owner": "octo", "name": "repo" },
+              "tagName": "v1.0.0",
+              "url": "https://github.com/octo/repo/releases/tag/v1.0.0"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_actions_job → Simple shell, label derived from jobName",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_actions_job",
+          "jobId": 99,
+          "jobName": "build",
+          "repo": { "owner": "octo", "name": "repo" },
+          "url": "https://github.com/octo/repo/actions/runs/1/job/99",
+          "workflowName": "CI"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "build",
+          "displayKind": "github-actions-job",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_actions_job",
+              "jobId": 99,
+              "jobName": "build",
+              "repo": { "owner": "octo", "name": "repo" },
+              "url": "https://github.com/octo/repo/actions/runs/1/job/99",
+              "workflowName": "CI"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_repository → Simple shell, label derived from owner/name slug",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_repository",
+          "repo": { "owner": "octo", "name": "repo" },
+          "url": "https://github.com/octo/repo"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "octo/repo",
+          "displayKind": "github-repository",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_repository",
+              "repo": { "owner": "octo", "name": "repo" },
+              "url": "https://github.com/octo/repo"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_file → Simple shell, label derived from path",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_file",
+          "path": "src/main.rs",
+          "ref": "main",
+          "repo": { "owner": "octo", "name": "repo" },
+          "url": "https://github.com/octo/repo/blob/main/src/main.rs"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "src/main.rs",
+          "displayKind": "github-file",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_file",
+              "path": "src/main.rs",
+              "ref": "main",
+              "repo": { "owner": "octo", "name": "repo" },
+              "url": "https://github.com/octo/repo/blob/main/src/main.rs"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: github_url → Simple shell, label falls back to url",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "github_url",
+          "url": "https://github.com/octo/repo/blob/main/README.md"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "simple",
+          "label": "https://github.com/octo/repo/blob/main/README.md",
+          "displayKind": "github-url",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_url",
+              "url": "https://github.com/octo/repo/blob/main/README.md"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: lossless blob kind carries no attachmentDetail _meta",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "blob",
+          "data": "Zm9v",
+          "mimeType": "image/png",
+          "displayName": "image.png"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "embeddedResource",
+          "label": "image.png",
+          "displayKind": "image",
+          "data": "Zm9v",
+          "contentType": "image/png"
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: selection with non-absolute path falls back to raw passthrough",
+      "op": "projectFromSdk",
+      "input": {
+        "attachment": {
+          "type": "selection",
+          "filePath": "relative/lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 0, "character": 4 }
+          }
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "selection",
+          "filePath": "relative/lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 0, "character": 4 }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: selection Resource with verbatim _meta reconstructs the lossless Selection",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "resource",
+          "label": "lib.rs",
+          "displayKind": "selection",
+          "uri": "file:///tmp/lib.rs",
+          "selection": {
+            "range": {
+              "start": { "line": 1, "character": 2 },
+              "end": { "line": 3, "character": 4 }
+            }
+          },
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "selection",
+              "filePath": "/tmp/lib.rs",
+              "displayName": "lib.rs",
+              "text": "fn main() {}",
+              "selection": {
+                "start": { "line": 1, "character": 2 },
+                "end": { "line": 3, "character": 4 }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "selection",
+          "filePath": "/tmp/lib.rs",
+          "displayName": "lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 1, "character": 2 },
+            "end": { "line": 3, "character": 4 }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: github_reference Simple with verbatim _meta reconstructs the SDK reference",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_reference",
+              "number": 42,
+              "title": "Fix rendering",
+              "referenceType": "issue",
+              "state": "open",
+              "url": "https://github.com/example/repo/issues/42"
+            }
+          }
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "github_reference",
+          "number": 42,
+          "title": "Fix rendering",
+          "referenceType": "issue",
+          "state": "open",
+          "url": "https://github.com/example/repo/issues/42"
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: github_commit Simple with verbatim _meta reconstructs the SDK commit",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-commit",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_commit",
+              "message": "Fix rendering",
+              "oid": "abc123",
+              "repo": { "owner": "octo", "name": "repo" },
+              "url": "https://github.com/octo/repo/commit/abc123"
+            }
+          }
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "github_commit",
+          "message": "Fix rendering",
+          "oid": "abc123",
+          "repo": { "owner": "octo", "name": "repo" },
+          "url": "https://github.com/octo/repo/commit/abc123"
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: EmbeddedResource reconstructs a Blob",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "embeddedResource",
+          "label": "image.png",
+          "displayKind": "image",
+          "data": "Zm9v",
+          "contentType": "image/png"
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "blob",
+          "data": "Zm9v",
+          "mimeType": "image/png",
+          "displayName": "image.png"
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: Unknown verbatim SDK blob is recovered",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "selection",
+          "filePath": "relative/lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 0, "character": 4 }
+          }
+        }
+      },
+      "expected": {
+        "attachment": {
+          "type": "selection",
+          "filePath": "relative/lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 0, "character": 0 },
+            "end": { "line": 0, "character": 4 }
+          }
+        }
+      }
+    },
+    {
+      "name": "projectToSdk: bare Simple shell with no _meta is dropped",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference"
+        }
+      },
+      "expected": { "attachment": null }
+    },
+    {
+      "name": "projectToSdk: empty-object attachmentDetail is treated as absence",
+      "op": "projectToSdk",
+      "input": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference",
+          "_meta": { "copilot.attachmentDetail": {} }
+        }
+      },
+      "expected": { "attachment": null }
+    },
+    {
+      "name": "set: stamp attachmentDetail onto an empty attachment _meta",
+      "op": "set",
+      "input": {
+        "meta": {},
+        "detail": {
+          "type": "github_reference",
+          "number": 42,
+          "title": "Fix rendering",
+          "referenceType": "issue",
+          "state": "open",
+          "url": "https://github.com/example/repo/issues/42"
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.attachmentDetail": {
+            "type": "github_reference",
+            "number": 42,
+            "title": "Fix rendering",
+            "referenceType": "issue",
+            "state": "open",
+            "url": "https://github.com/example/repo/issues/42"
+          }
+        }
+      }
+    },
+    {
+      "name": "set: preserve unrelated _meta keys",
+      "op": "set",
+      "input": {
+        "meta": { "copilot.unrelated": "x" },
+        "detail": {
+          "type": "selection",
+          "filePath": "/tmp/lib.rs",
+          "displayName": "lib.rs",
+          "text": "fn main() {}",
+          "selection": {
+            "start": { "line": 1, "character": 2 },
+            "end": { "line": 3, "character": 4 }
+          }
+        }
+      },
+      "expected": {
+        "meta": {
+          "copilot.unrelated": "x",
+          "copilot.attachmentDetail": {
+            "type": "selection",
+            "filePath": "/tmp/lib.rs",
+            "displayName": "lib.rs",
+            "text": "fn main() {}",
+            "selection": {
+              "start": { "line": 1, "character": 2 },
+              "end": { "line": 3, "character": 4 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "extract: read the verbatim attachment off _meta",
+      "op": "extract",
+      "input": {
+        "meta": {
+          "copilot.attachmentDetail": {
+            "type": "github_reference",
+            "number": 42,
+            "title": "Fix rendering",
+            "referenceType": "issue",
+            "state": "open",
+            "url": "https://github.com/example/repo/issues/42"
+          }
+        }
+      },
+      "expected": {
+        "detail": {
+          "type": "github_reference",
+          "number": 42,
+          "title": "Fix rendering",
+          "referenceType": "issue",
+          "state": "open",
+          "url": "https://github.com/example/repo/issues/42"
+        }
+      }
+    },
+    {
+      "name": "extract: absent key yields no detail",
+      "op": "extract",
+      "input": { "meta": {} },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: empty-object value is treated as absence",
+      "op": "extract",
+      "input": { "meta": { "copilot.attachmentDetail": {} } },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "extract: non-object value is treated as absence",
+      "op": "extract",
+      "input": { "meta": { "copilot.attachmentDetail": "nope" } },
+      "expected": { "detail": null }
+    },
+    {
+      "name": "wireShape: selection Resource shell carries attachmentDetail _meta",
+      "op": "wireShape",
+      "input": {
+        "attachment": {
+          "type": "resource",
+          "label": "lib.rs",
+          "displayKind": "selection",
+          "uri": "file:///tmp/lib.rs",
+          "selection": {
+            "range": {
+              "start": { "line": 1, "character": 2 },
+              "end": { "line": 3, "character": 4 }
+            }
+          },
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "selection",
+              "filePath": "/tmp/lib.rs",
+              "displayName": "lib.rs",
+              "text": "fn main() {}",
+              "selection": {
+                "start": { "line": 1, "character": 2 },
+                "end": { "line": 3, "character": 4 }
+              }
+            }
+          }
+        }
+      },
+      "expected": {
+        "json": {
+          "type": "resource",
+          "label": "lib.rs",
+          "displayKind": "selection",
+          "uri": "file:///tmp/lib.rs",
+          "selection": {
+            "range": {
+              "start": { "line": 1, "character": 2 },
+              "end": { "line": 3, "character": 4 }
+            }
+          },
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "selection",
+              "filePath": "/tmp/lib.rs",
+              "displayName": "lib.rs",
+              "text": "fn main() {}",
+              "selection": {
+                "start": { "line": 1, "character": 2 },
+                "end": { "line": 3, "character": 4 }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "wireShape: github reference Simple shell carries attachmentDetail _meta",
+      "op": "wireShape",
+      "input": {
+        "attachment": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_reference",
+              "number": 42,
+              "title": "Fix rendering",
+              "referenceType": "issue",
+              "state": "open",
+              "url": "https://github.com/example/repo/issues/42"
+            }
+          }
+        }
+      },
+      "expected": {
+        "json": {
+          "type": "simple",
+          "label": "Fix rendering",
+          "displayKind": "github-reference",
+          "_meta": {
+            "copilot.attachmentDetail": {
+              "type": "github_reference",
+              "number": 42,
+              "title": "Fix rendering",
+              "referenceType": "issue",
+              "state": "open",
+              "url": "https://github.com/example/repo/issues/42"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "wireShape: lossless file Resource shell omits _meta",
+      "op": "wireShape",
+      "input": {
+        "attachment": {
+          "type": "resource",
+          "label": "file.rs",
+          "displayKind": "document",
+          "uri": "file:///tmp/file.rs"
+        }
+      },
+      "expected": {
+        "json": {
+          "type": "resource",
+          "label": "file.rs",
+          "displayKind": "document",
+          "uri": "file:///tmp/file.rs"
+        }
+      }
+    }
+  ]
+}

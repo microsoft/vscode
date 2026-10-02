@@ -25,7 +25,7 @@ export const agentsWindowHandoffConfigurationProperties = {
 	[ChatConfiguration.AgentsParallelWorkBannerEnabled]: {
 		type: 'boolean',
 		description: nls.localize('chat.agentsParallelWorkBanner.enabled', "Show an invitation to work in parallel in the Agents Window when starting a new Agent Host chat while another Agent Host session is running."),
-		default: product.quality === 'insider',
+		default: false,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
@@ -39,6 +39,13 @@ export const agentsWindowHandoffConfigurationProperties = {
 		],
 		description: nls.localize('chat.copilotHarnessIntroduction.mode', "Controls when the introduction to the new Copilot experience is shown."),
 		default: product.quality === 'insider' ? CopilotHarnessIntroductionMode.NewSession : CopilotHarnessIntroductionMode.Off,
+		tags: ['experimental'],
+		experiment: { mode: 'auto' },
+	},
+	[ChatConfiguration.HarnessSwitchFeedbackSurveyEnabled]: {
+		type: 'boolean',
+		description: nls.localize('chat.harnessSwitchFeedbackSurvey.enabled', "Show a one-time feedback survey after switching from Copilot to Local."),
+		default: false,
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},

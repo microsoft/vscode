@@ -231,8 +231,8 @@ interface ICopilotLongRunningSearchToolArgs {
 export type ToolAgentNameResolver = (agentId: string) => string | undefined;
 
 /**
- * Resolves opaque SDK agent ids to their display names for presentation only; invocation
- * arguments are untouched. Unknown ids and blank names fall back to the raw id.
+ * Resolves SDK agent ids to their subagent chat titles for presentation without changing invocation arguments.
+ * Unknown ids and blank titles fall back to the raw id.
  */
 function getAgentLabel(agentId: unknown, resolveAgentName: ToolAgentNameResolver | undefined): string | undefined {
 	if (typeof agentId !== 'string' || agentId.length === 0) {
@@ -394,6 +394,16 @@ const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReadPowerShell,
 ]);
 
+/** Set of tool names that read from, write to, or stop a shell started by an earlier shell tool call. */
+const SHELL_HELPER_TOOL_NAMES: ReadonlySet<string> = new Set([
+	...READ_SHELL_TOOL_NAMES,
+	...WRITE_SHELL_TOOL_NAMES,
+	CopilotToolName.StopBash,
+	CopilotToolName.BashShutdown,
+	CopilotToolName.StopPowerShell,
+	CopilotToolName.PowerShellShutdown,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
@@ -460,15 +470,15 @@ export function getTaskCompleteSummary(parameters: Record<string, unknown> | und
 }
 
 /**
- * Formats the Autopilot completion summary as the markdown response part
- * content, including the localized prefix.
+ * Formats the Autopilot completion summary with a separate localized label
+ * paragraph to preserve block markdown in the summary.
  */
 export function getTaskCompleteMarkdown(parameters: Record<string, unknown> | undefined, toolOutput: string | undefined): string | undefined {
 	const summary = getTaskCompleteSummary(parameters, toolOutput);
 	if (!summary) {
 		return undefined;
 	}
-	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:** {0}", summary);
+	return '\n\n' + localize('toolMarkdown.taskComplete', "**Task completed:**\n\n{0}", summary);
 }
 
 /**
@@ -499,6 +509,14 @@ export function getToolMarkdownContent(toolName: string, parameters: Record<stri
  */
 export function isShellTool(toolName: string): boolean {
 	return SHELL_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool reads from, writes to, or stops a shell that an
+ * earlier shell tool call started.
+ */
+export function isShellHelperTool(toolName: string): boolean {
+	return SHELL_HELPER_TOOL_NAMES.has(toolName);
 }
 
 /**
@@ -1055,15 +1073,16 @@ export function getToolKind(toolName: string, parameters?: Record<string, unknow
  *
  * Only call this for tools where {@link getToolKind} returned `'subagent'`.
  */
-export function getSubagentMetadata(parameters: Record<string, unknown> | undefined): { agentName?: string; description?: string } {
-	if (!parameters) {
+export function getSubagentMetadata(parameters: unknown): { agentName?: string; description?: string } {
+	if (!isObject(parameters)) {
 		return {};
 	}
-	const agentName = typeof parameters.agent_type === 'string' && parameters.agent_type.length > 0
-		? parameters.agent_type
+	const metadata = parameters as Record<string, unknown>;
+	const agentName = typeof metadata.agent_type === 'string' && metadata.agent_type.length > 0
+		? metadata.agent_type
 		: undefined;
-	const description = typeof parameters.description === 'string' && parameters.description.length > 0
-		? parameters.description
+	const description = typeof metadata.description === 'string' && metadata.description.length > 0
+		? metadata.description
 		: undefined;
 	return { agentName, description };
 }

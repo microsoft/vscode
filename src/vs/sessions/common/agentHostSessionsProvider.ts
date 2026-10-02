@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../base/common/cancellation.js';
 import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
@@ -17,6 +18,7 @@ import { type McpServerSource } from '../../platform/agentHost/common/meta/mcpCu
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 import { ISessionAgentRef } from '../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../platform/agentHost/common/agentMerge.js';
+import type { ISessionSandboxPolicy } from '../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
 /**
  * Progress emitted while an agent-host provider is establishing a connection.
@@ -215,6 +217,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
+	/** Waits for a draft's authentication and configuration resolution, rejecting if configuration is unavailable. */
+	whenSessionConfigResolved(sessionId: string, token: CancellationToken): Promise<ResolveSessionConfigResult>;
+	/** Canceled when the draft is disposed, including when its provider disconnects. */
+	getNewSessionCancellationToken(sessionId: string): CancellationToken;
+	/** Effective runtime sandbox policy, refreshed with session configuration notifications. */
+	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
+	/** Last sandbox enablement successfully applied by the host. */
+	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they

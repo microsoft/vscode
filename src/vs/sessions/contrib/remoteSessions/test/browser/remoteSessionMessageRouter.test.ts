@@ -31,6 +31,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, Com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -38,6 +39,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatSession, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatModel, IChatPendingRequest } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IToolInvocation } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ChatInteractivity, IChat, ISession } from '../../../../services/sessions/common/session.js';
@@ -202,7 +204,7 @@ suite('RemoteSessionMessageRouter', () => {
 			}
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
 		const sessions = ['agent-host-copilot', 'remote-first-copilot', 'remote-second-copilot'].map((scheme, index) => {
 			const resource = URI.from({ scheme, path: '/same-id' });
 			const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({

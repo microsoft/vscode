@@ -6,7 +6,7 @@
 import { coalesce } from '../../../../base/common/arrays.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { JSONVisitor, visit } from '../../../../base/common/json.js';
+import { JSONVisitor, setObjectProperty, visit } from '../../../../base/common/json.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
@@ -266,7 +266,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 		if (Array.isArray(currentParent)) {
 			(<any[]>currentParent).push(value);
 		} else if (currentProperty) {
-			currentParent[currentProperty] = value;
+			setObjectProperty(currentParent, currentProperty, value);
 		}
 		if (previousParents.length === settingsPropertyIndex + 1 || (previousParents.length === settingsPropertyIndex + 2 && overrideSetting !== null)) {
 			// settings value started
@@ -741,6 +741,7 @@ export class DefaultSettings extends Disposable {
 			deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 			deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 			deprecationMessageSeverity: prop.deprecationMessageSeverity,
+			deprecationMessageShowInSettings: prop.deprecationMessageShowInSettings,
 			validator: createValidator(prop),
 			allKeysAreBoolean,
 			editPresentation: prop.editPresentation,
@@ -952,6 +953,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			deprecationMessage: setting.deprecationMessage,
 			deprecationMessageIsMarkdown: setting.deprecationMessageIsMarkdown,
 			deprecationMessageSeverity: setting.deprecationMessageSeverity,
+			deprecationMessageShowInSettings: setting.deprecationMessageShowInSettings,
 			keyRange: nullRange,
 			valueRange: nullRange,
 			descriptionIsMarkdown: undefined,
