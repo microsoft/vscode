@@ -80,9 +80,14 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return undefined;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
-		return activeSession && !activeSession.isCreated.get() && !activeSession.isQuickChat?.get()
-			? this._ctx.ownerKeyFor(activeSession)
-			: undefined;
+		if (!activeSession) {
+			return undefined;
+		}
+		const isQuickChat = activeSession.isQuickChat?.get() ?? false;
+		if (!isQuickChat && activeSession.isCreated.get()) {
+			return undefined;
+		}
+		return this._ctx.ownerKeyFor(activeSession);
 	}
 
 	private _readOwnerComposition(): { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined {
@@ -92,6 +97,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 	private _applyOwnerComposition(state: { readonly editor: boolean; readonly auxiliaryBar: boolean }): void {
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		this._changingVisibility = true;
 		try {
 			if (state.auxiliaryBar !== this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(!state.auxiliaryBar, Parts.AUXILIARYBAR_PART);
@@ -100,12 +106,13 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				this._layoutService.setPartHidden(!state.editor, Parts.EDITOR_PART);
 			}
 		} finally {
+			this._changingVisibility = false;
 			suppression.dispose();
 		}
 	}
 
 	private _captureOwnerCompositionIfApplicable(): void {
-		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._layoutService.isEditorMaximized()) {
+		if (this._changingVisibility || this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._layoutService.isEditorMaximized()) {
 			return;
 		}
 		const ownerKey = this._activeOwnerKey();
@@ -252,10 +259,14 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
 				const isRestoringSessionLayout = this._ctx.isRestoringSessionLayout;
+				const storedComposition = this._readOwnerComposition();
 				this._pendingEditorRestoreKey = !multipleSessionsVisible
 					? sessionKey
 					: undefined;
-				if (!multipleSessionsVisible && hasSavedWorkingSet) {
+				if (storedComposition) {
+					this._pendingEditorRestoreKey = undefined;
+					this._applyOwnerComposition(storedComposition);
+				} else if (!multipleSessionsVisible && hasSavedWorkingSet) {
 					this._applyQuickChatSharedVisibility();
 				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
 					this._pendingEditorRestoreKey = undefined;
@@ -281,6 +292,12 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._pendingEditorRestoreKey = undefined;
 			if (isMainPartEmpty(this._editorGroupsService)) {
 				this._hideQuickChatSidePaneTransiently();
+				return;
+			}
+
+			const storedComposition = this._readOwnerComposition();
+			if (storedComposition) {
+				this._applyOwnerComposition(storedComposition);
 				return;
 			}
 

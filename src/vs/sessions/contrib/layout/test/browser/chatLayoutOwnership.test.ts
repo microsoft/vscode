@@ -10,12 +10,17 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
+
+const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
+const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
+const CHAT_LAYOUT_STATE_STORAGE_KEY = 'sessions.singlePane.chatLayoutState';
 
 suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
@@ -170,7 +175,19 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		const legacyRawBefore = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
 		assert.notStrictEqual(legacyRawBefore, undefined, 'the legacy session-keyed key must still exist after a peer chat is visited and switched away from');
+		const chatLayoutStateRaw = harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		assert.notStrictEqual(chatLayoutStateRaw, undefined, 'the peer chat\'s own working set and panel view must be serialized under the per-chat key before reconstructing storage');
+		const compositionRaw = harness.storageService.get(SIDE_PANE_COMPOSITION_STORAGE_KEY, StorageScope.WORKSPACE);
 		firstRunStore.dispose();
+
+		const reconstructedStorageService = store.add(new TestStorageService());
+		reconstructedStorageService.store('sessions.singlePane.layoutState', legacyRawBefore!, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		reconstructedStorageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, chatLayoutStateRaw!, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (compositionRaw !== undefined) {
+			reconstructedStorageService.store(SIDE_PANE_COMPOSITION_STORAGE_KEY, compositionRaw, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		harness.instaService.set(IStorageService, reconstructedStorageService);
+		harness.storageService = reconstructedStorageService;
 
 		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
 		harness.openPaneCompositeCalls = [];
@@ -276,7 +293,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'reopening via the real toggle must restore A\'s own composition, not B\'s legacy pre-hide state');
 	});
 
-	test('[R5] a fresh controller after reload restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {
+	test('[R5] a fresh controller backed by an independently reconstructed storage service restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {
 		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
 		const firstRunStore = new DisposableStore();
 		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
@@ -284,16 +301,18 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		const sessionA = makeSession(URI.parse('session:a'));
 		const sessionB = makeSession(URI.parse('session:b'));
+		const ownerKeyA = controllerA.ownerKeyFor(sessionA);
+		const ownerKeyB = controllerA.ownerKeyFor(sessionB);
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
 		setVisible(true, true);
 		await settle();
-		assert.deepStrictEqual(controllerA.composition(controllerA.ownerKeyFor(sessionA)), { editor: true, auxiliaryBar: true });
+		assert.deepStrictEqual(controllerA.composition(ownerKeyA), { editor: true, auxiliaryBar: true });
 
 		harness.layoutService.toggleSidePane();
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'closing A via the real toggle hides both parts');
-		assert.deepStrictEqual(controllerA.preHideComposition(controllerA.ownerKeyFor(sessionA)), { editor: true, auxiliaryBar: true }, 'A\'s own normal-toggle last-open composition must be captured before the controller is recreated');
+		assert.deepStrictEqual(controllerA.preHideComposition(ownerKeyA), { editor: true, auxiliaryBar: true }, 'A\'s own normal-toggle last-open composition must be captured before the controller is recreated');
 
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
@@ -303,19 +322,32 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'closing B via the real toggle hides both parts and overwrites the shared legacy before-hide cache with B\'s own state, not A\'s');
 
+		const rawCurrent = harness.storageService.get(SIDE_PANE_COMPOSITION_STORAGE_KEY, StorageScope.WORKSPACE);
+		const rawPreHide = harness.storageService.get(SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY, StorageScope.WORKSPACE);
+		assert.notStrictEqual(rawPreHide, undefined, 'a serialized pre-hide composition entry must exist before reconstructing storage');
 		firstRunStore.dispose();
+
+		const reconstructedStorageService = store.add(new TestStorageService());
+		if (rawCurrent !== undefined) {
+			reconstructedStorageService.store(SIDE_PANE_COMPOSITION_STORAGE_KEY, rawCurrent, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		if (rawPreHide !== undefined) {
+			reconstructedStorageService.store(SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY, rawPreHide, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
+		harness.instaService.set(IStorageService, reconstructedStorageService);
+		harness.storageService = reconstructedStorageService;
 
 		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
 		await settle();
 
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'A\'s own composition at the time it was hidden must be reapplied unchanged by a fresh controller');
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'A\'s own composition at the time it was hidden must be reapplied unchanged by a fresh controller reading the reconstructed storage');
 
 		harness.layoutService.toggleSidePane();
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'a fresh controller must restore A\'s own persisted normal-toggle last-open composition, not B\'s and not a default, surviving the recreation');
-		assert.deepStrictEqual(controllerB.preHideComposition(controllerB.ownerKeyFor(sessionB)), { editor: false, auxiliaryBar: true }, 'B\'s own persisted normal-toggle last-open composition must also survive the recreation, unaffected by A\'s restore');
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'a fresh controller reading an independently reconstructed storage service must restore A\'s own persisted normal-toggle last-open composition, not B\'s and not a default');
+		assert.deepStrictEqual(controllerB.preHideComposition(ownerKeyB), { editor: false, auxiliaryBar: true }, 'B\'s own persisted normal-toggle last-open composition must also survive the reconstruction, unaffected by A\'s restore');
 	});
 
 	test('[R5] enabled: all four Editor/Details compositions round-trip per owner', async () => {
