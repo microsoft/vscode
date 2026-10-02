@@ -20,6 +20,9 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	readonly supportsWorkspaceSelection = false;
 
+	/** Sandboxes are per-session environments, not persistent Automation hosts. */
+	override get automations(): undefined { return undefined; }
+
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
 	 * placeholder row for them. They stay reachable by resource, so opening one still works.

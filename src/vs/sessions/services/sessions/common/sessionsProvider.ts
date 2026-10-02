@@ -293,7 +293,7 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
-	/** Provider-owned Automation entities, persistence, and run history. */
+	/** Provider-owned Automation entities, persistence, and run history; absent for providers that do not participate in Automations. */
 	readonly automations?: ISessionsProviderAutomations;
 
 	/**

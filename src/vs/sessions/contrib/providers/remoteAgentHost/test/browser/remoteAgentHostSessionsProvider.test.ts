@@ -48,6 +48,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -3430,6 +3431,36 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			resolvedWorkspace: uri.toString(),
 		});
 	});
+
+	for (const connected of [false, true]) {
+		test(`excludes ${connected ? 'connected' : 'disconnected'} sandboxes from the Automation catalogue and unavailable hosts`, () => {
+			const sandbox = createSandboxProvider();
+			if (connected) {
+				sandbox.setConnection(connection);
+			}
+			const remote = createProvider(disposables, connection, { noConnection: true });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+				onDidChangeProviders: Event.None,
+				getProviders: () => [remote, sandbox],
+			}));
+			const automationService = disposables.add(instantiationService.createInstance(ProviderAutomationService, constObservable(true)));
+
+			assert.deepStrictEqual({
+				hasSandboxAutomations: sandbox.automations !== undefined,
+				availableHosts: automationService.availableProviders.get().map(provider => provider.id),
+				unavailableHosts: automationService.unavailableProviders.get().map(provider => provider.id),
+				automations: automationService.automations.get(),
+				catalogueState: automationService.catalogueState.get(),
+			}, {
+				hasSandboxAutomations: false,
+				availableHosts: [],
+				unavailableHosts: [remote.id],
+				automations: [],
+				catalogueState: 'unavailable',
+			});
+		});
+	}
 
 	function seed(provider: RemoteAgentHostSessionsProvider, changes?: Partial<IAgentSessionMetadata>): void {
 		provider.seedSessions([{ ...metadata, ...changes }], { updateExisting: true });
