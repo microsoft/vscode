@@ -7,7 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -869,6 +869,17 @@ const customizationMarketplaceResources: readonly ICustomizationMarketplaceResou
 	},
 ];
 
+function fixtureMarketplaceIcon(background: string, content: string): URI {
+	return URI.parse(`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="12" fill="${background}"/>${content}</svg>`)}`);
+}
+
+const featuredMarketplaceIcons = new Map<string, URI>([
+	['example/figma-plugin', fixtureMarketplaceIcon('#8250df', '<circle cx="24" cy="20" r="8" fill="#ff7b72"/><circle cx="40" cy="20" r="8" fill="#79c0ff"/><circle cx="24" cy="36" r="8" fill="#d2a8ff"/><circle cx="40" cy="36" r="8" fill="#56d364"/><circle cx="24" cy="52" r="8" fill="#f2cc60"/>')],
+	['example/browser-tools', fixtureMarketplaceIcon('#0969da', '<circle cx="32" cy="32" r="20" fill="none" stroke="#fff" stroke-width="4"/><path d="M12 32h40M32 12c7 7 10 13 10 20s-3 13-10 20c-7-7-10-13-10-20s3-13 10-20Z" fill="none" stroke="#fff" stroke-width="3"/>')],
+	['example/docs-workflow', fixtureMarketplaceIcon('#bf8700', '<path d="M18 10h20l10 10v34H18Z" fill="#fff"/><path d="M38 10v12h10M25 31h16M25 39h16M25 47h11" fill="none" stroke="#bf8700" stroke-width="3"/>')],
+	['example/repository-review', fixtureMarketplaceIcon('#1a7f37', '<path d="m16 34 10 10 22-24" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"/>')],
+]);
+
 const fixtureCopilotConnectors: readonly ICopilotConnector[] = [
 	{
 		name: 'workiq-mail',
@@ -992,6 +1003,7 @@ interface IRenderEditorOptions {
 	readonly copilotConnectorsEnabled?: boolean;
 	readonly copilotConnectors?: readonly ICopilotConnector[];
 	readonly marketplaceVisibilityEnabled?: boolean;
+	readonly featuredFeedEnabled?: boolean;
 	readonly otherSourceEnabled?: boolean;
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
@@ -1039,7 +1051,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const marketplaceVisibilityEnabled = options.marketplaceVisibilityEnabled ?? false;
 	const discoverEnabled = marketplaceVisibilityEnabled;
 	const marketplaceResources = [
-		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources : []),
+		...(agentFinderPublicFeedEnabled ? customizationMarketplaceResources.map(resource => options.featuredFeedEnabled
+			? { ...resource, sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, icon: featuredMarketplaceIcons.get(resource.identifier) }
+			: resource) : []),
 		...(options.copilotConnectorsEnabled ? [copilotConnectorMarketplaceResource] : []),
 	];
 	const skillUIIntegrations = options.skillUIIntegrations ?? new Map();
@@ -1160,14 +1174,32 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeSentiment = Event.None;
 			}());
 			reg.defineInstance(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly featuredSourceIds = options.featuredFeedEnabled ? [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] : [];
 				override readonly sources = [
 					CustomizationMarketplaceSources.PluginMarketplaces,
 					CustomizationMarketplaceSources.McpGallery,
-					{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
-					{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					...(options.featuredFeedEnabled ? [CustomizationMarketplaceSources.AgentFinderPublicFeed] : [
+						{ id: 'testSource', displayName: 'Marketplace 1', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+						{ id: 'otherSource', displayName: 'Marketplace 2', enablementSetting: CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, requiresMarketplaceVisibility: true },
+					]),
 					{ id: 'additionalSource', displayName: 'Additional Feed', enablementSetting: 'test.marketplace.other.enabled', requiresMarketplaceVisibility: true },
 					CustomizationMarketplaceSources.CopilotConnectors,
 				];
+				override async getFeatured(query: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>) {
+					const sourceId = this.featuredSourceIds[0];
+					if (!sourceId || query.sourceIds && !query.sourceIds.includes(sourceId)) {
+						return undefined;
+					}
+					return {
+						sourceId,
+						items: [
+							marketplaceResources[2],
+							marketplaceResources[1],
+							marketplaceResources[4],
+							marketplaceResources[0],
+						],
+					};
+				}
 				override async query(query: ICustomizationMarketplaceQuery): Promise<ICustomizationMarketplacePage> {
 					customizationMarketplaceQueryCount++;
 					assert(sourceEnabled(), 'A fixture with no enabled sources must not query the catalog.');
@@ -1757,6 +1789,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& descriptionLinks.join('\n') === ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks'].join('\n'),
 			'Discover must link each customization type from its description.',
 		);
+		if (options.featuredFeedEnabled) {
+			const expectedNames = ['Figma', 'Browser tools', 'Documentation workflow', 'Repository review'];
+			await retry(async () => {
+				const names = [...ctx.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')].map(element => element.textContent);
+				assert(names.join('\n') === expectedNames.join('\n'), 'Discover must preserve the saved featured feed order.');
+			}, 10, 100);
+		}
 		const featured = ctx.container.querySelector<HTMLElement>('.customization-discovery-section.featured');
 		const featuredCard = featured?.querySelector<HTMLElement>('.customization-discovery-card');
 		const featuredName = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-name');
@@ -1768,6 +1807,12 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		if (options.featuredFeedEnabled) {
+			const featuredImages = [...featured?.querySelectorAll<HTMLImageElement>('.customization-discovery-card-icon img') ?? []];
+			assert(featuredImages.length === 4, 'The saved featured feed fixture must render each enriched resource icon.');
+			await Promise.all(featuredImages.map(image => image.decode()));
+			assert(featuredImages.every(image => image.naturalWidth > 0), 'The saved featured feed fixture icons must decode before capture.');
+		}
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -3323,6 +3368,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: agentHostCopilotSessionResource,
 			marketplaceVisibilityEnabled: true,
 			isSessionsWindow: true,
+		}),
+	}),
+
+	DiscoverFeaturedFeed: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['Discover renders the product-configured AgentFinder saved feed as the ordered elevated collection, while the remaining catalog items stay grouped by type below it.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			featuredFeedEnabled: true,
+			width: 800,
 		}),
 	}),
 

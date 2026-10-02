@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceFeatured, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -102,6 +102,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			}
 		}());
 		const requests: { options: ICustomizationMarketplaceQuery; token: CancellationToken; result: DeferredPromise<ICustomizationMarketplacePage> }[] = [];
+		const featuredRequests: { options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>; token: CancellationToken }[] = [];
+		let featured: ICustomizationMarketplaceFeatured | undefined;
 		const installs: { identifier: string; result: DeferredPromise<void> }[] = [];
 		const marketplaceChanges = store.add(new Emitter<void>());
 		const recoveryActions = new Map<string, ICustomizationMarketplaceSourceRecoveryAction>();
@@ -124,7 +126,12 @@ suite('AICustomizationDiscoveryPage', () => {
 			override readonly sources = sources;
 			override readonly allSources = sources;
 			override readonly onDidChangeSources = marketplaceChanges.event;
+			override get featuredSourceIds() { return featured ? [featured.sourceId] : []; }
 			override getSourceRecoveryAction(sourceId: string) { return recoveryActions.get(sourceId); }
+			override async getFeatured(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken) {
+				featuredRequests.push({ options, token });
+				return featured;
+			}
 			override query(options: ICustomizationMarketplaceQuery, token: CancellationToken) {
 				const result = new DeferredPromise<ICustomizationMarketplacePage>();
 				requests.push({ options, token, result });
@@ -224,7 +231,8 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations,
+			page, container, configuration, requests, featuredRequests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations,
+			setFeatured: (value: ICustomizationMarketplaceFeatured | undefined) => { featured = value; },
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -401,6 +409,60 @@ suite('AICustomizationDiscoveryPage', () => {
 		}, {
 			pageSize: 100,
 			featured: ['azure-mcp', 'github-plugin', 'microsoft-skill', 'fabric-mcp'],
+		});
+	});
+
+	test('browse uses the saved featured collection order independently of the catalog page', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.setFeatured({
+			sourceId: 'agentFinder',
+			items: [
+				resource('feed-only', { mediaType: CustomizationMarketplaceMediaType.Skill }),
+				resource('third-party-two'),
+				resource('microsoft-skill', { publisher: 'Microsoft', mediaType: CustomizationMarketplaceMediaType.Skill }),
+			],
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({
+			items: [
+				resource('azure-mcp', { installation: { kind: 'mcp', name: 'com.microsoft/azure', version: '1.0.0' } }),
+				resource('third-party-one'),
+				resource('third-party-two'),
+				resource('microsoft-skill', { publisher: 'Microsoft', mediaType: CustomizationMarketplaceMediaType.Skill }),
+			],
+		});
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			featuredRequest: fixture.featuredRequests.map(request => request.options),
+			featured: Array.from(fixture.container.querySelectorAll('.customization-discovery-section.featured .customization-discovery-card-name')).map(element => element.textContent),
+			sections: Array.from(fixture.container.querySelectorAll('.customization-discovery-section:not(.featured) .customization-discovery-card-name')).map(element => element.textContent),
+		}, {
+			featuredRequest: [{ sourceIds: undefined }],
+			featured: ['feed-only', 'third-party-two', 'microsoft-skill'],
+			sections: ['azure-mcp', 'third-party-one'],
+		});
+	});
+
+	test('a saved featured collection failure preserves regular browse results', async () => {
+		const fixture = createPage(['agentFinder']);
+		fixture.setFeatured({
+			sourceId: 'agentFinder',
+			items: [],
+			error: 'Featured customizations are temporarily unavailable.',
+		});
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [resource('regular-skill', { mediaType: CustomizationMarketplaceMediaType.Skill })] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			featured: fixture.container.querySelector('.customization-discovery-section.featured'),
+			regular: fixture.page.getAccessibilityContent().includes('regular-skill'),
+			warning: fixture.container.querySelector('.customization-marketplace-source-warning')?.textContent,
+		}, {
+			featured: null,
+			regular: true,
+			warning: 'GitHub Feed: Featured customizations are temporarily unavailable.Retry',
 		});
 	});
 

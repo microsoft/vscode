@@ -129,6 +129,12 @@ export interface ICustomizationMarketplacePage {
 	readonly sourceErrors?: readonly ICustomizationMarketplaceSourceError[];
 }
 
+export interface ICustomizationMarketplaceFeatured {
+	readonly sourceId: string;
+	readonly items: readonly ICustomizationMarketplaceResource[];
+	readonly error?: string;
+}
+
 export interface ICustomizationMarketplaceSourceError {
 	readonly sourceId: string;
 	readonly message: string;
@@ -209,7 +215,11 @@ export interface ICustomizationMarketplaceService {
 	readonly allSources?: readonly ICustomizationMarketplaceSourceInfo[];
 	/** Fires when non-configuration inputs change source availability or query identity. */
 	readonly onDidChangeSources?: Event<void>;
+	/** Sources that can provide an ordered browse-page collection. */
+	readonly featuredSourceIds?: readonly string[];
 	query(options: ICustomizationMarketplaceQuery, token: CancellationToken): Promise<ICustomizationMarketplacePage>;
+	/** Optional ordered collection for the browse page. Failures are returned on the collection so regular catalog results remain available. */
+	getFeatured?(options: Pick<ICustomizationMarketplaceQuery, 'sourceIds'>, token: CancellationToken): Promise<ICustomizationMarketplaceFeatured | undefined>;
 	/** Optional renderer-owned recovery; not part of the catalog transport. */
 	getSourceRecoveryAction?(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined;
 }
