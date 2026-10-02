@@ -458,13 +458,14 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		const diffFilename = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
 		const diffLanguage = this.getAssociationsForResourceFromLanguageSetting(resource, diffEditorLanguageAssociationsSettingId);
-		const diffAssociations = [...diffFilename, ...diffLanguage];
-		if (diffAssociations.length) {
-			return diffAssociations;
-		}
 
-		return this.getAssociationsForResource(resource)
+		const generalAssociations = this.getAssociationsForResource(resource)
 			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+
+		const generalFilename = generalAssociations.filter(a => a.filenamePattern);
+		const generalLanguage = generalAssociations.filter(a => a.language);
+
+		return [...diffFilename, ...generalFilename, ...diffLanguage, ...generalLanguage];
 	}
 
 	/**
