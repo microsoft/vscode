@@ -33,7 +33,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildPhrasePool, defaultThinkingMessages, maybePickFunWorkingMessage } from './chatThinkingContentPart.js';
 import { getChatWorkingProgressIcon, getCompactCodicon } from '../../chatIcons.js';
 import { ChatWorkingProgressLogo } from '../chatWorkingLogo.js';
-import { autorun, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
@@ -412,6 +412,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	private progressStep: number | undefined;
 	private showDelayedProgressMessage: boolean;
 	private showingDelayedProgressMessage = false;
+	private showingUnresponsiveToolMessage = false;
+	private responseComplete = false;
 	private readonly contextElement: ChatTreeItem;
 	private readonly workingLogo: ChatWorkingProgressLogo | undefined;
 	private readonly delayedProgressMessageScheduler: RunOnceScheduler | undefined;
@@ -467,17 +469,28 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}
 		this.updateDelayedProgressMessageScheduler();
 
-		// Keep the replacement anchor, but never leave completed or disposed progress visible.
+		// Keep the replacement anchor, but never leave disposed progress visible.
 		this._register(toDisposable(() => hide(this.domNode)));
 		const response = context.element;
 		if (isResponseVM(response)) {
-			const isComplete = observableFromEvent(this, response.model.onDidChange, () => response.isComplete || response.isCanceled);
-			this._register(autorun(reader => setVisibility(!isComplete.read(reader), this.domNode)));
+			this._register(autorun(reader => {
+				this.responseComplete = !response.model.isIncomplete.read(reader);
+				if (this.workingLogo) {
+					// Preserve the footer's footprint until the renderer swaps in the response toolbar.
+					this.domNode.style.visibility = this.responseComplete ? 'hidden' : '';
+					this.domNode.ariaHidden = this.responseComplete ? 'true' : null;
+				} else {
+					setVisibility(!this.responseComplete, this.domNode);
+				}
+				this.updateActiveState();
+				this.onResponseActivity();
+			}));
 		}
 
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
-			if (isEqual(context.element.sessionResource, e.sessionResource)) {
+			if (isEqual(context.element.sessionResource, e.sessionResource) && (!this.workingLogo || !this.explicitContent || this.showingUnresponsiveToolMessage)) {
 				this.updateWorkingContent(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)), true, false, this.progressStep, false);
+				this.showingUnresponsiveToolMessage = true;
 			}
 		}));
 	}
@@ -486,7 +499,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		return renderAsPlaintext(this.currentContent);
 	}
 
-	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+	updateWorkingContent(content: IMarkdownString | undefined, isActive = this.isActive, announce: IChatWorkingProgress['announce'] = false, progressStep = this.progressStep, showDelayedProgressMessage = this.showDelayedProgressMessage): void {
+		this.showingUnresponsiveToolMessage = false;
 		const previousExplicitContent = this.explicitContent;
 		const previousIsActive = this.isActive;
 		const previousProgressStep = this.progressStep;
@@ -506,19 +520,30 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (this.workingLogo && content?.value === previousExplicitContent?.value && resolvedContent.value === this.currentContent.value && isActive === previousIsActive) {
 			return;
 		}
-		// The retained footer swaps its text in place, so a new blocking state ("1 confirmation pending",
-		// "Authentication required") must be announced the way a freshly created row would be.
 		const shouldAnnounce = announce && !!this.workingLogo && !!content && content.value !== previousExplicitContent?.value
 			&& this.workingConfigurationService.getValue(AccessibilityWorkbenchSettingId.VerboseChatProgressUpdates);
 		if (this.workingLogo) {
-			this.domNode.classList.toggle('chat-working-progress-active', isActive);
-			this.workingLogo.setActive(isActive);
-			this.setShimmerActive(isActive);
+			this.updateActiveState();
 		}
 		this.updateMessage(resolvedContent);
 		if (shouldAnnounce) {
-			alert(stripIcons(renderAsPlaintext(resolvedContent)));
+			const message = stripIcons(renderAsPlaintext(resolvedContent));
+			if (announce === 'polite') {
+				status(message);
+			} else {
+				alert(message);
+			}
 		}
+	}
+
+	private updateActiveState(): void {
+		if (!this.workingLogo) {
+			return;
+		}
+		const active = this.isActive && !this.responseComplete;
+		this.domNode.classList.toggle('chat-working-progress-active', active);
+		this.workingLogo.setActive(active);
+		this.setShimmerActive(active);
 	}
 
 	private resolveWorkingContent(): IMarkdownString {
@@ -532,7 +557,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		if (!this.delayedProgressMessageScheduler) {
 			return;
 		}
-		if (!this.showDelayedProgressMessage || !this.isActive) {
+		if (!this.showDelayedProgressMessage || !this.isActive || this.responseComplete) {
 			this.delayedProgressMessageScheduler.cancel();
 			return;
 		}
@@ -554,7 +579,12 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 	}
 
 	private showDelayedProgress(): void {
-		if (!this.showDelayedProgressMessage || !this.isActive) {
+		if (!this.showDelayedProgressMessage || !this.isActive || this.responseComplete) {
+			return;
+		}
+		if (isResponseVM(this.contextElement) && this.contextElement.response.value.some(part =>
+			(part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))
+			|| (part.kind === 'progressTask' && !part.deferred.isSettled))) {
 			return;
 		}
 		this.showingDelayedProgressMessage = true;

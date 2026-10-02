@@ -22,10 +22,13 @@ export interface IModelPickerConfigurationHost {
 	readonly getSelectedModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly getConfigurationAccess: () => IModelConfigurationAccess;
 	readonly getChatSessionId: () => string | undefined;
+	readonly getProvider?: () => string | undefined;
 	readonly isDisabled: () => boolean;
 	readonly shouldShowCacheBreakHint: () => boolean;
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
+	readonly getContextViewLayer?: () => number | undefined;
+	readonly setExpanded?: (expanded: boolean) => void;
 }
 
 export class ModelPickerConfiguration {
@@ -98,7 +101,7 @@ export class ModelPickerConfiguration {
 			return;
 		}
 
-		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId());
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, model, this._host.getChatSessionId(), this._host.getProvider ? this._host.getProvider() : 'unknown');
 		const items = this._buildItems(telemetrySession);
 
 		const previouslyFocusedElement = dom.getActiveElement();
@@ -111,6 +114,7 @@ export class ModelPickerConfiguration {
 			onHide: () => {
 				telemetrySession.close(whenModelConfigValuesSaved(this._host.getConfigurationAccess()));
 				button.setAttribute('aria-expanded', 'false');
+				this._host.setExpanded?.(false);
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -118,6 +122,7 @@ export class ModelPickerConfiguration {
 		};
 
 		button.setAttribute('aria-expanded', 'true');
+		this._host.setExpanded?.(true);
 		const showCacheBreakHint = this._host.shouldShowCacheBreakHint();
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',
@@ -139,6 +144,7 @@ export class ModelPickerConfiguration {
 				headerDismiss: showCacheBreakHint ? this._host.dismissCacheBreakHint : undefined,
 				reserveSubmenuSpace: false,
 			}),
+			this._host.getContextViewLayer?.(),
 		);
 
 		if (focusGroup) {

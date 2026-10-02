@@ -187,6 +187,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		const defaultPastePayload = {
 			multicursorText: e.dataToCopy.multicursorText ?? null,
 			pasteOnNewLine: e.dataToCopy.isFromEmptySelection,
+			isBlock: e.dataToCopy.isBlock,
 			mode: null
 		};
 
@@ -546,6 +547,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					mode: e.metadata.mode,
 					multicursorText: e.metadata.multicursorText ?? null,
 					pasteOnNewLine: !!e.metadata.isFromEmptySelection,
+					isBlock: !!e.metadata.isBlock,
 				},
 			};
 		}
@@ -626,6 +628,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
+			isBlock: !!metadata?.defaultPastePayload.isBlock,
 			mode: null,
 		};
 		this._logService.trace('CopyPasteController#applyDefaultPasteHandler for id : ', metadata?.id);

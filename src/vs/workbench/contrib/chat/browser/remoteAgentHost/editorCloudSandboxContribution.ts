@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -61,8 +62,9 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IGitService private readonly _gitService: IGitService,
 		@ISCMService scmService: ISCMService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService);
+		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, _editorChatSessionsService, _editorLogService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		const enabled = observableFromEvent(this, Event.any(configurationService.onDidChangeConfiguration, chatEntitlementService.onDidChangeSentiment), () => this._isEnabled());
 		const workspaceChanged = observableSignalFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders);
 		const repositoriesChanged = observableSignalFromEvent(this, Event.any(scmService.onDidAddRepository, scmService.onDidRemoveRepository));
@@ -153,8 +155,16 @@ export class EditorCloudSandboxSessionContribution extends CloudSandboxSessionCo
 
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionListController {
 		const address = cloudSandboxAddress(env.environmentId);
-		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address, this._workspaceRepositories));
+		const provider = store.add(this._instantiationService.createInstance(CloudSandboxSessionListController, address, this._workspaceRepositories,
+			async (rawId, token) => {
+				if (!this._ownsSandboxSession(address, rawId)) {
+					return false;
+				}
+				await this._deleteSandboxSession(address, [rawId], id => provider.removeDeletedSession(id), token);
+				return true;
+			}));
 		store.add(this._connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
+			connectionAddress: address,
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 		}));

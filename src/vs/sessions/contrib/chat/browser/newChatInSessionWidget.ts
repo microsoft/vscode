@@ -9,9 +9,11 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -19,6 +21,8 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewChatInputWidget } from './newChatInput.js';
+import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { NewChatUserInteraction } from './newChatUserInteraction.js';
 import { IChatViewOptions } from '../../../browser/parts/chatView.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -40,9 +44,16 @@ export class NewChatInSessionWidget extends Disposable {
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
+	/**
+	 * When the experimental composer layout is enabled, the in-session input mirrors the
+	 * new-session composer: the mode/permissions control moves into the input row and the model
+	 * picker is right-aligned, keeping both surfaces consistent.
+	 */
+	private readonly _useExperimentalComposerLayout: IObservable<boolean>;
 
 	constructor(
 		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -50,6 +61,14 @@ export class NewChatInSessionWidget extends Disposable {
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
+
+		this._useExperimentalComposerLayout = observableFromEvent(
+			this,
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
+			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
+		);
 
 		this._session = derived(reader => {
 			const activeSession = this.sessionsService.activeSession.read(reader);
@@ -79,6 +98,7 @@ export class NewChatInSessionWidget extends Disposable {
 			renderRepositoryControls: false,
 			supportsBackground: true,
 			voiceRoutesWhileSessionActive: true,
+			useExperimentalLayout: this._useExperimentalComposerLayout,
 		}));
 	}
 
@@ -88,6 +108,9 @@ export class NewChatInSessionWidget extends Disposable {
 		const element = dom.append(parent, dom.$('.sessions-chat-widget.new-chat-in-session'));
 		const chatWidgetContainer = dom.append(element, dom.$('.new-chat-widget-container'));
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$(`.new-chat-widget-content.${chatInputStackClass}`));
+		this._register(autorun(reader => {
+			chatWidgetContent.classList.toggle('experimental-new-session-composer', this._useExperimentalComposerLayout.read(reader));
+		}));
 
 		this._newChatInput.render(chatWidgetContent, parent);
 		// Rendered after the composer: the tip docks inside the composer's stack,

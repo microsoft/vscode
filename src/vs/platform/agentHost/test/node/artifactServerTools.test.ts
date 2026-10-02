@@ -9,10 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, SessionArtifactType, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import { buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
-import { ARTIFACT_TOOLS_INSTRUCTION, artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
+import { artifactServerToolDefinitions, createArtifactServerToolGroup, type IArtifactServerToolAccessor } from '../../node/shared/artifactServerTools.js';
 import { getServerToolDisplay } from '../../node/shared/serverToolGroups.js';
 
 suite('Artifact Server Tools', () => {
@@ -119,7 +119,7 @@ suite('Artifact Server Tools', () => {
 		});
 	});
 
-	test('keeps classification guidance in the input schema and names the registered discovery tools', () => {
+	test('keeps classification guidance in the input schema', () => {
 		const addDefinition = artifactServerToolDefinitions.find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
 		const items = addDefinition?.inputSchema?.properties?.items as {
 			readonly items?: { readonly properties?: Record<string, { readonly type?: string; readonly description?: string }> };
@@ -129,21 +129,9 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({
 			inputType: classificationInput?.type,
 			inputClassification: classificationInput?.description?.includes('attempt to fix, change, or unblock'),
-			instructionClassification: ARTIFACT_TOOLS_INSTRUCTION.includes('attempt to fix, change, or unblock'),
-			toolMentions: artifactServerToolDefinitions.map(tool => ARTIFACT_TOOLS_INSTRUCTION.split(`\`${tool.name}\``).length - 1),
-			discovery: ARTIFACT_TOOLS_INSTRUCTION.includes('discover if needed'),
-			optional: ARTIFACT_TOOLS_INSTRUCTION.includes('default to no registration'),
-			batch: ARTIFACT_TOOLS_INSTRUCTION.includes('Batch related entries'),
-			endOnly: ARTIFACT_TOOLS_INSTRUCTION.includes('at the end'),
 		}, {
 			inputType: 'boolean',
 			inputClassification: true,
-			instructionClassification: true,
-			toolMentions: [1, 1, 1],
-			discovery: true,
-			optional: true,
-			batch: true,
-			endOnly: false,
 		});
 	});
 
@@ -182,7 +170,7 @@ suite('Artifact Server Tools', () => {
 				routableNames: enabled ? [...names, ...legacyNames] : [],
 			});
 			if (enabled) {
-				assert.strictEqual(await execute(ArtifactServerToolName.ListArtifactsAndReferences), 'No artifacts or references recorded for this session.');
+				assert.strictEqual(await execute(ArtifactServerToolName.ListArtifactsAndReferences), 'No artifacts or references recorded for this chat.');
 			} else {
 				for (const name of [...names, ...legacyNames]) {
 					await assert.rejects(() => execute(name, {}), /is disabled/);
@@ -225,9 +213,173 @@ suite('Artifact Server Tools', () => {
 			messages: [`Added reference: ${artifacts[0].id}`, `Added artifact: ${artifacts[1].id}`, `Already recorded: ${artifacts[0].id}`],
 			persistCalls: 1,
 			artifacts: [
-				{ type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
-				{ type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
+				{ chat: buildDefaultChatUri(sessionUri), type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com/docs' },
+				{ chat: buildDefaultChatUri(sessionUri), type: 'file', label: 'Report', isArtifact: true, uri: 'file:///repo/report.md' },
 			],
+		});
+	});
+
+	test('keeps tool lists and mutations chat-scoped while publishing every chat artifact on the session', async () => {
+		const { host, stateManager, sessionUri, artifacts, persisted } = createHarness();
+		const defaultChat = buildDefaultChatUri(sessionUri);
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peerChat);
+		await host.executeTool(defaultChat, ArtifactServerToolName.AddArtifactOrReference, {
+			type: 'website', label: 'Default', isArtifact: true, link: 'https://example.com/default',
+		});
+		await host.executeTool(peerChat, ArtifactServerToolName.AddArtifactOrReference, {
+			type: 'website', label: 'Peer', isArtifact: true, link: 'https://example.com/peer',
+		});
+		const defaultEntries = readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta).filter(artifact => artifact.chat === defaultChat);
+		const peerEntries = readSessionArtifacts(stateManager.getSessionState(sessionUri)?._meta).filter(artifact => artifact.chat === peerChat);
+		const sessionArtifacts = artifacts().map(({ label, chat }) => ({ label, chat }));
+		const defaultList = await host.executeTool(defaultChat, ArtifactServerToolName.ListArtifactsAndReferences, {});
+		const peerList = await host.executeTool(peerChat, ArtifactServerToolName.ListArtifactsAndReferences, {});
+		await host.executeTool(peerChat, ArtifactServerToolName.RemoveArtifactOrReference, { id: defaultEntries[0].id });
+		await host.executeTool(peerChat, ArtifactServerToolName.RemoveArtifactOrReference, { id: peerEntries[0].id });
+
+		assert.deepStrictEqual({
+			defaultList,
+			peerList,
+			sessionArtifacts,
+			persisted: persisted.map(entries => entries.map(({ label, chat }) => ({ label, chat }))),
+			afterPeerRemoval: artifacts().map(({ label, chat }) => ({ label, chat })),
+		}, {
+			defaultList: `${defaultEntries[0].id} (website, artifact) Default — https://example.com/default`,
+			peerList: `${peerEntries[0].id} (website, artifact) Peer — https://example.com/peer`,
+			sessionArtifacts: [
+				{ label: 'Default', chat: defaultChat },
+				{ label: 'Peer', chat: peerChat },
+			],
+			persisted: [
+				[{ label: 'Default', chat: defaultChat }],
+				[{ label: 'Default', chat: defaultChat }, { label: 'Peer', chat: peerChat }],
+				[{ label: 'Default', chat: defaultChat }],
+			],
+			afterPeerRemoval: [
+				{ label: 'Default', chat: defaultChat },
+			],
+		});
+	});
+
+	test('records PR artifacts for the session and associates only matching PRs with the invoking chat folder', async () => {
+		const attempts: Array<{ chat: string; url: string }> = [];
+		const { host, stateManager, sessionUri, artifacts } = createHarness({
+			associatePullRequest: async (chat, url) => {
+				attempts.push({ chat, url });
+				return url.endsWith('/1');
+			},
+		});
+		const peer = buildChatUri(sessionUri, 'peer');
+		stateManager.addChat(sessionUri, peer, { workingDirectories: ['file:///peer'] });
+		const result = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [
+				{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' },
+				{ type: 'pullRequest', label: 'Other PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+				{ type: 'pullRequest', label: 'Referenced PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/3' },
+			],
+		});
+		const repeated = await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: true, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+		await host.executeTool(peer, ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Peer PR', isArtifact: false, link: 'https://github.com/microsoft/vscode/pull/1' }],
+		});
+
+		assert.deepStrictEqual({
+			artifactLinks: artifacts().map(artifact => artifact.link),
+			attempts,
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			repeated: repeated.replace(/: [0-9a-f-]{36}$/, ': <id>'),
+		}, {
+			artifactLinks: [
+				'https://github.com/microsoft/vscode/pull/1',
+				'https://github.com/microsoft/vscode/pull/2',
+				'https://github.com/microsoft/vscode/pull/3',
+			],
+			attempts: [
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/2' },
+				{ chat: peer, url: 'https://github.com/microsoft/vscode/pull/1' },
+			],
+			messages: [
+				'Added artifact: <id>',
+				'Added artifact: <id>',
+				'Added reference: <id>',
+				'Pull request https://github.com/microsoft/vscode/pull/2 was recorded but not associated with this chat\'s working folder.',
+			],
+			repeated: 'Already recorded: <id>',
+		});
+	});
+
+	test('verifies a batch once and reports recorded, pending and unrelated PRs separately', async () => {
+		const url = (number: number) => `https://github.com/microsoft/vscode/pull/${number}`;
+		const calls: Array<{ chat: string; urls: readonly string[] }> = [];
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async (chat, urls) => {
+				calls.push({ chat, urls });
+				return { associated: url(1), pending: [url(2)], unmatched: [url(3)] };
+			},
+		});
+
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [1, 2, 3].map(number => ({ type: 'pullRequest', label: `PR ${number}`, isArtifact: true, link: url(number) })),
+		});
+
+		assert.deepStrictEqual({
+			calls,
+			artifacts: artifacts().map(artifact => artifact.link),
+			messages: result.split('\n').slice(3),
+		}, {
+			calls: [{ chat: buildDefaultChatUri(sessionUri), urls: [url(1), url(2), url(3)] }],
+			artifacts: [url(1), url(2), url(3)],
+			messages: [
+				`Pull request ${url(2)} was recorded; folder association is pending verification.`,
+				`Pull request ${url(3)} was recorded but not associated with this chat's working folder.`,
+			],
+		});
+	});
+
+	test('cancels pending verification when the recorded PR is removed by the tool', async () => {
+		const removed: Array<{ session: string; chat: string; url: string }> = [];
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+		const { execute, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => ({ pending: [url], unmatched: [] }),
+			removePendingPullRequest: async (session, chat, url) => { removed.push({ session, chat, url }); },
+		});
+		await execute(ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+		const id = artifacts()[0].id;
+		const message = await execute(ArtifactServerToolName.RemoveArtifactOrReference, { id });
+
+		assert.deepStrictEqual({ removed, artifacts: artifacts(), message }, {
+			removed: [{ session: sessionUri, chat: buildDefaultChatUri(sessionUri), url }],
+			artifacts: [],
+			message: `Removed artifact: ${id}`,
+		});
+	});
+
+	test('reports an association failure without losing the recorded PR artifact', async () => {
+		let reportedError: string | undefined;
+		const { host, sessionUri, artifacts } = createHarness({
+			associatePullRequests: async () => { throw new Error('GitHub lookup unavailable'); },
+			reportAssociationError: error => { reportedError = error instanceof Error ? error.message : String(error); },
+		});
+		const url = 'https://github.com/microsoft/vscode/pull/1';
+
+		const result = await host.executeTool(buildDefaultChatUri(sessionUri), ArtifactServerToolName.AddArtifactOrReference, {
+			items: [{ type: 'pullRequest', label: 'Feature PR', isArtifact: true, link: url }],
+		});
+
+		assert.deepStrictEqual({
+			artifacts: artifacts().map(({ id: _id, ...artifact }) => artifact),
+			messages: result.split('\n').map(message => message.replace(/: [0-9a-f-]{36}$/, ': <id>')),
+			reportedError,
+		}, {
+			artifacts: [{ chat: buildDefaultChatUri(sessionUri), type: SessionArtifactType.PullRequest, label: 'Feature PR', isArtifact: true, link: url, isGitHub: true }],
+			messages: ['Added artifact: <id>', 'Pull request artifacts were recorded, but folder association could not be queued.'],
+			reportedError: 'GitHub lookup unavailable',
 		});
 	});
 
@@ -251,7 +403,7 @@ suite('Artifact Server Tools', () => {
 		}, {
 			result: [`Promoted artifact: ${id}`, `Already recorded: ${id}`, `Already recorded: ${id}`].join('\n'),
 			repeated: `Already recorded: ${id}`,
-			artifacts: [{ ...artifact, id, isGitHub: true }],
+			artifacts: [{ ...artifact, id, chat: buildDefaultChatUri('copilot:/artifacts'), isGitHub: true }],
 			persistCalls: 2,
 		});
 	});
@@ -266,8 +418,8 @@ suite('Artifact Server Tools', () => {
 
 		assert.deepStrictEqual({ result, artifacts: artifacts(), persisted }, {
 			result: [`Added reference: ${id}`, `Promoted artifact: ${id}`, `Already recorded: ${id}`].join('\n'),
-			artifacts: [{ ...reference, id, isArtifact: true }],
-			persisted: [[{ ...reference, id, isArtifact: true }]],
+			artifacts: [{ ...reference, id, chat: buildDefaultChatUri('copilot:/artifacts'), isArtifact: true }],
+			persisted: [[{ ...reference, id, chat: buildDefaultChatUri('copilot:/artifacts'), isArtifact: true }]],
 		});
 	});
 

@@ -3,19 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -50,6 +54,10 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor = {
 		isEnabled: () => this.value.artifactServerToolAccessor.isEnabled(),
 		persist: (session, artifacts) => this.value.artifactServerToolAccessor.persist(session, artifacts),
+		associatePullRequest: (chat, url) => this.value.artifactServerToolAccessor.associatePullRequest?.(chat, url) ?? Promise.resolve(false),
+		associatePullRequests: (chat, urls) => this.value.artifactServerToolAccessor.associatePullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
+		removePendingPullRequest: (session, chat, url) => this.value.artifactServerToolAccessor.removePendingPullRequest?.(session, chat, url) ?? Promise.resolve(),
+		reportAssociationError: error => this.value.artifactServerToolAccessor.reportAssociationError?.(error),
 	};
 
 	bind(callbacks: IAgentServiceCallbacks): void {
@@ -80,7 +88,7 @@ export interface IAgentServiceFoundation {
 	readonly proxyResolver: IAgentHostProxyResolver;
 	readonly requestService: IRequestService;
 	readonly fetchFn: typeof globalThis.fetch;
-	readonly gitHubServiceOptions: GitHubServiceOptions;
+	readonly gitHubServiceOptions: Omit<GitHubServiceOptions, 'credentialProvider'>;
 }
 
 export interface ICreateAgentServiceFoundationOptions {
@@ -103,11 +111,13 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
 		},
 	}));
+	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
 		options.rootConfigResource,
 		options.providerConfigurations ?? [],
+		managedSettingsService,
 	));
 	if (options.transientProxyConfiguration) {
 		configurationService.publishRootTransientValues(Object.fromEntries(
@@ -122,6 +132,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
+	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
@@ -138,13 +149,11 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		requestService,
 		fetchFn,
 		gitHubServiceOptions: {
-			endpoint: gitHubEndpointService,
-			tokenProvider: {
-				getToken: () => {
-					const resource = gitHubEndpointService.getRepoResource();
-					return authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-				},
-			},
+			telemetrySource: 'agentHost',
+			clientMetadata: createGitHubClientMetadata(options.productService, 'agent-host', 'node'),
+			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
+				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
+				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
 			fetch: fetchFn,
 		},
 	};

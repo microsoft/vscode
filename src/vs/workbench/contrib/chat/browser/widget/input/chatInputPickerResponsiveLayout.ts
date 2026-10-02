@@ -10,6 +10,9 @@ const WIDTH_TOLERANCE = 1;
 
 export interface IChatInputPickerResponsiveLayoutDelegate {
 	getItems(): readonly IChatInputPickerResponsiveLayoutItem[];
+	/** Size a content-fitting lane against its intrinsic width, ignoring animated item bounds. */
+	readonly usePreferredWidth?: boolean;
+	isCompactionEnabled?(): boolean;
 	hasOverflow?(): boolean;
 	relayout?(): void;
 }
@@ -84,6 +87,9 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 				item.setCompact(false);
 			}
 			this._delegate.relayout?.();
+			if (this._delegate.isCompactionEnabled?.() === false) {
+				return;
+			}
 
 			for (const item of items) {
 				if (this._fitsAvailableWidth(availableWidth)) {
@@ -151,6 +157,9 @@ export class ChatInputPickerResponsiveLayout extends Disposable {
 		const laneBounds = this._element.getBoundingClientRect();
 		const itemBounds = this._getVisibleItemBounds()
 			.sort((a, b) => a.bounds.left - b.bounds.left);
+		if (this._delegate.usePreferredWidth) {
+			return this._measurePreferredLayout(itemBounds.map(({ item }) => item)).width <= availableWidth + WIDTH_TOLERANCE;
+		}
 		for (let index = 0; index < itemBounds.length; index++) {
 			const { bounds } = itemBounds[index];
 			if (bounds.left < laneBounds.left - WIDTH_TOLERANCE || bounds.right > laneBounds.right + WIDTH_TOLERANCE) {

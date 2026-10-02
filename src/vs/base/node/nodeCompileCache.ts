@@ -50,9 +50,6 @@ export function enableNodeCompileCache(kind: NodeCompileCacheKind): boolean {
 	enabledKind = kind;
 	process.env['VSCODE_NODE_COMPILE_CACHE_ROOT'] = getNodeCompileCacheRoot();
 	const cacheDirectory = getNodeCompileCacheDirectory(kind);
-	const isGeneratingCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
-	const runtimeCachePrefix = `${process.version}-${process.arch}-`;
-	const hasRuntimeCache = fs.existsSync(cacheDirectory) && fs.readdirSync(cacheDirectory).some(entry => entry.startsWith(runtimeCachePrefix));
 
 	if (process.env['VSCODE_DEV']) {
 		setNodeCompileCacheStatus({
@@ -63,6 +60,21 @@ export function enableNodeCompileCache(kind: NodeCompileCacheKind): boolean {
 		});
 		return false;
 	}
+
+	// TODO: Re-enable POSIX caches once the runtime fixes portable caching with eager/read-only options.
+	if (process.platform !== 'win32') {
+		setNodeCompileCacheStatus({
+			kind,
+			status: 'disabled',
+			configuredDirectory: cacheDirectory,
+			isPackagedCacheEnabled: false
+		});
+		return false;
+	}
+
+	const isGeneratingCache = process.env['VSCODE_GENERATE_NODE_COMPILE_CACHE'] === '1';
+	const runtimeCachePrefix = `${process.version}-${process.arch}-`;
+	const hasRuntimeCache = fs.existsSync(cacheDirectory) && fs.readdirSync(cacheDirectory).some(entry => entry.startsWith(runtimeCachePrefix));
 
 	if (!isGeneratingCache && !hasRuntimeCache) {
 		setNodeCompileCacheStatus({

@@ -10,7 +10,7 @@ import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/select
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -25,6 +25,7 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../common/sessionConfig.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 
 const EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY = 'sessions.externalSessionBanner.dismissed';
@@ -140,11 +141,7 @@ export class ExternalSessionBanner extends Disposable {
 			"{0} picked up this session, which was created in another application.",
 			this._productService.nameShort
 		);
-		dom.append(content, dom.$('.external-session-banner-description', { role: 'status' })).textContent = localize(
-			'externalSessionBanner.description',
-			"Choose how you want external sessions to appear in {0}. You can change this later in Settings.",
-			this._productService.nameShort
-		);
+		const description = dom.append(content, dom.$('.external-session-banner-description', { role: 'status' }));
 
 		const controls = dom.append(content, dom.$('.external-session-banner-controls'));
 		const selectContainer = dom.append(controls, dom.$('.external-session-banner-select'));
@@ -193,11 +190,41 @@ export class ExternalSessionBanner extends Disposable {
 			this._dismissed.set(this._storageService.getBoolean(EXTERNAL_SESSION_BANNER_DISMISSED_STORAGE_KEY, StorageScope.PROFILE, false), undefined);
 		}));
 
+		const groupExternalSessions = observableFromEvent(this, this._configurationService.onDidChangeConfiguration,
+			() => this._configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true);
 		this._register(autorun(reader => {
 			const session = this._session.read(reader);
 			const visible = !this._dismissed.read(reader) && session?.isExternal?.read(reader) === true;
+			const grouped = groupExternalSessions.read(reader);
+			const text = grouped
+				? this._getContinuationDescription(session?.sessionType)
+				: localize('externalSessionBanner.description', "Choose how you want external sessions to appear in {0}. You can change this later in Settings.", this._productService.nameShort);
+			const contentChanged = description.textContent !== text;
+			description.textContent = text;
+			if (grouped) {
+				dom.hide(controls);
+			} else {
+				dom.show(controls);
+			}
+			this.domNode.setAttribute('aria-label', grouped
+				? localize('externalSessionBanner.continuation.ariaLabel', "External session")
+				: localize('externalSessionBanner.ariaLabel', "External session visibility"));
+			if (contentChanged && visible && this._visible) {
+				this._bannerOptions.onDidChangeLayout?.(visible);
+			}
 			this._setVisible(visible);
 		}));
+	}
+
+	private _getContinuationDescription(sessionType: string | undefined): string {
+		switch (sessionType) {
+			case 'codex':
+				return localize('externalSessionBanner.continue.codex', "You can continue this session here with your ChatGPT or Copilot subscription. Choose your subscription in the model picker.");
+			case 'claude':
+				return localize('externalSessionBanner.continue.claude', "You can continue this session here with your Copilot subscription.");
+			default:
+				return localize('externalSessionBanner.continue', "You can continue this session here.");
+		}
 	}
 
 	get visible(): boolean {

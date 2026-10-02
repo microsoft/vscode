@@ -27,6 +27,7 @@ import { AgentHostExistingSessionHarnessPickerEnablement } from './agentHostExis
 import { AgentHostOpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { AgentHostSessionListContribution } from './agentHostSessionListContribution.js';
 import { AgentHostSdkSetupNotificationContribution } from './agentHostSdkSetupNotification.js';
+import { AgentHostSandboxNotifications } from './agentHostSandboxNotifications.js';
 import { AgentHostSignedOutModelsNotificationContribution } from './agentHostSignedOutModelsNotification.js';
 import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { CopilotConfigSlashSubmitHandlerContribution } from './copilotConfigSlashSubmitHandler.js';
@@ -57,5 +58,6 @@ registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, Agent
 registerWorkbenchContribution2(AgentHostAllowSignedOutWhenUsableContribution.ID, AgentHostAllowSignedOutWhenUsableContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IAgentHostByokLmHandler, AgentHostByokLmHandler, InstantiationType.Delayed);

@@ -63,7 +63,8 @@ function createControl(
 
 	let openedChat: URI | undefined;
 	const sessionsService = new class extends mock<ISessionsService>() {
-		override async openChat(_session: ISession, chatUri: URI): Promise<void> {
+		override async openChatToSide(_session: ISession, chatUri: URI, options?: { referenceChatResource?: URI }): Promise<void> {
+			assert.strictEqual(options?.referenceChatResource, mainChat.resource);
 			openedChat = chatUri;
 		}
 	}();
@@ -305,10 +306,10 @@ suite('SessionBackgroundActivitiesControl', () => {
 		});
 	});
 
-	test('opening an entry opens that subagent chat', () => {
+	test('opening an entry opens that subagent chat beside its parent', async () => {
 		const harness = createControl({ subagents: ['Research'] }, store);
 
-		harness.control.sections.get()[0].entries[0].open();
+		await harness.control.sections.get()[0].entries[0].open();
 
 		assert.deepStrictEqual(harness.getOpenedChat()?.toString(), 'chat:subagent-0');
 	});

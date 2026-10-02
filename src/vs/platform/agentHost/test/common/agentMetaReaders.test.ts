@@ -8,11 +8,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { type AgentFusionPhaseStatus, isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSystemNotificationKind, type AgentFusionProgressStatus, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
+import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
-import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readUsageInfoMeta, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
 import { createAgentModelSourceMeta, readAgentModelSourceId } from '../../common/agentModelSource.js';
@@ -37,6 +39,77 @@ function attachment(meta: Record<string, unknown> | undefined): SimpleMessageAtt
 suite('Agent host _meta readers', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('session sandbox policy', () => {
+		const policies = [
+			undefined,
+			{ enabled: false },
+			{ enabled: true, allowBypass: false, allowOutbound: true, allowLocalNetwork: false, allowDevToolAccess: false, sandboxMcpServers: true, sandboxLspServers: true, failClosed: true },
+		];
+
+		test('removes legacy metadata when replacing or clearing the resolved policy', () => {
+			const meta = Object.freeze({
+				unrelated: true,
+				'vscode.sandboxPolicy': { enabled: true, allowOutbound: false },
+				'vscode.resolvedSandboxPolicy': { enabled: true, allowBypass: true },
+			});
+			assert.deepStrictEqual(
+				policies.map(policy => withSessionSandboxPolicy(meta, policy)),
+				policies.map(policy => ({ unrelated: true, 'vscode.resolvedSandboxPolicy': policy })),
+			);
+		});
+
+		test('round trips policies without existing metadata', () => {
+			assert.deepStrictEqual(
+				policies.map(policy => readSessionSandboxPolicy({ _meta: withSessionSandboxPolicy(undefined, policy) })),
+				policies,
+			);
+		});
+	});
+
+	suite('chat input state', () => {
+		test('validates restrictions and optional error fields', () => {
+			const states = [undefined, null, [], {}, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 1, message: 'In use' } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', stack: 1 } },
+				{ kind: 'blocked', error: { errorType: 'locked', message: 'In use', _meta: [] } }];
+			assert.deepStrictEqual(states.map(state => readChatInputState({ _meta: { 'vscode.chatInputState': { chat: state } } }, 'chat')), [
+				undefined, undefined, undefined, undefined, { kind: 'checking' }, { kind: 'blocked', error: { errorType: 'locked', message: 'In use' } }, undefined, undefined, undefined,
+			]);
+		});
+
+		test('clearing one chat preserves its sibling and unrelated metadata', () => {
+			const first = withChatInputState({ _meta: { unrelated: true } }, 'first', { kind: 'checking' });
+			const second = withChatInputState({ _meta: first }, 'second', { kind: 'checking' });
+			assert.deepStrictEqual(withChatInputState({ _meta: second }, 'first', undefined), {
+				unrelated: true, 'vscode.chatInputState': { second: { kind: 'checking' } },
+			});
+		});
+	});
+
+	test('reads bounded session comparison metadata', () => {
+		assert.deepStrictEqual(readSessionComparisonMetadata(withSessionComparisonMetadata(undefined, {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		})), {
+			id: 'comparison',
+			role: 'attempt',
+			attemptIndex: 1,
+			attemptCount: 3,
+		});
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': { id: 'comparison', role: 'attempt', attemptIndex: 3, attemptCount: 3 },
+		}), undefined);
+		assert.strictEqual(readSessionComparisonMetadata({
+			'agentHost/sessionComparison': {
+				id: 'comparison',
+				role: 'judge',
+				attemptCount: 3,
+			},
+		})?.role, 'judge');
+	});
 
 	test('validates MCP configuration sources and merges them into open metadata', () => {
 		const read = (meta: Record<string, unknown> | undefined) => readMcpServerSource({
@@ -159,6 +232,18 @@ suite('Agent host _meta readers', () => {
 			}, {
 				valid: statuses.map(fusionStatus => ({ ...empty, kind: AgentSystemNotificationKind.FusionProgress, fusionStatus })),
 				invalid: invalid.map(() => empty),
+			});
+		});
+
+		test('round trips the namespaced Fusion description and drops malformed values', () => {
+			assert.deepStrictEqual({
+				valid: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: 'Workflow description.' }) }).fusionDescription,
+				empty: readAgentSystemNotificationMeta({ _meta: toAgentSystemNotificationMeta({ fusionDescription: '' }) }).fusionDescription,
+				invalid: readAgentSystemNotificationMeta({ _meta: { 'vscode.chat.fusionDescription': 1 } }).fusionDescription,
+			}, {
+				valid: 'Workflow description.',
+				empty: '',
+				invalid: undefined,
 			});
 		});
 	});

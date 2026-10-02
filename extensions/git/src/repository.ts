@@ -32,8 +32,10 @@ import { IFileWatcher, watch } from './watch';
 import { ISourceControlHistoryItemDetailsProviderRegistry } from './historyItemDetailsProvider';
 import { GitArtifactProvider } from './artifactProvider';
 import { RepositoryCache } from './repositoryCache';
+import { getSafeNotificationMessage } from './notification';
 import { GitQuickDiffProvider, StagedResourceQuickDiffProvider } from './quickDiffProvider';
 import { resolveWorktreeIncludePaths, sanitizeWorktreeIncludePatterns } from './worktreeInclude';
+import { createWorktreeSymlink, filterWorktreeSymlinkFolders, getWorktreeSymlinkFolderCandidates, type WorktreeSymlinkStatus } from './worktreeSymlink';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -1934,8 +1936,8 @@ export class Repository implements Disposable {
 		await this.run(Operation.MergeAbort, async () => await this.repository.mergeAbort());
 	}
 
-	async rebase(branch: string): Promise<void> {
-		await this.run(Operation.Rebase, () => this.repository.rebase(branch));
+	async rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void> {
+		await this.run(Operation.Rebase, () => this.repository.rebase(branch, options));
 	}
 
 	async tag(options: { name: string; message?: string; ref?: string }): Promise<void> {
@@ -1985,18 +1987,141 @@ export class Repository implements Disposable {
 				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
 			}
 
-			this._setupWorktree(worktreePath!);
+			// Worktree setup is best effort and must not delay or fail creation.
+			this._setupWorktree(worktreePath!).then(undefined, err => {
+				this.logger.warn(`[Repository][createWorktree] Failed to set up worktree '${worktreePath}': ${err}`);
+			});
 
 			return worktreePath!;
 		});
 	}
 
 	private async _setupWorktree(worktreePath: string): Promise<void> {
-		// Copy worktree include files and wait for the copy to complete
-		// before running any worktree-created tasks.
-		await this._copyWorktreeIncludeFiles(worktreePath);
-
+		// Set up shared and copied worktree files before running any
+		// worktree-created tasks.
+		const symlinkFolders = await this._symlinkWorktreeFolders(worktreePath);
+		await this._copyWorktreeIncludeFiles(worktreePath, symlinkFolders);
 		await this._runWorktreeCreatedTasks(worktreePath);
+	}
+
+	private async _symlinkWorktreeFolders(worktreePath: string): Promise<string[]> {
+		try {
+			const directories = await this._getWorktreeSymlinkFolders();
+			if (directories.length === 0) {
+				return [];
+			}
+
+			const startTime = performance.now();
+			const statuses = new Map<WorktreeSymlinkStatus, number>();
+			const createdDirectories: string[] = [];
+			const errors: { directory: string; error: string }[] = [];
+
+			for (const directory of directories) {
+				try {
+					const status = await createWorktreeSymlink(this.root, worktreePath, directory);
+					statuses.set(status, (statuses.get(status) ?? 0) + 1);
+					if (status === 'created') {
+						createdDirectories.push(directory);
+					}
+				} catch (err) {
+					errors.push({ directory, error: String(err) });
+				}
+			}
+
+			const created = statuses.get('created') ?? 0;
+			this.logger.info(`[Repository][_symlinkWorktreeFolders] Symlinked ${created}/${directories.length} folder(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
+
+			const skippedStatuses: WorktreeSymlinkStatus[] = ['sourceContainsWorktree', 'targetExists'];
+			for (const status of skippedStatuses) {
+				const count = statuses.get(status) ?? 0;
+				if (count > 0) {
+					this.logger.info(`[Repository][_symlinkWorktreeFolders] Skipped ${count} folder(s) (${status}).`);
+				}
+			}
+
+			if (errors.length > 0) {
+				window.showWarningMessage(l10n.t('Failed to create {0} worktree folder symlink(s).', errors.length));
+
+				this.logger.warn(`[Repository][_symlinkWorktreeFolders] Failed to create ${errors.length} worktree folder symlink(s).`);
+				for (const error of errors) {
+					this.logger.warn(`  - ${error.directory}: ${error.error}`);
+				}
+			}
+			return createdDirectories;
+		} catch (err) {
+			this.logger.warn(`[Repository][_symlinkWorktreeFolders] Failed to symlink folders to worktree: ${err}`);
+			return [];
+		}
+	}
+
+	private async _getWorktreeSymlinkFolders(): Promise<string[]> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const worktreeSymlinkFolders = config.get<string[]>('worktreeSymlinkFolders', []);
+
+		const patterns = sanitizeWorktreeIncludePatterns(worktreeSymlinkFolders);
+		if (patterns.length !== worktreeSymlinkFolders.length) {
+			this.logger.warn(`[Repository][_getWorktreeSymlinkFolders] Ignoring ${worktreeSymlinkFolders.length - patterns.length} pattern(s) containing line breaks.`);
+		}
+		if (patterns.length === 0) {
+			return [];
+		}
+
+		const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'vscode-git-worktree-symlink-'));
+		const patternsFile = path.join(tempDir, 'patterns');
+
+		try {
+			await fsPromises.writeFile(patternsFile, patterns.join('\n') + '\n', 'utf8');
+
+			const tryExec = async (cwd: string, args: string[], input?: string, allowNoMatches = false): Promise<string | undefined> => {
+				try {
+					return (await this.repository.git.exec(cwd, args, { input })).stdout;
+				} catch (err) {
+					if (allowNoMatches && err instanceof GitError && err.exitCode === 1) {
+						return '';
+					}
+					this.logger.warn(`[Repository][_getWorktreeSymlinkFolders] Failed to execute 'git ${args.join(' ')}': ${err}`);
+					return undefined;
+				}
+			};
+
+			const baseArgs = ['ls-files', '--others', '--ignored', '-z'];
+			const [ignoredOutput, matchedOutput, directoryOutput] = await Promise.all([
+				tryExec(this.root, [...baseArgs, '--exclude-standard']),
+				tryExec(this.root, [...baseArgs, `--exclude-from=${patternsFile}`]),
+				tryExec(this.root, [...baseArgs, '--exclude-standard', '--directory'])
+			]);
+			if (ignoredOutput === undefined || matchedOutput === undefined || directoryOutput === undefined) {
+				return [];
+			}
+
+			const candidates = getWorktreeSymlinkFolderCandidates(ignoredOutput, matchedOutput);
+			if (candidates.length === 0) {
+				return [];
+			}
+
+			const matcherRoot = path.join(tempDir, 'matcher');
+			await fsPromises.mkdir(matcherRoot);
+			if (await tryExec(matcherRoot, ['init', '--quiet']) === undefined) {
+				return [];
+			}
+
+			const candidateInput = candidates.map(candidate => `${candidate}/`).join('\0');
+			const [ignoredDirectoriesOutput, matchedDirectoriesOutput] = await Promise.all([
+				tryExec(this.root, ['check-ignore', '--no-index', '-z', '--stdin'], candidateInput, true),
+				tryExec(matcherRoot, ['-c', `core.excludesFile=${patternsFile}`, 'check-ignore', '--no-index', '-z', '--stdin'], candidateInput, true)
+			]);
+			if (ignoredDirectoriesOutput === undefined || matchedDirectoriesOutput === undefined) {
+				return [];
+			}
+
+			return filterWorktreeSymlinkFolders(candidates, ignoredDirectoriesOutput, matchedDirectoriesOutput, directoryOutput);
+		} finally {
+			try {
+				await fsPromises.rm(tempDir, { recursive: true, force: true });
+			} catch {
+				// best-effort
+			}
+		}
 	}
 
 	private async _runWorktreeCreatedTasks(worktreePath: string): Promise<void> {
@@ -2025,7 +2150,7 @@ export class Repository implements Disposable {
 	 * `git.worktreeIncludeFiles` patterns are matched by git using
 	 * `.gitignore` semantics.
 	 */
-	private async _getWorktreeIncludePaths(worktreePath: string): Promise<string[]> {
+	private async _getWorktreeIncludePaths(worktreePath: string, excludedFolders: readonly string[]): Promise<string[]> {
 		const config = workspace.getConfiguration('git', Uri.file(this.root));
 		const worktreeIncludeFiles = config.get<string[]>('worktreeIncludeFiles', []);
 
@@ -2080,7 +2205,7 @@ export class Repository implements Disposable {
 				return [];
 			}
 
-			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput);
+			return resolveWorktreeIncludePaths(ignoredOutput, includedOutput, directoryOutput, worktreeOutput, excludedFolders);
 		} finally {
 			try {
 				await fsPromises.rm(tempDir, { recursive: true, force: true });
@@ -2090,29 +2215,41 @@ export class Repository implements Disposable {
 		}
 	}
 
-	private async _copyWorktreeIncludeFiles(worktreePath: string): Promise<void> {
+	private async _copyWorktreeIncludeFiles(worktreePath: string, excludedFolders: readonly string[]): Promise<void> {
 		try {
-			const files = await this._getWorktreeIncludePaths(worktreePath);
+			const files = await this._getWorktreeIncludePaths(worktreePath, excludedFolders);
 			if (files.length === 0) {
 				return;
 			}
 
 			const startTime = performance.now();
-			const limiter = new Limiter<void>(15);
+			const limiter = new Limiter<boolean>(15);
 
 			// Copy files and folders
 			const results = await Promise.allSettled(files.map(file => {
 				return limiter.queue(async () => {
 					const sourcePath = path.join(this.root, file);
 					const targetPath = path.join(worktreePath, file);
+
+					try {
+						await fsPromises.lstat(targetPath);
+						return false;
+					} catch (err) {
+						if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+							throw err;
+						}
+					}
+
 					await fsPromises.mkdir(path.dirname(targetPath), { recursive: true });
 					await cp(sourcePath, targetPath, { force: true, recursive: true, verbatimSymlinks: true });
+					return true;
 				});
 			}));
 
 			// Log any failed operations
 			const failedOperations = results.filter(r => r.status === 'rejected');
-			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${files.length - failedOperations.length}/${files.length} folder(s)/file(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
+			const copiedFiles = results.filter(r => r.status === 'fulfilled' && r.value).length;
+			this.logger.info(`[Repository][_copyWorktreeIncludeFiles] Copied ${copiedFiles}/${files.length} folder(s)/file(s) to worktree. [${(performance.now() - startTime).toFixed(2)}ms]`);
 
 			if (failedOperations.length > 0) {
 				window.showWarningMessage(l10n.t('Failed to copy {0} folder(s)/file(s) to the worktree.', failedOperations.length));
@@ -2225,6 +2362,14 @@ export class Repository implements Disposable {
 				commands.executeCommand('_aiEdits.clearAllAiContributions');
 			}
 		});
+	}
+
+	async resetKeep(ref: string): Promise<void> {
+		await this.run(Operation.Reset, () => this.repository.resetKeep(ref));
+	}
+
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		await this.run(Operation.Branch, () => this.repository.updateRef(ref, newSha, oldSha));
 	}
 
 	async deleteRef(ref: string): Promise<void> {
@@ -2369,6 +2514,10 @@ export class Repository implements Disposable {
 
 	async pushTo(remote?: string, name?: string, setUpstream = false, forcePushMode?: ForcePushMode): Promise<void> {
 		await this.run(Operation.Push, () => this._push(remote, name, setUpstream, undefined, forcePushMode));
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.pushRefWithLease(remote, branch, newSha, expectedSha));
 	}
 
 	async pushFollowTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
@@ -3010,14 +3159,20 @@ export class Repository implements Disposable {
 
 		if (didHitLimit && !shouldIgnore && !this.didWarnAboutLimit) {
 			const knownHugeFolderPaths = await this.findKnownHugeFolderPathsToIgnore();
-			const gitWarn = l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root);
+			const gitWarn = getSafeNotificationMessage(
+				l10n.t('The git repository at "{0}" has too many active changes, only a subset of Git features will be enabled.', this.repository.root),
+				l10n.t('The git repository has too many active changes, only a subset of Git features will be enabled.'),
+			);
 			const neverAgain = { title: l10n.t('Don\'t Show Again') };
 
 			if (knownHugeFolderPaths.length > 0) {
 				const folderPath = knownHugeFolderPaths[0];
 				const folderName = path.basename(folderPath);
 
-				const addKnown = l10n.t('Would you like to add "{0}" to .gitignore?', folderName);
+				const addKnown = getSafeNotificationMessage(
+					l10n.t('Would you like to add "{0}" to .gitignore?', folderName),
+					l10n.t('Would you like to add the large folder to .gitignore?'),
+				);
 				const yes = { title: l10n.t('Yes') };
 				const no = { title: l10n.t('No') };
 

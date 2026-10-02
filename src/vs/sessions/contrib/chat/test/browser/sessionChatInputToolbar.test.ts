@@ -148,6 +148,48 @@ suite('SessionChatInputToolbar', () => {
 		});
 	});
 
+	test('uses Session Changes for nested chats even in worktrees', () => {
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [upcastPartial<ISessionFolder>({
+				gitRepository: upcastPartial<ISessionGitRepository>({ workTreeUri: URI.file('/worktree') }),
+			})],
+		}));
+		const createChat = (resource: string) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
+			workspace,
+			changesets: constObservable([
+				upcastPartial<ISessionChangeset>({
+					id: BRANCH_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(true),
+					changes: constObservable([]),
+				}),
+				upcastPartial<ISessionChangeset>({
+					id: SESSION_CHANGES_CHANGESET_ID,
+					isDefault: constObservable(false),
+					changes: constObservable([{
+						modifiedUri: URI.file('/chat-change.ts'),
+						insertions: 10,
+						deletions: 4,
+					}]),
+				}),
+			]),
+			changes: constObservable([]),
+		});
+		const mainChat = createChat('chat:main');
+		const nestedChat = createChat('chat:nested');
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			workspace,
+			mainChat: constObservable(mainChat),
+		});
+		const stats = (chat: IChat) => derived(reader => computeSessionInputPillStats(session, chat, reader)).get();
+
+		assert.deepStrictEqual({ main: stats(mainChat), nested: stats(nestedChat) }, {
+			main: { files: 0, insertions: 0, deletions: 0 },
+			nested: { files: 1, insertions: 10, deletions: 4 },
+		});
+	});
+
 	test('uses cached session stats while chat changes are unresolved', () => {
 		const chat = upcastPartial<IChat>({
 			workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [] })),
@@ -246,9 +288,82 @@ suite('SessionChatInputToolbar', () => {
 		}
 	}
 
+	test('labels and opens Session Changes from a nested chat pill while the main chat keeps Branch Changes', () => {
+		const { instantiationService } = createServices();
+		const root = URI.file('/repo');
+		const worktree = URI.file('/worktrees/repo');
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({
+			folders: [{
+				root,
+				name: 'repo',
+				description: undefined,
+				workingDirectory: worktree,
+				gitRepository: {
+					uri: root,
+					workTreeUri: worktree,
+					baseBranchName: 'main',
+					branchName: 'feature',
+					gitHubInfo: constObservable(undefined),
+				},
+			}],
+		}));
+		const createChat = (resource: string) => upcastPartial<IChat>({
+			resource: URI.parse(resource),
+			workspace,
+			changesets: constObservable([]),
+			changes: constObservable([{
+				modifiedUri: URI.file('/chat-change.ts'),
+				insertions: 10,
+				deletions: 4,
+			}]),
+		});
+		const mainChat = createChat('chat:main');
+		const nestedChat = createChat('chat:nested');
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			resource: URI.parse('session:1'),
+			chats: constObservable([mainChat, nestedChat]),
+			mainChat: constObservable(mainChat),
+			workspace,
+		});
+		const opened: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsService, 'setActive', () => { });
+		instantiationService.stub(IAgentWorkbenchLayoutService, upcastPartial<IAgentWorkbenchLayoutService>({
+			revealEditorPartExplicitly: () => { },
+		}));
+		instantiationService.stub(ISessionChangesService, upcastPartial<ISessionChangesService>({
+			openChangesEditor: async (_resource, options) => {
+				const selection = options?.changesetSelection;
+				opened.push(selection?.kind === 'id' ? selection.id : undefined);
+				return undefined;
+			},
+		}));
+		const clickPill = (chat: IChat) => {
+			const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+			toolbar.setSession(session, chat);
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-changes-pill-button');
+			assert.ok(pill);
+			pill.click();
+			return pill.getAttribute('aria-label');
+		};
+
+		assert.deepStrictEqual({
+			labels: { main: clickPill(mainChat), nested: clickPill(nestedChat) },
+			opened,
+		}, {
+			labels: {
+				main: 'All Changes (feature): 1 File, +10, -4',
+				nested: 'Session Changes: 1 File, +10, -4',
+			},
+			opened: [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID],
+		});
+	});
+
 	test('adds rich GitHub hovers only when live details are available', async () => {
 		const commands: { readonly id: string; readonly args: readonly unknown[] }[] = [];
 		const clipboardWrites: string[] = [];
+		const recordedOpenIds: string[] = [];
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (id, ...args) => {
 				commands.push({ id, args });
@@ -264,6 +379,7 @@ suite('SessionChatInputToolbar', () => {
 			number: 332982,
 			uri: URI.parse('https://github.com/microsoft/vscode/pull/332982'),
 			title: 'Recorded pull request title',
+			recordedReferenceId: 'pull-request-artifact',
 		};
 		const pullRequest: IGitHubPullRequest = {
 			number: pullRequestRef.number,
@@ -287,6 +403,7 @@ suite('SessionChatInputToolbar', () => {
 			number: 42,
 			uri: URI.parse('https://github.com/microsoft/vscode/issues/42'),
 			title: 'Recorded issue title',
+			recordedReferenceId: 'issue-artifact',
 		};
 		const issue: IGitHubIssue = {
 			number: issueRef.number,
@@ -306,6 +423,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const unresolvedPullRequestEntry = buildSessionPullRequestSections(
 			[{ ref: pullRequestRef, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }],
@@ -322,6 +440,7 @@ suite('SessionChatInputToolbar', () => {
 			clipboardService,
 			openerService,
 			sessionsService,
+			{ recordOpen: id => recordedOpenIds.push(id) },
 		).flatMap(section => section.entries)[0];
 		const issueHoverCache = new WeakMap<IGitHubIssueRef, { readonly element: HTMLElement; readonly tabbableElements: readonly HTMLElement[] }>();
 		const cachedIssueEntry = buildSessionIssueSections(
@@ -404,6 +523,8 @@ suite('SessionChatInputToolbar', () => {
 		const cachedIssueDropdownHover = renderDropdownHover(cachedIssueEntry);
 		const refreshedCachedIssueDropdownHover = renderDropdownHover(refreshedCachedIssueEntry);
 		pullRequestHover?.querySelectorAll<HTMLButtonElement>('.sessions-pr-hover-branch').forEach(branch => branch.click());
+		pullRequestHover?.querySelector<HTMLElement>('.sessions-pr-hover-reference')?.click();
+		issueHover?.querySelector<HTMLElement>('.sessions-issue-hover-reference')?.click();
 		pullRequestEntry?.open();
 		unresolvedIssueEntry?.open();
 
@@ -505,6 +626,7 @@ suite('SessionChatInputToolbar', () => {
 				statusKind: notPlannedIssueHover?.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
 				ariaDescription: notPlannedIssueEntry?.ariaDescription,
 			},
+			recordedOpenIds,
 		}, {
 			pullRequest: {
 				label: 'Restore rich pill hovers',
@@ -625,6 +747,7 @@ suite('SessionChatInputToolbar', () => {
 				statusKind: 'notPlanned',
 				ariaDescription: 'Not planned. https://github.com/microsoft/vscode/issues/42',
 			},
+			recordedOpenIds: ['pull-request-artifact', 'issue-artifact', 'pull-request-artifact'],
 		});
 	});
 
@@ -781,6 +904,89 @@ suite('SessionChatInputToolbar', () => {
 			main: { pills: ['1 File', 'Subagent'], visible: true },
 			subagent: { pills: [], visible: false },
 			fork: { pills: ['1 File'], visible: true },
+		});
+	});
+
+	test('opens single subagent input pills and every dropdown entry beside the parent chat', () => {
+		const { instantiationService, visibility } = createServices();
+		visibility.toggle(SessionChatPillKind.Subagents);
+		const opened: Parameters<ISessionsService['openChatToSide']>[] = [];
+		instantiationService.stub(ISessionsService, {
+			visibleSessions: constObservable([]),
+			activeSession: constObservable(undefined),
+			openChatToSide: async (...args) => { opened.push(args); },
+		});
+		let entries: { label: string | undefined; select(): void }[] = [];
+		let hideDropdown: (() => void) | undefined;
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_id, _preview, items, delegate) => {
+				entries = items.map(item => ({
+					label: item.label,
+					select: () => {
+						if (item.item) {
+							delegate.onSelect(item.item);
+						}
+					},
+				}));
+				hideDropdown = () => delegate.onHide?.();
+			},
+			hide: () => hideDropdown?.(),
+		});
+		const workspace = constObservable(upcastPartial<ISessionWorkspace>({ folders: [] }));
+		const chat = upcastPartial<IChat>({
+			resource: URI.parse('chat:parent'),
+			title: constObservable('Parent'),
+			status: constObservable(SessionStatus.InProgress),
+			workspace,
+			changes: constObservable([]),
+			changesets: constObservable([]),
+		});
+		const subagents = [
+			{ title: 'Running', status: SessionStatus.InProgress },
+			{ title: 'Waiting', status: SessionStatus.NeedsInput },
+			{ title: 'Completed', status: SessionStatus.Completed },
+		].map(({ title, status }) => upcastPartial<IChat>({
+			resource: URI.parse(`chat:${title}`),
+			title: constObservable(title),
+			status: constObservable(status),
+			origin: { kind: ChatOriginKind.Tool, parentChat: chat.resource },
+		}));
+		const chats = observableValue<readonly IChat[]>('chats', [chat, subagents[0]]);
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'provider:session',
+			resource: URI.parse('session:1'),
+			capabilities: constObservable({ supportsMultipleChats: true }),
+			chats,
+			workspace,
+		});
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		document.body.appendChild(toolbar.element);
+		store.add(toDisposable(() => toolbar.element.remove()));
+		toolbar.setSession(session, chat);
+		const labels = () => Array.from(toolbar.element.querySelectorAll('.chat-pill-label'), label => label.textContent);
+		const clickPill = () => {
+			const pill = toolbar.getChatPetPlatformElements()[0];
+			assert.ok(pill);
+			pill.click();
+		};
+		const singleLabels = labels();
+		clickPill();
+		chats.set([chat, ...subagents], undefined);
+		const multipleLabels = labels();
+		for (const subagent of subagents) {
+			clickPill();
+			const entry = entries.find(item => item.label === subagent.title.get());
+			assert.ok(entry);
+			entry.select();
+		}
+
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+			singleLabels: ['Running'],
+			multipleLabels: ['3 Subagents'],
+			opened: [subagents[0], ...subagents].map(subagent => [
+				session, subagent.resource, { referenceChatResource: chat.resource },
+			]),
 		});
 	});
 
@@ -995,6 +1201,7 @@ suite('SessionChatInputToolbar', () => {
 		const removed: string[] = [];
 		const copied: string[] = [];
 		const opened: object[] = [];
+		const recordedOpenIds: string[] = [];
 		const pullRequests = refs.map(ref => ({ ref, pullRequest: undefined, icon: Codicon.gitPullRequest, status: {} }));
 		const commandService = upcastPartial<ICommandService>({
 			executeCommand: async (_command, arg) => {
@@ -1007,10 +1214,12 @@ suite('SessionChatInputToolbar', () => {
 		const openerService = upcastPartial<IOpenerService>({});
 		const sessionsService = upcastPartial<ISessionsService>({});
 		const entries = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService, {
-			remove: async id => { removed.push(id); },
+			remove: async ids => { removed.push(...ids); },
+			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries;
 		const issueEntry = buildSessionIssueSections([{ ref: issueRef, issue: undefined }], undefined, commandService, clipboardService, openerService, sessionsService, {
-			remove: async id => { removed.push(id); },
+			remove: async ids => { removed.push(...ids); },
+			recordOpen: id => recordedOpenIds.push(id),
 		})[0].entries[0];
 		const unsupported = buildSessionPullRequestSections(pullRequests, undefined, commandService, clipboardService, openerService, sessionsService)[0].entries;
 		await entries[0].promotedAction?.run();
@@ -1018,13 +1227,15 @@ suite('SessionChatInputToolbar', () => {
 		await issueEntry.promotedAction?.run();
 		await entries[0].toolbarActions?.[0].run();
 		entries[0].open();
+		entries[2].open();
+		issueEntry.open();
 
 		assert.deepStrictEqual({
 			ids: entries.map(entry => entry.id),
 			removable: [...entries.map(entry => !!entry.promotedAction), !!issueEntry.promotedAction],
 			removeLabels: [...entries, issueEntry].map(entry => entry.promotedAction && [entry.promotedAction.label, entry.promotedAction.hoverLabel]),
 			unsupported: unsupported.map(entry => !!entry.promotedAction),
-			removed, copied, opened,
+			removed, copied, recordedOpenIds, opened,
 		}, {
 			ids: ['reference-a', 'reference-b', refs[2].uri.toString()],
 			removable: [true, true, false, true],
@@ -1037,7 +1248,181 @@ suite('SessionChatInputToolbar', () => {
 			unsupported: [false, false, false],
 			removed: ['reference-a', 'reference-b', 'issue-reference'],
 			copied: [refs[0].uri.toString(true)],
-			opened: [{ pullRequest: refs[0] }],
+			recordedOpenIds: ['reference-a', 'issue-reference'],
+			opened: [
+				{ pullRequest: refs[0] },
+				{ pullRequest: refs[2] },
+				{ issue: issueRef },
+			],
+		});
+	});
+
+	test('groups issue URLs by repository and number and opens and copies the issue rather than its comments', async () => {
+		const uri = URI.parse('https://github.com/microsoft/vscode/issues/42');
+		const ref: IGitHubIssueRef = { owner: 'microsoft', repo: 'vscode', number: 42, uri: uri.with({ fragment: 'issuecomment-1' }), recordedReferenceId: 'comment-1' };
+		const issue = upcastPartial<IGitHubIssue>({ title: 'Live issue title', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		const refs: IGitHubIssueRef[] = [
+			ref,
+			{ ...ref, owner: 'Microsoft', repo: 'VSCode', uri: URI.parse('http://www.github.com/Microsoft/VSCode/issues/42/?source=notification#issuecomment-2'), recordedReferenceId: 'comment-2' },
+			{ ...ref, uri, recordedReferenceId: 'issue' },
+			{ ...ref, uri, recordedReferenceId: undefined },
+			ref,
+			{ ...ref, number: 43, uri: URI.parse('https://github.com/microsoft/vscode/issues/43'), recordedReferenceId: undefined },
+			{ ...ref, repo: 'other', uri: URI.parse('https://github.com/microsoft/other/issues/42'), recordedReferenceId: undefined },
+			{ ...ref, owner: 'other', uri: URI.parse('https://github.com/other/vscode/issues/42'), recordedReferenceId: undefined },
+		];
+		const removed: string[][] = [];
+		const copied: string[] = [];
+		const opened: object[] = [];
+		const entries = buildSessionIssueSections(
+			refs.map((ref, index) => ({ ref, issue: index === 2 ? issue : undefined })),
+			undefined,
+			upcastPartial<ICommandService>({
+				executeCommand: async (_command, arg) => {
+					assert.ok(arg && typeof arg === 'object');
+					opened.push(arg);
+					return undefined;
+				},
+			}),
+			upcastPartial<IClipboardService>({ writeText: async value => { copied.push(value); } }),
+			upcastPartial<IOpenerService>({}),
+			upcastPartial<ISessionsService>({}),
+			{ remove: async ids => { removed.push([...ids]); } },
+		)[0].entries;
+		entries[0].open();
+		await entries[0].toolbarActions?.[0].run();
+		await entries[0].promotedAction?.run();
+
+		assert.deepStrictEqual({
+			entries: entries.map(entry => ({ id: entry.id, label: entry.label, description: entry.ariaDescription, removable: !!entry.promotedAction })),
+			removed, copied, opened,
+			originalUri: ref.uri.toString(true),
+		}, {
+			entries: [
+				{ id: 'comment-1', label: 'Live issue title', description: 'Closed. https://github.com/microsoft/vscode/issues/42', removable: true },
+				{ id: 'https://github.com/microsoft/vscode/issues/43', label: 'Issue #43', description: 'https://github.com/microsoft/vscode/issues/43', removable: false },
+				{ id: 'https://github.com/microsoft/other/issues/42', label: 'Issue #42', description: 'https://github.com/microsoft/other/issues/42', removable: false },
+				{ id: 'https://github.com/other/vscode/issues/42', label: 'Issue #42', description: 'https://github.com/other/vscode/issues/42', removable: false },
+			],
+			removed: [['comment-1', 'comment-2', 'issue']],
+			copied: [uri.toString(true)],
+			opened: [{ issue: { ...ref, uri } }],
+			originalUri: 'https://github.com/microsoft/vscode/issues/42#issuecomment-1',
+		});
+	});
+
+	test('aggregates issue icons from the same grouped identities as the dropdown', () => {
+		const { instantiationService } = createServices();
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', [
+			{ id: 'comment', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/Microsoft/VSCode/issues/42#issuecomment-1') },
+			{ id: 'issue', kind: SessionArtifactKind.Issue, label: 'Issue 42', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/42') },
+			{ id: 'other-issue', kind: SessionArtifactKind.Issue, label: 'Issue 43', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/microsoft/vscode/issues/43') },
+		]);
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false }),
+			chats: constObservable([chat]),
+			workspace: constObservable(undefined),
+		});
+		const closed = upcastPartial<IGitHubIssue>({ title: 'Closed issue', state: GitHubIssueState.Closed, stateReason: GitHubIssueStateReason.Completed });
+		const otherIssue = observableValue<IGitHubIssue | undefined>('otherIssue', closed);
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createIssueModelReference: (owner, _repo, number) => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: number === 43 ? otherIssue : constObservable(owner === 'microsoft' ? closed : undefined),
+				refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const presentation = () => {
+			const pill = toolbar.element.querySelector('.chat-dropdown-pill-button');
+			return {
+				label: pill?.getAttribute('aria-label'),
+				closed: !!pill?.querySelector(`.codicon-${Codicon.issueClosed.id}`),
+				open: !!pill?.querySelector(`.codicon-${Codicon.issueOpened.id}`),
+			};
+		};
+		const allClosed = presentation();
+		otherIssue.set(undefined, undefined);
+		const unresolvedDistinctIssue = presentation();
+		otherIssue.set({ ...closed, state: GitHubIssueState.Open }, undefined);
+		const openDistinctIssue = presentation();
+		otherIssue.set(closed, undefined);
+
+		assert.deepStrictEqual({ allClosed, unresolvedDistinctIssue, openDistinctIssue, resolvedAgain: presentation() }, {
+			allClosed: { label: 'Show 2 issues', closed: true, open: false },
+			unresolvedDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			openDistinctIssue: { label: 'Show 2 issues', closed: false, open: true },
+			resolvedAgain: { label: 'Show 2 issues', closed: true, open: false },
+		});
+	});
+
+	test('shows three recorded issue links as one pill and keeps failed removals available for retry', async () => {
+		const { instantiationService } = createServices();
+		const artifacts = observableValue<readonly ISessionArtifact[]>('artifacts', ['', '#issuecomment-1', '#issuecomment-2'].map((fragment, index) => ({
+			id: `issue-${index}`, kind: SessionArtifactKind.Issue, label: 'Recorded title', isArtifact: true, isGitHub: true,
+			link: URI.parse(`https://github.com/microsoft/vscode/issues/42${fragment}`),
+		})));
+		const chat = upcastPartial<IChat>({ resource: URI.parse('chat:main'), title: constObservable('Chat'), status: constObservable(SessionStatus.Completed) });
+		const session = upcastPartial<IActiveSession>({
+			sessionId: 'quick-chat', resource: URI.parse('session:quick-chat'), artifacts,
+			capabilities: constObservable({ supportsMultipleChats: false, supportsRemoveArtifacts: true }),
+			chats: constObservable([chat]),
+			workspace: constObservable(undefined),
+		});
+		instantiationService.stub(IGitHubService, upcastPartial<IGitHubService>({
+			createIssueModelReference: () => new ImmortalReference(upcastPartial<GitHubIssueModel>({
+				issue: constObservable(undefined), refresh: async () => { }, startPolling: () => toDisposable(() => { }),
+			})),
+		}));
+		const removed: { owningSession: boolean; id: string }[] = [];
+		let failRemoval = true;
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			removeSessionArtifact: async (target, id) => {
+				removed.push({ owningSession: target === session, id });
+				if (id === 'issue-1' && failRemoval) {
+					throw new Error('offline');
+				}
+				artifacts.set(artifacts.get().filter(artifact => artifact.id !== id), undefined);
+			},
+		}));
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, { error: error => { errors.push(String(error)); } });
+		let menu: readonly IAction[] = [];
+		instantiationService.stub(IContextMenuService, { showContextMenu: delegate => { menu = delegate.getActions!(); } });
+		const toolbar = store.add(instantiationService.createInstance(SessionChatInputToolbar, false, undefined));
+		toolbar.setSession(session, chat);
+		const presentation = () => ({
+			labels: [...toolbar.element.querySelectorAll('.chat-dropdown-pill-button')].map(pill => pill.getAttribute('aria-label')),
+			genericPills: toolbar.element.querySelectorAll('.chat-resource-pill-button').length,
+		});
+		const remove = async () => {
+			const pill = toolbar.element.querySelector<HTMLElement>('.chat-dropdown-pill-button');
+			assert.ok(pill);
+			pill.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+			const action = menu.find(action => action.id.startsWith('sessionChatPills.removeIssue.'));
+			assert.ok(action);
+			await action.run();
+		};
+		const initial = presentation();
+		await remove();
+		const afterFailure = { ...presentation(), ids: artifacts.get().map(artifact => artifact.id) };
+		failRemoval = false;
+		await remove();
+
+		assert.deepStrictEqual({ initial, afterFailure, final: presentation(), remaining: artifacts.get(), removed, errors }, {
+			initial: { labels: ['Open Issue #42: Recorded title'], genericPills: 0 },
+			afterFailure: { labels: ['Open Issue #42: Recorded title'], genericPills: 0, ids: ['issue-1', 'issue-2'] },
+			final: { labels: [], genericPills: 0 },
+			remaining: [],
+			removed: [
+				{ owningSession: true, id: 'issue-0' },
+				{ owningSession: true, id: 'issue-1' },
+				{ owningSession: true, id: 'issue-1' },
+				{ owningSession: true, id: 'issue-2' },
+			],
+			errors: ['Could not remove Issue #42: Recorded title from this session: offline'],
 		});
 	});
 

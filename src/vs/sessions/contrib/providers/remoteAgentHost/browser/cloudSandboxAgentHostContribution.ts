@@ -18,6 +18,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CloudSandboxSessionContribution, discoveredSessionProject, ICloudSandboxSessionEnvironment } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionContribution.js';
 import { IRemoteAgentHostConnectionCustomizationService } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
@@ -77,8 +78,9 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IHostService hostService: IHostService,
 		@IStorageService storageService: IStorageService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
-		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService);
+		super(cloudSandboxService, apiService, remoteAgentHostService, connectionCustomizations, configurationService, instantiationService, chatSessionsService, logService, chatEntitlementService, hostService, storageService, workspaceTrustManagementService);
 		this._updateRegistration();
 		this._register(this._agentHostFilterService.registerDiscoveryHandler(() => this._discoverAndSeed()));
 		this._register(this._agentHostFilterService.onDidChange(() => {
@@ -99,12 +101,25 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		}
 	}
 
+	protected override _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
+		super._ensureProvider(env);
+		if (env.sessionId && env.taskId) {
+			const rawId = env.sessionId;
+			const address = cloudSandboxAddress(env.environmentId);
+			this._providerInstances.get(address)?.setTaskRenameHandler(rawId, title => this._renameSandboxSession(address, rawId, title));
+		}
+	}
+
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionsProvider {
 		const provider = store.add(this._instantiateProvider({
 			address: cloudSandboxAddress(env.environmentId),
 			name: env.name,
 			connectOnDemand: async () => { await this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }); },
 			disconnectOnDemand: () => this._disconnectEnvironment(cloudSandboxAddress(env.environmentId)),
+			deleteSessionsOnDemand: {
+				ownsSession: rawId => this._ownsSandboxSession(cloudSandboxAddress(env.environmentId), rawId),
+				deleteSessions: sessionIds => this._deleteSandboxSession(cloudSandboxAddress(env.environmentId), sessionIds, rawId => provider.removeDeletedSession(rawId)),
+			},
 			sessionSchemeAlias: { ui: CLOUD_SANDBOX_AGENT_PROVIDER, backend: CLOUD_SANDBOX_SESSION_SCHEME },
 			defaultChangesetKind: ChangesetKind.Session,
 			omitHostFromWorkspaceLabel: true,

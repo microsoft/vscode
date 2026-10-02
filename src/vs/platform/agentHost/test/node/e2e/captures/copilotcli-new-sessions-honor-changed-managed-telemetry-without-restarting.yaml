@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-policy-first".
+    response:
+      content: otel-policy-first
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "otel-policy-second".
+    response:
+      content: otel-policy-second
+      stopReason: end_turn
