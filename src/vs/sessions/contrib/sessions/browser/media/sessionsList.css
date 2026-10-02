@@ -118,12 +118,25 @@
 		display: none !important;
 	}
 
+	/*
+	 * Hierarchy guides are left borders, so a guide positioned at the icon's
+	 * center would draw its stroke to the right of it. Shift by half a stroke
+	 * so the line is centered under the status icon and the twistie. The
+	 * derived value is declared on the row so it resolves against the row's
+	 * (possibly overridden) icon metrics.
+	 */
+	.monaco-list-row {
+		--session-icon-start: var(--vscode-spacing-size120);
+		--session-icon-size: var(--vscode-spacing-size160);
+		--session-hierarchy-guide-left: calc(var(--session-icon-start) + var(--session-icon-size) / 2 - var(--vscode-strokeThickness) / 2);
+	}
+
 	.monaco-list-row .session-chat-twistie {
 		position: absolute;
 		top: var(--vscode-spacing-size80);
-		left: var(--vscode-spacing-size120);
-		width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
+		left: var(--session-icon-start);
+		width: var(--session-icon-size);
+		height: var(--session-icon-size);
 		padding-right: 0;
 		font-size: var(--vscode-codiconFontSize);
 		opacity: 0;
@@ -793,7 +806,7 @@
 	position: absolute;
 	top: var(--vscode-spacing-size280);
 	bottom: calc(-1 * var(--vscode-spacing-size20));
-	left: var(--vscode-spacing-size200);
+	left: var(--session-hierarchy-guide-left);
 	border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 	opacity: 0;
 }
@@ -822,7 +835,7 @@
 		position: absolute;
 		top: 0;
 		bottom: calc(-1 * var(--vscode-spacing-size20));
-		left: var(--vscode-spacing-size200);
+		left: var(--session-hierarchy-guide-left);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		opacity: 0;
 	}
@@ -833,8 +846,9 @@
 		box-sizing: border-box;
 		top: 0;
 		height: calc(var(--session-chat-base-height) / 2);
-		left: var(--vscode-spacing-size200);
-		width: var(--vscode-spacing-size120);
+		left: var(--session-hierarchy-guide-left);
+		/* Widen by the half stroke the guide moved left so the elbow's end stays put. */
+		width: calc(var(--vscode-spacing-size120) + var(--vscode-strokeThickness) / 2);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
 		border-bottom-left-radius: var(--vscode-cornerRadius-small);
@@ -1496,6 +1510,11 @@
  * keep these rules in sync if paddings/font sizes change here.
  */
 .agent-sessions-workbench.phone-layout .sessions-list-control {
+	.monaco-list-row {
+		--session-icon-start: var(--vscode-spacing-size100);
+		--session-icon-size: var(--vscode-spacing-size200);
+	}
+
 	.session-item {
 		padding: 10px 10px;
 		/* Vertically center the icon + main column inside the fixed phone row height. */
@@ -1521,9 +1540,6 @@
 		opacity: 1;
 		pointer-events: auto;
 		top: var(--vscode-spacing-size100);
-		left: var(--vscode-spacing-size100);
-		width: var(--vscode-spacing-size200);
-		height: var(--vscode-spacing-size200);
 	}
 
 	.monaco-list-row[aria-expanded] .session-item .session-icon {
