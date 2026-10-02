@@ -567,6 +567,9 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
 
+/** Root config key controlling Canvas extensions in Copilot sessions. */
+export const AgentHostCanvasesEnabledConfigKey = 'canvasesEnabled';
+
 /** Root config key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsConfigKey = 'autoAttachPullRequests';
 
@@ -930,6 +933,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
+	}),
+	[AgentHostCanvasesEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.canvases.title', "Canvases"),
+		description: localize('agentHost.config.canvases.description', "Whether Copilot sessions can use Canvas extensions to present interactive content."),
+		default: true,
 	}),
 	[AgentHostAutoAttachPullRequestsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

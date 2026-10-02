@@ -7,6 +7,8 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader, observableFromEvent } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -31,10 +33,18 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IChatEntitlementService entitlementService: IChatEntitlementService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.enabled = observableFromEvent(this, entitlementService.onDidChangeSentiment, () => !entitlementService.sentiment.hidden);
+		const onDidChangeEnablement = Event.any(
+			entitlementService.onDidChangeSentiment,
+			Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(CanvasesEnabledSettingId)),
+		);
+		this.enabled = observableFromEvent(this, onDidChangeEnablement, () =>
+			!entitlementService.sentiment.hidden
+			&& configurationService.getValue<boolean>(CanvasesEnabledSettingId) !== false
+		);
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			for (const session of event.removed) {
 				this._removeSession(session);
