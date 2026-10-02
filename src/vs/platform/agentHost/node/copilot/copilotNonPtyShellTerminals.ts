@@ -3,14 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
-
-type TaskList = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>;
 
 export function buildNonPtyShellTerminalClaim(session: URI | string, chat: URI | string, toolCallId: string): TerminalSessionClaim {
 	return {
@@ -328,26 +325,21 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		}
 	}
 
-	/** Reconciles only shell executions tracked before the request; returns the task list for publication. */
-	async reconcileBackgroundShells(listTasks: () => Promise<TaskList>): Promise<TaskList> {
-		const shells = new Map(this._backgroundShells);
-		const result = await listTasks();
-		if (this._store.isDisposed) {
-			return result;
-		}
+	/** Captures each background shell's tool call before requesting the task list. */
+	captureBackgroundShells(): ReadonlyMap<string, string> {
+		return new Map(this._backgroundShells);
+	}
 
-		const runningShellIds = new Set<string>();
-		for (const task of result.tasks) {
-			if (task.type === 'shell' && (task.status === 'running' || task.status === 'idle')) {
-				runningShellIds.add(task.id);
-			}
-		}
-		for (const [shellId, toolCallId] of shells) {
+	/**
+	 * Settles captured executions absent from the running shells when no completion notification or helper result arrives.
+	 * Shells started or replaced after capture are left alone.
+	 */
+	reconcileBackgroundShells(runningShellIds: ReadonlySet<string>, snapshot: ReadonlyMap<string, string>): void {
+		for (const [shellId, toolCallId] of snapshot) {
 			if (this._backgroundShells.get(shellId) === toolCallId && !runningShellIds.has(shellId)) {
 				this.completeBackgroundShell(shellId, undefined);
 			}
 		}
-		return result;
 	}
 
 	finalizeToolCall(toolCallId: string, exitCode: number | undefined, authoritativeOutput?: string): void {

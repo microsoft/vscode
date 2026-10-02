@@ -1651,6 +1651,44 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		for (const status of ['running', 'idle'] as const) {
+			test(`does not settle a ${status} shell started during a pending task read`, async () => {
+				const { mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+				const terminal = defaultNonPtyShellTerminalUri('tc-late');
+				const gate = new DeferredPromise<void>();
+				mockSession.backgroundTaskListGates.push(gate.p);
+				mockSession.fire('session.background_tasks_changed', {});
+				await timeout(0);
+
+				mockSession.backgroundTasks = [{ ...shell('late'), status }];
+				mockSession.fire('tool.execution_start', {
+					toolCallId: 'tc-late',
+					toolName: 'bash',
+					arguments: { command: 'npm test', description: 'Run late', mode: 'async' },
+				} as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', {
+					toolCallId: 'tc-late',
+					success: true,
+					result: { content: '<command started in background with shellId: late>' },
+				} as SessionEventPayload<'tool.execution_complete'>['data']);
+				await gate.complete();
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+				const afterPendingRead = {
+					finalized: [...terminalManager.outputTerminalsFinalized],
+					lifecycle: terminalManager.getTerminalState(terminal)?.lifecycle,
+				};
+
+				mockSession.backgroundTasks = [];
+				mockSession.fire('session.background_tasks_changed', {});
+				await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkRemoved));
+
+				assert.deepStrictEqual({ afterPendingRead, finalized: terminalManager.outputTerminalsFinalized }, {
+					afterPendingRead: { finalized: [], lifecycle: { status: 'running' } },
+					finalized: [{ uri: terminal, exitCode: undefined }],
+				});
+			});
+		}
+
 		test('settles a background shell from a task read that a newer read superseded', async () => {
 			const { mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
 			const terminal = defaultNonPtyShellTerminalUri('tc-gone');
