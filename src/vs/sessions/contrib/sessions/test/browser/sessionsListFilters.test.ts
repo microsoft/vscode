@@ -32,6 +32,7 @@ suite('SessionsListFilters', () => {
 
 	test('composes harness, environment and application filters without coupling their selections', () => {
 		const filters = createFilters();
+		filters.setExcluded({ kind: 'application', environment: 'local', id: 'claude' }, false);
 		const sessions = [
 			buildTestSession({ id: 'editor', title: 'Editor' }).session,
 			buildTestSession({ id: 'claude', title: 'Claude', harness: 'claude', application: 'claude' }).session,
@@ -57,7 +58,31 @@ suite('SessionsListFilters', () => {
 		]);
 	});
 
-	test('defaults only cloud Slack and Teams off, persists opt-ins, and resets to defaults', () => {
+	test('defaults local applications to VS Code and preserves explicit choices through reload and reset', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const sessions = ['vscode', 'vscode-editor-window', 'vscode-agents-window', 'github/cli', 'github/autopilot', 'claude', 'codex', 'slack', 'teams', 'third-party'].map(application =>
+			buildTestSession({ id: application, title: application, application }).session);
+		const visible = (filters: SessionsListFilters) => sessions.filter(session => filters.matches(session)).map(session => session.sessionId);
+		const defaults = visible(filters);
+		for (const id of ['github/cli', 'claude', 'codex', 'third-party']) {
+			filters.setExcluded({ kind: 'application', environment: 'local', id }, false);
+		}
+		filters.setExcluded({ kind: 'application', environment: 'local', id: 'vscode' }, true);
+		const selected = visible(filters);
+		const restored = createFilters(storage);
+		const reloaded = visible(restored);
+		restored.reset();
+
+		assert.deepStrictEqual({ defaults, selected, reloaded, reset: visible(restored) }, {
+			defaults: ['vscode', 'vscode-editor-window', 'vscode-agents-window'],
+			selected: ['github/cli', 'claude', 'codex', 'third-party'],
+			reloaded: selected,
+			reset: defaults,
+		});
+	});
+
+	test('defaults cloud Slack and Teams off, persists opt-ins, and resets to defaults', () => {
 		const storage = store.add(new InMemoryStorageService());
 		const filters = createFilters(storage);
 		const sessions = ['local', 'cloud', 'remote-id'].flatMap(environment =>
@@ -70,8 +95,8 @@ suite('SessionsListFilters', () => {
 		const optedIn = visible(restored);
 		restored.reset();
 		assert.deepStrictEqual({ defaults, optedIn, reset: visible(restored) }, {
-			defaults: ['local/slack', 'local/teams', 'local/github/autopilot', 'cloud/github/autopilot', 'remote-id/slack', 'remote-id/teams', 'remote-id/github/autopilot'],
-			optedIn: ['local/slack', 'local/teams', 'local/github/autopilot', 'cloud/slack', 'cloud/github/autopilot', 'remote-id/slack', 'remote-id/teams', 'remote-id/github/autopilot'],
+			defaults: ['cloud/github/autopilot', 'remote-id/slack', 'remote-id/teams', 'remote-id/github/autopilot'],
+			optedIn: ['cloud/slack', 'cloud/github/autopilot', 'remote-id/slack', 'remote-id/teams', 'remote-id/github/autopilot'],
 			reset: defaults,
 		});
 	});
@@ -103,6 +128,7 @@ suite('SessionsListFilters', () => {
 		const session = buildTestSession({ id: 'remote', title: 'Remote', environment: 'remote-id', application: 'github/cli' }).session;
 		const environmentFilter = { kind: 'environment', id: 'remote-id' } as const;
 		const applicationFilter = { kind: 'application', environment: 'remote-id', id: 'github/cli' } as const;
+		filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 		filters.setExcluded(environmentFilter, true);
 		filters.setExcluded(applicationFilter, true);
 		const absent = getSessionFilterOptions([], [{ id: 'remote-id', label: 'Old Name' }]);

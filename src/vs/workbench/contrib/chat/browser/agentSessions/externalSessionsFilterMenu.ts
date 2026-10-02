@@ -20,12 +20,12 @@ const externalSessionOptions = [
 	{ mode: ChatExternalSessionsMode.Last30Days, title: localize2('agentSessions.filter.external.last30Days', "Last 30 Days") },
 ] as const;
 
-export function registerExternalSessionsFilterMenu(parentMenuId: MenuId, submenuId: MenuId, group: string, showSelectedValue = false): IDisposable {
+export function registerExternalSessionsFilterMenu(parentMenuId: MenuId, submenuId: MenuId, group: string, showSelectedValue = false, title = localize2('agentSessions.filter.external', "External")): IDisposable {
 	const disposables = new DisposableStore();
 	const settingKey = `config.${ChatConfiguration.ShowExternalAgentSessions}`;
 	disposables.add(MenuRegistry.appendMenuItem(parentMenuId, {
 		submenu: submenuId,
-		title: localize2('agentSessions.filter.external', "External"),
+		title,
 		when: showSelectedValue ? ContextKeyExpr.and(...externalSessionOptions.map(option => ContextKeyExpr.notEquals(settingKey, option.mode))) : undefined,
 		group,
 		order: 0,
@@ -37,7 +37,7 @@ export function registerExternalSessionsFilterMenu(parentMenuId: MenuId, submenu
 		if (showSelectedValue) {
 			disposables.add(MenuRegistry.appendMenuItem(parentMenuId, {
 				submenu: submenuId,
-				title: localize2('agentSessions.filter.external.selected', "External ({0})", option.title.value),
+				title: localize2('agentSessions.filter.external.selected', "{0} ({1})", title.value, option.title.value),
 				when: selected,
 				group,
 				order: 0,

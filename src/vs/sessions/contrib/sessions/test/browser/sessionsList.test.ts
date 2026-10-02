@@ -28,7 +28,7 @@ import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/to
 import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -50,6 +50,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { SessionSummaryHoverWidget } from '../../../../../workbench/contrib/chat/browser/agentSessions/sessionSummaryHover.js';
 import { AICustomizationManagementEditorInput } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -2412,7 +2413,7 @@ suite('Sessions - SessionsList', () => {
 				];
 				const sections = groupSessionsForList(sessions, grouping, SessionsSorting.Created,
 					session => session.sessionId === 'pinned' || session.sessionId === 'archived',
-					session => sessions.length - sessions.indexOf(session));
+					session => sessions.length - sessions.indexOf(session), undefined, true);
 
 				assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
 					{ id: 'pinned', sessions: ['pinned'] },
@@ -2422,16 +2423,18 @@ suite('Sessions - SessionsList', () => {
 				]);
 			});
 
-			test(`preserves ordinary placement when external grouping is disabled (${grouping})`, () => {
-				const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true });
-				const quick = createSession('quick', { isExternal: true });
-				const sections = groupSessionsForList([external, quick], grouping, SessionsSorting.Created, () => false, undefined, 'Done', false);
+			for (const groupExternalSessions of [undefined, false]) {
+				test(`preserves ordinary placement when external grouping is ${groupExternalSessions === undefined ? 'unset' : 'disabled'} (${grouping})`, () => {
+					const external = createSession('external', { workspaceLabel: 'Alpha', isExternal: true });
+					const quick = createSession('quick', { isExternal: true });
+					const sections = groupSessionsForList([external, quick], grouping, SessionsSorting.Created, () => false, undefined, 'Done', groupExternalSessions);
 
-				assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
-					{ id: 'quickchats', sessions: ['quick'] },
-					{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['external'] },
-				]);
-			});
+					assert.deepStrictEqual(sections.map(section => ({ id: section.id, sessions: section.sessions.map(s => s.sessionId) })), [
+						{ id: 'quickchats', sessions: ['quick'] },
+						{ id: grouping === SessionsGrouping.Workspace ? 'workspace:Alpha' : 'recent', sessions: ['external'] },
+					]);
+				});
+			}
 		}
 
 		test('shows pinned sessions in a dedicated top section', () => {
@@ -2615,9 +2618,12 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('External section', () => {
-		function renderList(sessions: ISession[], grouping = SessionsGrouping.Workspace, options: IListHarnessOptions = {}) {
+		function renderList(sessions: ISession[], grouping = SessionsGrouping.Workspace, options: IListHarnessOptions & { groupExternalSessions?: boolean } = {}) {
 			const harness = createListHarness(disposables, sessions, options);
 			const configurationService = harness.instantiationService.get(IConfigurationService) as TestConfigurationService;
+			if (options.groupExternalSessions !== undefined) {
+				void configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, options.groupExternalSessions);
+			}
 			harness.instantiationService.stub(IContextKeyService, harness.store.add(new ContextKeyService(configurationService)));
 			void configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
 			const container = harness.createContainer(400, 700);
@@ -2645,6 +2651,7 @@ suite('Sessions - SessionsList', () => {
 					createTestSession('Finished', { isExternal: true, isArchived: true }).session,
 				];
 				const { container } = renderList(sessions, grouping, {
+					groupExternalSessions: true,
 					groups: [{ id: 'custom', name: 'Custom', createdAt: 1 }],
 					memberships: new Map([['Grouped', 'custom']]),
 					pinnedSessionIds: new Set(['Pinned']),
@@ -2668,7 +2675,7 @@ suite('Sessions - SessionsList', () => {
 
 		test('reacts to external identity and hides the section when its sessions are filtered out', () => {
 			const session = createTestSession('Session', { workspaceLabel: 'Alpha' });
-			const { list, container } = renderList([session.session]);
+			const { list, container } = renderList([session.session], SessionsGrouping.Workspace, { groupExternalSessions: true });
 			const before = sectionLabels(container);
 			session.isExternal.set(true, undefined);
 			const external = sectionLabels(container);
@@ -2684,25 +2691,29 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('switches grouping and row context live', async () => {
+		test('defaults to ordinary placement and switches grouping and row context live', async () => {
 			const session = createTestSession('Session', { workspaceLabel: 'Alpha', isExternal: true });
 			const { container, configurationService, instantiationService } = renderList([session.session]);
-			const snapshots = [];
+			const snapshot = () => {
+				const row = container.querySelector<HTMLElement>('.session-item');
+				assert.ok(row);
+				return {
+					sections: sectionLabels(container),
+					inExternalSection: instantiationService.get(IContextKeyService).getContext(row).getValue(SessionItemInExternalSectionContext.key),
+				};
+			};
+			const snapshots = [snapshot()];
 			for (const enabled of [true, false, true]) {
 				await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, enabled);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
 					affectedKeys: new Set([SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]),
 					affectsConfiguration: key => key === SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING,
 				}));
-				const row = container.querySelector<HTMLElement>('.session-item');
-				assert.ok(row);
-				snapshots.push({
-					sections: sectionLabels(container),
-					inExternalSection: instantiationService.get(IContextKeyService).getContext(row).getValue(SessionItemInExternalSectionContext.key),
-				});
+				snapshots.push(snapshot());
 			}
 
 			assert.deepStrictEqual(snapshots, [
+				{ sections: ['Alpha'], inExternalSection: false },
 				{ sections: ['External'], inExternalSection: true },
 				{ sections: ['Alpha'], inExternalSection: false },
 				{ sections: ['External'], inExternalSection: true },
@@ -2714,16 +2725,16 @@ suite('Sessions - SessionsList', () => {
 			const { instantiationService, store } = renderList([session]);
 			store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
 			const menuService = store.add(instantiationService.createInstance(MenuService));
-			const context = instantiationService.get(IContextKeyService).createOverlay([['sessionSection.type', 'external']]);
+			const context = instantiationService.get(IContextKeyService).createOverlay([['sessionSection.type', 'external'], [ChatContextKeys.enabled.key, true]]);
 			const actions = menuService.getMenuActions(SessionSectionToolbarMenuId, context).flatMap(([, group]) => group);
 			const configure = actions.find(action => action instanceof SubmenuAction);
 
 			assert.deepStrictEqual({
 				actions: actions.map(action => action.label),
-				options: configure instanceof SubmenuAction ? configure.actions.map(action => action.label) : [],
+				options: configure instanceof SubmenuAction ? configure.actions.map(action => action instanceof Separator ? 'separator' : action.label) : [],
 			}, {
 				actions: ['Configure External Sessions', 'Mark All as Done'],
-				options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days'],
+				options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'separator', 'Show in External Section'],
 			});
 		});
 	});
@@ -3081,6 +3092,7 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
+			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 			list.layout(400, 400);
 			return { attempt1, attempt2, judge, synthesis, container, harness, list };
 		}
@@ -3374,10 +3386,11 @@ suite('Sessions - SessionsList', () => {
 			readonly sortChanges: readonly ISortChangeRecord[];
 		}
 
-		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>): IDropHarness {
+		function renderGroupedList(sessions: ISession[], memberships: Map<string, string>, groupExternalSessions = false): IDropHarness {
 			const removedFromGroup: string[] = [];
 			const onDidChange = disposables.add(new Emitter<ISessionGroupsChangeEvent>());
 			const harness = createListHarness(disposables, sessions, instantiationService => {
+				void (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, groupExternalSessions);
 				instantiationService.stub(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
 					override readonly onDidChange = onDidChange.event;
 					override getGroups() { return [group]; }
@@ -3493,7 +3506,7 @@ suite('Sessions - SessionsList', () => {
 			const grouped = createTestSession('Grouped', { workspaceLabel: 'vscode', isExternal: true }).session;
 			const external = createTestSession('External', { workspaceLabel: 'monaco', isExternal: true }).session;
 			const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
-			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, external, regular], new Map([[grouped.sessionId, group.id]]));
+			const { container, removedFromGroup, sortChanges } = renderGroupedList([grouped, external, regular], new Map([[grouped.sessionId, group.id]]), true);
 
 			const workspaceTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'vscode'), container);
 			const externalTarget = drag(sessionRow(container, 'Grouped'), sectionRow(container, 'External'), container);
@@ -3510,7 +3523,7 @@ suite('Sessions - SessionsList', () => {
 			const first = createTestSession('First', { workspaceLabel: 'vscode', isExternal: true }).session;
 			const second = createTestSession('Second', { workspaceLabel: 'monaco', isExternal: true }).session;
 			const regular = createTestSession('Regular', { workspaceLabel: 'vscode' }).session;
-			const { container, sortChanges } = renderGroupedList([first, second, regular], new Map());
+			const { container, sortChanges } = renderGroupedList([first, second, regular], new Map(), true);
 
 			drag(sessionRow(container, 'First'), sessionRow(container, 'Regular'), container);
 			const regularDropChanges = sortChanges.length;

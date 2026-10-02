@@ -95,7 +95,10 @@ export class SessionsListFilters extends Disposable {
 
 	isExcluded(filter: SessionFilter): boolean {
 		return this.excluded.get(sessionFilterKey(filter))
-			?? (filter.kind === 'application' && filter.environment === 'cloud' && (filter.id === 'slack' || filter.id === 'teams'));
+			?? (filter.kind === 'application' && (
+				(filter.environment === 'local' && filter.id !== 'vscode') ||
+				(filter.environment === 'cloud' && (filter.id === 'slack' || filter.id === 'teams'))
+			));
 	}
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {

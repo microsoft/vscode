@@ -92,10 +92,10 @@ suite('External Sessions Filter Menu', () => {
 		}]);
 	});
 
-	test('optionally shows the selected mode in the submenu title', () => {
+	test('shows the selected mode with a custom submenu title', () => {
 		const parent = new MenuId('TestExternalSessionsSelectedParent');
 		const submenu = new MenuId('TestExternalSessionsSelectedSubmenu');
-		disposables.add(registerExternalSessionsFilterMenu(parent, submenu, '3_visibility', true));
+		disposables.add(registerExternalSessionsFilterMenu(parent, submenu, '3_visibility', true, { value: 'Created Externally', original: 'Created Externally' }));
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		const titles = [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days, 'unrecognized'].map(mode => {
 			const context = contextKeyService.createOverlay([[`config.${ChatConfiguration.ShowExternalAgentSessions}`, mode]]);
@@ -106,12 +106,12 @@ suite('External Sessions Filter Menu', () => {
 		});
 
 		assert.deepStrictEqual(titles, [
-			['External (None)'],
-			['External (Recent)'],
-			['External (Last 24 Hours)'],
-			['External (Last 7 Days)'],
-			['External (Last 30 Days)'],
-			['External'],
+			['Created Externally (None)'],
+			['Created Externally (Recent)'],
+			['Created Externally (Last 24 Hours)'],
+			['Created Externally (Last 7 Days)'],
+			['Created Externally (Last 30 Days)'],
+			['Created Externally'],
 		]);
 	});
 });

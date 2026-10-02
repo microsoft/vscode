@@ -5878,7 +5878,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private get groupExternalSessions(): boolean {
-		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) !== false;
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true;
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {
@@ -6363,7 +6363,7 @@ export function groupSessionsForList(
 	isSessionPinned: (session: ISession) => boolean,
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
-	groupExternalSessions = true,
+	groupExternalSessions = false,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 

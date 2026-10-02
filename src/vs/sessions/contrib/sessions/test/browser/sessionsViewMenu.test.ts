@@ -14,6 +14,7 @@ import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../.
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -21,6 +22,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISession, ISessionEnvironment } from '../../../../services/sessions/common/session.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
@@ -37,12 +39,23 @@ suite('Sessions - View Menu', () => {
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
 	) {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.ShowExternalAgentSessions]: ChatExternalSessionsMode.Recent,
+		const configurationService = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown): Promise<void> {
+				await this.setUserConfiguration(key, value);
+				this.onDidChangeConfigurationEmitter.fire({
+					affectsConfiguration: section => section === key,
+					affectedKeys: new Set([key]),
+					change: { keys: [key], overrides: [] },
+					source: ConfigurationTarget.USER,
+				});
+			}
+		}({
+			[ChatConfiguration.ShowExternalAgentSessions]: ChatExternalSessionsMode.Last7Days,
 			[ChatSessionArchiveActionWordingSettingId]: wording,
 		});
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		const sorting = SessionsViewSortingContext.bindTo(contextKeyService);
 		const grouping = SessionsViewGroupingContext.bindTo(contextKeyService);
 		const capped = IsWorkspaceGroupCappedContext.bindTo(contextKeyService);
@@ -102,6 +115,7 @@ suite('Sessions - View Menu', () => {
 			const command = CommandsRegistry.getCommand(id);
 			assert.ok(command);
 			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, configurationService);
 			await instantiationService.invokeFunction(accessor => command.handler(accessor));
 		};
 		return {
@@ -126,12 +140,46 @@ suite('Sessions - View Menu', () => {
 			{ title: 'Environment', group: '2_filters', submenu: Menus.SessionsViewEnvironment.id },
 			{ title: 'Created In', group: '2_filters', submenu: Menus.SessionsViewSource.id },
 			{ title: 'Harness', group: '2_filters', submenu: Menus.SessionsViewHarness.id },
-			{ title: 'External (Recent)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
+			{ title: 'Created Externally (Last 7 Days)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
 			{ title: 'Show Done', group: '3_visibility', checked: false },
 			{ title: 'Compact View', group: '4_view', checked: false },
 			{ title: 'Collapse All Groups', group: '4_view' },
 			{ title: 'Reset Filters', group: '5_reset' },
 		]);
+	});
+
+	test('Created Externally keeps its time choice independent from the opt-in External section', async () => {
+		const { snapshot, run } = createMenu();
+		const selected = () => ({
+			title: snapshot(Menus.SessionsViewFilter).find(item => item.submenu === Menus.SessionsViewExternalFilter.id)?.title,
+			checked: snapshot(Menus.SessionsViewExternalFilter).filter(item => item.checked).map(item => item.title),
+		});
+		const defaults = snapshot(Menus.SessionsViewExternalFilter);
+		await run('sessionsViewPane.toggleExternalSessionsSection');
+		const grouped = selected();
+		await run(`agentSessions.filter.external.last30Days.${Menus.SessionsViewExternalFilter.id.toLowerCase()}`);
+		const changedTime = selected();
+		await run('sessionsViewPane.toggleExternalSessionsSection');
+
+		assert.deepStrictEqual({ defaults, grouped, changedTime, ungrouped: selected() }, {
+			defaults: [
+				{ title: 'None', group: '1_modes', checked: false },
+				{ title: 'Recent', group: '1_modes', checked: false },
+				{ title: 'Last 24 Hours', group: '1_modes', checked: false },
+				{ title: 'Last 7 Days', group: '1_modes', checked: true },
+				{ title: 'Last 30 Days', group: '1_modes', checked: false },
+				{ title: 'Show in External Section', group: '2_grouping', checked: false },
+			],
+			grouped: {
+				title: 'Created Externally (Last 7 Days)',
+				checked: ['Last 7 Days', 'Show in External Section'],
+			},
+			changedTime: {
+				title: 'Created Externally (Last 30 Days)',
+				checked: ['Last 30 Days', 'Show in External Section'],
+			},
+			ungrouped: { title: 'Created Externally (Last 30 Days)', checked: ['Last 30 Days'] },
+		});
 	});
 
 	test('single-choice submenu titles and checked items track the selected choices', () => {
@@ -171,8 +219,15 @@ suite('Sessions - View Menu', () => {
 			buildTestSession({ id: 'remote-z', title: 'Remote Z', environment: 'remote-z' }).session,
 			buildTestSession({ id: 'cloud-slack', title: 'Slack', environment: 'cloud', application: 'slack' }).session,
 			buildTestSession({ id: 'local', title: 'Local' }).session,
+			buildTestSession({ id: 'local-claude', title: 'Claude', harness: 'claude', application: 'claude' }).session,
+			buildTestSession({ id: 'local-codex', title: 'Codex', harness: 'codex', application: 'codex' }).session,
+			buildTestSession({ id: 'local-cli', title: 'CLI', application: 'github/cli' }).session,
+			buildTestSession({ id: 'local-third-party', title: 'Third Party', application: 'third-party' }).session,
 			buildTestSession({ id: 'remote-a', title: 'Remote A', environment: 'remote-a' }).session,
+			buildTestSession({ id: 'remote-a-cli', title: 'CLI', environment: 'remote-a', application: 'github/cli' }).session,
+			buildTestSession({ id: 'remote-z-claude', title: 'Claude', environment: 'remote-z', application: 'claude' }).session,
 			buildTestSession({ id: 'cloud-app', title: 'App', environment: 'cloud', application: 'github/autopilot' }).session,
+			buildTestSession({ id: 'cloud-cli', title: 'CLI', environment: 'cloud', application: 'github/cli' }).session,
 		];
 		const { snapshot } = createMenu(sessions, [{ id: 'remote-z', label: 'Z Host' }, { id: 'remote-a', label: 'A Host' }]);
 		assert.deepStrictEqual({
@@ -187,10 +242,17 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Z Host', group: '2_environments', checked: true },
 			],
 			sources: [
+				{ title: 'Claude (Local)', group: '3_applications_000000', checked: false },
+				{ title: 'Codex (Local)', group: '3_applications_000000', checked: false },
+				{ title: 'Copilot CLI (Local)', group: '3_applications_000000', checked: false },
+				{ title: 'Third-party (Local)', group: '3_applications_000000', checked: false },
 				{ title: 'VS Code (Local)', group: '3_applications_000000', checked: true },
 				{ title: 'Copilot App (Cloud)', group: '3_applications_000001', checked: true },
+				{ title: 'Copilot CLI (Cloud)', group: '3_applications_000001', checked: true },
 				{ title: 'Slack (Cloud)', group: '3_applications_000001', checked: false },
+				{ title: 'Copilot CLI (A Host)', group: '3_applications_000002', checked: true },
 				{ title: 'VS Code (A Host)', group: '3_applications_000002', checked: true },
+				{ title: 'Claude (Z Host)', group: '3_applications_000003', checked: true },
 				{ title: 'VS Code (Z Host)', group: '3_applications_000003', checked: true },
 			],
 			harnesses: [
@@ -371,7 +433,7 @@ suite('Sessions - View Menu', () => {
 	test('uses Show Archived when the archive wording is configured', () => {
 		const { snapshot } = createMenu([], [], ChatSessionArchiveActionWording.Archive);
 		assert.deepStrictEqual(snapshot(Menus.SessionsViewFilter).filter(item => item.group === '3_visibility'), [
-			{ title: 'External (Recent)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
+			{ title: 'Created Externally (Last 7 Days)', group: '3_visibility', submenu: Menus.SessionsViewExternalFilter.id },
 			{ title: 'Show Archived', group: '3_visibility', checked: false },
 		]);
 	});
