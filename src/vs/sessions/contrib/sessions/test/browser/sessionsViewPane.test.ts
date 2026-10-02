@@ -95,11 +95,9 @@ suite('Sessions - SessionsViewPane', () => {
 				focusAutomations: () => calls.push('focusControlAutomations'),
 				focus: () => calls.push('focusSessions'),
 			};
-			const rearrangeContextValues: boolean[] = [];
 			const host = {
 				customizationsPresentation: presentation,
 				customizationsNavigationVisible: { set: () => { } },
-				sessionsListRearrangeContext: { set: (value: boolean) => rearrangeContextValues.push(value) },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
 				updateHeaderLayout: () => calls.push('updateHeader'),
@@ -113,7 +111,6 @@ suite('Sessions - SessionsViewPane', () => {
 				},
 				layoutSidebarSplitView: () => calls.push('layout'),
 				calls,
-				rearrangeContextValues,
 			};
 			return host;
 		}
@@ -129,11 +126,6 @@ suite('Sessions - SessionsViewPane', () => {
 			controlCustomizations: controlCustomizations.calls,
 			treatmentAutomations: treatmentAutomations.calls,
 			hiddenCustomizations: hiddenCustomizations.calls,
-			rearrangeContextValues: [
-				controlCustomizations.rearrangeContextValues,
-				treatmentAutomations.rearrangeContextValues,
-				hiddenCustomizations.rearrangeContextValues,
-			],
 		}, {
 			controlCustomizations: [
 				'updateHeader',
@@ -157,7 +149,6 @@ suite('Sessions - SessionsViewPane', () => {
 				'focusSessions',
 				'layout',
 			],
-			rearrangeContextValues: [[true], [false], [false]],
 		});
 	});
 

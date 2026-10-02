@@ -15,9 +15,7 @@ import { findOnboardingTarget } from '../../../../../workbench/contrib/onboardin
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -37,9 +35,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
@@ -88,7 +83,6 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.j
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from './testSessionsList.js';
@@ -146,7 +140,6 @@ suite('Sessions - SessionsList', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
-	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
 	suite('SessionSectionRenderer', () => {
 
@@ -177,8 +170,6 @@ suite('Sessions - SessionsList', () => {
 				},
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -236,8 +227,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -299,8 +288,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -437,16 +424,9 @@ suite('Sessions - SessionsList', () => {
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
-			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
 			const customizationsCount = observableValue(disposables, 7);
 			const customizationMigrationsAvailable = observableValue(disposables, true);
-			const createNewSessionKeybinding = (keybinding: number) => {
-				const resolved = createUSLayoutResolvedKeybinding(keybinding, OS);
-				assert.ok(resolved);
-				return resolved;
-			};
-			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
@@ -461,12 +441,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly onDidActiveEditorChange = activeEditorChanged.event;
 					override get activeEditor(): AICustomizationManagementEditorInput | undefined {
 						return editorState.activeEditor;
-					}
-				});
-				instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
-					override get onDidUpdateKeybindings() { return keybindingsChanged.event; }
-					override lookupKeybinding(commandId: string) {
-						return commandId === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined;
 					}
 				});
 			});
@@ -507,7 +481,6 @@ suite('Sessions - SessionsList', () => {
 			const treatmentAriaLabels = Array.from(container.querySelectorAll('.monaco-list-rows > .monaco-list-row'), element => element.getAttribute('aria-label'));
 			const treatmentAriaLevels = Array.from(container.querySelectorAll('.monaco-list-rows > .monaco-list-row'), element => element.getAttribute('aria-level'));
 			const shortcutActionTargets = Array.from(container.querySelectorAll('.session-section-shortcut'), element => element.querySelectorAll('a, button').length);
-			const newSessionKeybindingVisible = container.querySelector('.session-section-new-session .session-section-keybinding')?.classList.contains('visible');
 			const shortcutCollapseStates = Array.from(container.querySelectorAll('.session-section-shortcut'), element => ({
 				ariaExpanded: element.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				hasChevron: element.querySelector('.session-section-chevron.collapsible') !== null,
@@ -530,10 +503,6 @@ suite('Sessions - SessionsList', () => {
 			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
-			const initialNewSessionKeybindingAriaLabel = newSessionKeybinding.getAriaLabel();
-			newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN);
-			keybindingsChanged.fire();
-			const updatedNewSessionAriaLabel = container.querySelector('.session-section-new-session')?.closest('.monaco-list-row')?.getAttribute('aria-label');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
 			activeEditorChanged.fire();
 			const customizationsActiveWhileOpen = customizationsSection?.classList.contains('active');
@@ -556,8 +525,6 @@ suite('Sessions - SessionsList', () => {
 				treatmentAriaLabels,
 				treatmentAriaLevels,
 				shortcutActionTargets,
-				newSessionKeybindingVisible,
-				updatedNewSessionAriaLabel,
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsPresentation,
@@ -572,14 +539,11 @@ suite('Sessions - SessionsList', () => {
 				findInput,
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
-				treatmentNavigationLabels: ['New', 'Automations', 'Customizations'],
-				treatmentAriaLabels: [`New Session (${initialNewSessionKeybindingAriaLabel})`, 'Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
-				treatmentAriaLevels: ['1', '1', '1', '1'],
-				shortcutActionTargets: [0, 0, 0],
-				newSessionKeybindingVisible: true,
-				updatedNewSessionAriaLabel: `New Session (${newSessionKeybinding.getAriaLabel()})`,
+				treatmentNavigationLabels: ['Automations', 'Customizations'],
+				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
+				treatmentAriaLevels: ['1', '1', '1'],
+				shortcutActionTargets: [0, 0],
 				shortcutCollapseStates: [
-					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
@@ -661,7 +625,7 @@ suite('Sessions - SessionsList', () => {
 					findInput,
 					headerInTree: true,
 					treeHeaderAriaHidden: 'true',
-					shortcutLabels: ['New', 'Automations', 'Customizations'],
+					shortcutLabels: ['Automations', 'Customizations'],
 					sessionRows: 0,
 				});
 			} finally {
@@ -719,7 +683,6 @@ suite('Sessions - SessionsList', () => {
 			const findSectionRow = (label: string) => Array.from(container.querySelectorAll<HTMLElement>('.session-section-label'))
 				.find(element => element.textContent === label)?.closest('.monaco-list-row');
 			const sourceAriaLevels = {
-				newSession: findSectionRow('New')?.getAttribute('aria-level'),
 				automations: findSectionRow('Automations')?.getAttribute('aria-level'),
 				customizations: findSectionRow('Customizations')?.getAttribute('aria-level'),
 				sessions: sourceHeader?.closest('.monaco-list-row')?.getAttribute('aria-level'),
@@ -785,7 +748,6 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				sourceHeaderRowHeight: '38px',
 				sourceAriaLevels: {
-					newSession: '1',
 					automations: '1',
 					customizations: '1',
 					sessions: '1',
@@ -795,7 +757,7 @@ suite('Sessions - SessionsList', () => {
 				stickyHeaderText: 'Sessions',
 				stickyHeaderOwnsDistinctDom: true,
 				stickyHeaderAriaLabel: 'Sessions',
-				stickySectionLabels: ['New', 'Recent'],
+				stickySectionLabels: ['Recent'],
 				navigationVisibleAfterScroll: false,
 				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
 				stableFindHeaderUnmoved: true,
@@ -851,8 +813,6 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -923,8 +883,6 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			runs.set([
 				{
