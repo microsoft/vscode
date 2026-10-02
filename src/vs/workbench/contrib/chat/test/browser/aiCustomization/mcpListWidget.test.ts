@@ -1563,7 +1563,6 @@ suite('mcpListWidget', () => {
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
 			let migrationRequests = 0;
-			let inlineOutputRequests = 0;
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
@@ -1642,7 +1641,6 @@ suite('mcpListWidget', () => {
 				() => compatibilityKind,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
-				async () => { inlineOutputRequests++; },
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -1692,7 +1690,6 @@ suite('mcpListWidget', () => {
 				openedPlugins,
 				openedExtensions,
 				migrationRequests: () => migrationRequests,
-				inlineOutputRequests: () => inlineOutputRequests,
 				hostEnablementCalls,
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
@@ -2049,8 +2046,6 @@ suite('mcpListWidget', () => {
 				await output[0].run();
 				const statusIcon = ctx.templateData.actions.querySelector('.mcp-server-state-icon');
 				const showOutputButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-show-output');
-				showOutputButton?.click();
-				await Promise.resolve();
 				const hostOwned = !['native', 'builtin', 'plugin'].includes(kind);
 				assert.deepStrictEqual({
 					badge: ctx.templateData.container.querySelector('.plugin-list-item-status')?.textContent,
@@ -2061,16 +2056,14 @@ suite('mcpListWidget', () => {
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
 					inlineOutputButton: showOutputButton?.textContent,
-					inlineOutputFollowsIcon: !!statusIcon && !!showOutputButton && statusIcon.compareDocumentPosition(showOutputButton) === Node.DOCUMENT_POSITION_FOLLOWING,
-					inlineOutputRequests: ctx.inlineOutputRequests(),
+					errorIcon: statusIcon?.classList.contains('error'),
 				}, {
 					badge: undefined, trailingStatus: 1, managementButtons: 1, enabledOutput: true,
 					nativeCalls: hostOwned ? [] : ['native'],
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
-					inlineOutputButton: 'Show Output',
-					inlineOutputFollowsIcon: true,
-					inlineOutputRequests: 1,
+					inlineOutputButton: undefined,
+					errorIcon: true,
 				});
 			});
 		}
@@ -2987,10 +2980,19 @@ suite('mcpListWidget', () => {
 		test('local error opens local output when no agent-host output exists', async () => {
 			const shownChannels: string[] = [];
 			let localOutputCount = 0;
+			const actions: string[] = [];
 			const outputHandler = getMcpServerOutputHandler(
 				{ showChannel: async channelId => { shownChannels.push(channelId); } },
-				{ showOutput: async () => { localOutputCount++; } },
+				{
+					showOutput: async () => {
+						actions.push('show-output');
+						localOutputCount++;
+					}
+				},
 				undefined,
+				async () => {
+					actions.push('close-editor');
+				},
 			);
 
 			await outputHandler?.();
@@ -2998,9 +3000,11 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual({
 				shownChannels,
 				localOutputCount,
+				actions,
 			}, {
 				shownChannels: [],
 				localOutputCount: 1,
+				actions: ['close-editor', 'show-output'],
 			});
 		});
 	});

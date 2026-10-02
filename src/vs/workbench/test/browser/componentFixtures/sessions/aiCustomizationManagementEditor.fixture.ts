@@ -2150,7 +2150,7 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	assert(!!row, 'The fixture must render an installed error row.');
 	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
-	assert(row.querySelector('.mcp-server-show-output')?.textContent === 'Show Output', 'Error rows must show the output action.');
+	assert(!row.querySelector('.mcp-server-show-output'), 'Error rows must not show an inline output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
 }
 
@@ -2945,7 +2945,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges, inline output actions, or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3002,7 +3002,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersErrorActions: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon followed by Show Output immediately before the switch. No inline error snippet, status badge, or expansion control appears.'],
+		expectedVisualDescriptions: ['The error row retains its ordinary description and shows a red error icon immediately before the switch. No inline output action, error snippet, status badge, or expansion control appears.'],
 		render: renderMcpErrorActions,
 	}),
 
