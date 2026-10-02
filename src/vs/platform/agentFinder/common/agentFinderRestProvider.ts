@@ -167,8 +167,12 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
 			}
 			const publisher = server?.publisherDisplayName ?? server?.publisher;
-			const publisherUrl = parseHttpUri(server?.publisherUrl);
-			return icon || publisher || publisherUrl ? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}), ...(publisherUrl ? { publisherUrl } : {}) } : item;
+			const repository = githubRepository(parseHttpUri(server?.repositoryUrl));
+			const repositoryOwner = repository?.path.split('/')[1];
+			const publisherUrl = parseHttpUri(server?.publisherUrl) ?? (repositoryOwner ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repositoryOwner}` }) : undefined);
+			return icon || publisher || publisherUrl || repository
+				? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}), ...(publisherUrl ? { publisherUrl } : {}), ...(repository ? { repository } : {}) }
+				: item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
 				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for '${installation.name}'.`, error);
