@@ -28,7 +28,7 @@ import type { IAgentSubscription } from '../../../../../../platform/agentHost/co
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWork, type BackgroundWork } from '../../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
-import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -49,6 +49,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
+import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -86,6 +87,26 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 
 type SubscriptionState = SessionState | ChangesetState | ChatState | AutomationState;
+
+function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['properties'] = {}): SessionConfigSchema {
+	return {
+		type: 'object',
+		properties: {
+			isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], default: 'worktree', sessionMutable: false },
+			branch: { type: 'string', title: 'Base branch', enumDynamic: true, sessionMutable: false },
+			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
+			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
+			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', sessionMutable: false },
+			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
+			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
+			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', sessionMutable: false },
+			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', sessionMutable: false },
+			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
+			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
+			...overrides,
+		},
+	};
+}
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -138,8 +159,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
-	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
+	public resolveSessionConfigHandler: ((request: { config?: Record<string, unknown> }) => ResolveSessionConfigResult) | undefined;
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
 	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
 	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
@@ -287,14 +309,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async deleteDetachedWorktree(handle: string): Promise<void> { this.deletedDetachedWorktrees.push(handle); }
 	override async claimDetachedWorktree(handle: string): Promise<void> { this.claimedDetachedWorktrees.push(handle); }
 
-	override async resolveSessionConfig(request: { config?: Record<string, unknown> }): Promise<ResolveSessionConfigResult> {
+	override async resolveSessionConfig(request: { config?: Record<string, unknown>; workingDirectory?: URI }): Promise<ResolveSessionConfigResult> {
 		this.resolveSessionConfigRequests.push(request);
 		await this.resolveSessionConfigBarrier?.p;
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return this.resolveSessionConfigResult;
+		if (this.resolveSessionConfigHandler) {
+			return this.resolveSessionConfigHandler(request);
+		}
+		const values = { ...this.resolveSessionConfigResult.values };
+		for (const [key, value] of Object.entries(request.config ?? {})) {
+			const property = this.resolveSessionConfigResult.schema.properties[key];
+			if (property && !property.readOnly) {
+				values[key] = value;
+			}
+		}
+		return { ...this.resolveSessionConfigResult, values };
 	}
 
 	override async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> {
@@ -692,13 +724,13 @@ function createTestLanguageModel(id: string): ILanguageModelChatMetadata {
 }
 
 async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: ResolveSessionConfigResult | undefined) => boolean): Promise<void> {
-	if (predicate(provider.getSessionConfig(sessionId))) {
+	if (!provider.isSessionConfigResolving(sessionId).get() && predicate(provider.getSessionConfig(sessionId))) {
 		return;
 	}
 
 	await new Promise<void>(resolve => {
 		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
-			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+			if (changedSessionId === sessionId && !provider.isSessionConfigResolving(sessionId).get() && predicate(provider.getSessionConfig(sessionId))) {
 				disposable.dispose();
 				resolve();
 			}
@@ -791,6 +823,69 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot schema discovery prevents VS defaults and read-only reports entering creation', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
+		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
+		agentHost.resolveSessionConfigResult = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+					target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], default: 'workspace', sessionMutable: false },
+				}
+			},
+			values: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+		};
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.target === 'workspace');
+		await timeout(0);
+		assert.deepStrictEqual({
+			discovery: agentHost.resolveSessionConfigRequests.map(request => request.config),
+			creation: provider.getCreateSessionConfig(session.sessionId),
+			eager: agentHost.createSessionConfigs.at(-1)?.config,
+		}, {
+			discovery: [undefined],
+			creation: { approvalMode: 'assisted', target: 'workspace' },
+			eager: { approvalMode: 'assisted', target: 'workspace' },
+		});
+	});
+
+	test('Copilot worktree configuration resolves conditional baseBranch without writing the new branch key', async () => {
+		agentHost.resolveSessionConfigHandler = request => {
+			const target = request.config?.target ?? 'workspace';
+			return {
+				schema: {
+					type: 'object',
+					properties: {
+						target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], default: 'workspace', sessionMutable: false },
+						...(target === 'worktree' ? {
+							baseBranch: { type: 'string' as const, title: 'Base branch', enum: [], enumDynamic: true, sessionMutable: false },
+							branch: { type: 'string' as const, title: 'New branch', sessionMutable: false },
+						} : {}),
+					},
+					required: target === 'worktree' ? ['baseBranch'] : undefined,
+				},
+				values: { target, ...(request.config?.baseBranch ? { baseBranch: request.config.baseBranch } : {}) },
+			};
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.target === 'workspace');
+		await provider.setWorktreeConfiguration(session.sessionId, { isolationMode: 'worktree', branch: 'main', worktreeBranchTrack: true, worktreeCreateNewBranch: false });
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.map(request => request.config),
+			creation: provider.getCreateSessionConfig(session.sessionId),
+			pending: session.worktreePending?.get(),
+		}, {
+			requests: [undefined, { target: 'worktree' }, { target: 'worktree', baseBranch: 'main' }],
+			creation: { target: 'worktree', baseBranch: 'main' },
+			pending: true,
+		});
+	});
 
 	// ---- Provider identity -------
 
@@ -4733,18 +4828,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
 			schema: { type: 'object', properties: { autoApprove: { type: 'string', enum: ['default', 'autoApprove'], title: 'Auto-approve' } } },
-			values: { autoApprove: 'autoApprove' },
+			values: {},
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, c => c?.values.autoApprove === 'autoApprove');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
+			discovery: agentHost.resolveSessionConfigRequests[0]?.config,
 		}, {
 			seededImmediately: 'autoApprove',
 			forwardedToAgentHost: 'autoApprove',
+			discovery: undefined,
 		});
 	});
 
@@ -4753,7 +4850,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await config.setUserConfiguration('chat.defaultConfiguration', { mode: 'autopilot' });
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await waitForSessionConfig(provider, session.sessionId, c => c?.values.mode === 'autopilot');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
 			seededImmediately: provider.getSessionConfig(session.sessionId)?.values.mode,
@@ -4768,7 +4865,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const config = new TestConfigurationService();
 		await config.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: { type: 'object', properties: { autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true } } },
 			values: { autoApprove: 'autoApprove' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
@@ -4797,6 +4894,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			await config.setUserConfiguration('chat.defaultConfiguration', { approvals });
 			const provider = createProvider(disposables, agentHost, undefined, { configurationService: config });
 			const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 			assert.deepStrictEqual({
 				seededImmediately: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
@@ -4828,20 +4926,24 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 			});
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: alternateIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: alternateIsolation } };
 			const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 			const initial = provider.getSessionConfig(first.sessionId)?.values.isolation;
+			await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+			await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, alternateIsolation);
 			const firstChat = await provider.createNewChat(first.sessionId);
 			await provider.sendRequest(first.sessionId, firstChat.resource, { query: 'first' });
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: settingIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: settingIsolation } };
 			const second = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 			const secondInitial = provider.getSessionConfig(second.sessionId)?.values.isolation;
+			await provider.whenSessionConfigResolved(second.sessionId, CancellationToken.None);
+			await provider.setSessionConfigValue(second.sessionId, SessionConfigKey.Isolation, settingIsolation);
 			const secondChat = await provider.createNewChat(second.sessionId);
 			await provider.sendRequest(second.sessionId, secondChat.resource, { query: 'second' });
 			await configurationService.setUserConfiguration(USE_WORKTREE_SETTING, !useWorktree);
 
-			agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: alternateIsolation } };
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: alternateIsolation } };
 			const firstNewWorkspaceSession = provider.createNewSession(newWorkspace, provider.sessionTypes[0].id);
 			const newWorkspaceInitial = provider.getSessionConfig(firstNewWorkspaceSession.sessionId)?.values.isolation;
 			const newWorkspaceChat = await provider.createNewChat(firstNewWorkspaceSession.sessionId);
@@ -4880,7 +4982,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const workspace = URI.file('/project');
 		const first = provider.createNewSession(workspace, provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, first.sessionId, () => !provider.isSessionConfigResolving(first.sessionId).get());
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'folder' } };
 		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'folder');
 		provider.deleteNewSession(first.sessionId);
 
@@ -4962,6 +5064,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const barrier = agentHost.branchCompletionBarrier = new DeferredPromise<void>();
 		const first = provider.createNewSession(URI.file('/project-one'), provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
 		provider.deleteNewSession(first.sessionId);
 		const second = provider.createNewSession(URI.file('/project-two'), provider.sessionTypes[0].id);
 		barrier.complete();
@@ -5025,15 +5128,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const originalWorkspace = URI.file('/Project');
 		const equivalentWorkspace = URI.file('/project');
 		const provider = create();
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } };
 		const first = provider.createNewSession(originalWorkspace, provider.sessionTypes[0].id);
+		await provider.whenSessionConfigResolved(first.sessionId, CancellationToken.None);
+		await provider.setSessionConfigValue(first.sessionId, SessionConfigKey.Isolation, 'worktree');
 		const firstChat = await provider.createNewChat(first.sessionId);
 		await provider.sendRequest(first.sessionId, firstChat.resource, { query: 'first' });
 
-		agentHost.resolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'folder' } };
+		agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'folder' } };
 		const restoredProvider = create();
 		const second = restoredProvider.createNewSession(equivalentWorkspace, restoredProvider.sessionTypes[0].id);
 		const inherited = restoredProvider.getSessionConfig(second.sessionId)?.values.isolation;
+		await restoredProvider.whenSessionConfigResolved(second.sessionId, CancellationToken.None);
+		await restoredProvider.setSessionConfigValue(second.sessionId, SessionConfigKey.Isolation, 'folder');
 		const secondChat = await restoredProvider.createNewChat(second.sessionId);
 		await restoredProvider.sendRequest(second.sessionId, secondChat.resource, { query: 'second' });
 
@@ -5145,7 +5252,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder' },
 		};
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
@@ -5187,7 +5294,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder' },
 		};
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
@@ -5366,7 +5473,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
 		const providerOption = { enabled: true };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'object', title: 'Provider option', properties: { enabled: { type: 'boolean', title: 'Enabled' } } } }),
 			values: { isolation: 'folder', branch: 'main', providerOption },
 		};
 		const changing = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
@@ -5380,7 +5487,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await barrier.complete();
 		await changing;
 		const selectedConfig = await capture;
-		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const liveConfig = provider.getSessionConfig(session.sessionId)!.values;
 		liveConfig.isolation = 'worktree';
 		providerOption.enabled = false;
 
@@ -5401,24 +5508,27 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await provider.getNewSessionConfig(session.sessionId);
-		const liveConfig = provider.getCreateSessionConfig(session.sessionId)!;
+		const liveConfig = provider.getSessionConfig(session.sessionId)!;
 		const snapshots = [];
 		for (const isolation of ['unexpected', { kind: 'worktree' }, undefined]) {
-			liveConfig[SessionConfigKey.Isolation] = isolation;
+			liveConfig.schema.properties[SessionConfigKey.Isolation] = typeof isolation === 'object'
+				? { type: 'object', title: 'Provider isolation', properties: { kind: { type: 'string', title: 'Kind' } } }
+				: { type: 'string', title: 'Provider isolation', enum: ['unexpected'] };
+			liveConfig.values[SessionConfigKey.Isolation] = isolation;
 			snapshots.push(await provider.getNewSessionConfig(session.sessionId));
 		}
 
 		assert.deepStrictEqual(snapshots, [
 			{ isolation: undefined, providerConfig: { isolation: 'unexpected' } },
 			{ isolation: undefined, providerConfig: { isolation: { kind: 'worktree' } } },
-			{ isolation: undefined, providerConfig: { isolation: undefined } },
+			{ isolation: undefined, providerConfig: {} },
 		]);
 	});
 
 	test('maps the existing isolation setter to agent-host config without remembering it', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'feature' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
@@ -5427,7 +5537,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setIsolationMode(session.sessionId, 'workspace');
@@ -5447,7 +5557,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('resets the branch to the isolation default when New Worktree is toggled', async () => {
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main' },
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5456,13 +5566,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
@@ -5481,7 +5591,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('selects the current branch upstream when New Worktree is toggled on', async () => {
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -5499,14 +5609,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'upstream/feature' },
 		};
 
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
 		const worktreeConfig = provider.getCreateSessionConfig(session.sessionId);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature' },
 		};
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
@@ -5535,7 +5645,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const firstAutomationRequest = agentHost.resolveSessionConfigRequests.length;
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { [SessionConfigKey.WorktreeBranchTrack]: false },
 		};
 		await provider.setWorktreeBranchTrack(session.sessionId, false);
@@ -5551,17 +5661,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 					[SessionConfigKey.WorktreeBranchTrack]: false,
 				},
 			],
-			createSessionConfig: { [SessionConfigKey.WorktreeBranchTrack]: false },
+			createSessionConfig: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.WorktreeBranchTrack]: false },
 			remembered: {},
 		});
 	});
 
-	test('applies programmatic worktree configuration in one resolve without waiting for the startup resolve', async () => {
+	test('waits for schema discovery then applies programmatic worktree configuration in one resolve', async () => {
 		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: {
 				[SessionConfigKey.Isolation]: 'worktree',
 				[SessionConfigKey.WorktreeBranchTrack]: true,
@@ -5586,13 +5696,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			config: provider.getCreateSessionConfig(session.sessionId),
 		}, {
 			requestsBeforeResolve: [
-				{ isolation: 'worktree' },
-				{
-					[SessionConfigKey.Isolation]: 'worktree',
-					[SessionConfigKey.WorktreeBranchTrack]: true,
-					[SessionConfigKey.WorktreeCreateNewBranch]: false,
-					[SessionConfigKey.Branch]: 'feature/pull-request',
-				},
+				undefined,
 			],
 			config: {
 				[SessionConfigKey.Isolation]: 'worktree',
@@ -5618,9 +5722,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		await timeout(0);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'feature/automation' },
 		};
+		agentHost.resolveSessionConfigHandler = () => agentHost.resolveSessionConfigResult;
 
 		await assert.rejects(() => provider.setIsolationMode(session.sessionId, 'worktree'), /did not apply session config 'isolation'/);
 	});
@@ -5645,7 +5750,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'feature/automation' },
 		};
 
@@ -5657,7 +5762,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await setting;
 
 		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [
-			{ isolation: 'worktree' },
+			undefined,
 			{ isolation: 'worktree', branch: 'feature/automation' },
 		]);
 	});
@@ -5685,7 +5790,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('branch selection stays on the current workspace and the next workspace resolves its own branch', async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', branch: 'main-a' },
 		};
 		const provider = createProvider(disposables, agentHost, undefined, { storageService });
@@ -5698,7 +5803,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.deleteNewSession(sessionA.sessionId);
 
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'folder', branch: 'current-b' },
 		};
 		const requestCountBeforeWorkspaceB = agentHost.resolveSessionConfigRequests.length;
@@ -5713,8 +5818,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			branchSelectionRequest: { isolation: 'worktree', branch: 'feature-a' },
 			rememberedValues: {},
-			workspaceBRequest: { isolation: 'worktree' },
-			workspaceBResolved: { isolation: 'folder', branch: 'current-b' },
+			workspaceBRequest: undefined,
+			workspaceBResolved: { isolation: 'worktree', branch: 'current-b' },
 		});
 	});
 
@@ -5756,18 +5861,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('createNewSession forwards Git worktree file settings as derived session config', () => {
+	test('createNewSession forwards Git worktree file settings after schema discovery', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**', '.cache/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const seededImmediately = provider.getSessionConfig(session.sessionId)?.values;
+		const discovery = agentHost.resolveSessionConfigRequests[0]?.config;
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			seededImmediately,
+			discovery,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
 			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			discovery: undefined,
 			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
 	});
@@ -5778,7 +5888,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
 		};
 		let sentConfig: Record<string, unknown> | undefined;
@@ -5809,7 +5919,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('Automation drafts merge derived worktree settings with saved provider configuration', () => {
+	test('Automation drafts merge derived worktree settings with saved provider configuration after discovery', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration('git.branchPrefix', 'automation/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json']);
@@ -5829,9 +5939,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 			},
 		);
+		const seededImmediately = provider.getSessionConfig(session.sessionId)?.values;
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			seededImmediately: provider.getSessionConfig(session.sessionId)?.values,
+			seededImmediately,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
 			seededImmediately: {
@@ -5842,6 +5954,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				autoApprove: 'assisted',
 			},
 			forwardedToAgentHost: {
+				isolation: 'worktree',
 				worktreeBranchPrefix: 'automation/',
 				worktreeIncludeFiles: ['product.overrides.json'],
 				worktreeSymlinkFolders: ['node_modules/**'],
@@ -5861,16 +5974,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const policyRestrictedConfig = createPolicyRestrictedConfigurationService();
 		await policyRestrictedConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		const policyRestrictedProvider = createProvider(disposables, agentHost, undefined, { configurationService: policyRestrictedConfig, storageService });
-		policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+		const policySession = policyRestrictedProvider.createNewSession(URI.parse('file:///home/user/project'), policyRestrictedProvider.sessionTypes[0].id);
+		await policyRestrictedProvider.whenSessionConfigResolved(policySession.sessionId, CancellationToken.None);
+		const policyRestricted = agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove;
 
 		// Case 2: an ordinary configured setting is a plain default — the remembered pick wins over it
 		const configuredDefaultConfig = new TestConfigurationService();
 		await configuredDefaultConfig.setUserConfiguration('chat.defaultConfiguration', { approvals: 'manual' });
 		const configuredDefaultProvider = createProvider(disposables, agentHost, undefined, { configurationService: configuredDefaultConfig, storageService });
-		configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
+		const configuredSession = configuredDefaultProvider.createNewSession(URI.parse('file:///home/user/project'), configuredDefaultProvider.sessionTypes[0].id);
+		await configuredDefaultProvider.whenSessionConfigResolved(configuredSession.sessionId, CancellationToken.None);
 
 		assert.deepStrictEqual({
-			policyRestricted: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			policyRestricted,
 			configuredDefault: agentHost.resolveSessionConfigRequests.at(-1)?.config?.autoApprove,
 		}, {
 			policyRestricted: 'default',
@@ -5917,19 +6033,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		await waitForSessionConfig(provider, comparisonSession.sessionId, config => config?.values.mode === 'autopilot');
 
-		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(-3).map(request => request.config), [{
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.map(request => request.config), [undefined, {
 			mode: 'interactive',
 			autoApprove: 'default',
 			isolation: 'worktree',
-		}, {
-			mode: 'interactive',
-			autoApprove: 'autoApprove',
-			isolation: 'worktree',
-		}, {
-			mode: 'autopilot',
-			autoApprove: 'autoApprove',
-			isolation: 'worktree',
-		}]);
+		}, undefined, {
+				mode: 'interactive',
+				autoApprove: 'autoApprove',
+				isolation: 'worktree',
+			}, undefined, {
+				mode: 'autopilot',
+				autoApprove: 'autoApprove',
+				isolation: 'worktree',
+			}]);
 	});
 
 	test('createNewSession restores and captures an Automation session template', async () => {
@@ -5951,18 +6067,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		};
 		agentHost.resolveSessionConfigResult = {
-			schema: {
-				type: 'object',
-				properties: {
-					clearedOption: { type: 'boolean', title: 'Cleared option' },
-				},
-			},
+			schema: createVSCodeSessionConfigSchema({
+				providerOption: { type: 'object', title: 'Provider option', properties: { enabled: { type: 'boolean', title: 'Enabled' } }, sessionMutable: true },
+				clearedOption: { type: 'boolean', title: 'Cleared option', default: false, sessionMutable: true },
+				worktreeBranchPrefix: { type: 'string', title: 'Host branch prefix', readOnly: true },
+				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true },
+			}),
 			values: {
 				mode: 'plan',
 				autoApprove: 'assisted',
 				[SessionConfigKey.WorktreeBranchPrefix]: 'stale-prefix/',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 			},
+		};
+		agentHost.resolveSessionConfigHandler = request => {
+			const values = { ...agentHost.resolveSessionConfigResult.values, ...request.config };
+			if (values.clearedOption === false) {
+				delete values.clearedOption;
+			}
+			return { schema: agentHost.resolveSessionConfigResult.schema, values };
 		};
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(
@@ -6179,7 +6302,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const initialConfig = { mode: 'interactive', autoApprove: 'default', providerOption: true };
 		const updatedConfig = { ...initialConfig, mode: 'plan', autoApprove: 'assisted' };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'boolean', title: 'Provider option', sessionMutable: true } }),
 			values: initialConfig,
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -6197,8 +6320,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		agentHost.failResolveSessionConfig = false;
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
-			values: updatedConfig,
+			schema: createVSCodeSessionConfigSchema({ providerOption: { type: 'boolean', title: 'Provider option', sessionMutable: true } }),
+			values: initialConfig,
 		};
 		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
 
@@ -6216,7 +6339,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	test('Automation capture waits for tracked configuration operations before reading values', async () => {
 		const initialConfig = { mode: 'interactive' };
 		agentHost.resolveSessionConfigResult = {
-			schema: { type: 'object', properties: {} },
+			schema: createVSCodeSessionConfigSchema(),
 			values: initialConfig,
 		};
 		const provider = createProvider(disposables, agentHost);
@@ -6231,7 +6354,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const operation = (async () => {
 			await barrier.p;
 			agentHost.resolveSessionConfigResult = {
-				schema: { type: 'object', properties: {} },
+				schema: createVSCodeSessionConfigSchema(),
 				values: { mode: 'plan' },
 			};
 			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'plan');
@@ -6276,6 +6399,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			captured,
 		}, {
 			initialConfig: {
+				isolation: 'worktree',
 				mode: 'autopilot',
 				autoApprove: 'assisted',
 			},
@@ -6320,12 +6444,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 
 		const capturedWithoutEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
+		const initialConfig = provider.getCreateSessionConfig(session.sessionId)?.autoApprove;
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.AutoApprove, 'default');
 		const capturedAfterEdit = await provider.getAutomationSessionConfiguration(session.sessionId);
 
 		assert.deepStrictEqual({
 			displayed: provider.getSessionConfig(session.sessionId)?.values.autoApprove,
-			initialConfig: agentHost.resolveSessionConfigRequests.at(-2)?.config?.autoApprove,
+			initialConfig,
 			capturedWithoutEdit: capturedWithoutEdit?.sessionTemplate?.config?.autoApprove,
 			capturedAfterEdit: capturedAfterEdit?.sessionTemplate?.config?.autoApprove,
 		}, {
@@ -9208,6 +9333,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const provider = createProvider(disposables, agentHost, undefined, { pathService, labelService });
 		provider.getSessions();
 		await timeout(0);
+		const copilotStateHome = URI.joinPath(buildLocalSessionStateUri(await pathService.userHome({ preferLocal: true })), 'copilot-session');
 		const getHomeLabel = (resource: URI): string | undefined => {
 			const home = labelService.getUriHome(resource);
 			return home ? labelService.getUriLabel(home) : undefined;
@@ -9217,7 +9343,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			formatterCount: labelService.formatterCount,
 			quickChat: getHomeLabel(URI.joinPath(claudeHome, 'artifact.md')),
 			root: getHomeLabel(URI.file('/artifact.md')),
-			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: getHomeLabel(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			formatterCount: 4,
 			quickChat: 'claude/Claude Quick Chat',
@@ -9243,7 +9369,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			formatterChanges,
-			copilotState: getHomeLabel(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: getHomeLabel(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			formatterChanges: 1,
 			copilotState: 'Copilot/Renamed\u2215Session\u29F5Title',
@@ -9252,7 +9378,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		provider.dispose();
 		assert.deepStrictEqual({
 			quickChat: labelService.getUriHome(URI.joinPath(claudeHome, 'artifact.md')),
-			copilotState: labelService.getUriHome(URI.file('/home/test/.copilot/session-state/copilot-session/artifact.md')),
+			copilotState: labelService.getUriHome(URI.joinPath(copilotStateHome, 'artifact.md')),
 		}, {
 			quickChat: undefined,
 			copilotState: undefined,
@@ -9264,13 +9390,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			agentHost.addSession(createSession(`session-${index}`, { summary: `Session ${index}` }));
 		}
 		const labelService = new MockLabelService();
+		const userHome = URI.file('/home/test');
 		const provider = createProvider(disposables, agentHost, undefined, {
-			pathService: new TestPathService(URI.file('/home/test')),
+			pathService: new TestPathService(userHome),
 			labelService,
 		});
 		provider.getSessions();
 		await timeout(0);
-		const resource = URI.file('/home/test/.copilot/session-state/session-42/artifact.md');
+		const stateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'session-42');
+		const resource = URI.joinPath(stateHome, 'artifact.md');
 		const home = labelService.getUriHome(resource);
 
 		assert.deepStrictEqual({
@@ -9279,7 +9407,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			label: home ? labelService.getUriLabel(home) : undefined,
 		}, {
 			formatterCount: 1,
-			home: URI.file('/home/test/.copilot/session-state/session-42').toString(),
+			home: stateHome.toString(),
 			label: 'Copilot/Session 42',
 		});
 	}));
@@ -9304,6 +9432,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 	});
 
 	test('registers the SDK session state home from recorded artifacts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const userHome = URI.file('/home/test');
+		const sdkStateHome = URI.joinPath(buildLocalSessionStateUri(userHome), 'sdk-session');
+		const artifactUri = URI.joinPath(sdkStateHome, 'files', 'plan.md');
 		const metadata = createSession('ahp-session', { summary: 'Artifact Session' });
 		agentHost.addSession({
 			...metadata,
@@ -9312,20 +9443,20 @@ suite('LocalAgentHostSessionsProvider', () => {
 				type: SessionArtifactType.File,
 				label: 'Plan',
 				isArtifact: true,
-				uri: 'file:///home/test/.copilot/session-state/sdk-session/files/plan.md',
+				uri: artifactUri.toString(),
 			}])
 		});
 		const labelService = new MockLabelService();
 		const provider = createProvider(disposables, agentHost, undefined, {
-			pathService: new TestPathService(URI.file('/home/test')),
+			pathService: new TestPathService(userHome),
 			labelService,
 		});
 		provider.getSessions();
 		await timeout(0);
 
 		assert.strictEqual(
-			labelService.getUriHome(URI.file('/home/test/.copilot/session-state/sdk-session/files/plan.md'))?.toString(),
-			URI.file('/home/test/.copilot/session-state/sdk-session').toString()
+			labelService.getUriHome(artifactUri)?.toString(),
+			sdkStateHome.toString()
 		);
 	}));
 
@@ -9425,7 +9556,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			loading: false,
 			createdSessions: 1,
 			resolveRequests: 1,
-			config: { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } },
+			config: { schema: createVSCodeSessionConfigSchema(), values: { isolation: 'worktree' } },
 		});
 	});
 

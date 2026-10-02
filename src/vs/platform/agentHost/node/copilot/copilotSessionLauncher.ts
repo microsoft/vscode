@@ -859,9 +859,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 *
 	 * This fails the launch closed unconditionally. The host cannot tell whether a
 	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * legacy VS Code settings bridge, which is itself behind a false-by-default
-	 * compatibility setting, while server and MDM policy is discovered by the runtime
-	 * itself under `enableManagedSettings`. Gating a security control on that signal
+	 * supported legacy VS Code settings bridge restrictions, while server and MDM
+	 * policy is discovered by the runtime itself under `enableManagedSettings`.
+	 * Gating a security control on that signal
 	 * would leave exactly the enterprise sessions it protects unprotected, so the
 	 * option is treated as required for every session.
 	 *
@@ -1013,13 +1013,17 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
 		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
-		const configuredSdkExcludedTools = plan.isEphemeral
-			? [...(toSdkToolFilterPatterns(excludedTools) ?? []), ...EPHEMERAL_DISABLED_COPILOT_TOOLS]
-			: toSdkToolFilterPatterns(excludedTools);
+		const configuredSdkExcludedTools = [
+			...(toSdkToolFilterPatterns(excludedTools) ?? []),
+			// Keep dynamic workflows disabled until Agent Host support is validated.
+			'builtin:run_dynamic_workflow',
+			'builtin:dynamic_workflows_manage',
+			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),
+		];
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
 		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 			? configuredSdkExcludedTools
-			: [...new Set([...(configuredSdkExcludedTools ?? []), `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
+			: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
 		const modelCapabilitiesOverride = resolveModelCapabilityOverrideField(capabilityOverrides, model?.id, 'modelCapabilities', (value): value is Record<string, unknown> => isObject(value), () => {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring invalid 'modelCapabilities' capability override for '${modelId}'; expected an object`);
 		});
@@ -1114,6 +1118,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			enableSkills: true,
+			enableSessionStore: !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
 			requestExtensions: canvasRuntimeEnabled,
 			requestCanvasRenderer: canvasRuntimeEnabled,
 			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),

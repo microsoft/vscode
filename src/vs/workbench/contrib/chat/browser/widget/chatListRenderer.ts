@@ -3611,6 +3611,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
+		// Warnings that opt in stay visible above the disclosure instead of being folded into the steps.
+		const warningIndexes = new Set<number>();
+		const warningNodes = new Set<Node>();
+		for (let index = collapseStartIndex; index < collapseEndIndex; index++) {
+			const part = content[index];
+			const warningNode = part?.kind === 'warning' && part.keepVisibleWhenCollapsed ? templateData.renderedParts?.[index]?.domNode : undefined;
+			if (warningNode && (warningNode.parentElement === templateData.value || warningNode.parentElement === templateData.completedResponseDisclosure)) {
+				warningIndexes.add(index);
+				warningNodes.add(warningNode);
+			}
+		}
 
 		let existingDisclosure = templateData.completedResponseDisclosure;
 		if (existingDisclosure?.contains(collapseEndNode)) {
@@ -3631,7 +3642,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& templateData.completedResponseCollapseStartIndex === collapseStartIndex
 			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
 			&& existingDisclosure.nextSibling === collapseEndRoot
-			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
+			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
 			// Chain rows can be removed after completion (hidden tools flush on the next frame), so the
 			// label must follow the rows that are actually left.
 			&& getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
@@ -3654,7 +3665,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				collapseStartChildIndex = workspaceTransitionChildIndex + 1;
 			}
 		}
-		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex);
+		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node));
 		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
 		if (stepCount < 2) {
 			const nextPart = templateData.renderedParts?.[collapseEndIndex];

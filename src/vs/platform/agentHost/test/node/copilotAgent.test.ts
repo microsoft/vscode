@@ -105,7 +105,7 @@ import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { IByokLmProxyService } from '../../node/copilot/byokLmProxyService.js';
+import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
 
@@ -1107,8 +1107,9 @@ class ResumePathCopilotAgent extends CopilotAgent {
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
 		@IAgentHostStartupPerformance startupPerformance: IAgentHostStartupPerformance,
+		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService);
 	}
 
 	protected override _createCopilotClient(options: CopilotClientOptions): CopilotClient {
@@ -1151,8 +1152,9 @@ class TestableCopilotAgent extends CopilotAgent {
 		@IFileService fileService: IFileService,
 		@IAgentHostWorktreeIsolation worktreeIsolation: IAgentHostWorktreeIsolation,
 		@IAgentHostStartupPerformance startupPerformance: IAgentHostStartupPerformance,
+		@IByokLmProxyService byokLmProxyService: IByokLmProxyService,
 	) {
-		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance);
+		super(logService, instantiationService, sessionDataService, gitService, configurationService, sessionTitleSignal, managedSettingsService, gitHubEndpointService, otelService, completions, NULL_CHECKPOINT_SERVICE, NULL_REVIEW_SERVICE, customizationEnablementService, environmentService, productService, byokBridgeRegistry, telemetryService, copilotApiService, proxyResolver, fileService, worktreeIsolation, startupPerformance, byokLmProxyService);
 		this._now = now;
 	}
 
@@ -1261,9 +1263,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 			))
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
-	if (options?.byokProxyService) {
-		services.set(IByokLmProxyService, options.byokProxyService);
-	}
+	services.set(IByokLmProxyService, options?.byokProxyService ?? new NullByokLmProxyService());
 	const copilotApiService = options?.copilotApiService ?? new TestCopilotApiService();
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, telemetryService);
@@ -7886,6 +7886,28 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		for (const localIndexEnabled of [false, true]) {
+			test(`restarts idle sessions when local indexing changes to ${localIndexEnabled}`, async () => {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService } = createTestAgentContext(disposables, {
+					copilotClient: client,
+					rootConfig: { [CopilotCliConfigKey.LocalIndexEnabled]: !localIndexEnabled },
+				});
+				try {
+					await agent.listChatsToMigrate();
+					let disposed = false;
+					setDefaultSessionStub(agent, 'idle', { dispose() { disposed = true; } });
+
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalIndexEnabled]: localIndexEnabled });
+					await timeout(0);
+
+					assert.deepStrictEqual({ stopCount: client.stopCount, disposed }, { stopCount: 1, disposed: true });
+				} finally {
+					await disposeAgent(agent);
+				}
+			});
+		}
+
 		test('does not restart when an unrelated config key changes', async () => {
 			const client = new StopCountingClient([]);
 			const logService = new MutableLogService();
@@ -7933,6 +7955,34 @@ suite('CopilotAgent', () => {
 				setDefaultSessionStub(agent, 'busy', chat);
 
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await timeout(0);
+				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
+
+				chat.hasActiveTurn = false;
+				reportChatTurnEnded(agent);
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					duringTurn,
+					afterTurn: { stopCount: client.stopCount, disposed: chat.disposed },
+				}, {
+					duringTurn: { stopCount: 0, disposed: false },
+					afterTurn: { stopCount: 1, disposed: true },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('applies local index changes after the active turn finishes', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				await agent.listChatsToMigrate();
+				const chat = busyChatStub();
+				setDefaultSessionStub(agent, 'busy', chat);
+
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.LocalIndexEnabled]: false });
 				await timeout(0);
 				const duringTurn = { stopCount: client.stopCount, disposed: chat.disposed };
 
@@ -8500,6 +8550,32 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('routes BYOK tool-cap warnings to the session that sent the request', async () => {
+		const onDidCapTools = disposables.add(new Emitter<IByokLmToolsCappedEvent>());
+		const byokLmProxyService: IByokLmProxyService = {
+			_serviceBrand: undefined,
+			onDidCapTools: onDidCapTools.event,
+			start: () => Promise.reject(new Error('unused')),
+			dispose: () => { },
+		};
+		const { agent } = createTestAgentContext(disposables, { byokProxyService: byokLmProxyService });
+		const reports: string[] = [];
+		for (const sdkSessionId of ['sdk-a', 'sdk-b']) {
+			setLiveChatStub(agent, sdkSessionId, {
+				reportByokToolsCapped: (requested: number, sent: number) => reports.push(`${sdkSessionId}:${requested}/${sent}`),
+			});
+		}
+
+		try {
+			onDidCapTools.fire({ sessionId: 'sdk-b', requestedToolCount: 200, sentToolCount: 128 });
+			onDidCapTools.fire({ sessionId: 'sdk-unknown', requestedToolCount: 150, sentToolCount: 128 });
+
+			assert.deepStrictEqual(reports, ['sdk-b:200/128']);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('BYOK models from multiple Gemini provider groups have unique picker identifiers', async () => {
 		const byokBridgeRegistry = new ByokLmBridgeRegistry();
 		const agent = createTestAgent(disposables, { byokBridgeRegistry });
@@ -8566,6 +8642,7 @@ suite('CopilotAgent', () => {
 		};
 		const byokProxyService: IByokLmProxyService = {
 			_serviceBrand: undefined,
+			onDidCapTools: Event.None,
 			start: async () => ({ baseUrl: 'http://127.0.0.1:1', nonce: 'NONCE', providerBaseUrl: vendor => `http://127.0.0.1:1/v/${vendor}`, dispose: () => { } }),
 		} as IByokLmProxyService;
 		const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, byokBridgeRegistry, byokProxyService });
@@ -12869,7 +12946,7 @@ suite('CopilotAgent', () => {
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
-					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {
@@ -13512,6 +13589,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostProxyResolver, new TestProxyResolver());
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
+			services.set(IByokLmProxyService, new NullByokLmProxyService());
 			services.set(ICopilotApiService, new TestCopilotApiService());
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
@@ -13643,6 +13721,7 @@ suite('CopilotAgent', () => {
 			services.set(IAgentHostProxyResolver, new TestProxyResolver());
 			services.set(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
 			services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
+			services.set(IByokLmProxyService, new NullByokLmProxyService());
 			services.set(ICopilotApiService, new TestCopilotApiService());
 			services.set(ITelemetryService, NullTelemetryService);
 			services.set(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);

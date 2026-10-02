@@ -147,6 +147,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly resource = resource.with({ fragment: 'main' });
 		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
+		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();

@@ -466,6 +466,10 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
+`CopilotSessionLauncher` enables the SDK cross-session store for created and resumed user sessions only when `localIndexEnabled` is true (the default), and never for internal ephemeral sessions. The local host receives the globally scoped, experiment-aware `github.copilot.chat.localIndex.enabled` value; remote operators can set `localIndexEnabled` in host configuration. Changes restart the Copilot client at the next idle point so existing chats resume with the new preference. Chronicle suggestions are hidden when indexing is disabled. This is separate from cloud session sync and does not delete existing indexed data.
+
+Chronicle commands and subcommands come from the SDK command catalog and execute through `rpc.commands.invoke`; agent-prompt results retain the SDK's `displayPrompt` when sent so history shows the command rather than its expanded instructions. The SDK owns Chronicle indexing and retrieval.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
@@ -601,9 +605,11 @@ Live provider runtimes that react to session config subscribe to `IAgentConfigur
 
 Copilot advertises the optional `sandboxEnabled` session property (`default`,
 `on`, or `off`). Omission and `default` follow the root sandbox settings;
-selections are saved in session-config metadata and restored across window reloads
-and agent-host restarts. The effective sandbox state is recomputed from the saved
-selection, current root settings, and the runtime's current managed policy.
+the successfully applied enablement is saved in session-config metadata, not a
+pending or rejected selection. Restore reconciles saved values against current
+root settings and the runtime's current managed policy before notifying live
+providers. A saved `off` that conflicts with required sandboxing becomes `on`;
+successful application persists `on` so removing the policy cannot revive `off`.
 Chats and subagents share their configuration owner's selection. New sessions
 and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
@@ -642,7 +648,7 @@ Approved bypass also requires the local `allowUnsandboxedCommands` setting.
 An explicit VS Code requirement does not offer the unresolved-runtime-policy
 retry-Off path. Removing it restores the underlying runtime floor, not an
 unconditional permission to disable sandboxing.
-Explicit managed enablement replaces disallowed `off` selections with `default`;
+Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
 Managed asks remain one-time-only. Direct disabling is locked even when managed

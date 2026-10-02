@@ -30,6 +30,7 @@ import {
 	PullRequestReplyAndResolveOptions,
 	PullRequestReplyAndResolveResult,
 	PullRequestReplyOptions,
+	PullRequestReplyResult,
 } from './githubPullRequestMutationService.js';
 import { GitHubRepositoryRef } from './githubQueryService.js';
 import {
@@ -74,7 +75,7 @@ const mergePreparationLifetime = 5 * 60_000;
 // limits are still tracked from the `x-ratelimit-*` response headers by the transport.
 const addReviewThreadReplyMutation = `mutation AgentHostAddPullRequestReviewThreadReply($threadId: ID!, $body: String!) {
 	addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $threadId, body: $body }) {
-		comment { id databaseId body url createdAt updatedAt author { login ... on User { databaseId } } }
+		comment { id databaseId body url createdAt updatedAt state author { login ... on User { databaseId } } }
 	}
 }`;
 
@@ -223,7 +224,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		ref: PullRequestRef,
 		options: PullRequestReplyOptions,
 		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
+	): Promise<PullRequestReplyResult> {
 		return this._serialize(ref, 'replyToThread', () => this._replyToThread(ref, options, signal));
 	}
 
@@ -241,7 +242,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	): Promise<PullRequestReplyAndResolveResult> {
 		return this._serialize(ref, 'replyAndResolveThread', async () => {
 			const reply = await this._replyToThread(ref, options, signal);
-			if (reply.outcome === 'indeterminate' || !options.resolve) {
+			if (!options.resolve || (reply.outcome !== 'succeeded' && reply.outcome !== 'reconciled')) {
 				return { reply, resolved: false };
 			}
 			try {
@@ -589,12 +590,12 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		ref: PullRequestRef,
 		options: PullRequestReplyOptions,
 		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
+	): Promise<PullRequestReplyResult> {
 		const body = withOperationMarker(options.body, options.operationId);
 		try {
 			const value = await this._postThreadReply(ref, options.threadId, body, signal);
 			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
-			return { outcome: 'succeeded', value };
+			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (!isAmbiguousMutationError(error)) {
 				throw error;
@@ -603,7 +604,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			if (reconciled.proven) {
 				if (reconciled.value) {
 					this._resources.invalidatePullRequest(ref, ['inlineComments']);
-					return { outcome: 'reconciled', value: reconciled.value as PullRequestInlineComment };
+					return toThreadReplyResult(reconciled.value, 'reconciled');
 				}
 				return this._retryThreadReply(ref, options.threadId, body, signal);
 			}
@@ -633,11 +634,11 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		threadId: string,
 		body: string,
 		signal: AbortSignal,
-	): Promise<PullRequestMutationResult<PullRequestInlineComment>> {
+	): Promise<PullRequestReplyResult> {
 		try {
 			const value = await this._postThreadReply(ref, threadId, body, signal);
 			this._resources.invalidatePullRequest(ref, ['reviewThreads', 'inlineComments']);
-			return { outcome: 'succeeded', value };
+			return toThreadReplyResult(value, 'succeeded');
 		} catch (error) {
 			if (isAmbiguousMutationError(error)) {
 				return { outcome: 'indeterminate' };
@@ -726,13 +727,18 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 			if (state.status !== 'ready' || !state.complete || !state.value) {
 				return { proven: false };
 			}
+			let matchingComment: PullRequestInlineComment | undefined;
 			for (const thread of state.value) {
-				const comment = thread.comments.find(candidate => candidate.body?.includes(marker));
-				if (comment) {
-					return { proven: true, value: comment };
+				for (const comment of thread.comments) {
+					if (comment.body?.includes(marker)) {
+						if (matchingComment) {
+							return { proven: false };
+						}
+						matchingComment = comment;
+					}
 				}
 			}
-			return { proven: true };
+			return { proven: true, value: matchingComment };
 		} finally {
 			subscription.dispose();
 		}
@@ -1060,7 +1066,19 @@ function toGraphQLComment(value: unknown): PullRequestInlineComment {
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
 		author: toActor(optionalObjectProperty(item, 'author')),
+		state: stringProperty(item, 'state'),
 	};
+}
+
+function toThreadReplyResult(value: PullRequestInlineComment, outcome: 'succeeded' | 'reconciled'): PullRequestReplyResult {
+	switch (value.state) {
+		case 'SUBMITTED':
+			return { outcome, value };
+		case 'PENDING':
+			return { outcome: 'pending', value };
+		default:
+			return { outcome: 'indeterminate', value };
+	}
 }
 
 function toWorkflowRun(value: unknown): GitHubWorkflowRun {
@@ -1160,7 +1178,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 		return;
 	}
 	const types = errors.map(error => error.type?.toUpperCase());
-	const kind = types.includes('RATE_LIMITED')
+	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'

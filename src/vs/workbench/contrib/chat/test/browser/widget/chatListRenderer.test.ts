@@ -1624,6 +1624,7 @@ suite('ChatListRenderer', () => {
 	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
@@ -7830,9 +7831,105 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('keeps only warnings that opt in outside collapsed completed steps', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'hi';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		const runTool = async (callId: string) => {
+			const toolInvocation = new ChatToolInvocation({
+				invocationMessage: 'Running tool...',
+				pastTenseMessage: 'Tool completed',
+			}, {
+				id: 'my-tool',
+				displayName: 'My Tool',
+				modelDescription: 'Test tool',
+				source: ToolDataSource.Internal,
+			}, callId, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, toolInvocation);
+			await toolInvocation.didExecuteTool(undefined);
+		};
+		await runTool('call-1');
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Some tools are not available'), keepVisibleWhenCollapsed: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		await runTool('call-2');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Final response') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const firstDisclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		renderer.renderElement(node, 0, template);
+
+		const findWarning = (text: string) => [...container.querySelectorAll<HTMLElement>('.chat-notification-widget')]
+			.find(element => element.textContent?.includes(text));
+		const warning = findWarning('Some tools are not available');
+		const ordinaryWarning = findWarning('Ordinary warning');
+		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		assert.deepStrictEqual({
+			warningVisible: !!warning,
+			warningInsideDisclosure: !!warning && !!disclosure?.contains(warning),
+			warningBeforeDisclosure: !!warning && !!disclosure && !!(warning.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			ordinaryWarningInsideDisclosure: !!ordinaryWarning && !!disclosure?.contains(ordinaryWarning),
+			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
+			disclosureReusedOnRerender: !!disclosure && disclosure === firstDisclosure,
+		}, {
+			warningVisible: true,
+			warningInsideDisclosure: false,
+			warningBeforeDisclosure: true,
+			ordinaryWarningInsideDisclosure: true,
+			disclosureLabel: 'Completed 3 steps',
+			disclosureReusedOnRerender: true,
+		});
+
+		disposables.dispose();
+	});
+
 	function createBackgroundSubagentRenderer(chatWidgetService?: IChatWidgetService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
@@ -9276,7 +9373,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			subagent.focus();
 			const childControl = mainWindow.document.activeElement;
-			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-widget'));
+			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-content'));
 
 			data.isActive = false;
 			invocation.notifyToolSpecificDataChanged();
@@ -9441,6 +9538,7 @@ suite('ChatListRenderer', () => {
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);

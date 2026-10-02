@@ -67,12 +67,14 @@ export class GitHubRateLimitCoordinator extends Disposable {
 
 	updateFromResponse(account: GitHubRequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
 		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
+		const isGraphQL = resource === 'graphql';
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
+		const previousBlockedUntil = previous?.blockedUntil ?? (isGraphQL && previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseSeconds(response.headers.get('retry-after'), now);
-		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'));
-		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'));
+		const retryAfter = parseSeconds(response.headers.get('retry-after'), now, isGraphQL);
+		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
+		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
 		const rateLimited = isRateLimited(response.status, responseBody);
 		const secondaryLimited = rateLimited && isSecondaryRateLimit(responseBody);
 		// GitHub's documented order: honour `retry-after`; otherwise wait for the
@@ -91,7 +93,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		// unparked so a credential problem still surfaces immediately.
 		const blockedUntil = secondaryLimited
 			? undefined
-			: rateLimited
+			: rateLimited || (isGraphQL && remaining === 0)
 				? refusedUntil
 				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
 		if (secondaryLimited) {
@@ -102,12 +104,12 @@ export class GitHubRateLimitCoordinator extends Disposable {
 			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
-			limit: parseNumber(response.headers.get('x-ratelimit-limit')) ?? previous?.limit,
+			limit: parseNumber(response.headers.get('x-ratelimit-limit'), isGraphQL) ?? previous?.limit,
 			remaining: remaining ?? previous?.remaining,
-			used: parseNumber(response.headers.get('x-ratelimit-used')) ?? previous?.used,
+			used: parseNumber(response.headers.get('x-ratelimit-used'), isGraphQL) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
-			blockedUntil: previous?.blockedUntil !== undefined && previous.blockedUntil > now
-				? Math.max(previous.blockedUntil, blockedUntil ?? 0) : blockedUntil,
+			blockedUntil: previousBlockedUntil !== undefined && previousBlockedUntil > now
+				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 	}
 
@@ -118,28 +120,28 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		const resetAt = typeof rateLimit.resetAt === 'string' ? Date.parse(rateLimit.resetAt) : undefined;
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
+		const blockedUntil = previous?.blockedUntil ?? (previous?.remaining === 0 ? previous.resetAt : undefined);
 		this._states.set(key, {
-			limit: rateLimit.limit,
-			remaining: rateLimit.remaining,
-			used: rateLimit.used,
-			resetAt: resetAt !== undefined && Number.isFinite(resetAt) ? resetAt : undefined,
-			...(previous?.blockedUntil !== undefined && previous.blockedUntil > this._scheduler.now()
-				? { blockedUntil: previous.blockedUntil } : {}),
+			limit: rateLimit.limit ?? previous?.limit,
+			remaining: rateLimit.remaining ?? previous?.remaining,
+			used: rateLimit.used ?? previous?.used,
+			resetAt: resetAt !== undefined && Number.isFinite(resetAt) ? resetAt : previous?.resetAt,
+			...(blockedUntil !== undefined && blockedUntil > this._scheduler.now() ? { blockedUntil } : {}),
 		});
 	}
 
-	markGraphQLRateLimited(account: GitHubRequestAccount): void {
+	/** Records primary GraphQL exhaustion without shortening an existing server cooldown. */
+	markGraphQLRateLimited(account: GitHubRequestAccount, retryAfter: string | null = null): void {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
+		const retryAfterSeconds = parseSeconds(retryAfter, now, true);
+		const hinted = retryAfterSeconds !== undefined ? now + retryAfterSeconds * 1000 : previous?.resetAt;
+		const blockedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
 		this._states.set(key, {
 			...previous,
 			remaining: 0,
-			// The retained reset can belong to a window that has already closed,
-			// and a refusal must park the caller rather than retry at once.
-			blockedUntil: Math.max(previous?.blockedUntil ?? 0, previous?.resetAt !== undefined && previous.resetAt > now
-				? previous.resetAt
-				: now + unhintedRateLimitCooldown),
+			blockedUntil: Math.max(previous?.blockedUntil ?? 0, blockedUntil),
 		});
 	}
 
@@ -235,21 +237,30 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	}
 }
 
-function parseNumber(value: string | null): number | undefined {
-	if (value === null) {
+function parseNumber(value: string | null, nonNegativeInteger = false): number | undefined {
+	if (value === null || (nonNegativeInteger && !/^\d+$/.test(value.trim()))) {
 		return undefined;
 	}
 	const parsed = Number(value);
-	return Number.isFinite(parsed) ? parsed : undefined;
+	return Number.isFinite(parsed) && (!nonNegativeInteger || (Number.isSafeInteger(parsed) && parsed >= 0)) ? parsed : undefined;
 }
 
-function parseSeconds(value: string | null, now: number): number | undefined {
-	const parsed = parseNumber(value);
+function parseSeconds(value: string | null, now: number, strict = false): number | undefined {
+	const parsed = parseNumber(value, strict);
 	if (parsed !== undefined) {
 		return Math.max(0, parsed);
 	}
 	if (value === null) {
 		return undefined;
+	}
+	if (strict) {
+		value = value.trim();
+		// Date.parse also accepts numeric lookalikes and treats asctime dates as local time.
+		if (/^[A-Z][a-z]{2} [A-Z][a-z]{2} (?:\d{2}| \d) \d{2}:\d{2}:\d{2} \d{4}$/.test(value)) {
+			value += ' GMT';
+		} else if (!/^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4}|[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2}) \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
+			return undefined;
+		}
 	}
 	const date = Date.parse(value);
 	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;

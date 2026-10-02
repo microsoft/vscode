@@ -33,6 +33,8 @@ export interface ICopilotSlashCommandSessionInfo {
 	 * the agent host config. When provided and `false`, `/rubber-duck` is hidden.
 	 */
 	isRubberDuckEnabled?(): boolean;
+	/** Whether local session indexing and Chronicle commands are enabled. */
+	isLocalIndexEnabled?(): boolean;
 	/** Runtime slash commands discovered from the SDK session. */
 	getRuntimeSlashCommands?(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions): Promise<readonly ICopilotRuntimeSlashCommandInfo[]>;
 	getSessionCustomizations: (session: string) => Promise<readonly Customization[]>;
@@ -334,6 +336,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 		]);
 		const typedLower = typed.toLowerCase();
 		const rubberDuckEnabled = this._sessionInfo?.isRubberDuckEnabled?.() ?? true;
+		const localIndexEnabled = this._sessionInfo.isLocalIndexEnabled?.() ?? true;
 		const completionItems: CompletionItem[] = [];
 		const addedAliases = new Set<string>();
 
@@ -358,6 +361,9 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				continue;
 			}
 			if (!rubberDuckEnabled && command.name === 'rubber-duck') {
+				continue;
+			}
+			if (!localIndexEnabled && command.kind === 'builtin' && command.name === 'chronicle') {
 				continue;
 			}
 			const aliases = Array.from(new Set([command.name].concat(command.aliases ?? [])));

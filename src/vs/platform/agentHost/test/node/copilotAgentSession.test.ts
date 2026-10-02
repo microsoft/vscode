@@ -41,7 +41,8 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../comm
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
-import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
@@ -223,7 +224,7 @@ class MockCopilotSession {
 			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
 		}>;
 	} = { commands: [] };
-	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
+	commandInvokeResult: Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>> = { kind: 'text', text: '' };
 	commandInvokeError: Error | undefined;
 	messages: SessionEvent[] = [];
 	usageMetricsResult = {
@@ -4932,6 +4933,100 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('Chronicle commands', () => {
+		async function createChronicleSession() {
+			const context = await createAgentSession(disposables);
+			context.mockSession.commandListResult = {
+				commands: [{
+					name: 'chronicle',
+					kind: 'builtin',
+					description: 'Session history tools and insights',
+					allowDuringAgentExecution: false,
+				}],
+			};
+			return context;
+		}
+
+		for (const input of ['standup', 'search CLI pooling', 'tips', 'cost-tips', 'improve']) {
+			test(`dispatches /chronicle ${input} and preserves its display prompt`, async () => {
+				const { session, mockSession, signals } = await createChronicleSession();
+				const displayPrompt = `/chronicle ${input}`;
+				mockSession.commandInvokeResult = {
+					kind: 'agent-prompt',
+					prompt: `Expanded Chronicle instructions for ${input}.`,
+					displayPrompt,
+				};
+
+				await session.send(displayPrompt, undefined, 'turn-chronicle');
+
+				assert.deepStrictEqual({
+					invocations: mockSession.commandInvokeCalls,
+					sends: mockSession.sendRequests,
+					completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+				}, {
+					invocations: [{ name: 'chronicle', input }],
+					sends: [{ prompt: `Expanded Chronicle instructions for ${input}.`, attachments: undefined, displayPrompt }],
+					completed: [],
+				});
+			});
+		}
+
+		test('shows subcommand guidance for bare /chronicle without sending a model prompt', async () => {
+			const { session, mockSession, signals } = await createChronicleSession();
+			mockSession.commandInvokeResult = {
+				kind: 'select-subcommand',
+				command: 'chronicle',
+				title: 'Chronicle',
+				options: [{ name: 'standup', description: 'Daily report' }, { name: 'search', description: 'Search history' }],
+			};
+
+			await session.send('/chronicle', undefined, 'turn-chronicle');
+
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				sends: mockSession.sendRequests,
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+				completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+			}, {
+				invocations: [{ name: 'chronicle' }],
+				sends: [],
+				responses: ['The /chronicle command requires selecting a subcommand. Available options: standup, search'],
+				completed: ['turn-chronicle'],
+			});
+		});
+
+		test('completes /chronicle reindex without sending a model prompt', async () => {
+			const { session, mockSession, signals } = await createChronicleSession();
+			mockSession.commandInvokeResult = { kind: 'text', text: 'Session store reindexed.' };
+
+			await session.send('/chronicle reindex', undefined, 'turn-chronicle');
+
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				sends: mockSession.sendRequests,
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+				completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+			}, {
+				invocations: [{ name: 'chronicle', input: 'reindex' }],
+				sends: [],
+				responses: ['Session store reindexed.'],
+				completed: ['turn-chronicle'],
+			});
+		});
+
+		test('surfaces Chronicle failures instead of sending the command as a prompt', async () => {
+			const { session, mockSession } = await createChronicleSession();
+			mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Session store unavailable');
+
+			await assert.rejects(() => session.send('/chronicle search tests', undefined, 'turn-chronicle'), {
+				message: 'Session store unavailable',
+			});
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+		});
+	});
+
 	test('renders expected runtime slash command validation errors as guidance', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -5082,7 +5177,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'rubber-duck', input: 'focus on tests' }],
-			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined }],
+			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined, displayPrompt: 'Review the current work' }],
 		});
 	});
 
@@ -5112,7 +5207,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'wait-what' }],
-			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined }],
+			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined, displayPrompt: '/wait-what' }],
 		});
 	});
 
@@ -5903,7 +5998,7 @@ suite('CopilotAgentSession', () => {
 			overrideModeAfterInvokeBeforeSend: log.lastIndexOf('mode.set') > log.indexOf('commands.invoke') && log.lastIndexOf('mode.set') < log.indexOf('send'),
 		}, {
 			modeSetCalls: [{ mode: 'interactive' }, { mode: 'autopilot' }],
-			sendRequests: [{ prompt: 'do it', attachments: undefined }],
+			sendRequests: [{ prompt: 'do it', attachments: undefined, displayPrompt: 'do it' }],
 			firstModeBeforeInvoke: true,
 			overrideModeAfterInvokeBeforeSend: true,
 		});
@@ -6247,6 +6342,36 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 	}
+
+	test('reports resolved subagent model options and preserves them through usage and model rounds', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'gpt-5.4-mini',
+		}, { agentId: 'agent-1' });
+		const configurations = () => signals.flatMap(signal => signal.kind === 'action'
+			&& signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+			? [readAgentRuntimeModelConfiguration(signal.action.usage)] : []);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'xhigh', contextTier: 'long_context',
+		}, { agentId: 'agent-1' });
+		const configured = configurations().at(-1);
+		mockSession.fire('assistant.usage', { model: 'gpt-5.4-mini', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'agent-1' });
+		const afterUsage = configurations().at(-1);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'low', contextTier: 'default',
+		}, { agentId: 'agent-1' });
+		const changed = configurations().at(-1);
+		mockSession.fire('subagent.configured', { model: 'gpt-5.4-mini', multiTurn: true }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual({ configured, afterUsage, changed, cleared: configurations().at(-1) }, {
+			configured: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			afterUsage: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			changed: { reasoningEffort: 'low', contextTier: 'default' },
+			cleared: {},
+		});
+	});
 
 	test('reports the model when a background child starts after its parent turn finishes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -6596,6 +6721,29 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart
 			? [action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind] : []), ['The final answer.']);
+	});
+
+	test('warns in the active turn when the BYOK proxy caps tools, once per dropped-tool count', async () => {
+		const { session, signals } = await createAgentSession(disposables);
+		session.reportByokToolsCapped(200, 128);
+		session.resetTurnState('turn-1');
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(140, 128);
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+			? [{ turnId: action.turnId, content: action.part.content, meta: readAgentSystemNotificationMeta(action.part) }] : []), [
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 72 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 12 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+		]);
 	});
 
 	for (const restored of [false, true]) {

@@ -13,6 +13,7 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import { ReasoningEffortConfigKey } from '../../../../../platform/agentHost/common/reasoningEffort.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
+import { renderChatInputPickerSplit } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { applySessionComparisonModelConfigurationDefaults, getSessionComparisonModelConfigurationLabel, getSessionComparisonModelPickerPresentationOptions, getSessionComparisonWorkspaceError, resolveSessionComparisonHarnessModel, SessionComparisonDialogResizeController, SessionComparisonSetupDialog, selectSessionComparisonPermission } from '../../browser/sessionComparisonSetupDialog.js';
 import { getSessionComparisonHarnessDisplayLabel, ISessionComparisonAttemptConfiguration, ISessionComparisonHarness } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -161,6 +162,38 @@ suite('SessionComparisonDialogResizeController', () => {
 	});
 
 	suite('setup behavior', () => {
+		test('uses one shared separator in the taller model picker', () => {
+			const container = dom.append(mainWindow.document.body, dom.$('.session-comparison-setup-model-picker.chat-input-picker-item'));
+			disposables.add({ dispose: () => container.remove() });
+			container.style.width = '300px';
+			container.style.setProperty('--vscode-spacing-size280', '28px');
+			container.style.setProperty('--vscode-spacing-size120', '12px');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			container.style.setProperty('--vscode-spacing-size20', '2px');
+			container.style.setProperty('--vscode-strokeThickness', '1px');
+			container.style.setProperty('--vscode-dropdown-border', '#123456');
+			const picker = dom.append(container, dom.$('.action-label.model-picker-split'));
+			const { primaryButton: name, secondaryButton: configuration } = renderChatInputPickerSplit(picker);
+			name.classList.add('model-picker-section', 'model-picker-name');
+			configuration.classList.add('model-picker-section', 'model-picker-config');
+			name.textContent = 'Model';
+			configuration.textContent = 'High 1M';
+
+			assert.deepStrictEqual({
+				height: container.getBoundingClientRect().height,
+				sectionHeights: [name, configuration].map(button => button.getBoundingClientRect().height),
+				configurationBorder: mainWindow.getComputedStyle(configuration).borderLeftWidth,
+				separatorWidth: mainWindow.getComputedStyle(configuration, '::before').width,
+				gap: configuration.getBoundingClientRect().left - name.getBoundingClientRect().right,
+			}, {
+				height: 28,
+				sectionHeights: [26, 26],
+				configurationBorder: '0px',
+				separatorWidth: '1px',
+				gap: 2,
+			});
+		});
+
 		test('uses grouped model picker presentation options for comparison setup', () => {
 			assert.deepStrictEqual({
 				withAuto: getSessionComparisonModelPickerPresentationOptions(true),

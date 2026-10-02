@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { realpath as fsRealpath } from 'fs';
@@ -40,7 +41,7 @@ import { withCustomizationEnablement } from '../../common/customizationEnablemen
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -48,6 +49,7 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { AgentCanvasAvailability, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AGENT_HOST_CANVAS_LIMIT } from '../../common/agentHostExtensionProtocol.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -66,7 +68,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { BackgroundWorkKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -1048,6 +1050,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
+	/** Dropped-tool count last surfaced by {@link reportByokToolsCapped}, to avoid repeating the same warning. */
+	private _reportedByokDroppedToolCount: number | undefined;
 	/**
 	 * Protocol turn ID of the active turn, or `''` when idle. Used by file
 	 * edit tracking and emitted on per-turn actions.
@@ -1763,7 +1767,7 @@ export class CopilotAgentSession extends Disposable {
 		return toolCallId !== undefined && this._fusionPhaseLabels.has(toolCallId) ? toolCallId : undefined;
 	}
 
-	private _updateSubagentModel(parentToolCallId: string, model: string | undefined): void {
+	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
 		if (!model) {
 			return;
 		}
@@ -1771,6 +1775,9 @@ export class CopilotAgentSession extends Disposable {
 		const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
 		const modelId = isAutoModel(model) ? autoModeResolved?.chosenModel ?? model : model;
 		const metadata = { ...previous?._meta };
+		if (configuration && (configuration.reasoningEffort !== undefined || configuration.contextTier !== undefined || readAgentRuntimeModelConfiguration(previous))) {
+			metadata[agentModelConfigurationMetaKey] = configuration;
+		}
 		if (autoModeResolved) {
 			metadata.autoModeResolved = autoModeResolved;
 		} else {
@@ -3554,6 +3561,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		const sendingTurn = this._currentTurn.value;
 
+		let displayPrompt: string | undefined;
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
@@ -3715,6 +3723,7 @@ export class CopilotAgentSession extends Disposable {
 							mode = runtimeMode;
 						}
 						prompt = result.prompt;
+						displayPrompt = result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':
@@ -3760,7 +3769,7 @@ export class CopilotAgentSession extends Disposable {
 					requestHeaders: { Authorization: '******' },
 				});
 			} else {
-				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}) });
 			}
 		}), sendingTurn, abortToken, sendingTurn);
 		if (execution.kind === 'skipped') {
@@ -7007,7 +7016,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute model configuration for unknown subagent agentId=${e.agentId}`);
 				return;
 			}
-			this._updateSubagentModel(parentToolCallId, e.data.model);
+			this._updateSubagentModel(parentToolCallId, e.data.model, {
+				...(e.data.reasoningEffort ? { reasoningEffort: e.data.reasoningEffort } : {}),
+				...(e.data.contextTier ? { contextTier: e.data.contextTier } : {}),
+			});
 		}));
 
 		this._register(wrapper.onTurnStart(e => {
@@ -7215,6 +7227,10 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
 				const metadata: UsageInfoMeta = {};
+				const modelConfiguration = directOwnerToolCallId ? readAgentRuntimeModelConfiguration(this._lastSubagentUsageByToolCallId.get(directOwnerToolCallId)) : undefined;
+				if (modelConfiguration) {
+					metadata[agentModelConfigurationMetaKey] = modelConfiguration;
+				}
 				if (modelCall) {
 					metadata[agentModelCallMetaKey] = modelCall;
 				}
@@ -8320,6 +8336,39 @@ export class CopilotAgentSession extends Disposable {
 			turnId: this._turnId,
 			part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content },
 		}, parentToolCallId);
+	}
+
+	/**
+	 * Warns in the active turn that the BYOK proxy dropped tools to stay within
+	 * the model's tool limit. The turn continues with the kept tools. The warning
+	 * repeats only when the number of dropped tools changes.
+	 */
+	reportByokToolsCapped(requestedToolCount: number, sentToolCount: number): void {
+		const turn = this._currentTurn.value;
+		const droppedToolCount = requestedToolCount - sentToolCount;
+		if (!turn || droppedToolCount <= 0 || droppedToolCount === this._reportedByokDroppedToolCount) {
+			return;
+		}
+		this._reportedByokDroppedToolCount = droppedToolCount;
+		// Later parent reasoning belongs after this notice.
+		turn.reasoningPartIds.delete('');
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: localize(
+					'agentHost.byokToolLimitExceeded',
+					"The model only supports {0} tools, {1} tools were not provided to the model.",
+					sentToolCount,
+					droppedToolCount,
+				),
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			},
+		});
 	}
 
 	private _subscribeToSdkEvents(): void {

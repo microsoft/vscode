@@ -48,6 +48,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -2813,6 +2814,10 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	});
 
 	test('sendRequest forwards resolved session config to chat service', async () => {
+		connection.resolveSessionConfigResult = {
+			schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], sessionMutable: false } } },
+			values: { isolation: 'worktree' },
+		};
 		const sendOptions: IChatSendRequestOptions[] = [];
 		const provider = createProvider(disposables, connection, {
 			openSession: true,
@@ -3503,6 +3508,49 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			noConnection: true,
 			storageService,
 		}) as CloudSandboxSessionsProvider;
+	}
+
+	test('opts out of workspace selection while retaining workspace resolution', () => {
+		const provider = createSandboxProvider();
+		const uri = toAgentHostUri(URI.file('/workspace'), agentHostAuthority(provider.remoteAddress));
+
+		assert.deepStrictEqual({
+			supportsWorkspaceSelection: provider.supportsWorkspaceSelection,
+			resolvedWorkspace: provider.resolveWorkspace(uri)?.uri.toString(),
+		}, {
+			supportsWorkspaceSelection: false,
+			resolvedWorkspace: uri.toString(),
+		});
+	});
+
+	for (const connected of [false, true]) {
+		test(`excludes ${connected ? 'connected' : 'disconnected'} sandboxes from the Automation catalogue and unavailable hosts`, () => {
+			const sandbox = createSandboxProvider();
+			if (connected) {
+				sandbox.setConnection(connection);
+			}
+			const remote = createProvider(disposables, connection, { noConnection: true });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+				onDidChangeProviders: Event.None,
+				getProviders: () => [remote, sandbox],
+			}));
+			const automationService = disposables.add(instantiationService.createInstance(ProviderAutomationService, constObservable(true)));
+
+			assert.deepStrictEqual({
+				hasSandboxAutomations: sandbox.automations !== undefined,
+				availableHosts: automationService.availableProviders.get().map(provider => provider.id),
+				unavailableHosts: automationService.unavailableProviders.get().map(provider => provider.id),
+				automations: automationService.automations.get(),
+				catalogueState: automationService.catalogueState.get(),
+			}, {
+				hasSandboxAutomations: false,
+				availableHosts: [],
+				unavailableHosts: [remote.id],
+				automations: [],
+				catalogueState: 'unavailable',
+			});
+		});
 	}
 
 	function seed(provider: RemoteAgentHostSessionsProvider, changes?: Partial<IAgentSessionMetadata>): void {
