@@ -133,78 +133,112 @@ suite('XtermTerminal', () => {
 		strictEqual(xterm.raw.rows, 30);
 	});
 
-	test('clearBuffer should clear rich and partial command history including scrollback', async () => {
-		class TestTerminal extends XTermBaseCtor {
-			override registerDecoration(options: IDecorationOptions): IDecoration | undefined {
-				const disposeListeners = new Set<() => unknown>();
-				let isDisposed = false;
-				return {
-					marker: options.marker,
-					options,
-					get isDisposed() { return isDisposed; },
-					dispose: () => {
-						isDisposed = true;
-						for (const listener of disposeListeners) {
-							listener();
+	for (const buffer of ['normal', 'alternate'] as const) {
+		test(`clearBuffer should ${buffer === 'normal' ? 'clear rich and partial command history including scrollback' : 'preserve normal-buffer command history and decorations when clearing the alternate buffer'}`, async () => {
+			class TestTerminal extends XTermBaseCtor {
+				override registerDecoration(options: IDecorationOptions): IDecoration | undefined {
+					const disposeListeners = new Set<() => unknown>();
+					let isDisposed = false;
+					return {
+						marker: options.marker,
+						options,
+						get isDisposed() { return isDisposed; },
+						dispose: () => {
+							isDisposed = true;
+							for (const listener of disposeListeners) {
+								listener();
+							}
+							disposeListeners.clear();
+						},
+						onDispose: (listener: () => unknown) => {
+							disposeListeners.add(listener);
+							return { dispose: () => disposeListeners.delete(listener) };
+						},
+						onRender: (listener: (element: HTMLElement) => unknown) => {
+							listener(document.createElement('div'));
+							return { dispose() { } };
 						}
-						disposeListeners.clear();
-					},
-					onDispose: (listener: () => unknown) => {
-						disposeListeners.add(listener);
-						return { dispose: () => disposeListeners.delete(listener) };
-					},
-					onRender: (listener: (element: HTMLElement) => unknown) => {
-						listener(document.createElement('div'));
-						return { dispose() { } };
-					}
-				} as unknown as IDecoration;
+					} as unknown as IDecoration;
+				}
 			}
-		}
-		capabilityStore = store.add(new TerminalCapabilityStore());
-		xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TestTerminal, {
-			cols: 80,
-			rows: 30,
-			xtermColorProvider: { getBackgroundColor: () => undefined },
-			capabilities: capabilityStore,
-			disableShellIntegrationReporting: true,
-			xtermAddonImporter: new TestXtermAddonImporter(),
-		}, undefined));
-		const commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, xterm.raw));
-		const onDidExecuteText = store.add(new Emitter<void>());
-		const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw, onDidExecuteText.event));
-		capabilityStore.add(TerminalCapability.CommandDetection, commandDetection);
-		capabilityStore.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
+			capabilityStore = store.add(new TerminalCapabilityStore());
+			xterm = store.add(instantiationService.createInstance(XtermTerminal, undefined, TestTerminal, {
+				cols: 80,
+				rows: 30,
+				xtermColorProvider: { getBackgroundColor: () => undefined },
+				capabilities: capabilityStore,
+				disableShellIntegrationReporting: true,
+				xtermAddonImporter: new TestXtermAddonImporter(),
+			}, undefined));
+			const commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, xterm.raw));
+			const onDidExecuteText = store.add(new Emitter<void>());
+			const partialCommandDetection = store.add(new PartialCommandDetectionCapability(xterm.raw, onDidExecuteText.event));
+			capabilityStore.add(TerminalCapability.CommandDetection, commandDetection);
+			capabilityStore.add(TerminalCapability.PartialCommandDetection, partialCommandDetection);
 
-		xterm.raw.registerMarker(0);
-		commandDetection.handlePromptStart();
-		await write('$ ');
-		commandDetection.handleCommandStart();
-		await write('echo test');
-		commandDetection.handleCommandExecuted();
-		await write('\r\noutput\r\n');
-		commandDetection.handleCommandFinished(0);
+			xterm.raw.registerMarker(0);
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
+			await write('echo test');
+			commandDetection.handleCommandExecuted();
+			await write('\r\noutput\r\n');
+			commandDetection.handleCommandFinished(0);
 
-		await write('partial');
-		xterm.raw.input('\r');
-		await write('\r\n');
-		await write('line\r\n'.repeat(xterm.raw.rows));
+			await write('partial');
+			xterm.raw.input('\r');
+			await write('\r\n');
+			await write('line\r\n'.repeat(xterm.raw.rows));
+			commandDetection.handlePromptStart();
+			await write('$ ');
+			commandDetection.handleCommandStart();
 
-		strictEqual(xterm.raw.buffer.active.baseY > 0, true);
-		strictEqual(commandDetection.commands.length, 1);
-		strictEqual(partialCommandDetection.commands.length, 1);
-		const decorations = (xterm.decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
-		const clearedCommandMarkerId = commandDetection.commands[0].marker!.id;
-		strictEqual(decorations.has(clearedCommandMarkerId), true);
-		const invalidatedCommands: ITerminalCommand[] = [];
-		store.add(commandDetection.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
+			strictEqual(xterm.raw.buffer.active.baseY > 0, true);
+			strictEqual(commandDetection.commands.length, 1);
+			strictEqual(partialCommandDetection.commands.length, 1);
+			const decorations = (xterm.decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+			const clearedCommandMarkerId = commandDetection.commands[0].marker!.id;
+			strictEqual(decorations.has(clearedCommandMarkerId), true);
+			const invalidatedCommands: ITerminalCommand[] = [];
+			store.add(commandDetection.onCommandInvalidated(commands => invalidatedCommands.push(...commands)));
 
-		xterm.clearBuffer();
+			const command = commandDetection.commands[0];
+			const partialMarker = partialCommandDetection.commands[0];
+			const decoration = decorations.get(clearedCommandMarkerId);
+			const normalBufferLines = Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString());
+			const currentCommandStartMarker = commandDetection.currentCommand.commandStartMarker;
+			ok(currentCommandStartMarker);
+			if (buffer === 'alternate') {
+				await write('\x1b[?1049h');
+				await write('alternate output\r\n');
+				strictEqual(xterm.raw.buffer.active.type, 'alternate');
+			}
 
-		deepStrictEqual(commandDetection.commands, []);
-		deepStrictEqual(partialCommandDetection.commands, []);
-		deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo test']);
-		strictEqual(decorations.has(clearedCommandMarkerId), false);
-	});
+			xterm.clearBuffer();
+
+			if (buffer === 'alternate') {
+				strictEqual(xterm.raw.buffer.active.cursorY, 0);
+				await write('\x1b[?1049l');
+				strictEqual(xterm.raw.buffer.active.type, 'normal');
+				deepStrictEqual(Array.from({ length: xterm.raw.buffer.normal.length }, (_, i) => xterm.raw.buffer.normal.getLine(i)!.translateToString()), normalBufferLines);
+				strictEqual(commandDetection.commands.length, 1);
+				strictEqual(commandDetection.commands[0], command);
+				strictEqual(partialCommandDetection.commands.length, 1);
+				strictEqual(partialCommandDetection.commands[0], partialMarker);
+				deepStrictEqual(invalidatedCommands, []);
+				strictEqual(command.marker!.isDisposed, false);
+				strictEqual(partialMarker.isDisposed, false);
+				strictEqual(decorations.get(clearedCommandMarkerId), decoration);
+				strictEqual(commandDetection.currentCommand.commandStartMarker, currentCommandStartMarker);
+				return;
+			}
+
+			deepStrictEqual(commandDetection.commands, []);
+			deepStrictEqual(partialCommandDetection.commands, []);
+			deepStrictEqual(invalidatedCommands.map(e => e.command), ['echo test']);
+			strictEqual(decorations.has(clearedCommandMarkerId), false);
+		});
+	}
 
 	test('detached terminals do not register decoration shutdown listeners', () => {
 		const listenerCountAfterRegularXterm = listenerCount(onWillShutdown);

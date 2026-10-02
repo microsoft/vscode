@@ -781,14 +781,20 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	clearBuffer(): void {
-		this._decorationAddon.clearDecorations();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
-		this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
+		const isNormalBuffer = this.raw.buffer.active.type === 'normal';
+		// Clearing the alternate buffer leaves the normal buffer's output and markers intact.
+		if (isNormalBuffer) {
+			this._decorationAddon.clearDecorations();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.clearCommands();
+			this._capabilities.get(TerminalCapability.PartialCommandDetection)?.clearCommands();
+		}
 		this.raw.clear();
-		// xterm.js does not clear the first prompt, so trigger these to simulate
-		// the prompt being written
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
-		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		if (isNormalBuffer) {
+			// xterm.js does not clear the first prompt, so trigger these to simulate
+			// the prompt being written
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
+			this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
+		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 	}
 
