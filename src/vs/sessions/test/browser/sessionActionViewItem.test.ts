@@ -11,7 +11,7 @@ import { DeferredPromise } from '../../../base/common/async.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -50,7 +50,7 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
-	function createArchiveActionViewItem(run: () => Promise<void>): MenuEntryActionViewItem {
+	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }): MenuEntryActionViewItem {
 		const action = new MenuItemAction(
 			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
 			undefined,
@@ -69,7 +69,7 @@ suite('SessionActionViewItem', () => {
 		);
 		const viewItem = disposables.add(new MenuEntryActionViewItem(
 			action,
-			{ onClickAnimation: ClickAnimation.Confetti },
+			options,
 			new class extends mock<IKeybindingService>() { }(),
 			new TestNotificationService(),
 			new class extends mock<IContextKeyService>() { }(),
@@ -160,6 +160,34 @@ suite('SessionActionViewItem', () => {
 		}, {
 			disabled: undefined,
 			enabled: ClickAnimation.Confetti,
+			playedSignals: [AccessibilitySignal.confetti],
+		});
+	});
+
+	test('plays the confetti signal when archive is triggered with the keyboard', async () => {
+		const playedSignals: AccessibilitySignal[] = [];
+		const viewItem = createArchiveActionViewItem(
+			async () => { },
+			getSessionArchiveActionViewItemOptions(
+				{},
+				new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true }),
+				new class extends mock<IAccessibilitySignalService>() {
+					override async playSignal(signal: AccessibilitySignal): Promise<void> {
+						playedSignals.push(signal);
+					}
+				}(),
+			),
+		);
+
+		await viewItem.trigger(undefined);
+		const animation = document.body.querySelector('.animation-overlay');
+		animation?.remove();
+
+		assert.deepStrictEqual({
+			animation: !!animation,
+			playedSignals,
+		}, {
+			animation: true,
 			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});

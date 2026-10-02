@@ -63,6 +63,29 @@ suite('Actionbar', () => {
 		assert.strictEqual(actionbar.hasAction(a1), false);
 	});
 
+	test('uses the action view item trigger for keyboard activation', () => {
+		const container = document.createElement('div');
+		let triggerCount = 0;
+		let runCount = 0;
+		const action = store.add(new Action('action', 'Action', undefined, true, async () => {
+			runCount++;
+		}));
+		const actionbar = store.add(new ActionBar(container, {
+			actionViewItemProvider: action => new class extends ActionViewItem {
+				trigger(): void {
+					triggerCount++;
+				}
+			}(undefined, action, {})
+		}));
+		actionbar.push(action);
+		actionbar.focus(0);
+
+		actionbar.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		actionbar.domNode.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+
+		assert.deepStrictEqual({ triggerCount, runCount }, { triggerCount: 1, runCount: 0 });
+	});
+
 	suite('ToggleActionViewItemProvider', () => {
 
 		test('renders toggle for actions with checked state', function () {

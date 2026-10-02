@@ -52,11 +52,20 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override onClick(event: MouseEvent): Promise<void> {
+		this._reportExperimentTrigger();
+		return super.onClick(event);
+	}
+
+	override trigger(context: unknown): Promise<void> {
+		this._reportExperimentTrigger();
+		return super.trigger(context);
+	}
+
+	private _reportExperimentTrigger(): void {
 		// Reduced motion never animates, so the setting cannot change what those users see.
 		if (!this._accessibility.isMotionReduced()) {
 			logSettingExperimentTrigger(this._telemetryService, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING);
 		}
-		return super.onClick(event);
 	}
 }
 

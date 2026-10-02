@@ -21,6 +21,7 @@ export interface IActionViewItem extends IDisposable {
 	setActionContext(context: unknown): void;
 	render(element: HTMLElement): void;
 	isEnabled(): boolean;
+	trigger?(context: unknown): void | Promise<void>;
 	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
 	blur(): void;
 	showHover?(): void;
@@ -601,7 +602,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 		const actionViewItem = this.viewItems[this.focusedItem];
 		if (actionViewItem instanceof BaseActionViewItem) {
 			const context = (actionViewItem._context === null || actionViewItem._context === undefined) ? event : actionViewItem._context;
-			this.run(actionViewItem._action, context);
+			const triggerableActionViewItem: IActionViewItem = actionViewItem;
+			if (triggerableActionViewItem.trigger) {
+				void triggerableActionViewItem.trigger(context);
+			} else {
+				this.run(actionViewItem._action, context);
+			}
 		}
 	}
 
