@@ -544,7 +544,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
-		test(`renders an underlined View Full Output link below the preview in ${mode} mode`, async () => {
+		test(`renders a View Full Output link below the preview in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			harness.container.classList.add('monaco-workbench');
 			const { part } = harness.createPart({ mode, preview: 'Open Full Output\r\npreview output' });
@@ -561,7 +561,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 				preview: snapshotText(harness.raw(part)),
 			}, {
 				guidance: fullOutputPreviewGuidance,
-				link: { role: 'button', tabIndex: 0, decoration: 'underline' },
+				link: { role: 'button', tabIndex: 0, decoration: 'none' },
 				previewCursor: 'auto',
 				opens: 0,
 				preview: 'Open Full Output\npreview output',

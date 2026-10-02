@@ -243,7 +243,7 @@ async function renderTerminalFullOutput(context: ComponentFixtureContext, option
 export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	'Expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The nested executed-command block contains a long file-list preview followed by the quiet text “Output truncated.” and an underlined, link-colored “View Full Output” link on the same line; the preview itself is not styled as a link. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only).'],
+		expectedVisualDescriptions: ['The nested executed-command block contains a long file-list preview followed by the quiet text “Output truncated.” and a link-colored “View Full Output” link without an underline on the same line; the preview itself is not styled as a link. Its command header has the same square open-in-product icon used by local terminal cards, with the accessible label Open Full Output (Read-Only).'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: truncatedFileListPreview, truncated: true, expanded: true }),
 	}),
 	'Expanded no full output': defineComponentFixture({
@@ -252,12 +252,12 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	}),
 	'Expanded empty preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['With no preview text, the nested executed-command block shows “A preview is not available.” followed by the quiet text “Output truncated.” and an underlined, link-colored “View Full Output” link. Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only).'],
+		expectedVisualDescriptions: ['With no preview text, the nested executed-command block shows “A preview is not available.” followed by the quiet text “Output truncated.” and a link-colored “View Full Output” link without an underline. Its header shows the local-terminal open-in-product icon for Open Full Output (Read-Only).'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: '', truncated: true, expanded: true }),
 	}),
 	'Narrow expanded full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['In a narrow terminal card, the long file-list preview and the “Output truncated.” guidance with its underlined “View Full Output” link stay within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
+		expectedVisualDescriptions: ['In a narrow terminal card, the long file-list preview and the “Output truncated.” guidance with its link-colored “View Full Output” link stay within the output surface without exposing the backing path. The square open-in-product icon stays inside the nested executed-command header without overlapping its command label or appearing beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 280, preview: truncatedFileListPreview, truncated: true, expanded: true, collapsible: true, intention: 'List source files' }),
 	}),
 	'Collapsed full output': defineComponentFixture({
@@ -266,12 +266,12 @@ export default defineThemedFixtureGroup({ path: 'chat/terminalFullOutput/' }, {
 	}),
 	'Expanded collapsible full output': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains a long file-list preview followed by “Output truncated.” and an underlined, link-colored “View Full Output” link.'],
+		expectedVisualDescriptions: ['The expanded collapsible terminal shows the square open-in-product icon inside the nested executed-command header. The outer row has no action; the terminal contains a long file-list preview followed by “Output truncated.” and a link-colored “View Full Output” link without an underline.'],
 		render: context => renderTerminalFullOutput(context, { width: 560, preview: truncatedFileListPreview, truncated: true, expanded: true, collapsible: true }),
 	}),
 	'Long truncated preview': defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by “Output truncated.” and an underlined, link-colored “View Full Output” link. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
+		expectedVisualDescriptions: ['A long run of x characters wraps in the nested executed-command block, followed by “Output truncated.” and a link-colored “View Full Output” link without an underline. The local-terminal open-in-product icon appears in that same bordered block, not beside the outer row.'],
 		render: context => renderTerminalFullOutput(context, { width: 800, preview: `FULL_OUTPUT_BEGIN\n${'x'.repeat(501)}`, truncated: true, expanded: true, collapsible: true, intention: 'Generate large stdout for display test' }),
 	}),
 });
