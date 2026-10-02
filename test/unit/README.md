@@ -29,6 +29,12 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 
     npm run test-node -- --run src/vs/editor/test/browser/controller/cursor.test.ts
 
+The default test timeout is 5 seconds locally and 30 seconds in CI, matching the Electron runner. CI is detected through `BUILD_ARTIFACTSTAGINGDIRECTORY` or `GITHUB_WORKSPACE`.
+
+Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to disable timeouts. Explicit suite and test timeouts still take precedence.
+
+    npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
+
 ## Coverage
 
 The following command will create a `coverage` folder in the `.build` folder at the root of the workspace:
