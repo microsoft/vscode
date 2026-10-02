@@ -20,6 +20,7 @@ import { IMarkdownString, MarkdownString } from '../../../../../base/common/html
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/path.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
@@ -488,13 +489,18 @@ function getHoverContent(ariaLabel: string, attachment: ITerminalVariableEntry):
 	}
 }
 
+export interface IChatImageBase64Data {
+	readonly data: string;
+	readonly mimeType: string;
+}
+
 export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 
 	constructor(
 		resource: URI | undefined,
 		attachment: IChatRequestVariableEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; isCurrentInput?: boolean; showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension>; imageBase64Data?: IChatImageBase64Data },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -547,7 +553,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		const fullName = resource ? this.labelService.getUriLabel(resource) : (attachment.fullName || attachment.name);
 
 		if (options.imagePresentation === 'inline' && omittedState !== OmittedState.Full && omittedState !== OmittedState.ImageLimitExceeded && (!currentLanguageModel || modelSupportsVision(currentLanguageModel))) {
-			this._register(this.renderInlineImage(resource, attachment.name, fullName, imageData, ariaLabel, options.imageReveal));
+			this._register(this.renderInlineImage(resource, attachment.name, fullName, options.imageBase64Data ?? imageData, ariaLabel, options.imageReveal, options.imageDimensions));
 		} else {
 			const imageElements = this._register(new MutableDisposable<IDisposable>());
 			const renderImageElements = (buffer: Uint8Array) => {
@@ -580,7 +586,7 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 	}
 
-	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | undefined, ariaLabel: string, imageReveal: IChatImageRevealOrigin | undefined): IDisposable {
+	private renderInlineImage(resource: URI | undefined, name: string, fullName: string, imageData: Uint8Array | IChatImageBase64Data | undefined, ariaLabel: string, imageReveal: IChatImageRevealOrigin | undefined, imageDimensions: ResourceMap<dom.IDimension> | undefined): IDisposable {
 		const store = new DisposableStore();
 		const image = dom.$<HTMLImageElement>('img.chat-attached-context-pill-image', { alt: '' });
 		const status = dom.$('span.chat-attached-context-image-status', undefined, localize('chat.loadingImage', "Loading image..."));
@@ -592,7 +598,22 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		}
 		const hover = dom.$('.chat-attached-context-hover', { 'aria-label': ariaLabel }, dom.$('.chat-attached-context-url', undefined, fullName));
 		const imageUrl = store.add(new MutableDisposable<IDisposable>());
-		dom.hide(image);
+		const dimensions = resource && !imageReveal ? imageDimensions?.get(resource) : undefined;
+		if (dimensions) {
+			image.style.width = `${dimensions.width}px`;
+			image.style.aspectRatio = `${dimensions.width} / ${dimensions.height}`;
+			image.style.maxWidth = `min(100%, calc(var(--chat-generated-image-max-height) * ${dimensions.width} / ${dimensions.height}))`;
+			image.style.visibility = 'hidden';
+			dom.hide(status);
+		} else {
+			dom.hide(image);
+		}
+		const clearSizeHint = () => {
+			image.style.width = '';
+			image.style.aspectRatio = '';
+			image.style.maxWidth = '';
+			image.style.visibility = '';
+		};
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
 		this.element.setAttribute('aria-busy', 'true');
 		store.add(this.hoverService.setupDelayedHover(this.element, { ...commonHoverOptions, content: hover }));
@@ -611,6 +632,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			this.element.ariaLabel = this.appendDeletionHint(message);
 			status.textContent = message;
 			hover.textContent = detail ? localize('chat.imagePreviewLoadErrorDetails', "{0}\n{1}", message, detail) : message;
+			if (resource) {
+				imageDimensions?.delete(resource);
+			}
+			clearSizeHint();
 			reveal?.dispose();
 			dom.show(status);
 			dom.hide(image);
@@ -618,6 +643,10 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 		store.add(dom.addDisposableListener(image, dom.EventType.LOAD, event => {
 			this.element.setAttribute('aria-busy', 'false');
 			status.remove();
+			if (resource && image.naturalWidth > 0 && image.naturalHeight > 0) {
+				imageDimensions?.set(resource, { width: image.naturalWidth, height: image.naturalHeight });
+			}
+			clearSizeHint();
 			dom.show(image);
 			reveal?.reveal(event.timeStamp);
 		}));
@@ -635,7 +664,9 @@ export class ImageAttachmentWidget extends AbstractChatAttachmentWidget {
 			imageUrl.value = toDisposable(() => URL.revokeObjectURL(url));
 			image.src = url;
 		};
-		if (imageData) {
+		if (imageData && !(imageData instanceof Uint8Array)) {
+			image.src = `data:${imageData.mimeType};base64,${imageData.data}`;
+		} else if (imageData) {
 			render(imageData);
 		} else if (resource) {
 			void this.loadImageBytes(resource, render, showError);

@@ -1605,6 +1605,81 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('image generation', () => {
+		test('preserves metadata-only image failure details and classification in live and restored state', () => {
+			const backendSession = URI.parse('other-host:/opaque-image-session');
+			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
+			const running = createToolCallState({
+				toolName: 'remote_create_image',
+				toolInput: undefined,
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [],
+				error: { message: 'The image service rejected the request.' },
+			});
+			const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+			const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+			const expected = {
+				title: 'Generated image failed',
+				data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				details: {
+					input: '',
+					inputLanguage: 'json',
+					output: [{ type: 'embed', value: 'The image service rejected the request.', isText: true, mimeType: 'text/plain' }],
+					isError: true,
+					mcpOutput: undefined,
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(part => ({
+				title: part.pastTenseMessage,
+				data: part.toolSpecificData,
+				details: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+			})), [expected, expected]);
+		});
+
+		for (const streaming of [false, true]) {
+			test(`preserves metadata-only image cancellation in history (streaming=${streaming})`, () => {
+				const backendSession = URI.parse('other-host:/opaque-image-session');
+				const imageGeneration = { requestedModel: { id: 'remote/image-model' } };
+				const cancelled: ICompletedToolCall = {
+					toolCallId: 'remote-image',
+					toolName: 'remote_create_image',
+					displayName: 'Remote Image',
+					invocationMessage: 'Working on an image',
+					status: ToolCallStatus.Cancelled,
+					reason: ToolCallCancellationReason.Denied,
+					reasonMessage: 'Stopped by the user',
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				};
+				const live = streaming
+					? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'other-host')
+					: rawToolCallStateToInvocation(createToolCallState({ toolName: cancelled.toolName, _meta: cancelled._meta }), undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, cancelled, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'other-host');
+				const expected = {
+					title: 'Image generation cancelled',
+					data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				};
+				assert.deepStrictEqual([live, restored].map(part => ({ title: part.pastTenseMessage, data: part.toolSpecificData })), [expected, expected]);
+			});
+		}
+
+		for (const toolInput of [undefined, '']) {
+			test(`does not give ordinary output-only tools an empty input dropdown (input=${toolInput})`, () => {
+				const backendSession = URI.parse('other-host:/ordinary-session');
+				const running = createToolCallState({ toolName: 'ordinary_tool', toolInput });
+				const completed = createCompletedToolCall({ toolName: running.toolName, toolInput, content: [{ type: ToolResultContentType.Text, text: 'Finished waiting.' }] });
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual([IChatToolInvocation.resultDetails(live), restored.resultDetails], [undefined, undefined]);
+			});
+		}
+
 		for (const toolName of ['image_generation', 'image_gen.imagegen', 'generate_image_mock', 'test_tool']) {
 			for (const streaming of [true, false]) {
 				test(`preserves the cancelled ${toolName} label from ${streaming ? 'streaming' : 'running'} across live and restored history`, () => {
@@ -1792,13 +1867,13 @@ suite('stateToProgressAdapter', () => {
 				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/result', contentType: 'application/pdf' }] }),
 				createCompletedToolCall({ toolName: 'view_image', content: [image] }),
 			];
-			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').toolSpecificData), calls.map(() => undefined));
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').toolSpecificData?.kind), ['input', 'input', 'input', 'input', undefined]);
 		});
 
-		test('keeps output-only tool results without introducing empty details', () => {
+		test('keeps image tool output-only results without introducing empty details', () => {
 			const calls = [
-				createCompletedToolCall({ content: [{ type: ToolResultContentType.Text, text: 'Output without arguments' }] }),
-				createCompletedToolCall({}),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Text, text: 'Output without arguments' }] }),
+				createCompletedToolCall({ toolName: 'image_generation' }),
 			];
 			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').resultDetails), [{
 				input: '',

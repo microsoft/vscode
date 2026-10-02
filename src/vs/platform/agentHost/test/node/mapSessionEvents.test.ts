@@ -1194,7 +1194,7 @@ suite('mapSessionEvents — history replay', () => {
 		]);
 	});
 
-	test('maps generated image resource links on replayed tool completion', async () => {
+	test('does not advertise opaque SDK resource links as readable host content on replay', async () => {
 		const uri = 'generated-images:/session/generated-image.png?version=1';
 		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
@@ -1224,7 +1224,6 @@ suite('mapSessionEvents — history replay', () => {
 		}, {
 			content: [
 				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
-				{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
 			],
 			title: 'Generated image with Image Preview',
 			meta: { 'vscode.imageGeneration': imageGeneration },
@@ -2113,15 +2112,14 @@ suite('appendSdkToolResultContent', () => {
 		}
 	}
 
-	test('preserves resource links without optional MIME type and size', () => {
+	test('does not convert unsupported SDK links into host-readable resources', () => {
 		const content: ToolResultContent[] = [];
-		appendSdkToolResultContent(content, [{ type: 'resource_link', uri: 'generated-images:/session/result', name: 'result' }]);
-		assert.deepStrictEqual(content, [{
-			type: ToolResultContentType.Resource,
-			uri: 'generated-images:/session/result',
-			contentType: undefined,
-			sizeHint: undefined,
-		}]);
+		appendSdkToolResultContent(content, [
+			{ type: 'resource_link', uri: 'generated-images:/session/result', name: 'result' },
+			{ type: 'resource_link', uri: 'https://example.com/image.png', name: 'image', mimeType: 'image/png' },
+			{ type: 'resource_link', uri: 'mcp:/document', name: 'document', mimeType: 'text/plain' },
+		]);
+		assert.deepStrictEqual(content, []);
 	});
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {

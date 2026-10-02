@@ -407,12 +407,14 @@ export function pickWorkingLabel(element: ChatTreeItem, configurationService: IC
 }
 
 const imageGenerationMessages = [
-	localize('imageProgress.creating', "Creating image"),
 	localize('imageProgress.mixing', "Mixing the colors"),
 	localize('imageProgress.sketching', "Sketching the scene"),
 	localize('imageProgress.color', "Adding a splash of color"),
 	localize('imageProgress.pixels', "Bringing pixels to life"),
 	localize('imageProgress.possibilities', "Painting the possibilities"),
+	localize('imageProgress.brushstrokes', "Laying down the brushstrokes"),
+	localize('imageProgress.canvas', "Giving imagination a canvas"),
+	localize('imageProgress.ideas', "Turning ideas into pixels"),
 ];
 const imageGenerationMessageIntervalMs = 4000;
 

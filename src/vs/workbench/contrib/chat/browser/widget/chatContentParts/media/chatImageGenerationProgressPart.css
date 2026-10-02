@@ -4,27 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-image-generation-placeholder {
-	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
-}
-
-.chat-image-generation-label {
-	color: var(--vscode-descriptionForeground);
-	margin-bottom: var(--vscode-spacing-size120);
-}
-
-/* Generated images are shown at most 400px tall, so the placeholder takes that height, a little wider than tall. */
-.chat-image-generation-canvas {
-	position: relative;
-	width: min(100%, 500px, 75vh);
-	aspect-ratio: 5 / 4;
-	overflow: hidden;
-}
-
-.chat-image-generation-field {
-	position: absolute;
-	inset: 0;
-	width: 100%;
-	height: 100%;
-	font-family: var(--monaco-monospace-font, monospace);
-	font-size: var(--vscode-fontSize-label3);
+	margin: var(--vscode-spacing-size160) 0 var(--vscode-spacing-size40);
 }

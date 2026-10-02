@@ -1757,6 +1757,7 @@ function buildTerminalToolSpecificData(
 
 function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorString: string | undefined, includeMcpOutput: boolean, connectionAuthority: string): IToolResultInputOutputDetails | undefined {
 	const toolInput = tc.status === ToolCallStatus.Streaming ? undefined : getInlineToolInput(tc.toolInput);
+	const isImageGeneration = isImageGenerationTool(tc);
 	const output: IToolResultInputOutputDetails['output'] = [];
 	if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running) {
 		for (const block of tc.content ?? []) {
@@ -1779,11 +1780,11 @@ function getToolInputOutputDetails(tc: ToolCallState, isError: boolean, errorStr
 		}
 	}
 
-	if (output.length === 0 && errorString && (toolInput || imageGenerationToolNames.has(tc.toolName))) {
+	if (output.length === 0 && errorString && (toolInput || isImageGeneration)) {
 		output.push({ type: 'embed', value: errorString, isText: true, mimeType: 'text/plain' });
 	}
 
-	if (!toolInput && output.length === 0) {
+	if (!toolInput && (!isImageGeneration || output.length === 0)) {
 		return undefined;
 	}
 
@@ -1903,8 +1904,12 @@ function buildSessionCreatedToolData(tc: ToolCallState): IChatSessionCreatedData
 	return { kind: 'sessionCreated', openLink, label, fullTitle, ...(isChat ? { isChat: true } : {}) };
 }
 
+function isImageGenerationTool(tc: ToolCallState): boolean {
+	return imageGenerationToolNames.has(tc.toolName) || readImageGenerationToolMetadata(tc) !== undefined;
+}
+
 function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData | undefined {
-	if (tc.status !== ToolCallStatus.Completed || !tc.success || (!imageGenerationToolNames.has(tc.toolName) && !readImageGenerationToolMetadata(tc))) {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success || !isImageGenerationTool(tc)) {
 		return undefined;
 	}
 	const hasImage = tc.content?.some(block =>
@@ -1916,7 +1921,7 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {
 	const imageGeneration = readImageGenerationToolMetadata(tc);
-	if (!imageGenerationToolNames.has(tc.toolName) && !imageGeneration) {
+	if (!isImageGenerationTool(tc)) {
 		return undefined;
 	}
 	return {
@@ -1992,7 +1997,7 @@ function completedToolCallConfirmedReason(tc: ICompletedToolCall): NonNullable<I
 
 function getImageGenerationTerminalMessage(tc: ToolCallState): string | undefined {
 	const imageModel = readImageGenerationToolMetadata(tc)?.requestedModel;
-	if (!imageGenerationToolNames.has(tc.toolName) && !imageModel) {
+	if (!isImageGenerationTool(tc)) {
 		return undefined;
 	}
 	if (tc.status === ToolCallStatus.Cancelled) {
@@ -2061,7 +2066,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	} else if (getToolKind(tc) === 'search') {
 		toolSpecificData = { kind: 'search' };
 	} else {
-		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc);
+		toolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (!toolSpecificData) {
 			toolSpecificData = buildMcpAppToolInputData(tc, connectionAuthority);
 		}
@@ -2079,7 +2084,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 			pastTenseMsg = ref;
 		}
 	}
-	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && toolSpecificData.mcpAppData)
+	const resultDetails = (!toolSpecificData || toolSpecificData.kind === 'generatedImage' || toolSpecificData.kind === 'input' && (toolSpecificData.mcpAppData || toolSpecificData.imageGeneration))
 		&& (tc.status !== ToolCallStatus.Completed || getToolFileEdits(tc).length === 0)
 		? getToolInputOutputDetails(tc, !isSuccess, getToolErrorString(tc), !!(toolSpecificData?.kind === 'input' && toolSpecificData.mcpAppData), connectionAuthority)
 		: undefined;
@@ -2985,8 +2990,8 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		invocation.pastTenseMessage = addCommentReference(tc, resourceUris) ?? invocation.pastTenseMessage;
 	}
 
-	if (isCompleted) {
-		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc);
+	if (isCompleted || isCancelled) {
+		const resultToolSpecificData = buildSessionCreatedToolData(tc) ?? buildGeneratedImageToolData(tc) ?? buildAutomationConfiguredToolData(tc) ?? buildImageGenerationInputData(tc);
 		if (resultToolSpecificData) {
 			// The tool required confirmation, so it was created with
 			// `HiddenAfterComplete`; clear it so the result pill stays visible.

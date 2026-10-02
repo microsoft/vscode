@@ -2337,7 +2337,7 @@ suite('ChatListRenderer', () => {
 				previews: template.value.querySelectorAll('.chat-generated-image-result .chat-attached-context-pill-image').length,
 				collapsedPreviews: template.value.querySelectorAll('.chat-collapsible-top-level-resource-group').length,
 			}, {
-				running: { label: 'Creating image', hidden: false, hasDetails: true, placeholderLabel: 'Generating image', placeholderBusy: 'true', pictureIcon: true },
+				running: { label: 'Mixing the colors', hidden: false, hasDetails: true, placeholderLabel: 'Generating image', placeholderBusy: 'true', pictureIcon: true },
 				runningInput: [prompt],
 				runningExpanded: 'true',
 				finished: { label: 'Working', hidden: false, hasDetails: true, pictureIcon: success, errorIcon: !success, hasPlaceholder: false, errorLabel: success ? 'Generated image' : 'Generated image failed', hasGallery: success, expanded: 'false' },
@@ -2378,66 +2378,75 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	test('mock image generation keeps its prompt dropdown and hands the loader into the reveal', async () => {
-		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
-		const backendSession = URI.parse('remote-provider:/mock-image-session');
-		const toolCall: ToolCallRunningState = {
-			toolCallId: 'mock-image-reveal',
-			toolName: 'generate_image_mock',
-			displayName: 'Generate Image Mock',
-			invocationMessage: 'Generating image',
-			status: ToolCallStatus.Running,
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-			toolInput: '{"prompt":"Draw a puppy"}',
-		};
-		const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
-		model.acceptResponseProgress(request, tool);
-		renderer.renderElement(node, 0, template);
-		const loader = template.value.querySelector('.chat-image-generation-line');
-		const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
-		const running = {
-			hasDropdown: !!dropdown,
-			loaderBeforeDropdown: !!loader && !!dropdown && !!(loader.compareDocumentPosition(dropdown) & Node.DOCUMENT_POSITION_FOLLOWING),
-			toolIcons: template.value.querySelectorAll('.chat-tool-call-icon').length,
-		};
-		dropdown?.click();
-		tool.acceptProgress({ message: 'Generating image' });
-		const expanded = dropdown?.getAttribute('aria-expanded');
-		const sameLoader = template.value.querySelector('.chat-image-generation-line') === loader;
+	for (const toolName of ['image_generation', 'image_gen.imagegen', 'generate_image_mock']) {
+		test(`${toolName} uses the final glyph preset and hands its loader into the reveal without replaying history`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const backendSession = URI.parse('remote-provider:/image-session');
+			const toolCall: ToolCallRunningState = {
+				toolCallId: 'image-reveal',
+				toolName,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+			};
+			const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const loader = template.value.querySelector('.chat-image-generation-line');
+			assert.ok(loader);
+			const style = mainWindow.getComputedStyle(loader);
+			const glyph = loader.querySelector('.chat-image-loading-glyphs');
+			assert.ok(glyph);
+			const preset = { width: style.width, height: style.height, glyphSize: mainWindow.getComputedStyle(glyph).fontSize };
+			const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			const running = {
+				hasDropdown: !!dropdown,
+				loaderBeforeDropdown: !!loader && !!dropdown && !!(loader.compareDocumentPosition(dropdown) & Node.DOCUMENT_POSITION_FOLLOWING),
+				toolIcons: template.value.querySelectorAll('.chat-tool-call-icon').length,
+			};
+			dropdown?.click();
+			tool.acceptProgress({ message: 'Generating image' });
+			const expanded = dropdown?.getAttribute('aria-expanded');
+			const sameLoader = template.value.querySelector('.chat-image-generation-line') === loader;
 
-		finalizeToolInvocation(tool, {
-			...toolCall,
-			status: ToolCallStatus.Completed,
-			success: true,
-			pastTenseMessage: 'Generated image',
-			content: [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }],
-		}, backendSession, 'remote');
-		const hasReveal = !!template.value.querySelector('.chat-image-reveal');
-		request.response?.complete();
-		const restored = createPersistentProgressRenderer();
-		restored.model.acceptResponseProgress(restored.request, tool.toJSON());
-		restored.request.response?.complete();
-		restored.renderer.renderElement(restored.node, 0, restored.template);
-		await timeout(0);
+			finalizeToolInvocation(tool, {
+				...toolCall,
+				status: ToolCallStatus.Completed,
+				success: true,
+				pastTenseMessage: 'Generated image',
+				content: [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }],
+			}, backendSession, 'remote');
+			const hasReveal = !!template.value.querySelector('.chat-image-reveal');
+			request.response?.complete();
+			const restored = createPersistentProgressRenderer();
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+			restored.request.response?.complete();
+			restored.renderer.renderElement(restored.node, 0, restored.template);
+			await timeout(0);
 
-		assert.deepStrictEqual({
-			running,
-			expanded,
-			sameLoader,
-			hasReveal,
-			restoredHasReveal: !!restored.template.value.querySelector('.chat-image-reveal'),
-			restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
-			restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
-		}, {
-			running: { hasDropdown: true, loaderBeforeDropdown: true, toolIcons: 0 },
-			expanded: 'true',
-			sameLoader: true,
-			hasReveal: true,
-			restoredHasReveal: false,
-			restoredHasDropdown: true,
-			restoredImages: 1,
+			assert.deepStrictEqual({
+				preset,
+				running,
+				expanded,
+				sameLoader,
+				hasReveal,
+				restoredHasReveal: !!restored.template.value.querySelector('.chat-image-reveal'),
+				restoredHasDropdown: !!restored.template.value.querySelector('.chat-confirmation-widget-title'),
+				restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
+			}, {
+				preset: { width: '320px', height: '50px', glyphSize: '10px' },
+				running: { hasDropdown: true, loaderBeforeDropdown: false, toolIcons: 1 },
+				expanded: 'true',
+				sameLoader: true,
+				hasReveal: true,
+				restoredHasReveal: false,
+				restoredHasDropdown: true,
+				restoredImages: 1,
+			});
 		});
-	});
+	}
 
 	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		test(`image model attribution updates the running dropdown and survives history with progress ${persistentProgress}`, async () => {
@@ -2508,7 +2517,7 @@ suite('ChatListRenderer', () => {
 					sameDropdown: true,
 					expanded: 'true',
 					input: [toolCall.toolInput],
-					footer: persistentProgress === ChatProgressAnimation.Off ? undefined : 'Creating image',
+					footer: persistentProgress === ChatProgressAnimation.Off ? undefined : 'Mixing the colors',
 					shimmer: false,
 					links: 0,
 				},
@@ -2516,6 +2525,58 @@ suite('ChatListRenderer', () => {
 				restored: expectedTitle,
 			});
 		});
+	}
+
+	for (const persistentProgress of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
+		for (const expanded of [false, true]) {
+			test(`image tool spacing matches running and completed states (progress=${persistentProgress}, expanded=${expanded})`, async () => {
+				const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer({ persistentProgress });
+				configurePersistentProgressTypography(container, 13);
+				const imageLoaded = new DeferredPromise<void>();
+				disposables.add(toDisposable(() => { void imageLoaded.complete(); }));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						const file = await super.readFile(resource);
+						await imageLoaded.p;
+						return file;
+					}
+				}()));
+				const backendSession = URI.parse('remote-provider:/image-spacing-session');
+				const toolCall: ToolCallRunningState = {
+					toolCallId: 'image-spacing',
+					toolName: 'image_generation',
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					toolInput: '{"prompt":"Draw a puppy"}',
+				};
+				const tool = toolCallStateToInvocation(toolCall, undefined, backendSession, 'remote');
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+				if (expanded) {
+					template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title')!.click();
+				}
+				const gap = () => {
+					const details = template.value.querySelector('.chat-confirmation-widget')!;
+					const band = template.value.querySelector('.chat-image-generation-line')!;
+					return Math.round(band.getBoundingClientRect().top - details.getBoundingClientRect().bottom);
+				};
+				const runningGap = gap();
+				finalizeToolInvocation(tool, {
+					...toolCall,
+					status: ToolCallStatus.Completed,
+					success: true,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/spacing.png', contentType: 'image/png' }],
+				}, backendSession, 'remote');
+				assert.deepStrictEqual({
+					runningGap,
+					completedGap: gap(),
+					expanded: template.value.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+				}, { runningGap: 16, completedGap: 16, expanded: String(expanded) });
+			});
+		}
 	}
 
 	test('image prompt streaming and execution keep the dropdown expanded without restarting the canvas', async () => {
@@ -2528,7 +2589,7 @@ suite('ChatListRenderer', () => {
 		tool.updatePartialInput({ prompt: 'Draw a' });
 		model.acceptResponseProgress(request, tool);
 		renderer.renderElement(node, 0, template);
-		const canvas = template.value.querySelector('canvas.chat-image-generation-field');
+		const canvas = template.value.querySelector('canvas.chat-image-loading-glyphs');
 		const dropdown = () => template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
 		const input = () => instantiationService.get(ICodeEditorService).listCodeEditors()
 			.filter(editor => template.value.contains(editor.getDomNode())).map(editor => editor.getValue());
@@ -2555,7 +2616,7 @@ suite('ChatListRenderer', () => {
 			runningInput: input(),
 			expanded: dropdown()?.getAttribute('aria-expanded'),
 			title: dropdown()?.textContent?.replace(/\u00a0/g, ' ').trim(),
-			sameCanvas: canvas === template.value.querySelector('canvas.chat-image-generation-field'),
+			sameCanvas: canvas === template.value.querySelector('canvas.chat-image-loading-glyphs'),
 			shimmer: !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress'),
 		}, {
 			streamingInput: [JSON.stringify({ prompt: 'Draw a' }, null, 2)],
@@ -2611,6 +2672,55 @@ suite('ChatListRenderer', () => {
 			restored.renderer.renderElement(restored.node, 0, restored.template);
 			const expected = { title: success ? 'Generated image' : 'Generated image failed', errorIcon: !success, images: success ? 1 : 0, waves: 0, progressText: false };
 			assert.deepStrictEqual({ live, restored: snapshot(restored.template.value) }, { live: expected, restored: expected });
+		});
+	}
+
+	for (const firstToFinish of [0, 1]) {
+		test(`two successful image calls keep both images and cached geometry when call ${firstToFinish} finishes first`, async () => {
+			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const images = [0, 1].map(index => {
+				const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 800 + index * 100, height: 1200 });
+				return canvas.toDataURL('image/png').split(',')[1];
+			});
+			const tools = images.map((_, index) => new ChatToolInvocation({
+				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
+			}, {
+				id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal,
+			}, `gallery-image-${index}`, undefined, {}, {}, request.id));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const counts: number[] = [];
+			let reservedKnownImage = false;
+			for (const [step, index] of [firstToFinish, 1 - firstToFinish].entries()) {
+				await tools[index].didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: images[index], mimeType: 'image/png' }] },
+				});
+				renderer.renderElement(node, 0, template);
+				const galleryImages = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
+				counts.push(galleryImages.length);
+				if (step === 1) {
+					const knownImage = galleryImages[firstToFinish];
+					reservedKnownImage = !!knownImage && knownImage.getBoundingClientRect().height > 0 && knownImage.style.width !== '';
+				}
+				await Promise.all(galleryImages.map(image => image.decode()));
+				await retry(async () => assert.ok(galleryImages.every(image => image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false')), 10, 50);
+			}
+			assert.deepStrictEqual({
+				counts,
+				reservedKnownImage,
+				galleries: template.value.querySelectorAll('.chat-generated-image-result').length,
+				sourceMatches: [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')].map((image, index) => image.src === `data:image/png;base64,${images[index]}`),
+			}, {
+				counts: [1, 2],
+				reservedKnownImage: true,
+				galleries: 1,
+				sourceMatches: [true, true],
+			});
 		});
 	}
 
@@ -2688,8 +2798,8 @@ suite('ChatListRenderer', () => {
 					restored.request.response?.complete();
 					restored.renderer.renderElement(restored.node, 0, restored.template);
 
-					const generating = { disclosures: 2, placeholders: 1, galleries: 0, failures: [], progress: 'Creating image' };
-					const partlyFinished = { disclosures: 2, placeholders: 1, galleries: firstResultSuccess ? 1 : 0, failures: firstResultSuccess ? [] : ['Generated image failed'], progress: 'Creating image' };
+					const generating = { disclosures: 2, placeholders: 1, galleries: 0, failures: [], progress: 'Mixing the colors' };
+					const partlyFinished = { disclosures: 2, placeholders: 1, galleries: firstResultSuccess ? 1 : 0, failures: firstResultSuccess ? [] : ['Generated image failed'], progress: 'Mixing the colors' };
 					const finished = { disclosures: 2, placeholders: 0, galleries: 1, failures: ['Generated image failed'], progress: 'Working' };
 					assert.deepStrictEqual({
 						observations,
@@ -2824,7 +2934,7 @@ suite('ChatListRenderer', () => {
 	});
 
 	for (const width of [280, 760]) {
-		test(`image generation placeholder is a little wider than tall, fits a ${width}px chat, fades toward its corners, animates while visible, and holds still with reduced motion or high contrast`, async () => {
+		test(`image generation uses a compact glyph band in a ${width}px chat, animates while visible, and holds still with reduced motion or high contrast`, async () => {
 			const disposables = store.add(new DisposableStore());
 			const container = dom.append(mainWindow.document.body, dom.$('div'));
 			disposables.add(toDisposable(() => container.remove()));
@@ -2844,9 +2954,9 @@ suite('ChatListRenderer', () => {
 				{ id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
 				'image-placeholder', undefined, {},
 			);
-			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool, false));
+			const placeholder = disposables.add(instantiationService.createInstance(ChatImageGenerationProgressPart, tool));
 			container.appendChild(placeholder.domNode);
-			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-generation-field');
+			const field = placeholder.domNode.querySelector<HTMLCanvasElement>('canvas.chat-image-loading-glyphs');
 			assert.ok(field);
 
 			const targetWindow = dom.getWindow(field);
@@ -2878,9 +2988,6 @@ suite('ChatListRenderer', () => {
 			await frames(2);
 			const bounds = field.getBoundingClientRect();
 			const painted = paintedPixels() > 0;
-			const corner = Math.round(field.width * 0.04);
-			const emptyCorners = [[0, 0], [field.width - corner, 0], [0, field.height - corner], [field.width - corner, field.height - corner]]
-				.every(([x, y]) => paintedPixels(x, y, corner, corner) === 0);
 			const animates = await changesWithin(120);
 
 			container.style.display = 'none';
@@ -2900,8 +3007,7 @@ suite('ChatListRenderer', () => {
 			const holdsStillWithHighContrast = !await changesWithin(10);
 
 			assert.deepStrictEqual({
-				fits: bounds.width > 0 && bounds.width <= width && bounds.width <= 500 && bounds.height <= 400,
-				aspectRatio: Math.round(bounds.width / bounds.height * 100) / 100,
+				dimensions: [bounds.width, bounds.height],
 				devicePixels: field.width === Math.round(bounds.width * targetWindow.devicePixelRatio),
 				painted,
 				animates,
@@ -2910,10 +3016,9 @@ suite('ChatListRenderer', () => {
 				holdsStillWithReducedMotion,
 				holdsStillWithHighContrast,
 				highContrastUsesSolidColors: highContrastFrame !== stillFrame,
-				emptyCorners,
 				semantics: [placeholder.domNode.getAttribute('role'), placeholder.domNode.getAttribute('aria-label'), placeholder.domNode.getAttribute('aria-busy'), field.parentElement?.getAttribute('aria-hidden')],
 				focusTargets: placeholder.domNode.querySelectorAll('button, a, [tabindex]').length,
-			}, { fits: true, aspectRatio: 1.25, devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, emptyCorners: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
+			}, { dimensions: [Math.min(width, 320), 50], devicePixels: true, painted: true, animates: true, pausesWhileHidden: true, resumesWhenShown: true, holdsStillWithReducedMotion: true, holdsStillWithHighContrast: true, highContrastUsesSolidColors: true, semantics: ['img', 'Generating image', 'true', 'true'], focusTargets: 0 });
 		});
 	}
 
@@ -3559,7 +3664,7 @@ suite('ChatListRenderer', () => {
 			await timeout(4000);
 			const secondRotation = part.workingLabel;
 			const restOfCycle: string[] = [];
-			for (let index = 0; index < 4; index++) {
+			for (let index = 0; index < 6; index++) {
 				await timeout(4000);
 				restOfCycle.push(part.workingLabel);
 			}
@@ -3581,17 +3686,18 @@ suite('ChatListRenderer', () => {
 			part.dispose();
 			await timeout(8000);
 			assert.deepStrictEqual({
-				beforeRotation, firstRotation, secondRotation, restOfCycle, announcements, sameLogo, paused, restarted, afterCompletion, activeAfterCompletion,
+				initial, beforeRotation, firstRotation, secondRotation, restOfCycle, announcements, sameLogo, paused, restarted, afterCompletion, activeAfterCompletion,
 			}, {
+				initial: persistent ? 'Mixing the colors' : initial,
 				beforeRotation: initial,
-				firstRotation: persistent ? 'Mixing the colors' : initial,
-				secondRotation: persistent ? 'Sketching the scene' : initial,
-				restOfCycle: persistent ? ['Adding a splash of color', 'Bringing pixels to life', 'Painting the possibilities', 'Creating image'] : [initial, initial, initial, initial],
+				firstRotation: persistent ? 'Sketching the scene' : initial,
+				secondRotation: persistent ? 'Adding a splash of color' : initial,
+				restOfCycle: persistent ? ['Bringing pixels to life', 'Painting the possibilities', 'Laying down the brushstrokes', 'Giving imagination a canvas', 'Turning ideas into pixels', 'Mixing the colors'] : Array.from({ length: 6 }, () => initial),
 				announcements: [initial],
 				sameLogo: true,
 				paused: 'Authentication required',
-				restarted: persistent ? 'Creating image' : initial,
-				afterCompletion: persistent ? 'Creating image' : initial,
+				restarted: persistent ? 'Mixing the colors' : initial,
+				afterCompletion: persistent ? 'Mixing the colors' : initial,
 				activeAfterCompletion: false,
 			});
 		}));
@@ -8277,12 +8383,12 @@ suite('ChatListRenderer', () => {
 							collapsedPreviews: 0,
 							finalStandalone: true,
 							toolDisclosures: 1,
-							headerToolIcons: toolId === 'generate_image_mock' ? 0 : 1,
-							toolIconGutters: toolId === 'generate_image_mock' ? 0 : 1,
+							headerToolIcons: 1,
+							toolIconGutters: 1,
 							hasGallery: true,
 							galleryInsideSteps: false,
 							galleryBeforeFinalMessage: true,
-							galleryBeforeDisclosure: toolId === 'generate_image_mock',
+							galleryBeforeDisclosure: false,
 							generatedCollapses: false,
 							restoredCollapses: false,
 							finalCollapsedPreviews: 0,
@@ -8459,17 +8565,27 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const { name, width, imageWidth, imageHeight, imageCount } of [
+	for (const { name, width, imageWidth, imageHeight, imageCount, animate } of [
 		{ name: 'portrait', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1 },
 		{ name: 'landscape', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
 		{ name: 'narrow', width: 320, imageWidth: 1600, imageHeight: 800, imageCount: 1 },
 		{ name: 'gallery', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 2 },
+		{ name: 'portrait reveal', width: 760, imageWidth: 800, imageHeight: 1600, imageCount: 1, animate: true },
+		{ name: 'landscape reveal', width: 760, imageWidth: 1600, imageHeight: 800, imageCount: 1, animate: true },
+		{ name: 'narrow reveal', width: 320, imageWidth: 1600, imageHeight: 800, imageCount: 1, animate: true },
+		{ name: '3:2 landscape reveal', width: 760, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true },
+		{ name: 'fractional-width reveal', width: 320.5, imageWidth: 1536, imageHeight: 1024, imageCount: 1, animate: true },
 	]) {
-		test(`generated image ${name} is height-capped and keeps its download action adjacent`, async () => {
+		test(`generated image ${name} is height-capped and keeps its download action beside it`, async () => {
 			const { disposables, instantiationService, configurationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer();
 			configurePersistentProgressTypography(container, 13);
 			container.style.width = `${width}px`;
 			configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+			if (animate) {
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return false; }
+				}());
+			}
 			const saveAction = instantiationService.createInstance(MenuItemAction, {
 				id: 'workbench.action.chat.saveResources',
 				title: 'Save...',
@@ -8494,6 +8610,10 @@ suite('ChatListRenderer', () => {
 				modelDescription: 'Generate Image',
 				source: ToolDataSource.Internal,
 			}, 'image-layout', undefined, {}, {}, request.id);
+			if (animate) {
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+			}
 			await tool.didExecuteTool({
 				content: [],
 				toolSpecificData: { kind: 'generatedImage' },
@@ -8502,23 +8622,73 @@ suite('ChatListRenderer', () => {
 					output: Array.from({ length: imageCount }, () => ({ type: 'embed' as const, value: imageData, mimeType: 'image/png' })),
 				},
 			});
-			model.acceptResponseProgress(request, tool);
+			if (!animate) {
+				model.acceptResponseProgress(request, tool);
+			}
 			request.response?.complete();
 			renderer.renderElement(node, 0, template);
 
-			await retry(async () => {
-				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
-				assert.ok(images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0));
-			}, 20, 50);
 			const gallery = template.value.querySelector<HTMLElement>('.chat-generated-image-result');
 			const saveButton = gallery?.querySelector<HTMLElement>('.chat-collapsible-io-resource-actions [role="button"]');
 			assert.ok(gallery && saveButton);
+			const group = saveButton.closest('.chat-collapsible-io-resource-group')!;
+			const imageReveal = gallery.querySelector<HTMLElement>('.chat-image-reveal');
+			const revealState = () => ({
+				direction: mainWindow.getComputedStyle(group).flexDirection,
+				actionVisibility: mainWindow.getComputedStyle(saveButton).visibility,
+				actionOnRight: saveButton.getBoundingClientRect().left >= imageReveal!.getBoundingClientRect().right,
+				extraHeight: group.getBoundingClientRect().height - imageReveal!.getBoundingClientRect().height,
+			});
+			const revealStates = animate ? [revealState()] : [];
+			await retry(async () => {
+				const images = [...template.value.querySelectorAll<HTMLImageElement>('.chat-generated-image-result img')];
+				assert.ok(images.length === imageCount && images.every(image => image.complete && image.naturalWidth > 0
+					&& image.closest('.image-attachment')?.getAttribute('aria-busy') === 'false'));
+			}, 20, 50);
+			if (animate) {
+				assert.ok(imageReveal);
+				assert.ok(imageReveal.classList.contains('revealing'));
+				const field = imageReveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs');
+				const clock = field?.getAnimations()[0];
+				assert.ok(clock);
+				const animations = gallery.getAnimations({ subtree: true });
+				for (const fraction of [0, 0.5, 0.9, 1]) {
+					for (const animation of animations) {
+						animation.pause();
+						animation.currentTime = Number(animation.effect?.getTiming().duration) * fraction;
+					}
+					await new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					revealStates.push(revealState());
+				}
+				const bounds = () => {
+					const frame = imageReveal.getBoundingClientRect();
+					const image = gallery.querySelector('img')!.getBoundingClientRect();
+					const action = saveButton.getBoundingClientRect();
+					return {
+						layout: [frame.left, frame.top, frame.width, frame.height, group.getBoundingClientRect().height, template.rowContainer.getBoundingClientRect().height],
+						imageSize: [image.width, image.height],
+						actionPosition: [action.left, action.top],
+					};
+				};
+				const beforeFinish = bounds();
+				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), 100, 50);
+				const afterFinish = bounds();
+				assert.deepStrictEqual({
+					revealStates,
+					finalBounds: afterFinish,
+					actionVisibility: mainWindow.getComputedStyle(saveButton).visibility,
+				}, {
+					revealStates: Array.from({ length: 5 }, () => ({ direction: 'row', actionVisibility: 'hidden', actionOnRight: true, extraHeight: 0 })),
+					finalBounds: beforeFinish,
+					actionVisibility: 'visible',
+				});
+			}
 			const imageRects = [...gallery.querySelectorAll('img')].map(image => image.getBoundingClientRect());
 			const galleryRect = gallery.getBoundingClientRect();
 			const buttonRect = saveButton.getBoundingClientRect();
 			const gap = buttonRect.left - Math.max(...imageRects.map(rect => rect.right));
 			const leftInset = Math.min(...imageRects.map(rect => rect.left)) - galleryRect.left;
-			const centerOffset = Math.abs(buttonRect.top + buttonRect.height / 2 - (imageRects[0].top + imageRects[0].height / 2));
+			const alignmentOffset = Math.abs(buttonRect.top + buttonRect.height / 2 - (imageRects[0].top + imageRects[0].height / 2));
 			saveButton.focus();
 
 			assert.deepStrictEqual({
@@ -8526,7 +8696,7 @@ suite('ChatListRenderer', () => {
 				aspectRatioPreserved: imageRects.every(rect => Math.abs(rect.width / rect.height - imageWidth / imageHeight) < 0.01),
 				leftAligned: leftInset >= 0 && leftInset <= 2,
 				adjacent: gap >= 8 && gap <= 10,
-				verticallyCenteredAction: centerOffset <= 1,
+				actionAligned: alignmentOffset <= 1,
 				noOverflow: buttonRect.right <= galleryRect.right + 1,
 				keyboardAccessible: mainWindow.document.activeElement === saveButton,
 			}, {
@@ -8534,7 +8704,7 @@ suite('ChatListRenderer', () => {
 				aspectRatioPreserved: true,
 				leftAligned: true,
 				adjacent: true,
-				verticallyCenteredAction: true,
+				actionAligned: true,
 				noOverflow: true,
 				keyboardAccessible: true,
 			});

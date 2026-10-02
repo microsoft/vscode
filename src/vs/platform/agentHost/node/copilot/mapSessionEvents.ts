@@ -102,14 +102,6 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 					contentType: sdkContent.mimeType,
 				});
 				break;
-			case 'resource_link':
-				content.push({
-					type: ToolResultContentType.Resource,
-					uri: sdkContent.uri,
-					contentType: sdkContent.mimeType,
-					sizeHint: sdkContent.size,
-				});
-				break;
 			case 'shell_exit': {
 				const result: TerminalCommandResult = {
 					exitCode: sdkContent.exitCode,

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../../base/browser/dom.js';
-import { synchronizeCSSAnimations } from '../../../../../../../base/browser/animationSync.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
@@ -13,10 +12,9 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatImageRevealOrigin } from '../../../attachments/chatImageReveal.js';
-import { ChatImageLoadingSurfaces } from '../../../attachments/chatImageLoadingSurfaces.js';
+import { GlyphSurface } from '../../../attachments/chatImageGlyphSurface.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
-import { ImageGenerationFieldCanvas } from './chatImageGenerationFieldCanvas.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { createImageGenerationLabel, getImageGenerationInvocationMessage } from './chatToolPartUtilities.js';
 import '../media/chatImageGenerationProgressPart.css';
@@ -89,7 +87,7 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 	}
 
 	public getRevealOrigin(container: HTMLElement): IChatImageRevealOrigin | undefined {
-		return this.animation.value?.getRevealOrigin(container);
+		return this.animation.value ? { container } : undefined;
 	}
 
 	public setShowAnimation(show: boolean): void {
@@ -97,12 +95,8 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 			return;
 		}
 		if (show) {
-			const animation = this.animation.value = this.instantiationService.createInstance(ChatImageGenerationProgressPart, this.toolInvocation, false);
-			if (this.toolInvocation.toolId === 'generate_image_mock') {
-				this.domNode.prepend(animation.domNode);
-			} else {
-				this.domNode.appendChild(animation.domNode);
-			}
+			const animation = this.animation.value = this.instantiationService.createInstance(ChatImageGenerationProgressPart, this.toolInvocation);
+			this.domNode.appendChild(animation.domNode);
 		} else {
 			this.animation.value?.domNode.remove();
 			this.animation.clear();
@@ -114,35 +108,16 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 export class ChatImageGenerationProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
-	private readonly line: HTMLElement | undefined;
 
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
-		showLabel: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(toolInvocation);
 
 		const label = localize('chat.imageGeneration.placeholder', "Generating image");
 		this.domNode = dom.$('.chat-image-generation-placeholder', { role: 'img', 'aria-label': label, 'aria-busy': 'true' });
-		if (toolInvocation.toolId === 'generate_image_mock') {
-			const line = this.line = dom.append(this.domNode, dom.$('.chat-image-generation-line', { 'aria-hidden': 'true' }));
-			this._register(dom.addDisposableListener(line, 'animationstart', () => synchronizeCSSAnimations(line, { subtree: true })));
-			this._register(instantiationService.createInstance(ChatImageLoadingSurfaces, line));
-			return;
-		}
-
-		if (showLabel) {
-			dom.append(this.domNode, dom.$('.chat-image-generation-label', { 'aria-hidden': 'true' }, label));
-		}
-		const canvas = dom.append(this.domNode, dom.$('.chat-image-generation-canvas', { 'aria-hidden': 'true' }));
-		this._register(instantiationService.createInstance(ImageGenerationFieldCanvas, canvas, toolInvocation.toolCallId));
-	}
-
-	getRevealOrigin(container: HTMLElement): IChatImageRevealOrigin | undefined {
-		if (!this.line) {
-			return undefined;
-		}
-		return { container };
+		const line = dom.append(this.domNode, dom.$('.chat-image-generation-line', { 'aria-hidden': 'true' }));
+		this._register(instantiationService.createInstance(GlyphSurface, line));
 	}
 }

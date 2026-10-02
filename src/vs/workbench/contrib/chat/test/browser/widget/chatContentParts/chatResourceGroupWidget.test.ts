@@ -9,8 +9,11 @@ import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
 import { decodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
@@ -42,11 +45,11 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	});
 
-	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false): ChatResourceGroupWidget {
-		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-mock' : 'div'));
+	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>): ChatResourceGroupWidget {
+		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-single' : 'div'));
 		const container = dom.append(host, dom.$(inline ? '.chat-generated-image-result' : 'div'));
 		const imageReveal = animateImageReveal ? { container: host } : undefined;
-		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal } : undefined));
+		const widget = store.add(instantiationService.createInstance(ChatResourceGroupWidget, parts, inline ? { imagePresentation: 'inline', showImageInHover: false, imageReveal, imageDimensions } : undefined));
 		container.appendChild(widget.domNode);
 		store.add(toDisposable(() => host.remove()));
 		return widget;
@@ -77,7 +80,7 @@ suite('ChatResourceGroupWidget', () => {
 		};
 	}
 
-	test('inline images start loading synchronously without decoding a thumbnail', async () => {
+	test('inline base64 images use the browser decoder without creating a JavaScript byte copy', async () => {
 		const canvas = mainWindow.document.createElement('canvas');
 		canvas.width = 1200;
 		canvas.height = 600;
@@ -90,12 +93,14 @@ suite('ChatResourceGroupWidget', () => {
 
 		assert.deepStrictEqual({
 			initial,
+			browserSource: image.src === `data:image/png;base64,${base64Value}`,
 			final: snapshot(widget),
 			dimensions: [image.naturalWidth, image.naturalHeight],
 			hoverImages: imageHovers.flatMap(hover => [...hover.querySelectorAll('img')]).length,
 			status: widget.domNode.querySelector('.chat-attached-context-image-status')?.textContent,
 		}, {
 			initial: { images: 1, filePills: 0, warnings: 0, busy: 'true', error: false, hasSource: true },
+			browserSource: true,
 			final: { images: 1, filePills: 0, warnings: 0, busy: 'false', error: false, hasSource: true },
 			dimensions: [1200, 600],
 			hoverImages: 0,
@@ -128,6 +133,78 @@ suite('ChatResourceGroupWidget', () => {
 		});
 	});
 
+	for (const [width, height] of [[800, 1600], [1600, 800]]) {
+		test(`known image dimensions reserve responsive space until a ${width}x${height} image reloads`, async () => {
+			const canvas = dom.$<HTMLCanvasElement>('canvas', { width, height });
+			const base64Value = canvas.toDataURL('image/png').split(',')[1];
+			const imageDimensions = new ResourceMap<dom.IDimension>();
+			const first = render([{ kind: 'data', uri: resource, mimeType: 'image/png', base64Value }], true, false, imageDimensions);
+			const firstImage = first.domNode.querySelector<HTMLImageElement>('img')!;
+			await retry(async () => assert.ok(firstImage.complete && snapshot(first).busy === 'false'), 20, 50);
+			first.dispose();
+
+			const { content } = deferImageRead();
+			const next = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, false, imageDimensions);
+			const host = next.domNode.parentElement!;
+			const image = next.domNode.querySelector<HTMLImageElement>('img')!;
+			const bounds = () => {
+				const rect = image.getBoundingClientRect();
+				return [rect.width, rect.height];
+			};
+			host.style.width = '400px';
+			const wide = bounds();
+			host.style.width = '120px';
+			const narrow = bounds();
+			const pending = {
+				reserved: narrow[0] > 0 && narrow[1] > 0,
+				resized: narrow[0] < wide[0] && narrow[1] < wide[1],
+				visibility: mainWindow.getComputedStyle(image).visibility,
+				status: mainWindow.getComputedStyle(next.domNode.querySelector('.chat-attached-context-image-status')!).display,
+				busy: snapshot(next).busy,
+			};
+			await content.complete(decodeBase64(base64Value));
+			await retry(async () => assert.ok(image.complete && snapshot(next).busy === 'false'), 20, 50);
+			assert.deepStrictEqual({
+				pending,
+				stableDimensions: bounds().every((value, index) => Math.abs(value - narrow[index]) <= 1),
+				naturalDimensions: imageDimensions.get(resource),
+				visibility: mainWindow.getComputedStyle(image).visibility,
+				sizeHintCleared: image.style.width === '' && image.style.maxWidth === '' && image.style.aspectRatio === '',
+			}, {
+				pending: { reserved: true, resized: true, visibility: 'hidden', status: 'none', busy: 'true' },
+				stableDimensions: true,
+				naturalDimensions: { width, height },
+				visibility: 'visible',
+				sizeHintCleared: true,
+			});
+		});
+	}
+
+	test('a failed image reload clears remembered dimensions and shows its error', async () => {
+		const imageDimensions = new ResourceMap<dom.IDimension>([[resource, { width: 800, height: 1200 }]]);
+		const { content } = deferImageRead();
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, false, imageDimensions);
+		await content.error(new Error('The image is no longer available.'));
+		await retry(async () => assert.strictEqual(snapshot(widget).error, true), 10, 50);
+		const image = widget.domNode.querySelector<HTMLImageElement>('img')!;
+		const status = widget.domNode.querySelector<HTMLElement>('.chat-attached-context-image-status')!;
+		assert.deepStrictEqual({
+			cached: imageDimensions.has(resource),
+			sizeHintCleared: image.style.width === '' && image.style.maxWidth === '' && image.style.aspectRatio === '',
+			visibleError: !!status.textContent && mainWindow.getComputedStyle(status).display !== 'none',
+			hiddenImage: mainWindow.getComputedStyle(image).display === 'none',
+		}, { cached: false, sizeHintCleared: true, visibleError: true, hiddenImage: true });
+	});
+
+	test('a changed referenced image replaces its remembered natural dimensions', async () => {
+		const imageDimensions = new ResourceMap<dom.IDimension>([[resource, { width: 800, height: 1200 }]]);
+		const { content } = deferImageRead();
+		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, false, imageDimensions);
+		await content.complete(decodeBase64(imageData));
+		await retry(async () => assert.strictEqual(snapshot(widget).busy, 'false'), 20, 50);
+		assert.deepStrictEqual(imageDimensions.get(resource), { width: 1, height: 1 });
+	});
+
 	test('a slow referenced image does not delay embedded images in the same gallery', async () => {
 		const { content } = deferImageRead();
 		const widget = render([
@@ -147,13 +224,12 @@ suite('ChatResourceGroupWidget', () => {
 		}, { beforeReferenceLoads: [false, true], sameImages: true });
 	});
 
-	test('the comet stays pending until referenced image bytes load', async () => {
+	test('the glyph band stays pending until referenced image bytes load', async () => {
 		const { content } = deferImageRead();
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true);
 		const container = widget.domNode.parentElement!;
 		container.classList.add('interactive-session');
 		container.style.setProperty('--vscode-strokeThickness', '1px');
-		container.style.setProperty('--chat-image-loading-width', '400px');
 		const reveal = widget.domNode.querySelector('.chat-image-reveal')!;
 		const image = reveal.querySelector<HTMLImageElement>('img')!;
 		const initial = { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, hasSource: !!image.getAttribute('src'), width: reveal.getBoundingClientRect().width };
@@ -164,12 +240,70 @@ suite('ChatResourceGroupWidget', () => {
 			initial,
 			loaded: { pending: reveal.classList.contains('pending'), busy: snapshot(widget).busy, sameImage: reveal.querySelector('img') === image },
 		}, {
-			initial: { pending: true, busy: 'true', hasSource: false, width: 400 },
+			initial: { pending: true, busy: 'true', hasSource: false, width: 320 },
 			loaded: { pending: false, busy: 'false', sameImage: true },
 		});
 	});
 
-	test('an image read failure removes the comet and keeps the error visible', async () => {
+	for (const width of [320, 760]) {
+		test(`the glyph band stays painted while image bytes load and the reveal expands in a ${width}px container`, async () => {
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}());
+			const { content } = deferImageRead();
+			const imageDimensions = new ResourceMap<dom.IDimension>([[resource, { width: 400, height: 240 }]]);
+			const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true, imageDimensions);
+			const host = widget.domNode.parentElement!.parentElement!;
+			host.style.width = `${width}px`;
+			const reveal = widget.domNode.querySelector<HTMLElement>('.chat-image-reveal')!;
+			const field = reveal.querySelector<HTMLCanvasElement>('.chat-image-loading-glyphs')!;
+			const frame = () => new Promise<void>(resolve => store.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			const bandState = () => {
+				const bounds = reveal.getBoundingClientRect();
+				const visible = bounds.width > 0 && bounds.width <= width && bounds.height > 0;
+				let painted = false;
+				if (visible && field.clientWidth && field.clientHeight) {
+					const paintWidth = Math.min(field.width, Math.ceil(bounds.width * field.width / field.clientWidth));
+					const paintHeight = Math.min(field.height, Math.ceil(bounds.height * field.height / field.clientHeight));
+					const pixels = field.getContext('2d')!.getImageData(0, 0, paintWidth, paintHeight).data;
+					painted = pixels.some((value, index) => index % 4 === 3 && value > 0);
+				}
+				return { visible, painted };
+			};
+			await frame();
+			await frame();
+			const waiting = bandState();
+			const waitingHeight = reveal.getBoundingClientRect().height;
+			const canvas = dom.$<HTMLCanvasElement>('canvas', { width: 400, height: 240 });
+			const context = canvas.getContext('2d')!;
+			context.fillStyle = '#4682b4';
+			context.fillRect(0, 0, canvas.width, canvas.height);
+			await content.complete(decodeBase64(canvas.toDataURL('image/png').split(',')[1]));
+			await retry(async () => assert.ok(reveal.classList.contains('revealing')), 20, 50);
+			const clock = field.getAnimations()[0];
+			assert.ok(clock);
+			clock.pause();
+			const states = [];
+			for (const fraction of [0, 0.05, 0.2, 0.5]) {
+				clock.currentTime = Number(clock.effect?.getTiming().duration) * fraction;
+				await frame();
+				states.push(bandState());
+			}
+			assert.deepStrictEqual({
+				waiting,
+				waitingHeight,
+				sameField: reveal.querySelector('.chat-image-loading-glyphs') === field,
+				expansion: states,
+			}, {
+				waiting: { visible: true, painted: true },
+				waitingHeight: 50,
+				sameField: true,
+				expansion: Array.from({ length: 4 }, () => ({ visible: true, painted: true })),
+			});
+		});
+	}
+
+	test('an image read failure removes the glyph band and keeps the error visible', async () => {
 		const { content } = deferImageRead();
 		const widget = render([{ kind: 'data', uri: resource, mimeType: 'image/png' }], true, true);
 		await content.error(new Error('The generated image file is unavailable.'));
@@ -179,7 +313,7 @@ suite('ChatResourceGroupWidget', () => {
 		assert.deepStrictEqual({
 			error: snapshot(widget).error,
 			pending: widget.domNode.querySelectorAll('.chat-image-reveal.pending, .chat-image-generation-line').length,
-			effects: widget.domNode.querySelectorAll('.chat-image-reveal-trace, .chat-image-reveal-blur, .chat-image-reveal-scan').length,
+			effects: widget.domNode.querySelectorAll('.chat-image-loading-glyphs').length,
 			visibleError: !!status.textContent && mainWindow.getComputedStyle(status).display !== 'none',
 		}, { error: true, pending: 0, effects: 0, visibleError: true });
 	});
@@ -221,7 +355,7 @@ suite('ChatResourceGroupWidget', () => {
 				filePills: 0,
 				busy: 'false',
 				status: 'Unable to load image: image.png',
-				warnings: base64Value === 'invalid!base64' ? ['Unable to decode generated image'] : [],
+				warnings: [],
 			});
 		});
 	}

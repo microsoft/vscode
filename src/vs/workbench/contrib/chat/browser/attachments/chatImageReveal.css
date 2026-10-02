@@ -3,121 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-@property --chat-image-reveal-position {
-	syntax: '<percentage>';
-	inherits: true;
-	initial-value: 0%;
-}
-
-/* How far the line has traced the frame, from the top-right corner (0) back to its start (1). */
-@property --chat-image-reveal-trace {
-	syntax: '<number>';
-	inherits: true;
-	initial-value: 0;
-}
-
-/* The band's width is fixed while the image generates, since its size is not known until it arrives. */
-.chat-image-generation-line,
-.chat-image-reveal.pending,
-.chat-image-generation-mock .chat-generated-image-result {
-	width: min(100%, var(--chat-image-loading-width, min(60vh, 400px)));
-}
-
 .chat-image-generation-line {
 	position: relative;
+	width: 320px;
 	max-width: 100%;
-	height: var(--chat-image-loading-height, var(--vscode-strokeThickness));
+	height: 50px;
 	overflow: hidden;
-	background: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 18%, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
 }
 
-.chat-image-generation-line::before {
-	content: '';
-	position: absolute;
-	inset: 0 auto 0 0;
-	width: 36%;
-	height: var(--vscode-strokeThickness);
-	pointer-events: none;
-	background: linear-gradient(90deg,
-		transparent,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 30%, transparent) 45%,
-		var(--vscode-chat-inputWorkingBorderColor1) 82%,
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 70%, var(--vscode-editor-foreground)) 88%,
-		transparent);
-	animation: chat-image-generation-line-travel calc(3.2s * var(--chat-image-motion-scale, 1)) linear infinite;
-}
-
-@keyframes chat-image-generation-line-travel {
-	from { transform: translateX(-100%); }
-	to { transform: translateX(280%); }
-}
-
-/* Band loaders: only the image's width is known while it generates, so each band has a fixed height. */
-.chat-image-loading-band {
-	display: none;
+.chat-image-loading-glyphs {
+	display: block;
 	position: absolute;
 	top: 0;
 	left: 0;
 	width: 100%;
-	height: var(--chat-image-loading-height);
-	pointer-events: none;
-}
-
-.chat-image-loading-dither {
-	image-rendering: pixelated;
-}
-
-.chat-image-loading-glyphs {
+	height: 50px;
 	font-family: var(--monaco-monospace-font, monospace);
-	font-size: var(--chat-image-glyph-size, var(--vscode-fontSize-label3, 10px));
-}
-
-.chat-image-line-variant-dither {
-	--chat-image-loading-height: 40px;
-}
-
-.chat-image-line-variant-glyphs {
-	--chat-image-loading-height: 50px;
-}
-
-.chat-image-line-variant-dither .chat-image-loading-dither,
-.chat-image-line-variant-glyphs .chat-image-loading-glyphs {
-	display: block;
-}
-
-:is(.chat-image-line-variant-dither, .chat-image-line-variant-glyphs) .chat-image-generation-line {
-	background: transparent;
-	border-radius: var(--vscode-cornerRadius-large);
-}
-
-:is(.chat-image-line-variant-dither, .chat-image-line-variant-glyphs) .chat-image-generation-line::before,
-:is(.chat-image-line-variant-dither, .chat-image-line-variant-glyphs) .chat-image-reveal-trace-track {
-	display: none;
-}
-
-.chat-image-reveal.revealing:not(.chat-image-reveal-textured) .chat-image-loading-band {
-	animation: chat-image-reveal-band var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-/* Texture reveals carry the band on into a texture derived from the image; the variant names the transition. */
-.chat-image-reveal-variant-dither-resolve {
-	--chat-image-reveal-texture: dither-resolve;
-}
-
-.chat-image-reveal-variant-dither-print {
-	--chat-image-reveal-texture: dither-print;
-}
-
-.chat-image-reveal-variant-dither-bloom {
-	--chat-image-reveal-texture: dither-bloom;
-}
-
-.chat-image-reveal-variant-ascii-resolve {
-	--chat-image-reveal-texture: ascii-resolve;
-}
-
-.chat-image-reveal-variant-ascii-decode {
-	--chat-image-reveal-texture: ascii-decode;
+	font-size: var(--vscode-fontSize-label3, 10px);
+	pointer-events: none;
 }
 
 .chat-image-reveal {
@@ -126,8 +30,10 @@
 	max-width: 100%;
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-large);
-	/* Length of the tracing head's tail, as a fraction of the image width. */
-	--chat-image-reveal-trace-tail: 0.36;
+}
+
+.chat-image-reveal.pending {
+	width: 320px;
 }
 
 .chat-image-reveal.pending > img {
@@ -139,148 +45,46 @@
 }
 
 .chat-image-reveal.revealing {
-	--chat-image-reveal-trace-drawn: calc(var(--chat-image-reveal-trace-start) + (var(--chat-image-reveal-trace-length) - var(--chat-image-reveal-trace-start)) * var(--chat-image-reveal-trace));
-	--chat-image-reveal-trace-open: clamp(0, var(--chat-image-reveal-trace) / var(--chat-image-reveal-trace-descent), 1);
-	max-width: 100%;
-	flex-shrink: 0;
-	width: var(--chat-image-reveal-width);
-	/* The frame opens ahead of the line tracing its right edge, and settles as the line turns the bottom corner. */
-	height: max(var(--chat-image-loading-height, var(--vscode-strokeThickness)), var(--chat-image-reveal-height) * var(--chat-image-reveal-trace-open) * (2 - var(--chat-image-reveal-trace-open)));
-	background: transparent;
-	animation:
-		chat-image-reveal-trace var(--chat-image-reveal-duration, 2000ms) linear both,
-		chat-image-reveal-scan-position var(--chat-image-reveal-duration, 2000ms) cubic-bezier(0.4, 0, 0.6, 1) both;
-}
-
-.chat-image-reveal.revealing::before {
-	opacity: 0;
-	transition: opacity 200ms ease-out;
+	width: var(--chat-image-reveal-frame-width);
+	height: var(--chat-image-reveal-frame);
 }
 
 .chat-image-reveal.revealing > img {
-	mask-image: linear-gradient(90deg, #000 calc(var(--chat-image-reveal-position) - 8%), transparent calc(var(--chat-image-reveal-position) + 4%));
-	animation: chat-image-reveal-content var(--chat-image-reveal-duration, 2000ms) linear both;
+	opacity: var(--chat-image-reveal-image, 0);
 }
 
-.chat-image-reveal-blur,
-.chat-image-reveal-scan {
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	pointer-events: none;
-}
-
-.chat-image-reveal-blur {
-	background-size: 100% 100%;
-	mask-image: linear-gradient(90deg, transparent calc(var(--chat-image-reveal-position) - 10%), #000 calc(var(--chat-image-reveal-position) + 4%));
-	animation: chat-image-reveal-blur var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-.chat-image-reveal-scan {
-	background: linear-gradient(90deg,
-		transparent calc(var(--chat-image-reveal-position) - 16%),
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 8%, transparent) calc(var(--chat-image-reveal-position) - 6%),
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 32%, transparent) calc(var(--chat-image-reveal-position) + 4%),
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 18%, transparent) calc(var(--chat-image-reveal-position) + 28%),
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 6%, transparent) 100%);
-	animation: chat-image-reveal-content var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-.chat-image-reveal-trace {
-	position: absolute;
-	top: 0;
-	left: 0;
-	overflow: visible;
-	pointer-events: none;
-	fill: none;
-	stroke: var(--vscode-chat-inputWorkingBorderColor1);
-	stroke-width: var(--vscode-strokeThickness);
-	animation: chat-image-reveal-trace-fade var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-/* Each stroke ends at the tracing head and extends its segment length behind it. */
-:is(.chat-image-reveal-trace-line, .chat-image-reveal-trace-head > path) {
-	stroke-dasharray: var(--chat-image-reveal-trace-segment) var(--chat-image-reveal-trace-length);
-	stroke-dashoffset: calc(var(--chat-image-reveal-trace-segment) - var(--chat-image-reveal-trace-drawn));
-}
-
-/* The straight loading line hands off to the frame's rounded top edge. */
-.chat-image-reveal-trace-track {
-	stroke: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 18%, transparent);
-	animation: chat-image-reveal-trace-track var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-.chat-image-reveal-trace-line {
-	--chat-image-reveal-trace-segment: var(--chat-image-reveal-trace-length);
-	stroke: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 75%, transparent);
-	animation: chat-image-reveal-trace-line var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-.chat-image-reveal-trace-head {
-	stroke: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 80%, var(--vscode-editor-foreground));
-	animation: chat-image-reveal-trace-head var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-.chat-image-reveal-trace-tail {
-	--chat-image-reveal-trace-segment: calc(var(--chat-image-reveal-width) * var(--chat-image-reveal-trace-tail));
-	stroke-opacity: 0.4;
-}
-
-.chat-image-reveal-trace-body {
-	--chat-image-reveal-trace-segment: calc(var(--chat-image-reveal-width) * var(--chat-image-reveal-trace-tail) * 0.45);
-	stroke-opacity: 0.7;
-}
-
-.chat-image-reveal-trace-core {
-	--chat-image-reveal-trace-segment: calc(var(--chat-image-reveal-width) * var(--chat-image-reveal-trace-tail) * 0.12);
-	stroke: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-editor-foreground));
-}
-
-:is(.chat-image-reveal-pending, .chat-image-reveal-running) .chat-collapsible-io-resource-group {
-	align-items: flex-start;
-}
-
-.chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-group {
+.chat-image-generation-single .chat-generated-image-result {
 	width: 100%;
-	flex-direction: column;
-	align-items: flex-start;
-}
 
-.chat-image-generation-mock .chat-generated-image-result :is(.chat-collapsible-io-resource-items, .chat-attached-context),
-.chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
-	width: 100%;
-}
+	.chat-collapsible-io-resource-group {
+		width: fit-content;
+		flex-direction: row;
+		align-items: center;
+	}
 
-.chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
-	width: 100%;
-	padding: 0;
-	border: 0;
-}
+	.chat-collapsible-io-resource-items,
+	.chat-attached-context {
+		width: auto;
+	}
 
-.chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
-	width: 100%;
-}
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
+		width: 100%;
+		padding: 0;
+		border: 0;
+	}
 
-.chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-actions {
-	align-self: flex-start;
-}
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		width: 100%;
+	}
 
-/*
- * Images keep their own size, as in the product, rather than the band's width, so a texture
- * reveal's frame grows or narrows from the band to the image's width as well as its height. The
- * image's width is capped by its column rather than by the band that it is pending inside.
- */
-.chat-image-natural-size .chat-image-generation-mock .chat-generated-image-result {
-	width: 100%;
-}
+	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
+		width: auto;
+		max-width: 100%;
+	}
 
-.chat-image-natural-size .chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-items {
-	container-type: inline-size;
-}
-
-.chat-image-natural-size .chat-image-generation-mock .chat-generated-image-result .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
-	width: auto;
-	max-width: 100cqi;
+	.chat-collapsible-io-resource-actions {
+		align-self: center;
+	}
 }
 
 :is(.chat-image-reveal-pending, .chat-image-reveal-running) .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
@@ -288,134 +92,6 @@
 	border-color: transparent;
 }
 
-.chat-image-reveal-pending :is(.chat-confirmation-widget-title, .chat-tool-call-icon, .chat-collapsible-io-resource-actions) {
+:is(.chat-image-reveal-pending, .chat-image-reveal-running) .chat-collapsible-io-resource-actions {
 	visibility: hidden;
-}
-
-.chat-image-reveal-running :is(.chat-confirmation-widget-title, .chat-tool-call-icon, .chat-collapsible-io-resource-actions) {
-	animation: chat-image-reveal-chrome var(--chat-image-reveal-duration, 2000ms) linear both;
-}
-
-/* One eased stroke: the line leaves its right corner at its loading pace, sweeps around, and returns to its start at that same pace. */
-@keyframes chat-image-reveal-trace {
-	0% {
-		--chat-image-reveal-trace: 0;
-		animation-timing-function: cubic-bezier(0.5, 0.05, 0.5, 0.95);
-	}
-	60%, 100% {
-		--chat-image-reveal-trace: 1;
-	}
-}
-
-@keyframes chat-image-reveal-trace-track {
-	0% { opacity: 1; }
-	10%, 100% { opacity: 0; }
-}
-
-@keyframes chat-image-reveal-trace-line {
-	0% { opacity: 0; }
-	10%, 100% { opacity: 1; }
-}
-
-@keyframes chat-image-reveal-trace-head {
-	0% { opacity: 0; }
-	5%, 56% { opacity: 1; }
-	64%, 100% { opacity: 0; }
-}
-
-@keyframes chat-image-reveal-trace-fade {
-	0%, 86% { opacity: 1; }
-	100% { opacity: 0; }
-}
-
-@keyframes chat-image-reveal-scan-position {
-	0%, 60% { --chat-image-reveal-position: 0%; }
-	100% { --chat-image-reveal-position: 128%; }
-}
-
-@keyframes chat-image-reveal-content {
-	0%, 60% { opacity: 0; }
-	70%, 100% { opacity: 1; }
-}
-
-@keyframes chat-image-reveal-blur {
-	0%, 60% { opacity: 0; filter: blur(12px); }
-	70% { opacity: 1; filter: blur(9px); }
-	100% { opacity: 1; filter: blur(2px); }
-}
-
-@keyframes chat-image-reveal-chrome {
-	0%, 84% { opacity: 0; visibility: hidden; }
-	100% { opacity: 1; visibility: visible; }
-}
-
-.chat-image-reveal-variant-frosted-scan .chat-image-reveal-blur {
-	animation-name: chat-image-reveal-frost;
-}
-
-.chat-image-reveal-variant-frosted-scan .chat-image-reveal-scan {
-	background: linear-gradient(90deg,
-		transparent calc(var(--chat-image-reveal-position) - 18%),
-		color-mix(in srgb, var(--vscode-editor-foreground) 12%, transparent) calc(var(--chat-image-reveal-position) - 2%),
-		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 12%, transparent) calc(var(--chat-image-reveal-position) + 8%),
-		transparent calc(var(--chat-image-reveal-position) + 32%));
-}
-
-@keyframes chat-image-reveal-frost {
-	0%, 60% { opacity: 0; filter: blur(20px); }
-	70% { opacity: 1; filter: blur(14px); }
-	100% { opacity: 1; filter: blur(4px); }
-}
-
-.chat-image-reveal-variant-gentle-focus .chat-image-reveal.revealing > img {
-	mask-image: none;
-	animation: chat-image-reveal-gentle-focus var(--chat-image-reveal-duration, 2000ms) cubic-bezier(0.16, 0.4, 0.25, 1) both;
-}
-
-.chat-image-reveal-variant-gentle-focus :is(.chat-image-reveal-blur, .chat-image-reveal-scan) {
-	display: none;
-}
-
-@keyframes chat-image-reveal-gentle-focus {
-	0%, 60% { opacity: 0; filter: blur(8px); }
-	100% { opacity: 1; filter: blur(0); }
-}
-
-/* Texture reveals paint their own frame, so its size and the image's opacity follow the painting. */
-.chat-image-reveal.revealing.chat-image-reveal-textured {
-	width: var(--chat-image-reveal-frame-width, var(--chat-image-reveal-width));
-	height: var(--chat-image-reveal-frame);
-	animation: none;
-}
-
-.chat-image-reveal.revealing.chat-image-reveal-textured::before {
-	display: none;
-}
-
-.chat-image-reveal.revealing.chat-image-reveal-textured > img {
-	mask-image: none;
-	filter: none;
-	opacity: var(--chat-image-reveal-image, 0);
-	animation: none;
-}
-
-/* A band loader gives way as the frame opens around it. */
-@keyframes chat-image-reveal-band {
-	0% { opacity: 1; }
-	20%, 100% { opacity: 0; }
-}
-
-.monaco-reduce-motion .chat-image-generation-line::before,
-.hc-black .chat-image-generation-line::before,
-.hc-light .chat-image-generation-line::before {
-	animation: none;
-	width: 100%;
-	background: var(--vscode-contrastBorder, var(--vscode-chat-inputWorkingBorderColor1));
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.chat-image-generation-line::before {
-		animation: none;
-		width: 100%;
-	}
 }

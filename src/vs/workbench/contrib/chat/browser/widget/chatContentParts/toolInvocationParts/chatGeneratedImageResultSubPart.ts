@@ -5,11 +5,12 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { ResourceMap } from '../../../../../../../base/common/map.js';
 import { getExtensionForMimeType } from '../../../../../../../base/common/mime.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
-import { ChatResponseResource } from '../../../../common/model/chatModel.js';
+import { ChatResponseResource, IChatProgressResponseContent } from '../../../../common/model/chatModel.js';
 import { IChatRendererContent } from '../../../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails } from '../../../../common/tools/languageModelToolsService.js';
 import { type IChatCodeBlockInfo } from '../../../chat.js';
@@ -56,6 +57,20 @@ function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IC
 	return isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
 }
 
+export function getGeneratedImageResultSnapshot(content: ReadonlyArray<IChatRendererContent | IChatProgressResponseContent>): { readonly toolCallId: string; readonly details: IToolResultInputOutputDetails }[] {
+	const results: { toolCallId: string; details: IToolResultInputOutputDetails }[] = [];
+	for (const part of content) {
+		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage' || !IChatToolInvocation.isComplete(part)) {
+			continue;
+		}
+		const details = getGeneratedImageResultDetails(part);
+		if (details) {
+			results.push({ toolCallId: part.toolCallId, details });
+		}
+	}
+	return results;
+}
+
 export function getLastGeneratedImageToolCallId(content: ReadonlyArray<IChatRendererContent>): string | undefined {
 	const lastImageTool = content.findLast(part =>
 		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
@@ -83,11 +98,8 @@ export function getGeneratedImageResultPartsFromContent(
 	sessionResource: URI,
 ): IChatCollapsibleIODataPart[] {
 	const parts: IChatCollapsibleIODataPart[] = [];
-	for (const part of content) {
-		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage') {
-			continue;
-		}
-		parts.push(...getGeneratedImageResultParts(getGeneratedImageResultDetails(part), sessionResource, part.toolCallId));
+	for (const { toolCallId, details } of getGeneratedImageResultSnapshot(content)) {
+		parts.push(...getGeneratedImageResultParts(details, sessionResource, toolCallId));
 	}
 	if (parts.length < 2) {
 		return parts;
@@ -101,6 +113,8 @@ export function getGeneratedImageResultPartsFromContent(
 
 /** Renders generated images as response outcomes using the shared image preview affordances. */
 export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPart {
+	private static readonly imageDimensions = new WeakMap<IChatContentPartRenderContext['element'], ResourceMap<dom.IDimension>>();
+
 	public readonly domNode: HTMLElement;
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -120,10 +134,21 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		}
 
 		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
+		let imageDimensions = ChatGeneratedImageResultSubPart.imageDimensions.get(context.element);
+		if (!imageDimensions) {
+			imageDimensions = new ResourceMap<dom.IDimension>(resource => {
+				const parsed = ChatResponseResource.parseUri(resource);
+				return parsed
+					? ChatResponseResource.createUri(parsed.sessionResource, parsed.toolCallId, parsed.index).toString()
+					: resource.toString();
+			});
+			ChatGeneratedImageResultSubPart.imageDimensions.set(context.element, imageDimensions);
+		}
 		const resourceGroup = this._register(instantiationService.createInstance(ChatResourceGroupWidget, parts, {
 			showImageInHover: false,
 			imagePresentation: 'inline',
-			imageReveal: toolInvocation.toolId === 'generate_image_mock' && parts.length === 1 ? imageReveal : undefined,
+			imageReveal: parts.length === 1 ? imageReveal : undefined,
+			imageDimensions,
 		}));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const gallery = dom.append(this.domNode, dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode));

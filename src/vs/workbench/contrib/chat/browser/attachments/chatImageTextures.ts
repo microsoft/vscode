@@ -4,15 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { Color } from '../../../../../base/common/color.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { focusBorder, foreground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ColorScheme, isHighContrast } from '../../../../../platform/theme/common/theme.js';
-import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 
 /** Thresholds of a 4×4 ordered dither, in sixteenths. */
-export const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /** Returns a stable pseudo-random number in [0, 1) for a cell and a seed. */
 export function hash(x: number, y: number, seed = 0): number {
@@ -36,30 +30,12 @@ export function easeInOutCubic(value: number): number {
 	return amount < 0.5 ? 4 * amount ** 3 : 1 - (2 - 2 * amount) ** 3 / 2;
 }
 
-export function easeInOutSine(value: number): number {
-	return (1 - Math.cos(Math.PI * clamp01(value))) / 2;
-}
-
-export function easeOutCubic(value: number): number {
-	return 1 - (1 - clamp01(value)) ** 3;
-}
-
 /** Fades from 1 to 0 over `length` milliseconds once `elapsed` reaches 0, for a short flash. */
 export function flash(elapsed: number, length: number): number {
 	return elapsed >= 0 && elapsed < length ? 1 - elapsed / length : 0;
 }
 
-/** Returns how many times longer image motion takes: 2 plays everything at half speed. */
-export function getMotionScale(element: HTMLElement): number {
-	const scale = parseFloat(dom.getWindow(element).getComputedStyle(element).getPropertyValue('--chat-image-motion-scale'));
-	return scale > 0 ? scale : 1;
-}
-
-/**
- * The pace of a texture reveal. It starts at the loading band's speed, `--chat-image-motion-scale`,
- * and eases to `--chat-image-motion-scale-end`, for example to start fast and settle slowly into
- * the image. Maps the real milliseconds of a reveal to the virtual milliseconds of its transition.
- */
+/** Maps real time to reveal time, easing from the loading band's 2x speed to normal speed. */
 export class RevealPace {
 
 	private static readonly steps = 256;
@@ -73,9 +49,9 @@ export class RevealPace {
 	constructor(
 		/** Virtual milliseconds that the transition takes at normal speed. */
 		readonly length: number,
-		startScale: number,
-		endScale: number,
 	) {
+		const startScale = 0.5;
+		const endScale = 1;
 		let real = 0;
 		for (let step = 1; step <= RevealPace.steps; step++) {
 			// The speed changes evenly on a log scale, so that halving it twice takes as long as halving it once and then again.
@@ -83,12 +59,6 @@ export class RevealPace {
 			this.realTimes[step] = real;
 		}
 		this.duration = real;
-	}
-
-	static of(element: HTMLElement, length: number): RevealPace {
-		const start = getMotionScale(element);
-		const end = parseFloat(dom.getWindow(element).getComputedStyle(element).getPropertyValue('--chat-image-motion-scale-end'));
-		return new RevealPace(length, start, end > 0 ? end : start);
 	}
 
 	/** Returns the virtual milliseconds of the transition that have passed after `real` milliseconds. */
@@ -197,23 +167,6 @@ export function twinkle(column: number, row: number, time: number): number {
 	return phase < 0.25 ? Math.sin(Math.PI * phase / 0.25) : 0;
 }
 
-/** Colors of a texture in a theme, as RGB triples. */
-export interface ITexturePalette {
-	/** The color of dither pixels and of the loading wave. */
-	readonly accent: readonly [number, number, number];
-	/** The color of the brightest parts of a wave and of flashes. */
-	readonly hot: readonly [number, number, number];
-	/** Whether marks stand for the dark rather than the bright parts of an image, like ink on a light page. */
-	readonly invert: boolean;
-}
-
-export function getTexturePalette(theme: IColorTheme): ITexturePalette {
-	const text = theme.getColor(foreground) ?? Color.white;
-	const accent = (theme.getColor(focusBorder) ?? text).mix(text, 0.25);
-	const rgb = (color: Color): [number, number, number] => [color.rgba.r, color.rgba.g, color.rgba.b];
-	return { accent: rgb(accent), hot: rgb(accent.mix(text, 0.55)), invert: theme.type === ColorScheme.LIGHT };
-}
-
 /** Number of colors taken from an image for its palette stages. */
 const paletteSize = 5;
 
@@ -242,7 +195,7 @@ export class ImageSamples {
 	static create(image: HTMLImageElement, width: number, height: number, invert: boolean): ImageSamples | undefined {
 		width = Math.max(1, Math.round(width));
 		height = Math.max(1, Math.round(height));
-		const canvas = image.ownerDocument.createElement('canvas');
+		const canvas = dom.$<HTMLCanvasElement>('canvas');
 		canvas.width = width;
 		canvas.height = height;
 		const context = canvas.getContext('2d', { willReadFrequently: true });
@@ -459,8 +412,7 @@ function percentile(histogram: Uint32Array, rank: number): number {
 
 /** One painted frame of a texture reveal. */
 export interface ITextureFrame {
-	/** Width of the image's frame, in CSS pixels, or the image's own width when not set. */
-	readonly width?: number;
+	readonly width: number;
 	/** Height of the image's frame, in CSS pixels. */
 	readonly height: number;
 	/** Opacity of the image itself, which takes over at the end. */
@@ -486,10 +438,7 @@ export interface ITextureRevealOptions {
 
 /** A texture reveal in progress. */
 export interface ITextureReveal {
-	readonly transition: string;
 	readonly options: ITextureRevealOptions;
-	/** Virtual milliseconds the transition takes at normal speed. */
-	readonly length: number;
 	/** How the reveal's real time maps to the transition's virtual time. */
 	readonly pace: RevealPace;
 	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
@@ -512,115 +461,4 @@ export function steerLoadingWave(reveal: ITextureReveal, width: number, time: nu
 	}
 	const remaining = 1 - start;
 	return placeWave(start + remaining * steer(time / until, until / wavePeriod / remaining, until * endSpeed / remaining), width, seed);
-}
-
-/** Returns the loading wave of a reveal, accelerated to `speed` sweeps per millisecond over its first `ramp` virtual milliseconds. */
-export function acceleratedLoadingWave(reveal: ITextureReveal, width: number, time: number, speed: number, ramp: number): ILoadingWave {
-	const amount = Math.min(1, time / ramp);
-	const extra = time < ramp ? ramp * (amount ** 3 - amount ** 4 / 2) : ramp / 2 + time - ramp;
-	const sweeps = (reveal.loadingTime + time) / wavePeriod + (speed - 1 / wavePeriod) * extra;
-	const seed = Math.floor(sweeps);
-	return placeWave(sweeps - seed, width, seed);
-}
-
-/**
- * A canvas that paints a loading band while an image is generated and then carries on into a
- * reveal of the image, so that the loading motion and the reveal are one continuous piece. Bands
- * that share the clock paint the same frame, so a band can hand off to another one, for example
- * when the running tool is replaced by its result, without a visible change.
- */
-export abstract class TextureSurface extends Disposable {
-
-	readonly canvas: HTMLCanvasElement;
-	protected palette: ITexturePalette;
-	private motionScale = 1;
-	private readonly nextFrame = this._register(new MutableDisposable());
-	private active: ITextureReveal | undefined;
-
-	constructor(
-		container: HTMLElement,
-		className: string,
-		protected readonly themeService: IThemeService,
-		private readonly accessibilityService: IAccessibilityService,
-	) {
-		super();
-		this.canvas = dom.append(container, dom.$<HTMLCanvasElement>(`canvas.chat-image-loading-band.${className}`, { 'aria-hidden': 'true' }));
-		this.palette = getTexturePalette(themeService.getColorTheme());
-		this._register(toDisposable(() => {
-			this.active?.clock.cancel();
-			this.canvas.remove();
-		}));
-		const resizeObserver = this._register(new dom.DisposableResizeObserver(`ChatImageTextureSurface.${className}`, () => this.refresh()));
-		this._register(resizeObserver.observe(this.canvas));
-		this._register(themeService.onDidColorThemeChange(() => this.refresh()));
-		this._register(accessibilityService.onDidChangeReducedMotion(() => this.refresh()));
-	}
-
-	/**
-	 * Virtual milliseconds a transition takes at normal speed, or undefined when this surface does
-	 * not paint it. A reveal can take longer when its frame changes from `fromWidth` to `toWidth`.
-	 */
-	abstract lengthOf(transition: string, fromWidth?: number, toWidth?: number): number | undefined;
-
-	/** Whether the loading band is on screen, so that a reveal can carry its motion on. */
-	get showingBand(): boolean {
-		return !this.active && this.canvas.clientWidth > 0 && this.canvas.clientHeight > 0;
-	}
-
-	/** Turns the loading band into a reveal of an image. */
-	reveal(transition: string, options: ITextureRevealOptions): void {
-		const length = this.lengthOf(transition, options.fromWidth, options.samples.width);
-		if (length === undefined || this.active) {
-			return;
-		}
-		this.motionScale = getMotionScale(this.canvas);
-		this.canvas.style.display = 'block';
-		this.canvas.style.width = `${options.samples.width}px`;
-		this.canvas.style.height = `${options.samples.height}px`;
-		this.active = { transition, options, length, pace: RevealPace.of(this.canvas, length), loadingTime: Date.now() / this.motionScale, clock: this.canvas.animate([], { duration: options.duration }) };
-		this.prepareReveal(this.active);
-		this.update();
-	}
-
-	private refresh(): void {
-		this.palette = getTexturePalette(this.themeService.getColorTheme());
-		if (!this.active && this.canvas.isConnected) {
-			this.motionScale = getMotionScale(this.canvas);
-		}
-		this.onDidRefresh();
-		this.update();
-	}
-
-	private update(): void {
-		this.nextFrame.clear();
-		const active = this.active;
-		if (!this.canvas.isConnected || (!active && (!this.canvas.clientWidth || !this.canvas.clientHeight))) {
-			return;
-		}
-		const animated = !this.accessibilityService.isMotionReduced() && !isHighContrast(this.themeService.getColorTheme().type);
-		if (active) {
-			const time = active.pace.virtualAt(clamp01(Number(active.clock.currentTime ?? 0) / active.options.duration) * active.pace.duration);
-			const frame = this.paintReveal(active, time);
-			this.canvas.style.opacity = String(frame.textureOpacity);
-			active.options.onFrame(frame);
-		} else {
-			// A still band shows the wave halfway across rather than an empty band.
-			this.paintLoading(animated ? Date.now() / this.motionScale : wavePeriod * 0.55);
-		}
-		if (animated) {
-			this.nextFrame.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.canvas), () => this.update());
-		}
-	}
-
-	/** Called when the size, theme or motion settings change, before the next paint. */
-	protected onDidRefresh(): void { }
-
-	/** Paints the loading band, which fills the canvas, at a virtual time. */
-	protected abstract paintLoading(time: number): void;
-
-	/** Prepares the canvas, which now has the image's size, for a reveal. */
-	protected abstract prepareReveal(reveal: ITextureReveal): void;
-
-	/** Paints a reveal at a virtual time since it began. */
-	protected abstract paintReveal(reveal: ITextureReveal, time: number): ITextureFrame;
 }

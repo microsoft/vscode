@@ -9,6 +9,7 @@ import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -21,7 +22,6 @@ import { IFileDialogService } from '../../../../../../platform/dialogs/common/di
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
@@ -29,6 +29,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../../files/browser/fileCon
 import { CHAT_ATTACHABLE_IMAGE_MIME_TYPES, getAttachableImageExtension } from '../../../common/model/chatModel.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatImageRevealOrigin } from '../../attachments/chatImageReveal.js';
+import { IChatImageBase64Data } from '../../attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js';
 
@@ -55,11 +56,10 @@ export class ChatResourceGroupWidget extends Disposable {
 
 	constructor(
 		parts: IChatCollapsibleIODataPart[],
-		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin } | undefined,
+		private readonly _options: { showImageInHover?: boolean; imagePresentation?: 'thumbnail' | 'inline'; imageReveal?: IChatImageRevealOrigin; imageDimensions?: ResourceMap<dom.IDimension> } | undefined,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IFileService private readonly _fileService: IFileService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -75,6 +75,7 @@ export class ChatResourceGroupWidget extends Disposable {
 	private async _fillInResourceGroup(parts: IChatCollapsibleIODataPart[], itemsContainer: HTMLElement, actionsContainer: HTMLElement) {
 		// Only ordinary attachment thumbnails use the deferred file-placeholder path.
 		const entries: IChatRequestVariableEntry[] = [];
+		const imageBase64Data = new Map<string, IChatImageBase64Data>();
 		const deferredImageParts: { index: number; part: IChatCollapsibleIODataPart; mimeType: string }[] = [];
 
 		for (let i = 0; i < parts.length; i++) {
@@ -82,17 +83,12 @@ export class ChatResourceGroupWidget extends Disposable {
 			const imageMimeType = getResourceImageMimeType(part);
 			if (imageMimeType) {
 				if (this._options?.imagePresentation === 'inline') {
-					let value = part.value;
+					const id = generateUuid();
 					if (part.base64Value !== undefined) {
-						try {
-							value = decodeBase64(part.base64Value).buffer;
-						} catch (error) {
-							this._logService.warn('Unable to decode generated image', part.uri, error);
-							// Empty image data takes the image error path, not the file-pill fallback.
-							value = new Uint8Array();
-						}
+						imageBase64Data.set(id, { data: part.base64Value, mimeType: imageMimeType });
 					}
-					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: value ?? part.uri, mimeType: imageMimeType, isURL: !value, references: [{ kind: 'reference', reference: part.uri }] });
+					const value = part.base64Value === undefined ? part.value : undefined;
+					entries.push({ kind: 'image', id, name: basename(part.uri), value: value ?? part.uri, mimeType: imageMimeType, isURL: !value && part.base64Value === undefined, references: [{ kind: 'reference', reference: part.uri }] });
 				} else if (part.base64Value) {
 					// Defer base64 decode - use file placeholder for now
 					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
@@ -126,6 +122,8 @@ export class ChatResourceGroupWidget extends Disposable {
 				showImageInHover: this._options?.showImageInHover,
 				imagePresentation: this._options?.imagePresentation,
 				imageReveal: this._options?.imageReveal,
+				imageDimensions: this._options?.imageDimensions,
+				imageBase64Data,
 			}
 		));
 

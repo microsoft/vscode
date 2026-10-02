@@ -11552,7 +11552,7 @@ Use the attached image as context.
 			}), [message.content, 'image-1', 'Image generation completed.']);
 		});
 
-		test('tool completion preserves generated image bytes and resource links', async () => {
+		test('tool completion preserves generated image bytes without advertising opaque resource links', async () => {
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-image');
 			const uri = 'generated-images:/session/generated-image.png?version=1';
@@ -11596,7 +11596,6 @@ Use the attached image as context.
 				content: [
 					{ type: ToolResultContentType.Text, text: 'Generated images.' },
 					{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
-					{ type: ToolResultContentType.Resource, uri, contentType: 'image/png', sizeHint: 128 },
 				],
 				title: 'Generated image with Image Preview',
 				completedModel: imageGeneration,
