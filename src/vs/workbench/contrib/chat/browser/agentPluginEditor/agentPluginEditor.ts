@@ -40,7 +40,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPlu
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
+import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
 import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyManagedEnablementAction, getPluginPolicyEnablement, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
@@ -232,13 +232,13 @@ export class AgentPluginEditor extends EditorPane {
 					marketplaceReference: item.marketplaceReference,
 					marketplaceType: item.marketplaceType,
 				});
-				const installedPlugin = allPlugins.find(p => p.uri.toString() === expectedUri.toString());
+				const installedPlugin = findInstalledPlugin(allPlugins, expectedUri, item);
 				if (installedPlugin) {
 					currentItem = this.installedPluginToItem(installedPlugin);
 				}
 			} else {
 				// If this was an installed item, check if it got uninstalled
-				const stillInstalled = allPlugins.find(p => p.uri.toString() === item.plugin.uri.toString());
+				const stillInstalled = findInstalledPlugin(allPlugins, item.plugin.uri, item.plugin.fromMarketplace);
 				if (!stillInstalled) {
 					// Plugin was uninstalled — show as marketplace if we have the info
 					if (item.plugin.fromMarketplace) {

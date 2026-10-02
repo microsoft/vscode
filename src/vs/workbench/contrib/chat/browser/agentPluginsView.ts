@@ -51,7 +51,7 @@ import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
 import { HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, RefreshAgentPluginMarketplacesCommandId } from './chat.js';
 
@@ -415,7 +415,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
 		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
-		let installed = this.queryInstalled();
+		const allInstalled = this.queryInstalled();
+		let installed = allInstalled;
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
@@ -458,12 +459,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			const marketplace = filteredMp.map(marketplacePluginToItem);
 
 			// Filter out marketplace items that are already installed
-			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
-			const installedPlugins = this.pluginMarketplaceService.installedPlugins.get();
+			const installedPlugins = allInstalled.map(i => i.plugin);
 			const filteredMarketplace = marketplace.filter(m => {
-				if (installedPlugins.some(entry => entry.plugin.name === m.name && entry.plugin.marketplaceReference.canonicalId === m.marketplaceReference.canonicalId)) {
-					return false;
-				}
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: m.name,
 					description: m.description,
@@ -474,7 +471,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 					marketplaceReference: m.marketplaceReference,
 					marketplaceType: m.marketplaceType,
 				});
-				return !installedPaths.has(expectedUri.toString());
+				return !findInstalledPlugin(installedPlugins, expectedUri, m);
 			});
 
 			items = [...installed, ...filteredMarketplace];

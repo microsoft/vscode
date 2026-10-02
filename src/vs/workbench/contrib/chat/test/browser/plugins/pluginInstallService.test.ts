@@ -858,6 +858,43 @@ suite('PluginInstallService', () => {
 
 	suite('updatePlugin', () => {
 
+		test('serializes overlapping revision updates before looking up the installed URI', async () => {
+			const first = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'first' } });
+			const second = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitUrl, url: 'https://example.com/repo.git', sha: 'second' } });
+			const oldUri = URI.file('/cache/old');
+			const firstUri = URI.file('/cache/first');
+			const secondUri = URI.file('/cache/second');
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { service, state } = createService({
+				installedPlugins: [{ pluginUri: oldUri, plugin: first }],
+				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, firstUri], [PluginSourceKind.GitUrl, secondUri]]),
+				recordInstalledPlugins: true,
+				onUpdatePluginSource: async () => {
+					started.complete();
+					await release.p;
+					return false;
+				},
+			});
+
+			const firstUpdate = service.updatePlugin(first, true);
+			await started.p;
+			const secondUpdate = service.updatePlugin(second, true);
+			const updatesBeforeRelease = state.updatePluginSourceCalls.length;
+			release.complete();
+			await Promise.all([firstUpdate, secondUpdate]);
+
+			assert.deepStrictEqual({
+				updatesBeforeRelease,
+				installed: state.installedPlugins,
+				removed: state.removedPluginUris,
+			}, {
+				updatesBeforeRelease: 1,
+				installed: [{ pluginUri: secondUri, plugin: second }],
+				removed: [oldUri.toString(), firstUri.toString()],
+			});
+		});
+
 		test('preserves disabled profile and workspace decisions when the installed URI changes', async () => {
 			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', sha: 'new-sha' } });
 			const oldUri = URI.file('/cache/old-sha');

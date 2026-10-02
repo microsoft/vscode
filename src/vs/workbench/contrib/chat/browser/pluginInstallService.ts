@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from '../../../../base/common/actions.js';
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
@@ -31,6 +32,7 @@ const maxPluginSubdirectoryLength = 8192;
 
 export class PluginInstallService implements IPluginInstallService {
 	declare readonly _serviceBrand: undefined;
+	private readonly _updateSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@IAgentPluginRepositoryService private readonly _pluginRepositoryService: IAgentPluginRepositoryService,
@@ -429,7 +431,12 @@ export class PluginInstallService implements IPluginInstallService {
 		return { reference, configPath: trimmed };
 	}
 
-	async updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+	updatePlugin(plugin: IMarketplacePlugin, silent?: boolean, token: CancellationToken = CancellationToken.None): Promise<boolean> {
+		const key = JSON.stringify([plugin.marketplaceReference.canonicalId, plugin.name]);
+		return this._updateSequencer.queue(key, () => this._updatePlugin(plugin, silent, token));
+	}
+
+	private async _updatePlugin(plugin: IMarketplacePlugin, silent: boolean | undefined, token: CancellationToken): Promise<boolean> {
 		if (this._pluginMarketplaceService.isStrictMarketplacePolicyActive() && !this._pluginMarketplaceService.isMarketplaceTrusted(plugin.marketplaceReference)) {
 			this._notificationService.notify({
 				severity: Severity.Warning,
