@@ -601,11 +601,9 @@ Live provider runtimes that react to session config subscribe to `IAgentConfigur
 
 Copilot advertises the optional `sandboxEnabled` session property (`default`,
 `on`, or `off`). Omission and `default` follow the root sandbox settings;
-the successfully applied enablement is saved in session-config metadata, not a
-pending or rejected selection. Restore reconciles saved values against current
-root settings and the runtime's current managed policy before notifying live
-providers. A saved `off` that conflicts with required sandboxing becomes `on`;
-successful application persists `on` so removing the policy cannot revive `off`.
+selections are saved in session-config metadata and restored across window reloads
+and agent-host restarts. The effective sandbox state is recomputed from the saved
+selection, current root settings, and the runtime's current managed policy.
 Chats and subagents share their configuration owner's selection. New sessions
 and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
@@ -644,7 +642,7 @@ Approved bypass also requires the local `allowUnsandboxedCommands` setting.
 An explicit VS Code requirement does not offer the unresolved-runtime-policy
 retry-Off path. Removing it restores the underlying runtime floor, not an
 unconditional permission to disable sandboxing.
-Explicit managed enablement replaces disallowed `off` selections with `on`;
+Explicit managed enablement replaces disallowed `off` selections with `default`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
 Managed asks remain one-time-only. Direct disabling is locked even when managed

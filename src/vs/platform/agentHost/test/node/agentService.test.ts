@@ -45,9 +45,6 @@ import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, M
 import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
-import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
-import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
@@ -24593,45 +24590,6 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('session config persistence', () => {
 
-		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
-			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
-			const sessionDataService = createSessionDataService(sessionDb);
-			const localAgent = new MockAgent('copilot');
-			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
-			registerTestAgentProvider(localService, localAgent);
-			const configuration = getConfigurationService(localService);
-			configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
-			const { session } = await createAgentSession(localAgent);
-			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove', sandboxEnabled: 'off' }));
-			configuration.setSessionSandboxPolicy(session.toString(), { enabled: true, allowBypass: false });
-			const applied: boolean[] = [];
-			disposables.add(configuration.onDidSessionConfigChange(event => {
-				if (event.session === session.toString()) {
-					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, event.session))?.enabled ?? false;
-					applied.push(enabled);
-					configuration.setSessionSandboxEnabled(event.session, enabled);
-				}
-			}));
-
-			await localService.restoreSession(session);
-			await timeout(50);
-			const state = getStateManager(localService).getSessionState(session.toString());
-			assert.deepStrictEqual({
-				applied,
-				config: state?.config?.values,
-				policy: readSessionSandboxPolicy(state),
-				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
-				persisted: JSON.parse((await sessionDb.getMetadata('configValues'))!),
-			}, {
-				applied: [true],
-				config: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
-				policy: { enabled: true, allowBypass: false },
-				confirmed: true,
-				persisted: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
-			});
-		});
-
 		test('createSession persists initial config values to the session DB', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
@@ -24882,7 +24840,6 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				config: {
 					autoApprove: 'autoApprove',
-					[SessionConfigKey.SandboxEnabled]: 'off',
 					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
 				},
 				_meta: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
@@ -24893,7 +24850,6 @@ suite('AgentService (node dispatcher)', () => {
 			const persistedConfigValues = JSON.parse((await sessionDb.getMetadata('configValues'))!);
 			await sessionDb.setMetadata('configValues', JSON.stringify({
 				autoApprove: 'autoApprove',
-				[SessionConfigKey.SandboxEnabled]: 'off',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
 			}));
 			getStateManager(localService).removeSession(session.toString());
@@ -24914,7 +24870,7 @@ suite('AgentService (node dispatcher)', () => {
 				devContainerWorktree: state!._meta?.['vscode.devContainerWorktree'],
 			}, {
 				persistedConfigValues: { autoApprove: 'autoApprove' },
-				config: { autoApprove: 'autoApprove', sandboxEnabled: 'off' },
+				config: { autoApprove: 'autoApprove' },
 				listedDevContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 			});

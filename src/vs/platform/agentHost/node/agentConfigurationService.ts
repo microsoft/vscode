@@ -12,7 +12,6 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentSandboxEnabledValue } from '../../sandbox/common/settings.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, defaultAgentHostCustomizationConfigValues } from '../common/agentHostCustomizationConfig.js';
 import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, withAgentCustomizationSettings, type IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
@@ -23,13 +22,12 @@ import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } f
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
-import { getSessionSandboxOverrides } from './sessionSandbox.js';
 
 export const IAgentConfigurationService = createDecorator<IAgentConfigurationService>('agentConfigurationService');
 
@@ -229,6 +227,10 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 				if (Object.hasOwn(envelope.action.config, SessionConfigKey.SandboxEnabled)) {
 					this._sessionSandboxChanges.set(envelope.channel, this.getSessionConfigValues(envelope.channel));
 				}
+				const policy = this.getSessionSandboxPolicy(envelope.channel);
+				if (envelope.action.config[SessionConfigKey.SandboxEnabled] === 'off' && policy?.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(envelope.channel) === false)) {
+					this.updateSessionConfig(envelope.channel, { [SessionConfigKey.SandboxEnabled]: 'default' });
+				}
 				this._onDidSessionConfigChange.fire({
 					session: envelope.channel,
 					config: envelope.action.config,
@@ -270,18 +272,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		});
 	}
 
-	/** Reconciles restored selections with current policy before notifying live provider runtimes. */
-	restoreSessionConfig(session: ProtocolURI, config: SessionConfigState): void {
-		this._stateManager.setSessionConfig(session, config);
-		if (!this._publishSessionSandboxPolicy(session)) {
-			this._onDidSessionConfigChange.fire({
-				session,
-				config: { ...config.values, [SessionConfigKey.SandboxEnabled]: config.values[SessionConfigKey.SandboxEnabled] },
-				origin: undefined,
-			});
-		}
-	}
-
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
 		const owner = resolveAgentHostSession(URI.parse(session)).toString();
 		const runtimePolicy = this._sessionSandboxPolicies.get(owner);
@@ -306,33 +296,25 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		this._publishSessionSandboxPolicy(session);
 	}
 
-	private _publishSessionSandboxPolicy(session: ProtocolURI): boolean {
+	private _publishSessionSandboxPolicy(session: ProtocolURI): void {
 		const state = this._stateManager.getSessionState(session);
 		const previousPolicy = readSessionSandboxPolicy(state);
 		const policy = this.getSessionSandboxPolicy(session);
-		if (!state) {
-			return false;
+		if (!state || equals(previousPolicy, policy)) {
+			return;
 		}
 		if (!state.config?.schema.properties[SessionConfigKey.SandboxEnabled] && !this._sessionSandboxPolicies.has(session)) {
-			return false;
+			return;
 		}
-		const policyChanged = !equals(previousPolicy, policy);
-		if (policyChanged) {
-			// A previously unmanaged Off is not an authorized bypass of a new floor.
-			const meta = policy?.enabled && !previousPolicy?.enabled
-				? withSessionSandboxState(state._meta, undefined)
-				: state._meta;
-			this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
+		// A previously unmanaged Off is not an authorized bypass of a new floor.
+		const meta = policy?.enabled && !previousPolicy?.enabled
+			? withSessionSandboxState(state?._meta, undefined)
+			: state?._meta;
+		this._stateManager.setSessionMeta(session, withSessionSandboxPolicy(meta, policy));
+		if (policy?.enabled && !policy.failClosed && !(policy.allowBypass && this.getSessionSandboxEnabled(session) === false) && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off') {
+			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: 'default' });
 		}
-		if (!policy?.failClosed && this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] === 'off'
-			&& getSessionSandboxOverrides(this, session).enabled === AgentSandboxEnabledValue.On) {
-			this.updateSessionConfig(session, { [SessionConfigKey.SandboxEnabled]: AgentSandboxEnabledValue.On });
-			return true;
-		}
-		if (policyChanged) {
-			this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
-		}
-		return policyChanged;
+		this._onDidSessionConfigChange.fire({ session, config: { [SessionConfigKey.SandboxEnabled]: this.getSessionConfigValues(session)?.[SessionConfigKey.SandboxEnabled] }, origin: undefined });
 	}
 
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined {

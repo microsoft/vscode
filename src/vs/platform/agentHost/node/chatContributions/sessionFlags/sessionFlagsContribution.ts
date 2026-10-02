@@ -5,16 +5,13 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../log/common/log.js';
-import { createSessionMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY } from '../../../common/state/sessionState.js';
-import { getPersistedSessionConfigValues } from '../../../common/sessionConfigKeys.js';
-import { readSessionSandboxState } from '../../../common/meta/agentSandboxStateMeta.js';
+import { omitTransientSessionConfigValues } from '../../../common/sessionConfigKeys.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { persistSessionMetadata } from '../../shared/persistSessionMetadata.js';
-
-const sandboxEnabledKey = createSessionMementoKey<boolean | undefined>('sandboxEnabled', () => undefined);
 
 /**
  * Persists host-owned read state, archived state, and merged config values that must survive a
@@ -36,18 +33,10 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
-		let sandboxChanged = false;
-		if (dispatched.action.type === ActionType.SessionMetaChanged && !dispatched.rejectionReason) {
-			const enabled = readSessionSandboxState({ _meta: dispatched.action._meta })?.enabled;
-			const previous = this._context.memento(sandboxEnabledKey, dispatched.session);
-			sandboxChanged = previous.get() !== enabled;
-			previous.set(enabled, undefined);
-		}
-		if (dispatched.action.type === ActionType.SessionConfigChanged || sandboxChanged) {
-			const state = this._stateManager.getSessionState(dispatched.channel);
-			const values = state?.config?.values;
+		if (dispatched.action.type === ActionType.SessionConfigChanged) {
+			const values = this._stateManager.getSessionState(dispatched.channel)?.config?.values;
 			if (values) {
-				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, 'configValues', JSON.stringify(getPersistedSessionConfigValues(values, readSessionSandboxState(state)?.enabled)));
+				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, 'configValues', JSON.stringify(omitTransientSessionConfigValues(values)));
 			}
 		}
 		// Persisting here rather than in `handleAction` covers client- and
