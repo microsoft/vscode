@@ -55,7 +55,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -245,6 +245,9 @@ function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 }
 
 function getChatTitle(chat: IChat, reader?: IReader): string {
+	if (chat.status.read(reader) === SessionStatus.Untitled) {
+		return getUntitledSessionTitle(false);
+	}
 	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
 }
 
@@ -426,17 +429,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly INPUT_NEEDED_ROW_HEIGHT = 32;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
-	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
 	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
-	/**
-	 * Bottom slack reserved under a chat row's approval prompt. The session row
-	 * absorbs the rendered code-block's line-height rounding in its own bottom
-	 * padding; the chat row has none, so it reserves this small buffer instead.
-	 * Keep in sync with the `.session-approval-row.visible` bottom margin in
-	 * `sessionsList.css`.
-	 */
-	private static readonly CHAT_APPROVAL_BOTTOM_SLACK = 6;
+	/** Phone chat rows have no bottom padding, so approvals reserve matching rounding slack. */
+	private static readonly CHAT_APPROVAL_PHONE_BOTTOM_SLACK = 6;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -477,11 +473,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
-			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact()) {
-				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
-			}
-			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
+			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
@@ -538,11 +530,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		const detailsHeight = !this._isCompact() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(
-			element,
-			(this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT) + detailsHeight,
-		));
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+	}
+
+	private getChatBaseHeight(): number {
+		if (this._isPhone()) {
+			return SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE + (this._isCompact() ? 0 : SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT);
+		}
+		return this._isCompact() ? SessionsTreeDelegate.ITEM_HEIGHT_COMPACT : SessionsTreeDelegate.ITEM_HEIGHT;
 	}
 
 	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
@@ -553,7 +548,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (!approval) {
 			return height;
 		}
-		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
+		return height
+			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
@@ -650,6 +647,8 @@ interface ISessionChatItemTemplate {
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
 	readonly canArchiveContext: IContextKey<boolean>;
+	readonly canDeleteContext: IContextKey<boolean>;
+	readonly isUntitledContext: IContextKey<boolean>;
 	readonly isArchivedContext: IContextKey<boolean>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -757,6 +756,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const canArchiveContext = SessionChatItemCanArchiveContext.bindTo(contextKeyService);
+		const canDeleteContext = SessionChatItemCanDeleteContext.bindTo(contextKeyService);
+		const isUntitledContext = SessionChatItemIsUntitledContext.bindTo(contextKeyService);
 		const isArchivedContext = SessionChatItemIsArchivedContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, Menus.SessionChatItemToolbar, {
@@ -774,7 +775,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, isArchivedContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, canDeleteContext, isUntitledContext, isArchivedContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -801,6 +802,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				: undefined;
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
+			template.canDeleteContext.set(capabilities.canDelete);
+			template.isUntitledContext.set(status === SessionStatus.Untitled);
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
 				status,

@@ -16,7 +16,7 @@ import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } fr
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubGraphQLResponse,
@@ -126,13 +126,13 @@ suite('GitHubQueryService', () => {
 	function setup(server: ProgrammableGitHubServer, capabilities: GitHubHostCapabilities | IGitHubCapabilities = availableCapabilities): {
 		readonly account: { readonly host: string; readonly accountId: string };
 		readonly ref: GitHubRepositoryRef;
-		readonly clock: FakeGitHubScheduler;
+		readonly clock: FakeScheduler;
 		readonly credentials: TestCredentialService;
 		readonly service: GitHubQueryService;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo' };
-		const clock = new FakeGitHubScheduler({ now: 0 });
+		const clock = new FakeScheduler({ now: 0 });
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		const capabilityService = hasKey(capabilities, { getCapabilities: true }) ? capabilities : new TestCapabilitiesService(capabilities);
@@ -1104,7 +1104,7 @@ suite('GitHubQueryService', () => {
 	});
 
 	test('context reads honor the governed transport deadline and release its timers', async () => {
-		const clock = disposables.add(new FakeGitHubScheduler());
+		const clock = disposables.add(new FakeScheduler());
 		const account = { host: 'github.example.test', accountId: '1' };
 		const credentials = disposables.add(new TestCredentialService(account));
 		const started = new DeferredPromise<AbortSignal>();
@@ -1373,7 +1373,7 @@ suite('GitHubQueryService', () => {
 			// so the cadence wins. It still has to be spread: credential
 			// invalidation and rate-limit releases fail whole batches at the very
 			// same instant, and an unjittered retry keeps them phase-locked.
-			const jittered = disposables.add(new FakeGitHubScheduler({ now: 0, jitterValues: [7] }));
+			const jittered = disposables.add(new FakeScheduler({ now: 0, jitterValues: [7] }));
 			const credentials = disposables.add(new TestCredentialService({ host: new URL(server.apiBaseUrl).host, accountId: '101' }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubQueryService(

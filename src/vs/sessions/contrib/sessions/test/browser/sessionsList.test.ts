@@ -65,7 +65,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionListItem, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -3675,7 +3675,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		}
 
-		test('scopes New Chat visibility to reactive and recycled session rows', () => {
+		test('scopes New Nested Session visibility to reactive and recycled session rows', () => {
 			const supported = createTestSession('Supported');
 			supported.capabilities.set({ supportsMultipleChats: true }, undefined);
 			const unsupported = createTestSession('Unsupported');
@@ -3687,7 +3687,7 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, sessions, instantiationService => {
 				const action = instantiationService.createInstance(MenuItemAction, {
 					id: 'sessions.test.newChatInSession',
-					title: 'New Chat in This Session',
+					title: 'New Nested Session',
 					icon: Codicon.add,
 				}, undefined, undefined, undefined, undefined);
 				instantiationService.stub(IMenuService, new class extends mock<IMenuService>() {
@@ -4114,6 +4114,69 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('matches the main chat row vertical layout in compact and regular views', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Main chat').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const snapshot = (compact: boolean) => {
+				const { container } = renderSessionChatsList(session, undefined, false, true, compact);
+				const mainItem = container.querySelector<HTMLElement>('.session-item');
+				const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+				const mainRow = mainItem?.closest<HTMLElement>('.monaco-list-row');
+				const peerRow = peerItem?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(mainItem);
+				assert.ok(peerItem);
+				assert.ok(mainRow);
+				assert.ok(peerRow);
+
+				const mainTitleStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-title-row')!);
+				const peerTitleStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-title-row')!);
+				const mainDetailsStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-details-row')!);
+				const peerDetailsStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-folder-row')!);
+
+				return {
+					mainHeight: mainRow.style.height,
+					peerHeight: peerRow.style.height,
+					mainTitleLineHeight: mainTitleStyle.lineHeight,
+					peerTitleLineHeight: peerTitleStyle.lineHeight,
+					mainDetailsLineHeight: mainDetailsStyle.lineHeight,
+					peerDetailsLineHeight: peerDetailsStyle.lineHeight,
+					peerDetailsDisplay: peerDetailsStyle.display,
+				};
+			};
+
+			assert.deepStrictEqual({
+				regular: snapshot(false),
+				compact: snapshot(true),
+			}, {
+				regular: {
+					mainHeight: '56px',
+					peerHeight: '56px',
+					mainTitleLineHeight: '17px',
+					peerTitleLineHeight: '17px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'flex',
+				},
+				compact: {
+					mainHeight: '30px',
+					peerHeight: '30px',
+					mainTitleLineHeight: '16px',
+					peerTitleLineHeight: '16px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'none',
+				},
+			});
+		});
+
 		test('shows each resolved chat modified time independently and omits unresolved times', () => {
 			const built = buildTestSession({
 				id: 'chat-times',
@@ -4155,12 +4218,12 @@ suite('Sessions - SessionsList', () => {
 					mainAriaLabel: 'Main chat, updated now, State: Completed',
 					peerTime: undefined,
 					peerAriaLabel: 'Peer chat, chat, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 				after: {
 					peerTime: 'now',
 					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 			});
 		});
@@ -4454,7 +4517,7 @@ suite('Sessions - SessionsList', () => {
 					folderRow: 'second·now',
 					folderIcon: 'folder',
 					ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed',
-					height: '46px',
+					height: '56px',
 				},
 				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
@@ -4991,7 +5054,7 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
-			list.layout(300, 400);
+			list.layout(500, 400);
 
 			const initial = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
@@ -5008,11 +5071,12 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('shows the primary archive action for manageable chat rows', async () => {
+		test('switches the primary action from delete to done when a nested session is committed', async () => {
 			const main = createChat('Main chat');
 			const isArchived = observableValue('peer-is-archived', false);
+			const status = observableValue('peer-status', SessionStatus.Untitled);
 			const capabilities = observableValue('peer-capabilities', { canRename: true, canArchive: true, canDelete: true });
-			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), isArchived, capabilities };
+			const peer: IChat = { ...createChat('Peer chat', ChatOriginKind.User), status, isArchived, capabilities };
 			const base = createTestSession('Session').session;
 			const session: ISession = {
 				...base,
@@ -5020,11 +5084,20 @@ suite('Sessions - SessionsList', () => {
 				mainChat: constObservable(main),
 				capabilities: constObservable({ supportsMultipleChats: true }),
 			};
-			let invokedTarget: ISessionChatItem | undefined;
+			const invocations: Array<{ readonly action: 'delete' | 'done'; readonly target: ISessionChatItem }> = [];
 			const harness = createListHarness(disposables, [session], instantiationService => {
+				const deleteAction = instantiationService.createInstance(class extends MenuItemAction {
+					override async run(...args: unknown[]): Promise<void> {
+						invocations.push({ action: 'delete', target: args[0] as ISessionChatItem });
+					}
+				}, {
+					id: 'sessions.list.deleteChat',
+					title: 'Delete...',
+					icon: Codicon.trash,
+				}, undefined, undefined, undefined, undefined);
 				const markAsDoneAction = instantiationService.createInstance(class extends MenuItemAction {
 					override async run(...args: unknown[]): Promise<void> {
-						invokedTarget = args[0] as ISessionChatItem;
+						invocations.push({ action: 'done', target: args[0] as ISessionChatItem });
 					}
 				}, {
 					id: ARCHIVE_CHAT_COMMAND_ID,
@@ -5043,10 +5116,16 @@ suite('Sessions - SessionsList', () => {
 						const menu: IMenu = {
 							onDidChange: onDidChange.event,
 							getActions: () => {
-								if (menuId !== Menus.SessionChatItemToolbar || !contextKeyService.getContextKeyValue<boolean>(SessionChatItemCanArchiveContext.key)) {
+								if (menuId !== Menus.SessionChatItemToolbar) {
 									return [];
 								}
-								return [['navigation', [contextKeyService.getContextKeyValue<boolean>(SessionChatItemIsArchivedContext.key) ? restoreAction : markAsDoneAction]]];
+								if (contextKeyService.getContextKeyValue<boolean>(SessionChatItemIsArchivedContext.key)) {
+									return contextKeyService.getContextKeyValue<boolean>(SessionChatItemCanArchiveContext.key) ? [['navigation', [restoreAction]]] : [];
+								}
+								if (contextKeyService.getContextKeyValue<boolean>(SessionChatItemIsUntitledContext.key)) {
+									return contextKeyService.getContextKeyValue<boolean>(SessionChatItemCanDeleteContext.key) ? [['navigation', [deleteAction]]] : [];
+								}
+								return contextKeyService.getContextKeyValue<boolean>(SessionChatItemCanArchiveContext.key) ? [['navigation', [markAsDoneAction]]] : [];
 							},
 							dispose: () => menuStore.dispose(),
 						};
@@ -5072,34 +5151,58 @@ suite('Sessions - SessionsList', () => {
 			setSessionChatsExpanded(container, true);
 			await timeout(0);
 
-			const chatRow = () => [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
-				.find(item => item.querySelector('.session-chat-title')?.textContent === 'Peer chat');
+			const chatRow = () => container.querySelector<HTMLElement>('.session-chat-item');
 			const actionState = () => ({
-				markAsDone: !!chatRow()?.querySelector('.codicon-check'),
+				delete: !!chatRow()?.querySelector('.codicon-trash'),
+				done: !!chatRow()?.querySelector('.codicon-check'),
 				restore: !!chatRow()?.querySelector('.codicon-redo'),
 			});
 
-			const initial = actionState();
+			const untitled = actionState();
+			chatRow()?.querySelector<HTMLElement>('.codicon-trash')?.closest<HTMLElement>('.action-label')?.click();
+			await timeout(0);
+			status.set(SessionStatus.Completed, undefined);
+			await timeout(0);
+			const committed = actionState();
 			chatRow()?.querySelector<HTMLElement>('.codicon-check')?.closest<HTMLElement>('.action-label')?.click();
 			await timeout(0);
 			isArchived.set(true, undefined);
 			await timeout(0);
 			const archived = actionState();
-			capabilities.set({ canRename: true, canArchive: false, canDelete: true }, undefined);
+			capabilities.set({ canRename: true, canArchive: false, canDelete: false }, undefined);
 			await timeout(0);
 			const unsupported = actionState();
 
 			assert.deepStrictEqual({
-				initial,
-				invokedChat: invokedTarget?.chat.resource.toString(),
+				untitled,
+				committed,
 				archived,
 				unsupported,
+				invocations: invocations.map(invocation => ({ action: invocation.action, chat: invocation.target.chat.resource.toString() })),
 			}, {
-				initial: { markAsDone: true, restore: false },
-				invokedChat: peer.resource.toString(),
-				archived: { markAsDone: false, restore: true },
-				unsupported: { markAsDone: false, restore: false },
+				untitled: { delete: true, done: false, restore: false },
+				committed: { delete: false, done: true, restore: false },
+				archived: { delete: false, done: false, restore: true },
+				unsupported: { delete: false, done: false, restore: false },
+				invocations: [
+					{ action: 'delete', chat: peer.resource.toString() },
+					{ action: 'done', chat: peer.resource.toString() },
+				],
 			});
+		});
+
+		test('shows New Session for an untitled nested session row', () => {
+			const main = createChat('Main chat');
+			const nested = createChat('New Chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.Untitled);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, nested]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			assert.deepStrictEqual(chatRowTitles(renderSessionChats(session)), ['New Session']);
 		});
 
 		test('hides the main chat even when its title matches the session title', () => {
@@ -5654,7 +5757,7 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '46px',
+				desktopHeight: '56px',
 				phoneHeight: '62px',
 			});
 		});
@@ -6592,6 +6695,46 @@ suite('Sessions - SessionsList', () => {
 
 			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('reserves approval rounding slack in phone chat rows', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvalModel = createApprovalModel(new Map([[peer.resource.toString(), terminalApproval(peer, 'npm run build')]]));
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			setSessionChatsExpanded(container, true);
+
+			const approvalRow = approvalRowFor(container, 'Task A');
+			const chatRow = approvalRow?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(approvalRow);
+			assert.ok(chatRow);
+			assert.deepStrictEqual({
+				height: chatRow.style.height,
+				approvalBottomMargin: mainWindow.getComputedStyle(approvalRow).marginBottom,
+			}, {
+				height: '100px',
+				approvalBottomMargin: '6px',
+			});
 		});
 
 		test('confirms the chat approval when its Allow button is clicked', () => {
