@@ -283,8 +283,8 @@ export interface ISessionsProvider {
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
 	/** Whether model-specific configuration can be scoped to a newly created draft. */
 	readonly supportsModelConfigurationForCreation?: boolean;
-	/** Exact permission choices available while creating the given session type. */
-	getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
+	/** Whether the provider validates and applies explicit permission choices before creating the backend session. */
+	readonly supportsPermissionsForCreation?: boolean;
 	/** Current draft's provider-owned permission choice, including its policy availability. */
 	getPermissionOptionForSession?(sessionId: string): ISessionPermissionOption | undefined;
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */

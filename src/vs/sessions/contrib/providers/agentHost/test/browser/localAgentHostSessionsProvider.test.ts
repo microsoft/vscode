@@ -45,6 +45,7 @@ import { ExtensionIdentifier } from '../../../../../../platform/extensions/commo
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -53,6 +54,7 @@ import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/con
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
 import { IChatService, type ChatSendResult, type IChatModelReference, type IChatSendRequestData, type IChatSendRequestOptions } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService, isIChatSessionFileChange2 } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
@@ -60,12 +62,13 @@ import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
-import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { SessionsManagementService } from '../../../../../services/sessions/browser/sessionsManagementService.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
 import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId, IDevContainerAgentHostService } from '../../../../../common/devContainerAgentHostService.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
@@ -713,6 +716,29 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	instantiationService.stub(ISessionsProvidersService, options?.sessionsProvidersService ?? new class extends mock<ISessionsProvidersService>() { }());
 
 	return disposables.add(instantiationService.createInstance(options?.providerCtor ?? LocalAgentHostSessionsProvider));
+}
+
+function createManagementService(disposables: DisposableStore, provider: ISessionsProvider): ISessionsManagementService {
+	const instantiationService = disposables.add(new TestInstantiationService());
+	instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+		override readonly onDidChangeProviders = Event.None;
+		override getProviders() { return [provider]; }
+		override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
+	}());
+	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
+	instantiationService.stub(IChatService, { onDidSubmitRequest: Event.None });
+	instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
+		override moveHistory(): void { }
+	}());
+	instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+	instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+	instantiationService.stub(IWorkspaceTrustManagementService, {
+		getUriTrustInfo: async uri => ({ uri, trusted: true }),
+	});
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+	return disposables.add(instantiationService.createInstance(SessionsManagementService));
 }
 
 function createTestLanguageModel(id: string): ILanguageModelChatMetadata {
@@ -6281,7 +6307,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		{ provider: 'copilotcli', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
 	]) {
 		for (const [index, permissionId] of ['default', 'assisted', 'autoApprove'].entries()) {
-			test(`comparison permissions preserve ${approval.provider} ${approval.key} ${permissionId} before eager creation`, async () => {
+			test(`comparison permissions preserve ${approval.provider} ${approval.key} ${permissionId} through management launch`, async () => {
 				agentHost.setAgents([{ provider: approval.provider, displayName: 'Host', description: '', models: [] }]);
 				agentHost.resolveSessionConfigResult = {
 					schema: {
@@ -6292,11 +6318,19 @@ suite('LocalAgentHostSessionsProvider', () => {
 					},
 					values: { [approval.key]: approval.values[0], mode: 'interactive' },
 				};
+				let sends = 0;
 				const provider = createProvider(disposables, agentHost, [
 					{ type: `agent-host-${approval.provider}`, name: 'host', displayName: 'Host', description: 'test', icon: undefined },
-				]);
+				], {
+					sendRequest: async resource => {
+						sends++;
+						agentHost.addSession(createSession(AgentSession.id(resource), { provider: approval.provider }));
+						return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+					},
+				});
+				const management = createManagementService(disposables, provider);
 				const workspace = URI.file('/home/user/project');
-				const source = provider.createNewSession(workspace, approval.provider);
+				const source = management.createNewSession(workspace, { providerId: provider.id, sessionTypeId: approval.provider });
 				await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
 				await provider.setSessionConfigValue(source.sessionId, approval.key, approval.values[index]);
 				await provider.setSessionConfigValue(source.sessionId, 'mode', 'autopilot');
@@ -6307,21 +6341,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 				const createdBefore = agentHost.createSessionConfigs.length;
 				const barrier = new DeferredPromise<void>();
 				agentHost.resolveSessionConfigBarrier = barrier;
-				const attempt = provider.createNewSession(workspace, approval.provider, {
+				const attemptPromise = management.createAndSendNewChatRequest(workspace, { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: approval.provider,
 					permissionId: permission.id, modeId: permission.comparisonModeId,
 				});
 				await timeout(0);
 				const createdWhileResolving = agentHost.createSessionConfigs.length - createdBefore;
+				const sentWhileResolving = sends;
 				await barrier.complete();
-				await waitForSessionConfig(provider, attempt.sessionId, config => config?.values.mode === 'autopilot');
-				await timeout(0);
+				const attempt = await attemptPromise;
 				assert.deepStrictEqual({
-					permissionId: permission.id, mode: permission.comparisonModeId, createdWhileResolving,
+					permissionId: permission.id, mode: permission.comparisonModeId, createdWhileResolving, sentWhileResolving,
+					sends, launched: !!attempt,
 					discovery: agentHost.resolveSessionConfigRequests.at(-2)?.config,
 					resolved: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 					creation: agentHost.createSessionConfigs.at(-1)?.config,
 				}, {
-					permissionId, mode: 'autopilot', createdWhileResolving: 0, discovery: undefined,
+					permissionId, mode: 'autopilot', createdWhileResolving: 0, sentWhileResolving: 0, sends: 1, launched: true, discovery: undefined,
 					resolved: { [approval.key]: approval.values[index], mode: 'autopilot' },
 					creation: { [approval.key]: approval.values[index], mode: 'autopilot' },
 				});
@@ -6356,8 +6392,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 				configurationService: restriction === 'policy' ? createPolicyRestrictedConfigurationService() : undefined,
 				sendRequest: async () => { sends++; throw new Error('Must not send'); },
 			});
-			const attempt = provider.createNewSession(URI.file('/home/user/project'), 'conforming-host', { permissionId: 'autoApprove' });
-			await assert.rejects(provider.sendRequest(attempt.sessionId, attempt.mainChat.get().resource, { query: 'Implement' }), /selected session permissions could not be applied/);
+			const management = createManagementService(disposables, provider);
+			await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+				providerId: provider.id, sessionTypeId: 'conforming-host', permissionId: 'autoApprove',
+			}), /selected session permissions could not be applied/);
 			await timeout(0);
 			assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
 		});

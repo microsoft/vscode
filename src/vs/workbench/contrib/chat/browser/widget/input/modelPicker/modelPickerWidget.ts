@@ -179,7 +179,7 @@ export class ModelPickerWidget extends Disposable {
 		super();
 		if (this._delegate.workflow) {
 			this._register(autorun(reader => {
-				this._delegate.workflow?.state.read(reader);
+				this._delegate.workflow?.summary.read(reader);
 				if (!this._delegate.workflow?.available.read(reader)) {
 					this._tabbedPicker.value?.hide();
 				}
@@ -822,8 +822,8 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const workflow = this.isTabbedPickerEnabled() ? this._delegate.workflow?.state.get() : undefined;
-		const name = workflow?.summary ?? (this._selectedModel
+		const workflow = this.isTabbedPickerEnabled() ? this._delegate.workflow?.summary.get() : undefined;
+		const name = workflow ?? (this._selectedModel
 			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
 			: undefined);
 

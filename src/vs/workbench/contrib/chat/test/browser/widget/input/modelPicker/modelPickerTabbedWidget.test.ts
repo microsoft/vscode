@@ -205,6 +205,7 @@ suite('TabbedModelPicker', () => {
 		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			dismiss: () => contextView.hideContextView(),
 			setEntitlement: (value: ChatEntitlement) => {
 				entitlement = value;
 				entitlementChanged.fire();
@@ -271,13 +272,14 @@ suite('TabbedModelPicker', () => {
 		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
 		let finished = false;
 		const workflow: IModelPickerWorkflow = {
-			available: constObservable(true), state, label: 'Compare Models',
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
-			select: id => state.set({ ...attempts, selectedModelIds: [id], canGoNext: true, count: { label: 'Number of Runs', value: 2, min: 2, max: 10 } }, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: true, canFinish: false, count: state.get()?.multiple ? { label: 'Number of Runs', value: 2, min: 2, max: 10 } : undefined }, undefined),
 			setCount: () => { },
 			back: () => state.set(attempts, undefined),
-			next: () => state.set({ ...attempts, title: 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
+			next: () => state.set({ ...attempts, title: state.get()?.title === 'Judge' ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
 			finish: () => finished = true,
 		};
 		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
@@ -295,19 +297,70 @@ suite('TabbedModelPicker', () => {
 			visible: picker.isVisible, selected: selectedModels(popup).length, selections,
 			count: popup.querySelector('select')?.getAttribute('aria-label'),
 			buttons: buttons().map(button => button.textContent?.trim()),
-		}, { visible: true, selected: 1, selections: [], count: 'Number of Runs', buttons: ['Next'] });
-		buttons()[0].click();
+		}, { visible: true, selected: 1, selections: [], count: 'Number of Runs', buttons: ['Cancel', 'Next'] });
+		buttons()[1].click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			buttons: buttons().map(button => button.textContent?.trim()),
-		}, { heading: 'Judge\nOptional review.', buttons: ['Back', 'Done'] });
-		buttons()[0].click();
+			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
+		}, { heading: 'Judge\nOptional review.', buttons: ['Cancel', 'Back', 'Done'], radios: 3, checkboxes: 0 });
+		element(popup, '.chat-model-picker-model').click();
+		buttons()[2].click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			cancel: buttons()[0].textContent?.trim(),
+		}, { heading: 'Synthesizer\nOptional review.', radios: 3, cancel: 'Cancel' });
+		buttons()[1].click();
 		assert.ok(popup.querySelector('.action-list-header-text')?.textContent?.startsWith('Attempts'));
 		element(popup, '.chat-model-picker-model').click();
-		buttons()[0].click();
 		buttons()[1].click();
+		buttons()[2].click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections }, { finished: true, visible: false, selections: [] });
 	});
+
+	for (const committed of [false, true]) {
+		for (const dismissal of ['Escape', 'click-away', 'Cancel'] as const) {
+			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
+				const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+				const summary = constObservable(committed ? '2 Attempts' : undefined);
+				let cancelled = 0;
+				const workflow: IModelPickerWorkflow = {
+					available: constObservable(true), summary, state, label: 'Compare Models',
+					start: () => state.set({
+						title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: committed ? [models[0].identifier] : [],
+						multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+					}, undefined),
+					cancel: () => { cancelled++; state.set(undefined, undefined); },
+					reset: () => assert.fail('Dismissal must not reset committed state'),
+					select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
+					back: () => { }, next: () => { }, setCount: () => { },
+					finish: () => assert.fail('Dismissal must not commit'),
+				};
+				const { picker, popup, anchor, context, dismiss, selections } = createPicker({ workflow });
+				if (!committed) {
+					element(popup, '[aria-label="Compare Models"]').click();
+				}
+				element(popup, '.chat-model-picker-model').click();
+				if (dismissal === 'Cancel') {
+					element(popup, '.model-picker-workflow-actions .monaco-button').click();
+				} else if (dismissal === 'Escape') {
+					element(popup, '.monaco-list').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				} else {
+					dismiss();
+				}
+				const closed = { visible: picker.isVisible, state: state.get(), cancelled, selections, summary: workflow.summary.get() };
+				picker.show(anchor, context);
+				assert.deepStrictEqual({
+					closed, reopened: state.get()?.selectedModelIds,
+				}, {
+					closed: { visible: false, state: undefined, cancelled: 1, selections: [], summary: committed ? '2 Attempts' : undefined },
+					reopened: committed ? [models[0].identifier] : undefined,
+				});
+			});
+		}
+	}
 
 	/** The active list's rows, with separators prefixed by `--` and followed by their heading. */
 	function listRows(popup: HTMLElement): string[] {

@@ -18,7 +18,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ISession, ISessionGitRepository, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ICreateNewSessionOptions, ISendRequestSentEvent, WorkspaceNotTrustedError } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions, ISessionPermissionOption, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { IOpenNewSessionOptions, IOpenNewSessionResult } from '../../../../services/sessions/browser/sessionsService.js';
 import { IPickedSessionType, IPreferredSessionType } from '../../browser/sessionTypePicker.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
@@ -276,7 +276,6 @@ interface ISendHarness {
 			getModelsSnapshotForCreation(workspace: URI, sessionTypeId: string, desiredModelId?: string): {
 				readonly desiredModelResolution: { readonly kind: 'available'; readonly model: { readonly identifier: string; readonly metadata: { readonly name: string } } };
 			};
-			getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };

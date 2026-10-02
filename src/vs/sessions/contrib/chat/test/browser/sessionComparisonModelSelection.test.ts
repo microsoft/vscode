@@ -15,14 +15,17 @@ suite('SessionComparisonModelSelection', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
 		selection.select('model');
-		const initial = selection.attemptModelIds.get();
+		const initial = selection.state.get()?.summary;
 		selection.setCount(10);
-		assert.deepStrictEqual({ initial, maximum: selection.attemptModelIds.get(), count: selection.state.get()?.count?.value }, {
-			initial: ['model', 'model'], maximum: Array(10).fill('model'), count: 10,
-		});
+		const count = selection.state.get()?.count?.value;
 		for (const count of [1, 11, 2.5, NaN, Infinity]) {
 			assert.throws(() => selection.setCount(count), /integer between 2 and 10/);
 		}
+		selection.next();
+		selection.finish();
+		assert.deepStrictEqual({ initial, maximum: selection.attemptModelIds.get(), count }, {
+			initial: '2 Attempts', maximum: Array(10).fill('model'), count: 10,
+		});
 	});
 
 	test('multiple models run once each and are capped at ten', () => {
@@ -31,10 +34,12 @@ suite('SessionComparisonModelSelection', () => {
 		for (let index = 0; index < 11; index++) {
 			selection.select(`model-${index}`);
 		}
+		const draft = { count: selection.state.get()?.count, next: selection.state.get()?.canGoNext };
+		selection.next();
+		selection.finish();
 		assert.deepStrictEqual({
 			attempts: selection.attemptModelIds.get(),
-			count: selection.state.get()?.count,
-			next: selection.state.get()?.canGoNext,
+			...draft,
 		}, { attempts: Array.from({ length: 10 }, (_, index) => `model-${index}`), count: undefined, next: true });
 	});
 
@@ -46,12 +51,12 @@ suite('SessionComparisonModelSelection', () => {
 		selection.next();
 		selection.finish();
 		assert.deepStrictEqual({
-			page: selection.state.get()?.title,
-			next: selection.state.get()?.canGoNext,
+			state: selection.state.get(),
+			summary: selection.summary.get(),
 			configured: selection.configured.get(),
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
-		}, { page: 'Judge', next: false, configured: true, judge: undefined, synthesizer: undefined });
+		}, { state: undefined, summary: '2 Attempts', configured: true, judge: undefined, synthesizer: undefined });
 	});
 
 	test('Judge and Synthesizer selections survive back navigation', () => {
@@ -84,16 +89,21 @@ suite('SessionComparisonModelSelection', () => {
 		selection.next();
 		selection.finish();
 		const withoutSynthesizer = selection.synthesizerModelId.get();
+		selection.start();
+		selection.next();
+		selection.next();
 		selection.select('synthesizer');
 		selection.back();
 		selection.select('judge');
+		const canFinish = selection.state.get()?.canFinish;
+		selection.finish();
 		assert.deepStrictEqual({
 			withoutSynthesizer, judge: selection.judgeModelId.get(),
-			synthesizer: selection.synthesizerModelId.get(), canFinish: selection.state.get()?.canFinish,
+			synthesizer: selection.synthesizerModelId.get(), canFinish,
 		}, { withoutSynthesizer: undefined, judge: undefined, synthesizer: undefined, canFinish: true });
 	});
 
-	test('unavailable models invalidate setup and disabled feature hides workflow', () => {
+	test('unavailable committed models return the composer to single-model sending', () => {
 		const available = observableValue('available', true);
 		const selection = store.add(new SessionComparisonModelSelection(available));
 		selection.start();
@@ -105,7 +115,7 @@ suite('SessionComparisonModelSelection', () => {
 		const retained = { attempts: selection.attemptModelIds.get(), configured: selection.configured.get(), page: selection.state.get()?.title };
 		available.set(false, undefined);
 		assert.deepStrictEqual({ retained, enabled: selection.enabled.get(), state: selection.state.get() }, {
-			retained: { attempts: ['two', 'two'], configured: false, page: 'Attempts' }, enabled: false, state: undefined,
+			retained: { attempts: [], configured: false, page: undefined }, enabled: false, state: undefined,
 		});
 	});
 
@@ -142,6 +152,8 @@ suite('SessionComparisonModelSelection', () => {
 		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
 		selection.start();
 		selection.select('attempt');
+		selection.next();
+		selection.finish();
 		resolving.set(true, undefined);
 		available.set(false, undefined);
 		const enabledWhileResolving = selection.enabled.get();
@@ -179,4 +191,73 @@ suite('SessionComparisonModelSelection', () => {
 			});
 		});
 	}
+
+	test('first-time setup stays uncommitted and cancellation does not resume unfinished work', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('model');
+		selection.setCount(5);
+		selection.next();
+		selection.select('judge');
+		const during = { enabled: selection.enabled.get(), summary: selection.summary.get(), attempts: selection.attemptModelIds.get() };
+		selection.cancel();
+		const closed = selection.state.get();
+		selection.start();
+		assert.deepStrictEqual({
+			during, closed,
+			reopened: selection.state.get()?.selectedModelIds,
+			configured: selection.configured.get(),
+		}, { during: { enabled: false, summary: undefined, attempts: [] }, closed: undefined, reopened: [], configured: false });
+	});
+
+	test('editing a comparison preserves committed choices until Done and cancellation restores them', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('original');
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
+		selection.finish();
+
+		selection.start();
+		selection.select('replacement');
+		selection.select('original');
+		selection.setCount(4);
+		selection.next();
+		selection.select('judge');
+		const during = {
+			configured: selection.configured.get(), attempts: selection.attemptModelIds.get(),
+			judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(), summary: selection.summary.get(),
+		};
+		selection.cancel();
+		selection.start();
+		assert.deepStrictEqual({
+			during, reopened: selection.state.get()?.selectedModelIds, count: selection.state.get()?.count?.value,
+		}, {
+			during: { configured: true, attempts: ['original', 'original'], judge: 'judge', synthesizer: 'synthesizer', summary: '2 Attempts' },
+			reopened: ['original'], count: 2,
+		});
+
+		selection.setCount(3);
+		selection.next();
+		selection.next();
+		selection.finish();
+		assert.deepStrictEqual({
+			attempts: selection.attemptModelIds.get(), summary: selection.summary.get(), state: selection.state.get(),
+		}, { attempts: ['original', 'original', 'original'], summary: '3 Attempts', state: undefined });
+	});
+
+	test('reset clears both committed and working selections', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('model');
+		selection.next();
+		selection.finish();
+		selection.start();
+		selection.reset();
+		assert.deepStrictEqual({
+			enabled: selection.enabled.get(), summary: selection.summary.get(), state: selection.state.get(), attempts: selection.attemptModelIds.get(),
+		}, { enabled: false, summary: undefined, state: undefined, attempts: [] });
+	});
 });

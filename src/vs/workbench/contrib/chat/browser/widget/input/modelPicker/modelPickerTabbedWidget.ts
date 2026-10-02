@@ -159,12 +159,13 @@ export class TabbedModelPicker extends Disposable {
 			if (this._context.selectedModelId && !this._context.models.some(model => model.identifier === this._context?.selectedModelId)) {
 				const fallback = this._autoModel(this._context) ?? this._fallbackModel(this._context);
 				if (fallback) {
-					this._applyModelSelection(fallback, this._context);
+					this._applyModelSelection(fallback, this._context, false);
 				}
 			}
 			this.refresh();
 		}));
 		this._register(this._widget.onDidHide(() => {
+			this._context?.workflow?.cancel();
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
@@ -196,6 +197,9 @@ export class TabbedModelPicker extends Disposable {
 	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number, options?: IModelPickerOpenOptions): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
+			if (context.workflow?.available.get() && context.workflow.summary.get()) {
+				context.workflow.start();
+			}
 		}
 		this._anchor = anchor;
 		this._selectionVersion++;
@@ -411,7 +415,7 @@ export class TabbedModelPicker extends Disposable {
 				},
 				onHide: () => { },
 			},
-			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible, !!step),
+			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible, step?.multiple ?? false),
 		});
 		if (this._context?.selectedModelId) {
 			this._rememberSpeedVariant(this._context.selectedModelId);
@@ -594,6 +598,9 @@ export class TabbedModelPicker extends Disposable {
 			store.add(select.onDidSelect(event => workflow.setCount(event.index + count.min)));
 		}
 		const actions = dom.append(container, dom.$('.model-picker-workflow-actions'));
+		const cancel = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
+		cancel.label = localize('modelPicker.workflow.cancel', "Cancel");
+		store.add(cancel.onDidClick(() => this._widget.hide()));
 		if (step.canGoBack) {
 			const back = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
 			back.label = localize('modelPicker.workflow.back', "{0} Back", '$(arrow-left)');
@@ -1038,7 +1045,10 @@ export class TabbedModelPicker extends Disposable {
 		this.refresh();
 	}
 
-	private _applyModelSelection(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): void {
+	private _applyModelSelection(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext, resetWorkflow = true): void {
+		if (resetWorkflow) {
+			context.workflow?.reset();
+		}
 		this._context = { ...context, selectedModelId: model.identifier };
 		this._rememberSelection(model.identifier);
 		context.onSelect(model);

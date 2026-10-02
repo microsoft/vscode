@@ -8,10 +8,13 @@ import { IObservable } from '../../../../../../../base/common/observable.js';
 /** Owner-defined selection steps rendered by the tabbed model picker. */
 export interface IModelPickerWorkflow {
 	readonly available: IObservable<boolean>;
+	/** Composer label for the committed selection, independent of the open setup draft. */
+	readonly summary: IObservable<string | undefined>;
 	readonly state: IObservable<IModelPickerWorkflowState | undefined>;
 	readonly label: string;
 	start(): void;
 	cancel(): void;
+	reset(): void;
 	select(modelId: string): void;
 	back(): void;
 	next(): void;

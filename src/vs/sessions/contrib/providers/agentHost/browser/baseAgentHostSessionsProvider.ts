@@ -3552,15 +3552,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly usesCombinedNewSessionConfigPicker = true;
 	readonly supportsModelConfigurationForCreation = true;
+	readonly supportsPermissionsForCreation = true;
 	readonly supportsAutomationSessionConfiguration = true;
-
-	getPermissionOptionsForCreation(sessionTypeId: string): readonly ISessionPermissionOption[] {
-		return getAgentHostSessionPermissionOptions(
-			sessionTypeId,
-			isAutoApprovePolicyRestricted(this._baseConfigurationService),
-			true,
-		);
-	}
 
 	getPermissionOptionForSession(sessionId: string): ISessionPermissionOption | undefined {
 		const sessionType = this._getNewSession(sessionId)?.agentProvider;
@@ -4535,7 +4528,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				true,
 			)
 			: undefined;
-		if (initialPermissionId && !permissionConfig && this.getPermissionOptionsForCreation(sessionType.id).length > 0) {
+		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, isAutoApprovePolicyRestricted(this._baseConfigurationService), true).length > 0) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
 		const initialConfigValues = {

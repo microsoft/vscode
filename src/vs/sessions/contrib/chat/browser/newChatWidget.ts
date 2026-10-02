@@ -444,7 +444,7 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			const harness = session ? JSON.stringify([session.providerId, session.sessionType]) : undefined;
 			if (harness !== comparisonHarness) {
-				this._comparisonSelection.cancel();
+				this._comparisonSelection.reset();
 				comparisonHarness = harness;
 			}
 			const state = newChatInput.selectedModelState.read(reader);
@@ -1719,7 +1719,7 @@ export class NewChatWidget extends Disposable {
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,
 			});
-			this._comparisonSelection.cancel();
+			this._comparisonSelection.reset();
 			try {
 				if (this.configurationService.getValue<boolean>(COMPARE_AGENTS_OPEN_IN_GRID_SETTING)) {
 					// An empty composer would create a new draft and cancel the grid navigation.
@@ -1922,7 +1922,7 @@ export class NewChatWidget extends Disposable {
 		}
 		const currentFolderUri = this._session.get()?.workspace.get()?.folders[0]?.root;
 		if (!folderUri || !currentFolderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri)) {
-			this._comparisonSelection.cancel();
+			this._comparisonSelection.reset();
 		}
 		const refreshingPromptOptions = !!currentFolderUri
 			&& (!folderUri || !this.uriIdentityService.extUri.isEqual(currentFolderUri, folderUri))
