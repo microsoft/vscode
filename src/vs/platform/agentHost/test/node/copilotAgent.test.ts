@@ -1073,10 +1073,6 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	}
 
 	readonly fetch: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init);
-
-	createFetch(): never {
-		throw new Error('Copilot must not use the GitHub fetch factory');
-	}
 }
 
 class TestDiskFileSystemProvider extends DiskFileSystemProvider {

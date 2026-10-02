@@ -30,7 +30,6 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 	lastInput: string | URL | Request | undefined;
 	lastInit: RequestInit | undefined;
 	fetchImpl: typeof globalThis.fetch = () => Promise.resolve(new Response());
-	readonly createFetch: IAgentHostProxyResolver['createFetch'] = () => (input, init) => this.fetch(input, init);
 
 	register(_clientId: string, _connection: IAgentHostClientProxyConnection) {
 		return Disposable.None;

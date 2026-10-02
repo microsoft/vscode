@@ -12,7 +12,7 @@ import { INativeHostService } from '../../../native/common/native.js';
 import product from '../../../product/common/product.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { SharedProcessGitHubService } from '../../electron-utility/githubService.js';
-import { SharedProcessGitHubFetchService } from '../../electron-utility/fetchService.js';
+import { createFetch } from '../../../request/electron-utility/fetch.js';
 
 suite('SharedProcessGitHubService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,8 +30,8 @@ suite('SharedProcessGitHubService', () => {
 				return 'DIRECT';
 			}
 		}();
-		const fetchService = store.add(new SharedProcessGitHubFetchService(async () => new Response('fixture'), {}, nativeHost, configuration, new NullLogService()));
-		const response = await fetchService.fetch('https://api.test/resource');
+		const fetch = createFetch(nativeHost, configuration, new NullLogService(), {}, async () => new Response('fixture'));
+		const response = await fetch('https://api.test/resource');
 		assert.deepStrictEqual({ proxyUrls, body: await response.text() }, { proxyUrls: ['https://api.test/resource'], body: 'fixture' });
 	});
 
@@ -39,13 +39,9 @@ suite('SharedProcessGitHubService', () => {
 		const requests: Request[] = [];
 		const configuration = new TestConfigurationService();
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const service = store.add(new SharedProcessGitHubService({
-			_serviceBrand: undefined,
-			egress: 'node',
-			fetch: async (input, init) => {
-				requests.push(new Request(input, init));
-				return new Response('{"value":1}');
-			},
+		const service = store.add(new SharedProcessGitHubService(async (input, init) => {
+			requests.push(new Request(input, init));
+			return new Response('{"value":1}');
 		}, configuration, { _serviceBrand: undefined, ...product, applicationName: 'code-insiders', version: '1.141.0' }, new NullLogService(), NullTelemetryService));
 		const attemptsAtConstruction = requests.length;
 		assert.throws(() => service.acquireClient({

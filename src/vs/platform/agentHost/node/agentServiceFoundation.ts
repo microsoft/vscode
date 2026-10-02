@@ -8,11 +8,11 @@ import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createGitHubClientMetadata } from '../../github/common/githubRequestMetadata.js';
 import type { GitHubServiceOptions } from '../../github/common/githubTypes.js';
-import { NodeFetchService } from '../../github/node/fetchService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { createFetch } from '../../request/common/fetch.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
@@ -130,9 +130,6 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
 	const fetchFn = options.fetchFn ?? proxyResolver.fetch.bind(proxyResolver);
-	const gitHubFetch = options.fetchFn ? undefined : options.owned.add(new NodeFetchService(
-		(fetch, fetchOptions) => proxyResolver.createFetch(fetch, fetchOptions), undefined, options.logService,
-	));
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
@@ -158,7 +155,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
 				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
 				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
-			fetch: gitHubFetch ? (input, init) => gitHubFetch.fetch(input, init) : fetchFn,
+			fetch: options.fetchFn ?? createFetch(fetchFn),
 		},
 	};
 }

@@ -12,25 +12,24 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
-import { RequestFetch } from '../../common/types.js';
-import { createNodeFetchFactory, NodeFetchNetwork, NodeFetchService } from '../../node/fetchService.js';
+import { GitHubRequestError, GitHubTransport } from '../../../github/common/githubTransport.js';
+import { createFetch, FetchNetwork } from '../../node/fetch.js';
 
-suite('NodeFetchService', () => {
+suite('createFetch (node)', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const nodeTest = process.type === 'renderer' ? test.skip : test;
 
-	function createService(fetch?: RequestFetch, overrides?: Partial<NodeFetchNetwork>, values?: Record<string, unknown>, log = new NullLogService()) {
+	function createTestFetch(fetch?: typeof globalThis.fetch, overrides?: Partial<FetchNetwork>, values?: Record<string, unknown>, log = new NullLogService()) {
 		const configuration = new TestConfigurationService({ 'http.systemCertificates': false, ...values });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const network: NodeFetchNetwork = {
+		const network: FetchNetwork = {
 			resolveProxy: async () => 'DIRECT',
 			lookupAuthorization: async () => undefined,
 			lookupKerberosAuthorization: async () => undefined,
 			loadCertificates: async () => [],
 			...overrides,
 		};
-		return store.add(new NodeFetchService(createNodeFetchFactory(network, configuration, log, {}), fetch, log));
+		return createFetch(network, configuration, log, {}, fetch);
 	}
 
 	async function withServer(listener: RequestListener, run: (url: string) => Promise<void>): Promise<void> {
@@ -51,7 +50,7 @@ suite('NodeFetchService', () => {
 		const resolved: string[] = [];
 		const requests: Request[] = [];
 		const logs: string[] = [];
-		const service = createService(async (input, init) => {
+		const fetch = createTestFetch(async (input, init) => {
 			requests.push(new Request(input, init));
 			return new Response(null, { status: 302, headers: { location: 'https://storage.test/?sig=fixture-secret' } });
 		}, {
@@ -63,7 +62,7 @@ suite('NodeFetchService', () => {
 			override trace(message: string): void { logs.push(message); }
 			override debug(message: string): void { logs.push(message); }
 		}());
-		const response = await service.fetch('https://api.test/private-path?sig=fixture-secret', { headers: { authorization: 'Bearer fixture-token' }, cache: 'no-store' });
+		const response = await fetch('https://api.test/private-path?sig=fixture-secret', { headers: { authorization: 'Bearer fixture-token' }, cache: 'no-store' });
 		assert.deepStrictEqual({
 			resolved, status: response.status, location: response.headers.get('location'),
 			requests: requests.map(request => ({
@@ -79,7 +78,7 @@ suite('NodeFetchService', () => {
 	test('uses configured proxy and bypass rules before host resolution', async () => {
 		let resolutions = 0;
 		let attempts = 0;
-		const service = createService(async () => {
+		const fetch = createTestFetch(async () => {
 			attempts++;
 			return new Response();
 		}, {
@@ -88,21 +87,21 @@ suite('NodeFetchService', () => {
 				return 'DIRECT';
 			},
 		}, { 'http.proxy': 'http://proxy.test:8080', 'http.noProxy': ['bypass.test'] });
-		await service.fetch('https://api.test/resource');
-		await service.fetch('https://bypass.test/resource');
+		await fetch('https://api.test/resource');
+		await fetch('https://bypass.test/resource');
 		assert.deepStrictEqual({ resolutions, attempts }, { resolutions: 0, attempts: 2 });
 	});
 
 	test('loads additional host certificates only when enabled', async () => {
 		const loads: boolean[] = [];
 		for (const enabled of [false, true]) {
-			const service = createService(async () => new Response(), {
+			const fetch = createTestFetch(async () => new Response(), {
 				loadCertificates: async () => {
 					loads.push(enabled);
 					return [];
 				},
 			}, { 'http.systemCertificates': enabled });
-			await service.fetch('https://api.test/resource');
+			await fetch('https://api.test/resource');
 		}
 		assert.deepStrictEqual(loads, [true]);
 	});
@@ -115,31 +114,29 @@ suite('NodeFetchService', () => {
 		networkInterfaces.onFirstCall().returns(network('192.0.2.1'));
 		networkInterfaces.returns(network('192.0.2.2'));
 		let resolutions = 0;
-		const service = createService(async () => new Response(), {
+		const fetch = createTestFetch(async () => new Response(), {
 			resolveProxy: async () => ++resolutions === 1 ? 'DIRECT' : 'PROXY proxy.test:8080',
 		}, { 'http.experimental.networkInterfaceCheckInterval': 0 });
 		try {
-			await service.fetch('https://api.test/resource');
-			await service.fetch('https://api.test/resource');
+			await fetch('https://api.test/resource');
+			await fetch('https://api.test/resource');
 			assert.deepStrictEqual({ resolutions, snapshots: networkInterfaces.callCount }, { resolutions: 2, snapshots: 2 });
 		} finally {
 			networkInterfaces.restore();
 		}
 	});
 
-	test('does not dispatch when initialization is cancelled or the service is disposed', async () => {
+	test('does not dispatch when initialization is cancelled', async () => {
 		let attempts = 0;
-		const service = createService(async () => {
+		const fetch = createTestFetch(async () => {
 			attempts++;
 			return new Response();
 		});
 		const controller = new AbortController();
 		const reason = new Error('cancel initialization');
-		const pending = service.fetch('https://api.test', { signal: controller.signal });
+		const pending = fetch('https://api.test', { signal: controller.signal });
 		controller.abort(reason);
 		await assert.rejects(pending, error => error === reason);
-		service.dispose();
-		await assert.rejects(service.fetch('https://api.test'));
 		assert.strictEqual(attempts, 0);
 	});
 
@@ -147,7 +144,7 @@ suite('NodeFetchService', () => {
 		const resolving = new DeferredPromise<void>();
 		const resolved = new DeferredPromise<string>();
 		let aborted = false;
-		const service = createService(async input => {
+		const fetch = createTestFetch(async input => {
 			assert.ok(input instanceof Request);
 			aborted = input.signal.aborted;
 			input.signal.throwIfAborted();
@@ -160,7 +157,7 @@ suite('NodeFetchService', () => {
 		});
 		const controller = new AbortController();
 		const reason = new Error('cancel proxy resolution');
-		const rejected = assert.rejects(service.fetch('https://api.test', { signal: controller.signal }), error => error === reason);
+		const rejected = assert.rejects(fetch('https://api.test', { signal: controller.signal }), error => error === reason);
 		await resolving.p;
 		controller.abort(reason);
 		await resolved.complete('DIRECT');
@@ -168,30 +165,19 @@ suite('NodeFetchService', () => {
 		assert.strictEqual(aborted, true);
 	});
 
-	nodeTest('does not replay GET or a consumed POST on a warmed connection after a dropped response', async () => {
-		const requests: string[] = [];
-		await withServer((request, response) => {
-			request.on('end', () => {
-				if (request.url === '/warm') {
-					response.end('ok');
-					return;
-				}
-				requests.push(request.method!);
-				request.socket.destroy();
-			});
-			request.resume();
-		}, async url => {
-			const service = createService();
-			await (await service.fetch(`${url}/warm`)).text();
-			await assert.rejects(service.fetch(`${url}/read`));
-			await (await service.fetch(`${url}/warm`)).text();
-			await assert.rejects(service.fetch(`${url}/mutation`, { method: 'POST', body: '{}' }));
-			assert.deepStrictEqual(requests, ['GET', 'POST']);
+	test('does not add retries when the underlying fetch rejects', async () => {
+		let attempts = 0;
+		const error = new TypeError('fetch failed');
+		const fetch = createTestFetch(async () => {
+			attempts++;
+			throw error;
 		});
+		await assert.rejects(fetch('https://api.test/resource'), actual => actual === error);
+		assert.strictEqual(attempts, 1);
 	});
 
 	for (const method of ['GET', 'POST'] as const) {
-		nodeTest(`returns the first HTTP 421 for ${method} without replay`, async () => {
+		nodeTest(`preserves standard fetch recovery from HTTP 421 for ${method}`, async () => {
 			const requests: { method: string | undefined; body: string }[] = [];
 			await withServer(async (request, response) => {
 				let body = '';
@@ -206,13 +192,13 @@ suite('NodeFetchService', () => {
 				response.writeHead(requests.length === 1 ? 421 : 200, { 'retry-after': '7' });
 				response.end('first response');
 			}, async url => {
-				const client = createService();
-				await (await client.fetch(`${url}/warm`)).text();
-				const response = await client.fetch(`${url}/resource`, { method, body: method === 'POST' ? '{"value":1}' : undefined });
+				const fetch = createTestFetch();
+				await (await fetch(`${url}/warm`)).text();
+				const response = await fetch(`${url}/resource`, { method, body: method === 'POST' ? '{"value":1}' : undefined });
 				assert.deepStrictEqual({
 					status: response.status, retryAfter: response.headers.get('retry-after'), body: await response.text(), requests,
 				}, {
-					status: 421, retryAfter: '7', body: 'first response', requests: [{ method, body: method === 'POST' ? '{"value":1}' : '' }],
+					status: 200, retryAfter: '7', body: 'first response', requests: Array.from({ length: 2 }, () => ({ method, body: method === 'POST' ? '{"value":1}' : '' })),
 				});
 			});
 		});
@@ -232,8 +218,8 @@ suite('NodeFetchService', () => {
 					body += chunk;
 				}
 				originRequests.push({ method: request.method, body, authorization: request.headers.authorization, proxyAuthorization: request.headers['proxy-authorization'] });
-				response.writeHead(421);
-				response.end('misdirected');
+				response.writeHead(403);
+				response.end('forbidden');
 			}, async origin => {
 				const proxy = createServer();
 				const sockets = new Set<Duplex>();
@@ -259,24 +245,23 @@ suite('NodeFetchService', () => {
 				await new Promise<void>(resolve => proxy.listen(0, '127.0.0.1', resolve));
 				const address = proxy.address();
 				assert.ok(address && typeof address !== 'string');
-				const service = createService(undefined, {
+				const fetch = createTestFetch(undefined, {
 					lookupAuthorization: async () => {
 						lookups++;
 						return { username: 'fixture-user', password: 'fixture-password' };
 					},
 				}, { 'http.proxy': `http://127.0.0.1:${address.port}`, 'http.proxyAuthorization': configured ? authorization : undefined });
 				try {
-					const transport = store.add(new GitHubTransport((input, init) => service.fetch(input, init)));
+					const transport = store.add(new GitHubTransport(fetch));
 					await assert.rejects(transport.rest({ host: 'fixture.test', accountId: 'test' }, 'origin-token', {
 						method: 'POST', url: `http://origin.fixture.test:${new URL(origin).port}/resource`, body: { value: 1 },
-					}, new AbortController().signal), error => error instanceof GitHubRequestError && error.statusCode === 421);
+					}, new AbortController().signal), error => error instanceof GitHubRequestError && error.statusCode === 403);
 					assert.deepStrictEqual({ lookups, proxyRequests, originRequests }, {
 						lookups: configured ? 0 : 1,
 						proxyRequests: configured ? [authorization] : [undefined, authorization],
 						originRequests: [{ method: 'POST', body: '{"value":1}', authorization: 'Bearer origin-token', proxyAuthorization: undefined }],
 					});
 				} finally {
-					service.dispose();
 					for (const socket of sockets) {
 						socket.destroy();
 					}
@@ -296,7 +281,7 @@ suite('NodeFetchService', () => {
 					response.writeHead(status, { 'content-encoding': encoding, 'content-length': compressed.length, 'retry-after': '3', 'x-ratelimit-remaining': '0' });
 					response.end(compressed);
 				}, async url => {
-					const response = await createService().fetch(url);
+					const response = await createTestFetch()(url);
 					assert.deepStrictEqual({
 						status: response.status, text: await response.text(),
 						retryAfter: response.headers.get('retry-after'), remaining: response.headers.get('x-ratelimit-remaining'),
@@ -313,13 +298,13 @@ suite('NodeFetchService', () => {
 			response.writeHead(Number(request.url!.slice(1)), { location: '/followed', etag: '"one"' });
 			response.end();
 		}, async url => {
-			const client = createService();
+			const fetch = createTestFetch();
 			const results = [];
 			for (const status of [204, 205, 304, 302]) {
-				const response = await client.fetch(`${url}/${status}`, { credentials: 'include', redirect: 'follow' });
+				const response = await fetch(`${url}/${status}`, { credentials: 'include', redirect: 'follow' });
 				results.push({ status: response.status, text: await response.text(), etag: response.headers.get('etag') });
 			}
-			const head = await client.fetch(`${url}/200`, { method: 'HEAD' });
+			const head = await fetch(`${url}/200`, { method: 'HEAD' });
 			assert.deepStrictEqual({ results, headBody: head.body, requests }, {
 				results: [204, 205, 304, 302].map(status => ({ status, text: '', etag: '"one"' })),
 				headBody: null,
@@ -336,8 +321,7 @@ suite('NodeFetchService', () => {
 			response.writeHead(200, { 'content-encoding': 'gzip' });
 			response.write(gzipSync('x'.repeat(1024 * 1024)));
 		}, async url => {
-			const client = createService();
-			const transport = store.add(new GitHubTransport((input, init) => client.fetch(input, init), undefined, true));
+			const transport = store.add(new GitHubTransport(createTestFetch(), undefined, true));
 			const result = await transport.download({ host: 'fixture.test', accountId: 'test' }, 'token', {
 				url, maximumBytes: 32, timeout: 2000,
 			}, new AbortController().signal);
@@ -356,7 +340,7 @@ suite('NodeFetchService', () => {
 			response.write('first');
 		}, async url => {
 			const controller = new AbortController();
-			const response = await createService().fetch(url, { signal: controller.signal });
+			const response = await createTestFetch()(url, { signal: controller.signal });
 			const reader = response.body!.getReader();
 			try {
 				await reader.read();
@@ -376,7 +360,7 @@ suite('NodeFetchService', () => {
 			response.writeHead(200, { 'content-encoding': 'gzip' });
 			response.end('private response text');
 		}, async url => {
-			const response = await createService().fetch(url);
+			const response = await createTestFetch()(url);
 			await assert.rejects(response.text(), error => error instanceof Error && !error.message.includes('private response text'));
 		});
 	});

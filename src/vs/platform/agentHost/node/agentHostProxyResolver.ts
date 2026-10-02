@@ -7,7 +7,6 @@ import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createPr
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
-import { createFetchProxyLog, NodeFetchFactory } from '../../github/node/fetchService.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
@@ -52,9 +51,6 @@ export interface IAgentHostProxyResolver {
 
 	/** Fetch using the same proxy, certificate, and host/PAC resolution as {@link resolveProxy}. */
 	fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
-
-	/** Applies host networking to an independently owned executor without changing the default fetch. */
-	createFetch: NodeFetchFactory;
 }
 
 export class AgentHostProxyResolver extends Disposable implements IAgentHostProxyResolver {
@@ -119,27 +115,6 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 			this._fetch = createFetchPatch(this._proxyAgentParams!, globalThis.fetch, proxyResolver.resolveProxyURL);
 		}
 		return this._fetch(input, init);
-	}
-
-	async createFetch(fetch: Parameters<NodeFetchFactory>[0], options: Parameters<NodeFetchFactory>[1]): Promise<typeof globalThis.fetch> {
-		this._getProxyResolver();
-		const { getCACertificates } = await import('tls');
-		const log = createFetchProxyLog(this._logService);
-		const params: ProxyAgentParams = {
-			...this._proxyAgentParams!,
-			log,
-			getLogLevel: () => ProxyLogLevel.Error,
-			lookupProxyAuthorization: createProxyAuthorizationLookup({
-				log,
-				lookupAuthorization: authInfo => this._hostLookupAuthorization(authInfo),
-				lookupKerberosAuthorization: url => this._hostLookupKerberosAuthorization(new URL(url).origin),
-			}),
-			loadAdditionalCertificates: async () => [
-				...getCACertificates('default'),
-				...await loadSystemCertificates({ loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault, log }),
-			],
-		};
-		return createFetchPatch(params, fetch, createProxyResolver(params).resolveProxyURL, options);
 	}
 
 	private _getProxyResolver(): ReturnType<typeof createProxyResolver> {

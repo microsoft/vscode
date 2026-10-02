@@ -133,7 +133,6 @@ export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetc
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
 		fetch: fetchFn,
-		createFetch: () => fetchFn,
 	};
 }
 

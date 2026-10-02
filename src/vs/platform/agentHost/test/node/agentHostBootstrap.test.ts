@@ -165,23 +165,14 @@ suite('agentHostBootstrap', () => {
 		});
 	});
 
-	test('uses the Node GitHub executor without replacing the legacy Copilot fetch', async () => {
-		const requests: { executor: string; redirect: RequestRedirect; credentials: RequestCredentials }[] = [];
-		const interceptors: number[] = [];
+	test('wraps the existing proxy fetch for GitHub without changing the legacy Copilot fetch', async () => {
+		const requests: { redirect: RequestRedirect; credentials: RequestCredentials }[] = [];
 		const proxyResolver = new class extends mock<IAgentHostProxyResolver>() {
 			override async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
 				const request = new Request(input, init);
-				requests.push({ executor: 'legacy', redirect: request.redirect, credentials: request.credentials });
+				requests.push({ redirect: request.redirect, credentials: request.credentials });
 				return new Response();
 			}
-			override createFetch: IAgentHostProxyResolver['createFetch'] = (_fetch, options) => {
-				interceptors.push(options.interceptors?.length ?? 0);
-				return async (input, init) => {
-					const request = new Request(input, init);
-					requests.push({ executor: 'github', redirect: request.redirect, credentials: request.credentials });
-					return new Response();
-				};
-			};
 		}();
 		const foundation = createAgentServiceFoundation({
 			services: new StrictServiceCollection(), owned: disposables.add(new DisposableStore()),
@@ -190,13 +181,10 @@ suite('agentHostBootstrap', () => {
 		});
 		await foundation.gitHubServiceOptions.fetch!('https://api.test');
 		await foundation.fetchFn('https://api.test');
-		assert.deepStrictEqual({ requests, interceptors }, {
-			requests: [
-				{ executor: 'github', redirect: 'manual', credentials: 'omit' },
-				{ executor: 'legacy', redirect: 'follow', credentials: 'same-origin' },
-			],
-			interceptors: [1],
-		});
+		assert.deepStrictEqual(requests, [
+			{ redirect: 'manual', credentials: 'omit' },
+			{ redirect: 'follow', credentials: 'same-origin' },
+		]);
 	});
 
 	test('drops pending GitHub telemetry when root configuration disables collection', async () => {

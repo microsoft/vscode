@@ -10,17 +10,17 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { BrowserFetchService } from '../../../../platform/github/browser/fetchService.js';
-import { IGitHubFetchService } from '../../../../platform/github/common/fetch.js';
 import { withGitHubCredentialDeadline } from '../../../../platform/github/common/githubCredentialService.js';
 import { deriveGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
 import { GitHubService, IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, IGitHubCredentialProvider } from '../../../../platform/github/common/githubTypes.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { RequestFetch } from '../../../../platform/github/common/types.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { createFetch } from '../../../../platform/request/common/fetch.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -114,14 +114,14 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IGitHubFetchService fetchService: IGitHubFetchService,
+		fetch: RequestFetch = request => globalThis.fetch(request),
 	) {
 		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
 			credentialProvider,
-			fetch: (input, init) => fetchService.fetch(input, init),
+			fetch: createFetch(fetch),
 			telemetrySource: isWeb ? 'web' : 'workbench',
-			clientMetadata: createGitHubClientMetadata(productService, 'workbench', fetchService.egress),
+			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
 				event.affectsConfiguration(TELEMETRY_SETTING_ID)
 				|| event.affectsConfiguration(TELEMETRY_OLD_SETTING_ID)
@@ -235,5 +235,4 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	}
 }
 
-registerSingleton(IGitHubFetchService, new SyncDescriptor(BrowserFetchService, [], true));
-registerSingleton(IWorkbenchGitHubService, WorkbenchGitHubService, InstantiationType.Delayed);
+registerSingleton(IWorkbenchGitHubService, new SyncDescriptor(WorkbenchGitHubService, [], true));

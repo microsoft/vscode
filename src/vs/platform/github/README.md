@@ -101,19 +101,15 @@ Browser fetch, including desktop renderers, sends only `X-Client-Application` to
 
 ### Host networking
 
-Host-specific fetchers remain in this platform folder and implement the shared [RequestFetch](common/types.ts) contract. They run directly in the engine's host; there is no fetch IPC or automatic move to a different machine after a failure.
+Hosts supply plain [RequestFetch](common/types.ts) functions using the [request fetch helpers](../request/README.md). There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
 
-- **Web and desktop workbench:** [BrowserFetchService](browser/fetchService.ts) uses browser fetch, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply. JavaScript cannot suppress browser-internal connection retries or install trust roots.
-- **Standalone Agent Host:** [NodeFetchService](node/fetchService.ts) uses the existing Agent Host proxy resolver's host/PAC, proxy authentication, configuration and certificate helpers. Its independent executor does not replace the legacy fetch used by Copilot or other Agent Host services. The foundation owns its lifetime and preserves the explicit fetch override used by tests.
-- **Shared process:** the same Node executor uses local-machine configuration and native-host utility-process proxy, Basic/Kerberos and certificate lookup services. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist. The executor is owned and disposed by the shared process, independently of the renderer engines.
+- **Web and desktop workbench:** [createFetch](../request/common/fetch.ts) wraps browser fetch, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
+- **Standalone Agent Host:** the same wrapper preserves the existing Agent Host proxy resolver's host/PAC, authentication and certificate handling. It applies only to GitHub requests, not the fetch used by Copilot or other services. The foundation preserves explicit test overrides.
+- **Shared process:** [createFetch](../request/electron-utility/fetch.ts) configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist.
 
-The Node executor combines `@vscode/proxy-agent` routing with Undici's lower-level `request`, not `IRequestService.request` or patched global fetch. It disables connection-level replay, including for GET, consumed POST uploads, and HTTP 421 responses. Proxy authentication negotiation can precede the one origin attempt; application retries and redirects remain engine decisions. Uploads are buffered; response headers arrive before body consumption, and gzip, deflate and Brotli bodies are decoded incrementally, including error responses. Engine limits apply to decoded bytes. Callers must consume or cancel every body; cancellation and service disposal release native requests and dispatchers.
+The helpers retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
 
 All bindings enforce manual redirects and omit ambient origin credentials. Anonymous requests also retain their no-referrer policy and never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
-
-Shared-process routing retains the proxy helper's precedence and loopback bypass: `http.noProxy`/`NO_PROXY`, configured/environment proxies, then system/PAC lookup. Network-interface changes invalidate cached system routes at `http.experimental.networkInterfaceCheckInterval`. Only local-user/default configuration is used, not remote-workspace proxy settings. Configured `http.proxyAuthorization` is sent to the proxy CONNECT endpoint, not the origin, and is not repeatedly resent after rejection.
-
-With `http.systemCertificates` enabled, additional host certificates honor `http.systemCertificatesNode` and are added to Node's default CA set. Verification and hostname checks remain enabled by default; `http.proxyStrictSSL: false` does not weaken this executor or cause a weaker-TLS retry. Extension-specific proxy/fetch switches do not select the core executor. The shared helper does not provide full Chromium parity: SOCKS4/4a, native NTLM, ordered PAC proxy failover and Chromium certificate exceptions are not reproduced. Proxy diagnostics are content-free and do not log URLs, credentials or response bodies.
 
 ### Shared-process preparation
 
@@ -125,8 +121,8 @@ Focused offline validation (from the repository root, with `COPILOT_HOME` cleare
 
 ```powershell
 npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\node\fetchService.test.ts --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-.\scripts\test.bat --run src\vs\platform\github\test\browser\fetchService.test.ts --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+npm run test-node -- --run src\vs\platform\request\test\common\fetch.test.ts --run src\vs\platform\request\test\node\fetch.test.ts --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
+.\scripts\test.bat --run src\vs\platform\request\test\common\fetch.test.ts --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts
 ```
 
 Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.

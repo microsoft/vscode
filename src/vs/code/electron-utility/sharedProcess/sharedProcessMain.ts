@@ -43,10 +43,8 @@ import { IExtensionRecommendationNotificationService } from '../../../platform/e
 import { IFileService } from '../../../platform/files/common/files.js';
 import { FileService } from '../../../platform/files/common/fileService.js';
 import { DiskFileSystemProvider } from '../../../platform/files/node/diskFileSystemProvider.js';
-import { IGitHubFetchService } from '../../../platform/github/common/fetch.js';
 import { GITHUB_CHANNEL_NAME, GitHubChannel } from '../../../platform/github/common/githubIpc.js';
 import { IGitHubService } from '../../../platform/github/common/githubService.js';
-import { SharedProcessGitHubFetchService } from '../../../platform/github/electron-utility/fetchService.js';
 import { SharedProcessGitHubService } from '../../../platform/github/electron-utility/githubService.js';
 import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -59,6 +57,7 @@ import { LoggerChannelClient } from '../../../platform/log/common/logIpc.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../platform/request/common/request.js';
+import { createFetch } from '../../../platform/request/electron-utility/fetch.js';
 import { ISharedProcessConfiguration } from '../../../platform/sharedProcess/node/sharedProcess.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { resolveCommonProperties } from '../../../platform/telemetry/common/commonProperties.js';
@@ -325,10 +324,6 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		const nativeHostService = new NativeHostService(-1 /* we are not running in a browser window context */, mainProcessService) as INativeHostService;
 		services.set(INativeHostService, nativeHostService);
 
-		// GitHub networking and opt-in shared engine
-		const gitHubFetchService = this._register(new SharedProcessGitHubFetchService(undefined, undefined, nativeHostService, configurationService, logService));
-		services.set(IGitHubFetchService, gitHubFetchService);
-
 		// Metered Connection
 		const meteredConnectionService = this._register(new MeteredConnectionChannelClient(mainProcessService.getChannel(METERED_CONNECTION_CHANNEL)));
 		services.set(IMeteredConnectionService, meteredConnectionService);
@@ -369,7 +364,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appenders));
 		services.set(ITelemetryService, telemetryService);
-		services.set(IGitHubService, this._register(new SharedProcessGitHubService(gitHubFetchService, configurationService, productService, logService, telemetryService)));
+		services.set(IGitHubService, this._register(new SharedProcessGitHubService(createFetch(nativeHostService, configurationService, logService), configurationService, productService, logService, telemetryService)));
 
 		// Custom Endpoint Telemetry
 		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);
