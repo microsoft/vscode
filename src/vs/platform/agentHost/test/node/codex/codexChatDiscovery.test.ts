@@ -42,7 +42,7 @@ import { ICodexAppServerClient, ClientRequestMethod, ClientRequestParams } from 
 import { ICodexProxyHandle, ICodexProxyService } from '../../../node/codex/codexProxyService.js';
 import { Thread } from '../../../node/codex/protocol/generated/v2/Thread.js';
 import type { Turn as CodexTurn } from '../../../node/codex/protocol/generated/v2/Turn.js';
-import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
+import { ICopilotApiService } from '../../../../github/common/copilotApiService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';

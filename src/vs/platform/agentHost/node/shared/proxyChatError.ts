@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from './copilotApiService.js';
+import { CopilotApiError, COPILOT_API_ERROR_STATUS_STREAMING } from '../../../github/common/copilotApiService.js';
 
 /**
  * Marker prefix used to smuggle a structured, serialized chat fetch error

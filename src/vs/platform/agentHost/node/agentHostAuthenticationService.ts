@@ -16,6 +16,13 @@ export interface IAgentHostAuthTokenChangeEvent {
 	readonly resource: string;
 	readonly scopes: readonly string[];
 	readonly token: string | undefined;
+	readonly previousToken?: string;
+}
+
+/** A credential no longer retained by any accepted or pending authentication for its resource. */
+export interface IAgentHostAuthTokenDiscardEvent {
+	readonly resource: string;
+	readonly token: string;
 }
 
 export const IAgentHostAuthenticationService = createDecorator<IAgentHostAuthenticationService>('agentHostAuthenticationService');
@@ -24,8 +31,11 @@ export const IAgentHostAuthenticationController = createDecorator<IAgentHostAuth
 export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
+	readonly onDidDiscardAuthToken: Event<IAgentHostAuthTokenDiscardEvent>;
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
+	/** Quota provenance for an explicitly supplied token, including its pending authentication attempt. */
+	getAuthAccountForToken(resource: string, token: string): IAgentAuthenticationAccount | undefined;
 }
 
 export interface IAgentHostAuthenticationController {
@@ -45,6 +55,8 @@ interface IStoredAuthToken {
 interface IAuthenticationRequest {
 	readonly resource: string;
 	readonly completed: DeferredPromise<void>;
+	readonly token: string;
+	readonly account: IAgentAuthenticationAccount | undefined;
 }
 
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
@@ -54,6 +66,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	private readonly _authenticationRequests = new Map<string, IAuthenticationRequest>();
 	private readonly _onDidChangeAuthToken = this._register(new Emitter<IAgentHostAuthTokenChangeEvent>());
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	private readonly _onDidDiscardAuthToken = this._register(new Emitter<IAgentHostAuthTokenDiscardEvent>());
+	readonly onDidDiscardAuthToken = this._onDidDiscardAuthToken.event;
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -72,7 +86,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const scopes = this._normalizeScopes(params.scopes);
 		const key = this._key(params.resource, scopes);
 		const previousRequest = this._authenticationRequests.get(key);
-		const request: IAuthenticationRequest = { resource: params.resource, completed: new DeferredPromise<void>() };
+		const request: IAuthenticationRequest = { resource: params.resource, token: params.token, account: readAuthenticationAccount(params), completed: new DeferredPromise<void>() };
 		this._authenticationRequests.set(key, request);
 		// Wake replayers only after the replacement request is visible.
 		previousRequest?.completed.complete();
@@ -83,6 +97,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				this._authenticationRequests.delete(key);
 			}
 			request.completed.complete();
+			this._discardUnusedToken(params.resource, params.token);
 		}
 	}
 
@@ -151,9 +166,21 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		}
 		const token = this._tokens.get(key)?.token;
 		if (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account)) {
-			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
+			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token, previousToken });
+		}
+		if (previousToken && previousToken !== token) {
+			this._discardUnusedToken(params.resource, previousToken);
 		}
 		return { authenticated };
+	}
+
+	private _discardUnusedToken(resource: string, token: string): void {
+		if (!token
+			|| [...this._tokens.values()].some(stored => stored.resource === resource && stored.token === token && !isExpired(stored.expiresAt))
+			|| [...this._authenticationRequests.values()].some(pending => pending.resource === resource && pending.token === token)) {
+			return;
+		}
+		this._onDidDiscardAuthToken.fire({ resource, token });
 	}
 
 	async replay(provider: IAgent): Promise<void> {
@@ -203,6 +230,23 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 
 	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined {
 		return (this._getAuthToken(request, false) ?? this._getAuthToken(request, true))?.account;
+	}
+
+	getAuthAccountForToken(resource: string, token: string): IAgentAuthenticationAccount | undefined {
+		if (!token) {
+			return undefined;
+		}
+		for (const pending of this._authenticationRequests.values()) {
+			if (pending.resource === resource && pending.token === token) {
+				return pending.account;
+			}
+		}
+		for (const stored of this._tokens.values()) {
+			if (stored.resource === resource && stored.token === token && !isExpired(stored.expiresAt)) {
+				return stored.account;
+			}
+		}
+		return undefined;
 	}
 
 	private _getAuthToken(request: IAgentHostAuthTokenRequest, includeExpired: boolean): IStoredAuthToken | undefined {
