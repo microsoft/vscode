@@ -55,23 +55,6 @@ The session's combined changes sometimes omit edits from one of its two chats, f
 scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
 ```
 
-### Copilot managed-settings diagnostics cannot return an account snapshot
-
-A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
-
-- Test: `managed settings diagnostics expose the provider snapshot`.
-- Scope: Copilot on all platforms, in strict replay.
-- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
-- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
-- Reproduce:
-
-  ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "managed settings diagnostics expose the provider snapshot"
-  ```
-
 ### Copilot managed telemetry changes require a host restart
 
 An administrator can change telemetry policy while a user has an Agent Host running.
