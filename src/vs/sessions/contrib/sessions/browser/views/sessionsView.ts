@@ -677,7 +677,7 @@ export class SessionsView extends ViewPane {
 			for (const [index, option] of options.entries()) {
 				const menuId = option.filter.kind === 'environment' ? Menus.SessionsViewEnvironment
 					: option.filter.kind === 'application' ? Menus.SessionsViewSource
-					: Menus.SessionsViewHarness;
+						: Menus.SessionsViewHarness;
 				const id = `sessionsViewPane.filter.${encodeURIComponent(sessionFilterKey(option.filter))}`;
 				const contextKey = new RawContextKey(id, option.checked).bindTo(this.scopedContextKeyService);
 				contextKey.set(option.checked);
