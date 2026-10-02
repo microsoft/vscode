@@ -301,6 +301,7 @@
 	> .chat-working-progress {
 		gap: 0;
 		line-height: 1.5em;
+		min-height: var(--chat-response-footer-height);
 	}
 
 	.chat-tool-call-with-icon .progress-container {

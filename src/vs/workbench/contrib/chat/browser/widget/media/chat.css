@@ -347,6 +347,24 @@
 	transition: opacity 0.1s ease-in-out;
 }
 
+.interactive-item-container.interactive-response.chat-persistent-progress {
+	--chat-response-footer-height: max(22px, calc(var(--vscode-chat-font-size-body-m) * 1.5));
+}
+
+.interactive-item-container.interactive-response.chat-persistent-progress:not(.chat-response-loading) .chat-footer-toolbar {
+	padding-top: var(--vscode-spacing-size160);
+	height: var(--chat-response-footer-height);
+
+	.monaco-toolbar {
+		min-height: var(--chat-response-footer-height);
+	}
+
+	.chat-footer-details {
+		padding-top: 0;
+		height: var(--chat-response-footer-height);
+	}
+}
+
 /* Show toolbar on hover and last response. Keep it visible when keyboard focus moves inside the response. */
 .interactive-item-container.interactive-response.chat-most-recent-response:not(.chat-response-loading) .chat-footer-toolbar,
 .interactive-item-container.interactive-response:not(.chat-response-loading):focus-within .chat-footer-toolbar,

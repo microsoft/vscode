@@ -19,11 +19,12 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -1621,7 +1622,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -1641,6 +1642,15 @@ suite('ChatListRenderer', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		if (options.renderFooterActions) {
+			const copyAction = instantiationService.createInstance(MenuItemAction, { id: 'chat.test.copy', title: 'Copy', icon: Codicon.copy }, undefined, undefined, undefined, undefined);
+			instantiationService.stub(IMenuService, new class extends TestMenuService {
+				override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+					const menu = super.createMenu(id, contextKeyService);
+					return id === MenuId.ChatMessageFooter ? { ...menu, getActions: () => [['navigation', [copyAction]]] } : menu;
+				}
+			}());
+		}
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
@@ -2997,7 +3007,7 @@ suite('ChatListRenderer', () => {
 			await timeout(90_000);
 			assert.deepStrictEqual({
 				label: progress.workingLabel,
-				hidden: progress.domNode.style.display === 'none',
+				hidden: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden',
 				active: progress.domNode.classList.contains('chat-working-progress-active'),
 				statuses: [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean),
 			}, { label: 'Working', hidden: true, active: false, statuses: [] });
@@ -6189,6 +6199,103 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const incremental of [false, true]) {
+		for (const fontSize of [13, 20]) {
+			for (const canceled of [false, true]) {
+				test(`persistent progress hands off to the toolbar without moving content (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, async () => {
+					const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('**Task completed:**\n\nMessage received.'),
+					});
+					renderer.renderElement(node, 0, template);
+					await retry(async () => {
+						assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Message received.');
+					}, 10, 100);
+					const paragraph = template.value.querySelector<HTMLElement>('.chat-markdown-part p:last-child');
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(paragraph && progress);
+					const measure = () => ({
+						height: template.rowContainer.getBoundingClientRect().height,
+						paragraphTop: paragraph.getBoundingClientRect().top,
+					});
+					const before = measure();
+					const progressTop = progress.getBoundingClientRect().top;
+					const samples = [before];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					samples.push(measure());
+					renderer.renderElement(node, 0, template);
+					samples.push(measure());
+					await retry(async () => {
+						samples.push(measure());
+						assert.strictEqual(template.rowContainer.classList.contains('chat-response-loading'), false);
+					}, 10, 100);
+
+					assert.deepStrictEqual({
+						heights: [...new Set(samples.map(sample => sample.height))],
+						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						heights: [before.height],
+						paragraphPositions: [before.paragraphTop],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+			}
+		}
+	}
+
+	test('persistent progress keeps its footprint while completed progressive content drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, container, model, request, response, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+		try {
+			configurePersistentProgressTypography(container, 13);
+			const text = Array.from({ length: 80 }, (_, index) => `word${index}`).join(' ');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(text) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+			assert.ok(progress);
+			const progressHeight = progress.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const whileDraining = {
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				sameProgress: template.value.querySelector('.chat-working-progress') === progress,
+				progressHeight: progress.getBoundingClientRect().height,
+				progressVisibility: dom.getWindow(progress).getComputedStyle(progress).visibility,
+				toolbarHeight: template.footerToolbarContainer.getBoundingClientRect().height,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+				toolbarHeight: template.footerToolbar.getElement().getBoundingClientRect().height,
+				text: template.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			}, {
+				whileDraining: { loading: true, sameProgress: true, progressHeight, progressVisibility: 'hidden', toolbarHeight: 0 },
+				loading: false,
+				progressRows: 0,
+				toolbarHeight: progressHeight,
+				text,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
 	for (const ending of ['complete', 'cancel', 'dispose'] as const) {
 		test(`retained working progress stops before the next list render (${ending})`, () => {
 			const { container, request, renderer, template, node } = createPersistentProgressRenderer();
@@ -6197,6 +6304,7 @@ suite('ChatListRenderer', () => {
 			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
 			assert.ok(progress instanceof ChatWorkingProgressContentPart);
 			const visibleBefore = progress.domNode.getClientRects().length > 0;
+			const heightBefore = progress.domNode.getBoundingClientRect().height;
 			if (ending === 'complete') {
 				request.response?.complete();
 			} else if (ending === 'cancel') {
@@ -6206,9 +6314,11 @@ suite('ChatListRenderer', () => {
 			}
 			assert.deepStrictEqual({
 				visibleBefore,
-				visibleAfter: progress.domNode.getClientRects().length > 0,
+				visibleAfter: progress.domNode.getClientRects().length > 0 && dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility !== 'hidden',
+				preservesFootprint: progress.domNode.getBoundingClientRect().height === heightBefore,
 				preservesReplacementAnchor: progress.domNode.parentElement === template.value,
-			}, { visibleBefore: true, visibleAfter: false, preservesReplacementAnchor: true });
+				ariaHidden: progress.domNode.ariaHidden,
+			}, { visibleBefore: true, visibleAfter: false, preservesFootprint: ending !== 'dispose', preservesReplacementAnchor: true, ariaHidden: 'true' });
 			if (ending !== 'dispose') {
 				renderer.renderElement(node, 0, template);
 				assert.strictEqual(template.value.querySelector('.chat-working-progress'), null);
@@ -6223,11 +6333,11 @@ suite('ChatListRenderer', () => {
 		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
 		assert.ok(progress instanceof ChatWorkingProgressContentPart);
 		request.response?.complete();
-		const hiddenAfterCompletion = progress.domNode.getClientRects().length === 0;
+		const hiddenAfterCompletion = dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden';
 		request.response?.reopen();
 		assert.deepStrictEqual({
 			hiddenAfterCompletion,
-			visibleAfterResume: progress.domNode.getClientRects().length > 0,
+			visibleAfterResume: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			progressRows: template.value.querySelectorAll('.chat-working-progress').length,
 		}, { hiddenAfterCompletion: true, visibleAfterResume: true, progressRows: 1 });
 	});
@@ -6243,13 +6353,13 @@ suite('ChatListRenderer', () => {
 		assert.ok(progress instanceof ChatWorkingProgressContentPart);
 		request.response.complete();
 		const afterCompletion = {
-			visible: progress.domNode.getClientRects().length > 0,
+			visible: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			active: progress.domNode.classList.contains('chat-working-progress-active'),
 		};
 		request.response.reopen();
 		assert.deepStrictEqual({
 			afterCompletion,
-			visibleAfterReopen: progress.domNode.getClientRects().length > 0,
+			visibleAfterReopen: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			activeAfterReopen: progress.domNode.classList.contains('chat-working-progress-active'),
 		}, {
 			afterCompletion: { visible: false, active: false },
