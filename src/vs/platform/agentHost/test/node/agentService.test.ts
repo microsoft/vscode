@@ -40,20 +40,24 @@ import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDele
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
-import { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
+import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, PendingMessageKind, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -71,6 +75,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -1188,6 +1193,21 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	dispose(): void { }
 }
 
+class TransientlyFailingCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+	failNextUpsert = false;
+	failUpserts = false;
+	upsertAttempts = 0;
+
+	override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		this.upsertAttempts++;
+		if (this.failNextUpsert || this.failUpserts) {
+			this.failNextUpsert = false;
+			throw new Error('catalog temporarily unavailable');
+		}
+		return super.upsertSessionV2(envelope, expectedSessionGeneration);
+	}
+}
+
 suite('AgentService (node dispatcher)', () => {
 	async function waitForCondition(predicate: () => boolean | Promise<boolean>, message: string): Promise<void> {
 		for (let i = 0; i < 20; i++) {
@@ -1352,6 +1372,39 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	test('observes background work only after chat hydration and shares the observer across subscribers', async () => {
+		const hydrated: boolean[] = [];
+		const published: Array<() => readonly BackgroundWork[]> = [];
+		let stops = 0;
+		const agent = new class extends MockAgent {
+			watchChatBackgroundWork(chat: URI, current: () => readonly BackgroundWork[]) {
+				hydrated.push(!!getStateManager(service).getChatState(chat.toString()));
+				published.push(current);
+				return toDisposable(() => stops++);
+			}
+		}('shells');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ provider: 'shells' });
+		const chat = URI.parse(buildDefaultChatUri(session));
+		await service.subscribe(chat, 'first');
+		getStateManager(service).dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatBackgroundWorkSet,
+			work: { kind: BackgroundWorkKind.Shell, id: 'shell:running', label: 'Run tests', command: 'npm test', startedAt: new Date(0).toISOString() },
+		});
+		const publishedIds = published[0]().map(work => work.id);
+		await service.subscribe(chat, 'second');
+		service.unsubscribe(chat, 'first');
+		const afterFirst = stops;
+		service.unsubscribe(chat, 'second');
+		await service.subscribe(chat, 'reconnected');
+		service.unsubscribe(chat, 'reconnected');
+
+		assert.deepStrictEqual({ hydrated, publishedIds, afterFirst, stops }, {
+			hydrated: [true, true], publishedIds: ['shell:running'], afterFirst: 0, stops: 2,
+		});
+	});
+
 	test('starts catalog reconciliation after host startup and the first listing settle', async () => {
 		registerTestAgentProvider(service, copilotAgent);
 		const reconciliation = (service as unknown as { _catalogReconciliationService: { schedule(): void; start(): void } })._catalogReconciliationService;
@@ -1437,6 +1490,83 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('a provisional Codex session seeds its provider-qualified model into live metadata', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('codex'));
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			agent.chatModel = model;
+			const createChat = agent.chats.createChat;
+			agent.chats.createChat = async (chat, context, options) => ({
+				...(await createChat(chat, context, options) ?? {}),
+				provisional: true,
+			});
+			registerTestAgentProvider(svc, agent);
+
+			const session = await svc.createSession({ provider: 'codex', model });
+
+			assert.deepStrictEqual(readCodexSessionModel(getStateManager(svc).getSessionSummary(session.toString())), model);
+		});
+
+		test('live Codex catalog writes retain the current model through turn and read-state transitions', async () => {
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+			const agent = disposables.add(new MockAgent('codex'));
+			const initialModel = { id: '@provider=openai:gpt-5.6-sol' };
+			const nextModel = { id: '@provider=openai:gpt-6-astra' };
+			agent.chatModel = initialModel;
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'codex', model: initialModel });
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const nextSummaryChange = () => Event.toPromise(Event.filter(stateManager.onDidChangeSessionSummary, event => event.session === session.toString()));
+			const snapshots: Array<{ stage: string; state: string | undefined; catalog: string | undefined; listing: string | undefined }> = [];
+			const capture = async (stage: string) => {
+				await svc.whenCatalogReconciliationIdle();
+				const [listed] = await svc.listSessions();
+				snapshots.push({
+					stage,
+					state: readCodexSessionModel(stateManager.getSessionSummary(session.toString()))?.id,
+					catalog: readCodexSessionModel(catalogDataOf(await catalogDatabase.getSessionV2(session.toString())))?.id,
+					listing: listed.model?.id,
+				});
+			};
+
+			await capture('created');
+			agent.chatModel = nextModel;
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			const turnStarted = nextSummaryChange();
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: nextModel },
+			}, 'client-1', 1);
+			await Promise.all([sent, turnStarted]);
+			await capture('turnStarted');
+			const readChanged = nextSummaryChange();
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, 'client-1', 2);
+			await readChanged;
+			await capture('read');
+			const turnCompleted = nextSummaryChange();
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			await turnCompleted;
+			await capture('turnCompleted');
+
+			assert.deepStrictEqual(snapshots, [
+				{ stage: 'created', state: initialModel.id, catalog: initialModel.id, listing: initialModel.id },
+				...['turnStarted', 'read', 'turnCompleted'].map(stage => ({
+					stage,
+					state: nextModel.id,
+					catalog: nextModel.id,
+					listing: nextModel.id,
+				})),
+			]);
+		});
+
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
@@ -2569,6 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 		let expectedMeta: SessionSummaryMeta | undefined = withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false);
 		expectedMeta = withWorkingDirectoryKey(expectedMeta, URI.file('/workspace/one').toString());
 		expectedMeta = withWorkingDirectoryScopeId(expectedMeta, [URI.file('/workspace/one').toString()]);
+		expectedMeta = withSessionInitiator(expectedMeta, { name: 'vscode' });
 		assert.deepStrictEqual({
 			state: getStateManager(localService).getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
@@ -2808,7 +2939,7 @@ suite('AgentService (node dispatcher)', () => {
 		const repository = URI.file('/work/repo');
 		const worktree = URI.file('/work/repo.worktrees/feature');
 		const branchName = 'agents/feature';
-		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createNullSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
 			sessionWorktreeInfo: () => ({
 				project: { uri: repository, displayName: 'repo' },
@@ -5116,8 +5247,22 @@ suite('AgentService (node dispatcher)', () => {
 				meta: getStateManager(service).getSessionState(session.toString())?._meta,
 			}, {
 				provider: 'copilot',
-				meta: withSessionExternal({ workspaceless: true }, false),
+				meta: withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }),
 			});
+		});
+
+		test('persists and lists the exact initiating client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
+			const session = await localService.createSession({ _meta: withSessionInitiator(undefined, initiator) });
+			const listed = await localService.listSessions();
+			assert.deepStrictEqual({
+				state: readSessionInitiator(getStateManager(localService).getSessionState(session.toString())),
+				listed: readSessionInitiator(listed[0]),
+				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
+			}, { state: initiator, listed: initiator, stored: JSON.stringify(initiator) });
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -8866,7 +9011,7 @@ suite('AgentService (node dispatcher)', () => {
 					published: stateManager.getExposedSessionKeys().includes(session.toString()),
 				}, {
 					registered: { external: false, source: 'explicit' },
-					metadata: withSessionExternal({ 'test.keep': 'preserved' }, false),
+					metadata: withSessionInitiator(withSessionExternal({ 'test.keep': 'preserved' }, false), { name: 'github/autopilot' }),
 					sends: 0,
 					turns: 0,
 					listed: [session.toString()],
@@ -10512,6 +10657,49 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('ordinary Codex discovery backfills a missing catalog model without a recency change', async () => {
+				class CodexDiscoveryAgent extends DirectImportAgent {
+					latest: IAgentChatMetadata | undefined;
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this.latest ?? super.getChatMetadata(chat, context);
+					}
+				}
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new CodexDiscoveryAgent('codex'));
+				const session = AgentSession.uri('codex', 'model-metadata-backfill');
+				const modifiedTime = Date.now();
+				agent.catalog = [{ ...metadata(session), modifiedTime }];
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const before = readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString())));
+
+				const latest = {
+					...metadata(session, withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					modifiedTime,
+				};
+				agent.latest = latest;
+				await (svc as unknown as {
+					_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				})._registerDiscoveredChats(agent, [{
+					...latest,
+					external: true,
+				}]);
+				await (svc as unknown as {
+					_catalogReconciliationService: { runPass(): Promise<unknown> };
+				})._catalogReconciliationService.runPass();
+
+				assert.deepStrictEqual({
+					before,
+					after: readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString()))),
+				}, {
+					before: undefined,
+					after: { id: '@provider=openai:gpt-5.6-sol' },
+				});
+			});
+
 			test('fulfilled incomplete initial import retries provider-only candidates without another provider event', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
@@ -10929,7 +11117,7 @@ suite('AgentService (node dispatcher)', () => {
 					titleSource: 'user',
 					isRead: false,
 					isArchived: false,
-					meta: { git: { branchName: 'current-provider' } },
+					meta: withSessionInitiator({ git: { branchName: 'current-provider' } }, { name: 'github/autopilot' }),
 					chats: [{ summary: 'Local chat', titleSource: 'user' }],
 				});
 			});
@@ -13731,7 +13919,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0]._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(sessions[0]._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
@@ -14596,7 +14784,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -14701,7 +14889,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			// No input workingDirectory → inferred workspace-less (tagged), and no
 			// git overlay because there is no working directory to probe.
-			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test.skip('createSession strips git-only catalogue entries for non-git working directory', async () => {
@@ -15532,6 +15720,177 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- shutdown -------------------------------------------------------
 
 	suite('shutdown', () => {
+
+		async function createPendingPassiveSession(catalogDatabase = new TransientlyFailingCatalogDatabase()) {
+			const db = new TestSessionDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				undefined, undefined, { schedule: () => toDisposable(() => { }) },
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.markStartupComplete();
+			await svc.listSessions();
+			await svc.whenCatalogReconciliationIdle();
+			const stateManager = getStateManager(svc);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(session.toString())!]);
+			stateManager.removeSession(session.toString());
+			catalogDatabase.failNextUpsert = true;
+			const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await changed;
+			await (svc as unknown as { _whenBackgroundCatalogStateWritesIdle(session: string): Promise<void> })._whenBackgroundCatalogStateWritesIdle(session.toString());
+			return { svc, session, db, catalogDatabase };
+		}
+
+		test('replays pending passive metadata writes before shutdown closes the catalog', async () => {
+			const db = new TestSessionDatabase();
+			const catalogDatabase = new TransientlyFailingCatalogDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				undefined, undefined, { schedule: () => toDisposable(() => { }) },
+			));
+			registerTestAgentProvider(svc, copilotAgent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			svc.markStartupComplete();
+			await svc.listSessions();
+			await svc.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(svc);
+			stateManager.dispatchServerAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: false });
+			await svc.whenCatalogReconciliationIdle();
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+			stateManager.removeSession(sessionKey);
+			const internals = svc as unknown as { _whenBackgroundCatalogStateWritesIdle(session: string): Promise<void> };
+			let clientSeq = 0;
+			for (const action of [
+				{ type: ActionType.SessionIsArchivedChanged, isArchived: true } as const,
+				{ type: ActionType.SessionIsReadChanged, isRead: true } as const,
+			]) {
+				catalogDatabase.failNextUpsert = true;
+				const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+				svc.dispatchAction(sessionKey, action, 'test-client', ++clientSeq, AgentHostClientType.EditorWindow);
+				await changed;
+				await internals._whenBackgroundCatalogStateWritesIdle(sessionKey);
+			}
+			const pendingBeforeShutdown = (await db.getCatalogSyncSnapshot())?.state;
+
+			await svc.shutdown();
+			const restartedService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			const [restarted] = await restartedService.listSessions();
+			const catalog = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
+
+			assert.deepStrictEqual({
+				pendingBeforeShutdown,
+				archived: catalog?.isArchived,
+				read: catalog?.isRead,
+				receipt: (await db.getCatalogSyncSnapshot())?.state,
+				flagsAfterRestart: (restarted?.status ?? 0) & (SessionStatus.IsArchived | SessionStatus.IsRead),
+			}, {
+				pendingBeforeShutdown: 'pending',
+				archived: true,
+				read: true,
+				receipt: 'acknowledged',
+				flagsAfterRestart: SessionStatus.IsArchived | SessionStatus.IsRead,
+			});
+		});
+
+		test('cancels general maintenance and shuts down providers before targeted pending replay', async () => {
+			const steps: string[] = [];
+			class RecordingCatalogDatabase extends TransientlyFailingCatalogDatabase {
+				record = false;
+
+				override async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+					if (this.record) {
+						steps.push(`replay:${envelope.session}`);
+					}
+					return super.upsertSessionV2(envelope, expectedSessionGeneration);
+				}
+			}
+			const catalogDatabase = new RecordingCatalogDatabase();
+			const { svc, session, db } = await createPendingPassiveSession(catalogDatabase);
+			catalogDatabase.record = true;
+			catalogDatabase.listSessionsV2Receipts = async () => assert.fail('Shutdown must not enumerate the catalog');
+			copilotAgent.getChatMetadata = async () => assert.fail('Shutdown replay must not resolve provider metadata');
+			copilotAgent.shutdown = async () => { steps.push('provider shutdown'); };
+
+			await svc.shutdown();
+
+			assert.deepStrictEqual({
+				steps,
+				receipt: (await db.getCatalogSyncSnapshot())?.state,
+			}, {
+				steps: ['provider shutdown', `replay:${session.toString()}`],
+				receipt: 'acknowledged',
+			});
+		});
+
+		test('makes one shutdown replay attempt when the catalog remains unavailable', async () => {
+			const { svc, db, catalogDatabase } = await createPendingPassiveSession();
+			catalogDatabase.failUpserts = true;
+			const attempts = catalogDatabase.upsertAttempts;
+			let providerShutDown = false;
+			copilotAgent.shutdown = async () => { providerShutDown = true; };
+
+			await svc.shutdown();
+
+			assert.deepStrictEqual({
+				replayAttempts: catalogDatabase.upsertAttempts - attempts,
+				providerShutDown,
+				receipt: (await db.getCatalogSyncSnapshot())?.state,
+			}, {
+				replayAttempts: 1,
+				providerShutDown: true,
+				receipt: 'pending',
+			});
+		});
+
+		test('bounds stalled shutdown replay and does not write after cancellation', () => runWithFakedTimers({}, async () => {
+			const replayStarted = new DeferredPromise<void>();
+			const releaseReplay = new DeferredPromise<void>();
+			class StalledCatalogDatabase extends TransientlyFailingCatalogDatabase {
+				stall = false;
+
+				override async getSessionV2(session: string): Promise<IAgentHostDatabaseSessionV2 | undefined> {
+					if (this.stall) {
+						replayStarted.complete();
+						await releaseReplay.p;
+					}
+					return super.getSessionV2(session);
+				}
+			}
+			const catalogDatabase = new StalledCatalogDatabase();
+			const { svc, session, db } = await createPendingPassiveSession(catalogDatabase);
+			catalogDatabase.stall = true;
+			let providerShutDown = false;
+			copilotAgent.shutdown = async () => { providerShutDown = true; };
+			const attempts = catalogDatabase.upsertAttempts;
+			const start = Date.now();
+			const shutdown = svc.shutdown();
+			await replayStarted.p;
+			const providerShutDownBeforeReplay = providerShutDown;
+			await shutdown;
+			const elapsedMs = Date.now() - start;
+			releaseReplay.complete();
+			await (svc as unknown as { _catalogSyncService: { runExclusive(session: URI, operation: () => Promise<void>): Promise<void> } })._catalogSyncService.runExclusive(session, async () => { });
+
+			assert.deepStrictEqual({
+				providerShutDownBeforeReplay,
+				elapsedMs,
+				replayAttempts: catalogDatabase.upsertAttempts - attempts,
+				receipt: (await db.getCatalogSyncSnapshot())?.state,
+			}, {
+				providerShutDownBeforeReplay: true,
+				elapsedMs: 250,
+				replayAttempts: 0,
+				receipt: 'pending',
+			});
+		}));
 
 		test('drains published passive metadata updates before closing the central catalog', async () => {
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
@@ -16422,6 +16781,20 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(readSessionCreationReference(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), creationReference);
 		});
 
+		test('restores the creating client rather than the current provider client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			await createAgentSession(copilotAgent);
+			const session = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			copilotAgent.sessionMetadataOverrides = { _meta: withSessionInitiator(undefined, { name: 'vscode-editor-window' }) };
+			const initiator = { name: 'github/cli', title: 'Copilot CLI' };
+			await database.setMetadata(SESSION_INITIATOR_METADATA_KEY, JSON.stringify(initiator));
+			await localService.restoreSession(session);
+			assert.deepStrictEqual(readSessionInitiator(getStateManager(localService).getSessionState(session.toString())), initiator);
+		});
+
 		test('restores persisted source-control provenance', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -17235,6 +17608,82 @@ suite('AgentService (node dispatcher)', () => {
 				catalogArchived: true,
 			});
 		});
+
+		for (const { replacement, title } of [
+			{ replacement: 'none', title: 'a passive read update preserves an archive update whose central write failed' },
+			{ replacement: 'revision', title: 'passive metadata ignores pending state superseded by a newer central revision' },
+			{ replacement: 'generation', title: 'passive metadata ignores pending state from a superseded generation' },
+			{ replacement: 'malformed', title: 'passive metadata falls back to the central payload when pending data is malformed' },
+			{ replacement: 'hashMismatch', title: 'passive metadata falls back to the central payload when the pending hash does not match' },
+		] as const) {
+			test(title, async () => {
+				class CorruptibleSessionDatabase extends TestSessionDatabase {
+					corrupt = false;
+
+					override async getCatalogSyncSnapshot(): Promise<ISessionCatalogSyncSnapshot | undefined> {
+						const snapshot = await super.getCatalogSyncSnapshot();
+						if (!this.corrupt || snapshot?.state !== 'pending') {
+							return snapshot;
+						}
+						return {
+							...snapshot,
+							...(replacement === 'malformed' ? { payload: 'invalid json' } : { payloadHash: 'wrong-hash' }),
+						};
+					}
+				}
+				const db = new CorruptibleSessionDatabase();
+				const catalogDatabase = new TransientlyFailingCatalogDatabase();
+				const localService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+				));
+				registerTestAgentProvider(localService, copilotAgent);
+				const session = await localService.createSession({ provider: 'copilot' });
+				await localService.whenCatalogReconciliationIdle();
+				const sessionKey = session.toString();
+				const stateManager = getStateManager(localService);
+				stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+				stateManager.removeSession(sessionKey);
+				const internals = localService as unknown as {
+					_catalogReconciliationService: { dispose(): void };
+					_whenBackgroundCatalogStateWritesIdle(session: string): Promise<void>;
+				};
+				internals._catalogReconciliationService.dispose();
+				catalogDatabase.failNextUpsert = true;
+				const archived = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+				localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+				await archived;
+				await internals._whenBackgroundCatalogStateWritesIdle(sessionKey);
+				if (replacement === 'revision' || replacement === 'generation') {
+					const central = await catalogDatabase.getSessionV2(sessionKey);
+					const pending = await db.getCatalogSyncSnapshot();
+					const data = catalogDataOf(central);
+					assert.ok(central && pending && data);
+					await catalogDatabase.upsertSessionV2(catalogEnvelope(session, data,
+						replacement === 'generation' ? 'replacement-generation' : central.sessionGeneration,
+						replacement === 'revision' ? pending.sourceRevision + 1 : 0,
+					), central.sessionGeneration);
+				} else if (replacement === 'malformed' || replacement === 'hashMismatch') {
+					db.corrupt = true;
+					copilotAgent.getChatMetadata = async () => assert.fail('Valid central data must not require a provider fallback');
+				}
+				const read = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+				localService.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 2, AgentHostClientType.EditorWindow);
+				await read;
+				await internals._whenBackgroundCatalogStateWritesIdle(sessionKey);
+
+				const data = catalogDataOf(await catalogDatabase.getSessionV2(sessionKey));
+				assert.deepStrictEqual({
+					isArchived: data?.isArchived,
+					isRead: data?.isRead,
+					receipt: (await db.getCatalogSyncSnapshot())?.state,
+				}, {
+					isArchived: replacement === 'none',
+					isRead: true,
+					receipt: 'acknowledged',
+				});
+			});
+		}
 
 		test('archiving an un-loaded session succeeds even when its working directory is gone', async () => {
 			// Restore recreates the worktree and throws for a missing directory, and only
@@ -20404,6 +20853,7 @@ suite('AgentService (node dispatcher)', () => {
 			const stateTitleAfterCreate = getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title;
 			const legacyTitleAfterCreate = await db.getMetadata(`customChatTitle:${peer.toString()}`);
 			await db.setChatDraft(peer, { text: 'delete me', origin: { kind: MessageKind.User } });
+			await db.setMetadata(getChatChangesSummaryMetadataKey(peer.toString()), JSON.stringify({ additions: 1, deletions: 0, files: 1 }));
 			await localService.disposeChat(session, peer);
 			const afterDelete = await catalogDatabase.getSessionV2(session.toString());
 
@@ -20414,6 +20864,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate,
 				legacyTitleAfterCreate,
 				draft: await db.getChatDraft(peer),
+				changesSummary: await db.getMetadata(getChatChangesSummaryMetadataKey(peer.toString())),
 			}, {
 				afterCreate: [
 					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', title: undefined },
@@ -20426,6 +20877,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate: 'Central Peer',
 				legacyTitleAfterCreate: 'Central Peer',
 				draft: undefined,
+				changesSummary: '',
 			});
 		});
 
@@ -24295,6 +24747,45 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('session config persistence', () => {
 
+		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			const configuration = getConfigurationService(localService);
+			configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove', sandboxEnabled: 'off' }));
+			configuration.setSessionSandboxPolicy(session.toString(), { enabled: true, allowBypass: false });
+			const applied: boolean[] = [];
+			disposables.add(configuration.onDidSessionConfigChange(event => {
+				if (event.session === session.toString()) {
+					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, event.session))?.enabled ?? false;
+					applied.push(enabled);
+					configuration.setSessionSandboxEnabled(event.session, enabled);
+				}
+			}));
+
+			await localService.restoreSession(session);
+			await timeout(50);
+			const state = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				applied,
+				config: state?.config?.values,
+				policy: readSessionSandboxPolicy(state),
+				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
+				persisted: JSON.parse((await sessionDb.getMetadata('configValues'))!),
+			}, {
+				applied: [true],
+				config: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
+				policy: { enabled: true, allowBypass: false },
+				confirmed: true,
+				persisted: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
+			});
+		});
+
 		test('createSession persists initial config values to the session DB', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
@@ -24373,7 +24864,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('codex');
-			const model = { id: 'codex-model:openai:gpt-5.6-sol' };
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -24391,10 +24882,16 @@ suite('AgentService (node dispatcher)', () => {
 
 			await localService.restoreSession(session);
 
-			assert.deepStrictEqual(getStateManager(localService).getDefaultChatState(session.toString())?.draft, {
-				text: 'unsent text',
-				origin: { kind: MessageKind.User },
-				model,
+			assert.deepStrictEqual({
+				draft: getStateManager(localService).getDefaultChatState(session.toString())?.draft,
+				sessionModel: readCodexSessionModel(getStateManager(localService).getSessionSummary(session.toString())),
+			}, {
+				draft: {
+					text: 'unsent text',
+					origin: { kind: MessageKind.User },
+					model,
+				},
+				sessionModel: model,
 			});
 		});
 
@@ -24545,6 +25042,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				config: {
 					autoApprove: 'autoApprove',
+					[SessionConfigKey.SandboxEnabled]: 'off',
 					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
 				},
 				_meta: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
@@ -24555,6 +25053,7 @@ suite('AgentService (node dispatcher)', () => {
 			const persistedConfigValues = JSON.parse((await sessionDb.getMetadata('configValues'))!);
 			await sessionDb.setMetadata('configValues', JSON.stringify({
 				autoApprove: 'autoApprove',
+				[SessionConfigKey.SandboxEnabled]: 'off',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
 			}));
 			getStateManager(localService).removeSession(session.toString());
@@ -24575,7 +25074,7 @@ suite('AgentService (node dispatcher)', () => {
 				devContainerWorktree: state!._meta?.['vscode.devContainerWorktree'],
 			}, {
 				persistedConfigValues: { autoApprove: 'autoApprove' },
-				config: { autoApprove: 'autoApprove' },
+				config: { autoApprove: 'autoApprove', sandboxEnabled: 'off' },
 				listedDevContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 			});

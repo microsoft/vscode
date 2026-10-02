@@ -33,6 +33,7 @@ import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -73,6 +74,35 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
+	test('describes Dev Container samples only when all picker prerequisites are enabled', () => {
+		const variants = [
+			{},
+			{ [DevContainerSamplesEnabledSettingId]: false },
+			{ [DevContainerAgentHostEnabledSettingId]: false },
+			{ [RemoteAgentHostsEnabledSettingId]: false },
+			{ 'chat.disableAIFeatures': true },
+		];
+		const visible = variants.map(overrides => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				...overrides,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return content.includes('The workspace picker includes Dev Container Sample.');
+		});
+		assert.deepStrictEqual(visible, [true, false, false, false, false]);
+	});
+
 	test('describes welcome name editing only when welcome phrases are enabled', () => {
 		const snapshots = [false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -86,7 +116,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				nameEditing: content.includes('Press Tab to reach Customize Welcome Message'),
 				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
 			};
 		});
@@ -139,7 +169,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes External section keyboard actions only when the section is enabled', () => {
-		const snapshots = [true, false].map(enabled => {
+		const snapshots = [undefined, false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: enabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
@@ -152,7 +182,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			const sectionHelp = content.split('\n').find(line => line.includes('External section above Archived'));
 			return {
-				filter: content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
+				filter: content.includes('Created Externally submenu') && content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
+				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
 				keyboard: sectionHelp?.includes('<keybinding:editor.action.showContextMenu>') ?? false,
@@ -160,8 +191,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 
 		assert.deepStrictEqual(snapshots, [
-			{ filter: true, importAction: true, section: true, keyboard: true },
-			{ filter: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: true, keyboard: true },
 		]);
 	});
 
@@ -466,12 +498,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 	}
 
 	for (const { wording, action, dismiss, promoteNewChatAction, expectedSessionListHelp } of [
-		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Archive. Open the session\'s context menu to pin or unpin it.' },
-		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Chat in This Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Archive. Open the session\'s context menu to pin or unpin it.' },
+		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: true, expectedSessionListHelp: 'For sessions that support multiple chats, the session row toolbar offers New Nested Session before Mark as Done. Open the session\'s context menu to pin or unpin it.' },
 		{ wording: ChatSessionArchiveActionWording.Archive, action: 'Archive', dismiss: 'Dismiss Archive Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Archive. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 		{ wording: ChatSessionArchiveActionWording.MarkAsDone, action: 'Mark as Done', dismiss: 'Dismiss Mark as Done Suggestion', promoteNewChatAction: false, expectedSessionListHelp: 'The session row toolbar offers Pin or Unpin before Mark as Done. For sessions that support multiple chats, open the session\'s context menu to start a new chat.' },
 	]) {
-		test(`describes the actual dismiss control and Escape for ${action} with promoted New Chat ${promoteNewChatAction}`, () => {
+		test(`describes the actual dismiss control and Escape for ${action} with promoted New Nested Session ${promoteNewChatAction}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({
 				[SESSION_ARCHIVE_NUDGE_SETTING]: true,

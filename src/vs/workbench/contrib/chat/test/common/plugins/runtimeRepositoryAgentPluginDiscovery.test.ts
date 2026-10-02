@@ -42,21 +42,31 @@ suite('RuntimeRepositoryAgentPluginDiscovery', () => {
 		const runtimeService = store.add(new RuntimeRepositoryPluginService(new class extends mock<IUriIdentityService>() {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		}()));
-		runtimeService.setSnapshot(URI.from({ scheme: Schemas.inMemory, path: '/workspace' }), {
-			fingerprint: 'test',
-			plugins: [{
-				plugin: {
-					name: 'repository-plugin',
-					marketplace: 'repository-market',
-					enabled: false,
-					installed_at: '2026-09-30T00:00:00Z',
-					cache_path: pluginPath,
+		runtimeService.setSnapshot(
+			URI.from({ scheme: Schemas.inMemory, path: '/workspace' }),
+			{
+				fingerprint: 'test',
+				plugins: [{
+					plugin: {
+						name: 'repository-plugin',
+						marketplace: 'repository-market',
+						enabled: false,
+						installed_at: '2026-09-30T00:00:00Z',
+						cache_path: pluginPath,
+					},
+					enabled: true,
+					managed: false,
+				}],
+				warnings: [],
+			},
+			{
+				connectionAuthority: 'remote',
+				resourceUris: {
+					fromAgentHost: resource => URI.from({ scheme: Schemas.inMemory, path: resource.path }),
+					toAgentHost: resource => resource,
 				},
-				enabled: true,
-				managed: false,
-			}],
-			warnings: [],
-		});
+			},
+		);
 		const discovery = store.add(new TestRuntimeRepositoryAgentPluginDiscovery(
 			fileService,
 			new class extends mock<IPathService>() {

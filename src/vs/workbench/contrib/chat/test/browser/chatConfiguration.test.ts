@@ -11,8 +11,9 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -36,14 +37,50 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: false,
+			marketplace: {
+				type: 'boolean',
+				tags: ['experimental'],
+				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				default: false,
+				experiment: { mode: 'auto' },
+			},
 			publicFeed: true,
 		});
+	});
+
+	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
+		const isDefault = (inspection: IConfigurationValue<boolean>) =>
+			isCustomizationMarketplaceValueFromDefault({
+				inspect: <T>() => inspection as unknown as IConfigurationValue<Readonly<T>>,
+			} as unknown as IConfigurationService);
+		assert.deepStrictEqual([
+			isDefault({ defaultValue: false, value: false }),
+			...[
+				'applicationValue',
+				'userValue',
+				'userLocalValue',
+				'userRemoteValue',
+				'workspaceValue',
+				'workspaceFolderValue',
+				'memoryValue',
+				'policyValue',
+			].map(layer => isDefault({ defaultValue: false, value: true, [layer]: true })),
+		], [
+			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
 	});
 
 	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {

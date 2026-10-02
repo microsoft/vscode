@@ -81,6 +81,9 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 	return {
 		resource: URI.parse(`test:///${overrides.sessionId}`),
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.vm,
 		createdAt: new Date(),
 		workspace: constObservable(undefined),
@@ -3246,7 +3249,7 @@ suite('SessionsManagementService', () => {
 			sentSessionId,
 		}, {
 			deleted: ['s1'],
-			replacements: [],
+			replacements: ['s1->s2'],
 			sentSessionId: 's2',
 		});
 		completeSendRequest?.();

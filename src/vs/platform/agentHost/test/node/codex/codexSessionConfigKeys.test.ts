@@ -59,9 +59,7 @@ function createAgent(disposables: Pick<DisposableStore, 'add'>): CodexAgent {
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
-	return agent;
+	return disposables.add(instantiationService.createInstance(CodexAgent));
 }
 
 suite('codexSessionConfigKeys', () => {

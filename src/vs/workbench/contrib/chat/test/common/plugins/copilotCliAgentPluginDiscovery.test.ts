@@ -185,10 +185,16 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		}
 
 		assert.deepStrictEqual({
-			sources: sources.map(source => source.uri.toString()),
+			sources: sources.map(source => ({
+				uri: source.uri.toString(),
+				externalIdentity: source.externalIdentity,
+			})),
 			uninstallCalls,
 		}, {
-			sources: [mainPlugin.toString(), nextPlugin.toString()],
+			sources: [
+				{ uri: mainPlugin.toString(), externalIdentity: undefined },
+				{ uri: nextPlugin.toString(), externalIdentity: undefined },
+			],
 			uninstallCalls: [{
 				provider: 'copilotcli',
 				request: {

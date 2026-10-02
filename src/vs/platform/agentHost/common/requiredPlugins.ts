@@ -25,6 +25,7 @@ export interface IAgentHostWorkspacePluginActivation {
 
 export interface IAgentHostEnsureRequiredPluginsRequest {
 	readonly workingDirectory?: string;
+	readonly repositoryTrusted?: boolean;
 	readonly managedSettings?: Record<string, unknown>;
 }
 

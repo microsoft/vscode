@@ -7,12 +7,20 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IAgentHostEnsureRequiredPluginsResult } from '../../../../../platform/agentHost/common/requiredPlugins.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { identityAgentHostResourceUriMapper, type IAgentHostResourceUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+
+export interface IRuntimeRepositoryPluginSourceContext {
+	readonly connectionAuthority: string;
+	readonly resourceUris: IAgentHostResourceUriMapper;
+}
 
 export interface IRuntimeRepositoryPluginSnapshot {
 	readonly workingDirectory?: URI;
 	readonly result: IAgentHostEnsureRequiredPluginsResult;
+	readonly sourceContext: IRuntimeRepositoryPluginSourceContext;
 }
 
 export interface IRuntimeRepositoryPluginIdentity {
@@ -26,10 +34,10 @@ export interface IRuntimeRepositoryPluginService {
 	readonly _serviceBrand: undefined;
 	readonly snapshots: IObservable<readonly IRuntimeRepositoryPluginSnapshot[]>;
 	readonly snapshotRevision: IObservable<number>;
-	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void;
-	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult): void;
+	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult, sourceContext?: IRuntimeRepositoryPluginSourceContext): void;
+	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult, sourceContext?: IRuntimeRepositoryPluginSourceContext): void;
 	removeSnapshots(workingDirectories: readonly URI[]): void;
-	removeManagedSnapshot(): void;
+	removeManagedSnapshot(connectionAuthority?: string): void;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void;
 	getEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined, isRuntimeSource: boolean, workingDirectory: URI | undefined): boolean | undefined;
 	getManagedEnablement(pluginIdentity: IRuntimeRepositoryPluginIdentity | undefined): boolean | undefined;
@@ -39,6 +47,11 @@ export interface IRuntimeRepositoryPluginService {
 
 export class RuntimeRepositoryPluginService extends Disposable implements IRuntimeRepositoryPluginService {
 	declare readonly _serviceBrand: undefined;
+
+	private static readonly _ambientSourceContext: IRuntimeRepositoryPluginSourceContext = {
+		connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY,
+		resourceUris: identityAgentHostResourceUriMapper,
+	};
 
 	private readonly _snapshots = observableValue<ReadonlyMap<string, IRuntimeRepositoryPluginSnapshot>>(this, new Map());
 	private readonly _snapshotRevision = observableValue(this, 0);
@@ -52,12 +65,12 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		super();
 	}
 
-	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult): void {
-		this._setSnapshot(this._key(workingDirectory), { workingDirectory, result });
+	setSnapshot(workingDirectory: URI, result: IAgentHostEnsureRequiredPluginsResult, sourceContext = RuntimeRepositoryPluginService._ambientSourceContext): void {
+		this._setSnapshot(this._key(workingDirectory), { workingDirectory, result, sourceContext });
 	}
 
-	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult): void {
-		this._setSnapshot('', { result });
+	setManagedSnapshot(result: IAgentHostEnsureRequiredPluginsResult, sourceContext = RuntimeRepositoryPluginService._ambientSourceContext): void {
+		this._setSnapshot(this._managedKey(sourceContext.connectionAuthority), { result, sourceContext });
 	}
 
 	private _setSnapshot(key: string, snapshot: IRuntimeRepositoryPluginSnapshot): void {
@@ -80,18 +93,19 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 		}
 	}
 
-	removeManagedSnapshot(): void {
-		if (!this._snapshots.get().has('')) {
+	removeManagedSnapshot(connectionAuthority = AMBIENT_AGENT_HOST_AUTHORITY): void {
+		const key = this._managedKey(connectionAuthority);
+		if (!this._snapshots.get().has(key)) {
 			return;
 		}
 		const snapshots = new Map(this._snapshots.get());
-		snapshots.delete('');
+		snapshots.delete(key);
 		this._setSnapshots(snapshots);
 	}
 
 	retainWorkingDirectories(workingDirectories: readonly URI[]): void {
 		const retained = new Set(workingDirectories.map(uri => this._key(uri)));
-		const snapshots = new Map([...this._snapshots.get()].filter(([key]) => key === '' || retained.has(key)));
+		const snapshots = new Map([...this._snapshots.get()].filter(([, snapshot]) => snapshot.workingDirectory === undefined || retained.has(this._key(snapshot.workingDirectory))));
 		if (snapshots.size !== this._snapshots.get().size) {
 			this._setSnapshots(snapshots);
 		}
@@ -107,10 +121,7 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 				&& candidate.plugin.marketplace === pluginIdentity.marketplace
 			)
 			: undefined;
-		const activation = workspaceActivation ?? this._snapshots.get().get('')?.result.plugins.find(candidate =>
-			candidate.plugin.name === pluginIdentity.name
-			&& candidate.plugin.marketplace === pluginIdentity.marketplace
-		);
+		const activation = workspaceActivation ?? this._findManagedActivation(pluginIdentity);
 		if (activation === undefined) {
 			return isRuntimeSource ? false : undefined;
 		}
@@ -147,6 +158,26 @@ export class RuntimeRepositoryPluginService extends Disposable implements IRunti
 
 	private _key(uri: URI): string {
 		return this._uriIdentityService.extUri.getComparisonKey(uri);
+	}
+
+	private _managedKey(connectionAuthority: string): string {
+		return `managed:${connectionAuthority}`;
+	}
+
+	private _findManagedActivation(pluginIdentity: IRuntimeRepositoryPluginIdentity) {
+		for (const snapshot of this._snapshots.get().values()) {
+			if (snapshot.workingDirectory !== undefined) {
+				continue;
+			}
+			const activation = snapshot.result.plugins.find(candidate =>
+				candidate.plugin.name === pluginIdentity.name
+				&& candidate.plugin.marketplace === pluginIdentity.marketplace
+			);
+			if (activation) {
+				return activation;
+			}
+		}
+		return undefined;
 	}
 
 	private _setSnapshots(snapshots: ReadonlyMap<string, IRuntimeRepositoryPluginSnapshot>): void {

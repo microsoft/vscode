@@ -130,6 +130,8 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatError]: '0.4.0',
 	[ActionType.ChatTurnResume]: '0.9.0',
 	[ActionType.ChatActivityChanged]: '0.5.0',
+	[ActionType.ChatBackgroundWorkSet]: '0.9.0',
+	[ActionType.ChatBackgroundWorkRemoved]: '0.9.0',
 	[ActionType.ChatMovableChanged]: '0.9.0',
 	[ActionType.ChatChangesetsChanged]: '0.9.0',
 	[ActionType.ChatWorkingDirectorySet]: '0.7.0',

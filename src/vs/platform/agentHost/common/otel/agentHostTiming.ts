@@ -44,7 +44,18 @@ export interface IAgentHostTurnTimingDiagnostic {
 	sendStageModelSelectionMs?: number;
 	sendStageAttachmentsMs?: number;
 	sendStageContributionsMs?: number;
+	sendStageProviderPreparationMs?: number;
 	sendStageCheckpointMs?: number;
+	providerStageQueueMs?: number;
+	providerStageClientMs?: number;
+	providerStageSnapshotMs?: number;
+	providerStageConfigMs?: number;
+	providerStageCreateMs?: number;
+	providerStageFinalizeMs?: number;
+	providerStagePersistMs?: number;
+	providerStageRefreshMs?: number;
+	providerStageTurnPrepareMs?: number;
+	providerStageModelResponseMs?: number;
 	hostRootTurnOrdinal?: number;
 	hostProcessAgeMs?: number;
 	titleGenerationStrategy?: 'activeAgent' | 'utility' | 'deferred';
@@ -80,7 +91,7 @@ export function agentHostTimingAttributes(diagnostic: IAgentHostTurnTimingDiagno
 		if (diagnostic.titleGenerationStrategy !== undefined) {
 			put('titleGenerationStrategy', diagnostic.titleGenerationStrategy);
 		}
-		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageCheckpointMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
+		for (const key of ['totalTime', 'timeToProviderDispatch', 'timeToFirstProgress', 'timeToFirstSubstantiveProgress', 'sendStageWorkingDirectoryMs', 'sendStageModelSelectionMs', 'sendStageAttachmentsMs', 'sendStageContributionsMs', 'sendStageProviderPreparationMs', 'sendStageCheckpointMs', 'providerStageQueueMs', 'providerStageClientMs', 'providerStageSnapshotMs', 'providerStageConfigMs', 'providerStageCreateMs', 'providerStageFinalizeMs', 'providerStagePersistMs', 'providerStageRefreshMs', 'providerStageTurnPrepareMs', 'providerStageModelResponseMs', 'hostRootTurnOrdinal', 'hostProcessAgeMs'] as const) {
 			measurement(key, diagnostic[key]);
 		}
 	} else {

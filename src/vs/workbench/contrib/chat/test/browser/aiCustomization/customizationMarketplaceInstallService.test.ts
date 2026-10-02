@@ -36,6 +36,8 @@ import { UnsupportedMcpGalleryPackageError } from '../../../../../../platform/mc
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
@@ -78,6 +80,16 @@ const sources = [
 	CustomizationMarketplaceSources.PluginMarketplaces,
 	{ ...CustomizationMarketplaceSources.McpGallery, enablementSetting: mcpGalleryTestSetting },
 ];
+
+class TestTelemetryService extends NullTelemetryServiceShape {
+	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
+
+	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
+		if (eventName && data) {
+			this.events.push({ name: eventName, data });
+		}
+	}
+}
 
 function resource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return {
@@ -300,8 +312,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
 			autoMatch = true;
 			version = '1.0.0';
+			synchronousInstallDelayMs = 0;
 			readonly versions = new Map<string, string>();
 			override async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+				const synchronousStart = performance.now();
+				while (performance.now() - synchronousStart < this.synchronousInstallDelayMs) {
+					// Simulate synchronous validation before the first suspension point.
+				}
 				this.calls.push({ source, options });
 				const result = this.onInstall ? await this.onInstall() : this.result;
 				if (!result.success || result.matchedPlugin || !this.autoMatch) {
@@ -579,12 +596,15 @@ suite('CustomizationMarketplaceInstallService', () => {
 		instantiationService.stub(IQuickInputService, quickInputService);
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ILogService, logService);
+		const telemetryService = new TestTelemetryService();
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ICommandService, commandService);
 		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceInstallService));
 		return {
 			service, instantiationService, fileService, provider, storageService, commandService, deletedSkills, installedPlugins, marketplaceService, marketplaceChanges, agentPlugins, pluginService, repositoryService, pluginGitService, mcpService, mcpChanges,
 			connectorsService, connectedConnectors, connectorChanges, connectorAccountChanges, connectorDisconnected, mcpGalleryManifestService, harnessService, workspaceService, entitlementService, sentimentChanges, configurationService, dialogService, progressService, quickInputService, removedPluginEnablements,
+			telemetryService,
 		};
 	}
 
@@ -651,6 +671,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('Marketplace visibility blocks installs without disabling the source', async () => {
 			const fixture = await createFixture();
+			fixture.pluginService.synchronousInstallDelayMs = 10;
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
 			const state = fixture.service.getInstallState(pluginResource());
@@ -662,10 +683,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 				state,
 				pluginInstalls: fixture.pluginService.calls,
 				sourceStillEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
+				telemetry: fixture.telemetryService.events.map(event => ({
+					...event,
+					data: {
+						...event.data,
+						durationMs: typeof event.data.durationMs === 'number',
+						durationIncludesSynchronousSetup: typeof event.data.durationMs === 'number' && event.data.durationMs >= fixture.pluginService.synchronousInstallDelayMs,
+					},
+				})),
 			}, {
 				state: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
 				pluginInstalls: [{ source: 'owner/catalog#release', options: { path: 'plugins/demo' } }],
 				sourceStillEnabled: true,
+				telemetry: [{
+					name: 'chatCustomizationMarketplace.install',
+					data: {
+						surface: 'marketplace',
+						customizationType: 'plugin',
+						installKind: 'plugin',
+						outcome: 'success',
+						durationMs: true,
+						durationIncludesSynchronousSetup: true,
+					},
+				}],
 			});
 		});
 
@@ -2890,6 +2930,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			await fixture.fileService.del(joinPath(skillDestination, 'scripts', 'run.sh'));
 			await reconciled;
 			const stateBeforeRepair = fixture.service.getInstallState(candidate).kind;
+			fixture.provider.writes.length = 0;
 
 			await fixture.service.repair(candidate);
 
@@ -2897,6 +2938,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				stateBeforeRepair,
 				stateAfterRepair: fixture.service.getInstallState(candidate).kind,
 				files: await readTree(fixture.fileService, skillDestination),
+				stagingWritesOutsideDestination: fixture.provider.writes.filter(isStaging).map(uri => !isEqualOrParent(uri, destinationDirectory)),
 				repositoryCalls: fixture.repositoryService.calls.length,
 				confirmations: fixture.dialogService.confirmations.map(confirmation => confirmation.primaryButton),
 			}, {
@@ -2908,6 +2950,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					['scripts/run.sh', 'original script'],
 					[SKILL_FILENAME, '# Locally edited skill'],
 				],
+				stagingWritesOutsideDestination: [true, true],
 				repositoryCalls: 2,
 				confirmations: ['Install', 'Repair'],
 			});

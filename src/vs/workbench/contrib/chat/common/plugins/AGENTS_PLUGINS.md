@@ -188,11 +188,13 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 
 | Kind | Provisioning | Cache path |
 |------|-------------|------------|
-| `RelativePath` | No-op (lives inside marketplace repo) | `<cacheRoot>/github.com/<owner>/<repo>/<path>` |
+| `RelativePath` | No-op (lives inside marketplace repo) | `<marketplaceRepository>/<path>` |
 | `GitHub` | `git clone` / `git pull` | `<cacheRoot>/github.com/<owner>/<repo>[/ref_<ref>]` |
 | `GitUrl` | `git clone` / `git pull` | `<cacheRoot>/<host>/<path>[/ref_<ref>]` |
 | `Npm` | `npm install` in terminal | `<cacheRoot>/npm/<sanitized-package>/` |
 | `Pip` | `pip install` in terminal | `<cacheRoot>/pip/<package>/` |
+
+Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific marketplace repositories use the isolated `<cacheRoot>/.marketplace-repositories/<host>/<path>/ref_<ref>` namespace so one cache variant cannot delete another. Storage-indexed legacy locations remain usable while valid.
 
 ## Configuration & Storage Keys
 

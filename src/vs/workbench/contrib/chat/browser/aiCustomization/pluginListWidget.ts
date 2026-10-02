@@ -16,7 +16,7 @@ import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseSta
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles, defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -42,11 +42,14 @@ import { CustomizationGroupHeaderRenderer, ICustomizationGroupHeaderEntry, CUSTO
 import { getCustomizationDisabledLabel, ICustomizationHarnessService, isPluginCustomizationItem, type ICustomizationItem, type ICustomizationItemAction } from '../../common/customizationHarnessService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IAICustomizationItemsModel } from './aiCustomizationItemsModel.js';
 import { UpdateAgentPluginsCommandId } from '../chat.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { getErrorMessage } from '../../../../../base/common/errors.js';
+import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { getPluginInclusionLabel } from './aiCustomizationPresentation.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { createCustomizationCardPrimaryAction, CustomizationCardListController, getVirtualizedSectionMinimumHeight, layoutVirtualizedSectionList, layoutVirtualizedSections, setVirtualizedRowActionsTabbable, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
@@ -54,6 +57,8 @@ import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/s
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
+import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 
 const $ = DOM.$;
 
@@ -506,7 +511,10 @@ class PluginMarketplaceItemRenderer implements IListRenderer<IPluginMarketplaceI
 		const publisher = DOM.append(details, $('.plugin-list-item-source'));
 		const metadata = DOM.append(details, $('.plugin-list-item-metadata'));
 		const actionContainer = DOM.append(container, $('.plugin-list-item-action'));
-		const installButton = new Button(actionContainer, { ...defaultButtonStyles, secondary: true });
+		const installButton = new Button(actionContainer, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+		});
 		installButton.element.classList.add('plugin-list-item-install-button');
 
 		const templateDisposables = new DisposableStore();
@@ -746,6 +754,9 @@ export class PluginListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
+	private readonly _onDidRequestBrowse = this._register(new Emitter<void>());
+	readonly onDidRequestBrowse = this._onDidRequestBrowse.event;
+
 	private sectionTitleHeader!: HTMLElement;
 	private sectionLink!: HTMLAnchorElement;
 	private marketplaceBackContainer!: HTMLElement;
@@ -807,10 +818,13 @@ export class PluginListWidget extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
+		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget.plugin-list-widget'); // reuse MCP shell, add plugin-specific row styling
@@ -826,7 +840,7 @@ export class PluginListWidget extends Disposable {
 			if (e.affectsConfiguration(ChatConfiguration.PluginsEnabled)) {
 				this.updateAccessState();
 			}
-			if (e.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
+			if (affectsCustomizationDiscoveryAvailability(e, this.customizationMarketplaceService)) {
 				this.marketplaceCts?.dispose(true);
 				this.marketplaceSnapshotCts?.dispose(true);
 				this.marketplaceSnapshot.reset();
@@ -837,6 +851,9 @@ export class PluginListWidget extends Disposable {
 				void this.refresh();
 			}
 		}));
+		if (this.customizationMarketplaceService.onDidChangeSources) {
+			this._register(this.customizationMarketplaceService.onDidChangeSources(() => void this.refresh()));
+		}
 		this._register({
 			dispose: () => {
 				this.delayedFilter.cancel();
@@ -1315,13 +1332,17 @@ export class PluginListWidget extends Disposable {
 		}));
 
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
@@ -1336,13 +1357,17 @@ export class PluginListWidget extends Disposable {
 		}
 		actions.style.display = '';
 		const more = disposables.add(new Button(actions, {
-			...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }),
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			supportIcons: true,
 			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
 		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		disposables.add(DOM.addDisposableGenericMouseDownListener(more.element, event => DOM.EventHelper.stop(event, true)));
 		disposables.add(more.onDidClick(event => {
 			DOM.EventHelper.stop(event, true);
@@ -1462,9 +1487,12 @@ export class PluginListWidget extends Disposable {
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
 		const actions = DOM.append(container, $('.plugin-card-section-actions'));
 		if (entry.group === 'user' || entry.group === 'workspace') {
-			this.renderPluginAddAction(actions, disposables);
 			if (this.pluginMarketplaceService.installedPlugins.get().length > 0) {
 				this.renderPluginUpdateAction(actions, disposables);
+			}
+			this.renderPluginAddAction(actions, disposables);
+			if (entry.group === 'user' && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
+				this.renderBrowseCustomizationsAction(actions, disposables);
 			}
 		} else if (entry.group === 'available') {
 			this.renderPluginAddAction(actions, disposables);
@@ -1480,7 +1508,7 @@ export class PluginListWidget extends Disposable {
 		if (!primary) {
 			return;
 		}
-		const label = this.formatActionLabel(primary);
+		const actionLabel = primary.tooltip ?? primary.label;
 		if (secondary.length > 0) {
 			const secondaryActions = secondary.map((action, index) => disposables.add(new Action(
 				`plugin_tree_add_${index}`,
@@ -1490,28 +1518,44 @@ export class PluginListWidget extends Disposable {
 				() => this.runPluginAction(action),
 			)));
 			const button = disposables.add(new ButtonWithDropdown(container, {
-				...defaultButtonStyles,
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
 				secondary: true,
+				supportIcons: true,
 				contextMenuProvider: this.contextMenuService,
 				addPrimaryActionToDropdown: false,
 				actions: { getActions: () => secondaryActions },
-				title: primary.tooltip ?? label,
-				ariaLabel: primary.tooltip ?? label,
+				title: actionLabel,
+				ariaLabel: actionLabel,
 			}));
 			button.element.classList.add('plugin-installed-action');
-			button.label = label;
+			button.primaryButton.element.classList.add('plugin-card-ghost-button');
+			button.dropdownButton.element.classList.add('plugin-card-ghost-button');
+			button.primaryButton.element.classList.add('plugin-card-icon-button');
+			button.dropdownButton.element.classList.add('plugin-card-icon-button');
+			button.icon = Codicon.add;
 			button.enabled = primary.enabled !== false;
 			disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 			return;
 		}
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
-			title: primary.tooltip ?? label,
-			ariaLabel: primary.tooltip ?? label,
+			supportIcons: true,
+			title: actionLabel,
+			ariaLabel: actionLabel,
 		}));
-		button.element.classList.add('plugin-installed-action');
-		button.label = label;
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button', 'plugin-card-icon-button');
+		button.icon = Codicon.add;
 		button.enabled = primary.enabled !== false;
 		disposables.add(button.onDidClick(() => this.runPluginAction(primary)));
 	}
@@ -1519,29 +1563,61 @@ export class PluginListWidget extends Disposable {
 	private renderPluginUpdateAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('checkForAndApplyPluginUpdates', "Check for and Apply Updates");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-card-icon-button', 'plugin-update-button');
-		button.label = `$(${Codicon.refresh.id})`;
+		button.element.classList.add('plugin-card-icon-button', 'plugin-card-ghost-button', 'plugin-update-button');
+		if (this.workspaceService.isSessionsWindow) {
+			button.icon = Codicon.refresh;
+		} else {
+			button.label = `$(${Codicon.refresh.id})`;
+		}
 		disposables.add(button.onDidClick(() => this.runUpdatePluginsAction(button)));
 	}
 
 	private renderBrowseMarketplaceAction(container: HTMLElement, disposables: DisposableStore): void {
 		const label = localize('browseMarketplace', "Browse Marketplace");
 		const button = disposables.add(new Button(container, {
-			...defaultButtonStyles,
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
 			secondary: true,
 			supportIcons: true,
 			title: label,
 			ariaLabel: label,
 		}));
-		button.element.classList.add('plugin-installed-action');
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.label = `$(${Codicon.library.id}) ${label}`;
 		disposables.add(button.onDidClick(() => this.toggleBrowseMode(true)));
+	}
+
+	private renderBrowseCustomizationsAction(container: HTMLElement, disposables: DisposableStore): void {
+		const label = localize('browsePlugins', "Browse Plugins");
+		const button = disposables.add(new Button(container, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			title: label,
+			ariaLabel: label,
+		}));
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
+		button.label = label;
+		disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
@@ -1593,9 +1669,18 @@ export class PluginListWidget extends Disposable {
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
 		const toggle = this.appendInstalledPluginToggle(actions, row, primaryAction, item);
-		const more = this.cardDisposables.add(new Button(actions, { ...getButtonStyles({ buttonSecondaryBackground: undefined, buttonSecondaryBorder: undefined }), secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+		const more = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+		}));
 		more.element.classList.add('plugin-card-icon-button');
-		more.label = `$(${Codicon.ellipsis.id})`;
+		more.icon = Codicon.ellipsis;
 		this.cardDisposables.add(more.onDidClick(() => this.showInstalledPluginActions(item, more.element)));
 		this.cardListControllers.get(parent)?.addItem({
 			row,
@@ -1673,9 +1758,18 @@ export class PluginListWidget extends Disposable {
 		let more: Button | undefined;
 		if (item.actions?.length) {
 			const actions = DOM.append(row, $('.plugin-list-item-action'));
-			const moreButton = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name) }));
+			const moreButton = this.cardDisposables.add(new Button(actions, {
+				...getButtonStyles({
+					buttonSecondaryBackground: undefined,
+					buttonSecondaryForeground: undefined,
+					buttonSecondaryHoverBackground: undefined,
+					buttonSecondaryBorder: undefined,
+				}),
+				secondary: true,
+				ariaLabel: localize('pluginMoreActionsAria', "More actions for {0}", item.name),
+			}));
 			moreButton.element.classList.add('plugin-card-icon-button');
-			moreButton.label = `$(${Codicon.ellipsis.id})`;
+			moreButton.icon = Codicon.ellipsis;
 			this.rememberCardFocusElement(moreButton.element);
 			this.cardDisposables.add(moreButton.onDidClick(() => this.showRemotePluginActions(item, moreButton.element)));
 			more = moreButton;
@@ -1702,7 +1796,11 @@ export class PluginListWidget extends Disposable {
 		description.textContent = truncateToFirstLine(item.description || localize('pluginNoDescription', "No description provided."));
 
 		const actions = DOM.append(row, $('.plugin-list-item-action'));
-		const install = this.cardDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, ariaLabel: localize('installPluginAria', "Install {0}", item.name) }));
+		const install = this.cardDisposables.add(new Button(actions, {
+			...getButtonStyles({ buttonSecondaryHoverBackground: undefined }),
+			secondary: true,
+			ariaLabel: localize('installPluginAria', "Install {0}", item.name),
+		}));
 		install.element.classList.add('plugin-list-item-install-button');
 		install.label = localize('install', "Install");
 		this.cardDisposables.add(install.onDidClick(() => this.installMarketplacePlugin(item, install)));
@@ -1739,17 +1837,23 @@ export class PluginListWidget extends Disposable {
 		button.label = localize('installing', "Installing...");
 		button.enabled = false;
 		try {
-			await this.pluginInstallService.installPlugin({
-				name: item.name,
-				description: item.description,
-				version: item.version ?? '',
-				sourceDescriptor: item.sourceDescriptor,
-				source: item.source,
-				marketplace: item.marketplace,
-				marketplaceReference: item.marketplaceReference,
-				marketplaceType: item.marketplaceType,
-				readmeUri: item.readmeUri,
-			});
+			await runCustomizationMarketplaceInstallWithTelemetry(
+				this.telemetryService,
+				getAvailableCustomizationMarketplaceInstallTelemetryContext('plugin'),
+				async () => {
+					await this.pluginInstallService.installPlugin({
+						name: item.name,
+						description: item.description,
+						version: item.version ?? '',
+						sourceDescriptor: item.sourceDescriptor,
+						source: item.source,
+						marketplace: item.marketplace,
+						marketplaceReference: item.marketplaceReference,
+						marketplaceType: item.marketplaceType,
+						readmeUri: item.readmeUri,
+					});
+				},
+			);
 			button.label = localize('installed', "Installed");
 			void this.refresh();
 		} catch (error) {
@@ -2129,6 +2233,30 @@ export class PluginListWidget extends Disposable {
 		if (entries.length > 0) {
 			this.list.reveal(entries[entries.length - 1]);
 		}
+	}
+
+	async revealAndSelectItemByUri(uri: URI): Promise<boolean> {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
+		if (this.searchQuery) {
+			this.searchInput.value = '';
+			this.searchQuery = '';
+			this.delayedFilter.cancel();
+		}
+		await this.filterPlugins();
+		const entry = this.getVisiblePluginEntries().find(entry =>
+			entry.type === 'plugin-item' && isEqual(entry.item.plugin.uri, uri)
+			|| entry.type === 'remote-item' && isEqual(entry.item.uri, uri)
+		);
+		if (!entry) {
+			return false;
+		}
+		this.list.reveal(entry);
+		this.list.setFocus([entry]);
+		this.list.setSelection([entry]);
+		this.list.domFocus();
+		return true;
 	}
 
 	focus(): void {

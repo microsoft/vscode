@@ -25,6 +25,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -977,10 +978,14 @@ export class RuntimeRepositoryAgentPluginDiscovery extends AbstractAgentPluginDi
 				if (!pluginPath) {
 					continue;
 				}
-				const uri = toTargetResource(await this._pathService.fileURI(pluginPath), userHome);
+				const uri = snapshot.sourceContext.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY
+					? toTargetResource(await this._pathService.fileURI(pluginPath), userHome)
+					: snapshot.sourceContext.resourceUris.fromAgentHost(URI.file(pluginPath));
 				let repositoryUri: URI | undefined;
 				if (activation.plugin.installed_from) {
-					repositoryUri = toTargetResource(await this._pathService.fileURI(activation.plugin.installed_from), userHome);
+					repositoryUri = snapshot.sourceContext.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY
+						? toTargetResource(await this._pathService.fileURI(activation.plugin.installed_from), userHome)
+						: snapshot.sourceContext.resourceUris.fromAgentHost(URI.file(activation.plugin.installed_from));
 				}
 				sources.set(uri.toString(), {
 					uri,
@@ -1302,10 +1307,10 @@ export class CopilotCliAgentPluginDiscovery extends AbstractAgentPluginDiscovery
 				sources.push({
 					uri: stat.resource,
 					fromMarketplace: undefined,
-					externalIdentity: {
+					externalIdentity: installedPlugin.marketplace ? {
 						name: installedPlugin.name,
 						marketplace: installedPlugin.marketplace,
-					},
+					} : undefined,
 					profileEnabled: installedPlugin.enabled,
 					watchPluginContents: false,
 					remove: this._agentHostService.uninstallPlugin && canUninstall ? async () => {

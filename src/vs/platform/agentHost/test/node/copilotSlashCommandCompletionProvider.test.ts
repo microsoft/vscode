@@ -144,6 +144,85 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
 		}
 
+		test('offers SDK Chronicle commands and filters subcommands after a space', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'chronicle',
+					description: 'Session history tools and insights',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[standup|search|tips|cost-tips|improve|reindex]',
+						choices: ['standup', 'search', 'tips', 'cost-tips', 'improve', 'reindex'].map(name => ({ name, description: name })),
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				command: item.attachment._meta?.command,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+			}));
+
+			assert.deepStrictEqual({
+				root: await complete('/chron'),
+				subcommands: await complete('/chronicle s'),
+				freeText: await complete('/chronicle search CLI'),
+			}, {
+				root: ['', 'cost-tips', 'improve', 'reindex', 'search', 'standup', 'tips'].map(name => ({
+					insertText: `/chronicle${name ? ' ' + name : ''} `,
+					command: 'chronicle',
+					rangeStart: 0,
+					rangeEnd: 6,
+				})),
+				subcommands: ['search', 'standup'].map(name => ({
+					insertText: `${name} `,
+					command: 'chronicle',
+					rangeStart: 11,
+					rangeEnd: 12,
+				})),
+				freeText: [],
+			});
+		});
+
+		test('hides Chronicle suggestions while local indexing is disabled and restores them when enabled', async () => {
+			let localIndexEnabled = false;
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isLocalIndexEnabled: () => localIndexEnabled,
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'chronicle',
+						description: 'Session history tools and insights',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[standup|search]', choices: [{ name: 'standup', description: 'Daily report' }, { name: 'search', description: 'Search history' }] },
+					},
+					{ name: 'review', description: 'Review changes', kind: 'builtin', allowDuringAgentExecution: false },
+				],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => item.insertText);
+
+			const disabled = { root: await complete('/'), subcommands: await complete('/chronicle s') };
+			localIndexEnabled = true;
+
+			assert.deepStrictEqual({
+				disabled,
+				enabled: await complete('/chronicle s'),
+			}, {
+				disabled: { root: ['/review '], subcommands: [] },
+				enabled: ['search ', 'standup '],
+			});
+		});
+
 		test('returns nothing for non-copilotcli scheme', async () => {
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage,
@@ -283,11 +362,197 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 				'/mcp list ',
 				'/mcp reload ',
 				'/plugin ',
+				'/plugin disable ',
+				'/plugin enable ',
+				'/plugin install ',
 				'/plugin list ',
+				'/plugin marketplace ',
+				'/plugin uninstall ',
+				'/plugin update ',
 				'/skills ',
 				'/skills list ',
 				'/skills reload ',
 			]);
+		});
+
+		test('offers plugin marketplace subcommands', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'plugin',
+					description: 'Manage plugins',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			assert.deepStrictEqual(runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/plugin marketplace ',
+				offset: 20,
+			}, CancellationToken.None)).map(item => item.insertText), [
+				'add ',
+				'browse ',
+				'list ',
+				'remove ',
+				'update ',
+			]);
+		});
+
+		test('offers marketplace names for commands that target a marketplace', async () => {
+			const requestedSessionIds: string[] = [];
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [],
+				getPluginMarketplaces: async sessionId => {
+					requestedSessionIds.push(sessionId);
+					return [
+						{ name: 'copilot-plugins', isDefault: true },
+						{ name: 'awesome-copilot' },
+						{ name: 'managed-marketplace', managed: true },
+					];
+				},
+			});
+
+			const complete = async (text: string) => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => item.insertText);
+
+			assert.deepStrictEqual({
+				browse: await complete('/plugin marketplace browse '),
+				updateFiltered: await complete('/plugin marketplace update awe'),
+				remove: await complete('/plugin marketplace remove '),
+				requestedSessionIds,
+			}, {
+				browse: ['awesome-copilot', 'copilot-plugins', 'managed-marketplace'],
+				updateFiltered: ['awesome-copilot'],
+				remove: ['awesome-copilot'],
+				requestedSessionIds: ['abc', 'abc', 'abc'],
+			});
+		});
+
+		test('offers qualified marketplace plugins for install', async () => {
+			const requestedSessionIds: string[] = [];
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [],
+				getPluginMarketplacePlugins: async sessionId => {
+					requestedSessionIds.push(sessionId);
+					return [
+						{ name: 'dotnet', marketplace: 'awesome-copilot' },
+						{ name: 'accessibility-kanban', marketplace: 'awesome-copilot' },
+						{ name: 'dotnet', marketplace: 'enterprise-plugins' },
+						{ name: 'dotnet', marketplace: 'awesome-copilot' },
+					];
+				},
+			});
+
+			const complete = async (text: string) => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				label: item.attachment.label,
+			}));
+
+			assert.deepStrictEqual({
+				all: await complete('/plugin install '),
+				filtered: await complete('/plugin install dotnet@enterprise'),
+				requestedSessionIds,
+			}, {
+				all: [
+					{ insertText: 'accessibility-kanban@awesome-copilot', label: 'accessibility-kanban@awesome-copilot' },
+					{ insertText: 'dotnet@awesome-copilot', label: 'dotnet@awesome-copilot' },
+					{ insertText: 'dotnet@enterprise-plugins', label: 'dotnet@enterprise-plugins' },
+				],
+				filtered: [
+					{ insertText: 'dotnet@enterprise-plugins', label: 'dotnet@enterprise-plugins' },
+				],
+				requestedSessionIds: ['abc'],
+			});
+		});
+
+		test('retriggers suggestions after accepting plugin install', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'plugin',
+					description: 'Manage plugins',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: { hint: '[list]', choices: [{ name: 'list', description: 'List plugins' }] },
+				}],
+				getSessionCustomizations: async () => [],
+			});
+
+			const items = runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text: '/plugin ins',
+				offset: 11,
+			}, CancellationToken.None));
+
+			assert.deepStrictEqual(items.filter(item => item.insertText === 'install ').map(item => ({
+				insertText: item.insertText,
+				retriggerSuggestions: item.attachment._meta?.retriggerSuggestions,
+			})), [{
+				insertText: 'install ',
+				retriggerSuggestions: true,
+			}]);
+		});
+
+		test('offers SDK plugin specs for mutation commands', async () => {
+			const requestedSessionIds: string[] = [];
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [],
+				getSessionCustomizations: async () => [{
+					type: CustomizationType.Plugin,
+					id: 'file:///plugins/elastic-elasticsearch',
+					uri: 'file:///plugins/elastic-elasticsearch',
+					name: 'elastic-elasticsearch',
+					load: { kind: CustomizationLoadStatus.Loaded },
+				}],
+				getInstalledPlugins: async sessionId => {
+					requestedSessionIds.push(sessionId);
+					return [
+						{ name: 'elasticsearch', marketplace: 'awesome-copilot', enabled: true },
+						{ name: 'dotnet', marketplace: 'awesome-copilot', enabled: false },
+						{ name: 'builtin-plugin', marketplace: '', enabled: true, source: 'builtin' },
+						{ name: 'managed-plugin', marketplace: 'enterprise', enabled: true, managed: true },
+						{ name: 'missing-plugin', marketplace: 'enterprise', enabled: false, installed: false },
+						{ name: 'direct-plugin', marketplace: '', enabled: true },
+						{ name: 'ambiguous-direct', marketplace: '', enabled: true },
+						{ name: 'ambiguous-direct', marketplace: '', enabled: true },
+					];
+				},
+			});
+
+			const complete = async (text: string) => (await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => item.insertText);
+
+			assert.deepStrictEqual({
+				uninstall: await complete('/plugin uninstall '),
+				update: await complete('/plugin update elastic'),
+				enable: await complete('/plugin enable '),
+				disable: await complete('/plugin disable '),
+				requestedSessionIds,
+			}, {
+				uninstall: ['direct-plugin', 'dotnet@awesome-copilot', 'elasticsearch@awesome-copilot'],
+				update: ['elasticsearch@awesome-copilot'],
+				enable: ['dotnet@awesome-copilot'],
+				disable: ['elasticsearch@awesome-copilot'],
+				requestedSessionIds: ['abc', 'abc', 'abc', 'abc'],
+			});
 		});
 
 		test('offers matching MCP server and skill names for customization commands', async () => {

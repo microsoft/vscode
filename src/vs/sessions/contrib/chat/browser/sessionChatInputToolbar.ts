@@ -28,7 +28,7 @@ import { ChatInputPills, StandardChatInputPillSources } from '../../../../workbe
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry, type IChatPullRequestPillSection } from '../../../../workbench/contrib/chat/browser/sessionPullRequestPill.js';
 import { diffStatsEqual, EMPTY_DIFF_STATS, IDiffStats } from '../../../../workbench/contrib/chat/browser/widget/chatTurnPills.js';
 import { SessionArtifacts, sessionArtifactLocation } from './sessionArtifacts.js';
-import { SessionCustomizations } from './sessionCustomizations.js';
+import { SessionCustomizations } from '../../../../workbench/contrib/chat/browser/sessionCustomizations.js';
 import { localize } from '../../../../nls.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, chatPillCopyUrlHoverLabel, chatPillRemoveArtifactHoverLabel, getChatPillResourceLocation, type ChatPillsCompactMode, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../../../workbench/browser/chatPills.js';
 import { computeAggregateIssueIcon, computeIssueIcon, getPullRequestStatusFromIcon, GitHubCIOverallStatus, GitHubIssueState, OPEN_ISSUE_ACTION_ID, OPEN_PULL_REQUEST_ACTION_ID, type IGitHubIssue } from '../../github/common/types.js';
@@ -42,6 +42,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../services/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
 import { SessionBackgroundActivitiesControl } from './sessionBackgroundActivitiesControl.js';
+import { SessionBackgroundShellsControl } from '../../../../workbench/contrib/chat/browser/sessionBackgroundShellsControl.js';
 import { SessionBrowsersControl } from './sessionBrowsersControl.js';
 import type { ISessionChatPillsDebugData } from './sessionChatInputToolbarDebug.js';
 import { SessionActivatingActionRunner } from '../../../browser/sessionActionRunner.js';
@@ -285,7 +286,7 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 		return EMPTY_DIFF_STATS;
 	}
 	const workspace = chat?.workspace?.read(reader);
-	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace)) : undefined;
+	const stats = chat && workspace ? readChatChangesStats(chat, reader, getChangesPillChangesetId(workspace, isNestedChat(session, chat, reader))) : undefined;
 	if (stats) {
 		return stats;
 	}
@@ -294,8 +295,19 @@ export function computeSessionInputPillStats(session: IActiveSession | undefined
 	return (isMainChat && session ? changesStatsCache?.get(session.sessionId, reader) : undefined) ?? EMPTY_DIFF_STATS;
 }
 
-function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined): string {
-	return workspace?.folders[0]?.gitRepository?.workTreeUri
+/** Whether `chat` is one of the session's nested chats rather than its main chat. */
+function isNestedChat(session: IActiveSession | undefined, chat: IChat | undefined, reader: IReader | undefined): boolean {
+	const mainChat = session?.mainChat?.read(reader);
+	return !!mainChat && !!chat && !isEqual(mainChat.resource, chat.resource);
+}
+
+/**
+ * The changeset represented by the Changes pill. A nested chat reports its own
+ * Session Changes; the main chat reports Branch Changes for a worktree and
+ * Session Changes otherwise.
+ */
+function getChangesPillChangesetId(workspace: ISessionWorkspace | undefined, isNested: boolean): string {
+	return !isNested && workspace?.folders[0]?.gitRepository?.workTreeUri
 		? BRANCH_CHANGES_CHANGESET_ID
 		: SESSION_CHANGES_CHANGESET_ID;
 }
@@ -395,11 +407,14 @@ export class SessionChatInputToolbar extends Disposable {
 			return debugData ? buildDebugArtifactSections(debugData) : sessionArtifacts.sections.read(reader);
 		});
 		this._referenceSections = sessionArtifacts.referenceSections;
-		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, this._chat, this._session));
+		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations,
+			derived(this, reader => this._chat.read(reader)?.customizations?.read(reader) ?? []),
+			derived(this, reader => this._session.read(reader)?.workspace.read(reader)?.folders ?? [])));
 		this._customizationSections = sessionCustomizations.sections;
 
 		const pillsVisible = derived(this, reader => this._debugData.read(reader) !== undefined || !this._isSubagentChat.read(reader));
 		this._backgroundActivities = this._register(instantiationService.createInstance(SessionBackgroundActivitiesControl, this._session, this._chat, pillsEnabled, constObservable(true)));
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, this._chat));
 		const pullRequestRefs = derivedOpts<readonly IGitHubPullRequestRef[]>({ owner: this, equalsFn: structuralEquals }, reader => gitHubReferences.read(reader).pullRequests);
 		const agentMergeConfiguration = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -469,7 +484,11 @@ export class SessionChatInputToolbar extends Disposable {
 			return computeAggregateIssueIcon(resolved.map(({ issue }) => issue));
 		});
 		const changesLabel = derived(this, reader => {
-			const workspace = this._session.read(reader)?.workspace.read(reader);
+			const session = this._session.read(reader);
+			if (isNestedChat(session, this._chat.read(reader), reader)) {
+				return localize('sessionChatPills.sessionChanges', "Session Changes");
+			}
+			const workspace = session?.workspace.read(reader);
 			const branch = workspace?.folders[0]?.gitRepository?.branchName?.trim();
 			return branch
 				? localize('sessionChatPills.allChangesOnBranch', "All Changes ({0})", branch)
@@ -484,12 +503,13 @@ export class SessionChatInputToolbar extends Disposable {
 					if (!session || this._debugData.get()) {
 						return;
 					}
-					const workspace = this._chat.get()?.workspace?.get() ?? session.workspace.get();
+					const chat = this._chat.get();
+					const workspace = chat?.workspace?.get() ?? session.workspace.get();
 					layoutService.revealEditorPartExplicitly();
 					void sessionChangesService.openChangesEditor(session.resource, {
 						changesetSelection: {
 							kind: 'id',
-							id: getChangesPillChangesetId(workspace),
+							id: getChangesPillChangesetId(workspace, isNestedChat(session, chat, undefined)),
 						}
 					});
 				},
@@ -498,31 +518,13 @@ export class SessionChatInputToolbar extends Disposable {
 			issues: {
 				sections: issueSections,
 				icon: issueIcon,
-				getContextMenuPrimaryActions: () => {
-					const entries = issueSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
 			},
-			artifacts: {
-				sections: this._artifactSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._artifactSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
-			references: {
-				sections: this._referenceSections,
-				getContextMenuPrimaryActions: () => {
-					const entries = this._referenceSections.get().flatMap(section => section.entries);
-					const promotedAction = entries.length === 1 ? entries[0].promotedAction : undefined;
-					return promotedAction ? [promotedAction] : [];
-				},
-			},
+			artifacts: { sections: this._artifactSections },
+			references: { sections: this._referenceSections },
 			customizations: { sections: this._customizationSections },
 			browsers: { sections: this._browsers.sections },
 			subagents: this._backgroundActivities,
+			backgroundShells,
 		}, SESSION_CHAT_PILL_KINDS));
 		const actionRunner = this._register(new SessionActivatingActionRunner(() => this._session.get(), this._sessionsService));
 		this._inputPills = this._register(instantiationService.createInstance(ChatInputPills, undefined, {

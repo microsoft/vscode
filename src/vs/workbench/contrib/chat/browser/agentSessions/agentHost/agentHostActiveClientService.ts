@@ -59,6 +59,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves once the scope's initial customization resolution has completed. */
 	whenResolved(): Promise<void>;
+	/** Finds the bundled URI for a source file in this scope. */
+	getSyncedUri(sourceUri: URI): URI | undefined;
 }
 
 export interface IAgentHostActiveClientService {
@@ -136,7 +138,7 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			this._isResolved.set(false, undefined);
 			try {
-				await this._runtimeRequiredPluginService.ensure(this._roots);
+				await this._runtimeRequiredPluginService.ensure(this._roots, this._sessionType);
 				await this._runtimeRequiredPluginService.whenDiscoverySettled();
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
@@ -231,6 +233,7 @@ class AgentCustomizationScope extends Disposable {
 			tools: this.tools,
 			isResolved: this.isResolved,
 			whenResolved: () => this._whenResolved(),
+			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
 				if (!released) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
@@ -13,6 +13,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
+import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../../../../../platform/agentHost/common/requiredPlugins.js';
 import type { IConfigurationOverrides, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
@@ -39,7 +40,10 @@ suite('RuntimeRequiredPlugins', () => {
 
 	function createHarness(trusted = true, managedRequired = false, pluginsEnabled = true) {
 		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
+		const remoteRequests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		let failure: Error | undefined;
+		let ensureHandler: ((request: IAgentHostEnsureRequiredPluginsRequest) => Promise<IAgentHostEnsureRequiredPluginsResult>) | undefined;
+		let remoteResult = result;
 		const initializeResult = observableValue('initializeResult', {
 			protocolVersion: '1.0.0',
 			serverSeq: 0,
@@ -48,12 +52,27 @@ suite('RuntimeRequiredPlugins', () => {
 		});
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = initializeResult;
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
 			override async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 				requests.push(request);
 				if (failure) {
 					throw failure;
 				}
-				return result;
+				return ensureHandler ? ensureHandler(request) : result;
+			}
+		}();
+		const remoteInitializeResult = observableValue('remoteInitializeResult', {
+			protocolVersion: '1.0.0',
+			serverSeq: 0,
+			snapshots: [],
+			_meta: getAgentHostExtensionInitializeResultMeta(),
+		});
+		const remoteConnection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = remoteInitializeResult;
+			override readonly resourceUris = createAgentHostResourceUriMapper('remote');
+			override async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+				remoteRequests.push(request);
+				return remoteResult;
 			}
 		}();
 		const runtimeService = store.add(new RuntimeRepositoryPluginService(new class extends mock<IUriIdentityService>() {
@@ -63,6 +82,13 @@ suite('RuntimeRequiredPlugins', () => {
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly ambientConnection = connection;
 				override readonly onDidChangeConnections = Event.None;
+				override readonly connections = [
+					{ authority: 'local', address: undefined, name: 'Local', isAmbient: true, connection },
+					{ authority: 'remote', address: 'remote', name: 'Remote', isAmbient: false, connection: remoteConnection },
+				];
+				override getConnectionByAuthority(authority: string): IAgentConnection | undefined {
+					return authority === 'local' ? connection : authority === 'remote' ? remoteConnection : undefined;
+				}
 			}(),
 			new TestContextService(testWorkspace(workspace)),
 			{
@@ -96,9 +122,13 @@ suite('RuntimeRequiredPlugins', () => {
 		));
 		return {
 			requests,
+			remoteRequests,
+			remoteConnection,
 			runtimeService,
 			requiredPluginService,
 			failWith: (error: Error | undefined) => failure = error,
+			setEnsureHandler: (handler: typeof ensureHandler) => ensureHandler = handler,
+			setRemoteResult: (value: IAgentHostEnsureRequiredPluginsResult) => remoteResult = value,
 			setCapability: (supported: boolean) => initializeResult.set({
 				protocolVersion: '1.0.0',
 				serverSeq: 0,
@@ -117,9 +147,72 @@ suite('RuntimeRequiredPlugins', () => {
 		}, {
 			requests: [
 				{ managedSettings: undefined },
-				{ workingDirectory: workspace.toString(), managedSettings: undefined },
+				{ workingDirectory: workspace.toString(), repositoryTrusted: true, managedSettings: undefined },
 			],
 			snapshots: ['managed', workspace.toString()],
+		});
+
+		test('routes remote scopes through their owning connection and mapper', async () => {
+			const harness = createHarness();
+			await timeout(150);
+			harness.requests.length = 0;
+			const remoteWorkspace = harness.remoteConnection.resourceUris.fromAgentHost(URI.file('/remote/workspace'));
+			const remotePlugin = '/remote/plugins/demo';
+			harness.setRemoteResult({
+				fingerprint: 'remote',
+				plugins: [{
+					plugin: {
+						name: 'demo',
+						marketplace: 'market',
+						enabled: false,
+						installed_at: '2026-10-02T00:00:00Z',
+						cache_path: remotePlugin,
+					},
+					enabled: true,
+					managed: false,
+				}],
+				warnings: [],
+			});
+
+			await harness.requiredPluginService.ensure([remoteWorkspace], 'remote-remote-copilot');
+			const snapshot = harness.runtimeService.snapshots.get().find(candidate => candidate.workingDirectory?.toString() === remoteWorkspace.toString());
+
+			assert.deepStrictEqual({
+				ambientRequests: harness.requests,
+				remoteRequests: harness.remoteRequests,
+				connectionAuthority: snapshot?.sourceContext.connectionAuthority,
+				pluginUri: snapshot?.sourceContext.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
+			}, {
+				ambientRequests: [],
+				remoteRequests: [
+					{ managedSettings: undefined },
+					{
+						workingDirectory: URI.file('/remote/workspace').toString(),
+						repositoryTrusted: true,
+						managedSettings: undefined,
+					},
+				],
+				connectionAuthority: 'remote',
+				pluginUri: harness.remoteConnection.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
+			});
+		});
+
+		test('does not restore a snapshot after capability invalidation', async () => {
+			const harness = createHarness();
+			await timeout(150);
+			const deferred = new DeferredPromise<IAgentHostEnsureRequiredPluginsResult>();
+			harness.setEnsureHandler(request => request.workingDirectory ? deferred.p : Promise.resolve(result));
+
+			const pending = harness.requiredPluginService.ensure([workspace]);
+			while (!harness.requests.some(request => request.workingDirectory)) {
+				await timeout(0);
+			}
+			harness.setCapability(false);
+			await harness.requiredPluginService.ensure([workspace]);
+			deferred.complete(result);
+			await pending;
+
+			assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 		});
 	});
 

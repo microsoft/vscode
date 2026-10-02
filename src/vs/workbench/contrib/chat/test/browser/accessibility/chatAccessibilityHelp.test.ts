@@ -14,6 +14,18 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
+		test(`only describes visible Codex continuation UI (${type})`, () => {
+			const keybindings = new MockKeybindingService();
+			const hidden = getAccessibilityHelpText(type, keybindings, false);
+			const shown = getAccessibilityHelpText(type, keybindings, false, false, false, false, false, ChatSessionArchiveActionWording.Archive, true);
+			assert.deepStrictEqual({
+				hidden: hidden.includes('A ChatGPT limit suggestion'),
+				shown: shown.includes('A ChatGPT limit suggestion'),
+			}, { hidden: false, shown: type !== 'inlineChat' && type !== 'quickChat' });
+		});
+	}
+
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.ok(help.includes('use /sandbox-policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
@@ -85,10 +97,13 @@ suite('Chat Accessibility Help', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			focus: help.includes('Use Tab to focus a subagent pill'),
-			open: help.includes('Enter or Space to open its chat'),
+			open: help.includes('Enter or Space to open its chat to the side'),
 			inline: help.includes('Enter or Space expands or collapses its inline details'),
-			status: help.includes('announces its running state and any pending confirmations'),
-		}, { focus: true, open: true, inline: true, status: true });
+			status: help.includes('announces its running state') && help.includes('any pending confirmations'),
+			modelSettings: help.includes('model settings'),
+			resourceLinks: help.includes('File and markdown links in its activity row can be focused with Tab'),
+			nestedSubagent: help.includes('press Enter or Space to open the nested subagent\'s chat to the side'),
+		}, { focus: true, open: true, inline: true, status: true, modelSettings: true, resourceLinks: true, nestedSubagent: true });
 	});
 
 	test('documents the Copilot tab switch and independent provider navigation', () => {
@@ -385,6 +400,15 @@ suite('Chat Accessibility Help', () => {
 			pullRequestFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Pull Requests Options'),
 			filterPersistence: getAccessibilityHelpText('agentView', keybindingService, true).includes('remembered across sessions'),
 			filterRecovery: getAccessibilityHelpText('agentView', keybindingService, true).includes('any other pill\'s context menu or the toolbar context menu'),
+			subagentFilter: getAccessibilityHelpText('agentView', keybindingService, true).includes('Subagent Options'),
+			customizations: getAccessibilityHelpText('panelChat', keybindingService, true).includes('Activate an entry to reveal it in the Customizations editor'),
+			sharedPills: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('available in both the Agents Window and editor window'),
+			hiddenByDefault: getAccessibilityHelpText('agentView', keybindingService, true).includes('hidden by default'),
+			progressiveCollapse: getAccessibilityHelpText('agentView', keybindingService, true).includes('one at a time from right to left'),
+			compactAccessibility: getAccessibilityHelpText('panelChat', keybindingService, true).includes('full labels remain available to screen readers and in tooltips'),
+			scrollFallback: getAccessibilityHelpText('panelChat', keybindingService, true).includes('If the icons still do not fit, the row scrolls horizontally'),
+			agentsCollapse: getAccessibilityHelpText('agentView', keybindingService, true, true).includes('one at a time from right to left'),
+			backgroundShells: getAccessibilityHelpText('panelChat', keybindingService, true).includes('The Background Shells pill opens a picker above the chat input'),
 			agentQuickChat: getAccessibilityHelpText('agentView', keybindingService, true, false, false, false).includes('session status pills'),
 			quickChat: getAccessibilityHelpText('quickChat', keybindingService, true).includes('session status pills'),
 			inlineChat: getAccessibilityHelpText('inlineChat', keybindingService, true).includes('session status pills'),
@@ -394,6 +418,15 @@ suite('Chat Accessibility Help', () => {
 			pullRequestFilter: true,
 			filterPersistence: true,
 			filterRecovery: true,
+			subagentFilter: true,
+			customizations: true,
+			sharedPills: true,
+			hiddenByDefault: true,
+			progressiveCollapse: true,
+			compactAccessibility: true,
+			scrollFallback: true,
+			agentsCollapse: false,
+			backgroundShells: true,
 			agentQuickChat: false,
 			quickChat: false,
 			inlineChat: false,

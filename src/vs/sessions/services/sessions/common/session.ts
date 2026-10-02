@@ -13,8 +13,11 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 
 export { getHighestPriorityPullRequestIcon };
+export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -46,7 +49,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }
@@ -179,6 +182,10 @@ export interface ISessionGitRepository {
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/** Default branch of the repository's `origin` remote (e.g. `main`). */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`). */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch is ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch is ahead of the upstream branch. */
@@ -300,26 +307,6 @@ export interface ISessionArtifact {
 	readonly commitHash?: string;
 	/** Whether a pull request or issue lives on GitHub. */
 	readonly isGitHub?: boolean;
-}
-
-/** The kinds of customization a chat can use. */
-export const enum SessionCustomizationKind {
-	Agent = 'agent',
-	Skill = 'skill',
-	Instruction = 'instruction',
-	Hook = 'hook',
-	Prompt = 'prompt',
-	McpServer = 'mcpServer',
-	Plugin = 'plugin',
-}
-
-/** A customization the agent used or read during a chat. Provider-neutral. */
-export interface ISessionChatCustomization {
-	readonly id: string;
-	readonly kind: SessionCustomizationKind;
-	readonly name: string;
-	/** Source file or directory, used to reveal the customization. */
-	readonly uri?: URI;
 }
 
 /**
@@ -709,6 +696,15 @@ export interface IChat {
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
+	 * Providers that cannot determine this omit the observable.
+	 */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
+	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
@@ -724,6 +720,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Live model-opened canvases owned by this chat. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -794,6 +792,19 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
+export interface ISessionApplication {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface ISessionEnvironment {
+	/** Stable identity, independent of the environment's display name. */
+	readonly id: string;
+	readonly label: string;
+	/** Remote environments appear in the filter menu only while connected. */
+	readonly isConnected?: IObservable<boolean>;
+}
+
 export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
@@ -803,6 +814,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** Harness identity, independent of the session's routing type. */
+	readonly harness: string;
+	/** Provider-assigned environment identity: local, cloud, or a remote host identifier. */
+	readonly environment: string;
+	/** Creation provenance, which may hydrate after the session is discovered. */
+	readonly application: IObservable<ISessionApplication>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -1198,6 +1215,8 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.defaultBranchName === b.defaultBranchName
+		&& a.defaultRemoteBranchName === b.defaultRemoteBranchName
 		&& a.incomingChanges === b.incomingChanges
 		&& a.outgoingChanges === b.outgoingChanges
 		&& a.uncommittedChanges === b.uncommittedChanges

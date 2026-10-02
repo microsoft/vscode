@@ -11,7 +11,7 @@ export const IRuntimeRequiredPluginService = createDecorator<IRuntimeRequiredPlu
 
 export interface IRuntimeRequiredPluginService {
 	readonly _serviceBrand: undefined;
-	ensure(workingDirectories?: readonly URI[]): Promise<void>;
+	ensure(workingDirectories?: readonly URI[], sessionType?: string): Promise<void>;
 	whenDiscoverySettled(): Promise<void>;
 	retainWorkingDirectories(workingDirectories: readonly URI[]): IDisposable;
 }

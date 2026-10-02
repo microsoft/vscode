@@ -8,7 +8,6 @@ import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { affectsCustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
@@ -20,6 +19,7 @@ import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelc
 import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
 import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
+import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 
 const $ = DOM.$;
 
@@ -38,13 +38,7 @@ export interface ICustomizationMigrationCategorySummary {
 export interface IWelcomePageCallbacks {
 	selectSection(section: AICustomizationManagementSection): void;
 	selectSectionWithMarketplace(section: AICustomizationManagementSection): void;
-	openInstalled?(target: {
-		readonly section: AICustomizationManagementSection;
-		readonly uri?: URI;
-		readonly promptDetail?: IAICustomizationListItem;
-		readonly pluginDetail?: IAgentPluginItem;
-		readonly mcpDetail?: IMcpServerDetailInput;
-	}): void;
+	openInstalled?(target: IInstalledCustomizationTarget): void;
 	openMarketplaceItem(resource: ICustomizationMarketplaceResource, origin: ICustomizationMarketplaceOrigin): void;
 	closeEditor(): void;
 	reviewMigrations(): void;
@@ -56,6 +50,17 @@ export interface IWelcomePageCallbacks {
 	 * reusing the active one.
 	 */
 	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
+}
+
+export interface IInstalledCustomizationTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly name: string;
+	readonly uri?: URI;
+	readonly mcpServerId?: string;
+	readonly mcpConnectorName?: string;
+	readonly promptDetail?: IAICustomizationListItem;
+	readonly pluginDetail?: IAgentPluginItem;
+	readonly mcpDetail?: IMcpServerDetailInput;
 }
 
 export interface ICustomizationMarketplaceOrigin {
@@ -126,11 +131,11 @@ export class AICustomizationWelcomePage extends Disposable {
 	}
 
 	isMarketplaceConfigurationChange(event: IConfigurationChangeEvent): boolean {
-		return affectsCustomizationMarketplaceSources(event, this.marketplaceService.allSources ?? this.marketplaceService.sources);
+		return affectsCustomizationDiscoveryAvailability(event, this.marketplaceService);
 	}
 
 	private isAnySourceEnabled(): boolean {
-		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).length > 0;
+		return isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService);
 	}
 
 	private updateImplementation(): void {

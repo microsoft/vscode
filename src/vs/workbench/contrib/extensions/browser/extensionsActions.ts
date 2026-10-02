@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import * as json from '../../../../base/common/json.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg, AutoUpdateConfigurationKey } from '../common/extensions.js';
 import { ExtensionsConfigurationInitialContent } from '../common/extensionsFileTemplate.js';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, ExtensionManagementErrorCode, IAllowedExtensionsService, shouldRequireRepositorySignatureFor } from '../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -212,12 +213,15 @@ export class PromptExtensionInstallFailureAction extends Action {
 
 		const operationMessage = this.installOperation === InstallOperation.Update ? localize('update operation', "Error while updating '{0}' extension.", this.extension.displayName || this.extension.identifier.id)
 			: localize('install operation', "Error while installing '{0}' extension.", this.extension.displayName || this.extension.identifier.id);
-		let additionalMessage;
+		let additionalMessage: NotificationText | undefined;
 		const promptChoices: IPromptChoice[] = [];
 
 		const downloadUrl = await this.getDownloadUrl();
 		if (downloadUrl) {
-			additionalMessage = localize('check logs', "Please check the [log]({0}) for more details.", createCommandUri(showWindowLogActionId).toString());
+			additionalMessage = NotificationText.format(
+				localize('check logs linked', "Please check the {0} for more details."),
+				NotificationText.link(localize('check logs label', "log"), createCommandUri(showWindowLogActionId).toString()),
+			);
 			promptChoices.push({
 				label: localize('download', "Try Downloading Manually..."),
 				run: () => this.openerService.open(downloadUrl).then(() => {
@@ -233,7 +237,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 			});
 		}
 
-		const message = `${operationMessage}${additionalMessage ? ` ${additionalMessage}` : ''}`;
+		const message = additionalMessage ? NotificationText.concat(operationMessage, ' ', additionalMessage) : operationMessage;
 		this.notificationService.prompt(Severity.Error, message, promptChoices);
 	}
 

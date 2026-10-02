@@ -8,8 +8,10 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType } from '../../../../platform/agentHost/common/agentHostSessionType.js';
 import { supportsAgentHostEnsureRequiredPlugins } from '../../../../platform/agentHost/common/meta/agentHostRepositoryPluginsMeta.js';
+import type { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -29,6 +31,8 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 	private readonly _ensureDelayer = this._register(new Delayer<void>(100));
 	private readonly _ensureSequencer = new SequencerByKey<string>();
 	private readonly _retainedWorkingDirectories = new Map<string, { readonly uri: URI; count: number }>();
+	private readonly _snapshotGenerations = new Map<string, number>();
+	private _stateGeneration = 0;
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -63,28 +67,43 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 	}
 
 	private _requestEnsure(): void {
+		this._stateGeneration++;
 		this._ensureDelayer.trigger(() => this.ensure()).catch(error => {
 			this._logService.error('[RuntimeRequiredPlugins] Required plugin enforcement failed', error);
 		});
 	}
 
-	async ensure(workingDirectories?: readonly URI[]): Promise<void> {
+	async ensure(workingDirectories?: readonly URI[], sessionType?: string): Promise<void> {
 		const directories = workingDirectories ?? this._getTrackedWorkingDirectories();
 		if (!workingDirectories) {
 			this._runtimeRepositoryPluginService.retainWorkingDirectories(directories);
 		}
+		const stateGeneration = this._stateGeneration;
+		const connectionInfo = this._getConnectionInfo(sessionType);
+		if (!connectionInfo?.connection) {
+			this._removeSnapshots(directories);
+			if (connectionInfo) {
+				this._removeManagedSnapshot(connectionInfo.authority);
+			}
+			if (this._hasManagedRequiredPlugins()) {
+				throw new Error('The Agent Host required for managed plugin enforcement is unavailable.');
+			}
+			this._logService.warn('[RuntimeRequiredPlugins] Skipping repository auto-install: Agent Host connection unavailable');
+			return;
+		}
+		const { authority, connection } = connectionInfo;
+		const sourceContext = { connectionAuthority: authority, resourceUris: connection.resourceUris };
 		if (this._chatEntitlementService.sentiment.hidden) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._runtimeRepositoryPluginService.removeManagedSnapshot();
+			this._removeSnapshots(directories);
+			this._removeManagedSnapshot(authority);
 			this._logService.debug('[RuntimeRequiredPlugins] Skipping: no eligible workspace context');
 			return;
 		}
 
-		const connection = this._connectionsService.ambientConnection;
 		if (!connection.ensureRequiredPlugins
 			|| !supportsAgentHostEnsureRequiredPlugins(connection.initializeResult.get())) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
-			this._runtimeRepositoryPluginService.removeManagedSnapshot();
+			this._removeSnapshots(directories);
+			this._removeManagedSnapshot(authority);
 			if (this._hasManagedRequiredPlugins()) {
 				throw new Error('The Agent Host does not support required plugin enforcement.');
 			}
@@ -93,55 +112,80 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 		}
 
 		const managedSettings = this._managedSettings();
-		await this._ensureSequencer.queue('', async () => {
+		const managedKey = this._managedKey(authority);
+		const managedGeneration = this._snapshotGeneration(managedKey);
+		await this._ensureSequencer.queue(managedKey, async () => {
 			try {
 				const result = await connection.ensureRequiredPlugins!({ managedSettings });
-				this._runtimeRepositoryPluginService.setManagedSnapshot(result);
+				if (!this._isCurrent(stateGeneration, managedKey, managedGeneration)) {
+					return;
+				}
+				this._runtimeRepositoryPluginService.setManagedSnapshot(result, sourceContext);
 				for (const warning of result.warnings) {
 					this._logService.warn(`[RuntimeRequiredPlugins] ${warning}`);
 				}
 			} catch (error) {
-				this._runtimeRepositoryPluginService.removeManagedSnapshot();
-				this._runtimeRepositoryPluginService.removeSnapshots(directories);
+				this._removeManagedSnapshot(authority);
+				this._removeSnapshots(directories);
 				throw error;
 			}
 		});
+		if (stateGeneration !== this._stateGeneration) {
+			return;
+		}
 
 		if (directories.length === 0) {
 			return;
 		}
 
 		if (!this._configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
+			this._removeSnapshots(directories);
 			this._logService.debug('[RuntimeRequiredPlugins] Skipping repository auto-install: plugin integration is disabled');
 			return;
 		}
 
 		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
-			this._runtimeRepositoryPluginService.removeSnapshots(directories);
+			this._removeSnapshots(directories);
 			this._logService.debug('[RuntimeRequiredPlugins] Skipping repository auto-install: workspace is not trusted');
 			return;
 		}
 
 		await Promise.all(directories.map(workingDirectory =>
-			this._ensureSequencer.queue(this._uriIdentityService.extUri.getComparisonKey(workingDirectory), async () => {
-				try {
-					this._logService.debug(`[RuntimeRequiredPlugins] Ensuring requirements for ${workingDirectory.toString()}`);
-					const result = await connection.ensureRequiredPlugins!({
-						workingDirectory: workingDirectory.toString(),
-						managedSettings,
-					});
-					this._logService.debug(`[RuntimeRequiredPlugins] Ensured ${result.plugins.length} workspace plugin projection(s) for ${workingDirectory.toString()}`);
-					this._runtimeRepositoryPluginService.setSnapshot(workingDirectory, result);
-					for (const warning of result.warnings) {
-						this._logService.warn(`[RuntimeRequiredPlugins] ${warning}`);
-					}
-				} catch (error) {
-					this._runtimeRepositoryPluginService.removeSnapshots([workingDirectory]);
-					throw error;
-				}
-			})
+			this._ensureWorkspace(connection, authority, sourceContext, workingDirectory, managedSettings, stateGeneration)
 		));
+	}
+
+	private async _ensureWorkspace(
+		connection: IAgentConnection,
+		authority: string,
+		sourceContext: { readonly connectionAuthority: string; readonly resourceUris: IAgentConnection['resourceUris'] },
+		workingDirectory: URI,
+		managedSettings: Record<string, unknown> | undefined,
+		stateGeneration: number,
+	): Promise<void> {
+		const key = this._workspaceKey(workingDirectory);
+		const snapshotGeneration = this._snapshotGeneration(key);
+		await this._ensureSequencer.queue(`${authority}:${key}`, async () => {
+			try {
+				this._logService.debug(`[RuntimeRequiredPlugins] Ensuring requirements for ${workingDirectory.toString()}`);
+				const result = await connection.ensureRequiredPlugins!({
+					workingDirectory: connection.resourceUris.toAgentHost(workingDirectory).toString(),
+					repositoryTrusted: true,
+					managedSettings,
+				});
+				if (!this._isCurrent(stateGeneration, key, snapshotGeneration)) {
+					return;
+				}
+				this._logService.debug(`[RuntimeRequiredPlugins] Ensured ${result.plugins.length} workspace plugin projection(s) for ${workingDirectory.toString()}`);
+				this._runtimeRepositoryPluginService.setSnapshot(workingDirectory, result, sourceContext);
+				for (const warning of result.warnings) {
+					this._logService.warn(`[RuntimeRequiredPlugins] ${warning}`);
+				}
+			} catch (error) {
+				this._removeSnapshots([workingDirectory]);
+				throw error;
+			}
+		});
 	}
 
 	whenDiscoverySettled(): Promise<void> {
@@ -186,7 +230,57 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 	}
 
 	private _retainSnapshots(): void {
-		this._runtimeRepositoryPluginService.retainWorkingDirectories(this._getTrackedWorkingDirectories());
+		const retained = this._getTrackedWorkingDirectories();
+		const retainedKeys = new Set(retained.map(uri => this._workspaceKey(uri)));
+		for (const snapshot of this._runtimeRepositoryPluginService.snapshots.get()) {
+			if (snapshot.workingDirectory && !retainedKeys.has(this._workspaceKey(snapshot.workingDirectory))) {
+				this._invalidateSnapshot(this._workspaceKey(snapshot.workingDirectory));
+			}
+		}
+		this._runtimeRepositoryPluginService.retainWorkingDirectories(retained);
+	}
+
+	private _getConnectionInfo(sessionType: string | undefined): { readonly authority: string; readonly connection: IAgentConnection | undefined } | undefined {
+		if (!sessionType || !isRemoteAgentHostSessionType(sessionType)) {
+			return { authority: AMBIENT_AGENT_HOST_AUTHORITY, connection: this._connectionsService.ambientConnection };
+		}
+		const authority = findRemoteAgentHostSessionTypeAuthority(
+			sessionType,
+			this._connectionsService.connections.map(connection => connection.authority),
+		);
+		return authority ? { authority, connection: this._connectionsService.getConnectionByAuthority(authority) } : undefined;
+	}
+
+	private _workspaceKey(workingDirectory: URI): string {
+		return this._uriIdentityService.extUri.getComparisonKey(workingDirectory);
+	}
+
+	private _managedKey(authority: string): string {
+		return `managed:${authority}`;
+	}
+
+	private _snapshotGeneration(key: string): number {
+		return this._snapshotGenerations.get(key) ?? 0;
+	}
+
+	private _invalidateSnapshot(key: string): void {
+		this._snapshotGenerations.set(key, this._snapshotGeneration(key) + 1);
+	}
+
+	private _isCurrent(stateGeneration: number, snapshotKey: string, snapshotGeneration: number): boolean {
+		return stateGeneration === this._stateGeneration && snapshotGeneration === this._snapshotGeneration(snapshotKey);
+	}
+
+	private _removeSnapshots(workingDirectories: readonly URI[]): void {
+		for (const workingDirectory of workingDirectories) {
+			this._invalidateSnapshot(this._workspaceKey(workingDirectory));
+		}
+		this._runtimeRepositoryPluginService.removeSnapshots(workingDirectories);
+	}
+
+	private _removeManagedSnapshot(authority: string): void {
+		this._invalidateSnapshot(this._managedKey(authority));
+		this._runtimeRepositoryPluginService.removeManagedSnapshot(authority);
 	}
 
 	private _managedSettings(): Record<string, unknown> | undefined {

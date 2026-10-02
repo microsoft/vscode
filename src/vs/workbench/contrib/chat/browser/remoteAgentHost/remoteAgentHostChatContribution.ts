@@ -10,7 +10,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { ISettableObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
-import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -24,7 +24,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../agentSessions/agentHost/agentHostAuth.js';
+import { autoAuthenticateMcpServer, authenticateAgentProtectedResourcesWithToken, authenticateProtectedResources, authenticateProtectedResourcesWithToken, AgentHostAuthenticationRecovery, AgentHostAuthTokenCache, resolveAuthenticationInteractively, revokeAuthenticationForRemovedSessions } from '../agentSessions/agentHost/agentHostAuth.js';
 import { AgentHostLanguageModelProvider, agentHostProviderSupportsAutoModel } from '../agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from '../agentSessions/agentHost/agentHostSessionHandler.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
@@ -258,6 +258,11 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		const connState = this._instantiationService.createInstance(ConnectionState, address, name, connection);
 		this._connections.set(address, connState);
 		const store = connState.store;
+		if (connection.registerMcpAuthenticationHandler) {
+			// Remote chat URIs encode the host in their scheme, not their authority.
+			store.add(connection.registerMcpAuthenticationHandler(request =>
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+		}
 		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 
 		// Bridge the host's OTLP logs channel into a dedicated workbench
@@ -423,6 +428,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			AgentHostSessionHandler, {
 			provider: agent.provider,
 			backendSessionScheme: this._connectionCustomizations.get(address)?.backendSessionScheme?.(agent.provider),
+			requiresWorkspaceTrust: this._connectionCustomizations.get(address)?.requiresWorkspaceTrust,
 			agentId,
 			sessionType,
 			fullName: displayName,

@@ -19,6 +19,7 @@ import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agen
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -110,11 +111,13 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			canEvict: changeset => callbackAdapter.canEvictChangeset(changeset),
 		},
 	}));
+	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
 		options.rootConfigResource,
 		options.providerConfigurations ?? [],
+		managedSettingsService,
 	));
 	if (options.transientProxyConfiguration) {
 		configurationService.publishRootTransientValues(Object.fromEntries(
@@ -129,6 +132,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
+	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);
