@@ -1128,5 +1128,121 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming with the same owner still focused must re-apply its own composition, not leave the stale phone-era on-screen state');
 	});
+
+	test('[R8] deleting a session\'s main chat entity while the session persists does not delete its shared working-set handle, but later session removal still does', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/main-handle.txt')))];
+		await settle();
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const key = controller.ownerKeyFor(session);
+		const workingSet = controller.capturedWorkingSet(key);
+		assert.notStrictEqual(workingSet, undefined, 'the session\'s editor working set must be captured before the main chat entity is deleted');
+
+		const mainChatDeleted: IChatDeletedEvent = { session, sessionResource: session.resource, chatResource: session.mainChat.get().resource };
+		harness.onDidDeleteChat.fire(mainChatDeleted);
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'deleting the main chat entity alone must not call the destructive deleteWorkingSet API while the session is still alive');
+		assert.deepStrictEqual(controller.capturedWorkingSet(key), workingSet, 'the shared working-set handle must still be tracked and applicable after the main chat entity is deleted');
+
+		harness.onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [workingSet!.id], 'removing the session itself must still correctly delete its working-set handle exactly once, proving last-ref cleanup still occurs');
+	});
+
+	test('[R8] a promotion that collapses a peer chat onto an already-used owner key never calls the destructive deleteWorkingSet API, and later session removal still cleans up exactly once', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const shared = makeSession(URI.parse('chat:shared'));
+		harness.activeSessionObs.set(shared, undefined);
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/legacy-handle.txt')))];
+		await settle();
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const legacyKey = controller.ownerKeyFor(shared);
+		const legacyWorkingSet = controller.capturedWorkingSet(legacyKey);
+		assert.notStrictEqual(legacyWorkingSet, undefined, 'the pre-promotion session\'s editor working set must be captured at the shared owner key');
+
+		const draft = makeSession(URI.parse('session:draft'));
+		const draftPeer = addPeerChat(draft, URI.parse('chat:shared'));
+		harness.activeSessionObs.set(draft, undefined);
+		await settle();
+		setActiveChat(draft, draftPeer);
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/draft-peer-handle.txt')))];
+		await settle();
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const draftKey = controller.ownerKeyFor(draft);
+		const peerWorkingSet = controller.capturedWorkingSet(draftKey);
+		assert.notStrictEqual(peerWorkingSet, undefined, 'the draft peer chat\'s editor working set must be captured before promotion');
+
+		harness.deleteWorkingSetCalls.length = 0;
+		harness.onDidReplaceSession.fire({ from: draft, to: shared });
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'the promotion must not call the destructive deleteWorkingSet API even though it overwrites the shared owner key\'s tracked working set');
+		assert.deepStrictEqual(controller.capturedWorkingSet(legacyKey), peerWorkingSet, 'the promoted peer chat\'s working set becomes the tracked working set at the collapsed shared owner key');
+
+		harness.onDidChangeSessions.fire({ added: [], removed: [shared], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [peerWorkingSet!.id], 'removing the session later still correctly deletes its (now-promoted) working-set handle exactly once');
+	});
+
+	test('[R7] a persisted peer-chat owner record survives before the peer is known to the session\'s chat catalog, and restores once the peer is observed and focused', async () => {
+		const sessionResource = URI.parse('session:a');
+		const peerResource = URI.parse('chat:peer');
+		const peerKey = URI.from({
+			scheme: 'vscode-chat-layout-owner',
+			path: `/${encodeURIComponent(sessionResource.toString())}/${encodeURIComponent(peerResource.toString())}`,
+		});
+
+		harness = createTestHarness(store, { desktopLayout: true, chatLayoutEnabled: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		harness.storageService.store(
+			CHAT_LAYOUT_STATE_STORAGE_KEY,
+			JSON.stringify({
+				version: 1,
+				entries: [{ sessionResource: peerKey.toString(), editorWorkingSet: { id: 'ws-peer', name: 'ws-peer' }, panelViewContainerId: 'view.peer', panelVisible: false }],
+			}),
+			StorageScope.WORKSPACE,
+			0
+		);
+		harness.storageService.store(
+			SIDE_PANE_COMPOSITION_STORAGE_KEY,
+			JSON.stringify({ version: 1, entries: [[peerKey.toString(), { editor: false, auxiliaryBar: true }]] }),
+			StorageScope.WORKSPACE,
+			0
+		);
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		const session = makeSession(sessionResource);
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		assert.strictEqual(controller.capturedWorkingSet(peerKey)?.id, 'ws-peer', 'the persisted peer owner record must survive controller startup even though the peer chat is not yet present in the session\'s chat catalog');
+		assert.strictEqual(controller.capturedPanelView(peerKey), 'view.peer', 'the persisted peer panel view must survive controller startup before the peer is known to the catalog');
+		assert.strictEqual(controller.capturedPanelVisibility(peerKey), false, 'the persisted peer panel visibility must survive controller startup before the peer is known to the catalog');
+		assert.deepStrictEqual(controller.composition(peerKey), { editor: false, auxiliaryBar: true }, 'the persisted peer composition must survive controller startup before the peer is known to the catalog');
+
+		harness.applyWorkingSetCalls = [];
+		const peer = addPeerChat(session, peerResource);
+		setActiveChat(session, peer);
+		await settle();
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: 'ws-peer', name: 'ws-peer' }], 'once the peer actually appears in the session\'s chat catalog and is focused, its persisted editor working set is restored');
+		assert.strictEqual(harness.partVisibility.get(Parts.PANEL_PART), false, 'the peer\'s persisted hidden panel visibility is applied on focus, not left at a default');
+		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: false, auxiliaryBar: true }, 'focusing the peer chat restores its own persisted composition, not a default');
+	});
 });
 

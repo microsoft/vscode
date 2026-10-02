@@ -508,9 +508,10 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._chatLayoutEnabled) {
 				return;
 			}
-			const key = isEqual(chatResource, session.mainChat.get().resource)
-				? sessionResource
-				: this._chatLayoutOwnerKeys.forgetChat(sessionResource, chatResource);
+			if (isEqual(chatResource, session.mainChat.get().resource)) {
+				return;
+			}
+			const key = this._chatLayoutOwnerKeys.forgetChat(sessionResource, chatResource);
 			if (key) {
 				this._forgetPeerChatState([key]);
 			}
