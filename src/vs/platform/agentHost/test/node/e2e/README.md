@@ -199,7 +199,7 @@ Both sides go through the same projection, so captures keep their existing shape
 |---|---|
 | Message roles and ordering | `tool_result` payloads |
 | Retained history | Run-time identifiers (`${uuid_0}`, real UUIDs) |
-| Whether a system prompt was sent | Filesystem paths |
+| Whether a system prompt was sent (including Responses `instructions` or system-role `input` messages) | Filesystem paths |
 | Text and attachment content | The model id |
 | Tool names, inputs, and `tool_use_id` wiring | Reasoning blocks |
 
