@@ -788,6 +788,20 @@ export class TabOperation {
 
 	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
 		const commands: ICommand[] = [];
+		let autoClosingPairClose: string | null = null;
+		let autoCloseOpenText: string | null = null;
+
+		const areAllSelectionsEmpty = selections.every(s => s.isEmpty());
+		if (areAllSelectionsEmpty) {
+			const typeText = config.insertSpaces ? '' : '\t';
+			if (!config.insertSpaces && typeText === '\t') {
+				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, '\t', false);
+				if (autoClosingPairClose !== null) {
+					autoCloseOpenText = '\t';
+				}
+			}
+		}
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (selection.isEmpty()) {
@@ -801,7 +815,11 @@ export class TabOperation {
 						continue;
 					}
 				}
-				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
+				if (autoClosingPairClose !== null && autoCloseOpenText !== null) {
+					commands[i] = new TypeWithAutoClosingCommand(selection, autoCloseOpenText, true, autoClosingPairClose);
+				} else {
+					commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
+				}
 			} else {
 				if (selection.startLineNumber === selection.endLineNumber) {
 					const lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
@@ -877,22 +895,6 @@ export class TabOperation {
 			}
 		} else {
 			typeText = '\t';
-		}
-		if (insertsAutoWhitespace && selection.isEmpty()) {
-			let autoClosingPairClose: string | null = null;
-			let autoCloseOpenText = typeText;
-			if (typeText.length === 1) {
-				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], typeText, false);
-			}
-			if (autoClosingPairClose === null && typeText !== '\t') {
-				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], '\t', false);
-				if (autoClosingPairClose !== null) {
-					autoCloseOpenText = '\t';
-				}
-			}
-			if (autoClosingPairClose !== null) {
-				return new TypeWithAutoClosingCommand(selection, autoCloseOpenText, true, autoClosingPairClose);
-			}
 		}
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}

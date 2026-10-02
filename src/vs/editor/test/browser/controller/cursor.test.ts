@@ -5460,7 +5460,10 @@ suite('Editor Controller', () => {
 			text: [
 				'',
 			],
-			languageId: languageId
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
 		}, (editor, model, viewModel) => {
 			model.setValue('begi');
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
@@ -5475,7 +5478,7 @@ suite('Editor Controller', () => {
 				'',
 			],
 			languageId: languageId,
-modelOpts: {
+			modelOpts: {
 				insertSpaces: true
 			}
 		}, (editor, model, viewModel) => {
@@ -5483,8 +5486,26 @@ modelOpts: {
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			viewModel.type('n', 'keyboard');
 			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin   ');
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+		});
+
+		usingCursor({
+			text: [
+				'begi',
+				'begi'
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(2, 5, 2, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
 			assert.strictEqual(model.getLineContent(1), 'begin\tend');
-			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+			assert.strictEqual(model.getLineContent(2), 'begin\tend');
+			assertCursor(viewModel, [new Selection(1, 7, 1, 7), new Selection(2, 7, 2, 7)]);
 		});
 	});
 
