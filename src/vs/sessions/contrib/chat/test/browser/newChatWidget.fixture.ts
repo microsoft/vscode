@@ -113,6 +113,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly withWorkspace?: boolean;
 	readonly withRemoteWorkspace?: boolean;
 	readonly openWorkspacePicker?: boolean;
+	readonly closeWorkspacePickerAfterOpen?: boolean;
 	readonly openGitHubContextPicker?: boolean;
 	readonly openComparisonSetup?: boolean;
 	readonly comparisonPrompt?: string;
@@ -256,6 +257,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		withWorkspace = false,
 		withRemoteWorkspace = false,
 		openWorkspacePicker = false,
+		closeWorkspacePickerAfterOpen = false,
 		openGitHubContextPicker = false,
 		openComparisonSetup = false,
 		comparisonPrompt,
@@ -884,7 +886,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					&& targetWindow.getComputedStyle(bottomContainer).overflowX === 'auto'
 					&& (!separator || targetWindow.getComputedStyle(separator).display === 'none'),
 					'Phone controls must remain in a viewport-bounded scrollable row without a repository separator.');
-				if (unifiedWorkspacePicker && !experimentalComposerLayout) {
+				if (!experimentalComposerLayout) {
 					const modePermissions = bottomContainer.querySelector<HTMLElement>('.agent-host-mode-permissions-trigger');
 					const phoneControls = bottomContainer.querySelector<HTMLElement>('.new-chat-controls-container');
 					const permissionsLabel = modePermissions?.querySelector<HTMLElement>('.agent-host-mode-permission-summary');
@@ -896,7 +898,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 						&& !modePermissions.closest('.compact-picker')
 						&& permissionsBounds.right <= modePermissionsBounds.right
 						&& modePermissionsBounds.right <= phoneControlsBounds.right,
-						'The unified phone picker must keep the complete mode and permissions control visible.');
+						'The standard phone composer must keep the complete mode and permissions control visible.');
 				}
 			} else {
 				assert(promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
@@ -962,6 +964,10 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				&& targetWindow.getComputedStyle(searchInput).outlineStyle === 'none'
 				&& targetWindow.getComputedStyle(search).outlineStyle === 'solid',
 				'The unified phone picker search focus ring must follow the rounded field without overflowing the sheet.');
+		}
+		if (closeWorkspacePickerAfterOpen) {
+			container.querySelector<HTMLElement>('.mobile-picker-sheet-backdrop')?.click();
+			await nextFrame();
 		}
 	} else if (openGitHubContextPicker) {
 		await nextFrame();
@@ -1139,18 +1145,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, opening Workspace shows the simple phone workspace sheet without unified search. Worktree and Branch remain configured in the underlying horizontally scrollable row without an empty separator block.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
+		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, the phone shows the complete Interactive and Allow all control before Worktree and Branch in the horizontally scrollable row without an empty separator block.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['With only the unified workspace picker enabled, the phone keeps workspace and harness controls centered below the Sessions logo. The bottom row starts with the complete Interactive and Allow all control, while Worktree and Branch remain available in the horizontally scrollable row without an empty separator block.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
-	}),
-	NewSessionPhoneUnifiedWorkspacePickerOpen: defineComponentFixture({
-		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With only the unified workspace picker enabled, opening Workspace shows the consolidated phone sheet with a rounded focused search field fully contained within the sheet.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, closeWorkspacePickerAfterOpen: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

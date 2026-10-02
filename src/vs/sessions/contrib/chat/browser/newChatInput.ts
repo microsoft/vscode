@@ -640,7 +640,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
-			useUnifiedWorkspacePicker?: IObservable<boolean>;
 			useExperimentalLayout?: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
@@ -915,9 +914,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		this._register(autorun(reader => newChatBottomContainer.classList.toggle(
-			'unified-workspace-picker-layout',
-			(this.options.useUnifiedWorkspacePicker?.read(reader) ?? false)
-				&& !(this.options.useExperimentalLayout?.read(reader) ?? false),
+			'standard-new-session-composer-layout',
+			!(this.options.useExperimentalLayout?.read(reader) ?? false),
 		)));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this._sessionControlsContainer && this._inputToolbar && this._configContainer) {
@@ -996,7 +994,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
 			getItems: () => {
 				const preserveModePermissions = isPhoneLayout(this.layoutService)
-					&& this.options.useUnifiedWorkspacePicker?.get()
 					&& !this.options.useExperimentalLayout?.get();
 				return getLabeledPickerResponsiveItems(
 					newChatBottomContainer,
@@ -1006,7 +1003,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
 		this._register(autorun(reader => {
-			this.options.useUnifiedWorkspacePicker?.read(reader);
 			this.options.useExperimentalLayout?.read(reader);
 			this._secondaryPickerResponsiveLayout?.layout();
 		}));
