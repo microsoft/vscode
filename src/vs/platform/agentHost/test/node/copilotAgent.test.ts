@@ -26,7 +26,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
-import { FileChangesEvent, FileChangeType, IFileService, type IStat } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, IFileService, type IFileSystemWatcher, type IStat } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -11121,17 +11121,64 @@ suite('CopilotAgent', () => {
 			public block: Promise<void> | undefined;
 			override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
 				await this.block;
-				return customizations.map(customization => ({ customization }));
+				return customizations.map(customization => ({
+					customization: { ...customization, load: { kind: CustomizationLoadStatus.Loaded } },
+					pluginDir: URI.parse(customization.uri),
+				}));
 			}
 		}
 
-		const preparedPlugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' };
+		/** Holds file reads behind {@link readGate} and fires watcher events on demand. */
+		class GatedFileService extends FileService {
+			public readGate: Promise<void> | undefined;
+			private readonly _watchers = new Map<string, Set<Emitter<FileChangesEvent>>>();
 
-		test('the prepared turn awaits a plugin sync that started after its preparation', async () => {
+			override async readFile(...args: Parameters<FileService['readFile']>): ReturnType<FileService['readFile']> {
+				await this.readGate;
+				return super.readFile(...args);
+			}
+
+			override createWatcher(resource: URI, _options: Parameters<FileService['createWatcher']>[1]): IFileSystemWatcher {
+				const emitter = new Emitter<FileChangesEvent>();
+				const key = resource.toString();
+				const emitters = this._watchers.get(key) ?? new Set();
+				this._watchers.set(key, emitters);
+				emitters.add(emitter);
+				return {
+					onDidChange: emitter.event,
+					dispose: () => {
+						emitters.delete(emitter);
+						emitter.dispose();
+					},
+				};
+			}
+
+			fire(root: URI, resource: URI, type: FileChangeType): void {
+				for (const emitter of this._watchers.get(root.toString()) ?? []) {
+					emitter.fire(new FileChangesEvent([{ resource, type }], false));
+				}
+			}
+		}
+
+		const preparedPluginDir = URI.file('/plugins/plugin-a');
+		const preparedPlugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: preparedPluginDir.toString(), uri: preparedPluginDir.toString(), name: 'Plugin A' };
+
+		test('the prepared turn awaits a plugin sync that started after its preparation and relaunches with the plugin', async () => {
+			const fileService = disposables.add(new FileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			await fileService.writeFile(URI.joinPath(preparedPluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'Plugin A' })));
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
-			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const launches: { kind: string; pluginDirectories: readonly string[] }[] = [];
+			client.createSession = async config => {
+				launches.push({ kind: 'create', pluginDirectories: config.pluginDirectories ?? [] });
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			client.resumeSession = async (_sessionId, config) => {
+				launches.push({ kind: 'resume', pluginDirectories: config?.pluginDirectories ?? [] });
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
 			const pluginManager = new BlockingPluginManager();
-			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager });
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager, fileService });
 			const sync = new DeferredPromise<void>();
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -11152,9 +11199,106 @@ suite('CopilotAgent', () => {
 				sync.complete();
 				await send;
 
-				assert.deepStrictEqual({ sentWhileSyncing, sent }, { sentWhileSyncing: false, sent: true });
+				assert.deepStrictEqual({ sentWhileSyncing, launches }, {
+					sentWhileSyncing: false,
+					launches: [
+						{ kind: 'create', pluginDirectories: [] },
+						{ kind: 'resume', pluginDirectories: [preparedPluginDir.fsPath] },
+					],
+				});
 			} finally {
 				sync.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('the prepared turn awaits a workspace .mcp.json rescan that started after its preparation and relaunches with the server', async () => {
+			const fileService = disposables.add(new GatedFileService(new NullLogService()));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const workingDirectory = URI.file('/workspace');
+			await fileService.createFolder(workingDirectory);
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			const launches: { kind: string; mcpServers: readonly string[] }[] = [];
+			client.createSession = async config => {
+				launches.push({ kind: 'create', mcpServers: Object.keys(config.mcpServers ?? {}) });
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			client.resumeSession = async (_sessionId, config) => {
+				launches.push({ kind: 'resume', mcpServers: Object.keys(config?.mcpServers ?? {}) });
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				fileService,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			const read = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'prepare-turn-mcp');
+				const chat = defaultChatUri(session);
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+
+				await agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
+				const definition = URI.joinPath(workingDirectory, '.mcp.json');
+				await fileService.writeFile(definition, VSBuffer.fromString('{"mcpServers":{"workspace-server":{"command":"workspace-server"}}}'));
+				fileService.readGate = read.p;
+				fileService.fire(workingDirectory, definition, FileChangeType.ADDED);
+				let sent = false;
+				const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context).then(() => { sent = true; });
+				await timeout(20);
+				const sentWhileRescanning = sent;
+				read.complete();
+				await send;
+
+				assert.deepStrictEqual({ sentWhileRescanning, launches }, {
+					sentWhileRescanning: false,
+					launches: [
+						{ kind: 'create', mcpServers: [] },
+						{ kind: 'resume', mcpServers: ['workspace-server'] },
+					],
+				});
+			} finally {
+				read.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('the prepared turn awaits a workspace customization refresh that started after its preparation', async () => {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()) });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'prepare-turn-discovery');
+				const chat = defaultChatUri(session);
+				const workingDirectory = URI.file('/workspace');
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+				await agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
+				const pluginController = (agent as unknown as { _activeClients: { get(session: URI): { pluginController: { isSettled(): boolean; getCustomizationsSettled(): Promise<unknown> } } | undefined } })._activeClients.get(result.session)!.pluginController;
+				// The discovery's change event is what a watched workspace file change raises.
+				const discovery = (pluginController as unknown as { _sessionDiscovered: { value: { _discovery: { _onDidChange: Emitter<void> } } } })._sessionDiscovered.value._discovery;
+
+				await pluginController.getCustomizationsSettled();
+				const beforeChange = pluginController.isSettled();
+				discovery._onDidChange.fire();
+				const whileRefreshing = pluginController.isSettled();
+				let sent = false;
+				const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context).then(() => { sent = true; });
+				await timeout(20);
+				const sentWhileRefreshing = sent;
+				await send;
+
+				assert.deepStrictEqual({ beforeChange, whileRefreshing, sentWhileRefreshing, afterRefresh: pluginController.isSettled() }, {
+					beforeChange: true,
+					whileRefreshing: false,
+					sentWhileRefreshing: false,
+					afterRefresh: true,
+				});
+			} finally {
 				await disposeAgent(agent);
 			}
 		});
