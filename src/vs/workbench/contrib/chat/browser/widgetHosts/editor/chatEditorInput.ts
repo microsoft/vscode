@@ -155,7 +155,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const sourceType = this._sessionResource ? getChatSessionType(this._sessionResource) : undefined;
 		if (sourceType !== undefined
 			&& (sourceType === localChatSessionType || isAgentHostTarget(sourceType))
-			&& isNewChatSessionTypeUsable(sourceType, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get())) {
+			&& isNewChatSessionTypeUsable(sourceType, this.configurationService, this.chatSessionsService, this.workspaceContextService.getWorkspace(), this.agentHostEnablementService.enabled.get(), this.agentHostEnablementService.managedSandboxEnforced.get())) {
 			return getNewChatSessionResource(sourceType);
 		}
 		return ChatEditorInput.getNewEditorUri();

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
@@ -15,6 +16,8 @@ import { mockObject, upcastPartial } from '../../../../../../../base/test/common
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Extensions, IConfigurationRegistry } from '../../../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../../../platform/registry/common/platform.js';
 import { ConfirmResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -33,7 +36,7 @@ import { IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatE
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
-import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
@@ -461,16 +464,16 @@ suite('ChatEditorInput', () => {
 		}
 	});
 
-	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean): ChatEditorInput {
+	function createInputForCopy(store: DisposableStore, resource: URI, agentHostEnabled: boolean, managedSandboxEnforced = false, configurationService = new TestConfigurationService(), chatService: Partial<IChatService> = {}): ChatEditorInput {
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IChatService, {});
+		instantiationService.stub(IChatService, chatService);
 		instantiationService.stub(IDialogService, {});
-		instantiationService.set(IConfigurationService, new TestConfigurationService());
+		instantiationService.set(IConfigurationService, configurationService);
 		instantiationService.set(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
-		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(managedSandboxEnforced), managedSandboxAllowsBypass: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 
@@ -530,5 +533,64 @@ suite('ChatEditorInput', () => {
 			copiedSessionResource: undefined,
 			copiedType: localChatSessionType,
 		});
+	});
+
+	test('copy and resolve honor the mandatory sandbox despite the enterprise rollout opt-out', async () => {
+		const store = disposables.add(new DisposableStore());
+		const source = LocalChatSessionUri.getNewSessionUri();
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		const rollout = {
+			overrides: { [ChatConfiguration.DefaultToCopilotHarness]: true, [ChatConfiguration.EditorLocalAgentEnabled]: false },
+			source: 'experiments',
+		};
+		registry.registerDefaultConfigurations([rollout]);
+		const configuration = new TestConfigurationService(rollout.overrides);
+		const inspection = sinon.stub(configuration, 'inspect').callThrough();
+		inspection.withArgs(ChatConfiguration.EditorPreferCopilotHarness).returns({ value: false, policyValue: false });
+		for (const [key, value] of Object.entries(rollout.overrides)) {
+			inspection.withArgs(key).returns({ value, defaultValue: value });
+		}
+		const acquiredTypes: string[] = [];
+		let localStarts = 0;
+		try {
+			const input = createInputForCopy(store, source, true, true, configuration, {
+				acquireOrLoadSession: async resource => {
+					acquiredTypes.push(getChatSessionType(resource));
+					if (getChatSessionType(resource) === localChatSessionType) {
+						return undefined;
+					}
+					return {
+						object: upcastPartial<IChatModel>({ sessionResource: resource, onDidDispose: Event.None, onDidChange: Event.None }),
+						dispose() { },
+					};
+				},
+				startNewLocalSession: () => {
+					localStarts++;
+					return {
+						object: upcastPartial<IChatModel>({ sessionResource: LocalChatSessionUri.getNewSessionUri(), onDidDispose: Event.None, onDidChange: Event.None }),
+						dispose() { },
+					};
+				},
+			});
+			const copied = store.add(input.copy() as ChatEditorInput);
+			const copiedScheme = copied.resource.scheme;
+			const resolved = await copied.resolve();
+			assert.deepStrictEqual({
+				copiedScheme,
+				finalType: resolved && getChatSessionType(resolved.model.sessionResource),
+				acquiredTypes,
+				localStarts,
+				sourceUnchanged: isEqual(input.resource, source),
+			}, {
+				copiedScheme: Schemas.vscodeChatEditor,
+				finalType: SessionType.AgentHostCopilot,
+				acquiredTypes: [SessionType.AgentHostCopilot],
+				localStarts: 0,
+				sourceUnchanged: true,
+			});
+		} finally {
+			inspection.restore();
+			registry.deregisterDefaultConfigurations([rollout]);
+		}
 	});
 });

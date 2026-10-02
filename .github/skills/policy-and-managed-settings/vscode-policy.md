@@ -74,9 +74,17 @@ independent and continue enforcing their supported requirements.
 
 Harness selection belongs to its existing controls. `ChatEditorPreferCopilotHarness`
 manages `chat.editor.preferCopilotHarness`, which promotes otherwise-Local new
-chats to Copilot. It is not a hard lock: false does not require Local or prohibit
-explicit/remembered Copilot choices. A hard harness mandate would require a
-separate enforcement contract, not a new reaction to diagnostic uncertainty.
+chats to Copilot. Policy false ignores experiment-provided defaults for
+`chat.defaultToCopilotHarness` and `chat.editor.localAgent.enabled`, restoring
+their non-experiment defaults without overriding explicit configuration.
+This applies to new editor and panel chats without an explicit, remembered, or
+inherited harness choice; existing sessions are unchanged. A personal false does
+not have this policy-only effect. The enterprise-required runtime sandbox still
+takes precedence, including when splitting a Local editor.
+This policy is temporary and will be ignored in upcoming releases once Agent Host
+is fully stabilized for enterprise environments.
+This is not a hard lock: users can still choose Copilot. A hard harness mandate
+would require a separate enforcement contract, not a new reaction to diagnostic uncertainty.
 Remote hosts, Claude, and Codex are outside this inventory's enforcement scope.
 
 Only the non-applied policy inventory is additionally collapsed. Existing account,

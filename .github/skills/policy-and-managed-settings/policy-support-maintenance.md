@@ -79,8 +79,15 @@ Preserve these boundaries:
   retain their behavior. No storage mutation, conversation migration, Chat
   banners, message blocking, or additional telemetry.
 - `ChatEditorPreferCopilotHarness` is a preference, not a hard Local/Copilot lock.
-  False does not prohibit explicit or remembered Copilot choices. Hard mandates
+  Policy false ignores only experiment defaults for `chat.defaultToCopilotHarness`
+  and `chat.editor.localAgent.enabled`; explicit configuration of those settings
+  and non-experiment defaults retain their precedence. A personal false does not
+  have this policy-only effect. The enterprise-required runtime sandbox still wins,
+  including when splitting a Local editor. Explicit, remembered, and inherited
+  choices remain available; existing sessions are not migrated. Hard mandates
   require an explicit enforcement contract outside this diagnostic feature.
+  This policy is temporary and will be ignored in upcoming releases once Agent Host
+  is fully stabilized for enterprise environments.
 - Existing enterprise-required sandbox and managed-settings freshness behavior
   remains authoritative. Local cannot satisfy the runtime sandbox floor.
 - A readiness report with no known gaps is not an attestation of runtime parity.

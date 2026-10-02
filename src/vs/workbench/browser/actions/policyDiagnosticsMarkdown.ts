@@ -38,7 +38,7 @@ export function agentHostPolicyReadiness(gaps: readonly IAgentHostPolicyReadines
 	content += (managedSandboxEnforced
 		? localize('policyReadiness.runtimeSandboxRequired', "An enterprise-required Agent Host sandbox is active. Local cannot satisfy this runtime sandbox requirement.")
 		: localize('policyReadiness.runtimeSandboxNotRequired', "No enterprise-required Agent Host sandbox is active.")) + '\n\n';
-	content += localize('policyReadiness.harnessPolicy', "ChatEditorPreferCopilotHarness controls chat.editor.preferCopilotHarness: enabling it prefers Copilot when a new chat would otherwise use Local. It is a preference, not a harness lock; disabling it does not require Local or prohibit explicit or remembered Copilot choices. Existing sessions and the enterprise-required sandbox behavior are unchanged. Requiring a particular harness needs a separate enforcement contract, not an inference from this readiness report.") + '\n\n';
+	content += localize('policyReadiness.harnessPolicy', "ChatEditorPreferCopilotHarness controls chat.editor.preferCopilotHarness: enabling it prefers Copilot when a new chat would otherwise use Local. Setting the policy to false ignores experiment defaults for chat.defaultToCopilotHarness and chat.editor.localAgent.enabled, while preserving explicit configuration of those settings and defaults from other sources. It is a preference, not a harness lock; explicit, remembered, and inherited harness choices are preserved. Existing sessions and the enterprise-required sandbox behavior are unchanged. Requiring a particular harness needs a separate enforcement contract, not an inference from this readiness report.") + '\n\n';
 	return content;
 }
 

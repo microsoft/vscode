@@ -567,7 +567,7 @@
             "localization": {
                 "description": {
                     "key": "chat.editor.preferCopilotHarness.policy",
-                    "value": "Configure whether VS Code uses the Agent Host Copilot SDK instead of the local harness for new editor chat sessions."
+                    "value": "Configure whether VS Code prefers the Agent Host Copilot SDK for new editor and panel chat sessions. When disabled by policy, experiment defaults for chat.defaultToCopilotHarness and chat.editor.localAgent.enabled are ignored. Explicit configuration of those settings, other default sources, user harness choices, existing sessions, and enterprise-required sandbox behavior are unchanged. This policy is temporary and will be ignored in upcoming releases once Agent Host is fully stabilized for enterprise environments."
                 }
             },
             "type": "boolean",

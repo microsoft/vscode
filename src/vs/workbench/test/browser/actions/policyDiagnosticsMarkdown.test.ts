@@ -20,10 +20,11 @@ suite('Policy diagnostics Markdown', () => {
 			policy: output.includes('| ChatMCP | chat.mcp.access | Device |'),
 			impact: output.includes('discover and run MCP servers'),
 			headers: output.includes('Export requiring those headers may fail'),
-			preference: output.includes('ChatEditorPreferCopilotHarness') && output.includes('disabling it does not require Local'),
+			preference: output.includes('ChatEditorPreferCopilotHarness') && output.includes('explicit, remembered, and inherited harness choices are preserved'),
+			rolloutOptOut: output.includes('Setting the policy to false ignores experiment defaults') && output.includes('preserving explicit configuration of those settings and defaults from other sources'),
 			sandbox: output.includes('Local cannot satisfy this runtime sandbox requirement'),
 			diagnosticOnly: output.includes('Opening this report has no effect on selection'),
-		}, { heading: true, policy: true, impact: true, headers: true, preference: true, sandbox: true, diagnosticOnly: true });
+		}, { heading: true, policy: true, impact: true, headers: true, preference: true, rolloutOptOut: true, sandbox: true, diagnosticOnly: true });
 	});
 
 	test('an empty readiness result does not claim complete runtime parity', () => {

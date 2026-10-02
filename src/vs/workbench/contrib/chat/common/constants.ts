@@ -5,7 +5,9 @@
 
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, isConfigured } from '../../../../platform/configuration/common/configuration.js';
+import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
@@ -559,13 +561,40 @@ export function recordUserSelectedSessionType(
 }
 
 /**
+ * Ignore only experiment defaults when the enterprise opts out. Explicit configuration and
+ * defaults from other sources retain their existing precedence.
+ */
+function getHarnessRolloutSetting(configurationService: IConfigurationService, setting: ChatConfiguration.DefaultToCopilotHarness | ChatConfiguration.EditorLocalAgentEnabled): boolean | undefined {
+	const value = configurationService.getValue<boolean>(setting);
+	if (configurationService.inspect<boolean>(ChatConfiguration.EditorPreferCopilotHarness).policyValue !== false) {
+		return value;
+	}
+
+	const inspected = configurationService.inspect<boolean>(setting);
+	if (isConfigured(inspected) || inspected.policyValue !== undefined || inspected.memoryValue !== undefined) {
+		return value;
+	}
+
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	const property = registry.getConfigurationProperties()[setting];
+	if (property?.defaultValueSource !== 'experiments') {
+		return value;
+	}
+
+	const otherDefault = registry.getRegisteredDefaultConfigurations()
+		.findLast(configuration => configuration.source !== 'experiments' && typeof configuration.overrides[setting] === 'boolean')
+		?.overrides[setting];
+	const defaultValue = otherDefault ?? property.defaultDefaultValue;
+	return typeof defaultValue === 'boolean' ? defaultValue : value;
+}
+
+/**
  * Whether new editor and panel chats should default to the Agent Host Copilot SDK. Enterprises
  * whose managed settings mandate the SDK sandbox floor get this behavior without opting into
- * `chat.defaultToCopilotHarness`.
+ * `chat.defaultToCopilotHarness`, including when policy otherwise defaults to Local.
  */
 function isCopilotHarnessDefault(configurationService: IConfigurationService, managedSandboxEnforced = false): boolean {
-	return configurationService.getValue<boolean>(ChatConfiguration.DefaultToCopilotHarness) === true
-		|| managedSandboxEnforced;
+	return managedSandboxEnforced || getHarnessRolloutSetting(configurationService, ChatConfiguration.DefaultToCopilotHarness) === true;
 }
 
 /**
@@ -591,7 +620,7 @@ export function isEditorLocalAgentEnabled(configurationService: IConfigurationSe
 		return false;
 	}
 
-	return configurationService.getValue<boolean>(ChatConfiguration.EditorLocalAgentEnabled) ?? true;
+	return getHarnessRolloutSetting(configurationService, ChatConfiguration.EditorLocalAgentEnabled) ?? true;
 }
 
 export function isVisibleEditorChatSessionType(
