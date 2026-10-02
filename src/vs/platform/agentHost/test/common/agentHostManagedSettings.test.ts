@@ -66,9 +66,10 @@ suite('AgentHostManagedSettings', () => {
 		});
 	}
 
-	test('maps terminal approval policies without including personal preferences', () => {
+	test('maps synthetic per-command policy values without including personal preferences', () => {
 		const configurationService = createConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: true, userValue: false },
+			// autoApprove has no registered VS Code policy; this value exercises the resolver only.
 			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
 				defaultValue: {},
 				policyValue: { 'git push': false },
@@ -82,16 +83,14 @@ suite('AgentHostManagedSettings', () => {
 	test('clears managed terminal restrictions when only personal preferences remain', () => {
 		const values: Record<string, IConfigurationValue<unknown>> = {
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false, userValue: false },
-			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, policyValue: { rm: false }, userValue: { ls: false } },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, userValue: { ls: false, rm: false } },
 		};
 		const configurationService = createConfigurationService(values);
 		const before = resolveManagedSettingsPermissions(configurationService);
 
 		values[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID] = { defaultValue: true, userValue: false };
-		values[TERMINAL_AUTO_APPROVE_SETTING_ID] = { defaultValue: {}, userValue: { ls: false } };
-
 		assert.deepStrictEqual({ before, after: resolveManagedSettingsPermissions(configurationService) }, {
-			before: { ask: ['Shell', 'Shell(rm)'] },
+			before: { ask: ['Shell'] },
 			after: {},
 		});
 	});
