@@ -150,6 +150,11 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			assert.deepStrictEqual(
+				(JSON.parse(body) as IWireRequest).tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
+				[],
+				'Dynamic workflow tools must not be exposed to the model',
+			);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
@@ -320,7 +325,7 @@ interface IWireRequest {
 	/** Anthropic Messages carries the turn in `messages`; Responses uses `input`. */
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
-	readonly tools?: readonly unknown[];
+	readonly tools?: ReadonlyArray<{ readonly name?: string; readonly type?: string }>;
 }
 
 function formatPromptSnapshot(rawBody: string): string {

@@ -126,6 +126,8 @@ The Codex-specific entry point also checks that invalid workspace skills remain 
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
 
+Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
+
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
 Automation lifecycle coverage uses manual-only definitions: provider-unavailable cancellation and failed model selection stay on the conformance side of the model boundary, while completed runs and definition changes use recorded provider turns. Input draft coverage checks clearing a synchronized draft, replacing it at submission, the answer returned to the provider, and continued usability after cancellation. Reproductions for unsupported persistence and answer-forwarding behavior remain explicitly gated in [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md).

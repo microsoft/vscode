@@ -12869,7 +12869,7 @@ suite('CopilotAgent', () => {
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
-					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {
