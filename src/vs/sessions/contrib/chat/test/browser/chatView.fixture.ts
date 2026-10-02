@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -24,7 +23,6 @@ import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/br
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
-import { EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
@@ -36,13 +34,6 @@ const fixtureHeight = 720;
 const plainContentHorizontalPadding = 64;
 const backgroundContentHorizontalPadding = 88;
 const codiconsBackground = { kind: 'codicons' } as const;
-
-class HiddenFixtureActionViewItem extends BaseActionViewItem {
-	override render(container: HTMLElement): void {
-		this.element = container;
-		container.style.display = 'none';
-	}
-}
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
@@ -143,7 +134,7 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	auxiliaryBar?.classList.remove('auxiliarybar');
 }
 
-async function renderPhoneChatComposer(context: ComponentFixtureContext, experimentalComposerLayout: boolean): Promise<void> {
+async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
 	await renderChatView(context, false, {
 		width: 390,
 		height: 760,
@@ -154,56 +145,24 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext, experim
 			user: 'Keep the phone composer controls aligned.',
 			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
 		}],
-		...(experimentalComposerLayout ? {
-			inputToolbarMenuItems: [
-				{ command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 },
-				{ command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 },
-				{ command: { id: 'fixture.runningMode', title: 'Interactive' }, group: 'navigation', order: 1.1 },
-				{ command: { id: 'fixture.runningPermissions', title: 'Allow all' }, group: 'navigation', order: 1.2 },
-				{ command: { id: 'fixture.inputModel', title: 'Model' }, group: 'navigation', order: 3 },
-			],
-			secondaryToolbarActionViewItemProvider: action => action.id === 'workbench.action.chat.openPermissionPicker'
-				? new HiddenFixtureActionViewItem(undefined, action)
-				: undefined,
-			onRendered: ({ inputPart }) => {
-				inputPart.placeContextUsageWidget(inputPart.inputContainerElement);
-				inputPart.setInputEditorTrailingSpace(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE);
-			},
-		} : {}),
-	}, true, experimentalComposerLayout);
+	}, true, false);
 
 	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
-	const contextUsage = context.container.querySelector<HTMLElement>('.chat-input-container > .chat-context-usage-container');
-	const toolbars = context.container.querySelector<HTMLElement>('.chat-input-toolbars');
-	const inputToolbar = toolbars?.querySelector<HTMLElement>(':scope > .chat-input-toolbar');
-	const secondaryControls = context.container.querySelector<HTMLElement>('.chat-responsive-picker-container');
+	const secondaryControls = [...context.container.querySelectorAll<HTMLElement>('.chat-responsive-picker-container')]
+		.find(container => container.textContent?.includes('Default permissions'));
 	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
 	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
 	const submitBounds = submitButton?.getBoundingClientRect();
 	const inputActionBounds = inputAction?.getBoundingClientRect();
-	if ((experimentalComposerLayout && (!chatView || !contextUsage))
-		|| (!experimentalComposerLayout && (chatView || contextUsage))
+	if (chatView
 		|| !submitBounds || !inputActionBounds
 		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
-		throw new Error('The in-chat phone composer must match the selected setting state and align its input actions.');
+		throw new Error('The in-chat phone composer must use the standard phone layout and align its input actions.');
 	}
-	if (experimentalComposerLayout) {
-		const primaryLabels = [...(inputToolbar?.querySelectorAll<HTMLElement>('.action-item') ?? [])]
-			.filter(item => item.checkVisibility())
-			.map(item => item.textContent?.trim())
-			.filter(Boolean);
-		const expectedLabels = ['Agent', 'Interactive', 'Allow all', 'Model'];
-		const expectedIndices = expectedLabels.map(label => primaryLabels.findIndex(item => item?.includes(label)));
-		if (!inputToolbar
-			|| expectedIndices.some(index => index < 0)
-			|| !expectedIndices.every((index, position) => position === 0 || index > expectedIndices[position - 1])
-			|| !secondaryControls?.checkVisibility()
-			|| secondaryControls.parentElement === toolbars
-			|| !secondaryControls.textContent?.includes('Local')
-			|| secondaryControls.textContent?.includes('Default Permissions')) {
-			throw new Error('The experimental active-chat composer must keep Agent, Mode/Permissions, Model, and Send in the primary row with only Local in the phone secondary row.');
-		}
-	} else if (secondaryControls?.parentElement === toolbars) {
+	const secondaryBounds = secondaryControls?.getBoundingClientRect();
+	if (!secondaryBounds
+		|| secondaryBounds.top < submitBounds.bottom - 1
+		|| !secondaryControls?.checkVisibility()) {
 		throw new Error('The standard active-chat composer must keep its secondary controls below the input.');
 	}
 }
@@ -425,17 +384,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	PhoneChatComposerSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],
-		render: context => renderPhoneChatComposer(context, false),
+		render: renderPhoneChatComposer,
 	}),
 	PhoneChatComposerUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['With only the unified workspace picker enabled, a phone-sized active chat keeps the standard bottom-pinned composer because the experimental composer dependency is not enabled.'],
-		render: context => renderPhoneChatComposer(context, false),
+		render: renderPhoneChatComposer,
 	}),
 	PhoneChatComposerExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, a phone-sized active chat shows Add Context, Agent, Interactive, Allow all, Model, and Send with normal toolbar typography, while Local remains in the secondary row below.'],
-		render: context => renderPhoneChatComposer(context, true),
+		expectedVisualDescriptions: ['Even with both new-session settings enabled, a phone-sized active chat keeps the standard composer with permissions in the secondary toolbar below the input.'],
+		render: renderPhoneChatComposer,
 	}),
 	CheckpointControlsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

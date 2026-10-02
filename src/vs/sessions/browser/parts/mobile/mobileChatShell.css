@@ -373,8 +373,12 @@
 	max-width: 100% !important;
 }
 
+.agent-sessions-workbench.phone-layout .new-chat-widget-content.welcome-phrases-visible {
+	padding-top: clamp(80px, 18vh, 140px) !important;
+}
+
 .agent-sessions-workbench.phone-layout .new-chat-widget-content.welcome-phrases-visible .new-session-welcome-message {
-	margin-top: auto;
+	margin-top: 0;
 }
 
 .agent-sessions-workbench.phone-layout .new-chat-widget-content.welcome-phrases-visible .new-session-workspace-picker-container {

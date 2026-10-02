@@ -115,19 +115,19 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/bd4b7314d7d4e2bb7f1765f25901efdb6d4b6d08f6acc5766f95d597d87ea968)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneAttachedContext/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a9a72f5d00532c1586d755d73b51034bcde48fe6b4f3a103f4cb9517d6e579)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/27c0f2f3d8b9eeb6abf53dffd678f880d8cbb796a3fb2c260c5461f32ff7b4c4)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d3164ac51e10153f72dcd636b1aafa6b949fb31bb6d1ba84e06358384f5472f6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/d134c303ef988c709c3cca0eaa239cb49d3b9b926581ef5050eb5376d56c4164)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/7a97fac69207e56eb9678900a59ebf277eeda80c68b40a6e2c784cf76bed542a)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/c8e405f0f9d5509588202b6fcf524c79c05e178d4c94adc32d1adf26676e928b)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/3d0986b4f257a0896147a8b1f83e5ff50b907f5417559874b99fe611d08db27c)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/703fbfefe36cfc96bacb3f2fc4d7c82b4c36665a00bd48d7a58c799ae8d02ada)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/20d292a561f2add5576ccedfe5d90af9d9c90fb37628719a5ff1514386729c5b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)
@@ -145,7 +145,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8103a4528aa4899566d3316f213ebb0775ba6e6021882c99877aa8c2f131ee77)
 
 #### sessions/chat/view/chatView/PhoneChatComposerExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/e804d06452f027b2c0071d26f3a8dd470a8fc8f21922880983565397cc6247c7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae8b46eb64765042325a4b16fc02c6c2117ece87e63185db7be36fea5c887b4f)
 
 #### sessions/chat/view/chatView/PhoneChatComposerSettingsDisabled/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae8b46eb64765042325a4b16fc02c6c2117ece87e63185db7be36fea5c887b4f)

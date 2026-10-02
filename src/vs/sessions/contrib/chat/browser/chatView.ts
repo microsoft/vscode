@@ -88,8 +88,8 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
 }
 
-export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService);
+export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, phoneLayout = false): boolean {
+	return !phoneLayout && isExperimentalSessionComposerLayoutEnabled(configurationService);
 }
 
 export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean, phoneLayout: boolean): boolean {
@@ -305,7 +305,7 @@ export class ChatView extends AbstractChatView {
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const usesExperimentalComposerLayout = SessionUsesExperimentalComposerLayoutContext.bindTo(scopedContextKeyService);
-		const initiallyUsesExperimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService);
+		const initiallyUsesExperimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, isPhoneLayout(this.layoutService));
 		usesExperimentalComposerLayout.set(initiallyUsesExperimentalComposerLayout);
 		this.element.classList.toggle('experimental-session-composer', initiallyUsesExperimentalComposerLayout);
 		const scopedInstantiationService = this._register(instantiationService.createChild(
@@ -315,7 +315,7 @@ export class ChatView extends AbstractChatView {
 		// Matches `AGENTS_VOICE_INITIATED_HERE` in agentsVoice.contribution.ts.
 		this._voiceInitiatedHereKey = scopedContextKeyService.createKey<boolean>('agentsVoiceInitiatedHere', false);
 
-		const experimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService);
+		const experimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, isPhoneLayout(this.layoutService));
 		this._widget = this._register(scopedInstantiationService.createInstance(
 			ChatWidget,
 			ChatAgentLocation.Chat,
@@ -345,7 +345,7 @@ export class ChatView extends AbstractChatView {
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
-			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService);
+			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, isPhoneLayout(this.layoutService));
 			usesExperimentalComposerLayout.set(enabled);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);

@@ -54,13 +54,16 @@ suite('Sessions - Chat View', () => {
 
 	teardown(() => sinon.restore());
 
-	test('keeps the experimental running-session composer enabled on phone', () => {
+	test('keeps the standard running-session composer on phone', () => {
 		const configurationService = new TestConfigurationService({
 			[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
 			[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
 		});
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		assert.strictEqual(isExperimentalRunningSessionComposerLayoutEnabled(configurationService), true);
+		assert.deepStrictEqual([
+			isExperimentalRunningSessionComposerLayoutEnabled(configurationService, false),
+			isExperimentalRunningSessionComposerLayoutEnabled(configurationService, true),
+		], [true, false]);
 	});
 
 	test('keeps the running-session secondary toolbar only for standard or phone layouts', () => {
