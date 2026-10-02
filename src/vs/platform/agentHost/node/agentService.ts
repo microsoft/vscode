@@ -5105,6 +5105,7 @@ export class AgentService extends Disposable implements IAgentService {
 							{
 								[customChatTitleMetadataKey(chatKey)]: '',
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
+								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
 							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
 						);
@@ -5146,6 +5147,7 @@ export class AgentService extends Disposable implements IAgentService {
 							{
 								[customChatTitleMetadataKey(chatKey)]: '',
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
+								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
 							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
 						);

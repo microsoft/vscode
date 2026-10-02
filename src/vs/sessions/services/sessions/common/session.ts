@@ -696,8 +696,11 @@ export interface IChat {
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
-	 * Summary of the file changes produced by the chat itself, available without
-	 * loading the chat's details or changesets (e.g. for session lists).
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
 	 * Providers that cannot determine this omit the observable.
 	 */
 	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;

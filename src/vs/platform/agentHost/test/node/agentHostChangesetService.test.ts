@@ -3904,6 +3904,40 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
+		test('removing a peer chat\'s last folder publishes an empty aggregate', async () => {
+			const db = new TestSessionDatabase();
+			const peerDb = new TestSessionDatabase();
+			addCreatedFile(peerDb, 'peer-turn', '/wd/peer.ts', 'a\nb');
+			const { svc, stateManager } = build({
+				workingDirectories: ['file:///wd'],
+				git: createNoopGitService(),
+				checkpoint: NULL_CHECKPOINT_SERVICE,
+				db,
+				peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: ['file:///wd'] },
+			});
+
+			svc.refreshChatChangesSummary(peer);
+			const before = await waitFor(() => stateManager.getChatState(peer)?.changes);
+			stateManager.dispatchServerAction(peer, { type: ActionType.ChatWorkingDirectoryRemoved, directory: 'file:///wd' });
+			svc.refreshChatChangesSummary(peer);
+			const after = await waitFor(() => {
+				const value = stateManager.getChatState(peer)?.changes;
+				return value?.files === 0 ? value : undefined;
+			});
+			const persisted = await waitFor(async () => {
+				const value = await db.getMetadata(getChatChangesSummaryMetadataKey(peer));
+				const parsed = value ? JSON.parse(value) : undefined;
+				return parsed?.files === 0 ? parsed : undefined;
+			});
+
+			assert.deepStrictEqual({ before, after, persisted, workingDirectories: stateManager.getChatState(peer)?.workingDirectories }, {
+				before: { additions: 2, deletions: 0, files: 1 },
+				after: { additions: 0, deletions: 0, files: 0 },
+				persisted: { additions: 0, deletions: 0, files: 0 },
+				workingDirectories: [],
+			});
+		});
+
 		test('refreshChatChangesSummary rejects an in-flight result from an obsolete folder scope', async () => {
 			class PausedSessionDatabase extends TestSessionDatabase {
 				readonly firstReadStarted = new DeferredPromise<void>();

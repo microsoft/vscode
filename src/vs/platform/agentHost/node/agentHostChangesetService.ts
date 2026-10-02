@@ -1518,7 +1518,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * same database and folder scope as the chat's own Session Changes entry.
 	 */
 	private async _computeChatChangesSummary(chat: ProtocolURI): Promise<void> {
-		if (!this._isChatChangesSummaryOwner(chat) || !this._hasWorkingDirectory(chat)) {
+		// An explicit empty folder scope is a valid no-access scope that aggregates to zero
+		// changes, so only defer while the session's worktree is still being set up.
+		if (!this._isChatChangesSummaryOwner(chat) || this._worktree.isWorkingDirectoryPending(AgentSession.id(containingSessionUri(chat)))) {
 			return;
 		}
 		const workingDirectories = this._getEffectiveWorkingDirectories(chat);
