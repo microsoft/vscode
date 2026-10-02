@@ -29,6 +29,7 @@ import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributi
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -2323,7 +2324,7 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
-	test('persists sandbox selections through the session metadata path', async () => {
+	test('keeps sandbox selections live without persisting them through session metadata', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const values = {
 			[SessionConfigKey.SandboxEnabled]: 'off',
@@ -2334,7 +2335,45 @@ suite('AgentHostChatContributions', () => {
 		});
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
 		await Promise.resolve();
-		assert.strictEqual(await contributions.database.getMetadata('configValues'), JSON.stringify({ [SessionConfigKey.SandboxEnabled]: 'off' }));
+		assert.deepStrictEqual({
+			persisted: await contributions.database.getMetadata('configValues'),
+			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
+		}, { persisted: '{}', live: values });
+	});
+
+	test('persists applied sandbox state instead of pending or failed selections', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const snapshots: string[] = [];
+		const values = { [SessionConfigKey.SandboxEnabled]: 'off', mode: 'plan' };
+		contributions.stateManager.setSessionConfig(contributions.session, {
+			schema: { type: 'object', properties: {} }, values,
+		});
+		const publish = async (enabled: boolean, failed = false) => {
+			const meta = withSessionSandboxState(undefined, {
+				enabled,
+				...(failed ? { error: { clientId: 'client', clientSeq: 1, message: 'Rejected' } } : {}),
+			});
+			contributions.stateManager.setSessionMeta(contributions.session, meta);
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionMetaChanged, _meta: meta,
+			}));
+			await Promise.resolve();
+			snapshots.push((await contributions.database.getMetadata('configValues'))!);
+		};
+		await publish(true);
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+			type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' },
+		}));
+		await Promise.resolve();
+		snapshots.push((await contributions.database.getMetadata('configValues'))!);
+		await publish(true, true);
+		await publish(false);
+		assert.deepStrictEqual(snapshots.map(value => JSON.parse(value)), [
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'off', mode: 'plan' },
+		]);
 	});
 
 	test('clears automatic archive time when a session is unarchived', async () => {
