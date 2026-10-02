@@ -16,7 +16,6 @@ import { buildChatUri, buildSubagentSessionUri, MessageKind, SessionStatus, Tool
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { projectCopilotSandboxPolicy } from '../../node/copilot/copilotSandboxPolicy.js';
 import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
@@ -28,8 +27,7 @@ suite('Session sandbox configuration', () => {
 
 	function setupSession() {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
-		const managedSettings = store.add(new AgentHostManagedSettingsService());
-		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService(), undefined, [], managedSettings));
+		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
 		const create = (id: string, values: Record<string, unknown> = {}) => {
 			const session = `copilot:/${id}`;
 			manager.createSession({
@@ -39,7 +37,7 @@ suite('Session sandbox configuration', () => {
 			manager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values });
 			return session;
 		};
-		return { manager, configuration, managedSettings, create };
+		return { manager, configuration, create };
 	}
 
 	test('advertises an optional mutable selection without materializing a default', () => {
@@ -169,40 +167,36 @@ suite('Session sandbox configuration', () => {
 		]);
 	});
 
-	test('a forwarded VS Code sandbox requirement prevents direct session opt-out on supported platforms', () => {
-		const { manager, configuration, managedSettings, create } = setupSession();
-		const owner = create('legacy-required', { sandboxEnabled: 'off' });
+	test('forwarded sandbox defaults remain overridable without a runtime managed requirement', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('legacy-default', { sandboxEnabled: 'off' });
+		const followingDefault = create('following-default');
 		configuration.updateRootConfig({ sandbox: { enabled: 'on', allowUnsandboxedCommands: true } });
-		managedSettings.setClientSandboxRequired('client', true);
 		configuration.setSessionSandboxPolicy(owner, { enabled: false });
 		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
-		const effective = getSessionSandboxConfig(configuration, owner);
 		assert.deepStrictEqual({
-			enabled: buildSandboxConfigForSdk(process.platform, effective)?.enabled,
+			effective: getSessionSandboxConfig(configuration, owner)?.enabled,
+			followingDefault: getSessionSandboxConfig(configuration, followingDefault)?.enabled,
 			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
 			policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
 		}, {
-			enabled: true,
-			selection: 'on',
-			policy: { enabled: true, allowBypass: true },
+			effective: 'off',
+			followingDefault: 'on',
+			selection: 'off',
+			policy: { enabled: false },
 		});
 	});
 
-	test('editing ordinary host settings cannot clear a mandatory sandbox requirement', () => {
-		const { manager, configuration, managedSettings, create } = setupSession();
-		const owner = create('legacy-host-settings');
-		managedSettings.setClientSandboxRequired('governed', true);
-		managedSettings.setClientSandboxRequired('ungoverned', false);
+	test('editing ordinary host settings cannot clear a runtime managed sandbox requirement', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-host-settings');
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		for (const sandbox of [{ enabled: 'off', required: false }, { enabled: 'off' }, {}]) {
 			configuration.updateRootConfig({ sandbox });
 			configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 			assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner))?.enabled, true);
 			assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: true, allowBypass: false });
 		}
-		managedSettings.removeClient('ungoverned');
-		assert.strictEqual(configuration.getSessionSandboxPolicy(owner)?.enabled, true);
-		managedSettings.setClientSandboxRequired('governed', false);
-		assert.strictEqual(configuration.getSessionSandboxPolicy(owner), undefined);
 	});
 
 	test('ordinary root settings cannot manufacture a policy requirement', () => {
@@ -213,79 +207,87 @@ suite('Session sandbox configuration', () => {
 		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner)), undefined);
 	});
 
-	test('adding and withdrawing a forwarded requirement republishes the effective policy without losing runtime restrictions', () => {
-		const { manager, configuration, managedSettings, create } = setupSession();
+	test('changing forwarded defaults does not change the runtime sandbox policy', () => {
+		const { manager, configuration, create } = setupSession();
 		const owner = create('legacy-live', { sandboxEnabled: 'off' });
 		configuration.setSessionSandboxEnabled(owner, false);
 		const runtimePolicy = { enabled: false, allowBypass: false, allowOutbound: false };
 		configuration.setSessionSandboxPolicy(owner, runtimePolicy);
-		configuration.updateRootConfig({ sandbox: { enabled: 'on', allowUnsandboxedCommands: true } });
-		managedSettings.setClientSandboxRequired('client', true);
-		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: true, allowBypass: false, allowOutbound: false });
-		assert.strictEqual(configuration.getSessionSandboxEnabled(owner), undefined);
-		configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
-		managedSettings.setClientSandboxRequired('client', false);
-		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), runtimePolicy);
-		assert.deepStrictEqual(configuration.getSessionSandboxPolicy(owner), runtimePolicy);
+		for (const enabled of ['on', 'off']) {
+			configuration.updateRootConfig({ sandbox: { enabled, allowUnsandboxedCommands: true } });
+			assert.deepStrictEqual({
+				published: readSessionSandboxPolicy(manager.getSessionState(owner)),
+				resolved: configuration.getSessionSandboxPolicy(owner),
+				applied: configuration.getSessionSandboxEnabled(owner),
+			}, { published: runtimePolicy, resolved: runtimePolicy, applied: false });
+		}
 	});
 
-	test('new sessions enforce the requirement before runtime policy arrives and publish it on resolution', () => {
-		const { manager, configuration, managedSettings, create } = setupSession();
+	test('new sessions enforce a runtime requirement when it arrives, not from forwarded defaults', () => {
+		const { manager, configuration, create } = setupSession();
 		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
-		managedSettings.setClientSandboxRequired('client', true);
-		const owner = create('legacy-new', { sandboxEnabled: 'off' });
+		const owner = create('managed-new', { sandboxEnabled: 'off' });
+		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner)), undefined);
+		assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), undefined);
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner))?.enabled, true);
-		configuration.setSessionSandboxPolicy(owner, { enabled: false });
 		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: true, allowBypass: false });
-		managedSettings.setClientSandboxRequired('client', false);
+		configuration.setSessionSandboxPolicy(owner, { enabled: false });
 		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: false });
 		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 		assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, owner)), undefined);
 	});
 
-	test('clears withdrawn VS Code-only metadata and does not publish it to unsupported sessions', () => {
-		const { manager, managedSettings, create } = setupSession();
+	test('forwarded sandbox defaults do not publish managed policy metadata', () => {
+		const { manager, configuration, create } = setupSession();
 		const owner = create('legacy-only');
 		const unsupported = create('unsupported');
 		manager.setSessionConfig(unsupported, { schema: { type: 'object', properties: {} }, values: {} });
-		managedSettings.setClientSandboxRequired('client', true);
-		assert.deepStrictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), { enabled: true, allowBypass: false });
-		assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(unsupported)), undefined);
-		managedSettings.setClientSandboxRequired('client', false);
-		assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(owner)), undefined);
+		for (const enabled of ['on', 'off']) {
+			configuration.updateRootConfig({ sandbox: { enabled } });
+			assert.deepStrictEqual([owner, unsupported].map(session => readSessionSandboxPolicy(manager.getSessionState(session))), [undefined, undefined]);
+		}
 	});
 
-	test('a legacy requirement preserves approved bypass only when both local and runtime restrictions permit it', () => {
+	test('runtime policy owns approved bypass without widening local bypass settings', () => {
 		for (const runtimeAllows of [undefined, false, true]) {
 			for (const localAllows of [false, true]) {
-				const { manager, configuration, managedSettings, create } = setupSession();
-				const owner = create(`legacy-bypass-${runtimeAllows}-${localAllows}`);
+				const { manager, configuration, create } = setupSession();
+				const owner = create(`managed-bypass-${runtimeAllows}-${localAllows}`);
 				configuration.updateRootConfig({ sandbox: { enabled: 'on', allowUnsandboxedCommands: localAllows } });
-				managedSettings.setClientSandboxRequired('client', true);
 				configuration.setSessionSandboxPolicy(owner, { enabled: true, ...(runtimeAllows !== undefined ? { allowBypass: runtimeAllows } : {}) });
+				configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
+				const directSelection = configuration.getSessionConfigValues(owner)?.sandboxEnabled;
+				// Applied false represents an opt-out already accepted by the SDK, not a user selection.
 				configuration.setSessionSandboxEnabled(owner, false);
 				configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
-				const allowed = runtimeAllows === true && localAllows;
-				assert.strictEqual(configuration.getSessionConfigValues(owner)?.sandboxEnabled, allowed ? 'off' : 'on');
-				assert.strictEqual(readSessionSandboxPolicy(manager.getSessionState(owner))?.enabled, true);
+				assert.deepStrictEqual({
+					directSelection,
+					approvedSelection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
+					allowUnsandboxedCommands: getSessionSandboxConfig(configuration, owner).allowUnsandboxedCommands,
+					policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
+				}, {
+					directSelection: 'on',
+					approvedSelection: runtimeAllows === true ? 'off' : 'on',
+					allowUnsandboxedCommands: runtimeAllows === true && localAllows,
+					policy: { enabled: true, ...(runtimeAllows !== undefined ? { allowBypass: runtimeAllows } : {}) },
+				});
 			}
 		}
 	});
 
-	test('a known VS Code requirement cannot be disabled through the unresolved-runtime-policy retry path', () => {
-		const { manager, configuration, managedSettings, create } = setupSession();
-		const owner = create('legacy-fail-closed');
+	test('forwarded defaults preserve the unresolved-runtime-policy retry path', () => {
+		const { manager, configuration, create } = setupSession();
+		const owner = create('managed-fail-closed');
 		const runtimePolicy = { enabled: true, allowBypass: false, failClosed: true };
 		configuration.setSessionSandboxPolicy(owner, runtimePolicy);
 		configuration.updateRootConfig({ sandbox: { enabled: 'on', allowUnsandboxedCommands: true } });
-		managedSettings.setClientSandboxRequired('client', true);
 		configuration.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 		assert.deepStrictEqual({
 			policy: readSessionSandboxPolicy(manager.getSessionState(owner)),
 			selection: configuration.getSessionConfigValues(owner)?.sandboxEnabled,
-		}, { policy: { enabled: true, allowBypass: false, failClosed: false }, selection: 'on' });
+		}, { policy: runtimePolicy, selection: 'off' });
 		configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
-		managedSettings.setClientSandboxRequired('client', false);
 		assert.deepStrictEqual(configuration.getSessionSandboxPolicy(owner), runtimePolicy);
 	});
 
@@ -456,12 +458,12 @@ suite('Session sandbox configuration', () => {
 		].map(session => configuration.getSessionSandboxPolicy(session)), [policy, policy, policy, policy, policy, undefined]);
 	});
 
-	test('the forwarded requirement also prevents opt-out in peer chats and nested subagents', () => {
-		const { configuration, managedSettings, create } = setupSession();
-		const owner = create('legacy-owner', { sandboxEnabled: 'off' });
+	test('the runtime requirement also prevents opt-out in peer chats and nested subagents', () => {
+		const { configuration, create } = setupSession();
+		const owner = create('managed-owner', { sandboxEnabled: 'off' });
 		const child = buildSubagentSessionUri(owner, 'child');
 		const nested = buildSubagentSessionUri(child, 'nested');
-		managedSettings.setClientSandboxRequired('client', true);
+		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		for (const resource of [owner, buildChatUri(owner, 'peer'), child, nested, buildChatUri(nested, 'peer')]) {
 			assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, resource))?.enabled, true);
 		}
@@ -494,9 +496,8 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('reconciles saved off against policy resolved before restoration and notifies the SDK with on', () => {
-		const { configuration, managedSettings, create } = setupSession();
+		const { configuration, create } = setupSession();
 		configuration.updateRootConfig({ sandbox: { enabled: 'off', allowNetwork: true } });
-		managedSettings.setClientSandboxRequired('client', true);
 		const legacyValues = { sandboxEnabled: 'off', mode: 'plan' };
 		const owner = 'copilot:/legacy-restored';
 		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false, allowOutbound: false });

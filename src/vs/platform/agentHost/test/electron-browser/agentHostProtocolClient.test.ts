@@ -1829,7 +1829,7 @@ suite('AgentHostProtocolClient', () => {
 	});
 
 	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
-		test(`forwards sandbox policy independently of ordinary settings and the permission bridge (${String(identity)})`, async () => {
+		test(`does not forward a legacy sandbox policy requirement (${String(identity)})`, async () => {
 			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
 			const configurationService = new class extends TestConfigurationService {
 				policyActive = false;
@@ -1840,22 +1840,21 @@ suite('AgentHostProtocolClient', () => {
 			}({ [setting]: 'on' });
 			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
 			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
-			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
 			await connectClient(client, transport);
-			assert.deepStrictEqual(contributions(), [expected(false)]);
+			assert.deepStrictEqual(contributions(), []);
 
 			for (const policyActive of [true, false]) {
 				transport.sentMessages.length = 0;
 				configurationService.policyActive = policyActive;
 				fireConfigurationChange(configurationService, setting);
-				assert.deepStrictEqual(contributions(), [expected(policyActive)]);
+				assert.deepStrictEqual(contributions(), []);
 			}
 			configurationService.policyActive = true;
 			for (const value of [true, false, 'off', 'on']) {
 				transport.sentMessages.length = 0;
 				await configurationService.setUserConfiguration(setting, value);
 				fireConfigurationChange(configurationService, setting);
-				assert.deepStrictEqual(contributions(), [expected(value === true || value === 'on')]);
+				assert.deepStrictEqual(contributions(), []);
 			}
 		});
 	}
@@ -4122,7 +4121,7 @@ suite('AgentHostProtocolClient', () => {
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
-				assert.ok(sandboxPolicyIndex >= 0 && sandboxPolicyIndex < listSessionsIndex, 'sandbox policy must be sent before requests triggered by the connected transition');
+				assert.strictEqual(sandboxPolicyIndex, -1, 'legacy sandbox policy must not be forwarded on reconnect');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -4215,9 +4214,7 @@ suite('AgentHostProtocolClient', () => {
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
 			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
-			assert.ok(sandboxPolicy, 'sandbox policy should be restored after fresh initialization');
-			assert.deepStrictEqual(sandboxPolicy, { jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required: true } });
-			assert.ok(reconnectTransport.sentMessages.indexOf(sandboxPolicy) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate));
+			assert.strictEqual(sandboxPolicy, undefined, 'legacy sandbox policy must not be restored after fresh initialization');
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
