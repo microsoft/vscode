@@ -338,7 +338,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 			const disposables = new DisposableStore();
 			const cts = disposables.add(new CancellationTokenSource(pToken));
-			disposables.add(editorStateCts.token.onCancellationRequested(() => cts.cancel()));
+			const editorStateListener = disposables.add(editorStateCts.token.onCancellationRequested(() => cts.cancel()));
 
 			const token = cts.token;
 			try {
@@ -371,7 +371,11 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
+					// Applying the paste changes editor state itself. The widget manager handles cancellation during resolve.
+					disposables.delete(editorStateListener);
+					// The widget owns the edits until the user finishes choosing a paste action.
+					disposables.deleteAndLeak(editSession);
+					return await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
 						if (!edit.provider.resolveDocumentPasteEdit) {
 							return edit;
 						}
@@ -387,7 +391,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 							edit.additionalEdit = resolved.additionalEdit;
 						}
 						return edit;
-					}, token);
+					}, token, editSession);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
