@@ -11117,6 +11117,80 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		class BlockingPluginManager extends TestAgentPluginManager {
+			public block: Promise<void> | undefined;
+			override async syncCustomizations(_clientId: string, customizations: ClientPluginCustomization[]): Promise<ISyncedCustomization[]> {
+				await this.block;
+				return customizations.map(customization => ({ customization }));
+			}
+		}
+
+		const preparedPlugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'file:///plugin-a', uri: 'file:///plugin-a', name: 'Plugin A' };
+
+		test('the prepared turn awaits a plugin sync that started after its preparation', async () => {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			client.createSession = async () => new MockCopilotSession() as unknown as CopilotSession;
+			const pluginManager = new BlockingPluginManager();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager });
+			const sync = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'prepare-turn-sync');
+				const chat = defaultChatUri(session);
+				const workingDirectory = URI.file('/workspace');
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+				const activeClient = agent.getOrCreateActiveClient(chat, result.session, { clientId: 'client-1' });
+
+				await agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
+				pluginManager.block = sync.p;
+				activeClient.customizations = [preparedPlugin];
+				let sent = false;
+				const send = agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context).then(() => { sent = true; });
+				await timeout(20);
+				const sentWhileSyncing = sent;
+				sync.complete();
+				await send;
+
+				assert.deepStrictEqual({ sentWhileSyncing, sent }, { sentWhileSyncing: false, sent: true });
+			} finally {
+				sync.complete();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Stop releases a preparation waiting on a plugin sync', async () => {
+			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
+			let creates = 0;
+			client.createSession = async () => {
+				creates++;
+				return new MockCopilotSession() as unknown as CopilotSession;
+			};
+			const pluginManager = new BlockingPluginManager();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client, sessionDataService: disposables.add(new TestSessionDataService()), pluginManager });
+			const sync = new DeferredPromise<void>();
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'prepare-turn-stop');
+				const chat = defaultChatUri(session);
+				const workingDirectory = URI.file('/workspace');
+				const result = await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				const context = exactChatContext(result.session, chat, result.session);
+				pluginManager.block = sync.p;
+				agent.getOrCreateActiveClient(chat, result.session, { clientId: 'client-1' }).customizations = [preparedPlugin];
+
+				const prepare = agent.chats.prepareTurn!(chat, 'turn-1', [workingDirectory], context);
+				await timeout(0);
+				await agent.chats.abort(chat, context);
+				const outcome = await raceTimeout(prepare.then(() => 'released'), 1000) ?? 'blocked';
+
+				assert.deepStrictEqual({ outcome, creates }, { outcome: 'released', creates: 0 });
+			} finally {
+				sync.complete();
+				await disposeAgent(agent);
+			}
+		});
+
 		test('restores a preflight-failed deferred chat and retries only its known-empty SDK backing', async () => {
 			const client = new TestCopilotClient([], [{ id: 'claude-sonnet', name: 'Claude Sonnet' }]);
 			const sessionDataService = disposables.add(new TestSessionDataService());
