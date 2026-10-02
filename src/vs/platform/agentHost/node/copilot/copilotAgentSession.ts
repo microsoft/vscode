@@ -1952,13 +1952,19 @@ export class CopilotAgentSession extends Disposable {
 				this._refreshDetachedBackgroundShells = false;
 				await this._wrapper.session.rpc.tasks.refresh();
 			}
-			const read = this._nonPtyShellTerminals.beginShellTaskRead();
+			const shellSnapshot = this._nonPtyShellTerminals.captureBackgroundShells();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
 			if (this._store.isDisposed) {
 				return false;
 			}
-			// Settling shells uses every read, because even a superseded one shows which shells had exited by then.
-			this._nonPtyShellTerminals.reconcileBackgroundShells(new Set(tasks.tasks.flatMap(task => task.type === 'shell' && (task.status === 'running' || task.status === 'idle') ? [task.id] : [])), read);
+			const runningShellIds = new Set<string>();
+			for (const task of tasks.tasks) {
+				if (task.type === 'shell' && (task.status === 'running' || task.status === 'idle')) {
+					runningShellIds.add(task.id);
+				}
+			}
+			// Completion evidence remains useful even when publication is superseded.
+			this._nonPtyShellTerminals.reconcileBackgroundShells(runningShellIds, shellSnapshot);
 			if (revision !== this._backgroundTaskStatusRevision) {
 				return false;
 			}
@@ -6679,6 +6685,10 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 
+			if (isShellHelperTool(tracked.toolName)) {
+				this._nonPtyShellTerminals.completeBackgroundShellFromHelperResult(toolOutput);
+			}
+
 			const content: ToolResultContent[] = [...tracked.content];
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
@@ -6689,9 +6699,6 @@ export class CopilotAgentSession extends Disposable {
 			// the terminal block (skip if any terminal block was already added
 			// while the tool was running).
 			const isShellCommandTool = isShellTool(tracked.toolName);
-			if (isShellHelperTool(tracked.toolName)) {
-				this._nonPtyShellTerminals.completeBackgroundShellFromHelperResult(toolOutput);
-			}
 			const ptyTerminalUri = isShellCommandTool ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
 			let retireNonPtyShellTracking = !!ptyTerminalUri;
 			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {

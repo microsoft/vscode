@@ -407,16 +407,16 @@ suite('NonPtyShellTerminalStreams', () => {
 
 		test('settles a shell from task reads started after it went to the background, even if never listed', () => {
 			streams.track('call-23', 'shell');
-			const earlier = streams.beginShellTaskRead();
+			const earlier = streams.captureBackgroundShells();
 			const uri = streams.completeToolCall('call-23', asyncStarted('10'), undefined)?.uri;
 
 			// A read started before the call returned can predate the shell.
 			streams.reconcileBackgroundShells(new Set(), earlier);
 			const afterEarlierRead = [...manager.outputTerminalsFinalized];
-			streams.reconcileBackgroundShells(new Set(['10']), streams.beginShellTaskRead());
+			streams.reconcileBackgroundShells(new Set(['10']), streams.captureBackgroundShells());
 			const whileListed = [...manager.outputTerminalsFinalized];
 			// A later read that no longer lists the shell settles it, whether or not an earlier read listed it.
-			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
 
 			deepStrictEqual({ afterEarlierRead, whileListed, finalized: manager.outputTerminalsFinalized }, {
 				afterEarlierRead: [],
@@ -429,9 +429,51 @@ suite('NonPtyShellTerminalStreams', () => {
 			streams.track('call-28', 'shell');
 			const uri = streams.completeToolCall('call-28', asyncStarted('12'), undefined)?.uri;
 
-			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
 
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+		});
+
+		test('does not settle a replacement command from a task read started before its shell ID was reused', () => {
+			streams.track('call-32', 'shell');
+			const first = streams.completeToolCall('call-32', asyncStarted('16'), undefined)?.uri;
+			const earlier = streams.captureBackgroundShells();
+
+			streams.track('call-33', 'shell');
+			const second = streams.completeToolCall('call-33', asyncStarted('16'), undefined)?.uri;
+			streams.reconcileBackgroundShells(new Set(), earlier);
+			const afterEarlierRead = {
+				finalized: [...manager.outputTerminalsFinalized],
+				terminal: streams.getBackgroundShellTerminal('16'),
+				streaming: streams.isStreamingInBackground('call-33'),
+			};
+			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
+
+			deepStrictEqual({ afterEarlierRead, finalized: manager.outputTerminalsFinalized }, {
+				afterEarlierRead: {
+					finalized: [{ uri: first, exitCode: undefined }],
+					terminal: second,
+					streaming: true,
+				},
+				finalized: [{ uri: first, exitCode: undefined }, { uri: second, exitCode: undefined }],
+			});
+		});
+
+		test('preserves shell completion received while a task read is pending', () => {
+			streams.track('call-34', 'shell');
+			const uri = streams.completeToolCall('call-34', asyncStarted('17'), undefined)?.uri;
+			const snapshot = streams.captureBackgroundShells();
+
+			streams.completeBackgroundShell('17', 3);
+			streams.reconcileBackgroundShells(new Set(), snapshot);
+
+			deepStrictEqual({
+				finalized: manager.outputTerminalsFinalized,
+				terminal: streams.getBackgroundShellTerminal('17'),
+			}, {
+				finalized: [{ uri, exitCode: 3 }],
+				terminal: undefined,
+			});
 		});
 
 		test('settles a shell from a read result with its exit code and from a stop result', () => {
