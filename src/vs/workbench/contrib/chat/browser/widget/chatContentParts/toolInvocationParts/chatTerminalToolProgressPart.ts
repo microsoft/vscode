@@ -1589,7 +1589,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 		}
 		let outputText = plain.trimEnd();
 		if (snapshot.truncated && !fullOutputAvailable) {
-			outputText += `\n${localize('chatTerminalOutputTruncated', 'Output truncated.')}`;
+			outputText += `\n${localize('chatTerminalOutputTruncated', "Output truncated.")}`;
 		}
 		return `${commandHeader}\n${outputText}${fullOutputAvailability}`;
 	}
@@ -1823,7 +1823,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		this._fullOutputLink.clear();
-		this._truncationElement.textContent = visible ? localize('chatTerminalOutputTruncated', 'Output truncated.') : '';
+		this._truncationElement.textContent = visible ? localize('chatTerminalOutputTruncated', "Output truncated.") : '';
 	}
 
 	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
