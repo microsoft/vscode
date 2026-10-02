@@ -9,7 +9,7 @@ import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
@@ -37,6 +37,7 @@ export interface ICatalogSourceState {
 		readonly archived?: boolean;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
+		readonly changes?: ChangesSummary;
 	}[];
 }
 
@@ -130,6 +131,7 @@ export class AgentHostCatalogSourceResolver {
 		for (const chat of state.chats) {
 			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
 			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
+			metadataKeys[getChatChangesSummaryMetadataKey(chat.uri)] = true;
 		}
 
 		const persisted: { readonly [key: string]: string | undefined } = database
@@ -258,6 +260,10 @@ export class AgentHostCatalogSourceResolver {
 				// temporary restriction must not become permanent after a restart.
 				const interactivity = chat.interactivity === ChatInteractivity.ReadOnly && readChatInputState({ _meta: state.meta }, chat.uri)
 					? ChatInteractivity.Full : chat.interactivity;
+				const persistedChatChanges = readPersistedChanges(metadata[getChatChangesSummaryMetadataKey(chat.uri)]);
+				const chatChanges = preferPersistedMetadata
+					? persistedChatChanges ?? chat.changes
+					: chat.changes ?? persistedChatChanges;
 				return {
 					uri: chat.uri,
 					order,
@@ -269,6 +275,7 @@ export class AgentHostCatalogSourceResolver {
 					...(chat.archived === true ? { archived: true } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
+					...(chatChanges !== undefined ? { changes: chatChanges } : {}),
 				};
 			}),
 		};

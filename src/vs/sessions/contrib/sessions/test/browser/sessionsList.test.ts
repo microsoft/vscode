@@ -4228,6 +4228,40 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('renders catalog-backed chat change counts without loading chat details', () => {
+			const built = buildTestSession({
+				id: 'chat-changes',
+				title: 'Main chat',
+				chats: [{ id: 'peer', title: 'Peer chat' }],
+			});
+			const peer = built.chats.get('peer')!;
+			const changesSummary = observableValue<ISessionChangesSummary | undefined>('peerChangesSummary', { files: 2, additions: 12, deletions: 3 });
+			const peerChat = { ...peer.chat, changesSummary };
+			const session: ISession = {
+				...built.session,
+				chats: constObservable([built.mainChat.chat, peerChat]),
+			};
+			const { container } = renderSessionChatsList(session);
+			const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+			const peerRow = peerItem?.closest<HTMLElement>('.monaco-list-row');
+			const snapshot = () => ({
+				diff: peerItem?.querySelector('.session-chat-diff')?.textContent,
+				ariaIncludesCounts: peerRow?.getAttribute('aria-label')?.includes('12 lines added, 3 lines removed') ?? false,
+			});
+
+			const initial = snapshot();
+			peer.status.set(SessionStatus.InProgress, undefined);
+			const inProgress = snapshot();
+			peer.status.set(SessionStatus.Completed, undefined);
+			const completed = snapshot();
+
+			assert.deepStrictEqual({ initial, inProgress, completed }, {
+				initial: { diff: '+12-3', ariaIncludesCounts: true },
+				inProgress: { diff: undefined, ariaIncludesCounts: false },
+				completed: { diff: '+12-3', ariaIncludesCounts: true },
+			});
+		});
+
 		test('hides the main chat modified time while it is in progress', () => {
 			const status = observableValue('main-chat-status', SessionStatus.Completed);
 			const main = upcastPartial<IChat>({

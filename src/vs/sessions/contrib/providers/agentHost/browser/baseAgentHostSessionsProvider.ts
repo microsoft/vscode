@@ -249,6 +249,7 @@ interface ISerializedSessionMetadata {
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ProtocolChatInteractivity;
 		readonly archived?: boolean;
+		readonly changes?: ChangesSummary;
 	}[];
 	/** Session folder's GitHub state, written by earlier versions; migrated on read. */
 	readonly github?: ISessionGitHubState;
@@ -302,6 +303,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		})),
 		githubData: gitHubData.size > 0 ? Object.fromEntries(gitHubData) : undefined,
 		workingDirectoryKeys: workingDirectoryKeys.size > 0 ? Object.fromEntries(workingDirectoryKeys) : undefined,
@@ -387,6 +389,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 			})),
 			...(_meta ? { _meta } : {}),
 		};
@@ -403,7 +406,17 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		...(chat.archived === true ? { archived: true } : {}),
+		...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 	}));
+}
+
+/** Normalizes the protocol's optional counts into the Sessions model's summary shape. */
+function toSessionChangesSummary(changes: ChangesSummary): ISessionChangesSummary {
+	return {
+		additions: changes.additions ?? 0,
+		deletions: changes.deletions ?? 0,
+		files: changes.files ?? 0,
+	};
 }
 
 /** Reads the cached flag bits, folding in the legacy standalone booleans. */
@@ -1019,6 +1032,7 @@ class AdditionalChat extends Disposable {
 	private readonly _interactivity: ISettableObservable<ChatInteractivity>;
 	private readonly _isNew: ISettableObservable<boolean>;
 	private readonly _isArchived: ISettableObservable<boolean>;
+	private readonly _changesSummary: ISettableObservable<ISessionChangesSummary | undefined>;
 
 	constructor(resource: URI, summary: AgentHostChatSummary, createdAtFallback: Date, changesets: IObservable<readonly ISessionChangeset[] | undefined>, backgroundShells: IObservable<readonly IChatBackgroundShell[]>, private readonly _acquireDetails: () => IDisposable, sessionWorkspace: IObservable<ISessionWorkspace | undefined>, mapWorkingDirectoryUri: AgentHostUriMapper, isNew: boolean = false, parentChat?: URI, sessionIsArchived: IObservable<boolean> = constObservable(false), canArchive: IObservable<boolean> = constObservable(false), output?: IChatOutputObs, sessionIsReadOnly: IObservable<boolean> = constObservable(false), connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
 		super();
@@ -1036,6 +1050,7 @@ class AdditionalChat extends Disposable {
 		this._interactivity = observableValue<ChatInteractivity>('chatInteractivity', toChatInteractivity(summary.interactivity));
 		this._isNew = observableValue<boolean>('chatIsNew', isNew);
 		this._isArchived = observableValue<boolean>('chatIsArchived', isSessionStatusArchived(summary.status));
+		this._changesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ owner: this, debugName: 'chatChangesSummary', equalsFn: structuralEquals }, summary.changes ? toSessionChangesSummary(summary.changes) : undefined);
 		const status = derived(this, reader => this._isNew.read(reader) ? SessionStatus.Untitled : this._status.read(reader));
 		const workspace = derived(this, reader => {
 			const workingDirectories = this._workingDirectories.read(reader);
@@ -1063,6 +1078,8 @@ class AdditionalChat extends Disposable {
 			status: this._withDetails(toPresentedSessionStatus(this, status, connectionStatus)),
 			changes: createChangesObservable(changesets),
 			changesets,
+			// Catalog-backed, so session lists can read it without acquiring chat details.
+			changesSummary: this._changesSummary,
 			lastTurnChanges: output?.lastTurnChanges,
 			customizations: output?.customizations,
 			canvases: output?.canvases,
@@ -1108,13 +1125,22 @@ class AdditionalChat extends Disposable {
 			this._lastTurnEnd.set(modifiedAt, tx);
 			this._interactivity.set(toChatInteractivity(summary.interactivity), tx);
 			this._isArchived.set(isSessionStatusArchived(summary.status), tx);
+			this._setChangesSummary(summary.changes, tx);
 		});
 	}
 
-	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, archived: boolean | undefined, tx?: ITransaction): void {
+	updateCatalogMetadata(title: string | undefined, interactivity: ProtocolChatInteractivity | undefined, archived: boolean | undefined, changes: ChangesSummary | undefined, tx?: ITransaction): void {
 		this._title.set(title || localize('newChatTab', "New Chat"), tx);
 		this._interactivity.set(toChatInteractivity(interactivity), tx);
 		this._isArchived.set(archived === true, tx);
+		this._setChangesSummary(changes, tx);
+	}
+
+	/** Keeps the last known counts when an update does not carry them. */
+	private _setChangesSummary(changes: ChangesSummary | undefined, tx: ITransaction | undefined): void {
+		if (changes) {
+			this._changesSummary.set(toSessionChangesSummary(changes), tx);
+		}
 	}
 
 	/** Optimistically update the chat title ahead of the host's `chatUpdated`. */
@@ -1255,6 +1281,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private readonly _worktreeIsolation = observableValue<boolean>('worktreeIsolation', false);
 	/** Interactivity of the default chat. Driven from the default chat's protocol summary. */
 	private readonly _defaultChatInteractivity = observableValue<ChatInteractivity>('defaultChatInteractivity', ChatInteractivity.Full);
+	private readonly _defaultChatChangesSummary = observableValueOpts<ISessionChangesSummary | undefined>({ equalsFn: structuralEquals }, undefined);
 	private readonly _mainChatObs: ISettableObservable<IChat>;
 	private readonly _chatsObs: ISettableObservable<readonly IChat[]>;
 	/** Additional (non-default) peer chats keyed by chatId. */
@@ -1540,6 +1567,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			status: toPresentedSessionStatus(this, defaultChatStatus, this._options.preserveStatusWhenDisconnected ? undefined : connectionStatus),
 			changes: defaultChatChanges,
 			changesets: defaultChatChangesets,
+			changesSummary: this._defaultChatChangesSummary,
 			lastTurnChanges: derived(reader => {
 				const chatUri = defaultChatUriObs.read(reader);
 				return chatUri ? sessionOutput.getLastTurnChanges(chatUri).read(reader) : [];
@@ -1649,6 +1677,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const defaultChat = chats.find(chat => chat.kind === 'default');
 		this._defaultChatTitleOverride.set(defaultChat?.summary || undefined, tx);
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultChat?.interactivity), tx);
+		if (defaultChat?.changes) {
+			this._defaultChatChangesSummary.set(toSessionChangesSummary(defaultChat.changes), tx);
+		}
 
 		const peerIds = chats
 			.filter(chat => chat.kind === 'peer')
@@ -1684,10 +1715,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					status: withSessionStatusFlag(ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsArchived, chat.archived === true),
 					origin: chat.origin,
 					interactivity: chat.interactivity,
+					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				});
 				this._additionalChats.set(chatId, entry);
 			} else {
-				entry.updateCatalogMetadata(chat.summary, chat.interactivity, chat.archived, tx);
+				entry.updateCatalogMetadata(chat.summary, chat.interactivity, chat.archived, chat.changes, tx);
 			}
 			ordered.push(entry.chat);
 		}
@@ -1733,6 +1765,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._defaultChatInteractivity.set(toChatInteractivity(defaultSummary?.interactivity), undefined);
 		this._defaultChatWorkingDirectories.set(defaultSummary?.workingDirectories, undefined);
 		this._defaultChatUpdatedAt.set(defaultSummary ? new Date(defaultSummary.modifiedAt) : undefined, undefined);
+		if (defaultSummary?.changes) {
+			this._defaultChatChangesSummary.set(toSessionChangesSummary(defaultSummary.changes), undefined);
+		}
 
 		// Tool-origin subagents and user-created side (`/btw`) chats must reach
 		// the peer-chat catalog even when the backing session type is otherwise

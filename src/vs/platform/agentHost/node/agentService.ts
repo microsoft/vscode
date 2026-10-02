@@ -113,7 +113,7 @@ import { AgentHostAuthenticationService } from './agentHostAuthenticationService
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
-import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, fromCatalogChatOrigin } from './agentHostCatalogSourceResolver.js';
@@ -409,6 +409,7 @@ interface ICatalogChat {
 	readonly archived?: boolean;
 	readonly inheritedTurnId?: string;
 	readonly workingDirectories?: readonly string[];
+	readonly changes?: ChangesSummary;
 }
 
 interface ILegacyRegisteredSessionMetadata {
@@ -2191,6 +2192,7 @@ export class AgentService extends Disposable implements IAgentService {
 			origin: chat.origin,
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.archived === true ? { archived: true } : {}),
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		}));
 	}
 
@@ -2448,6 +2450,7 @@ export class AgentService extends Disposable implements IAgentService {
 				...(isSessionStatusArchived(chat.status) && state.defaultChat !== chat.resource && !isDefaultChatUri(chat.resource) ? { archived: true } : {}),
 				inheritedTurnId: this._stateManager.getChatInheritedTurnId(chat.resource),
 				workingDirectories: chat.workingDirectories,
+				changes: chat.changes,
 			}));
 	}
 
@@ -3236,6 +3239,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			if (chat.titleSource !== undefined) {
 				metadata[customChatTitleSourceMetadataKey(chat.uri)] = chat.titleSource;
+			}
+			if (chat.changes !== undefined) {
+				metadata[getChatChangesSummaryMetadataKey(chat.uri)] = JSON.stringify(chat.changes);
 			}
 		}
 		return metadata;
@@ -5103,6 +5109,7 @@ export class AgentService extends Disposable implements IAgentService {
 							{
 								[customChatTitleMetadataKey(chatKey)]: '',
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
+								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
 							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
 						);
@@ -5144,6 +5151,7 @@ export class AgentService extends Disposable implements IAgentService {
 							{
 								[customChatTitleMetadataKey(chatKey)]: '',
 								[customChatTitleSourceMetadataKey(chatKey)]: '',
+								[getChatChangesSummaryMetadataKey(chatKey)]: '',
 							},
 							this._catalogChatsFromState(state).filter(candidate => candidate.uri !== chatKey),
 						);
@@ -8322,6 +8330,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 			...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 			...(chat.archived === true ? { status: SessionStatus.IsArchived } : {}),
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		}));
 		const restoredDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default')?.uri;
 		const workingDirectories = withChatWorkingDirectories(meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
@@ -8567,6 +8576,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chat.archived === true ? { archived: true } : {}),
 			inheritedTurnId: chat.inheritedTurnId,
 			workingDirectories: chat.workingDirectories,
+			...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 		}));
 	}
 
@@ -8646,13 +8656,14 @@ export class AgentService extends Disposable implements IAgentService {
 				inheritedTurnId: entry.inheritedTurnId,
 				workingDirectories: entry.workingDirectories ?? cachedChat?.workingDirectories,
 				archived: entry.archived,
+				changes: cachedChat?.changes,
 			};
 		}));
 		for (const item of restored) {
 			if (!item) {
 				continue;
 			}
-			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived } = item;
+			const { chatUri, title, draft, providerData, origin, interactivity, inheritedTurnId, workingDirectories, archived, changes } = item;
 			if (this._stateManager.getChatState(chatUri.toString())) {
 				continue;
 			}
@@ -8665,6 +8676,7 @@ export class AgentService extends Disposable implements IAgentService {
 				inheritedTurnId,
 				workingDirectories,
 				archived,
+				changes,
 				resolver: currentProviderData => this._materializeRestoredPeerChat(session, chatUri, currentProviderData),
 			});
 		}

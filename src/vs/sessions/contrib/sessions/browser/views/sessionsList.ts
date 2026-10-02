@@ -56,7 +56,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
-import { readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionChangesStats, readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -281,6 +281,14 @@ function getSessionListChatDiffStats(session: ISession, chat: IChat, activeSessi
 		}
 	}
 	return getSessionDiffStats(session, reader);
+}
+
+/** A chat row's own change counts, read from its catalog summary so the row does not load chat details. */
+function getChatListDiffStats(chat: IChat, reader: IReader): ISessionChangesStats | undefined {
+	const summary = chat.changesSummary?.read(reader);
+	return summary && (summary.additions > 0 || summary.deletions > 0)
+		? { files: summary.files, insertions: summary.additions, deletions: summary.deletions }
+		: undefined;
 }
 
 /** Includes side-chat activity on the parent row and uses the session aggregate for collapsed peer progress. */
@@ -823,6 +831,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			}
 
 			const showDetailsRow = !this.compact();
+			// Like session rows, hide change counts while the chat is running or needs input.
+			const diffStats = status === SessionStatus.InProgress || status === SessionStatus.NeedsInput ? undefined : getChatListDiffStats(element.chat, reader);
 			template.folderRow.hidden = !showDetailsRow;
 			descriptionDisposable.clear();
 			DOM.clearNode(template.folderRow);
@@ -845,8 +855,17 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				const label = DOM.append(template.folderRow, $('span.session-chat-folder-label', undefined, folderLabel));
 				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
+			const hasLeadingDetail = statusMessage !== undefined || !!folderLabel;
+			if (showDetailsRow && diffStats) {
+				if (hasLeadingDetail) {
+					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
+				}
+				const diffEl = DOM.append(template.folderRow, $('span.session-chat-diff'));
+				DOM.append(diffEl, $('span.session-chat-diff-added')).textContent = `+${diffStats.insertions}`;
+				DOM.append(diffEl, $('span.session-chat-diff-removed')).textContent = `-${diffStats.deletions}`;
+			}
 			if (showDetailsRow && updatedAt) {
-				if (statusMessage !== undefined || folderLabel) {
+				if (hasLeadingDetail || diffStats) {
 					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
 				}
 				const time = DOM.append(template.folderRow, $('span.session-chat-time'));
@@ -2836,6 +2855,10 @@ class SessionsAccessibilityProvider {
 						? statusMessage
 						: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
 					label = localize('sessionChatItemStatusMessageAria', "{0}, {1}", label, statusMessageText);
+				}
+				const diffStats = chatStatus === SessionStatus.InProgress || chatStatus === SessionStatus.NeedsInput ? undefined : getChatListDiffStats(element.chat, reader);
+				if (diffStats) {
+					label = localize('sessionChatItemChangesAria', "{0}, {1} lines added, {2} lines removed", label, diffStats.insertions, diffStats.deletions);
 				}
 				return element.chat.isArchived.read(reader)
 					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
