@@ -808,6 +808,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
+		state: stringProperty(item, 'state'),
 		path: stringProperty(item, 'path'),
 		line: numberProperty(item, 'line'),
 		originalLine: numberProperty(item, 'originalLine'),
