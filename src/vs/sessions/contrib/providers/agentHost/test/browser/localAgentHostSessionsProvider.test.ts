@@ -163,6 +163,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public resolveSessionConfigRequests: { config?: Record<string, unknown>; workingDirectory?: URI }[] = [];
 	public resolveSessionConfigHandler: ((request: { config?: Record<string, unknown> }) => ResolveSessionConfigResult) | undefined;
 	public resolveSessionConfigBarrier: DeferredPromise<void> | undefined;
+	public onResolveSessionConfig: ((request: { config?: Record<string, unknown> }) => Promise<ResolveSessionConfigResult>) | undefined;
 	public branchCompletionRequests: IAgentSessionConfigCompletionsParams[] = [];
 	public branchCompletionItems: SessionConfigCompletionsResult['items'] = [{ value: 'main', label: 'main' }];
 	public branchCompletionBarrier: DeferredPromise<void> | undefined;
@@ -311,6 +312,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 	override async resolveSessionConfig(request: { config?: Record<string, unknown>; workingDirectory?: URI }): Promise<ResolveSessionConfigResult> {
 		this.resolveSessionConfigRequests.push(request);
+		if (this.onResolveSessionConfig) {
+			return this.onResolveSessionConfig(request);
+		}
 		await this.resolveSessionConfigBarrier?.p;
 		await Promise.resolve();
 		if (this.failResolveSessionConfig) {
@@ -1552,6 +1556,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				hasGitRemote: false,
 				hasGitHubRemote: true,
 				upstreamBranchName: 'origin/feature/worktree',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 2,
 				outgoingChanges: 3,
 				uncommittedChanges: 4,
@@ -1565,11 +1571,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			branchName: gitRepository.branchName,
 			hasGitRemote: gitRepository.hasGitRemote,
+			defaultBranchName: gitRepository.defaultBranchName,
+			defaultRemoteBranchName: gitRepository.defaultRemoteBranchName,
 			uncommittedChanges: gitRepository.uncommittedChanges,
 			changedEvents: changes.map(change => change.changed.map(changed => changed === session)),
 		}, {
 			branchName: 'feature/worktree',
 			hasGitRemote: false,
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
 			uncommittedChanges: 4,
 			changedEvents: [[true]],
 		});
@@ -3180,24 +3190,61 @@ suite('LocalAgentHostSessionsProvider', () => {
 					githubOwner: 'microsoft',
 					githubRepo: 'vscode',
 					branchName: 'main',
+					defaultBranchName: 'main',
+					defaultRemoteBranchName: 'origin/main',
 				},
 			},
 		});
 
-		const gitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		const initialGitRepository = session.workspace.get()?.folders[0]?.gitRepository;
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			customizations: [],
+			_meta: {
+				git: {
+					hasGitHubRemote: true,
+					githubOwner: 'microsoft',
+					githubRepo: 'vscode',
+					branchName: 'main',
+					defaultBranchName: 'main',
+				},
+			},
+		});
+		const updatedGitRepository = session.workspace.get()?.folders[0]?.gitRepository;
 		assert.deepStrictEqual({
-			hasGitHubRemote: gitRepository?.hasGitHubRemote,
-			branchName: gitRepository?.branchName,
-			gitHubInfo: gitRepository?.gitHubInfo.get(),
+			initial: {
+				hasGitHubRemote: initialGitRepository?.hasGitHubRemote,
+				branchName: initialGitRepository?.branchName,
+				defaultBranchName: initialGitRepository?.defaultBranchName,
+				defaultRemoteBranchName: initialGitRepository?.defaultRemoteBranchName,
+				gitHubInfo: initialGitRepository?.gitHubInfo.get(),
+			},
+			updated: {
+				defaultBranchName: updatedGitRepository?.defaultBranchName,
+				defaultRemoteBranchName: updatedGitRepository?.defaultRemoteBranchName,
+			},
 		}, {
-			hasGitHubRemote: true,
-			branchName: 'main',
-			gitHubInfo: {
-				owner: 'microsoft',
-				repo: 'vscode',
-				pullRequests: undefined,
-				pullRequest: undefined,
-				issues: undefined,
+			initial: {
+				hasGitHubRemote: true,
+				branchName: 'main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
+				gitHubInfo: {
+					owner: 'microsoft',
+					repo: 'vscode',
+					pullRequests: undefined,
+					pullRequest: undefined,
+					issues: undefined,
+				},
+			},
+			updated: {
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: undefined,
 			},
 		});
 	});
@@ -5605,12 +5652,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			lifecycle: SessionLifecycle.Ready,
 			activeClients: [],
 			chats: [],
-			_meta: withSessionGitState(undefined, { branchName: 'feature', upstreamBranchName: 'upstream/feature' }),
+			_meta: withSessionGitState(undefined, { branchName: 'feature', upstreamBranchName: 'origin/feature', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' }),
 		});
 		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
-			values: { isolation: 'worktree', branch: 'upstream/feature' },
+			values: { isolation: 'worktree', branch: 'origin/feature' },
 		};
 
 		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
@@ -5627,14 +5674,157 @@ suite('LocalAgentHostSessionsProvider', () => {
 			worktreeConfig,
 			config: provider.getCreateSessionConfig(session.sessionId),
 		}, {
-			repository: 'upstream/feature',
+			repository: 'origin/feature',
 			requests: [
-				{ isolation: 'worktree', branch: 'upstream/feature' },
+				{ isolation: 'worktree', branch: 'origin/feature' },
 				{ isolation: 'folder' },
 			],
-			worktreeConfig: { isolation: 'worktree', branch: 'upstream/feature' },
+			worktreeConfig: { isolation: 'worktree', branch: 'origin/feature' },
 			config: { isolation: 'folder', branch: 'feature' },
 		});
+	});
+
+	test('selects the local default branch when New Worktree has no remote default branch', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'feature' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'feature' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName: 'feature', defaultBranchName: 'main' }),
+		});
+		const firstToggleRequest = agentHost.resolveSessionConfigRequests.length;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'main' },
+		};
+
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+
+		assert.deepStrictEqual({
+			requests: agentHost.resolveSessionConfigRequests.slice(firstToggleRequest).map(request => request.config),
+			config: provider.getCreateSessionConfig(session.sessionId),
+		}, {
+			requests: [{ isolation: 'worktree', branch: 'main' }],
+			config: { isolation: 'worktree', branch: 'main' },
+		});
+	});
+
+	test('folder drafts follow branch switches reported by the Git state', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName }),
+		});
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+
+		// The first report only describes the checkout the draft was resolved against.
+		reportBranch('main');
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'lszomoru/featureA' },
+		};
+		reportBranch('lszomoru/featureA');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'lszomoru/featureA' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const folderBranch = provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch];
+
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'worktree', branch: 'origin/main' },
+		};
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+		reportBranch('dev');
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			folderBranch,
+			requests: agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config),
+			worktreeBranch: provider.getCreateSessionConfig(session.sessionId)?.[SessionConfigKey.Branch],
+		}, {
+			folderBranch: 'lszomoru/featureA',
+			requests: [
+				{ isolation: 'folder', branch: 'lszomoru/featureA' },
+				{ isolation: 'worktree' },
+			],
+			worktreeBranch: 'origin/main',
+		});
+	});
+
+	test('folder drafts skip obsolete branch reports while config resolution is in flight', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema(),
+			values: { isolation: 'folder', branch: 'main' },
+		};
+		const provider = createProvider(disposables, agentHost);
+		const sessionTypeId = provider.sessionTypes[0].id;
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), sessionTypeId);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'folder');
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'main' && !provider.isSessionConfigResolving(session.sessionId).get());
+		const rawId = AgentSession.id(agentHost.createdSessionUris.at(-1)!);
+		const reportBranch = (branchName: string) => agentHost.setSessionState(rawId, sessionTypeId, {
+			provider: sessionTypeId,
+			title: '',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [],
+			_meta: withSessionGitState(undefined, { branchName }),
+		});
+		reportBranch('main');
+
+		const firstRequest = agentHost.resolveSessionConfigRequests.length;
+		const firstResolveStarted = new DeferredPromise<void>();
+		const releaseFirstResolve = new DeferredPromise<void>();
+		agentHost.onResolveSessionConfig = async request => {
+			if (request.config?.[SessionConfigKey.Branch] === 'featureA') {
+				firstResolveStarted.complete();
+				await releaseFirstResolve.p;
+			}
+			return {
+				schema: createVSCodeSessionConfigSchema(),
+				values: { ...request.config },
+			};
+		};
+
+		reportBranch('featureA');
+		await firstResolveStarted.p;
+		reportBranch('featureB');
+		reportBranch('featureC');
+		releaseFirstResolve.complete();
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.branch === 'featureC' && !provider.isSessionConfigResolving(session.sessionId).get());
+
+		assert.deepStrictEqual(agentHost.resolveSessionConfigRequests.slice(firstRequest).map(request => request.config), [
+			{ isolation: 'folder', branch: 'featureA' },
+			{ isolation: 'folder', branch: 'featureC' },
+		]);
 	});
 
 	test('maps the programmatic branch tracking setter to hidden agent-host config without remembering it', async () => {
