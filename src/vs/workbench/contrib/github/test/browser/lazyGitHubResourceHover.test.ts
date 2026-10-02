@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,6 +20,66 @@ import { createLazyGitHubResourceHover, LazyGitHubResourceResolver, parseGitHubR
 
 suite('LazyGitHubResourceHover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const invalidation of ['evict', 'account', 'dispose'] as const) {
+		for (const rejects of [true, false]) {
+			test(`discards canceled checks after ${invalidation} when refresh ${rejects ? 'rejects' : 'resolves'}`, async () => {
+				const changed = store.add(new Emitter<void>());
+				const started = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				const warnings: string[] = [];
+				const client = upcastPartial<IGitHubClient>({
+					credentials: upcastPartial<IGitHubClient['credentials']>({
+						getCredential: async signal => ({ account: { host: 'github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+					}),
+					pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+						subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
+							update: () => { },
+							refresh: async fragment => {
+								if (fragment === 'checks') {
+									started.complete();
+									await finish.p;
+									if (rejects) {
+										throw new Error('Request canceled');
+									}
+								}
+							},
+							dispose: () => { },
+							resource: {
+								ref: upcastPartial({}), snapshot: observableValue('canceled', upcastPartial<PullRequestSnapshot>({
+									core: {
+										status: 'ready', complete: true, value: {
+											repositoryNameWithOwner: 'private/repo', number: 1, title: 'Old private title',
+											url: 'https://github.com/private/repo/pull/1', state: 'open', draft: false,
+											headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+										}
+									},
+									checks: { status: 'missing', complete: false },
+								}))
+							},
+						}),
+					}),
+				});
+				const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+					onDidChangeDefaultClient: changed.event,
+					acquireDefaultAccountClient: async () => new ImmortalReference(client),
+				}), new class extends NullLogService {
+					override warn(message: string): void { warnings.push(message); }
+				}()));
+				const pending = resolver.resolvePullRequest({ owner: 'private', repo: 'repo', number: 1 });
+				await started.p;
+				if (invalidation === 'account') {
+					changed.fire();
+				} else if (invalidation === 'dispose') {
+					resolver.dispose();
+				} else {
+					resolver.retain([]);
+				}
+				finish.complete();
+				assert.deepStrictEqual({ result: await pending, warnings }, { result: undefined, warnings: [] });
+			});
+		}
+	}
 
 	test('resolves references only when hover content is requested and reuses the result', async () => {
 		const operations: string[] = [];

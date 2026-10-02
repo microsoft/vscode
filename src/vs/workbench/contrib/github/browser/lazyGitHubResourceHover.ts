@@ -154,6 +154,9 @@ export class LazyGitHubResourceResolver extends Disposable {
 			entry.controller = controller;
 			const signal = AbortSignal.any([this._lifetime.signal, controller.signal]);
 			entry.promise = resolve(signal).then(result => {
+				if (signal.aborted || cache.get(key) !== entry) {
+					return undefined;
+				}
 				if (cache.get(key) === entry) {
 					entry.state.set(result ? { status: 'resolved', value: result } : { status: 'failed' }, undefined);
 				}
@@ -192,6 +195,7 @@ export class LazyGitHubResourceResolver extends Disposable {
 			const subscription = client.query.subscribeIssue(ref, { priority: 'interactive' });
 			try {
 				await subscription.refresh(cancellation.token);
+				signal.throwIfAborted();
 				const issue = subscription.resource.state.get().value;
 				return issue ? toIssueHoverModel(issue) : undefined;
 			} finally {
@@ -222,14 +226,15 @@ export class LazyGitHubResourceResolver extends Disposable {
 			});
 			try {
 				await subscription.refresh('core', cancellation.token);
+				signal.throwIfAborted();
 				if (includeChecks) {
 					subscription.update({ priority: 'interactive', core: true, checks: { includeOptional: true } });
 					await subscription.refresh('checks', cancellation.token).catch(error => {
-						if (!this._lifetime.signal.aborted) {
-							this._logService.warn('[LazyGitHubResourceResolver] Failed to resolve optional pull request checks', error);
-						}
+						signal.throwIfAborted();
+						this._logService.warn('[LazyGitHubResourceResolver] Failed to resolve optional pull request checks', error);
 					});
 				}
+				signal.throwIfAborted();
 				const snapshot = subscription.resource.snapshot.get();
 				return snapshot.core.value ? {
 					pullRequest: toPullRequestHoverModel(snapshot.core.value),

@@ -5,10 +5,8 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { timeout } from '../../../../../base/common/async.js';
-import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Event } from '../../../../../base/common/event.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
@@ -30,26 +28,9 @@ import { GitHubIssueState, GitHubIssueStateReason, GitHubPullRequestState, IGitH
 import { ISessionArtifact, SessionArtifactKind } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsService } from '../../../../../sessions/services/sessions/browser/sessionsService.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, registerFixtureHoverService } from '../fixtureUtils.js';
 import { createMockSession, renderPills } from './sessionChatInputToolbar.fixture.js';
 import { createFixtureGitHubService, createFixtureWorkbenchGitHubService } from './githubFixtureUtils.js';
-
-// Base-layer buttons use a global delegate; route only targets owned by these fixtures.
-const hoverServices = new WeakMap<HTMLElement, IHoverService>();
-let constructingHoverService: IHoverService | undefined;
-const fallbackHoverDelegate = getBaseLayerHoverDelegate();
-setBaseLayerHoverDelegate({
-	...fallbackHoverDelegate,
-	setupManagedHover: (delegate, target, content, options) => {
-		for (let element: HTMLElement | null = target; element; element = element.parentElement) {
-			const service = hoverServices.get(element);
-			if (service) {
-				return service.setupManagedHover(delegate, target, content, options);
-			}
-		}
-		return (constructingHoverService ?? fallbackHoverDelegate).setupManagedHover(delegate, target, content, options);
-	},
-});
 
 const pullRequests: readonly IGitHubPullRequest[] = [{
 	number: 335583,
@@ -173,17 +154,16 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			labels: [],
 		})),
 	});
+	let finishHoverConstruction: (() => void) | undefined;
 	try {
 		renderPills(ctx, session, {
 			height: scenario === 'mixed' ? '600px' : scenario === 'collections' ? '280px' : '420px',
 			width: scenario === 'single' ? '660px' : scenario === 'collections' ? '1200px' : '1080px',
 			popupPlacement: 'above',
 			prepareServices: services => {
-				constructingHoverService = services.get(IHoverService);
-				hoverServices.set(container, constructingHoverService);
-				ctx.disposableStore.add(toDisposable(() => hoverServices.delete(container)));
+				const hovers = services.get(IHoverService);
+				finishHoverConstruction = registerFixtureHoverService(container, hovers, ctx.disposableStore);
 				const actionWidgets = services.get(IActionWidgetService);
-				const hovers = constructingHoverService;
 				ctx.disposableStore.add(dom.addDisposableListener(container, 'keydown', event => {
 					if (event.key === 'Escape') {
 						actionWidgets.hide(true);
@@ -238,7 +218,7 @@ async function renderReferences(ctx: ComponentFixtureContext, scenario: Scenario
 			},
 		});
 	} finally {
-		constructingHoverService = undefined;
+		finishHoverConstruction?.();
 	}
 	container.style.boxSizing = 'border-box';
 	container.appendChild(result);
