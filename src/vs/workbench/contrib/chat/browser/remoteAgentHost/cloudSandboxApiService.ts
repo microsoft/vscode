@@ -460,6 +460,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
 		this._logService.info(`${LOG_PREFIX} ${since ? 'Incremental discovery' : 'Discovery'} found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${scannedTaskIds.size} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		for (const session of sessions) {
+			this._logService.debug(`${LOG_PREFIX} Discovered sandbox session ${JSON.stringify({
+				taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId,
+				name: session.name, repoName: session.repoName, updatedAt: session.updatedAt, status: session.status,
+			})}`);
+		}
 		if (partial) {
 			return { kind: 'partial', sessions, removedTaskIds };
 		}
