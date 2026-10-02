@@ -295,6 +295,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
+		if (!folderUri && !sessionResource && openConfig.cli.agents && (source === undefined || source === AgentsWindowOpenSource.CommandLine)) {
+			const paths = await this.doExtractPathsFromCLI(openConfig.cli);
+			folderUri = paths.find(isSingleFolderWorkspacePathToOpen)?.workspace.uri;
+		}
+
 		// Open in a new browser window with the agent sessions workspace
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
 
