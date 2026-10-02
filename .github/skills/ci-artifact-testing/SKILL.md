@@ -94,5 +94,3 @@ Do not confuse recorded model output with successful execution. Assert the real 
 - Check the final diff/status against the starting state. Do not commit downloaded binaries, generated local paths, temporary hooks, or unrelated user changes.
 - Report the baseline version, PR head, actual artifact source revision, run/artifact identity, platform, exact commands and outcomes, repetitions, and any components that were not replaced.
 - Distinguish "the candidate passes this regression" from "the fix is merged, bundled, released, or verified across platforms." Update issues, PRs, or dependencies only when authorized.
-
-*🤖 Authored with GitHub Copilot on behalf of @rwoll.*
