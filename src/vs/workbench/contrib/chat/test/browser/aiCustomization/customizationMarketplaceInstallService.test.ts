@@ -1123,7 +1123,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			const records = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService()))).records;
 
-			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.description.length }, {
+			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.catalogue.description.length }, {
 				count: 1001,
 				largeDescriptionLength: 9000,
 			});
@@ -1162,7 +1162,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				records: records.map(record => ({
-					id: record.id,
+					id: record.installationId,
 					icon: URI.isUri(record.icon) ? record.icon.toString() : record.icon,
 				})),
 				warnings,
@@ -1220,9 +1220,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				record: {
 					version: stored.version,
-					sourceId: storedRecord?.sourceId,
-					identifier: storedRecord?.identifier,
-					resourceVersion: storedRecord?.version,
+					schemaVersion: storedRecord?.schemaVersion,
+					installationId: /^[0-9a-f]{64}$/.test(storedRecord?.installationId),
+					operationId: /^[0-9a-f]{32}$/.test(storedRecord?.operationId),
+					installedAt: typeof storedRecord?.installedAt === 'string' && new Date(storedRecord.installedAt).toISOString() === storedRecord.installedAt,
+					mediaType: storedRecord?.mediaType,
+					catalogue: storedRecord?.catalogue,
 					icon: storedRecord?.icon,
 					targetKind: storedRecord?.target.kind,
 					targetUri: storedRecord?.target.uri,
@@ -1234,10 +1237,19 @@ suite('CustomizationMarketplaceInstallService', () => {
 				recordedIcon: URI.isUri(recordedIcon) ? recordedIcon.toString() : undefined,
 			}, {
 				record: {
-					version: 1,
-					sourceId: 'testSource',
-					identifier: 'skill-resource',
-					resourceVersion: '1.0.0',
+					version: 2,
+					schemaVersion: 1,
+					installationId: true,
+					operationId: true,
+					installedAt: true,
+					mediaType: CustomizationMarketplaceMediaType.Skill,
+					catalogue: {
+						resourceId: 'skill-resource',
+						displayName: 'Demo Skill',
+						description: 'A skill with scripts and assets',
+						version: '1.0.0',
+						source: 'testSource',
+					},
 					icon: 'https://example.com/review.png',
 					targetKind: 'skill',
 					targetUri: joinPath(skillDestination, SKILL_FILENAME).toString(),
@@ -1250,7 +1262,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
-		test('persists themed icon variants while retaining the v1 scalar icon field', async () => {
+		test('persists themed icon variants while retaining the scalar icon field', async () => {
 			const fixture = await createFixture();
 			const candidate = resource({
 				icon: {
@@ -1276,7 +1288,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					dark: restoredIcon?.dark.toString(),
 				},
 			}, {
-				storedVersion: 1,
+				storedVersion: 2,
 				storedLight: 'https://example.com/review-light.png',
 				storedDark: 'https://example.com/review-dark.png',
 				restored: {

@@ -165,7 +165,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		const targetRoot = dirname(target.uri);
 		const confirmation = await this.dialogService.confirm({
 			type: 'question',
-			message: localize('customizationMarketplace.confirmSkillRepair', "Repair '{0}'?", record.displayName),
+			message: localize('customizationMarketplace.confirmSkillRepair', "Repair '{0}'?", record.catalogue.displayName),
 			detail: localize('customizationMarketplace.confirmSkillRepairDetail', "Missing files will be restored without overwriting existing files.\n\nSource: {0}\nRevision: {1}\nDestination: {2}",
 				`${installation.repository}/${installation.path}`, target.resolvedRevision, this.labelService.getUriLabel(targetRoot)),
 			primaryButton: localize('customizationMarketplace.repairSkillButton', "Repair"),
@@ -178,7 +178,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		const session = this.harnessService.activeSessionResource.get();
 		const project = this.workspaceService.getActiveProjectRoot();
 		const checkContext = (token: CancellationToken = CancellationToken.None) => {
-			this.checkEnabled(record.sourceId, enabledToken);
+			this.checkEnabled(record.catalogue.source, enabledToken);
 			if (token.isCancellationRequested || harness !== this.harnessService.activeHarness.get() || !isEqual(session, this.harnessService.activeSessionResource.get()) || !isEqual(project, this.workspaceService.getActiveProjectRoot()) || !isApplicable()) {
 				throw new CancellationError();
 			}
@@ -189,7 +189,7 @@ export class CustomizationMarketplaceSkillInstaller {
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Notification,
-				title: localize('customizationMarketplace.repairingSkill', "Repairing skill '{0}'", record.displayName),
+				title: localize('customizationMarketplace.repairingSkill', "Repairing skill '{0}'", record.catalogue.displayName),
 				cancellable: true,
 			}, async () => {
 				const resolved = await this.resolvePinnedSkillSourceDirectory(reference, installation.path, target.resolvedRevision, () => checkContext(token), token);
