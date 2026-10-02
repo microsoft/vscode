@@ -578,20 +578,6 @@
 	overflow: visible;
 }
 
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .new-chat-secondary-controls-container,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .new-chat-repo-config-container,
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .monaco-action-bar > .actions-container {
-	gap: var(--vscode-spacing-size20);
-}
-
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .new-chat-repo-config-container .action-label:not(.separator) {
-	padding-inline: var(--vscode-spacing-size40);
-}
-
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .agent-host-mode-permissions-trigger > .chat-input-picker-split-button {
-	padding-inline: var(--vscode-spacing-size40);
-}
-
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item.repository-config-separator {
 	display: none;
 }

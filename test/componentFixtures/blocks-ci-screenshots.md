@@ -121,13 +121,13 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/ccb1c750e1572e661f7bc555efb8c63f64e779746d478eced3a990ac2225dea9)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/25c1ec76a310651e997058ba6edcd90d3c1c7cf968cdeba8a8e248c15c387cd0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/30c50a1d339bd58f3fb78b49e7986fd74e534f54e22437f24a1e2ef3bb161b31)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/1a007f0866e406685a531d6c9441e4c9fba6854860f26091c1bbfdd2543a3dac)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c8e405f0f9d5509588202b6fcf524c79c05e178d4c94adc32d1adf26676e928b)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/782989a7fe504de874931bdb2a2aa18a06cfb7e657acdb61de5cf76654711369)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/703fbfefe36cfc96bacb3f2fc4d7c82b4c36665a00bd48d7a58c799ae8d02ada)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)
