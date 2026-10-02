@@ -17,7 +17,7 @@ import { AgentSession } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, platformRootSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, getDefaultExcludedTools, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField } from '../../common/copilotCliConfig.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
@@ -1011,7 +1011,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Ignoring unusable 'excludedTools' capability override for '${modelId}'; expected an array of tool patterns`);
 		});
 		const availableTools = getToolFilterOverride(availableToolsOverride, 'availableTools', modelId, this._logService, plan.sessionId);
-		const excludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
+		const configuredExcludedTools = getToolFilterOverride(excludedToolsOverride, 'excludedTools', modelId, this._logService, plan.sessionId);
+		// A configured filter on either field replaces the built-in default, so an
+		// `availableTools` override can re-enable a default-excluded tool.
+		const defaultExcludedTools = availableTools === undefined && configuredExcludedTools === undefined
+			? getDefaultExcludedTools(modelFamily ?? model?.id)
+			: undefined;
+		if (defaultExcludedTools) {
+			this._logService.info(`[Copilot:${plan.sessionId}] Applying default 'excludedTools' for '${modelFamily ?? modelId}' (${defaultExcludedTools.length} tools)`);
+		}
+		const excludedTools = configuredExcludedTools ?? defaultExcludedTools;
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),

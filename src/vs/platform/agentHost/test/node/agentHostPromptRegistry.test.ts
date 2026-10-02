@@ -264,6 +264,34 @@ suite('AgentHostPromptRegistry', () => {
 		});
 	});
 
+	suite('HydraFusion contributor (registered via allPrompts)', () => {
+		// Section text is pinned by its headings so copy edits don't churn the test.
+		const headings = (override: SectionOverride | undefined) => override && {
+			action: override.action,
+			headings: override.content?.split('\n').filter(line => line.startsWith('#')),
+		};
+
+		test('replaces tone and tool_efficiency with the CLI guidance without a setting', () => {
+			const result = agentHostPromptRegistry.resolveSystemMessageConfig({ id: 'hydrafusion' }, context());
+			assert.ok(result.mode === 'customize');
+			const { tone, tool_efficiency, ...sections } = result.sections ?? {};
+			assert.deepStrictEqual({ ...result, sections, tone: headings(tone), tool_efficiency: headings(tool_efficiency) }, {
+				...withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE),
+				tone: { action: 'replace', headings: ['# Tone and style'] },
+				tool_efficiency: { action: 'replace', headings: ['# Search and delegation', '# Tool usage efficiency'] },
+			});
+		});
+
+		test('does not match other models', () => {
+			for (const id of ['hydrafusion-preview', 'claude-sonnet-5', 'unknown']) {
+				assert.deepStrictEqual(
+					agentHostPromptRegistry.resolveSystemMessageConfig({ id }, context()),
+					withUniversalAgentHostInstructions(COPILOT_AGENT_HOST_SYSTEM_MESSAGE)
+				);
+			}
+		});
+	});
+
 	suite('model capability overrides (family alias)', () => {
 		// Mirrors the launcher's composition in `_buildSessionConfig`: the
 		// resolved family becomes the effective model id handed to the registry.

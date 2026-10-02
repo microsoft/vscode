@@ -22,7 +22,7 @@ import { AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfi
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { readSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID, CopilotCliConfigKey, copilotCliConfigSchema, HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS } from '../../common/copilotCliConfig.js';
 import type { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 import { autoModeTiers } from '../../common/autoModeTiers.js';
@@ -1962,6 +1962,35 @@ suite('CopilotSessionLauncher resume config', () => {
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
 			['high', ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
+		);
+		store.dispose();
+	});
+
+	test('hydrafusion defaults to the lean excluded tool set unless a tool filter is configured', async () => {
+		const store = new DisposableStore();
+		const hydraFusion: ModelSelection = { id: COPILOT_HYDRA_FUSION_MODEL_ID };
+		const semanticSearch = `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`;
+		const defaulted = await buildResumeConfig(createLauncher(store, {}), hydraFusion);
+		const otherModel = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const aliased = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { 'preview-model': { family: COPILOT_HYDRA_FUSION_MODEL_ID } } }), { id: 'preview-model' });
+		const userExcluded = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { [COPILOT_HYDRA_FUSION_MODEL_ID]: { excludedTools: ['mcp:*'] } } }), hydraFusion);
+		const userAvailable = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { [COPILOT_HYDRA_FUSION_MODEL_ID]: { availableTools: ['web_fetch'] } } }), hydraFusion);
+		const wildcard = await buildResumeConfig(createLauncher(store, { modelCapabilityOverrides: { '*': { excludedTools: [] } } }), hydraFusion);
+
+		assert.deepStrictEqual(
+			[defaulted, otherModel, aliased, userExcluded, userAvailable, wildcard].map(config => [config.availableTools, config.excludedTools]),
+			[
+				[undefined, [...HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS, semanticSearch]],
+				[undefined, [semanticSearch]],
+				[undefined, [...HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS, semanticSearch]],
+				[undefined, ['mcp:*', semanticSearch]],
+				[['web_fetch'], [semanticSearch]],
+				[undefined, [semanticSearch]],
+			]
+		);
+		assert.deepStrictEqual(
+			{ count: HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS.length, keepsCliTools: ['ask_user', 'web_fetch'].filter(tool => HYDRAFUSION_DEFAULT_EXCLUDED_TOOLS.includes(tool)) },
+			{ count: 42, keepsCliTools: [] }
 		);
 		store.dispose();
 	});
