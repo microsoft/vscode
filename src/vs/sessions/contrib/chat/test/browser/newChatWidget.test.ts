@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -2242,7 +2242,8 @@ suite('NewChatWidget', () => {
 		{ runs: 3, navigationFails: false, openInGrid: false },
 	]) {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions`, async () => {
-			const selection = disposables.add(new SessionComparisonModelSelection(constObservable(true)));
+			const resolving = observableValue('resolving', false);
+			const selection = disposables.add(new SessionComparisonModelSelection(derived(reader => !resolving.read(reader)), resolving));
 			selection.start();
 			selection.select('model');
 			selection.setCount(runs);
@@ -2324,6 +2325,12 @@ suite('NewChatWidget', () => {
 			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
 			assert.deepStrictEqual({ configured: selection.configured.get(), navigation, error: errors[0]?.message }, { configured: true, navigation: [], error: 'Provider unavailable' });
 			fail = false;
+			resolving.set(true, undefined);
+			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
+			assert.deepStrictEqual({
+				enabled: selection.enabled.get(), configured: selection.configured.get(), options, navigation,
+			}, { enabled: true, configured: true, options: undefined, navigation: [] });
+			resolving.set(false, undefined);
 			permissionLocked = true;
 			assert.strictEqual(await launch.call(harness, session, 'Implement', context), false);
 			assert.deepStrictEqual({ options, configured: selection.configured.get(), navigation }, { options: undefined, configured: true, navigation: [] });

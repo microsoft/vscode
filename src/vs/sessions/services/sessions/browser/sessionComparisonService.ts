@@ -968,7 +968,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				...comparison,
 				judgeHarness: comparison.judgeHarness ?? (comparison.version === undefined
 					? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
-						?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness
+					?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness
 					: undefined),
 				synthesisPlan: comparison.synthesisPlan?.instructions ? { instructions: comparison.synthesisPlan.instructions } : undefined,
 				verdict: comparison.verdict ? {

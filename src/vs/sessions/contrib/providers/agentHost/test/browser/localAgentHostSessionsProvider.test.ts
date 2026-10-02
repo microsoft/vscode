@@ -6275,6 +6275,94 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}
 	}
 
+	for (const approval of [
+		{ provider: 'conforming-host', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
+		{ provider: 'conforming-host', key: 'autoApprove', values: ['default', 'assisted', 'autoApprove'] },
+		{ provider: 'copilotcli', key: 'approvalMode', values: ['manual', 'assisted', 'allow-all'] },
+	]) {
+		for (const [index, permissionId] of ['default', 'assisted', 'autoApprove'].entries()) {
+			test(`comparison permissions preserve ${approval.provider} ${approval.key} ${permissionId} before eager creation`, async () => {
+				agentHost.setAgents([{ provider: approval.provider, displayName: 'Host', description: '', models: [] }]);
+				agentHost.resolveSessionConfigResult = {
+					schema: {
+						type: 'object', properties: {
+							[approval.key]: { type: 'string', title: 'Approvals', enum: approval.values, default: approval.values[0] },
+							mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot'], default: 'interactive' },
+						}
+					},
+					values: { [approval.key]: approval.values[0], mode: 'interactive' },
+				};
+				const provider = createProvider(disposables, agentHost, [
+					{ type: `agent-host-${approval.provider}`, name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+				]);
+				const workspace = URI.file('/home/user/project');
+				const source = provider.createNewSession(workspace, approval.provider);
+				await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === 'interactive');
+				await provider.setSessionConfigValue(source.sessionId, approval.key, approval.values[index]);
+				await provider.setSessionConfigValue(source.sessionId, 'mode', 'autopilot');
+				await timeout(0);
+				const permission = provider.getPermissionOptionForSession(source.sessionId);
+				assert.ok(permission);
+
+				const createdBefore = agentHost.createSessionConfigs.length;
+				const barrier = new DeferredPromise<void>();
+				agentHost.resolveSessionConfigBarrier = barrier;
+				const attempt = provider.createNewSession(workspace, approval.provider, {
+					permissionId: permission.id, modeId: permission.comparisonModeId,
+				});
+				await timeout(0);
+				const createdWhileResolving = agentHost.createSessionConfigs.length - createdBefore;
+				await barrier.complete();
+				await waitForSessionConfig(provider, attempt.sessionId, config => config?.values.mode === 'autopilot');
+				await timeout(0);
+				assert.deepStrictEqual({
+					permissionId: permission.id, mode: permission.comparisonModeId, createdWhileResolving,
+					discovery: agentHost.resolveSessionConfigRequests.at(-2)?.config,
+					resolved: agentHost.resolveSessionConfigRequests.at(-1)?.config,
+					creation: agentHost.createSessionConfigs.at(-1)?.config,
+				}, {
+					permissionId, mode: 'autopilot', createdWhileResolving: 0, discovery: undefined,
+					resolved: { [approval.key]: approval.values[index], mode: 'autopilot' },
+					creation: { [approval.key]: approval.values[index], mode: 'autopilot' },
+				});
+			});
+		}
+	}
+
+	for (const restriction of ['readOnly', 'unavailable', 'policy', 'clamped', 'effective'] as const) {
+		test(`comparison permissions reject ${restriction} approval instead of using a default`, async () => {
+			agentHost.setAgents([{ provider: 'conforming-host', displayName: 'Host', description: '', models: [] }]);
+			agentHost.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], default: 'manual', readOnly: restriction === 'readOnly' },
+						availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					}
+				},
+				values: {
+					approvalMode: 'manual',
+					availableApprovalModes: restriction === 'unavailable' ? ['manual'] : ['manual', 'allow-all'],
+					...(restriction === 'effective' ? { effectiveApprovalMode: 'manual' } : {}),
+				},
+			};
+			if (restriction === 'clamped') {
+				agentHost.resolveSessionConfigHandler = () => agentHost.resolveSessionConfigResult;
+			}
+			let sends = 0;
+			const provider = createProvider(disposables, agentHost, [
+				{ type: 'agent-host-conforming-host', name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+			], {
+				configurationService: restriction === 'policy' ? createPolicyRestrictedConfigurationService() : undefined,
+				sendRequest: async () => { sends++; throw new Error('Must not send'); },
+			});
+			const attempt = provider.createNewSession(URI.file('/home/user/project'), 'conforming-host', { permissionId: 'autoApprove' });
+			await assert.rejects(provider.sendRequest(attempt.sessionId, attempt.mainChat.get().resource, { query: 'Implement' }), /selected session permissions could not be applied/);
+			await timeout(0);
+			assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+		});
+	}
+
 	test('createNewSession restores and captures an Automation session template', async () => {
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',

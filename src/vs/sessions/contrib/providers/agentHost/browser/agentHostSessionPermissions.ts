@@ -8,7 +8,7 @@ import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../.
 import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, isSessionConfigWritable, readSessionApprovalLevel, writeSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { type ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
 
@@ -28,7 +28,19 @@ export function getAgentHostSessionPermissionId(agentProvider: string, config: R
 }
 
 /** Returns the exact permission choices owned by an Agent Host backend. */
-export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): readonly ISessionPermissionOption[] {
+export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean, config?: ResolveSessionConfigResult): readonly ISessionPermissionOption[] {
+	const approval = agentProvider !== CLAUDE_AGENT_PROVIDER_ID && agentProvider !== CODEX_AGENT_PROVIDER_ID ? getSessionApprovalProperty(config?.schema) : undefined;
+	if (config && approval) {
+		if (!isSessionConfigWritable(approval.schema, true)) {
+			return [];
+		}
+		const available = getAvailableSessionApprovalValues(approval, config.schema, config.values);
+		return getAgentHostSessionPermissionOptions(COPILOT_CLI_AGENT_PROVIDER_ID, policyRestricted, assistedPermissionsEnabled)
+			.filter(option => {
+				const value = writeSessionApprovalLevel(approval, option.id);
+				return value !== undefined && available.includes(value);
+			});
+	}
 	switch (agentProvider) {
 		case COPILOT_CLI_AGENT_PROVIDER_ID:
 			return [{
@@ -106,10 +118,25 @@ export function getAgentHostSessionPermissionOptions(agentProvider: string, poli
 }
 
 /** Maps one advertised permission choice to the backend's native session configuration. */
-export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): Record<string, unknown> | undefined {
-	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted, assistedPermissionsEnabled)
+export function getAgentHostSessionPermissionConfig(agentProvider: string, permissionId: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean, config?: ResolveSessionConfigResult): Record<string, unknown> | undefined {
+	const option = getAgentHostSessionPermissionOptions(agentProvider, policyRestricted, assistedPermissionsEnabled, config)
 		.find(candidate => candidate.id === permissionId && !candidate.locked);
 	if (!option) {
+		return undefined;
+	}
+
+	if (config) {
+		const key = agentProvider === CLAUDE_AGENT_PROVIDER_ID ? ClaudeSessionConfigKey.PermissionMode
+			: agentProvider === CODEX_AGENT_PROVIDER_ID ? CodexSessionConfigKey.PermissionsPreset : undefined;
+		if (key) {
+			return isSessionConfigWritable(config.schema.properties[key], true) && config.schema.properties[key].enum?.includes(permissionId)
+				? { [key]: permissionId } : undefined;
+		}
+		const approval = getSessionApprovalProperty(config.schema);
+		if (approval) {
+			const value = writeSessionApprovalLevel(approval, permissionId);
+			return value === undefined ? undefined : { [approval.key]: value };
+		}
 		return undefined;
 	}
 

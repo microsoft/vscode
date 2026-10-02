@@ -149,6 +149,36 @@ suite('SessionComparisonService', () => {
 		assert.throws(() => service.setSynthesisPlan(comparison.id, { instructions: 'a'.repeat(4001) }), /invalid additional instructions/);
 	});
 
+	for (const coordinator of [true, false]) {
+		test(`restores legacy Judge from ${coordinator ? 'coordinator' : 'first launched attempt'}`, async () => {
+			const { service, sessionsManagementService, storageService } = createServices();
+			sessionsManagementService.enqueue(stubSession('one'));
+			sessionsManagementService.enqueue(stubSession('two'));
+			const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+			storageService.store('sessions.comparisons', JSON.stringify([{
+				...comparison,
+				workspace: comparison.workspace.toString(),
+				participants: [
+					{ id: 'unstarted', role: SessionComparisonParticipantRole.Attempt, harness: startOptions().judgeHarness },
+					...(coordinator ? [{ id: 'coordinator', role: SessionComparisonParticipantRole.Coordinator, harness: startOptions().judgeHarness }] : []),
+					...comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
+				],
+			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+			const restored = createServices(storageService).service.getComparison(comparison.id);
+			assert.deepStrictEqual(restored?.judgeHarness, coordinator ? startOptions().judgeHarness : comparison.participants[0].harness);
+		});
+	}
+
+	test('preserves an intentionally omitted Judge when restoring a versioned comparison', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one'));
+		sessionsManagementService.enqueue(stubSession('two'));
+		const comparison = await service.startComparison({ ...startOptions(), judgeHarness: undefined, synthesisHarness: undefined });
+		const restored = createServices(storageService).service.getComparison(comparison.id);
+		assert.ok(restored);
+		assert.strictEqual(restored.judgeHarness, undefined);
+	});
+
 	test('creates only the requested attempt sessions before judging', async () => {
 		const { service, sessionsManagementService, groupsService } = createServices();
 		sessionsManagementService.enqueue(stubSession('attempt-one'));

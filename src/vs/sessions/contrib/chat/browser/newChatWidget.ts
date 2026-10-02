@@ -351,18 +351,20 @@ export class NewChatWidget extends Disposable {
 		const pickerSetting = observableFromEvent(this, this.configurationService.onDidChangeConfiguration,
 			() => this.configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID));
 		const comparisonWorkspaceChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
+		const comparisonConfigResolving = derived(this, reader => {
+			const session = this._session.read(reader);
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			return !!session && !!provider && isAgentHostProvider(provider) && provider.isSessionConfigResolving(session.sessionId).read(reader);
+		});
 		this._comparisonSelection = this._register(new SessionComparisonModelSelection(derived(this, reader => {
 			comparisonWorkspaceChanged.read(reader);
+			comparisonConfigResolving.read(reader);
 			this._compareAgentsEnabled.read(reader);
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
-			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
-			if (session && provider && isAgentHostProvider(provider)) {
-				provider.isSessionConfigResolving(session.sessionId).read(reader);
-			}
 			return pickerSetting.read(reader) && !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
-		})));
+		}), comparisonConfigResolving));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);
 			if (!session) {
@@ -446,7 +448,7 @@ export class NewChatWidget extends Disposable {
 				comparisonHarness = harness;
 			}
 			const state = newChatInput.selectedModelState.read(reader);
-			if (!session?.loading.read(reader)) {
+			if (!session?.loading.read(reader) && !comparisonConfigResolving.read(reader)) {
 				this._comparisonSelection.retainModels(new Set(state.models
 					.filter(model => !isAutoModel(model) && !isHydraFusionModel(model))
 					.map(model => model.identifier)));

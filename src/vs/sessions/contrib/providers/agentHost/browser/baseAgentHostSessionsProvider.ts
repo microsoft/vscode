@@ -37,7 +37,7 @@ import { buildOpenSessionLinkForChatResource } from '../../../../../platform/age
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { filterSessionConfigValues, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
@@ -2680,6 +2680,7 @@ interface INewSessionConstructionContext {
 	 * present from the very first `resolveConfig`/`createSession`.
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
+	readonly resolveInitialPermissionConfig?: (config: ResolveSessionConfigResult) => Record<string, unknown>;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
 	/** Model selected specifically for this draft. */
@@ -2844,6 +2845,7 @@ class NewSession extends Disposable {
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
 	private readonly _initialSessionTemplate: IAutomationSessionTemplate | undefined;
+	private readonly _resolveInitialPermissionConfig: INewSessionConstructionContext['resolveInitialPermissionConfig'];
 	readonly modelConfiguration: AutomationModelConfiguration;
 	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
@@ -2884,6 +2886,7 @@ class NewSession extends Disposable {
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
 		this._initialSessionTemplate = initialSessionTemplate;
+		this._resolveInitialPermissionConfig = ctx.resolveInitialPermissionConfig;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -3129,6 +3132,9 @@ class NewSession extends Disposable {
 				await this.waitForConfigResolution();
 			}
 		}
+		if (this._resolveInitialPermissionConfig && !this._hasResolvedConfig) {
+			throw new Error(localize('agentHost.initialPermissionsFailed', "The selected session permissions could not be applied."));
+		}
 	}
 
 	private _clearConfigResolution(promise: Promise<void>): void {
@@ -3216,7 +3222,8 @@ class NewSession extends Disposable {
 			}
 			let result = discovered;
 			if (!this._hasResolvedConfig || !this._config) {
-				const initial = filterSessionConfigValues(discovered.schema, values);
+				const permissions = !this._hasResolvedConfig ? this._resolveInitialPermissionConfig?.(discovered) : undefined;
+				const initial = { ...filterSessionConfigValues(discovered.schema, values), ...permissions };
 				if (Object.entries(initial).some(([key, value]) => !equals(value, discovered.values[key]))) {
 					result = await connection.resolveSessionConfig({
 						provider: this.agentProvider,
@@ -3225,6 +3232,14 @@ class NewSession extends Disposable {
 					});
 					if (seq !== this._configRequestSeq) {
 						return false;
+					}
+				}
+				for (const [key, value] of Object.entries(permissions ?? {})) {
+					const approval = getSessionApprovalProperty(result.schema);
+					const effective = approval?.key === key ? getEffectiveSessionApprovalValue(approval, result.schema, result.values)
+						: result.values[key] ?? result.schema.properties[key]?.default;
+					if (!equals(effective, value)) {
+						throw new Error(`Agent host did not apply session permission '${key}'.`);
 					}
 				}
 				this._hasResolvedConfig = true;
@@ -3241,6 +3256,9 @@ class NewSession extends Disposable {
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
 			this._syncWorktreePending();
+			if (this._resolveInitialPermissionConfig && !this._hasResolvedConfig) {
+				this._logService.error(`[${this._providerId}] Failed to apply initial session permissions`, error);
+			}
 			if (strict) {
 				throw error;
 			}
@@ -3321,6 +3339,9 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
+				if (this._resolveInitialPermissionConfig) {
+					await this.waitForConfigurationReady();
+				}
 				await this._activeClientScope.whenResolved();
 				if (this._backendUri?.toString() !== backendUri.toString()) {
 					return;
@@ -3548,7 +3569,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
-		const option = this.getPermissionOptionsForCreation(sessionType).find(option => option.id === permissionId);
+		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config)
+			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
 	}
@@ -4499,7 +4521,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const connection = this.connection;
 		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const initialSessionTemplate = this._resolveAutomationSessionTemplate(sessionType.id, initialAutomationConfiguration);
-		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root).filter(uri => !findDevContainerSample(uri)) ?? []);
 		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
@@ -4514,7 +4535,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				true,
 			)
 			: undefined;
-		if (initialPermissionId && !permissionConfig) {
+		if (initialPermissionId && !permissionConfig && this.getPermissionOptionsForCreation(sessionType.id).length > 0) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
 		const initialConfigValues = {
@@ -4522,6 +4543,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...permissionConfig,
 			...(initialModeId ? { [SessionConfigKey.Mode]: initialModeId } : {}),
 		};
+		const activeClientScope = this._activeClientService.acquireScope(resourceScheme, workspace?.folders.map(folder => folder.root).filter(uri => !findDevContainerSample(uri)) ?? []);
 		let newSession: NewSession;
 		try {
 			newSession = this._instantiationService.createInstance(NewSession, {
@@ -4535,6 +4557,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
 				initialConfigValues,
+				resolveInitialPermissionConfig: initialPermissionId ? config => {
+					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
+					if (!permissions) {
+						throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
+					}
+					return permissions;
+				} : undefined,
 				initialSessionTemplate,
 				initialModelId,
 				initialModelConfiguration,

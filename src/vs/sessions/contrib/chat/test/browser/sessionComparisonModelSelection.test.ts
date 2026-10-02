@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 
@@ -107,6 +107,48 @@ suite('SessionComparisonModelSelection', () => {
 		assert.deepStrictEqual({ retained, enabled: selection.enabled.get(), state: selection.state.get() }, {
 			retained: { attempts: ['two', 'two'], configured: false, page: 'Attempts' }, enabled: false, state: undefined,
 		});
+	});
+
+	test('preserves comparison selections while draft configuration resolves', () => {
+		const resolving = observableValue('resolving', false);
+		const available = derived(reader => !resolving.read(reader));
+		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		selection.start();
+		selection.select('attempt');
+		selection.setCount(3);
+		selection.next();
+		selection.select('judge');
+		selection.next();
+		selection.select('synthesizer');
+		selection.finish();
+
+		resolving.set(true, undefined);
+		const during = { enabled: selection.enabled.get(), configured: selection.configured.get(), available: selection.available.get() };
+		resolving.set(false, undefined);
+		assert.deepStrictEqual({
+			during,
+			enabled: selection.enabled.get(), configured: selection.configured.get(), available: selection.available.get(),
+			attempts: selection.attemptModelIds.get(), judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(),
+		}, {
+			during: { enabled: true, configured: true, available: false },
+			enabled: true, configured: true, available: true,
+			attempts: ['attempt', 'attempt', 'attempt'], judge: 'judge', synthesizer: 'synthesizer',
+		});
+	});
+
+	test('clears an invalid comparison once configuration finishes resolving', () => {
+		const available = observableValue('available', true);
+		const resolving = observableValue('resolving', false);
+		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
+		selection.start();
+		selection.select('attempt');
+		resolving.set(true, undefined);
+		available.set(false, undefined);
+		const enabledWhileResolving = selection.enabled.get();
+		resolving.set(false, undefined);
+		assert.deepStrictEqual({
+			enabledWhileResolving, enabled: selection.enabled.get(), attempts: selection.attemptModelIds.get(),
+		}, { enabledWhileResolving: true, enabled: false, attempts: [] });
 	});
 
 	for (const configured of [false, true]) {
