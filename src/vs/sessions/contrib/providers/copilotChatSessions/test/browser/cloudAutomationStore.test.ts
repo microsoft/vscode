@@ -542,7 +542,7 @@ suite('CloudAutomationStore', () => {
 		assert.strictEqual(provider.automations.get()[0].externalResource?.toString(), 'https://github.com/owner/private/agents/automations/one');
 	});
 
-	test('202 remains acknowledgement only and cloud history has no native session resource', async () => {
+	test('202 remains acknowledgement only and task history projects exact native resources', async () => {
 		const { provider, api, set } = setup();
 		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at, remote_steerable: true }];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -550,8 +550,29 @@ suite('CloudAutomationStore', () => {
 		const automation = provider.automations.get()[0];
 		assert.deepStrictEqual(await provider.runAutomation(automation.id), { kind: 'accepted' });
 		const run = provider.runs.get()[0];
-		assert.deepStrictEqual({ status: run.status, trigger: run.trigger, needsInput: run.needsInput, session: run.sessionResource, url: run.externalResource?.toString() },
-			{ status: 'running', trigger: 'external', needsInput: true, session: undefined, url: 'https://github.com/owner/private/tasks/task' });
+		assert.deepStrictEqual({ status: run.status, trigger: run.trigger, needsInput: run.needsInput, session: run.sessionResource?.toString(), url: run.externalResource?.toString() },
+			{ status: 'running', trigger: 'external', needsInput: true, session: 'copilot-cloud-agent:/task/task', url: 'https://github.com/owner/private/tasks/task' });
+	});
+
+	test('local follow-ups restart bounded discovery even when the task is not yet in history', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { provider, api, set } = setup();
+			api.tasks = [{ id: 'exact', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			assert.strictEqual(provider.runs.get()[0].sessionResource?.toString(), 'copilot-cloud-agent:/task/exact');
+			api.calls.length = 0;
+			provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/unlisted'));
+			await clock.tickAsync(120_000);
+			const requests = api.calls.slice();
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+			provider.observeLocalRequest(URI.parse('copilot-cloud-agent:/task/exact'));
+			await clock.tickAsync(120_000);
+			assert.deepStrictEqual({ requests, afterDisabled: api.calls }, { requests: Array(5).fill('history'), afterDisabled: Array(5).fill('history') });
+		} finally {
+			clock.restore();
+		}
 	});
 
 	for (const order of ['before', 'after'] as const) {

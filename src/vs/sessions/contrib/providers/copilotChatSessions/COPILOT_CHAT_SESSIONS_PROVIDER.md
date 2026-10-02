@@ -34,6 +34,8 @@ While GitHub sandboxes are enabled and AI features are visible, the provider als
 
 The provider cache is keyed by resource identity. Refreshing the backing agent session list updates existing adapters and emits added, removed, changed, or replacement catalog notifications as appropriate.
 
+Automation history can request exact task hydration through the extension provider. The extension retains a bounded, account/domain-scoped set of explicitly resolved task identities and refreshes their authoritative data when absent from ordinary discovery, without replacing that catalogue. Resolution does not adopt an external task; creation and message sending remain the ownership authority.
+
 Provider metadata translation, including repository and pull-request metadata, remains inside the adapter. Shared Sessions code consumes provider-neutral workspace, changes, status, and GitHub information.
 
 The cloud provider reports verified PR-closing issues through `linkedIssues` metadata containing their URLs and titles. The adapter exposes these as session artifacts and, for public GitHub URLs, issue references for the existing issue pill. Enterprise-hosted issues remain openable artifacts without public GitHub polling.

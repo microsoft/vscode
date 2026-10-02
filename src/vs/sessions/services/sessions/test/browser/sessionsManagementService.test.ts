@@ -1652,6 +1652,27 @@ suite('SessionsManagementService', () => {
 				},
 			);
 		});
+		test('a conversation hidden behind a custom view stays unread until revealed', async () => {
+			const isRead = observableValue('isRead', false);
+			const lastTurnEnd = observableValue('lastTurnEnd', new Date(1));
+			const main = { ...stubChat, isRead, lastTurnEnd };
+			const session = stubSession({ sessionId: 'hidden-cloud', providerId: 'test', isRead, mainChat: constObservable(main), chats: constObservable([main]) });
+			const readChanges: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _resource: URI, read: boolean): Promise<void> {
+					isRead.set(read, undefined);
+					readChanges.push(read);
+				}
+			}(session);
+			const { view, customViewService } = createSessionsManagementService(session, disposables, provider);
+			await view.openSession(session.resource);
+			showTestCustomView(customViewService, disposables);
+			isRead.set(false, undefined);
+			lastTurnEnd.set(new Date(2), undefined);
+			const hiddenRead = isRead.get();
+			customViewService.hideCustomView();
+			assert.deepStrictEqual({ hiddenRead, revealedRead: isRead.get(), readChanges }, { hiddenRead: false, revealedRead: true, readChanges: [true, true] });
+		});
 	});
 
 	test('archiving the active session keeps the custom view open', async () => {

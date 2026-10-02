@@ -12,8 +12,9 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -32,6 +33,9 @@ import { AUTOMATION_BLUEPRINT_FILE_SUFFIX, AutomationBlueprintParseError, automa
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
@@ -71,6 +75,10 @@ import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from
 
 const $ = DOM.$;
 const STOP_AUTOMATION_RUN_SESSION_COMMAND_ID = 'sessions.automations.stopRunSession';
+const OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID = 'sessions.automations.openRunOnGitHub';
+const AutomationRunHasExternalResourceContext = new RawContextKey<boolean>('sessionsAutomationRunHasExternalResource', false);
+const AutomationRunCanStopContext = new RawContextKey<boolean>('sessionsAutomationRunCanStop', false);
+const AutomationRunStoppingContext = new RawContextKey<boolean>('sessionsAutomationRunStopping', false);
 export const SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY = 'sessions.automations.seenPluginTemplateIds';
 const AutomationCardCanDeleteContext = new RawContextKey<boolean>('sessionsAutomationCardCanDelete', false);
 const AutomationCardCanUpdateContext = new RawContextKey<boolean>('sessionsAutomationCardCanUpdate', false);
@@ -1174,6 +1182,78 @@ class AutomationCardsSection extends Disposable {
 
 //#region AutomationHistorySection
 
+/** Combines authoritative run history with newer local conversation progress. */
+class AutomationRunSession implements ISession {
+	readonly run: ISettableObservable<IAutomationRun>;
+	readonly status = derived(this, reader => {
+		const run = this.run.read(reader);
+		const model = this.chatModels.read(reader).find(model => isEqual(model.sessionResource, this.session.resource));
+		if (model?.requestInProgress.read(reader)) {
+			return model.requestNeedsInput.read(reader) ? SessionStatus.NeedsInput : SessionStatus.InProgress;
+		}
+		const response = model?.lastRequestObs.read(reader)?.response;
+		if (response?.isComplete && !response.isCanceled && response.completionTimestamp !== undefined
+			&& response.completionTimestamp > Date.parse(run.updatedAt ?? run.completedAt ?? run.startedAt)) {
+			return response.result?.errorDetails ? SessionStatus.Error : SessionStatus.Completed;
+		}
+		return run.status === 'completed' ? SessionStatus.Completed
+			: run.status === 'failed' ? SessionStatus.Error
+				: run.needsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress;
+	});
+	readonly description = derived(this, reader => {
+		const state = this.status.read(reader);
+		if (state === SessionStatus.Completed || state === SessionStatus.Error) {
+			return undefined;
+		}
+		const liveDescription = this.session.status.read(reader) === state ? this.session.description.read(reader) : undefined;
+		const run = this.run.read(reader);
+		return liveDescription ?? new MarkdownString().appendText(run.statusDescription ?? (run.status === 'pending'
+			? localize('automationRunQueued', "Queued on GitHub")
+			: localize('automationRunCloudRunning', "Running on GitHub")));
+	});
+	readonly updatedAt = derived(this, reader => {
+		const run = this.run.read(reader);
+		return new Date(run.updatedAt ?? run.completedAt ?? this.session.updatedAt.read(reader).getTime());
+	});
+
+	constructor(readonly session: ISession, run: IAutomationRun, private readonly chatModels: IObservable<readonly IChatModel[]>) {
+		this.run = observableValue(this, run);
+	}
+
+	get sessionId() { return this.session.sessionId; }
+	get resource() { return this.session.resource; }
+	get providerId() { return this.session.providerId; }
+	get sessionType() { return this.session.sessionType; }
+	get harness() { return this.session.harness; }
+	get environment() { return this.session.environment; }
+	get application() { return this.session.application; }
+	get icon() { return this.session.icon; }
+	get createdAt() { return this.session.createdAt; }
+	get workspace() { return this.session.workspace; }
+	get hasGitRepository() { return this.session.hasGitRepository; }
+	get worktreePending() { return this.session.worktreePending; }
+	get isQuickChat() { return this.session.isQuickChat; }
+	get isAutomation() { return this.session.isAutomation; }
+	get isExternal() { return this.session.isExternal; }
+	get remoteConnectionStatus() { return this.session.remoteConnectionStatus; }
+	get createdBySession() { return this.session.createdBySession; }
+	get title() { return this.session.title; }
+	get completedStateIcon() { return this.session.completedStateIcon; }
+	get changesSummary() { return this.session.changesSummary; }
+	get artifacts() { return this.session.artifacts; }
+	get modelId() { return this.session.modelId; }
+	get mode() { return this.session.mode; }
+	get loading() { return this.session.loading; }
+	get isNewSessionRequestInProgress() { return this.session.isNewSessionRequestInProgress; }
+	get preparationProgress() { return this.session.preparationProgress; }
+	get isRead() { return this.session.isRead; }
+	get isArchived() { return this.session.isArchived; }
+	get lastTurnEnd() { return this.session.lastTurnEnd; }
+	get chats() { return this.session.chats; }
+	get mainChat() { return this.session.mainChat; }
+	get capabilities() { return this.session.capabilities; }
+}
+
 /**
  * Renders the run history list grouped by date. Groups are persistent to avoid
  * the context-key default-value flash that a full tear-down/rebuild would cause.
@@ -1193,9 +1273,13 @@ class AutomationHistorySection extends Disposable {
 	private markAllButton: Button | undefined;
 	private readonly currentRuns = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly currentSessions = observableValue<ReadonlyMap<string, ISession>>(this, new Map());
+	private readonly cloudSessions = new Map<string, AutomationRunSession>();
+	private readonly stoppingRuns = observableValue<ReadonlySet<string>>(this, new Set());
+	private readonly chatModels: IObservable<readonly IChatModel[]>;
 
 	override dispose(): void {
 		this.disposeAllGroups();
+		this.cloudSessions.clear();
 		super.dispose();
 	}
 
@@ -1211,15 +1295,33 @@ class AutomationHistorySection extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IChatService chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this.chatModels = chatService.chatModels.map(models => [...models]);
 		this.container = DOM.append(parent, $('.automations-history'));
 		this.groupsContainer = DOM.append(this.container, $('.automations-history-groups'));
 		this.approvalModel = this._register(this.instantiationService.createInstance(AgentSessionApprovalModel));
 	}
 
 	render(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): void {
+		const runIds = new Set(runs.map(run => run.id));
+		for (const id of this.cloudSessions.keys()) {
+			if (!runIds.has(id) || !sessions.has(id)) {
+				this.cloudSessions.delete(id);
+			}
+		}
+		for (const group of this.persistentGroups.values()) {
+			for (const [id, row] of group.temporaryRows) {
+				if (DOM.isAncestorOfActiveElement(row.element) && (sessions.has(id) || !runIds.has(id))) {
+					this.pendingFocusRunId = id;
+					this.shouldRestoreFocus = true;
+				}
+			}
+		}
 		const sessionRuns = runs.filter(run => sessions.has(run.id));
+		const historySessions = new Map(this.resolveSessionItems(sessionRuns, sessions).map(item => [item.run.id, item.session]));
 		const visibleRuns = runs.filter(run =>
 			sessions.has(run.id)
 			|| !!run.externalResource
@@ -1228,7 +1330,7 @@ class AutomationHistorySection extends Disposable {
 		);
 		transaction(tx => {
 			this.currentRuns.set(sessionRuns, tx);
-			this.currentSessions.set(sessions, tx);
+			this.currentSessions.set(historySessions, tx);
 		});
 		const activeElement = DOM.getActiveElement();
 		const historyOwnedFocus = DOM.isHTMLElement(activeElement) && this.groupsContainer.contains(activeElement);
@@ -1271,7 +1373,7 @@ class AutomationHistorySection extends Disposable {
 			} else {
 				entry = this.createGroup(group.key, group.label);
 			}
-			this.updateGroupRuns(entry, group.runs, sessions);
+			this.updateGroupRuns(entry, group.runs, historySessions);
 
 			const currentElement = this.groupsContainer.children.item(index);
 			if (currentElement !== entry.element) {
@@ -1334,6 +1436,27 @@ class AutomationHistorySection extends Disposable {
 		}));
 	}
 
+	private resolveSessionItems(runs: readonly IAutomationRun[], sessions: ReadonlyMap<string, ISession>): IAutomationHistoryItem[] {
+		const items: IAutomationHistoryItem[] = [];
+		for (const run of runs) {
+			const session = sessions.get(run.id);
+			if (session) {
+				if (run.externalResource) {
+					let projected = this.cloudSessions.get(run.id);
+					if (!projected || projected.session !== session) {
+						projected = new AutomationRunSession(session, run, this.chatModels);
+						this.cloudSessions.set(run.id, projected);
+					}
+					projected.run.set(run, undefined);
+					items.push({ run, session: projected });
+				} else {
+					items.push({ run, session });
+				}
+			}
+		}
+		return items;
+	}
+
 	private createGroup(key: string, label: string): IAutomationHistoryGroup {
 		const disposables = new DisposableStore();
 		const element = $('.automations-history-group');
@@ -1368,6 +1491,15 @@ class AutomationHistorySection extends Disposable {
 			onSessionOpen: resource => void this.openRunSession(resource),
 			onToolbarAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
 			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
+			showMetadataWhileActive: session => runsBySession.get(session.resource.toString())?.externalResource !== undefined,
+			getAdditionalContextKeys: (session, reader) => {
+				const run = this.currentRuns.read(reader).find(run => isEqual(run.sessionResource, session.resource));
+				return [
+					[AutomationRunHasExternalResourceContext.key, run?.externalResource !== undefined],
+					[AutomationRunCanStopContext.key, run?.externalResource !== undefined && this.automationService.canStopRun?.(run) === true],
+					[AutomationRunStoppingContext.key, run !== undefined && this.stoppingRuns.read(reader).has(run.id)],
+				];
+			},
 		}));
 		disposables.add(list.onDidChangeContentHeight(() => this.layoutSessionList(listContainer, list)));
 		return {
@@ -1474,50 +1606,61 @@ class AutomationHistorySection extends Disposable {
 		if (run.externalResource) {
 			const actions = DOM.append(element, $('.automations-run-actions'));
 			const toolbar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar, actions, { telemetrySource: 'automationRun' }));
-			const external = disposables.add(new Action('sessions.automations.openRunOnGitHub', localize('automationOpenExternal', "Open on GitHub"), ThemeIcon.asClassName(Codicon.linkExternal), true, async () => {
-				try {
-					if (!await this.openerService.open(currentRun.externalResource!, { openExternal: true, allowCommands: false })) {
-						throw new Error(localize('automationRunOpenRejected', "The link could not be opened."));
-					}
-				} catch (error) {
-					this.logService.error('[Automations] Failed to open run on GitHub', error);
-					await this.dialogService.error(localize('automationRunExternalFailed', "Failed to open the run on GitHub."), getErrorMessage(error));
+			const open = disposables.add(new Action('sessions.automations.openRunSession', localize('automationOpenSession', "Open Session"), ThemeIcon.asClassName(Codicon.commentDiscussion), true, async () => {
+				if (currentRun.sessionResource) {
+					await this.openRunSession(currentRun.sessionResource);
 				}
 			}));
-			let stopping = false;
+			const external = disposables.add(new Action(OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID, localize('automationOpenExternal', "Open on GitHub"), ThemeIcon.asClassName(Codicon.linkExternal), true, () => this.openRunOnGitHub(currentRun)));
 			const stop = disposables.add(new Action(STOP_AUTOMATION_RUN_SESSION_COMMAND_ID, localize('stopAutomationRunSessionAction', "Stop"), ThemeIcon.asClassName(Codicon.stopCircle), true, async () => {
-				if (stopping || !this.automationService.canStopRun?.(currentRun)) {
-					return;
-				}
-				stopping = true;
-				updateActions?.();
-				try {
-					await this.automationService.stopRun!(currentRun);
-					status(localize('automationRunStopRequested', "Stop requested for {0}. History will update when available.", titleElement.textContent));
-				} catch (error) {
-					this.logService.error('[Automations] Failed to stop run', error);
-					await this.dialogService.error(localize('automationRunStopFailed', "Failed to stop the automation run."), getErrorMessage(error));
-				} finally {
-					stopping = false;
-					updateActions?.();
-				}
+				await this.stopCloudRun(currentRun);
 			}));
-			let stopVisible: boolean | undefined;
+			const archivePresentation = getChatSessionArchiveActionPresentation(getChatSessionArchiveActionWording(this.configurationService));
+			const archive = disposables.add(new Action(ARCHIVE_SESSION_COMMAND_ID,
+				typeof archivePresentation.archive.title === 'string' ? archivePresentation.archive.title : archivePresentation.archive.title.value,
+				ThemeIcon.asClassName(archivePresentation.archive.icon), true, async () => {
+					archive.enabled = false;
+					try {
+						const resource = currentRun.sessionResource && await this.sessionsManagementService.resolveSessionResource(currentRun.sessionResource, 'open');
+						const session = resource && this.sessionsManagementService.getSession(resource);
+						if (!session) {
+							throw new Error(localize('automationRunSessionUnavailable', "The cloud session is not available yet. Try again or open it on GitHub."));
+						}
+						await this.sessionsManagementService.archiveSession(session);
+					} catch (error) {
+						if (!isCancellationError(error)) {
+							this.logService.error('[Automations] Failed to archive cloud run', error);
+							await this.dialogService.error(localize('automationRunArchiveFailed', "Failed to archive the automation run."), getErrorMessage(error));
+						}
+					} finally {
+						if (!disposables.isDisposed) {
+							archive.enabled = true;
+						}
+					}
+				}));
+			let actionsKey: string | undefined;
 			updateActions = () => {
 				if (disposables.isDisposed) {
 					return;
 				}
 				const canStop = this.automationService.canStopRun?.(currentRun) === true;
-				stop.enabled = canStop && !stopping;
-				if (stopVisible !== canStop) {
+				const canOpen = currentRun.sessionResource !== undefined;
+				const canArchive = canOpen && (currentRun.status === 'completed' || currentRun.status === 'failed');
+				stop.enabled = canStop && !this.stoppingRuns.get().has(currentRun.id);
+				const key = `${canOpen}:${canStop}:${canArchive}`;
+				if (actionsKey !== key) {
 					const hadFocus = actions.contains(DOM.getActiveElement());
-					stopVisible = canStop;
-					toolbar.setActions([external, ...(canStop ? [stop] : [])]);
+					actionsKey = key;
+					toolbar.setActions([...(canOpen ? [open] : []), external, ...(canStop ? [stop] : []), ...(canArchive ? [archive] : [])]);
 					if (hadFocus) {
 						toolbar.focus(0);
 					}
 				}
 			};
+			disposables.add(autorun(reader => {
+				this.stoppingRuns.read(reader);
+				updateActions?.();
+			}));
 		}
 		return {
 			element,
@@ -1600,7 +1743,14 @@ class AutomationHistorySection extends Disposable {
 			return false;
 		}
 		switch (action.id) {
+			case OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID:
+				await this.openRunOnGitHub(run);
+				return true;
 			case STOP_AUTOMATION_RUN_SESSION_COMMAND_ID:
+				if (run.externalResource) {
+					await this.stopCloudRun(run);
+					return true;
+				}
 				action.enabled = false;
 				await this.stopRunSession(session, this.getAutomationName(run), action);
 				return true;
@@ -1618,11 +1768,12 @@ class AutomationHistorySection extends Disposable {
 	}
 
 	private async openRunSession(resource: URI): Promise<void> {
-		if (!this.sessionsManagementService.getSession(resource)) {
-			return;
-		}
 		try {
-			await this.sessionsService.openSession(resource, { preserveFocus: false, source: 'automation' });
+			const resolved = this.sessionsManagementService.getSession(resource) ? resource : await this.sessionsManagementService.resolveSessionResource(resource, 'open');
+			if (!this.sessionsManagementService.getSession(resolved)) {
+				throw new Error(localize('automationRunSessionUnavailable', "The cloud session is not available yet. Try again or open it on GitHub."));
+			}
+			await this.sessionsService.openSession(resolved, { preserveFocus: false, source: 'automation' });
 		} catch (error) {
 			this.logService.error('[AutomationsCards] Failed to open automation run', error);
 			await this.dialogService.error(
@@ -1643,6 +1794,44 @@ class AutomationHistorySection extends Disposable {
 				localize('automationRunSessionStopFailed', "Failed to stop the automation run session."),
 				getErrorMessage(error),
 			);
+		}
+	}
+
+	private async openRunOnGitHub(run: IAutomationRun): Promise<void> {
+		try {
+			if (!run.externalResource || !await this.openerService.open(run.externalResource, { openExternal: true, allowCommands: false })) {
+				throw new Error(localize('automationRunOpenRejected', "The link could not be opened."));
+			}
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[Automations] Failed to open run on GitHub', error);
+				await this.dialogService.error(localize('automationRunExternalFailed', "Failed to open the run on GitHub."), getErrorMessage(error));
+			}
+		}
+	}
+
+	private async stopCloudRun(run: IAutomationRun): Promise<void> {
+		if (this.stoppingRuns.get().has(run.id)) {
+			return;
+		}
+		this.stoppingRuns.set(new Set([...this.stoppingRuns.get(), run.id]), undefined);
+		try {
+			if (!this.automationService.canStopRun?.(run) || !this.automationService.stopRun) {
+				throw new Error(localize('automationRunStopUnavailable', "This automation run cannot be stopped from VS Code."));
+			}
+			await this.automationService.stopRun(run);
+			status(localize('automationRunStopRequested', "Stop requested for {0}. History will update when available.", this.getAutomationName(run)));
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				this.logService.error('[Automations] Failed to stop run', error);
+				await this.dialogService.error(localize('automationRunStopFailed', "Failed to stop the automation run."), getErrorMessage(error));
+			}
+		} finally {
+			if (!this._store.isDisposed) {
+				const pending = new Set(this.stoppingRuns.get());
+				pending.delete(run.id);
+				this.stoppingRuns.set(pending, undefined);
+			}
 		}
 	}
 
@@ -1669,7 +1858,8 @@ class AutomationHistorySection extends Disposable {
 		const sessions = new Map<string, ISession>();
 		try {
 			for (const run of runs) {
-				if ((run.status === 'completed' || run.status === 'failed') && run.sessionResource) {
+				const projected = this.currentSessions.get().get(run.id);
+				if (projected && (projected.status.get() === SessionStatus.Completed || projected.status.get() === SessionStatus.Error) && run.sessionResource) {
 					const session = this.sessionsManagementService.getSession(run.sessionResource);
 					if (session && !session.isRead.get()) {
 						sessions.set(session.resource.toString(), session);
@@ -1694,7 +1884,9 @@ class AutomationHistorySection extends Disposable {
 //#region Helpers
 
 function isUnreadAutomationRun(run: IAutomationRun, session: ISession | undefined, reader: IReader): boolean {
-	return (run.status === 'completed' || run.status === 'failed') && !!session && !session.isRead.read(reader);
+	const state = run.externalResource ? session?.status.read(reader) : undefined;
+	const completed = state !== undefined ? state === SessionStatus.Completed || state === SessionStatus.Error : run.status === 'completed' || run.status === 'failed';
+	return completed && !!session && !session.isRead.read(reader);
 }
 
 function isTemporaryAutomationRun(run: IAutomationRun): boolean {
@@ -2059,19 +2251,33 @@ export class AutomationsCustomViewContribution extends Disposable {
 function registerAutomationHistoryItemActions(archiveWording: ChatSessionArchiveActionWording): IDisposable {
 	const archivePresentation = getChatSessionArchiveActionPresentation(archiveWording);
 	return combinedDisposable(
-		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItem, {
+		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
+			command: {
+				id: OPEN_AUTOMATION_RUN_ON_GITHUB_COMMAND_ID,
+				title: localize('automationOpenExternal', "Open on GitHub"),
+				icon: Codicon.linkExternal,
+			},
+			group: 'navigation',
+			order: 0,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, AutomationRunHasExternalResourceContext),
+		})),
+		...[Menus.AutomationsHistoryItem, Menus.AutomationsHistoryItemContext].map(menu => MenuRegistry.appendMenuItem(menu, {
 			command: {
 				id: STOP_AUTOMATION_RUN_SESSION_COMMAND_ID,
 				title: localize('stopAutomationRunSessionAction', "Stop"),
 				icon: Codicon.stopCircle,
+				precondition: AutomationRunStoppingContext.negate(),
 			},
 			group: 'navigation',
 			order: 1,
-			when: ContextKeyExpr.or(
-				SessionItemStatusContext.isEqualTo(SessionStatus.InProgress),
-				SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput),
-			),
-		}),
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext, ContextKeyExpr.or(
+				AutomationRunCanStopContext,
+				menu === Menus.AutomationsHistoryItem ? ContextKeyExpr.and(
+					AutomationRunHasExternalResourceContext.negate(),
+					ContextKeyExpr.or(SessionItemStatusContext.isEqualTo(SessionStatus.InProgress), SessionItemStatusContext.isEqualTo(SessionStatus.NeedsInput)),
+				) : undefined,
+			)),
+		})),
 		MenuRegistry.appendMenuItem(Menus.AutomationsHistoryItemContext, {
 			command: {
 				id: MARK_SESSION_READ_COMMAND_ID,
