@@ -258,11 +258,6 @@
 	z-index: 1;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-context-usage-widget:hover,
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-context-usage-widget:focus {
-	padding-left: 5px;
-}
-
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-item.model-picker-item {
 	margin-left: auto;
 }
