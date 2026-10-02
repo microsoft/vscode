@@ -7,7 +7,7 @@ import { distinct } from '../../../../../base/common/arrays.js';
 import { raceCancellationError, Throttler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { matchesFuzzy2 } from '../../../../../base/common/filters.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -26,8 +26,9 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
 const maxSearchQueryLength = 256;
 const maxSearchWords = 16;
@@ -48,6 +49,58 @@ export interface ICopilotConnectorMcpServer {
 
 export type CopilotConnectorConnectionStatus = 'unknown' | 'not_connected' | 'pending' | 'connected' | 'error';
 export type CopilotConnectorConnectionStatusDetail = 'sign_in_required' | 'reconnect_required' | 'review_required' | 'retryable_error' | 'unavailable';
+
+type CopilotConnectorsCatalogAccess = 'scoped' | 'unscoped' | 'unavailable';
+
+type CopilotConnectorsCatalogSnapshotEvent = {
+	catalogAccess: CopilotConnectorsCatalogAccess;
+	connectorCount: number;
+	connectedConnectorCount: number;
+	notConnectedConnectorCount: number;
+	pendingConnectorCount: number;
+	errorConnectorCount: number;
+	unknownConnectorCount: number;
+	mcpServerCount: number;
+	connectedMcpServerCount: number;
+};
+
+type CopilotConnectorsCatalogSnapshotClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks distinct Copilot connector catalog states so rollout exposure, adoption, and connected MCP server inventory can be measured without connector content.';
+	catalogAccess: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the catalog response used connector-scoped authorization, unscoped authorization, or was unavailable before a catalog request.' };
+	connectorCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of connectors in the catalog snapshot.' };
+	connectedConnectorCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of connected connectors in the catalog snapshot.' };
+	notConnectedConnectorCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of connectors reported as not connected.' };
+	pendingConnectorCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of connectors with a pending connection.' };
+	errorConnectorCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of connectors reporting an error state.' };
+	unknownConnectorCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of connectors whose connection state is hidden because the catalog request was unscoped.' };
+	mcpServerCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of MCP servers advertised by all connectors in the catalog snapshot.' };
+	connectedMcpServerCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of MCP servers advertised by connected connectors.' };
+};
+
+type CopilotConnectorConnectionActionEvent = {
+	action: 'connect' | 'disconnect';
+	outcome: 'success' | 'error' | 'cancelled';
+	connectorName: string;
+	connectionStatusBefore: CopilotConnectorConnectionStatus | 'not_loaded';
+	connectionStatusAfter: CopilotConnectorConnectionStatus | 'not_loaded';
+	durationMs: number;
+	connectorMcpServerCount?: number;
+	httpStatusCode?: number;
+};
+
+type CopilotConnectorConnectionActionClassification = {
+	owner: 'pwang347';
+	comment: 'Tracks explicit Copilot connector connection actions and outcomes for rollout and comparison with MCP server installation and usage.';
+	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user attempted to connect or disconnect a connector.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the connection action succeeded, failed, or was cancelled.' };
+	connectorName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Public catalog identifier of the connector acted on.' };
+	connectionStatusBefore: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status before the action.' };
+	connectionStatusAfter: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Last known connector connection status after the action.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of the connection action in milliseconds, including authorization and polling.' };
+	connectorMcpServerCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of MCP servers advertised by the connector when known.' };
+	httpStatusCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'HTTP status code returned for a failed connector request when available.' };
+};
 
 export interface ICopilotConnectorAuthor {
 	readonly name?: string;
@@ -150,12 +203,14 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	private enabled = false;
 	private accountIdentity: string | undefined;
 	private authenticationAccountId: string | undefined;
+	private readonly connectorAuthorizationSessionIds = new Set<string>();
 	private _authorizationRequired = false;
 	private _catalogMayRequireConsent = false;
 	private _connectors: readonly ICopilotConnector[] = [];
 	private _connectionStateKnown = false;
 	private _lastRefreshTime = 0;
 	private refreshGeneration = 0;
+	private lastReportedCatalogSnapshot: string | undefined;
 	private readonly agentHostRefresh = this._register(new Throttler());
 
 	constructor(
@@ -166,6 +221,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -327,6 +383,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			if (document === undefined) {
 				if (generation === this.refreshGeneration) {
 					this.setConnectors([], false);
+					this.reportCatalogSnapshot([], 'unavailable');
 				}
 				return this._connectors;
 			}
@@ -339,6 +396,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			}
 			this._lastRefreshTime = Date.now();
 			const connectedMembershipChanged = this.setConnectors(connectors, scoped);
+			this.reportCatalogSnapshot(this._connectors, scoped ? 'scoped' : 'unscoped');
 			if (connectedMembershipChanged) {
 				await this.refreshAgentHostConnectorSessions();
 			}
@@ -349,31 +407,33 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async connect(name: string, token: CancellationToken): Promise<void> {
-		await this.authorize(token);
-		const operation = await this.createOperation(token);
-		try {
-			const connectors = await this.refresh(operation.token);
-			if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
-				return;
-			}
-			const { document } = await this.request({ type: 'connect', name }, operation.token, true);
-			const consentLink = parseHttpsUri(asRecord(document)?.consent_link);
-			if (consentLink && !await this.openerService.open(consentLink)) {
-				throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
-			}
-
-			const deadline = Date.now() + connectionTimeout;
-			while (Date.now() < deadline) {
-				const refreshed = await this.refresh(operation.token);
-				if (refreshed.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+		await this.trackConnectionAction('connect', name, async () => {
+			await this.authorize(token);
+			const operation = await this.createOperation(token);
+			try {
+				const connectors = await this.refresh(operation.token);
+				if (connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
 					return;
 				}
-				await timeout(connectionPollInterval, operation.token);
+				const { document } = await this.request({ type: 'connect', name }, operation.token, true);
+				const consentLink = parseHttpsUri(asRecord(document)?.consent_link);
+				if (consentLink && !await this.openerService.open(consentLink)) {
+					throw new CopilotConnectorsError(localize('copilotConnectors.openConsentFailed', "The connector authorization page could not be opened."));
+				}
+
+				const deadline = Date.now() + connectionTimeout;
+				while (Date.now() < deadline) {
+					const refreshed = await this.refresh(operation.token);
+					if (refreshed.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+						return;
+					}
+					await timeout(connectionPollInterval, operation.token);
+				}
+				throw new CopilotConnectorsError(localize('copilotConnectors.connectionTimedOut', "Connector authorization did not finish in time. Complete authorization in the browser, then try again."));
+			} finally {
+				operation.dispose();
 			}
-			throw new CopilotConnectorsError(localize('copilotConnectors.connectionTimedOut', "Connector authorization did not finish in time. Complete authorization in the browser, then try again."));
-		} finally {
-			operation.dispose();
-		}
+		});
 	}
 
 	async checkConnection(token: CancellationToken): Promise<void> {
@@ -382,23 +442,82 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 	}
 
 	async disconnect(name: string, token: CancellationToken): Promise<void> {
-		await this.authorize(token);
-		const operation = await this.createOperation(token);
-		try {
-			await this.request({ type: 'disconnect', name }, operation.token, true);
-			const deadline = Date.now() + connectionTimeout;
-			while (Date.now() < deadline) {
-				const connectors = await this.refresh(operation.token);
-				if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
-					this._onDidDisconnect.fire(name);
-					return;
+		await this.trackConnectionAction('disconnect', name, async () => {
+			await this.authorize(token);
+			const operation = await this.createOperation(token);
+			try {
+				await this.request({ type: 'disconnect', name }, operation.token, true);
+				const deadline = Date.now() + connectionTimeout;
+				while (Date.now() < deadline) {
+					const connectors = await this.refresh(operation.token);
+					if (!connectors.some(connector => connector.name === name && connector.connectionStatus === 'connected')) {
+						this._onDidDisconnect.fire(name);
+						return;
+					}
+					await timeout(connectionPollInterval, operation.token);
 				}
-				await timeout(connectionPollInterval, operation.token);
+				throw new CopilotConnectorsError(localize('copilotConnectors.disconnectionTimedOut', "The connector did not disconnect in time. Try again."));
+			} finally {
+				operation.dispose();
 			}
-			throw new CopilotConnectorsError(localize('copilotConnectors.disconnectionTimedOut', "The connector did not disconnect in time. Try again."));
-		} finally {
-			operation.dispose();
+		});
+	}
+
+	private async trackConnectionAction(action: 'connect' | 'disconnect', name: string, operation: () => Promise<void>): Promise<void> {
+		const startTime = Date.now();
+		const connectionStatusBefore = this.getConnectionStatus(name);
+		try {
+			await operation();
+			this.reportConnectionAction(action, name, 'success', connectionStatusBefore, Date.now() - startTime);
+		} catch (error) {
+			this.reportConnectionAction(action, name, isCancellationError(error) ? 'cancelled' : 'error', connectionStatusBefore, Date.now() - startTime, error);
+			throw error;
 		}
+	}
+
+	private reportConnectionAction(
+		action: 'connect' | 'disconnect',
+		name: string,
+		outcome: 'success' | 'error' | 'cancelled',
+		connectionStatusBefore: CopilotConnectorConnectionStatus | 'not_loaded',
+		durationMs: number,
+		error?: unknown,
+	): void {
+		const connector = this._connectors.find(connector => connector.name === name);
+		this.telemetryService.publicLog2<CopilotConnectorConnectionActionEvent, CopilotConnectorConnectionActionClassification>('copilotConnectors.connectionAction', {
+			action,
+			outcome,
+			connectorName: name,
+			connectionStatusBefore,
+			connectionStatusAfter: connector?.connectionStatus ?? 'not_loaded',
+			durationMs,
+			connectorMcpServerCount: connector?.mcpServers.length,
+			httpStatusCode: error instanceof CopilotConnectorsError ? error.statusCode : undefined,
+		});
+	}
+
+	private getConnectionStatus(name: string): CopilotConnectorConnectionStatus | 'not_loaded' {
+		return this._connectors.find(connector => connector.name === name)?.connectionStatus ?? 'not_loaded';
+	}
+
+	private reportCatalogSnapshot(connectors: readonly ICopilotConnector[], catalogAccess: CopilotConnectorsCatalogAccess): void {
+		const data: CopilotConnectorsCatalogSnapshotEvent = {
+			catalogAccess,
+			connectorCount: connectors.length,
+			connectedConnectorCount: connectors.filter(connector => connector.connectionStatus === 'connected').length,
+			notConnectedConnectorCount: connectors.filter(connector => connector.connectionStatus === 'not_connected').length,
+			pendingConnectorCount: connectors.filter(connector => connector.connectionStatus === 'pending').length,
+			errorConnectorCount: connectors.filter(connector => connector.connectionStatus === 'error').length,
+			unknownConnectorCount: connectors.filter(connector => connector.connectionStatus === 'unknown').length,
+			mcpServerCount: connectors.reduce((total, connector) => total + connector.mcpServers.length, 0),
+			connectedMcpServerCount: connectors.reduce((total, connector) => total + (connector.connectionStatus === 'connected' ? connector.mcpServers.length : 0), 0),
+		};
+		const snapshot = JSON.stringify(data);
+		if (snapshot === this.lastReportedCatalogSnapshot) {
+			return;
+		}
+		this.lastReportedCatalogSnapshot = snapshot;
+		this.telemetryService.publicLog2<CopilotConnectorsCatalogSnapshotEvent, CopilotConnectorsCatalogSnapshotClassification>('copilotConnectors.catalogSnapshot', data);
 	}
 
 	private updateEnablement(): void {
@@ -411,14 +530,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			const listeners = new DisposableStore();
 			this.enabledListeners.value = listeners;
 			listeners.add(this.defaultAccountService.onDidChangeDefaultAccount(account => this.updateAccountIdentity(account)));
-			listeners.add(this.authenticationService.onDidChangeSessions(({ providerId, event }) => {
-				const account = this.defaultAccountService.currentDefaultAccount;
-				if (account?.authenticationProvider.id === providerId &&
-					[event.added, event.changed, event.removed].some(sessions => sessions?.some(session =>
-						session.id === account.sessionId || session.account.id === this.authenticationAccountId && hasConnectorScope(session, true)))) {
-					this.resetCatalogContext();
-				}
-			}));
+			listeners.add(this.authenticationService.onDidChangeSessions(({ providerId, event }) => this.handleAuthenticationSessionsChanged(providerId, event)));
 			this.updateAccountIdentity(this.defaultAccountService.currentDefaultAccount);
 		} else {
 			this.enabledListeners.clear();
@@ -436,7 +548,53 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		this._authorizationRequired = false;
 		this._catalogMayRequireConsent = false;
 		this._lastRefreshTime = 0;
+		this.lastReportedCatalogSnapshot = undefined;
 		this.setConnectors([], false);
+	}
+
+	private handleAuthenticationSessionsChanged(providerId: string, event: AuthenticationSessionsChangeEvent): void {
+		const account = this.defaultAccountService.currentDefaultAccount;
+		if (!account || account.authenticationProvider.id !== providerId) {
+			return;
+		}
+		const affectedSessions = [...event.added ?? [], ...event.changed ?? [], ...event.removed ?? []];
+		const authenticationAccountId = this.authenticationAccountId
+			?? affectedSessions.find(session => session.id === account.sessionId || session.account.label === account.accountName)?.account.id;
+		if (!authenticationAccountId || !affectedSessions.some(session =>
+			session.id === account.sessionId ||
+			session.account.id === authenticationAccountId && (hasConnectorScope(session, true) || this.connectorAuthorizationSessionIds.has(session.id)))) {
+			return;
+		}
+		this.authenticationAccountId = authenticationAccountId;
+		const connectorAuthorizationChanged = this.updateConnectorAuthorizationSessions(event, authenticationAccountId);
+		this.resetCatalogContext();
+		if (connectorAuthorizationChanged) {
+			void this.refreshAgentHostConnectorSessions();
+		}
+	}
+
+	private updateConnectorAuthorizationSessions(event: AuthenticationSessionsChangeEvent, accountId: string): boolean {
+		const wasAuthorized = this.connectorAuthorizationSessionIds.size > 0;
+		for (const session of event.removed ?? []) {
+			this.connectorAuthorizationSessionIds.delete(session.id);
+		}
+		for (const session of [...event.changed ?? [], ...event.added ?? []]) {
+			if (session.account.id === accountId && hasConnectorScope(session, false)) {
+				this.connectorAuthorizationSessionIds.add(session.id);
+			} else {
+				this.connectorAuthorizationSessionIds.delete(session.id);
+			}
+		}
+		return wasAuthorized !== (this.connectorAuthorizationSessionIds.size > 0);
+	}
+
+	private replaceConnectorAuthorizationSessions(sessions: readonly AuthenticationSession[], accountId: string): void {
+		this.connectorAuthorizationSessionIds.clear();
+		for (const session of sessions) {
+			if (session.account.id === accountId && hasConnectorScope(session, false)) {
+				this.connectorAuthorizationSessionIds.add(session.id);
+			}
+		}
 	}
 
 	private updateAccountIdentity(account: IDefaultAccount | null): void {
@@ -444,6 +602,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 		if (identity !== this.accountIdentity) {
 			this.accountIdentity = identity;
 			this.authenticationAccountId = undefined;
+			this.connectorAuthorizationSessionIds.clear();
 			this.resetCatalogContext();
 			this._onDidChangeAccount.fire();
 		}
@@ -539,6 +698,7 @@ export class CopilotConnectorsService extends Disposable implements ICopilotConn
 			return undefined;
 		}
 		this.authenticationAccountId = session.account.id;
+		this.replaceConnectorAuthorizationSessions(sessions, session.account.id);
 		return {
 			account,
 			session,
@@ -775,7 +935,7 @@ function parseConnectors(value: unknown, scoped: boolean): readonly ICopilotConn
 			name,
 			displayName,
 			description,
-			icon: parseHttpsUri(metadata?.iconUrl ?? metadata?.icon),
+			icon: parseHttpsUri(metadata?.iconUrl ?? metadata?.icon ?? plugin.logo),
 			documentation: parseHttpsUri(metadata?.documentationUrl ?? metadata?.documentation),
 			homepage: parseHttpsUri(metadata?.homepage),
 			version: text(metadata?.version, 512),

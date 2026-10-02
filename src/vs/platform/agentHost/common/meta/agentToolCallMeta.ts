@@ -3,200 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Mutable } from '../../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
+import { ToolCallStatus, type StringOrMarkdown, type ToolCallState, type ToolDefinition } from '../state/protocol/state.js';
+import type { IAgentMetadataSource } from './metadata.js';
+import { hasVSCodeToolCallMeta, readToolCallMeta as readVSCodeToolCallMeta, type ToolKind } from './vscode/agentToolCallMeta.js';
+import { readCopilotToolOutputDelta, withCopilotToolPreferences } from './copilotd/copilotdMetadataReader.js';
+import { readCopilotToolPresentation } from './copilotd/toolPresentation.js';
 
-/** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
-interface IHasToolCallMeta {
-	readonly _meta?: Record<string, unknown>;
+export { isPresentationOnlyToolCall, toToolCallMeta } from './vscode/agentToolCallMeta.js';
+export type { AgentFusionPhaseStatus, IFusionPhaseMeta, IToolCallMeta, IToolCallUiMeta, IToolSearchCandidate, ToolKind } from './vscode/agentToolCallMeta.js';
+
+export interface IAgentToolOutputChunk {
+	readonly output: string;
+	readonly isPty: boolean;
 }
 
-/**
- * Well-known typed view over a tool call's open `_meta` bag. Producers and
- * consumers agree on these keys here so the two sides can't drift; always read
- * the bag through {@link readToolCallMeta}, which validates each field and drops
- * wrong-typed values.
- */
-export interface IToolCallMeta {
-	readonly 'agentHost.sandboxBypass'?: boolean;
-	/**
-	 * VS Code rendering hint. `terminal` routes the call to the command/output
-	 * renderer, `subagent` to the subagent UI, `search` to the search renderer,
-	 * and `read` keeps incomplete resource arguments out of streaming display;
-	 * everything else falls through to the generic invocation renderer. Set by
-	 * the agent adapter, never matched on raw tool name by the renderer.
-	 */
+export interface IAgentClientToolPreferences {
+	readonly defer?: 'auto' | 'never';
+	readonly availability?: 'session' | 'userChats';
+}
+
+export function readToolCallMeta(source: IAgentMetadataSource) {
+	return readVSCodeToolCallMeta(source);
+}
+
+export interface IToolCallPresentation {
 	readonly toolKind?: ToolKind;
-	/** Shell language for a `terminal` tool call (drives syntax highlighting). */
-	readonly language?: string;
-	/** Short task description for a `subagent` tool call (e.g. "Find related files"). */
-	readonly subagentDescription?: string;
-	/** Agent name for a `subagent` tool call (e.g. "explore"). */
-	readonly subagentAgentName?: string;
-	/** Chat URI of the subagent this tool call spawns, stamped by the host (see {@link buildSubagentChatUri}); the resource may not be registered yet. */
-	readonly subagentChatUri?: string;
-	/** Originating MCP server name, when the call came from an MCP server. */
-	readonly mcpServerName?: string;
-	/** Originating MCP tool name, when the call came from an MCP server. */
-	readonly mcpToolName?: string;
-	/** MCP App render data, when the call exposes an interactive App surface. */
-	readonly ui?: IToolCallUiMeta;
-	/**
-	 * Set by the host's side-effect layer when the call was auto-approved
-	 * because of an `autoApprove` session-config setting (rather than an
-	 * explicit user action), so the client can render it as setting-driven.
-	 */
-	readonly autoApproveBySetting?: boolean;
-	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this confirmation. */
-	readonly autoApproveRuleResolvable?: boolean;
-	/** Transient runtime corpus for the local client tool-search invocation. */
-	readonly toolSearchCandidates?: readonly IToolSearchCandidate[];
-	/** Latest progress message from a running tool; transient, meaningful only while Running. */
-	readonly progressMessage?: string;
-	/** Presentation-only Fusion phase, not an SDK tool call or a separately addressable subagent chat. */
-	readonly fusionPhase?: IFusionPhaseMeta;
+	readonly invocationMessage?: StringOrMarkdown;
+	readonly pastTenseMessage?: StringOrMarkdown;
 }
 
-const fusionPhaseStatuses = ['running', 'succeeded', 'failed', 'cancelled'] as const;
-export type AgentFusionPhaseStatus = typeof fusionPhaseStatuses[number];
-const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuses);
-
-export interface IFusionPhaseMeta {
-	readonly fusionId: string;
-	readonly phaseId: string;
-	readonly model: string;
-	readonly status: AgentFusionPhaseStatus;
-	readonly startedAt: number;
-	readonly duration?: number;
+export function readToolCallPresentation(call: ToolCallState): IToolCallPresentation {
+	const metadata = readVSCodeToolCallMeta(call);
+	const fallback = hasVSCodeToolCallMeta(call) ? undefined : readCopilotToolPresentation(call);
+	const invocation = call.invocationMessage;
+	const pastTense = hasKey(call, { pastTenseMessage: true }) ? call.pastTenseMessage : undefined;
+	const genericInvocation = invocation === undefined || typeof invocation === 'string'
+		&& ['Running tool', `Running ${call.displayName}`, `Running ${call.toolName}`].includes(invocation.trim());
+	const genericCompletion = pastTense === undefined || typeof pastTense === 'string'
+		&& ['Tool finished', `Ran ${call.displayName}`, `Ran ${call.toolName}`].includes(pastTense.trim());
+	return {
+		toolKind: metadata.toolKind ?? (genericInvocation || call.status === ToolCallStatus.Completed && genericCompletion ? fallback?.toolKind : undefined),
+		invocationMessage: fallback && genericInvocation
+			? call.status === ToolCallStatus.Completed && !call.success ? fallback.pastTenseMessage : fallback.invocationMessage
+			: invocation,
+		pastTenseMessage: fallback && genericCompletion ? fallback.pastTenseMessage : pastTense,
+	};
 }
 
-/** Minimal metadata needed to embed and rank a deferred tool. */
-export interface IToolSearchCandidate {
-	readonly name: string;
-	readonly description: string;
+export function readAgentToolOutputDelta(action: IAgentMetadataSource, initial: Pick<ToolCallState, '_meta'>, current: Pick<ToolCallState, '_meta'>): IAgentToolOutputChunk | undefined {
+	return hasVSCodeToolCallMeta(initial) || hasVSCodeToolCallMeta(current) ? undefined : readCopilotToolOutputDelta(action);
 }
 
-/**
- * The set of VS Code-recognized tool-call rendering kinds. Add a new value here
- * (and teach the renderer to handle it) rather than matching on tool name.
- */
-export type ToolKind = 'terminal' | 'subagent' | 'fusionPhase' | 'search' | 'read';
-
-/**
- * MCP App render data carried under {@link IToolCallMeta.ui}. Clients gate
- * mounting the App webview on both a `resourceUri` and a `channel` being
- * present.
- */
-export interface IToolCallUiMeta {
-	/** The MCP App's UI resource URI (an `ui://` resource the App renders). */
-	readonly resourceUri: string;
-	/** AHP `mcp://` channel the App's sub-RPCs route back through, when ready. */
-	readonly channel?: string;
-}
-
-function isToolKind(value: unknown): value is ToolKind {
-	return value === 'terminal' || value === 'subagent' || value === 'fusionPhase' || value === 'search' || value === 'read';
-}
-
-function readFusionPhase(value: unknown): IFusionPhaseMeta | undefined {
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const data = value as Partial<IFusionPhaseMeta>;
-	if (typeof data.fusionId !== 'string' || typeof data.phaseId !== 'string' || typeof data.model !== 'string'
-		|| typeof data.status !== 'string' || !knownFusionPhaseStatuses.has(data.status)
-		|| typeof data.startedAt !== 'number' || !Number.isFinite(data.startedAt)
-		|| (data.duration !== undefined && (typeof data.duration !== 'number' || !Number.isFinite(data.duration) || data.duration < 0))) {
-		return undefined;
-	}
-	return data as IFusionPhaseMeta;
-}
-
-function readToolCallUiMeta(value: unknown): IToolCallUiMeta | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	if (typeof raw['resourceUri'] !== 'string' || raw['resourceUri'].length === 0) {
-		return undefined;
-	}
-	const result: Mutable<IToolCallUiMeta> = { resourceUri: raw['resourceUri'] };
-	if (typeof raw['channel'] === 'string' && raw['channel'].length > 0) {
-		result.channel = raw['channel'];
-	}
-	return result;
-}
-
-function readToolSearchCandidates(value: unknown): readonly IToolSearchCandidate[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-	const result: IToolSearchCandidate[] = [];
-	for (const candidate of value) {
-		if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
-			return undefined;
-		}
-		const raw = candidate as Record<string, unknown>;
-		if (typeof raw['name'] !== 'string' || typeof raw['description'] !== 'string') {
-			return undefined;
-		}
-		result.push({
-			name: raw['name'],
-			description: raw['description'],
-		});
-	}
-	return result;
-}
-
-/**
- * Reads the well-known {@link IToolCallMeta} keys from a tool call's `_meta`
- * bag, dropping unknown keys and wrong-typed values.
- */
-export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
-	const meta = source._meta;
-	if (!meta) {
-		return {};
-	}
-	const result: Mutable<IToolCallMeta> = {};
-	if (typeof meta['agentHost.sandboxBypass'] === 'boolean') { result['agentHost.sandboxBypass'] = meta['agentHost.sandboxBypass']; }
-	if (isToolKind(meta['toolKind'])) { result.toolKind = meta['toolKind']; }
-	if (typeof meta['language'] === 'string') { result.language = meta['language']; }
-	if (typeof meta['subagentDescription'] === 'string') { result.subagentDescription = meta['subagentDescription']; }
-	if (typeof meta['subagentAgentName'] === 'string') { result.subagentAgentName = meta['subagentAgentName']; }
-	if (typeof meta['subagentChatUri'] === 'string') { result.subagentChatUri = meta['subagentChatUri']; }
-	if (typeof meta['mcpServerName'] === 'string') { result.mcpServerName = meta['mcpServerName']; }
-	if (typeof meta['mcpToolName'] === 'string') { result.mcpToolName = meta['mcpToolName']; }
-	if (typeof meta['progressMessage'] === 'string') { result.progressMessage = meta['progressMessage']; }
-	const fusionPhase = readFusionPhase(meta['fusionPhase']);
-	if (fusionPhase) { result.fusionPhase = fusionPhase; }
-	if (typeof meta['autoApproveBySetting'] === 'boolean') { result.autoApproveBySetting = meta['autoApproveBySetting']; }
-	if (typeof meta['autoApproveRuleResolvable'] === 'boolean') { result.autoApproveRuleResolvable = meta['autoApproveRuleResolvable']; }
-	const toolSearchCandidates = readToolSearchCandidates(meta['toolSearchCandidates']);
-	if (toolSearchCandidates) { result.toolSearchCandidates = toolSearchCandidates; }
-	const ui = readToolCallUiMeta(meta['ui']);
-	if (ui) { result.ui = ui; }
-	return result;
-}
-
-/**
- * Identifies tool calls that present progress without executing a tool.
- * Producers must stamp `_meta.toolKind` on every lifecycle action.
- */
-export function isPresentationOnlyToolCall(source: IHasToolCallMeta): boolean {
-	return readToolCallMeta(source).toolKind === 'fusionPhase';
-}
-
-/**
- * Serializes a typed {@link IToolCallMeta} into the `_meta` record, dropping
- * `undefined` entries and returning `undefined` when empty. Build a tool call's
- * `_meta` through this so producers stay in lock-step with
- * {@link readToolCallMeta}.
- */
-export function toToolCallMeta(meta: IToolCallMeta): Record<string, unknown> | undefined {
-	const result: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(meta)) {
-		if (value !== undefined) {
-			result[key] = value;
-		}
-	}
-	return Object.keys(result).length > 0 ? result : undefined;
+export function withAgentToolPreferences<T extends ToolDefinition>(tool: T, preferences: IAgentClientToolPreferences | undefined): T {
+	return withCopilotToolPreferences(tool, preferences);
 }

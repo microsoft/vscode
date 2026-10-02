@@ -21,9 +21,10 @@ export function sanitizeWorktreeIncludePatterns(patterns: readonly string[]): st
  * @param includedOutput `git ls-files --others --ignored --exclude-from=<patterns> -z` in the repository.
  * @param directoryOutput `git ls-files --others --ignored --exclude-standard -z --directory --no-empty-directory` in the repository.
  * @param worktreeOutput `git ls-files -z` in the newly created worktree.
+ * @param excludedFolders Repository-relative folders already symlinked into the worktree.
  * @returns Repository-relative, forward-slash paths (files and folders) to copy.
  */
-export function resolveWorktreeIncludePaths(ignoredOutput: string, includedOutput: string, directoryOutput: string | undefined, worktreeOutput: string): string[] {
+export function resolveWorktreeIncludePaths(ignoredOutput: string, includedOutput: string, directoryOutput: string | undefined, worktreeOutput: string, excludedFolders: readonly string[] = []): string[] {
 	const ignoredFiles = splitNulSeparated(ignoredOutput);
 	if (ignoredFiles.length === 0) {
 		return [];
@@ -40,6 +41,7 @@ export function resolveWorktreeIncludePaths(ignoredOutput: string, includedOutpu
 	const includedFiles = new Set(splitNulSeparated(includedOutput));
 	const wholeDirectories = new Set(splitNulSeparated(directoryOutput).filter(entry => entry.endsWith('/')));
 	const worktreeFiles = new Set(splitNulSeparated(worktreeOutput));
+	const excludedDirectories = new Set(excludedFolders.map(folder => folder.endsWith('/') ? folder : `${folder}/`));
 
 	// Every ancestor directory of a tracked path, with the trailing `/` used
 	// by `git ls-files --directory`, so a source path can be checked against
@@ -56,7 +58,7 @@ export function resolveWorktreeIncludePaths(ignoredOutput: string, includedOutpu
 	const matchedFiles: string[] = [];
 	const nonCollapsibleDirectories = new Set<string>();
 	for (const file of ignoredFiles) {
-		if (includedFiles.has(file) && !hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)) {
+		if (includedFiles.has(file) && findContainingDirectory(file, excludedDirectories) === undefined && !hasWorktreePathCollision(file, worktreeFiles, worktreeDirectories)) {
 			matchedFiles.push(file);
 		} else if (wholeDirectories.size > 0) {
 			const containingDirectory = findContainingDirectory(file, wholeDirectories);

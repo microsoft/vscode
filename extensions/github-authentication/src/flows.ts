@@ -239,7 +239,7 @@ class UrlHandlerFlow implements IFlow {
 			const codeVerifier = generateRandomString(64);
 			const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-			const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
+			const promise = uriHandler.waitForCode(logger, scopes, nonce, token, baseUri);
 
 			const searchParams = new URLSearchParams([
 				['client_id', Config.gitHubClientId],

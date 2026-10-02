@@ -602,6 +602,45 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
+	for (const mode of ['session', 'global'] as const) {
+		for (const terminalAutoApproveEnabled of [true, false]) {
+			test(`${mode} allow-all overrides terminal approval settings and restores them in default mode (terminal auto-approve ${terminalAutoApproveEnabled})`, async () => {
+				configService.updateRootConfig({
+					[AgentHostTerminalAutoApproveEnabledConfigKey]: terminalAutoApproveEnabled,
+					[AgentHostTerminalAutoApproveRulesConfigKey]: { ls: false, rm: false },
+				});
+				const events = [shellEvent('ls -lh', 'bash'), shellEvent('rm -f file.txt', 'bash')];
+				const before = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+					});
+				}
+				const allowAll = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: false });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'default' },
+					});
+				}
+				const after = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				assert.deepStrictEqual({ before, allowAll, after }, {
+					before: [undefined, undefined],
+					allowAll: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting],
+					after: [undefined, undefined],
+				});
+			});
+		}
+	}
+
 	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
 

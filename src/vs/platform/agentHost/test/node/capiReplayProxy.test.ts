@@ -15,6 +15,39 @@ suite('CapiReplayProxy', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('serves mutable managed settings locally in record and replay and resets between tests', async () => {
+		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-policy-'));
+		const fixturePath = join(directory, 'capture.yaml');
+		const policy = { telemetry: { enabled: true, serviceName: 'policy-a' } };
+		try {
+			for (const mode of ['record', 'replay'] as const) {
+				const proxy = new CapiReplayProxy({ fixturePath, mode });
+				try {
+					const url = await proxy.start();
+					const readPolicy = async () => (await fetch(`${url}/copilot_internal/managed_settings`)).json();
+					proxy.setManagedSettings(policy);
+					const first = await readPolicy();
+					proxy.setManagedSettings({ telemetry: { enabled: false } });
+					const second = await readPolicy();
+					assert.deepStrictEqual({ first, second, requests: proxy.managedSettingsRequestCount }, {
+						first: policy,
+						second: { telemetry: { enabled: false } },
+						requests: 2,
+					});
+					if (mode === 'replay') {
+						proxy.resetForReplay(fixturePath);
+						assert.deepStrictEqual({ policy: await readPolicy(), requests: proxy.managedSettingsRequestCount }, { policy: {}, requests: 1 });
+					}
+				} finally {
+					await proxy.stop();
+				}
+			}
+			assert.ok(!readFileSync(fixturePath, 'utf8').includes('policy-a'), 'Managed settings must not enter model recordings');
+		} finally {
+			rmSync(directory, { recursive: true, force: true });
+		}
+	});
+
 	test('preserves relative retry controls without recording unrelated response headers', async () => {
 		const directory = mkdtempSync(join(tmpdir(), 'capi-replay-retry-'));
 		const fixturePath = join(directory, 'capture.yaml');
