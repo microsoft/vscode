@@ -429,6 +429,29 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return !!environment?.taskId && environment.sessionId === rawId;
 	}
 
+	protected async _renameSandboxSession(address: string, rawId: string, title: string): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.renameSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		try {
+			await this._apiService.renameTask(environment.taskId, title, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, name: title });
+		this._persistInventory();
+	}
+
 	protected async _deleteSandboxSession(address: string, sessionIds: readonly string[], removeSession: (rawId: string) => void, token: CancellationToken = CancellationToken.None): Promise<void> {
 		const environment = this._environments.get(address);
 		if (!environment?.taskId || !environment.sessionId || sessionIds.some(id => id !== environment.sessionId)) {

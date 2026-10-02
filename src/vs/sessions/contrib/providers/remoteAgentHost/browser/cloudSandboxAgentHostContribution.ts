@@ -99,6 +99,15 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		}
 	}
 
+	protected override _ensureProvider(env: ICloudSandboxSessionEnvironment): void {
+		super._ensureProvider(env);
+		if (env.sessionId && env.taskId) {
+			const rawId = env.sessionId;
+			const address = cloudSandboxAddress(env.environmentId);
+			this._providerInstances.get(address)?.setTaskRenameHandler(rawId, title => this._renameSandboxSession(address, rawId, title));
+		}
+	}
+
 	protected override _createProvider(env: ICloudSandboxSessionEnvironment, store: DisposableStore): CloudSandboxSessionsProvider {
 		const provider = store.add(this._instantiateProvider({
 			address: cloudSandboxAddress(env.environmentId),

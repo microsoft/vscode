@@ -20,6 +20,8 @@ Sandbox session discovery is window-owned and does not establish host connection
 
 Remote providers may delegate deletion to their inventory owner instead of AHP. In both windows, sandbox deletion addresses the owning Mission Control task without connecting to the environment; successful deletion removes the cached session, persisted discovery inventory, and environment provider. Failed deletion retains those entries, and stale discovery responses cannot restore a successfully deleted task.
 
+In the Agents Window, renaming a discovered sandbox session updates its owning Mission Control task without waking the environment. After success, the provider updates the local title and sends an AHP rename only if already connected; offline renames are not queued for replay. Host-reported titles remain authoritative on connection. Sessions sharing the environment but not owned by the discovered task continue to use AHP.
+
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 
 ## Identity

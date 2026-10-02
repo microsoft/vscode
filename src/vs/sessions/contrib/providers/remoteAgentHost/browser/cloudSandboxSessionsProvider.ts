@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
@@ -17,6 +18,8 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
  * session is real, addressable, and unknown to the host all at once.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
+
+	private _taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
 
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
@@ -45,6 +48,35 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
+	}
+
+	/** Bind the discovered session's Mission Control rename operation. */
+	setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
+		this._taskRenameHandler = { rawId, rename };
+	}
+
+	override async renameSession(sessionId: string, title: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session || !rawId) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+		const handler = this._taskRenameHandler;
+		if (handler?.rawId !== rawId) {
+			if (!this.connection) {
+				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
+			}
+			return super.renameSession(sessionId, title);
+		}
+		await handler.rename(title);
+		if (this._store.isDisposed || this._sessionCache.get(rawId) !== session) {
+			throw new CancellationError();
+		}
+		if (this.connection) {
+			return super.renameSession(sessionId, title);
+		}
+		session.title.set(title, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {

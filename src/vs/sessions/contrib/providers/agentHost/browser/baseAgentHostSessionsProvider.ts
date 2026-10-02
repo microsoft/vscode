@@ -5893,13 +5893,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!cached || !rawId || !connection) {
+		if (!cached || !rawId) {
 			return;
 		}
 		const sessionUri = cached.backendUri;
 		const chatId = chatUri.fragment;
 		if (!chatId && this._adapterOptions().useSessionTitleForDefaultChat) {
 			return this.renameSession(sessionId, title);
+		}
+		if (!connection) {
+			return;
 		}
 		const action = { type: ActionType.SessionTitleChanged as const, title };
 		if (chatId) {
