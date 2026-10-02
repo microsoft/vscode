@@ -26,6 +26,18 @@
  *   they cannot — a regular-expression terminal rule, an allow list that blocks
  *   what it omits — the restriction is skipped rather than approximated, since a
  *   near-miss silently changes what an administrator configured.
+ * - **One deliberate exception, erring more restrictive.**
+ *   `chat.tools.eligibleForAutoApproval` marks individual tools ineligible for
+ *   auto-approval, but the SDK grammar has no tool-name family ({@link
+ *   ManagedRuleFamily} is only `Shell`, `Read`, `Write`, and `Domain`, and an
+ *   unknown family rejects the whole document). Rather than skip a genuine
+ *   restriction, a policy that marks any tool ineligible maps onto the
+ *   family-agnostic bypass lock — coarser and more restrictive, since the lock
+ *   is session-wide and does not itself force per-request confirmation (only an
+ *   `ask` rule sets `managedApprovalRequired`). A policy that leaves every tool
+ *   eligible (all `true`, or empty) expresses no restriction and contributes
+ *   nothing. Replace this with a per-tool translation once the grammar gains a
+ *   tool-name family.
  * - **Copilot sessions on a local host.** The renderer sends an empty
  *   contribution to remote hosts, and other agents do not consume managed
  *   settings, so restrictions bridged here do not reach them. Those agents
@@ -38,10 +50,10 @@
 
 import type { IConfigurationService } from '../../configuration/common/configuration.js';
 import { AgentNetworkDomainSettingId } from '../../networkFilter/common/settings.js';
-import { extractDomainPattern, normalizeDomain } from '../../networkFilter/common/domainMatcher.js';
+import { normalizeDomainPattern } from '../../networkFilter/common/domainMatcher.js';
 import { buildManagedFamilyRule, buildManagedRule, ManagedRuleFamily } from './agentHostManagedRules.js';
 import { getGlobalConfigurationValue, inspectValue } from './agentHostConfigurationSync.js';
-import { GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules, type AgentHostTerminalAutoApproveRuleValue } from './agentHostSchema.js';
+import { ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, type AgentHostTerminalAutoApproveRules, type AgentHostTerminalAutoApproveRuleValue } from './agentHostSchema.js';
 
 /**
  * The restrictions this bridge contributes to the Copilot SDK. There is
@@ -52,8 +64,6 @@ export interface IAgentHostManagedSettingsPermissions {
 	deny?: string[];
 	ask?: string[];
 }
-
-export const AgentHostMapLegacySettingsToManagedSettingsSettingId = 'chat.agentHost.copilot.mapLegacySettingsToManagedSettings';
 
 /**
  * Which configuration layers may drive a mapping.
@@ -141,7 +151,7 @@ function contributeNetworkDomainRules(configurationService: IConfigurationServic
 		// as a full URL or with a port blocks the whole host; passing the raw text
 		// through would emit a narrower URL pattern and leave the rest of that host
 		// reachable.
-		const domain = normalizeDomain(extractDomainPattern(pattern), true);
+		const domain = normalizeDomainPattern(pattern);
 		if (!domain) {
 			continue;
 		}
@@ -220,11 +230,34 @@ function isLiteralCommandKey(command: string): boolean {
 	return !AUTO_APPROVE_REGEX_KEY.test(command) && !command.includes('*');
 }
 
+/**
+ * Maps `chat.tools.eligibleForAutoApproval` onto the family-agnostic bypass
+ * lock; the module comment explains why a per-tool translation is impossible.
+ * A policy that leaves every tool eligible (all `true`, or empty) expresses no
+ * restriction and contributes nothing; a tool marked ineligible — or a
+ * malformed member we fail closed on — locks the bypass session-wide.
+ */
+function contributeEligibleForAutoApprovalRestriction(value: Record<string, boolean>): IAgentHostManagedSettingsPermissions | undefined {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return undefined;
+	}
+	// A `true` entry (or the empty default) leaves a tool eligible and removes
+	// nothing; only a tool marked ineligible, or a malformed member we fail
+	// closed on, locks the bypass.
+	if (Object.values(value).every(eligible => eligible === true)) {
+		return undefined;
+	}
+	return { disableBypassPermissionsMode: 'disable' };
+}
+
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
 	// Disabling the SDK's bypass mode takes "Allow All" away from the user for
 	// good, so only an administrator may drive it.
 	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, 'policyOnly', value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	// No SDK tool-name family exists, so a policy that marks any tool ineligible
+	// falls back to the bypass lock (see the transform).
+	managedPermissionsSetting<Record<string, boolean>>(ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, 'policyOnly', contributeEligibleForAutoApprovalRestriction),
 	// Matches VS Code, where a user or application value already suppresses
 	// terminal auto-approval outright.
 	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, 'anyGlobal', value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
@@ -241,7 +274,6 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 ];
 
 export const managedPermissionsConfigurationIds = [
-	AgentHostMapLegacySettingsToManagedSettingsSettingId,
 	...managedPermissionsSettings.flatMap(mapping => [mapping.settingId, ...mapping.additionalSettingIds ?? []]),
 ];
 
@@ -266,17 +298,10 @@ function isStringArrayOrUndefined(value: unknown): boolean {
  * Combines every mapping's contribution into the single document sent to the
  * host, deduplicating rules that more than one setting produced.
  *
- * Contributing any rule at all makes the runtime's managed policy "active",
- * which causes unmatched shell, read, write, URL and factory requests to require
- * approval. That is broader than any individual mapping intends, but it errs
- * toward prompting, and the alternative — an `allow` list — resolves to
- * auto-approval. See the module comment.
+ * Client-injected managed permissions are non-activating, so these rules bind
+ * without forcing unmatched requests to prompt. See the module comment.
  */
 export function resolveManagedSettingsPermissions(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions {
-	if (getGlobalConfigurationValue<boolean>(configurationService, AgentHostMapLegacySettingsToManagedSettingsSettingId) !== true) {
-		return {};
-	}
-
 	const deny = new Set<string>();
 	const ask = new Set<string>();
 	let disableBypassPermissionsMode: 'disable' | undefined;

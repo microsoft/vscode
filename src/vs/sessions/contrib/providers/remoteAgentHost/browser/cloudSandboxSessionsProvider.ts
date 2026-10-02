@@ -3,7 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { constObservable } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -15,6 +21,11 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
  * session is real, addressable, and unknown to the host all at once.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
+
+	readonly supportsWorkspaceSelection = false;
+
+	/** Sandboxes are per-session environments, not persistent Automation hosts. */
+	override get automations(): undefined { return undefined; }
 
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
@@ -32,6 +43,52 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	/** How long a provisional session resists eviction after the host first omits it. */
 	static readonly PROVISIONAL_GRACE_MS = 2 * 60_000;
 
+	protected override _adapterOptions() {
+		return {
+			...super._adapterOptions(),
+			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
+			externalSessionState: (resource: URI, store: DisposableStore) => {
+				const key = this._localSessionStorageKey(AgentSession.id(resource));
+				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
+					if (isEqual(resource, chatSessionResource.with({ fragment: '' }))) {
+						this._storageService.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+					}
+				}));
+				// Preserve profile-local provenance without exposing sandbox sessions as external.
+				return constObservable(false);
+			},
+		};
+	}
+
+	private _localSessionStorageKey(rawId: string): string {
+		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
+	}
+
+	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
+		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
+	}
+
+	override async archiveSession(sessionId: string): Promise<void> {
+		this._setLocalArchived(sessionId, true);
+	}
+
+	override async unarchiveSession(sessionId: string): Promise<void> {
+		this._setLocalArchived(sessionId, false);
+	}
+
+	private _setLocalArchived(sessionId: string, isArchived: boolean): void {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+
+		// TODO: Reconcile local archive state with Mission Control so sessions are archived across clients.
+		session.isArchived.set(isArchived, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
+	}
+
 	/**
 	 * Seed a session this client just provisioned. It is cached so a later discovery pass
 	 * reconciles against it rather than adding a second entry, but stays out of the sessions list
@@ -40,10 +97,13 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	seedProvisionalSession(rawMeta: IAgentSessionMetadata): void {
 		const meta = this._adoptSessionMeta(rawMeta);
 		const rawId = AgentSession.id(meta.session);
+		this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
 		if (this._sessionCache.has(rawId)) {
 			return;
 		}
-		this._sessionCache.set(rawId, this.createAdapter(meta));
+		const adapter = this.createAdapter(meta);
+		adapter.updateDiscoveryMetadata(meta);
+		this._sessionCache.set(rawId, adapter);
 		this._withheldSessions.add(rawId);
 		// No deadline yet: the clock starts when the host first omits it.
 		this._provisionalSessions.set(rawId, undefined);
@@ -72,6 +132,20 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 	 */
 	getCachedSession(rawId: string): ISession | undefined {
 		return this._sessionCache.get(rawId);
+	}
+
+	getSessionModifiedTime(rawId: string): number | undefined {
+		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	removeDeletedSession(rawId: string): void {
+		const session = this._removeCachedSession(rawId);
+		this._withheldSessions.delete(rawId);
+		this._provisionalSessions.delete(rawId);
+		if (session) {
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+		}
 	}
 
 	override getSessions(): ISession[] {

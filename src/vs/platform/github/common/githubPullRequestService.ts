@@ -16,6 +16,8 @@ export interface PullRequestRef extends GitHubAccountHandle {
 
 export type PullRequestPriority = 'background' | 'visible' | 'interactive';
 
+export type PullRequestMergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
 export type PullRequestFragment =
 	| 'core'
 	| 'topLevelComments'
@@ -117,6 +119,8 @@ export interface PullRequestReview {
 }
 
 export interface PullRequestInlineComment extends PullRequestComment {
+	/** GitHub's review-comment state (PENDING or SUBMITTED), when available. */
+	readonly state?: string;
 	readonly reviewId?: string;
 	readonly replyToId?: string;
 	readonly path?: string;
@@ -176,7 +180,7 @@ export interface PullRequestMergeability {
 	readonly viewerCanUpdate: boolean;
 	readonly viewerCanMerge: boolean;
 	readonly viewerCanEnableAutoMerge: boolean;
-	readonly allowedMergeMethods: readonly ('MERGE' | 'SQUASH' | 'REBASE')[];
+	readonly allowedMergeMethods: readonly PullRequestMergeMethod[];
 	readonly autoMergeEnabled: boolean;
 	readonly mergeQueueEntryId?: string;
 	readonly mergeQueueRequired: boolean;

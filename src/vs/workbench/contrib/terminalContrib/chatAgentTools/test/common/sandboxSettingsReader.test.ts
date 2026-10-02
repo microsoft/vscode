@@ -11,6 +11,7 @@ import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkF
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { AgentHostSandboxKey } from '../../../../../../platform/agentHost/common/sandboxConfigSchema.js';
 import { readAgentHostSandboxValues, readSandboxSetting } from '../../common/sandboxSettingsReader.js';
+import { terminalChatAgentToolsConfiguration } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 suite('sandboxSettingsReader', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,12 +26,53 @@ suite('sandboxSettingsReader', () => {
 		);
 	});
 
+	test('forwards the network default and explicit network restrictions to the agent host', async () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxAllowNetwork;
+		const cfg = new TestConfigurationService({ [settingId]: terminalChatAgentToolsConfiguration[settingId].default });
+		const logService = new NullLogService();
+		const values = [readAgentHostSandboxValues(cfg, logService)];
+		await cfg.setUserConfiguration(settingId, false);
+		values.push(readAgentHostSandboxValues(cfg, logService));
+		assert.deepStrictEqual(values, [
+			{ [AgentHostSandboxKey.AllowNetwork]: true },
+			{ [AgentHostSandboxKey.AllowNetwork]: false },
+		]);
+	});
+
 	test('returns undefined when nothing is configured', () => {
 		const cfg = new TestConfigurationService();
 		assert.strictEqual(
 			readSandboxSetting<string>(cfg, new NullLogService(), AgentSandboxSettingId.AgentSandboxEnabled),
 			undefined,
 		);
+	});
+
+	test('does not forward policy authority through ordinary sandbox settings', () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		const cfg = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === settingId ? value.value : undefined };
+			}
+		}({ [settingId]: AgentSandboxEnabledValue.On });
+		assert.deepStrictEqual(readAgentHostSandboxValues(cfg, new NullLogService()), {
+			enabled: 'on',
+		});
+	});
+
+	test('does not turn an off policy or a user opt-in into a mandatory sandbox floor', () => {
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
+		for (const value of [AgentSandboxEnabledValue.Off, false]) {
+			const cfg = new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === settingId ? inspected.value : undefined };
+				}
+			}({ [settingId]: value });
+			assert.deepStrictEqual(readAgentHostSandboxValues(cfg, new NullLogService()), { enabled: 'off' });
+		}
+		const personal = new TestConfigurationService({ [settingId]: AgentSandboxEnabledValue.On });
+		assert.deepStrictEqual(readAgentHostSandboxValues(personal, new NullLogService()), { enabled: 'on' });
 	});
 
 	test('normalizes legacy boolean form of chat.agent.sandbox.enabled', () => {

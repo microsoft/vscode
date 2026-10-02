@@ -138,7 +138,7 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			contributionLookups: [],
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
@@ -192,7 +192,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
@@ -210,7 +210,7 @@ suite('InlineChatSessionResolver', () => {
 			usesLocalReference: true,
 			lockToAgent: undefined,
 			creationCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: undefined } }],
 		});
 	});
 
@@ -230,7 +230,21 @@ suite('InlineChatSessionResolver', () => {
 			lockToAgent: undefined,
 			creationCalls: 1,
 			acquisitionCalls: [],
-			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+		});
+	});
+
+	test('falls back to a local session when Agent Host acquisition returns no model', async () => {
+		const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
+
+		assert.deepStrictEqual({
+			usesLocalReference: result?.modelRef === chatService.localReference,
+			acquisitionCalls: chatService.acquisitionCalls,
+			localSessionCalls: chatService.localSessionCalls,
+		}, {
+			usesLocalReference: true,
+			acquisitionCalls: [{ location: ChatAgentLocation.EditorInline, debugOwner: 'InlineChatSessionResolver#resolve' }],
+			localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
 		});
 	});
 
@@ -250,8 +264,30 @@ suite('InlineChatSessionResolver', () => {
 			}, {
 				usesLocalReference: true,
 				lockToAgent: undefined,
-				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false } }],
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
 				reportedErrors: ['Agent Host unavailable'],
+			});
+		} finally {
+			setUnexpectedErrorHandler(originalErrorHandler);
+		}
+	});
+
+	test('swallows a non-cancellation Agent Host acquisition error and falls back to a local session', async () => {
+		const originalErrorHandler = errorHandler.getUnexpectedErrorHandler();
+		const reportedErrors: string[] = [];
+		chatService.agentHostError = new Error('Agent Host acquisition failed');
+		setUnexpectedErrorHandler(error => reportedErrors.push(error instanceof Error ? error.message : String(error)));
+		try {
+			const result = await resolver.resolve(CancellationToken.None, 'typescript', targetUri);
+
+			assert.deepStrictEqual({
+				usesLocalReference: result?.modelRef === chatService.localReference,
+				localSessionCalls: chatService.localSessionCalls,
+				reportedErrors,
+			}, {
+				usesLocalReference: true,
+				localSessionCalls: [{ location: ChatAgentLocation.EditorInline, options: { canUseTools: false, sessionTypeSelectionReason: 'agentHostUnavailable' } }],
+				reportedErrors: ['Agent Host acquisition failed'],
 			});
 		} finally {
 			setUnexpectedErrorHandler(originalErrorHandler);

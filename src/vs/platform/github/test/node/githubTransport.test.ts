@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubAccountHandle } from '../../common/githubTypes.js';
-import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { GitHubAccountHandle, GitHubGraphQLError } from '../../common/githubTypes.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
@@ -33,7 +33,7 @@ suite('GitHubTransport', () => {
 		}
 	}
 
-	test('always reaches the injected fetch with explicit no-store behavior', async () => {
+	test('uses fetch cache mode without a Cache-Control request header', async () => {
 		await withServer(async server => {
 			server.enqueue(
 				gitHubRestStep({ method: 'GET', path: '/repos/o/r/issues/1', response: gitHubJsonResponse({ value: 1 }) }),
@@ -60,8 +60,8 @@ suite('GitHubTransport', () => {
 				values: [1, 2],
 				serverRequests: 2,
 				fetchOptions: [
-					{ cache: 'no-store', cacheControl: 'no-store' },
-					{ cache: 'no-store', cacheControl: 'no-store' },
+					{ cache: 'no-store', cacheControl: undefined },
+					{ cache: 'no-store', cacheControl: undefined },
 				],
 			});
 			server.assertSatisfied();
@@ -245,7 +245,7 @@ suite('GitHubTransport', () => {
 				errors: [{ message: 'field denied', type: 'FORBIDDEN', path: ['repository', 'viewerPermission'] }],
 				rateLimit: { limit: 5000, remaining: 7, used: 3, resetAt: Date.parse('2030-01-01T00:00:00.000Z') },
 				authorizationIsExpected: true,
-				requestHeaders: { cacheControl: 'no-store', authorization: '******' },
+				requestHeaders: { cacheControl: undefined, authorization: '******' },
 			});
 			server.assertSatisfied();
 		});
@@ -514,7 +514,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(60_000);
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -554,7 +554,7 @@ suite('GitHubTransport', () => {
 				const startedAt = scheduler.now();
 				const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: `${server.apiBaseUrl}/repos/o/r/${after}` }, signal());
 				await Promise.resolve();
-				scheduler.flushAll();
+				scheduler.advanceBy(transport.rateLimits.getDelay(accountA, 'core'));
 				await pending;
 				observed.push(scheduler.now() - startedAt);
 			}
@@ -592,42 +592,281 @@ suite('GitHubTransport', () => {
 		});
 	});
 
-	test('GraphQL RATE_LIMITED errors establish shared account backoff', async () => {
-		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
-			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
-			server.enqueue(
-				gitHubGraphQLStep({
-					queryIncludes: 'repository',
-					response: gitHubGraphQLResponse(undefined, [{ message: 'rate limited', type: 'RATE_LIMITED' }]),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'viewer',
-					response: gitHubGraphQLResponse({ viewer: { id: 'U1' } }),
-				}),
-			);
+	const primaryErrors = [{ type: 'RATE_LIMIT', code: 'graphql_rate_limit', message: 'API rate limit already exceeded for user ID 1.' }];
+	const resourceErrors = [{ type: 'RATE_LIMITED', message: 'Too many requests', path: ['resolveReviewThread'] }];
+	const graphQLHeaders = {
+		'x-ratelimit-resource': 'graphql',
+		'x-ratelimit-limit': '5000',
+		'x-ratelimit-remaining': '4999',
+		'x-ratelimit-used': '1',
+		'x-ratelimit-reset': '4600',
+	};
+	const graphQLThrottlingCases: {
+		readonly name: string;
+		readonly errors: readonly GitHubGraphQLError[];
+		readonly headers: Readonly<Record<string, string>>;
+		readonly data?: object;
+		readonly mutation?: boolean;
+		readonly remaining?: number;
+		readonly delay: number;
+	}[] = [
+			{
+				name: 'resource-local RATE_LIMITED with healthy quota',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { resolveReviewThread: null }, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'cost-exceeds-remaining RATE_LIMITED with points left for cheaper queries',
+				errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for user ID 1.' }],
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '100' }, remaining: 100, delay: 0,
+			},
+			{
+				name: 'unscoped RATE_LIMITED with healthy quota',
+				errors: [{ type: 'RATE_LIMITED', message: 'Too many requests' }],
+				headers: graphQLHeaders, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED without quota feedback',
+				errors: resourceErrors, headers: {}, mutation: true, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed quota feedback',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with an empty remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': ' ' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with a non-decimal remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0x0' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed data and healthy headers',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with invalid quota numbers',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': '-1', 'x-ratelimit-reset': 'Infinity' },
+				data: { rateLimit: { remaining: -1, limit: 0.5, used: -1 } }, delay: 0,
+			},
+			{
+				name: 'primary RATE_LIMIT with an authoritative reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with independently exhausted quota',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota but no reset',
+				errors: resourceErrors, headers: { 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT without quota feedback',
+				errors: primaryErrors, headers: {}, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with malformed feedback',
+				errors: primaryErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid', 'retry-after': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a stale reset',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '1' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a reset but no remaining header',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '4600' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with partial quota data',
+				errors: primaryErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota in partial data',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After before the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '7' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with HTTP-date Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': new Date(1_007_000).toUTCString() }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with RFC 850 Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thursday, 01-Jan-70 00:16:47 GMT' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with UTC asctime Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': 'Thu Jan  1 00:16:47 1970' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with zero Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After beyond the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1060', 'retry-after': '120' }, remaining: 0, delay: 120_000,
+			},
+			{
+				name: 'resource-local RATE_LIMITED with explicit Retry-After',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '7' }, remaining: 4999, delay: 7_000,
+			},
+			...['0x0', ' \t ', '-1', '0.5', '+7', '7e0', '7.0', '0,5', '9007199254740992'].flatMap(retryAfter => [
+				{
+					name: `exhausted headers ignore malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `primary RATE_LIMIT ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: primaryErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `exhausted payload ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					data: { rateLimit: { remaining: 0 } },
+					remaining: 0, delay: 3_600_000,
+				},
+				{
+					name: `healthy quota ignores malformed Retry-After ${JSON.stringify(retryAfter)}`,
+					errors: resourceErrors,
+					headers: { ...graphQLHeaders, 'retry-after': retryAfter },
+					remaining: 4999, delay: 0,
+				},
+			]),
+		];
 
-			const limited = await transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { repository(owner: "o", name: "r") { id } }', {}, signal());
-			let settled = false;
-			const after = transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { viewer { id } }', {}, signal()).then(() => settled = true);
-			await Promise.resolve();
+	for (const scenario of graphQLThrottlingCases) {
+		test(`classifies GraphQL throttling: ${scenario.name}`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const dispatchTimes: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				dispatchTimes.push(scheduler.now());
+				assert.ok(dispatchTimes.length <= 2, 'A GraphQL failure must not replay the operation');
+				return dispatchTimes.length === 1
+					? new Response(JSON.stringify({ data: scenario.data, errors: scenario.errors }), { headers: scenario.headers })
+					: new Response('{"data":{"viewer":{"id":"U1"}}}');
+			}, scheduler, false, undefined, { requestTimeout: 4_000_000 }));
+			const query = scenario.mutation
+				? 'mutation { resolveReviewThread(input: { threadId: "T1" }) { thread { id } } }'
+				: 'query Limited { viewer { id } rateLimit { limit remaining used resetAt } }';
 
-			scheduler.advanceBy(59_999);
-			await Promise.resolve();
-			assert.strictEqual(settled, false);
-			scheduler.advanceBy(1);
-			await after;
+			const limited = await transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', query, {}, signal());
+			const remaining = transport.rateLimits.getState(accountA, 'graphql')?.remaining;
+			const delay = transport.rateLimits.getDelay(accountA, 'graphql');
+			assert.strictEqual(delay, scenario.delay);
+			const after = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query After { viewer { id } }', {}, signal());
+			scheduler.advanceBy(delay);
+			const unrelated = await after;
 
 			assert.deepStrictEqual({
-				errors: limited.errors,
-				requestCount: server.requests.length,
+				response: { data: limited.data, errors: limited.errors },
+				remaining, delay, dispatchTimes,
+				unrelated: unrelated.data,
+				pending: scheduler.pendingCount,
 			}, {
-				errors: [{ message: 'rate limited', type: 'RATE_LIMITED' }],
-				requestCount: 2,
+				response: { data: scenario.data, errors: scenario.errors },
+				remaining: scenario.remaining, delay: scenario.delay,
+				dispatchTimes: [1_000_000, 1_000_000 + scenario.delay],
+				unrelated: { viewer: { id: 'U1' } },
+				pending: 0,
 			});
-			server.assertSatisfied();
 		});
-	});
+	}
+
+	for (const source of ['primary error', 'primary headers', 'secondary error'] as const) {
+		for (const locallyThrottled of [false, true]) {
+			test(`preserves a GraphQL cooldown from ${source} when an older response reports healthy quota (RATE_LIMITED: ${locallyThrottled})`, async () => {
+				const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+				const started = new DeferredPromise<void>();
+				const delayedResponse = new DeferredPromise<Response>();
+				let requests = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					requests++;
+					await started.complete();
+					return delayedResponse.p;
+				}, scheduler));
+				const older = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query Older { viewer { id } }', {}, signal());
+				await started.p;
+				const body = source === 'secondary error' ? '{"message":"You have exceeded a secondary rate limit."}' : JSON.stringify({ errors: primaryErrors });
+				transport.rateLimits.updateFromResponse(accountA, new Response(body, {
+					status: source === 'secondary error' ? 403 : 200,
+					headers: source === 'secondary error'
+						? { ...graphQLHeaders, 'retry-after': '5' }
+						: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' },
+				}), body);
+				if (source === 'primary error') {
+					transport.rateLimits.markGraphQLRateLimited(accountA);
+				}
+				const before = transport.rateLimits.getDelay(accountA, 'graphql');
+				scheduler.advanceBy(1_000);
+				await delayedResponse.complete(new Response(JSON.stringify({
+					data: { viewer: { id: 'U1' }, rateLimit: { remaining: 4999, resetAt: new Date(8_200_000).toISOString() } },
+					...(locallyThrottled ? { errors: resourceErrors } : {}),
+				}), { headers: graphQLHeaders }));
+				await older;
+
+				const expected = source === 'secondary error' ? 5_000 : 3_600_000;
+				assert.deepStrictEqual({
+					before,
+					after: transport.rateLimits.getDelay(accountA, 'graphql'),
+					core: transport.rateLimits.getDelay(accountA, 'core'),
+					requests,
+				}, { before: expected, after: expected - 1_000, core: source === 'secondary error' ? 4_000 : 0, requests: 1 });
+			});
+		}
+	}
+
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`GraphQL ${type} with shorter Retry-After does not shorten an existing cooldown`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const transport = disposables.add(new GitHubTransport(async () => {
+				await started.complete();
+				return response.p;
+			}, scheduler));
+			const pending = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query { viewer { id } }', {}, signal());
+			await started.p;
+			transport.rateLimits.updateFromResponse(accountA, new Response(null, {
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '90' },
+			}));
+			scheduler.advanceBy(1_000);
+			await response.complete(new Response(JSON.stringify({ errors: [{ type, message: 'Rate limited' }] }), {
+				headers: { ...graphQLHeaders, 'retry-after': '7' },
+			}));
+			await pending;
+
+			assert.deepStrictEqual({
+				delay: transport.rateLimits.getDelay(accountA, 'graphql'),
+				remaining: transport.rateLimits.getState(accountA, 'graphql')?.remaining,
+			}, { delay: 89_000, remaining: type === 'RATE_LIMIT' ? 0 : 4999 });
+		});
+	}
 
 	test('does not apply GraphQL primary-rate-limit state to the REST core bucket', async () => {
 		await withServer(async server => {
@@ -706,6 +945,7 @@ suite('GitHubTransport', () => {
 			assert.deepStrictEqual(bounded, {
 				text: 'abc',
 				truncated: true,
+				bytesRead: 3,
 				sourceUrl: `${server.apiBaseUrl}/repos/o/r/log`,
 				contentType: 'application/octet-stream',
 			});
@@ -713,24 +953,302 @@ suite('GitHubTransport', () => {
 		});
 	});
 
-	test('runs higher-priority queued work before older background work', async () => {
-		const queue = disposables.add(new GitHubRequestQueue());
-		const firstRelease = new DeferredPromise<void>();
-		const order: string[] = [];
-		const first = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('first');
-			await firstRelease.p;
-		});
-		const background = queue.enqueue(accountA, 'background', signal(), async () => {
-			order.push('background');
-		});
-		const interactive = queue.enqueue(accountA, 'interactive', signal(), async () => {
-			order.push('interactive');
-		});
-
-		await firstRelease.complete();
-		await Promise.all([first, background, interactive]);
-
-		assert.deepStrictEqual(order, ['first', 'interactive', 'background']);
+	test('preserves byte-prefix semantics and distinguishes EOF from a limit probe', async () => {
+		const results: { maximumBytes: number; text: string; truncated: boolean; bytesRead?: number; cancelled: boolean; locked: boolean }[] = [];
+		for (const [maximumBytes, chunks] of [
+			[3, ['abc']],
+			[3, ['ab', 'c', 'd']],
+			[0, []],
+			[0, ['a']],
+			[-1, ['a']],
+			[3, ['\u00e9', '\u00e9']],
+		] as const) {
+			let cancelled = false;
+			let chunkIndex = 0;
+			const stream = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					if (chunkIndex < chunks.length) {
+						controller.enqueue(new TextEncoder().encode(chunks[chunkIndex++]));
+					} else {
+						controller.close();
+					}
+				},
+				cancel() { cancelled = true; },
+			}, { highWaterMark: 0 });
+			const transport = disposables.add(new GitHubTransport(async () => new Response(stream)));
+			const result = await transport.download(accountA, 'token-a', {
+				url: 'https://api.example.test/log', maximumBytes, timeout: 1_000,
+			}, signal());
+			results.push({ maximumBytes, text: result.text, truncated: result.truncated, bytesRead: result.bytesRead, cancelled, locked: stream.locked });
+		}
+		assert.deepStrictEqual(results, [
+			{ maximumBytes: 3, text: 'abc', truncated: false, bytesRead: 3, cancelled: false, locked: false },
+			{ maximumBytes: 3, text: 'abc', truncated: true, bytesRead: 3, cancelled: true, locked: false },
+			{ maximumBytes: 0, text: '', truncated: false, bytesRead: 0, cancelled: false, locked: false },
+			{ maximumBytes: 0, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: false },
+			{ maximumBytes: -1, text: '', truncated: true, bytesRead: 0, cancelled: true, locked: false },
+			{ maximumBytes: 3, text: '\u00e9\ufffd', truncated: true, bytesRead: 3, cancelled: true, locked: false },
+		]);
 	});
+
+	for (const abortMode of ['cancel', 'timeout'] as const) {
+		test(`releases pending download reads on ${abortMode} even when source cancellation never settles`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler());
+			const controller = new AbortController();
+			const readStarted = new DeferredPromise<void>();
+			let cancelled = false;
+			const stream = new ReadableStream<Uint8Array>({
+				pull() { void readStarted.complete(); },
+				cancel() {
+					cancelled = true;
+					return new Promise<void>(() => { });
+				},
+			}, { highWaterMark: 0 });
+			const transport = disposables.add(new GitHubTransport(async () => new Response(stream), scheduler));
+			const pending = transport.download(accountA, 'token-a', {
+				url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
+			}, controller.signal);
+			const reason = new Error('cancelled by caller');
+			const rejected = assert.rejects(pending, error => abortMode === 'cancel'
+				? error === reason
+				: error instanceof GitHubRequestError && error.kind === 'timeout');
+			await readStarted.p;
+			if (abortMode === 'cancel') {
+				controller.abort(reason);
+			} else {
+				scheduler.advanceBy(30_000);
+			}
+			await rejected;
+			assert.deepStrictEqual({ cancelled, locked: stream.locked, pendingTimers: scheduler.pendingCount }, {
+				cancelled: true, locked: false, pendingTimers: 0,
+			});
+		});
+	}
+
+	test('does not await a hanging source cancellation after capturing the bounded prefix', async () => {
+		const scheduler = disposables.add(new FakeGitHubScheduler());
+		let cancelled = false;
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) { controller.enqueue(new TextEncoder().encode('abcdef')); },
+			cancel() {
+				cancelled = true;
+				return new Promise<void>(() => { });
+			},
+		});
+		const transport = disposables.add(new GitHubTransport(async () => new Response(stream), scheduler));
+		const result = await transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
+		}, signal());
+		assert.deepStrictEqual({
+			text: result.text, truncated: result.truncated, cancelled, locked: stream.locked, pendingTimers: scheduler.pendingCount,
+		}, { text: 'abc', truncated: true, cancelled: true, locked: false, pendingTimers: 0 });
+	});
+
+	test('sanitizes body read failures and releases the reader and deadline', async () => {
+		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const stream = new ReadableStream<Uint8Array>({
+			pull(controller) { controller.error(new Error('private-token https://storage.example.test/log?sig=private')); },
+		}, { highWaterMark: 0 });
+		const transport = disposables.add(new GitHubTransport(async () => new Response(stream), scheduler));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
+		}, signal()), {
+			name: 'GitHubRequestError', kind: 'network', message: 'GitHub download body failed (codes: unknown)',
+		});
+		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: false, pendingTimers: 0 });
+	});
+
+	test('cleans up a body returned after cancellation without reading it', async () => {
+		const controller = new AbortController();
+		const reason = new Error('cancelled');
+		let cancelled = false;
+		let reads = 0;
+		const stream = new ReadableStream<Uint8Array>({
+			pull() { reads++; },
+			cancel() { cancelled = true; },
+		}, { highWaterMark: 0 });
+		const transport = disposables.add(new GitHubTransport(async () => {
+			controller.abort(reason);
+			return new Response(stream);
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+		}, controller.signal), error => error === reason);
+		assert.deepStrictEqual({ reads, cancelled, locked: stream.locked }, { reads: 0, cancelled: true, locked: false });
+	});
+
+	test('reports source cancellation failures without leaking their content or losing the bounded result', async () => {
+		const warnings: string[] = [];
+		const logService = disposables.add(new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}());
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) { controller.enqueue(new TextEncoder().encode('abcdef')); },
+			cancel() { throw new Error('private-token https://storage.example.test/log?sig=private'); },
+		});
+		const transport = disposables.add(new GitHubTransport(async () => new Response(stream), undefined, false, logService));
+		const result = await transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+		}, signal());
+		assert.deepStrictEqual({ text: result.text, locked: stream.locked, warnings }, {
+			text: 'abc', locked: false, warnings: ['[GitHubTransport] Failed to cancel a download body'],
+		});
+	});
+
+	test('cancels discarded redirects before rejecting unsafe, invalid, or missing locations', async () => {
+		const results: { cancelled: boolean; requests: number }[] = [];
+		for (const location of ['http://external.example.test/log', 'file:///private', 'https://user:password@storage.example.test/log', 'https://[invalid?sig=private', undefined]) {
+			let cancelled = false;
+			let requests = 0;
+			const transport = disposables.add(new GitHubTransport(async () => {
+				requests++;
+				return new Response(new ReadableStream<Uint8Array>({
+					cancel() { cancelled = true; },
+				}), { status: 302, headers: location === undefined ? {} : { location } });
+			}));
+			await assert.rejects(() => transport.download(accountA, 'token-a', {
+				url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+			}, signal()), error => error instanceof GitHubRequestError
+				&& error.kind === (location === undefined ? 'malformedResponse' : 'authorization')
+				&& !error.message.includes('private') && !error.message.includes('password'));
+			results.push({ cancelled, requests });
+		}
+		assert.deepStrictEqual(results, Array.from({ length: 5 }, () => ({ cancelled: true, requests: 1 })));
+	});
+
+	test('cancels redirect bodies and never sends credentials to a storage origin', async () => {
+		const requests: { host: string; authenticated: boolean }[] = [];
+		let cancelled = 0;
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({ host: new URL(String(input)).host, authenticated: new Headers(init?.headers).has('Authorization') });
+			if (requests.length < 3) {
+				return new Response(new ReadableStream<Uint8Array>({
+					cancel() {
+						cancelled++;
+						return new Promise<void>(() => { });
+					},
+				}), {
+					status: 302,
+					headers: { location: requests.length === 1 ? '/other' : 'https://storage.example.test/log?sig=private' },
+				});
+			}
+			return new Response('ok');
+		}));
+		const result = await transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+		}, signal());
+		assert.deepStrictEqual({ requests, cancelled, text: result.text }, {
+			requests: [
+				{ host: 'api.example.test', authenticated: true },
+				{ host: 'api.example.test', authenticated: true },
+				{ host: 'storage.example.test', authenticated: false },
+			],
+			cancelled: 2, text: 'ok',
+		});
+	});
+
+	test('cancels every discarded body when reaching the redirect limit', async () => {
+		let cancelled = 0;
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			requests++;
+			return new Response(new ReadableStream<Uint8Array>({
+				cancel() { cancelled++; },
+			}), { status: 302, headers: { location: '/again?sig=private' } });
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError', kind: 'unknown', message: 'GitHub download exceeded the redirect limit',
+		});
+		assert.deepStrictEqual({ requests, cancelled }, { requests: 6, cancelled: 6 });
+	});
+
+	test('discards download error bodies without exposing signed URLs or credentials', async () => {
+		let cancelled = false;
+		const transport = disposables.add(new GitHubTransport(async () => new Response(new ReadableStream<Uint8Array>({
+			start(controller) { controller.enqueue(new TextEncoder().encode('private-token https://storage.example.test/log?sig=private'.repeat(1024))); },
+			cancel() { cancelled = true; },
+		}), { status: 403, statusText: 'private details' })));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError', kind: 'authorization', statusCode: 403, message: 'GitHub download failed - HTTP 403',
+			responseBody: undefined,
+		});
+		assert.strictEqual(cancelled, true);
+	});
+
+	test('reports the failing download hop and nested network codes without signed URLs or credentials', async () => {
+		const requests: { host: string; authorization: string | null }[] = [];
+		const transport = disposables.add(new GitHubTransport(async (input, init) => {
+			requests.push({ host: new URL(String(input)).host, authorization: new Headers(init?.headers).get('Authorization') });
+			if (requests.length === 1) {
+				return new Response(null, { status: 302, headers: { location: 'https://storage.example.test/private-log?sig=secret-signature' } });
+			}
+			throw new TypeError('fetch failed for secret-signature', {
+				cause: new AggregateError([
+					Object.assign(new Error('private-address'), { code: 'UND_ERR_CONNECT_TIMEOUT' }),
+					Object.assign(new Error('secret-token'), { code: 'ETIMEDOUT' }),
+					{ code: 'https://storage.example.test/private-log?sig=secret-signature' },
+				]),
+			});
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: storage.example.test, redirect: 1, codes: UND_ERR_CONNECT_TIMEOUT, ETIMEDOUT)',
+		});
+		assert.deepStrictEqual(requests, [
+			{ host: 'api.example.test', authorization: 'Bearer token-a' },
+			{ host: 'storage.example.test', authorization: null },
+		]);
+	});
+
+	test('reports initial download failures with a bounded cyclic cause chain', async () => {
+		const error = Object.assign(new Error('private details'), { code: 'ENOTFOUND' });
+		error.cause = error;
+		const transport = disposables.add(new GitHubTransport(async () => { throw error; }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: ENOTFOUND)',
+		});
+	});
+
+	test('reports unknown download network codes without exposing thrown content', async () => {
+		const transport = disposables.add(new GitHubTransport(async () => { throw new Error('secret-token'); }));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, signal()), {
+			name: 'GitHubRequestError',
+			kind: 'network',
+			message: 'GitHub download network request failed (host: api.example.test, redirect: 0, codes: unknown)',
+		});
+	});
+
+	test('preserves download cancellation instead of reporting a network failure', async () => {
+		const controller = new AbortController();
+		const reason = new Error('cancelled download');
+		const transport = disposables.add(new GitHubTransport(async () => {
+			controller.abort(reason);
+			throw new TypeError('fetch failed');
+		}));
+		await assert.rejects(() => transport.download(accountA, 'token-a', {
+			url: 'https://api.example.test/repos/o/r/log',
+			maximumBytes: 100,
+			timeout: 1_000,
+		}, controller.signal), error => error === reason);
+	});
+
 });

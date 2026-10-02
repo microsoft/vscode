@@ -132,30 +132,32 @@
 	transition: none;
 }
 
-/* The Device EQ waveform lives in the voice cell and transforms per state. Thin bars = default (disconnected); thick bars = filled (connected). Its box matches the compact glyph size of the neighbouring cells so every state of the pill reads at the same optical weight. */
+/* The waveform uses the exact four-stroke silhouette and 12px box of the
+ * `voice-mode-compact` codicon, then transforms those strokes per state. */
 .chat-voice-input-mode-bars {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
 	gap: 2px;
-	height: 12px;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
 }
 
 /* Bars are strokes, not shapes — keep them at the same visual weight as the codicon
 	glyphs in the neighbouring cells so the waveform doesn't read as bolder than the mic. */
 .chat-voice-input-mode-bar {
 	width: 1px;
-	border-radius: 1px;
+	border-radius: var(--vscode-cornerRadius-circle);
 	background: currentColor;
 	transform-origin: center center;
 	transition: height 0.22s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
-/* Device EQ silhouette: symmetric center-peak (matches Device EQ.svg), scaled to the 12px glyph box. Bars stay thin in every state — connected reads via a darker color, not thicker bars. */
-.chat-voice-input-mode-bar:nth-child(1) { height: 3px; }
-.chat-voice-input-mode-bar:nth-child(2) { height: 6px; }
-.chat-voice-input-mode-bar:nth-child(3) { height: 9px; }
-.chat-voice-input-mode-bar:nth-child(4) { height: 6px; }
-.chat-voice-input-mode-bar:nth-child(5) { height: 3px; }
+/* Exact stroke heights from the compact codicon. */
+.chat-voice-input-mode-bar:nth-child(1) { height: 6px; }
+.chat-voice-input-mode-bar:nth-child(2) { height: 12px; }
+.chat-voice-input-mode-bar:nth-child(3) { height: 8px; }
+.chat-voice-input-mode-bar:nth-child(4) { height: 4px; }
 
 /* Hover while connected → preview disconnect: collapse to a short, even, "silent" row (no waveform, no motion). The height transition makes leaving the hover grow the bars smoothly back into the active waveform. */
 .chat-voice-input-mode-cell.voice.on:hover .chat-voice-input-mode-bar,
@@ -172,7 +174,6 @@
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(2) { animation-delay: -0.34s; }
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(3) { animation-delay: -0.68s; }
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4) { animation-delay: -1.02s; }
-.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.idle-on:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5) { animation-delay: -1.36s; }
 
 /* Listening / speaking → energetic equalizer. JS overrides heights when an audio analyser is available; this is the fallback (and covers the moment before capture). */
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar,
@@ -187,16 +188,14 @@
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(3) { animation-delay: 0.24s; }
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4),
 .monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(4) { animation-delay: 0.36s; }
-.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.listening:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5),
-.monaco-workbench.monaco-enable-motion .chat-voice-input-mode-cell.voice.speaking:not(:hover):not(.sim-hover) .chat-voice-input-mode-bar:nth-child(5) { animation-delay: 0.48s; }
 
 /* Undulating idle wave: gentle centered height ripple (bars scale from their center, so they grow/shrink in place rather than moving up or down). */
 @keyframes chat-voice-input-mode-wave {
 	0%, 100% { transform: scaleY(0.72); }
-	50% { transform: scaleY(1.08); }
+	50% { transform: scaleY(1); }
 }
 
 @keyframes chat-voice-input-mode-eq {
 	0%, 100% { height: 2px; }
-	50% { height: 10px; }
+	50% { height: 12px; }
 }

@@ -12,6 +12,7 @@ import * as os from 'os';
 import { type RawSourceMap, SourceMapConsumer } from 'source-map';
 import { nlsPlugin, createNLSCollector, finalizeNLS, postProcessNLS } from '../nls-plugin.ts';
 import { adjustSourceMap } from '../private-to-property.ts';
+import { getBundleOptions } from '../bundle.ts';
 
 // analyzeLocalizeCalls requires the import path to end with `/nls`
 const NLS_STUB = [
@@ -57,27 +58,12 @@ async function bundleWithNLS(
 	const collector = createNLSCollector();
 
 	const result = await esbuild.build({
+		...getBundleOptions(opts?.minify ?? false, 'neutral'),
 		entryPoints: [path.join(srcDir, entryPoint)],
 		outfile: path.join(outDir, entryPoint.replace(/\.ts$/, '.js')),
-		bundle: true,
-		format: 'esm',
-		platform: 'neutral',
-		target: ['es2024'],
-		packages: 'external',
-		sourcemap: 'linked',
-		sourcesContent: true,
-		minify: opts?.minify ?? false,
-		write: false,
 		plugins: [
 			nlsPlugin({ baseDir: srcDir, collector }),
 		],
-		tsconfigRaw: JSON.stringify({
-			compilerOptions: {
-				experimentalDecorators: true,
-				useDefineForClassFields: false
-			}
-		}),
-		logLevel: 'warning',
 	});
 
 	let jsContent = '';

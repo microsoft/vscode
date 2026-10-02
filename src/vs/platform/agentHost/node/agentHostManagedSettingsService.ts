@@ -15,8 +15,11 @@ export interface IAgentHostManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChange: Event<void>;
 	readonly permissions: IAgentHostManagedSettingsPermissions;
+	readonly sandboxRequired: boolean;
+	readonly onDidChangeSandboxRequired: Event<void>;
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
-	removeClientPermissions(clientId: string): void;
+	setClientSandboxRequired(clientId: string, required: boolean): void;
+	removeClient(clientId: string): void;
 }
 
 export class AgentHostManagedSettingsService extends Disposable implements IAgentHostManagedSettingsService {
@@ -27,9 +30,28 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 
 	private readonly _permissionsByClient = new Map<string, IAgentHostManagedSettingsPermissions>();
 	private _permissions: IAgentHostManagedSettingsPermissions = {};
+	private readonly _sandboxRequiredByClient = new Set<string>();
+	private readonly _onDidChangeSandboxRequired = this._register(new Emitter<void>());
+	readonly onDidChangeSandboxRequired = this._onDidChangeSandboxRequired.event;
 
 	get permissions(): IAgentHostManagedSettingsPermissions {
 		return this._permissions;
+	}
+
+	get sandboxRequired(): boolean {
+		return this._sandboxRequiredByClient.size > 0;
+	}
+
+	setClientSandboxRequired(clientId: string, required: boolean): void {
+		const previous = this.sandboxRequired;
+		if (required) {
+			this._sandboxRequiredByClient.add(clientId);
+		} else {
+			this._sandboxRequiredByClient.delete(clientId);
+		}
+		if (this.sandboxRequired !== previous) {
+			this._onDidChangeSandboxRequired.fire();
+		}
 	}
 
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void {
@@ -41,7 +63,8 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		this._updatePermissions();
 	}
 
-	removeClientPermissions(clientId: string): void {
+	removeClient(clientId: string): void {
+		this.setClientSandboxRequired(clientId, false);
 		if (this._permissionsByClient.delete(clientId)) {
 			this._updatePermissions();
 		}

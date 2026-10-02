@@ -65,6 +65,7 @@ export interface IBranchPickerOptions {
 	readonly keepDisabledFocusable?: boolean;
 	readonly renderDisabledAsStatic?: boolean;
 	readonly ariaLive?: 'off' | 'polite' | 'assertive';
+	readonly contextViewLayer?: number;
 	readonly isolation?: IBranchPickerIsolationOptions;
 }
 
@@ -201,8 +202,8 @@ export class BranchPicker extends Disposable {
 		}
 	}
 
-	showPicker(): void {
-		if (!this._triggerElement || this._actionWidgetService.isVisible || !this._state.canOpen) {
+	showPicker(anchor = this._triggerElement): void {
+		if (!anchor || this._actionWidgetService.isVisible || !this._state.canOpen) {
 			return;
 		}
 
@@ -218,15 +219,15 @@ export class BranchPicker extends Disposable {
 			},
 			onHide: () => {
 				this._isOpen = false;
-				trigger.setAttribute('aria-expanded', 'false');
-				if (trigger.isConnected) {
+				trigger?.setAttribute('aria-expanded', 'false');
+				if (trigger?.isConnected) {
 					trigger.focus();
 				}
 			},
 		};
 
 		this._isOpen = true;
-		trigger.setAttribute('aria-expanded', 'true');
+		trigger?.setAttribute('aria-expanded', 'true');
 		const items = this._getItems();
 		const branchCount = items.filter(item => item.item?.kind === 'branch' && !item.item.unavailable).length;
 		this._actionWidgetService.show(
@@ -234,7 +235,7 @@ export class BranchPicker extends Disposable {
 			false,
 			items,
 			delegate,
-			trigger,
+			anchor,
 			undefined,
 			[],
 			{
@@ -249,6 +250,7 @@ export class BranchPicker extends Disposable {
 			branchCount > FILTER_THRESHOLD
 				? { showFilter: true, filterPlaceholder: localize('branchPicker.filter', "Filter branches…") }
 				: undefined,
+			this._options.contextViewLayer,
 		);
 	}
 

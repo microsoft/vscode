@@ -122,8 +122,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 	async initialize(): Promise<ConfigurationModel> {
 		this.logService.trace('PolicyConfiguration#initialize');
 
-		this.update(await this.updatePolicyDefinitions(this.defaultConfiguration.configurationModel.keys), false);
-		this.update(await this.updatePolicyDefinitions(Object.keys(this.configurationRegistry.getExcludedConfigurationProperties())), false);
+		this.update(await this.updatePolicyDefinitions([
+			...this.defaultConfiguration.configurationModel.keys,
+			...Object.keys(this.configurationRegistry.getExcludedConfigurationProperties()),
+		]), false);
 		this._register(this.policyService.onDidChange(policyNames => this.onDidChangePolicies(policyNames)));
 		this._register(this.defaultConfiguration.onDidChangeConfiguration(async ({ properties }) => this.update(await this.updatePolicyDefinitions(properties), true)));
 		return this._configurationModel;
@@ -297,10 +299,10 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 			if (Array.isArray(currentParent)) {
 				currentParent.push(value);
 			} else if (currentProperty !== null) {
-				if (currentParent[currentProperty] !== undefined) {
+				if (Object.hasOwn(currentParent, currentProperty)) {
 					throw new Error(`Duplicate property found: ${currentProperty}`);
 				}
-				currentParent[currentProperty] = value;
+				json.setObjectProperty(currentParent, currentProperty, value);
 			}
 		}
 

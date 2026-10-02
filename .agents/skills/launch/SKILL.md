@@ -19,16 +19,15 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 ## Prerequisites
 
 - macOS, Linux, or Windows.
-  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `nohup`, and Node on `PATH`. The example caller snippets below also use `jq` (parse the JSON output) and `lsof` (kill-by-port fallback) — install those if you plan to use them, but the launcher itself does not require them.
-  - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. `jq` is not needed — parse the JSON with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
+  - **macOS / Linux**: the launcher is a bash script (`scripts/launch.sh`) and depends on `rsync`, `nohup`, and Node on `PATH`.
+  - **Windows**: use `scripts\launch.ps1` instead. It needs no extra tooling beyond Node on `PATH`, and works on both Windows PowerShell 5.1 and PowerShell 7+. Parse launcher output with `ConvertFrom-Json`. If Node is managed with [fnm](https://github.com/Schniz/fnm), put it on `PATH` first:
     ```powershell
     fnm env --use-on-cd --shell powershell | Out-String | Invoke-Expression
     fnm use   # picks up the repo's .nvmrc
     ```
 - A VS Code checkout with `node_modules/` installed (`npm install` if missing — do **not** symlink from a sibling worktree; that breaks builds in subtle ways).
 - A VS Code checkout with sources built. Run `npm run compile` once (one-shot) or `npm run watch` for incremental rebuilds. Both build the full client **and** all built-in extensions under `extensions/`. You must build the full product to run successfully, building just the client is not enough.
-- An **authenticated** Code OSS profile to seed from. By default the launcher uses `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use - if the user has ever signed in to Copilot in a dev build, this should work. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install).
-  - If Code OSS launches and needs a sign-in, don't give up! Use the questions tool to ask the user to sign in.
+- An authenticated Code OSS profile is recommended but not required. By default the launcher tries to seed from `~/.vscode-oss-dev` on macOS/Linux or `$env:USERPROFILE\.vscode-oss-dev` on Windows, which is the user-data-dir the repo's `launch.json` configs use. Only pass `--source-user-data-dir <path>` (or set `$CODE_OSS_DEV_AUTHED_USER_DATA_DIR`) when you specifically want to seed from a different profile (e.g. your regular `~/Library/Application Support/Code` install). If the source profile is missing, the launcher continues with an empty isolated profile.
 - `@playwright/cli` available (it's a devDependency in the vscode repo - `npm install` then use `npx @playwright/cli`).
 - For debugger work: `dap-cli` on `PATH`. If debugger support would be useful but the `dap-cli` skill is not present, prompt the user to install it from https://github.com/roblourens/dap-cli.
 - CSS selectors are internal implementation details. If a selector-based `eval` stops working, take a fresh `snapshot`, inspect the current DOM, and update the selector rather than assuming an old one still applies.
@@ -36,6 +35,8 @@ The clone is **slim**: workspace storage, browser caches, file history, cached V
 > The launcher **copies** the source profile to a temp dir and never mutates the original. Each launch gets its own isolated `--user-data-dir` and `--extensions-dir`.
 
 > The launcher always sets `files.simpleDialog.enable: true` in the launched profile's `User/settings.json`. This is required for automation: VS Code's native OS file dialogs cannot be driven via `@playwright/cli` over CDP and are completely unreachable over SSH on headless macOS. The simple (quick-input) dialog can be navigated with `press` and clipboard paste. The override is per-launch and only affects throwaway profiles.
+
+> Before launching from an agent session, call `get_current_session` and pass its `title` as `--session-title`. For a regular editor window, the launcher writes that title into the throwaway profile's `window.title` setting. For an Agents window, it passes the title to the Command Center. This never modifies the source profile.
 
 > For unattended automation, pass `--disable-workspace-trust` so a trust dialog cannot block the flow or extension-host startup. The override is process-scoped and does not modify the source profile. Only use it with content you trust.
 
@@ -45,8 +46,9 @@ The launcher script lives next to this SKILL.md at `scripts/launch.sh` (macOS/Li
 
 ```bash
 # LAUNCH=<dir-of-this-SKILL.md>/scripts/launch.sh
-"$LAUNCH"                                    # default: workbench
-"$LAUNCH" --agents                           # Agents window
+SESSION_TITLE=<title-from-get_current_session>
+"$LAUNCH" --session-title "$SESSION_TITLE"   # default: workbench
+"$LAUNCH" --agents --session-title "$SESSION_TITLE"
 "$LAUNCH" -- <workspace-path>                # forward extra args to code.sh
 "$LAUNCH" --source-user-data-dir <path>      # pick a specific authed profile
 "$LAUNCH" --repo <vscode-repo-root>          # if not run from the repo
@@ -61,8 +63,9 @@ On Windows, invoke the PowerShell launcher with the same flags:
 ```powershell
 $skillDir = '<dir-of-this-SKILL.md>'
 $launch = Join-Path $skillDir 'scripts\launch.ps1'
-& $launch                                      # default: workbench
-& $launch --agents                             # Agents window
+$sessionTitle = '<title-from-get_current_session>'
+& $launch --session-title $sessionTitle         # default: workbench
+& $launch --agents --session-title $sessionTitle
 & $launch -- --use-mock-keychain               # forward extra args to code.bat
 & $launch --source-user-data-dir C:\path\to\profile
 & $launch --repo C:\path\to\vscode
@@ -73,6 +76,45 @@ $launch = Join-Path $skillDir 'scripts\launch.ps1'
 ```
 
 If the local execution policy blocks scripts, invoke it with `powershell -ExecutionPolicy Bypass -File <path-to-launch.ps1>`. The Windows implementation has the same profile isolation, slim-copy excludes, settings merge, port allocation, foreground pre-launch, and CDP-ready contract as the bash launcher; only the shell commands and path syntax differ.
+
+### Handle a missing sign-in
+
+If the source profile is missing or has no stored GitHub session, **do not stop and do not ask before launching**. Continue until the isolated Code OSS window reaches the normal GitHub/Copilot sign-in UI. Don't give up when Code OSS needs a sign-in.
+
+At that point, use the questions tool with these choices:
+
+- **I have signed in**
+- **Bootstrap profile to pre-authenticate future launches**
+
+If the user has signed in, continue with the current isolated launch. If they choose to bootstrap, clean up the current isolated launch and run the platform bootstrap script:
+
+```bash
+BOOTSTRAP=<dir-of-this-SKILL.md>/scripts/bootstrap/bootstrap-profile.sh
+"$BOOTSTRAP" --repo <vscode-repo-root>
+```
+
+```powershell
+$bootstrap = Join-Path $skillDir 'scripts\bootstrap\bootstrap-profile.ps1'
+& $bootstrap -Repo <vscode-repo-root>
+```
+
+If the failed launch used a custom `--source-user-data-dir`, pass the same path as `--user-data-dir <path>` on macOS/Linux or `-UserDataDir <path>` on Windows.
+
+The bootstrap script returns only after the persistent Code OSS window's CDP endpoint is ready. It reports a log path and fails with the log tail if the window cannot become usable. Ask the user to sign in to GitHub/Copilot in that window and close it, using **I have signed in** as the acknowledgement choice. On macOS, the user must quit Code OSS completely with Cmd+Q; closing its last window does not stop the application.
+
+After the user acknowledges, wait for the bootstrap process tree to release the persistent profile before launching again:
+
+```bash
+"$BOOTSTRAP" --wait-for-exit <exitMarker-from-bootstrap-json>
+```
+
+```powershell
+& $bootstrap -WaitForExit -ExitMarker <exitMarker-from-bootstrap-json>
+```
+
+Use the same profile path that bootstrap reported; omit the explicit path only when using the default profile. Once the wait succeeds, run the normal launcher again. Its isolated copy will inherit the stored authentication without racing files still held by the bootstrap window.
+
+Do not bootstrap without the user's explicit choice. The bootstrap window uses persistent profile and shared-authentication storage, unlike normal isolated launches.
 
 ### What gets copied (slim mode, the default)
 
@@ -91,7 +133,7 @@ The launcher therefore seeds **both**: it copies the source profile *and* copies
 
 > This asymmetry is invisible on macOS/Linux, where the same token lands inside the profile. A Windows-only "always signed out" symptom is a shared-data-dir problem, **not** a profile problem: signing in against the source profile writes a perfectly good session, but before this seeding existed every launch handed Code OSS an empty shared dir and threw it away.
 
-To (re)establish the source session: run `.\scripts\code.bat --user-data-dir=$env:USERPROFILE\.vscode-oss-dev` directly, sign in once, and close it. That writes the blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
+The bootstrap script writes the session blob to `%USERPROFILE%\.vscode-oss-shared` and the key to the profile's `Local State`; later launches copy both and inherit the session.
 
 > Profiles that predate the `APPLICATION_SHARED` migration can still hold the secret in `User/globalStorage/state.vscdb`. `ApplicationSharedStorageMain` registers application storage as a read fallback, so those profiles authenticate even with no shared-data-dir present - which is why a missing shared dir is reported as a fact rather than assumed fatal.
 
@@ -110,8 +152,6 @@ The persistent integrated-browser partition keeps website state such as cookies,
 
 > **Why never share the source `extensions/` dir directly?** The extension management service writes a shared `.obsolete` file; two concurrent writers crash each other's shared background process. The launcher always uses an isolated extensions dir for the same reason it uses `--shared-data-dir` (see below).
 
-> If the launched window says "language model unavailable" or otherwise looks unauthed, ask the user to sign in.
-
 The script runs pre-launch (electron download, compile-if-missing, built-in extensions) **in the foreground**, then starts Code OSS detached and **blocks until the renderer's CDP endpoint is responding** (up to ~90s) before printing the JSON line on stdout. If anything fails — preLaunch errors, code.sh exits early, CDP never opens — the script exits non-zero and dumps the relevant log tail to stderr.
 
 For repeated launches of the same prepared build, pass `--skip-prelaunch` after one successful normal launch. Only use it while a watch task keeps all output current or neither sources nor build outputs have changed; otherwise the new instance may run stale or incomplete code.
@@ -122,19 +162,19 @@ For repeated launches of the same prepared build, pass `--skip-prelaunch` after 
 
 The additive `timings` object uses monotonic elapsed time to identify time spent preparing the isolated profile, running pre-launch, and starting Code OSS through CDP readiness. `totalMs` covers the complete launcher operation through readiness.
 
-Capture it with `jq` — no retry loop needed, CDP is already up when the JSON is printed:
+Capture it with Node, which is already a launcher prerequisite. No retry loop is needed because CDP is already up when the JSON is printed:
 
 ```bash
 INFO=$("$LAUNCH" | tail -n1)
-CDP=$(jq -r .cdpPort        <<<"$INFO")
-EXT=$(jq -r .extHostPort    <<<"$INFO")
-MAIN=$(jq -r .mainPort      <<<"$INFO")
-AGENT=$(jq -r .agentHostPort <<<"$INFO")
-LOG=$(jq -r .logFile        <<<"$INFO")
-PID=$(jq -r .pid            <<<"$INFO")
+CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
+EXT=$(node -p 'JSON.parse(process.argv[1]).extHostPort' "$INFO")
+MAIN=$(node -p 'JSON.parse(process.argv[1]).mainPort' "$INFO")
+AGENT=$(node -p 'JSON.parse(process.argv[1]).agentHostPort' "$INFO")
+LOG=$(node -p 'JSON.parse(process.argv[1]).logFile' "$INFO")
+PID=$(node -p 'JSON.parse(process.argv[1]).pid' "$INFO")
 ```
 
-On Windows, capture and parse the JSON without `jq`:
+On Windows, capture and parse the JSON with PowerShell:
 
 ```powershell
 $info = & $launch | Select-Object -Last 1 | ConvertFrom-Json
@@ -189,19 +229,13 @@ If a target looks stale after relaunching, run `npx @playwright/cli -s=$PW_SESSI
 
 ### Focusing the chat input
 
-Use the `playwrightScripts/focus-chat-input.ts` script in both the regular
-workbench and the Agents window. It performs the complete focus flow in one
-Playwright call:
+Use the `playwrightScripts/focus-chat-input.ts` script in both the regular workbench and the Agents window. It performs the complete focus flow in one Playwright call:
 
 1. If a visible chat input is already focused, it does nothing.
 2. If a visible chat input exists but is not focused, it focuses that input.
-3. Otherwise, it invokes the platform chat-focus chord, waits for the input,
-   and focuses it only if the chord did not already do so.
+3. Otherwise, it invokes the platform chat-focus chord, waits for the input, and focuses it only if the chord did not already do so.
 
-The script detects the platform from the browser page, prefers the active
-Agents session, and excludes inline chat inputs. If the cloned profile has
-customized the default chord, it falls back to the surface-specific command
-through the Command Palette.
+The script detects the platform from the browser page, prefers the active Agents session, and excludes inline chat inputs. If the cloned profile has customized the default chord, it falls back to the surface-specific command through the Command Palette.
 
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
@@ -215,43 +249,43 @@ $focusChat = Join-Path $skillDir 'playwrightScripts\focus-chat-input.ts'
 npx @playwright/cli "-s=$pwSession" run-code "--filename=$focusChat"
 ```
 
-The script returns
-`{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`.
-`focusChanged` reports whether this script invocation moved focus into Chat,
-while `focusInvoked` reports whether the script had to call `focus()` directly.
-Both are `false` when the chat input was already focused. If the script fails,
-take a fresh snapshot and resolve any blocking dialog or unavailable chat state
-before retrying.
+The script returns `{ focused, focusChanged, focusInvoked, shortcutInvoked, commandPaletteFallbackInvoked, selector }`. `focusChanged` reports whether this script invocation moved focus into Chat, while `focusInvoked` reports whether the script had to call `focus()` directly. Both are `false` when the chat input was already focused. If the script fails, take a fresh snapshot and resolve any blocking dialog or unavailable chat state before retrying.
 
 ### Typing into Monaco (chat input, editors)
 
 `fill` and `type` **silently fail** on Code OSS — Monaco's `native-edit-context` element doesn't react to Playwright's default input pipeline. Use one of these alternatives:
 
-- **`scripts/monaco-paste.sh` helper** (recommended — fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `$PW_SESSION` env so it stays inside the same `-s=` session as everything else.
+- **`scripts/monaco-paste.ts` helper** (recommended — cross-platform, fast, no system clipboard, parallel-safe). Reads text from a positional arg or stdin and dispatches a `ClipboardEvent('paste')` with a `DataTransfer` payload into the focused chat-input Monaco editor. Honors `--session NAME` or `PW_SESSION` so it stays inside the same `-s=` session as everything else. The Bash wrapper `scripts/monaco-paste.sh` remains available for compatibility.
 
   ```bash
   LAUNCH_DIR=<dir-of-this-SKILL.md>           # the same dir that holds scripts/launch.sh
   FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
-  PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+  PASTE="$LAUNCH_DIR/scripts/monaco-paste.ts"
   export PW_SESSION                            # helper reads this env var
 
   # Send a prompt:
   npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
-  "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
+  node "$PASTE" 'Please run `pwd && ls` using your terminal tool.'
   npx @playwright/cli -s=$PW_SESSION press Enter
 
   # Long / arbitrary text via stdin (avoids any shell-quoting headaches):
-  printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | "$PASTE"
+  printf 'multi-line prompt\nwith backticks `x`\nand emoji 🎉' | node "$PASTE"
 
   # Append without clearing:
-  "$PASTE" --append " continued text"
+  node "$PASTE" --append " continued text"
 
   # Skip the read-back check (useful when intentionally pasting more than the
   # chat input's ~600-character soft cap):
-  "$PASTE" --no-verify "...long text..."
+  node "$PASTE" --no-verify "...long text..."
 
   # Or pass the session explicitly per call (if you don't want to export PW_SESSION):
-  "$PASTE" --session "$PW_SESSION" "..."
+  node "$PASTE" --session "$PW_SESSION" "..."
+  ```
+
+  ```powershell
+  $paste = Join-Path $skillDir 'scripts\monaco-paste.ts'
+  node $paste --session $pwSession 'Please respond with OK.'
+  npx @playwright/cli "-s=$pwSession" press Enter
   ```
 
   The helper prints a single JSON line on stdout: `{ok, actualLength, expectedLength, viewLineCount, firstViewLine, error?}`. Exit 0 on success, 1 on verify failure, 2 on argument errors. Tested reliable across 20+ sequential pastes including unicode (中文), emoji (🎉), backticks, ampersands, embedded quotes, and newlines.
@@ -285,24 +319,24 @@ Because the launch skill is built around isolation, the natural workload is **ma
 ```bash
 LAUNCH_DIR=<dir-of-this-SKILL.md>
 FOCUS_CHAT="$LAUNCH_DIR/playwrightScripts/focus-chat-input.ts"
-PASTE="$LAUNCH_DIR/scripts/monaco-paste.sh"
+PASTE="$LAUNCH_DIR/scripts/monaco-paste.ts"
 export PW_SESSION
 
 # In agent A's shell:
 PW_SESSION="agent-A-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
-CDP=$(jq -r .cdpPort <<<"$INFO")
+CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
-"$PASTE" "prompt for A"   # helper picks up $PW_SESSION
+node "$PASTE" "prompt for A"   # helper picks up $PW_SESSION
 
 # In agent B's shell (running concurrently):
 PW_SESSION="agent-B-$$"
 INFO=$("$LAUNCH" --agents -- --use-mock-keychain | tail -n1)
-CDP=$(jq -r .cdpPort <<<"$INFO")
+CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION run-code --filename="$FOCUS_CHAT"
-"$PASTE" "prompt for B"
+node "$PASTE" "prompt for B"
 ```
 
 Each agent gets its own `cliDaemon` bound to its own CDP, so the pastes / clicks / snapshots don't cross-contaminate. Verified live with two concurrent instances. **macOS Mach-ports caveat:** on macOS, beyond ~2–3 concurrent Code OSS instances Crashpad's exception handler tends to die with `mach_port_request_notification: invalid capability`. That's a separate, OS-level limit; it's not affected by the session name.
@@ -322,8 +356,7 @@ document.querySelectorAll('.view-line')
 document.activeElement?.matches('.native-edit-context, textarea.inputarea')
 ```
 
-The focus script accounts for these DOM differences and prioritizes the active
-Agents session.
+The focus script accounts for these DOM differences and prioritizes the active Agents session.
 
 ### Verifying and clearing chat text
 
@@ -350,9 +383,7 @@ npx @playwright/cli -s=$PW_SESSION press Control+a
 npx @playwright/cli -s=$PW_SESSION press Backspace
 ```
 
-If the focus script cannot reach Chat because the surface is not available yet,
-take a snapshot and navigate the UI into a state where chat exists before
-retrying. Avoid treating completed CLI commands as proof that text was entered.
+If the focus script cannot reach Chat because the surface is not available yet, take a snapshot and navigate the UI into a state where chat exists before retrying. Avoid treating completed CLI commands as proof that text was entered.
 
 ### Screenshots (paper trail)
 
@@ -399,8 +430,8 @@ Workbench code is loaded when the Code OSS window starts; source changes are not
 ```bash
 kill "$PID" 2>/dev/null || true
 INFO=$("$LAUNCH" | tail -n1)
-CDP=$(jq -r .cdpPort <<<"$INFO")
-PID=$(jq -r .pid <<<"$INFO")
+CDP=$(node -p 'JSON.parse(process.argv[1]).cdpPort' "$INFO")
+PID=$(node -p 'JSON.parse(process.argv[1]).pid' "$INFO")
 npx @playwright/cli -s=$PW_SESSION attach --cdp=http://127.0.0.1:$CDP
 npx @playwright/cli -s=$PW_SESSION tab-list
 npx @playwright/cli -s=$PW_SESSION snapshot
@@ -421,11 +452,15 @@ npx @playwright/cli -s=$PW_SESSION close
 
 # Kill the Code OSS instance
 kill "$PID" 2>/dev/null || true
-# Or by port if you've lost the pid:
-pids=$(lsof -t -i :$CDP); [ -n "$pids" ] && kill $pids
-
 # Remove the throwaway profile
 rm -rf "$(dirname "$LOG")"
+```
+
+On Windows, use the cleanup helper. The PID returned by `code.bat` can be a short-lived wrapper, so the helper finds and terminates only `Code - OSS.exe` processes whose `--user-data-dir` references this launch's exact `runDir`, then removes the throwaway profile:
+
+```powershell
+$cleanup = Join-Path $skillDir 'scripts\cleanup\cleanup.ps1'
+& $cleanup -RunDir $info.runDir -PlaywrightSession $pwSession
 ```
 
 Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
@@ -433,10 +468,11 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 ## Troubleshooting
 
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
-- **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(jq -r .userDataDir <<<"$INFO")"`).
+- **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(node -p 'JSON.parse(process.argv[1]).userDataDir' "$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.
+- **`missing config value GIT_CONFIG_VALUE_*` from Git** - indexed Git configuration inherited from an agent runtime lost an empty value while the app processes were launched. The launcher unsets `GIT_CONFIG_COUNT` and `GIT_CONFIG_PARAMETERS` so host-only Git overrides do not affect Code OSS; do the same when invoking `code.sh` directly from such a runtime.
 - **Built-in extension fails to load (`Cannot find module .../extensions/.../out/extension.js`)** - extensions weren't compiled. Run `npm run compile` (one-shot, also rebuilds all built-in extensions) or `npm run watch` (incremental). A common cause: you ran `npm run transpile-client` to satisfy unit tests, which populated `out/` but not `extensions/*/out/`, so preLaunch's "is `out/` missing?" check skipped the compile.
 - **`launch.sh` exits non-zero with a log tail** - either pre-launch failed, `code.sh` died before CDP came up, or CDP never opened within 90s. The tail printed to stderr is from `runDir/code.log` - read it to diagnose.
 - **Snapshot shows the wrong page or no expected controls** - use `tab-list`, switch with `tab-select <index>` if needed, then re-snapshot before interacting.
 - **CLI typing commands complete but the input stays empty** - run `playwrightScripts/focus-chat-input.ts`, use `press` or clipboard paste rather than `fill` / `type`, and verify the input state before sending.
-- **Auth missing in the launched window** - confirm the source profile is actually authed (`ls "$SOURCE_UDD"` should contain `User/`, and `ls "$SOURCE_UDD/User/globalStorage"` should show persisted extension state). **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't. A missing or empty source shared-data-dir means signing in again against the source profile is what you need - see [Windows authentication](#windows-authentication).
+- **Auth missing in the launched window** - use the [missing sign-in flow](#handle-a-missing-sign-in) so the user can either finish signing into the current isolated window or choose to bootstrap the persistent source profile. **On Windows, check the shared-data-dir first**: the GitHub session blob lives in `%USERPROFILE%\.vscode-oss-shared\sharedStorage\state.vscdb`, not in the profile. The launcher logs `copying shared data: <src> -> <dst>` on stderr when it finds it, and warns `no shared-data-dir at <path>` when it doesn't.

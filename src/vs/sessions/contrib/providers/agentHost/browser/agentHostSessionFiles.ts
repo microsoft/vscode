@@ -7,9 +7,9 @@ import { constObservable, derived, derivedOpts, IObservable } from '../../../../
 import { getComparisonKey, isEqual, isEqualOrParent } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { normalizeFileEdit } from '../../../../../platform/agentHost/common/fileEditDiff.js';
+import type { AgentHostUriMapper } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { FileEdit } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import {
-	buildDefaultChatUri,
 	type ChatState,
 	type Customization,
 	FileEditKind,
@@ -24,7 +24,7 @@ import {
 import { IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization, ISessionTurnFileChange, ISessionWorkspace, sessionTurnFileChangesEqual } from '../../../../services/sessions/common/session.js';
 import { createActiveSessionSubscriptionObs } from './agentHostSessionChangesets.js';
-import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from './agentHostSessionCustomizations.js';
+import { createIncrementalChatCustomizationRefsParser, customizationRefsEqual, CustomizationIndex, resolveChatCustomizations, sessionChatCustomizationsEqual, type ICustomizationRef } from '../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { IAgentHostAdapterOptions } from './baseAgentHostSessionsProvider.js';
 
 /**
@@ -40,6 +40,8 @@ export interface IParsedFileEdit {
 	readonly beforeUri?: URI;
 	/** Before-content URI, used to render a diff for modified files. */
 	readonly beforeContentUri?: URI;
+	/** After-content URI, used to render the read-only modified side. */
+	readonly afterContentUri?: URI;
 	/** Lines added by this edit, from the protocol diff metadata (0 when absent). */
 	readonly insertions: number;
 	/** Lines removed by this edit, from the protocol diff metadata (0 when absent). */
@@ -53,13 +55,7 @@ export interface IParsedFileEdit {
  */
 export interface ISessionOutputObs {
 	/**
-	 * Returns the file changes produced by a specific chat's **last turn** only,
-	 * keyed by that chat's AHP chat URI (the default chat's
-	 * {@link buildDefaultChatUri}, or a peer chat's protocol resource). Reduces
-	 * that chat's last-turn edits into per-file {@link ISessionTurnFileChange |
-	 * changes} (with diff stats and owning-workspace classification).
-	 * Used by the chat input status pills to reflect just what the chat's most
-	 * recent request produced.
+	 * Returns the advertised chat's last-turn file edits, classified against the session workspace.
 	 */
 	getLastTurnChanges(chatUri: URI): IObservable<readonly ISessionTurnFileChange[]>;
 	/**
@@ -68,10 +64,7 @@ export interface ISessionOutputObs {
 	 */
 	getChatCustomizations(chatUri: URI): IObservable<readonly ISessionChatCustomization[]>;
 	/**
-	 * Drops the cached observables and parser state held for a chat that no
-	 * longer exists (e.g. a peer chat removed from the session's catalog).
-	 * Without this the per-chat caches would retain one object graph per
-	 * deleted chat for the adapter's lifetime.
+	 * Drops cached observables and parser state for a removed advertised chat, including a former default.
 	 */
 	releaseChat(chatUri: URI): void;
 }
@@ -256,7 +249,7 @@ function getWorkspaceAndWorktreeRoots(workspace: ISessionWorkspace | undefined):
  *   injectable so tests can observe how often each turn is (re)parsed.
  */
 export function createIncrementalChatFileEditsParser(
-	mapDiffUri?: (uri: URI) => URI,
+	mapDiffUri?: AgentHostUriMapper,
 	parseTurn: ParseTurnFileEdits = responseParts => parseResponseParts(responseParts, mapDiffUri),
 ): (chatState: IFileEditChatState) => readonly IParsedFileEdit[] {
 	let completedLastTurn: { readonly id: string; readonly edits: readonly IParsedFileEdit[] } | undefined;
@@ -280,7 +273,7 @@ export function createIncrementalChatFileEditsParser(
 }
 
 /** Parses the file edits contained in a turn's response parts (stateless). */
-export function parseResponseParts(responseParts: Turn['responseParts'], mapDiffUri?: (uri: URI) => URI): IParsedFileEdit[] {
+export function parseResponseParts(responseParts: Turn['responseParts'], mapDiffUri?: AgentHostUriMapper): IParsedFileEdit[] {
 	const out: IParsedFileEdit[] = [];
 	for (const part of responseParts) {
 		if (part.kind !== ResponsePartKind.ToolCall) {
@@ -320,17 +313,20 @@ function getToolCallFileEdits(toolCall: ToolCallState): FileEdit[] {
 	return edits;
 }
 
-function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: (uri: URI) => URI): IParsedFileEdit | undefined {
+function parseFileEdit(fileEdit: FileEdit, mapDiffUri?: AgentHostUriMapper): IParsedFileEdit | undefined {
 	const normalized = normalizeFileEdit(fileEdit);
 	if (!normalized) {
 		return undefined;
 	}
 	const map = (uri: URI | undefined): URI | undefined => uri ? (mapDiffUri ? mapDiffUri(uri) : uri) : undefined;
+	const mapContent = (uri: URI | undefined): URI | undefined =>
+		uri ? (mapDiffUri ? mapDiffUri(uri, { contentRef: true }) : uri) : undefined;
 	return {
 		kind: normalized.kind,
 		afterUri: map(normalized.afterUri),
 		beforeUri: map(normalized.beforeUri),
-		beforeContentUri: map(normalized.beforeContentUri),
+		beforeContentUri: mapContent(normalized.beforeContentUri),
+		afterContentUri: mapContent(normalized.afterContentUri),
 		insertions: fileEdit.diff?.added ?? 0,
 		deletions: fileEdit.diff?.removed ?? 0,
 	};
@@ -340,6 +336,7 @@ interface IMutableTurnChange {
 	uri: URI;
 	modifiedUri: URI | undefined;
 	originalUri: URI | undefined;
+	renamedFromUri: URI | undefined;
 	isOutsideWorkspace: boolean;
 	/** Whether the file was created during the turn (kept across later edits). */
 	created: boolean;
@@ -383,24 +380,26 @@ export function reduceTurnChanges(
 		return result;
 	};
 
-	const setCreated = (uri: URI, insertions: number, deletions: number): void => {
+	const setCreated = (uri: URI, modifiedUri: URI, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
 			existing.created = true;
-			existing.modifiedUri = uri;
+			existing.modifiedUri = modifiedUri;
 			existing.originalUri = undefined;
 			existing.insertions += insertions;
 			existing.deletions += deletions;
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri: uri, originalUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri: undefined, renamedFromUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: true, insertions, deletions });
 	};
 
-	const setModified = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
+	const setModified = (uri: URI, modifiedUri: URI, originalUri: URI | undefined, renamedFromUri: URI | undefined, insertions: number, deletions: number): void => {
 		const key = getComparisonKey(uri);
 		const existing = byUri.get(key);
 		if (existing) {
+			existing.modifiedUri = modifiedUri;
+			existing.renamedFromUri ??= renamedFromUri;
 			existing.insertions += insertions;
 			existing.deletions += deletions;
 			if (!existing.created) {
@@ -409,7 +408,7 @@ export function reduceTurnChanges(
 			}
 			return;
 		}
-		byUri.set(key, { uri, modifiedUri: uri, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri, originalUri, renamedFromUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
 	};
 
 	const setDeleted = (uri: URI, originalUri: URI | undefined, insertions: number, deletions: number): void => {
@@ -420,19 +419,19 @@ export function reduceTurnChanges(
 			return;
 		}
 		// Pre-existing file deleted during the turn: no modified side to preview.
-		byUri.set(key, { uri, modifiedUri: undefined, originalUri, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
+		byUri.set(key, { uri, modifiedUri: undefined, originalUri, renamedFromUri: undefined, isOutsideWorkspace: isOutsideWorkspace(uri), created: false, insertions, deletions });
 	};
 
 	for (const edit of edits) {
 		switch (edit.kind) {
 			case FileEditKind.Create:
 				if (edit.afterUri) {
-					setCreated(edit.afterUri, edit.insertions, edit.deletions);
+					setCreated(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.insertions, edit.deletions);
 				}
 				break;
 			case FileEditKind.Edit:
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, undefined, edit.insertions, edit.deletions);
 				}
 				break;
 			case FileEditKind.Delete:
@@ -445,7 +444,7 @@ export function reduceTurnChanges(
 					byUri.delete(getComparisonKey(edit.beforeUri));
 				}
 				if (edit.afterUri) {
-					setModified(edit.afterUri, edit.beforeContentUri, edit.insertions, edit.deletions);
+					setModified(edit.afterUri, edit.afterContentUri ?? edit.afterUri, edit.beforeContentUri, edit.beforeUri, edit.insertions, edit.deletions);
 				}
 				break;
 		}
@@ -455,6 +454,7 @@ export function reduceTurnChanges(
 		uri: c.uri,
 		modifiedUri: c.modifiedUri,
 		originalUri: c.originalUri,
+		renamedFromUri: c.renamedFromUri,
 		isOutsideWorkspace: c.isOutsideWorkspace,
 		insertions: c.insertions,
 		deletions: c.deletions,
@@ -479,7 +479,8 @@ function parsedFileEditsEqual(a: readonly IParsedFileEdit[], b: readonly IParsed
 			|| a[i].deletions !== b[i].deletions
 			|| !isEqual(a[i].afterUri, b[i].afterUri)
 			|| !isEqual(a[i].beforeUri, b[i].beforeUri)
-			|| !isEqual(a[i].beforeContentUri, b[i].beforeContentUri)) {
+			|| !isEqual(a[i].beforeContentUri, b[i].beforeContentUri)
+			|| !isEqual(a[i].afterContentUri, b[i].afterContentUri)) {
 			return false;
 		}
 	}

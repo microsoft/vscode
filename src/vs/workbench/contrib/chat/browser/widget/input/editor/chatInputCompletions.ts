@@ -45,7 +45,7 @@ import { LifecyclePhase } from '../../../../../../services/lifecycle/common/life
 import { ISearchService } from '../../../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
+import { MAX_CHAT_FILE_COMPLETION_RESULTS, searchFilesAndFolders } from '../../../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../../../common/participants/chatAgents.js';
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
@@ -63,7 +63,7 @@ import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
-import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
 
 /**
@@ -279,9 +279,7 @@ class SlashCommandCompletions extends Disposable {
 							insertText: `${displayLabel} `,
 							documentation: c.description,
 							range,
-							// Allow matching by either the space form (what the user sees) or the
-							// colon form (so legacy `/chronicle:tips` typing still filters).
-							filterText: hasSubcommand ? `${colonLabel} ${displayLabel}` : undefined,
+							filterText: getPromptSlashCommandFilterText(c.name),
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
 						};
@@ -1229,7 +1227,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 			for (const workspace of workspaces) {
-				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService, MAX_CHAT_FILE_COMPLETION_RESULTS);
 				for (const file of files) {
 					if (!seen.has(file)) {
 						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));

@@ -7,43 +7,55 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../environment/common/environment.js';
+import { ILabelService } from '../../../label/common/label.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IConfirmation, IDialogService } from '../../../dialogs/common/dialogs.js';
 import { INotificationService, Severity, type INotification, type INotificationHandle } from '../../../notification/common/notification.js';
 import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../workspace/common/workspaceTrust.js';
 
 import { ISharedProcessService } from '../../../ipc/electron-browser/services.js';
 import { IQuickInputService } from '../../../quickinput/common/quickInput.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../common/remoteAgentHostService.js';
+import { addSSHRemoteAgentHostEntry, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRawRemoteAgentHostEntry, type IRemoteAgentHostConnectionFactory, type IRemoteAgentHostConnectionInfo } from '../../common/remoteAgentHostService.js';
 import type { IAgentConnection } from '../../common/agentService.js';
-import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, JsonRpcErrorCodes, ProtocolError, ReconnectResultType, isJsonRpcRequest, type JsonRpcRequest, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { IRemoteAgentHostLocationPreferenceService, type RemoteAgentHostLocationPreference } from '../../common/remoteAgentHostLocationPreference.js';
 import { ISSHHostKeyTrustService } from '../../common/sshHostKeyTrust.js';
 import { SSHHostKeyTrustService } from '../../browser/sshHostKeyTrustService.js';
-import { InMemoryStorageService } from '../../../storage/common/storage.js';
-import type {
-	ISSHAgentHostConfig,
-	ISSHConnectResult,
-	ISSHEndpointCandidate,
-	ISSHEndpointSelection,
-	ISSHEndpointSelectionRequest,
-	ISSHHostKeyVerificationRequest,
-	ISSHHostKeysAnnouncement,
-	ISSHKeyboardInteractiveRequest,
-	ISSHResolvedConfig,
-	ISSHRemoteAgentHostMainService,
+import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
+import {
+	SSHAuthMethod,
+	computeSSHConnectionKey,
+	type ISSHAgentHostConfig,
+	type ISSHConnectProgress,
+	type ISSHConnectResult,
+	type ISSHEndpointCandidate,
+	type ISSHEndpointSelection,
+	type ISSHEndpointSelectionRequest,
+	type ISSHHostKeyVerificationRequest,
+	type ISSHHostKeysAnnouncement,
+	type ISSHKeyboardInteractiveRequest,
+	type ISSHResolvedConfig,
+	type ISSHRemoteAgentHostMainService,
 } from '../../common/sshRemoteAgentHost.js';
 import type { IRelayMessage } from '../../common/relayTransport.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ISSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
+import { ISSHRelayClientFactory, SSHRelayClientFactory, SSHRemoteAgentHostService } from '../../electron-browser/sshRemoteAgentHostServiceImpl.js';
 import { AgentHostProtocolClient } from '../../browser/agentHostProtocolClient.js';
+import { EditorWindowRemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
+import { IAgentHostResourceService } from '../../common/agentHostResourceService.js';
+import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
 
 /**
  * In-renderer mock of the shared-process SSH service. Exposes the same
@@ -62,6 +74,9 @@ class MockSSHMainService {
 
 	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+
+	private readonly _onDidRelayActivity = new Emitter<string>();
+	readonly onDidRelayActivity = this._onDidRelayActivity.event;
 
 	private readonly _onDidRelayClose = new Emitter<string>();
 	readonly onDidRelayClose = this._onDidRelayClose.event;
@@ -149,14 +164,17 @@ class MockSSHMainService {
 	}
 
 	readonly disconnectCalls: string[] = [];
+	readonly releaseRelayCalls: string[] = [];
 	readonly connectCalls: ISSHAgentHostConfig[] = [];
+	readonly expectedConnectionIds: Array<string | undefined> = [];
 	readonly reconnectCalls: Array<{ sshConfigHost: string; name: string; remoteAgentHostCommand?: string; agentForward?: boolean; userInitiated?: boolean; preferredAgentLocation?: RemoteAgentHostLocationPreference }> = [];
 	private _nextConnectionId = 1;
 
 	connectResult: Partial<ISSHConnectResult> | undefined;
 
-	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
+	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this.connectCalls.push(config);
+		this.expectedConnectionIds.push(expectedConnectionId);
 		const connectionId = this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`;
 		return {
 			connectionId,
@@ -166,23 +184,32 @@ class MockSSHMainService {
 			config: { host: config.host, username: config.username, authMethod: config.authMethod, name: config.name, sshConfigHost: config.sshConfigHost },
 			sshConfigHost: config.sshConfigHost,
 			serverType: this.connectResult?.serverType,
+			instanceId: this.connectResult?.instanceId,
+			primary: this.connectResult?.primary,
+			lifecycle: this.connectResult?.lifecycle,
 		};
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, _expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this.reconnectCalls.push({ sshConfigHost, name, remoteAgentHostCommand, agentForward, userInitiated, preferredAgentLocation });
 		return {
 			connectionId: this.connectResult?.connectionId ?? `conn-${this._nextConnectionId++}`,
 			address: this.connectResult?.address ?? `ssh:${sshConfigHost}`,
 			name,
 			connectionToken: 'test-token',
-			config: { host: sshConfigHost, username: 'u', authMethod: 0 as never, name, sshConfigHost },
+			config: { host: sshConfigHost, username: 'u', authMethod: SSHAuthMethod.Agent, name, sshConfigHost },
 			sshConfigHost,
 			serverType: this.connectResult?.serverType,
+			instanceId: this.connectResult?.instanceId,
+			primary: this.connectResult?.primary,
+			lifecycle: this.connectResult?.lifecycle,
 		};
 	}
 
 	async relaySend(_connectionId: string, _message: string): Promise<void> { /* no-op */ }
+	async releaseRelay(connectionId: string): Promise<void> {
+		this.releaseRelayCalls.push(connectionId);
+	}
 
 	async disconnect(connectionId: string): Promise<void> {
 		this.disconnectCalls.push(connectionId);
@@ -200,6 +227,7 @@ class MockSSHMainService {
 		this._onDidCloseConnection.dispose();
 		this._onDidReportConnectProgress.dispose();
 		this._onDidRelayMessage.dispose();
+		this._onDidRelayActivity.dispose();
 		this._onDidRelayClose.dispose();
 		this._onDidRequestKeyboardInteractive.dispose();
 		this._onDidCancelKeyboardInteractive.dispose();
@@ -208,6 +236,182 @@ class MockSSHMainService {
 		this._onDidRequestHostKeyVerification.dispose();
 		this._onDidCancelHostKeyVerification.dispose();
 		this._onDidAnnounceHostKeys.dispose();
+	}
+}
+
+class SSHLifecycleProtocolTransport extends Disposable implements IProtocolTransport {
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
+	readonly onMessage = this._onMessage.event;
+
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose = this._onClose.event;
+
+	private readonly _initializeRequest = new DeferredPromise<JsonRpcRequest>();
+
+	constructor(
+		private readonly _connectionId: string,
+		private readonly _initializedRelays: Set<string>,
+	) {
+		super();
+	}
+
+	send(message: ProtocolMessage): void {
+		if (isJsonRpcRequest(message) && message.method === 'initialize') {
+			void this._initializeRequest.complete(message);
+		}
+	}
+
+	async completeInitialize(): Promise<void> {
+		const initialize = await this._initializeRequest.p;
+		if (this._initializedRelays.has(this._connectionId)) {
+			this._onMessage.fire({
+				jsonrpc: '2.0',
+				id: initialize.id,
+				error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: initialize' },
+			});
+			return;
+		}
+		this._initializedRelays.add(this._connectionId);
+		this._onMessage.fire({
+			jsonrpc: '2.0',
+			id: initialize.id,
+			result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+		});
+	}
+}
+
+class LifecycleSSHMainService extends Disposable implements ISSHRemoteAgentHostMainService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeConnections = Event.None;
+	readonly onDidCloseConnection = Event.None;
+	readonly onDidReportConnectProgress: Event<ISSHConnectProgress> = Event.None;
+	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
+	readonly onDidRelayMessage = this._onDidRelayMessage.event;
+	readonly onDidRelayActivity = Event.None;
+	private readonly _onDidRelayClose = this._register(new Emitter<string>());
+	readonly onDidRelayClose = this._onDidRelayClose.event;
+	private readonly _onDidReconnect = this._register(new Emitter<void>());
+	readonly onDidReconnect = this._onDidReconnect.event;
+	private readonly _onDidInitializeRelay = this._register(new Emitter<string>());
+	readonly onDidInitializeRelay = this._onDidInitializeRelay.event;
+	private readonly _onDidReleaseRelay = this._register(new Emitter<string>());
+	readonly onDidReleaseRelay = this._onDidReleaseRelay.event;
+	readonly onDidRequestKeyboardInteractive = Event.None;
+	readonly onDidCancelKeyboardInteractive = Event.None;
+	readonly onDidRequestEndpointSelection = Event.None;
+	readonly onDidCancelEndpointSelection = Event.None;
+	readonly onDidRequestHostKeyVerification = Event.None;
+	readonly onDidCancelHostKeyVerification = Event.None;
+	readonly onDidAnnounceHostKeys = Event.None;
+
+	readonly initializedRelays = new Set<string>();
+	readonly connectCalls: Array<{ config: ISSHAgentHostConfig; expectedConnectionId: string | undefined }> = [];
+	readonly reconnectCalls: Array<{ sshConfigHost: string; preferredAgentLocation: RemoteAgentHostLocationPreference | undefined; expectedConnectionId: string | undefined }> = [];
+	readonly disconnectCalls: string[] = [];
+	readonly releaseRelayCalls: string[] = [];
+	readonly activeRelayIds = new Set<string>();
+	relayGeneration = 0;
+	sessionStartCount = 0;
+	sessionCloseCount = 0;
+	selectedEndpoint: string | undefined;
+	nextReconnectError: Error | undefined;
+
+	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		this.connectCalls.push({ config, expectedConnectionId });
+		this.relayGeneration++;
+		return this._acquireRelay(config, config.sshConfigHost);
+	}
+
+	async reconnect(sshConfigHost: string, name: string, _remoteAgentHostCommand?: string, _agentForward?: boolean, _userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		this.reconnectCalls.push({ sshConfigHost, preferredAgentLocation, expectedConnectionId });
+		this._onDidReconnect.fire();
+		const error = this.nextReconnectError;
+		this.nextReconnectError = undefined;
+		if (error) {
+			throw error;
+		}
+		this.relayGeneration++;
+		return this._acquireRelay({ host: 'remote.example', username: 'user', authMethod: SSHAuthMethod.Agent, name, sshConfigHost }, sshConfigHost);
+	}
+
+	async disconnect(connectionId: string): Promise<void> {
+		this.disconnectCalls.push(connectionId);
+	}
+
+	async relaySend(connectionId: string, message: string): Promise<void> {
+		const request = JSON.parse(message) as { readonly id?: number; readonly method?: string };
+		if ((request.method !== 'initialize' && request.method !== 'reconnect') || typeof request.id !== 'number') {
+			return;
+		}
+		if (this.initializedRelays.has(connectionId)) {
+			this._onDidRelayMessage.fire({
+				connectionId,
+				data: JSON.stringify({
+					jsonrpc: '2.0',
+					id: request.id,
+					error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: initialize' },
+				}),
+			});
+			return;
+		}
+		this.initializedRelays.add(connectionId);
+		this._onDidInitializeRelay.fire(connectionId);
+		this._onDidRelayMessage.fire({
+			connectionId,
+			data: JSON.stringify({
+				jsonrpc: '2.0',
+				id: request.id,
+				result: request.method === 'reconnect'
+					? { type: ReconnectResultType.Replay, actions: [], missing: [] }
+					: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] },
+			}),
+		});
+	}
+	async releaseRelay(connectionId: string): Promise<void> {
+		this.releaseRelayCalls.push(connectionId);
+		if (this.activeRelayIds.delete(connectionId) && this.activeRelayIds.size === 0) {
+			this.sessionCloseCount++;
+			this.selectedEndpoint = undefined;
+		}
+		this._onDidReleaseRelay.fire(connectionId);
+	}
+	fireRelayClose(connectionId: string): void {
+		this._onDidRelayClose.fire(connectionId);
+	}
+	async respondKeyboardInteractive(_requestId: string, _responses?: ReadonlyArray<string>): Promise<void> { }
+	async respondEndpointSelection(_requestId: string, _selection: ISSHEndpointSelection | undefined): Promise<void> { }
+	async respondHostKeyVerification(_requestId: string, _trusted: boolean): Promise<void> { }
+	async listSSHConfigHosts(): Promise<string[]> { return []; }
+	async ensureUserSSHConfig(): Promise<URI> { return URI.file('/tmp/ssh-config'); }
+	async listSSHConfigFiles(): Promise<URI[]> { return []; }
+	async resolveSSHConfig(_host: string): Promise<ISSHResolvedConfig> {
+		return { hostname: 'remote.example', user: 'user', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+	}
+
+	private _result(config: ISSHAgentHostConfig, sshConfigHost: string | undefined): ISSHConnectResult {
+		return {
+			connectionId: `${computeSSHConnectionKey(config)}:${this.relayGeneration}`,
+			address: computeSSHConnectionKey(config),
+			name: config.name,
+			connectionToken: 'token',
+			config,
+			sshConfigHost,
+			serverType: 'editor',
+			instanceId: 'editor-7',
+			primary: true,
+			lifecycle: 'managed',
+		};
+	}
+
+	private _acquireRelay(config: ISSHAgentHostConfig, sshConfigHost: string | undefined): ISSHConnectResult {
+		if (this.activeRelayIds.size === 0) {
+			this.sessionStartCount++;
+			this.selectedEndpoint = 'editor-7';
+		}
+		const result = this._result(config, sshConfigHost);
+		this.activeRelayIds.add(result.connectionId);
+		return result;
 	}
 }
 
@@ -231,32 +435,111 @@ function asChannel(target: object): IChannel {
 	};
 }
 
-/** Captures addManagedConnection calls so tests can inspect transportDisposable. */
+/** Drives registered connection factories like RemoteAgentHostService. */
 class MockRemoteAgentHostService extends Disposable {
 	readonly added: Array<{ address: string; status?: RemoteAgentHostConnectionStatus; transport?: IDisposable }> = [];
 	private readonly _entries = new Map<string, { transport?: IDisposable; client: { dispose?: () => void }; status: RemoteAgentHostConnectionStatus }>();
-	// Holds transport disposables from prior registrations that were
-	// replaced by a later `addManagedConnection` for the same address.
-	// Production deliberately does NOT run them at replacement time (doing
-	// so would call _mainService.disconnect on the brand-new tunnel and
-	// kill it). They are released when the service itself is disposed.
-	private readonly _abandonedTransports: IDisposable[] = [];
+	private readonly _onDidChangeConnections = this._register(new Emitter<void>());
+	readonly onDidChangeConnections = this._onDidChangeConnections.event;
+	private readonly _connectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
+	private readonly _factories = new Map<RemoteAgentHostEntryType, IRemoteAgentHostConnectionFactory>();
+	private readonly _pendingConnections = new Set<string>();
 
-	async addManagedConnection(entry: { name: string; connection: { address?: string; sshConfigHost?: string } }, client: IAgentConnection, transportDisposable?: IDisposable, status: RemoteAgentHostConnectionStatus = RemoteAgentHostConnectionStatus.connected): Promise<unknown> {
-		const address = entry.connection.address ?? `ssh:${entry.connection.sshConfigHost}`;
-		// Mirror RemoteAgentHostService: re-registering an address replaces
-		// the previous entry and disposes its protocol client (but NOT its
-		// transport disposable — the new entry owns the underlying tunnel).
+	get connections(): readonly IRemoteAgentHostConnectionInfo[] {
+		return [...this._entries].map(([address, entry]) => ({
+			address,
+			name: address,
+			clientId: 'mock',
+			defaultDirectory: undefined,
+			status: entry.status,
+		}));
+	}
+
+	registerConnectionFactory(factory: IRemoteAgentHostConnectionFactory): IDisposable {
+		this._factories.set(factory.kind, factory);
+		return toDisposable(() => this._factories.delete(factory.kind));
+	}
+
+	reconnect(address: string, userInitiated = true): void {
+		if (this._pendingConnections.has(address)) {
+			return;
+		}
+		this._pendingConnections.add(address);
+		void this._createAndConnect(address, userInitiated).finally(() => this._pendingConnections.delete(address));
+	}
+
+	async waitForConnection(address: string): Promise<IRemoteAgentHostConnectionInfo> {
+		const existing = this.connections.find(connection => connection.address === address && RemoteAgentHostConnectionStatus.isConnected(connection.status));
+		if (existing) {
+			return existing;
+		}
+		let wait = this._connectionWaits.get(address);
+		if (!wait) {
+			wait = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
+			this._connectionWaits.set(address, wait);
+		}
+		return wait.p;
+	}
+
+	private async _createAndConnect(address: string, userInitiated: boolean): Promise<void> {
+		const factory = this._factories.get(RemoteAgentHostEntryType.SSH);
+		const entry = factory?.entries.get().find(candidate => candidate.connection.type === RemoteAgentHostEntryType.SSH && candidate.connection.address === address);
+		if (!factory || !entry) {
+			this._rejectConnectionWait(address, new Error(`No SSH entry found for ${address}.`));
+			return;
+		}
+
 		const previous = this._entries.get(address);
 		if (previous) {
 			previous.client.dispose?.();
-			if (previous.transport) {
-				this._abandonedTransports.push(previous.transport);
-			}
+			this._entries.delete(address);
 		}
-		this.added.push({ address, status, transport: transportDisposable });
-		this._entries.set(address, { client: client as { dispose?: () => void }, transport: transportDisposable, status });
-		return { address, name: entry.name, clientId: 'mock', defaultDirectory: undefined, status };
+
+		try {
+			const created = await factory.createConnection(entry, { userInitiated });
+			const added = { address, status: RemoteAgentHostConnectionStatus.connecting, transport: created.transportDisposable };
+			this.added.push(added);
+			const managed = { client: created.connection as { dispose?: () => void }, transport: created.transportDisposable, status: RemoteAgentHostConnectionStatus.connecting };
+			this._entries.set(address, managed);
+			this._onDidChangeConnections.fire();
+			try {
+				await created.connection.connect();
+				managed.status = RemoteAgentHostConnectionStatus.connected;
+				added.status = managed.status;
+				this._resolveConnectionWait(address);
+			} catch (err) {
+				const incompatible = RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				if (incompatible) {
+					managed.status = incompatible;
+					added.status = managed.status;
+				} else {
+					this._entries.delete(address);
+					managed.client.dispose?.();
+					managed.transport?.dispose();
+				}
+				this._rejectConnectionWait(address, err);
+			}
+			this._onDidChangeConnections.fire();
+		} catch (err) {
+			this._rejectConnectionWait(address, err);
+		}
+	}
+
+	private _resolveConnectionWait(address: string): void {
+		const wait = this._connectionWaits.get(address);
+		const connection = this.connections.find(candidate => candidate.address === address && RemoteAgentHostConnectionStatus.isConnected(candidate.status));
+		if (wait && connection) {
+			this._connectionWaits.delete(address);
+			wait.complete(connection);
+		}
+	}
+
+	private _rejectConnectionWait(address: string, err: unknown): void {
+		const wait = this._connectionWaits.get(address);
+		if (wait) {
+			this._connectionWaits.delete(address);
+			wait.error(err);
+		}
 	}
 
 	/** Mirrors IRemoteAgentHostService.getConnection: returns the client only when the entry is connected. */
@@ -278,6 +561,7 @@ class MockRemoteAgentHostService extends Disposable {
 		this._entries.delete(address);
 		e.client.dispose?.();
 		e.transport?.dispose();
+		this._onDidChangeConnections.fire();
 	}
 
 	override dispose(): void {
@@ -288,11 +572,10 @@ class MockRemoteAgentHostService extends Disposable {
 			e.transport?.dispose();
 		}
 		this._entries.clear();
-		// Release abandoned transports from prior registrations as well.
-		for (const t of this._abandonedTransports) {
-			t.dispose();
+		for (const wait of this._connectionWaits.values()) {
+			wait.error(new Error('Mock remote agent host service disposed.'));
 		}
-		this._abandonedTransports.length = 0;
+		this._connectionWaits.clear();
 		super.dispose();
 	}
 }
@@ -309,8 +592,32 @@ class MockProtocolClient extends Disposable {
 
 class TestConfigurationService {
 	readonly onDidChangeConfiguration = Event.None;
+	private _entries: readonly IRawRemoteAgentHostEntry[] = [];
+	updateValueCalls = 0;
+
 	constructor(private _remoteAgentHostsEnabled = true) { }
-	getValue(key?: string): unknown { return key === RemoteAgentHostsEnabledSettingId ? this._remoteAgentHostsEnabled : undefined; }
+	getValue(key?: string): unknown {
+		if (key === RemoteAgentHostsEnabledSettingId) {
+			return this._remoteAgentHostsEnabled;
+		}
+		if (key === RemoteAgentHostsSettingId) {
+			return this._entries;
+		}
+		return undefined;
+	}
+	inspect(): { userValue: readonly IRawRemoteAgentHostEntry[] } {
+		return { userValue: this._entries };
+	}
+	async updateValue(_key: string, value: readonly IRawRemoteAgentHostEntry[]): Promise<void> {
+		this.updateValueCalls++;
+		this._entries = value;
+	}
+	setRawEntries(entries: readonly IRawRemoteAgentHostEntry[]): void {
+		this._entries = entries;
+	}
+	get entries(): readonly IRawRemoteAgentHostEntry[] {
+		return this._entries;
+	}
 	setRemoteAgentHostsEnabled(enabled: boolean): void { this._remoteAgentHostsEnabled = enabled; }
 }
 
@@ -363,9 +670,11 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	let createdClients: MockProtocolClient[];
 	let waitForClient: (index: number) => Promise<MockProtocolClient>;
 	let service: SSHRemoteAgentHostService;
+	let instantiationService: TestInstantiationService;
 	let quickInputServiceStub: Partial<IQuickInputService>;
 	let locationPreferenceService: TestRemoteAgentHostLocationPreferenceService;
 	let hostKeyTrustService: SSHHostKeyTrustService;
+	let sshStorageService: InMemoryStorageService;
 
 	setup(() => {
 		mainService = new MockSSHMainService();
@@ -377,10 +686,12 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 			getChannel: () => asChannel(mainService),
 		};
 
-		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		sshStorageService = disposables.add(new InMemoryStorageService());
+		instantiationService.stub(IStorageService, sshStorageService);
 		quickInputServiceStub = {};
 		instantiationService.stub(IQuickInputService, quickInputServiceStub as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
@@ -405,8 +716,11 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		};
 
 		instantiationService.stub(ISSHRelayClientFactory, {
-			createClient: (_mainService: ISSHRemoteAgentHostMainService, _connectionId: string, _address: string) => {
+			createClient: (relayMainService: ISSHRemoteAgentHostMainService, connectionId: string, _address: string) => {
 				const c = new MockProtocolClient();
+				c.registerOwned(toDisposable(() => {
+					void relayMainService.releaseRelay(connectionId);
+				}));
 				disposables.add(c);
 				const index = createdClients.length;
 				createdClients.push(c);
@@ -424,7 +738,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	const sampleConfig: ISSHAgentHostConfig = {
 		host: 'remote.example',
 		username: 'user',
-		authMethod: 0 as never,
+		authMethod: SSHAuthMethod.Agent,
 		name: 'My Remote',
 		sshConfigHost: 'remote.example',
 	};
@@ -435,17 +749,107 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		client.connectDeferred.complete();
 	}
 
-	test('connect registers a managed connection with a transport disposable', async () => {
+	test('connect registers an SSH factory connection with a transport disposable', async () => {
+		mainService.connectResult = { serverType: 'standalone', instanceId: 'standalone-1', primary: true, lifecycle: 'managed' };
 		const connectPromise = service.connect(sampleConfig);
 		await awaitClientThenResolve(0);
 		const handle = await connectPromise;
 
-		assert.strictEqual(remoteAgentHostService.added.length, 1);
-		assert.strictEqual(remoteAgentHostService.added[0].address, 'ssh:remote.example');
-		assert.strictEqual(remoteAgentHostService.added[0].status?.kind, 'connected');
-		assert.ok(remoteAgentHostService.added[0].transport, 'a transport disposable is passed so removal can tear down the SSH tunnel');
-		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(handle.localAddress, 'ssh:remote.example');
+		assert.deepStrictEqual({
+			managedConnection: remoteAgentHostService.added.length,
+			address: remoteAgentHostService.added[0].address,
+			status: remoteAgentHostService.added[0].status?.kind,
+			hasTransport: !!remoteAgentHostService.added[0].transport,
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			connectionCount: service.connections.length,
+			handleAddress: handle.localAddress,
+		}, {
+			managedConnection: 1,
+			address: 'ssh:remote.example',
+			status: 'connected',
+			hasTransport: true,
+			stored: [{
+				name: 'My Remote',
+				connectionToken: 'test-token',
+				connection: {
+					type: RemoteAgentHostEntryType.SSH,
+					address: 'ssh:remote.example',
+					sshConfigHost: 'remote.example',
+					hostName: 'remote.example',
+					user: 'user',
+					port: undefined,
+					serverType: 'standalone',
+					instanceId: 'standalone-1',
+					primary: true,
+					lifecycle: 'managed',
+				},
+			}],
+			connectionCount: 1,
+			handleAddress: 'ssh:remote.example',
+		});
+	});
+
+	test('migrates legacy SSH settings to the SSH factory store once and preserves WebSocket settings', async () => {
+		service.dispose();
+		configurationService.setRawEntries([{
+			address: 'ssh:legacy',
+			name: 'Legacy SSH Host',
+			connectionToken: 'ssh-token',
+			sshConfigHost: 'legacy',
+			sshHostName: 'legacy.example',
+			sshUser: 'me',
+			sshPort: 2222,
+		}, {
+			address: 'host1:8080',
+			name: 'WebSocket Host',
+			connectionToken: 'websocket-token',
+		}]);
+
+		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
+		while (configurationService.updateValueCalls === 0) {
+			await Promise.resolve();
+		}
+
+		assert.deepStrictEqual({
+			settings: configurationService.entries,
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			settingsWrites: configurationService.updateValueCalls,
+		}, {
+			settings: [{
+				address: 'host1:8080',
+				name: 'WebSocket Host',
+				connectionToken: 'websocket-token',
+			}],
+			stored: [{
+				name: 'Legacy SSH Host',
+				connectionToken: 'ssh-token',
+				connection: {
+					type: RemoteAgentHostEntryType.SSH,
+					address: 'ssh:legacy',
+					sshConfigHost: 'legacy',
+					hostName: 'legacy.example',
+					user: 'me',
+					port: 2222,
+				},
+			}],
+			settingsWrites: 1,
+		});
+	});
+
+	test('disconnect removes the persisted SSH entry', async () => {
+		const connectPromise = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		await connectPromise;
+
+		await service.disconnect('ssh:remote.example');
+
+		assert.deepStrictEqual({
+			stored: readSSHRemoteAgentHostEntries(sshStorageService),
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			stored: [],
+			disconnectCalls: ['ssh:remote.example'],
+		});
 	});
 
 	test('connect threads the stored location preference for the stable connection key into the main-process config', async () => {
@@ -457,6 +861,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(mainService.connectCalls.length, 1);
 		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, 'editor');
+		assert.strictEqual(mainService.connectCalls[0].userInitiated, true);
 	});
 
 	test('connect omits preferredAgentLocation from the main-process config when no preference is stored', async () => {
@@ -466,10 +871,95 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 
 		assert.strictEqual(mainService.connectCalls.length, 1);
 		assert.strictEqual(mainService.connectCalls[0].preferredAgentLocation, undefined);
+		assert.deepStrictEqual(mainService.expectedConnectionIds, [undefined]);
+	});
+
+	test('reuses an existing connected client without replacing its SSH relay', async () => {
+		const firstConnect = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		const firstHandle = await firstConnect;
+
+		const secondHandle = await service.connect(sampleConfig);
+
+		assert.deepStrictEqual({
+			sameHandle: secondHandle === firstHandle,
+			clientCount: createdClients.length,
+			connectCalls: mainService.connectCalls.length,
+			expectedConnectionIds: mainService.expectedConnectionIds,
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			sameHandle: true,
+			clientCount: 1,
+			connectCalls: 1,
+			expectedConnectionIds: [undefined],
+			disconnectCalls: [],
+		});
+	});
+
+	test('joins concurrent connects without creating competing SSH relays', async () => {
+		const firstConnect = service.connect(sampleConfig);
+		const secondConnect = service.connect(sampleConfig);
+		await awaitClientThenResolve(0);
+		const [firstHandle, secondHandle] = await Promise.all([firstConnect, secondConnect]);
+
+		assert.deepStrictEqual({
+			sameHandle: secondHandle === firstHandle,
+			clientCount: createdClients.length,
+			connectCalls: mainService.connectCalls.length,
+			expectedConnectionIds: mainService.expectedConnectionIds,
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			sameHandle: true,
+			clientCount: 1,
+			connectCalls: 1,
+			expectedConnectionIds: [undefined],
+			disconnectCalls: [],
+		});
+	});
+
+	test('config-less recovery replaces the retained relay before creating a client', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'Config-less Remote',
+			connection: {
+				type: RemoteAgentHostEntryType.SSH,
+				address: 'user@remote.example:22',
+				hostName: 'remote.example',
+				user: 'user',
+				port: 22,
+			},
+		});
+
+		remoteAgentHostService.reconnect('user@remote.example:22');
+		await awaitClientThenResolve(0);
+		await remoteAgentHostService.waitForConnection('user@remote.example:22');
+
+		assert.deepStrictEqual({
+			connectCalls: mainService.connectCalls.map(config => ({
+				host: config.host,
+				port: config.port,
+				username: config.username,
+				sshConfigHost: config.sshConfigHost,
+			})),
+			expectedConnectionIds: mainService.expectedConnectionIds,
+			reconnectCalls: mainService.reconnectCalls,
+		}, {
+			connectCalls: [{
+				host: 'remote.example',
+				port: 22,
+				username: 'user',
+				sshConfigHost: undefined,
+			}],
+			expectedConnectionIds: [undefined],
+			reconnectCalls: [],
+		});
 	});
 
 	test('reconnect threads the stored location preference for sshConfigHost into the main-process reconnect call', async () => {
 		locationPreferenceService.setPreference('ssh:remote.example', 'dedicated');
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'My Remote',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote.example', sshConfigHost: 'remote.example', hostName: 'remote.example', user: 'user' },
+		});
 
 		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
 		await awaitClientThenResolve(0);
@@ -478,9 +968,15 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.strictEqual(mainService.reconnectCalls.length, 1);
 		assert.strictEqual(mainService.reconnectCalls[0].sshConfigHost, 'remote.example');
 		assert.strictEqual(mainService.reconnectCalls[0].preferredAgentLocation, 'dedicated');
+		assert.strictEqual(mainService.reconnectCalls[0].userInitiated, true);
 	});
 
 	test('reconnect omits preferredAgentLocation from the main-process call when no preference is stored', async () => {
+		addSSHRemoteAgentHostEntry(sshStorageService, {
+			name: 'My Remote',
+			connection: { type: RemoteAgentHostEntryType.SSH, address: 'ssh:remote.example', sshConfigHost: 'remote.example', hostName: 'remote.example', user: 'user' },
+		});
+
 		const reconnectPromise = service.reconnect('remote.example', 'My Remote');
 		await awaitClientThenResolve(0);
 		await reconnectPromise;
@@ -526,11 +1022,6 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 	});
 
 	test('reconnect after incompatible handshake replaces the stale handle and re-handshakes', async () => {
-		// Pin a stable connectionId so the simulated `replaceRelay` reconnect
-		// returns the same id as the initial connect — that is the real
-		// behavior of SSHRemoteAgentHostMainService.connect(replaceRelay=true).
-		mainService.connectResult = { connectionId: 'conn-stable', address: 'ssh:remote.example' };
-
 		// First connect: handshake rejected as incompatible. Per the existing
 		// fix, this still registers a managed connection in `incompatible`
 		// state so the server-upgrade RPC can reach the host.
@@ -556,8 +1047,8 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.deepStrictEqual({
 			clientCount: createdClients.length,
 			added: remoteAgentHostService.added.map(({ address, status }) => ({ address, statusKind: status?.kind })),
-			// The replaceRelay path keeps the SSH tunnel alive — we must not
-			// have asked the main service to disconnect it.
+			// Renewal keeps the SSH tunnel alive — the renderer must not ask
+			// the main service to disconnect it.
 			disconnectCalls: mainService.disconnectCalls,
 			// Exactly one renderer-side handle for the address.
 			connections: service.connections.map(connection => connection.localAddress),
@@ -597,7 +1088,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		// disposes the per-entry store, which runs our transport disposable.
 		remoteAgentHostService.removeEntry('ssh:remote.example');
 
-		assert.deepStrictEqual(mainService.disconnectCalls, ['conn-1'], 'main-process tunnel is told to disconnect');
+		assert.deepStrictEqual(mainService.releaseRelayCalls, ['conn-1'], 'main-process relay lease is released');
 		assert.strictEqual(service.connections.length, 0, 'renderer-side handle is dropped');
 	});
 
@@ -617,7 +1108,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await c2;
 
 		assert.strictEqual(service.connections.length, 1);
-		assert.strictEqual(remoteAgentHostService.added.length, 2, 'each connect produces a fresh managed-connection registration');
+		assert.strictEqual(remoteAgentHostService.added.length, 2, 'each connect produces a fresh service-owned connection');
 	});
 
 	test('main-process onDidCloseConnection cleans up renderer handle without double-disconnecting', async () => {
@@ -678,6 +1169,7 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		await awaitClientThenResolve(1);
 		await r;
 
+		assert.strictEqual(mainService.reconnectCalls[0].userInitiated, false);
 		assert.deepStrictEqual(notificationService.infoMessages, [NOTIFICATION_MESSAGE]);
 	});
 
@@ -766,19 +1258,17 @@ suite('SSHRemoteAgentHostService (renderer)', () => {
 		assert.deepStrictEqual(notificationService.infoMessages, []);
 	});
 
-	test('a duplicate setup that reuses an already-connected handle does not notify', async () => {
+	test('a duplicate setup reuses the connected client without notifying', async () => {
 		mainService.connectResult = { connectionId: 'conn-1', serverType: 'editor' };
 		const c1 = service.connect(sampleConfig);
 		await awaitClientThenResolve(0);
-		await c1;
+		const firstHandle = await c1;
 
-		// Second connect resolves to the same connectionId while the entry
-		// is still connected — SSHRemoteAgentHostService short-circuits to
-		// the existing handle and never re-runs endpoint-selection tracking.
 		const c2 = service.connect(sampleConfig);
-		await c2;
+		const secondHandle = await c2;
 
-		assert.strictEqual(createdClients.length, 1, 'no second protocol client is created for the duplicate setup');
+		assert.strictEqual(secondHandle, firstHandle, 'the service reuses the existing connection handle');
+		assert.strictEqual(createdClients.length, 1, 'the service does not create another protocol client');
 		assert.deepStrictEqual(notificationService.infoMessages, []);
 	});
 });
@@ -801,6 +1291,7 @@ suite('SSHRemoteAgentHostService endpoint selection preference (renderer)', () =
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
@@ -1072,6 +1563,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
 		instantiationService.stub(ISharedProcessService, sharedProcessService as ISharedProcessService);
 		instantiationService.stub(IRemoteAgentHostService, disposables.add(new MockRemoteAgentHostService()) as Partial<IRemoteAgentHostService>);
@@ -1130,6 +1622,7 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 			connectionKey: 'ssh:remote.example',
 			displayHost: 'remote.example',
 			host: 'remote.example',
+			resolvedHost: 'remote.example',
 			port: 22,
 			keyType: 'ssh-ed25519',
 			fingerprint: FINGERPRINT,
@@ -1159,6 +1652,124 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 				responses: [{ requestId: 'hostkey-1', trusted: true }],
 				confirmCalls: 1,
 				stored: ['ssh-ed25519 SHA256:testfingerprintaaaaaaaaaaaaaaaaaaaaaaaaaaa'],
+			});
+	});
+
+	test('persists trust under the effective HostKeyAlias identity', async () => {
+		confirmResult = true;
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				effectiveHost: [FINGERPRINT],
+				resolvedHost: [],
+			});
+	});
+
+	test('migrates matching trust from the legacy resolved-host identity to HostKeyAlias', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: true }],
+				confirmCalls: 0,
+				effectiveHost: [FINGERPRINT],
+				resolvedHost: [],
+			});
+	});
+
+	test('forgetting a migrated HostKeyAlias requires verification on the next connection', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		hostKeyTrustService.forgetHost('trusted.example', 22);
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest({
+			requestId: 'hostkey-2',
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [
+					{ requestId: 'hostkey-1', trusted: true },
+					{ requestId: 'hostkey-2', trusted: false },
+				],
+				confirmCalls: 1,
+				effectiveHost: 0,
+				resolvedHost: 0,
+			});
+	});
+
+	test('refuses a key that contradicts legacy resolved-host trust for HostKeyAlias', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+			fingerprint: 'SHA256:impostorkey',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				effectiveHost: 0,
+				resolvedHost: [FINGERPRINT],
+			});
+	});
+
+	test('HostKeyAlias trust remains authoritative after legacy migration', async () => {
+		hostKeyTrustService.trustHostKey('trusted.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:aliaskey', addedAt: 2 });
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).map(k => k.fingerprint),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				effectiveHost: ['SHA256:aliaskey'],
 			});
 	});
 
@@ -1247,6 +1858,26 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		assert.strictEqual(hostKeyTrustService.getTrustedKeys('remote.example', 22).length, 0);
 	});
 
+	test('the forget action clears both HostKeyAlias and legacy resolved-host trust', async () => {
+		hostKeyTrustService.trustHostKey('trusted.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:aliasoldkey', addedAt: 1 });
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: 'SHA256:legacyoldkey', addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			displayHost: 'ssh-config-alias',
+			host: 'trusted.example',
+		}));
+
+		await notificationService.notifications.at(-1)?.actions?.primary?.[0].run();
+		assert.deepStrictEqual(
+			{
+				effectiveHost: hostKeyTrustService.getTrustedKeys('trusted.example', 22).length,
+				resolvedHost: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				effectiveHost: 0,
+				resolvedHost: 0,
+			});
+	});
+
 	test('a known_hosts match is trusted silently and copied into the store', async () => {
 		await fireAndWait(makeHostKeyRequest({ knownHostsMatch: 'match' }));
 
@@ -1286,6 +1917,66 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
 			},
 			{ responses: [{ requestId: 'hostkey-1', trusted: true }], confirmCalls: 0, stored: 1 });
+	});
+
+	test('StrictHostKeyChecking accept-new refuses a new algorithm for a known host', async () => {
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
+		await fireAndWait(makeHostKeyRequest({
+			keyType: 'ssh-rsa',
+			fingerprint: 'SHA256:impostorkey',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).map(k => `${k.keyType} ${k.fingerprint}`),
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: [`ssh-ed25519 ${FINGERPRINT}`],
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new refuses another algorithm known only through known_hosts', async () => {
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'other-key-type',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 0,
+				stored: 0,
+			});
+	});
+
+	test('StrictHostKeyChecking accept-new prompts for a certificate-authority host', async () => {
+		confirmResult = false;
+		await fireAndWait(makeHostKeyRequest({
+			knownHostsMatch: 'ca-only',
+			strictHostKeyChecking: 'accept-new',
+		}));
+
+		assert.deepStrictEqual(
+			{
+				responses: mainService.hostKeyResponses,
+				confirmCalls,
+				stored: hostKeyTrustService.getTrustedKeys('remote.example', 22).length,
+			},
+			{
+				responses: [{ requestId: 'hostkey-1', trusted: false }],
+				confirmCalls: 1,
+				stored: 0,
+			});
 	});
 
 	test('a prompt for a connection that dies is dismissed, and a late answer grants nothing', async () => {
@@ -1383,11 +2074,8 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		// announcement must not overwrite the real stored key. Mirrors
 		// OpenSSH, which only accepts additional host keys when the key that
 		// authenticated the host was already trusted.
-		//
-		// Uses an *unknown* key (a different algorithm), since a key that
-		// contradicts the stored one is now refused outright by the test above.
-		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 		await fireAndWait(makeHostKeyRequest({ keyType: 'ssh-rsa', fingerprint: 'SHA256:impostorkey', strictHostKeyChecking: 'no' }));
+		hostKeyTrustService.trustHostKey('remote.example', 22, { keyType: 'ssh-ed25519', fingerprint: FINGERPRINT, addedAt: 1 });
 
 		mainService.fireHostKeysAnnouncement({
 			connectionKey: 'ssh:remote.example',
@@ -1420,5 +2108,360 @@ suite('SSHRemoteAgentHostService host key verification (renderer)', () => {
 		});
 
 		assert.strictEqual(hostKeyTrustService.getTrustedKeys('remote.example', 22).length, 0);
+	});
+});
+
+suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
+	const disposables = new DisposableStore();
+	const config: ISSHAgentHostConfig = {
+		host: 'remote.example',
+		username: 'user',
+		authMethod: SSHAuthMethod.Agent,
+		name: 'My Remote',
+		sshConfigHost: 'remote.example',
+	};
+	let mainService: LifecycleSSHMainService;
+	let storageService: InMemoryStorageService;
+	let instantiationService: TestInstantiationService;
+	let remoteAgentHostService: EditorWindowRemoteAgentHostService;
+	let service: SSHRemoteAgentHostService;
+	let transports: SSHLifecycleProtocolTransport[];
+
+	setup(() => {
+		instantiationService = disposables.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		mainService = disposables.add(new LifecycleSSHMainService());
+		storageService = disposables.add(new InMemoryStorageService());
+		transports = [];
+
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IConfigurationService, configurationService as Partial<IConfigurationService>);
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		instantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IAgentHostResourceService, new class extends mock<IAgentHostResourceService>() {
+			override connectionClosed(): void { }
+		});
+		instantiationService.stub(IWorkspaceTrustEnablementService, new class extends mock<IWorkspaceTrustEnablementService>() {
+			override isWorkspaceTrustEnabled() { return false; }
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override readonly onDidChangeTrustedFolders = Event.None;
+			override readonly onDidChangeTrust = Event.None;
+			override getTrustedUris() { return []; }
+		});
+		instantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() { });
+		instantiationService.stub(ISharedProcessService, {
+			getChannel: () => asChannel(mainService),
+		} as Partial<ISharedProcessService>);
+
+		remoteAgentHostService = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+		instantiationService.stub(ISSHRelayClientFactory, {
+			createClient: (relayMainService, connectionId, address) => {
+				const transport = disposables.add(new SSHLifecycleProtocolTransport(connectionId, mainService.initializedRelays));
+				transports.push(transport);
+				return instantiationService.createInstance(AgentHostProtocolClient, address, transport, {
+					onDispose: () => {
+						void relayMainService.releaseRelay(connectionId);
+					},
+				});
+			},
+		} as Partial<ISSHRelayClientFactory>);
+		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
+		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
+		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, disposables.add(new TestRemoteAgentHostLocationPreferenceService()) as Partial<IRemoteAgentHostLocationPreferenceService>);
+		instantiationService.stub(IDialogService, { prompt: (() => { throw new Error('unexpected prompt'); }) as unknown as IDialogService['prompt'] } as Partial<IDialogService>);
+		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
+		instantiationService.stub(ISSHHostKeyTrustService, disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService()))) as Partial<ISSHHostKeyTrustService>);
+
+		service = disposables.add(instantiationService.createInstance(SSHRemoteAgentHostService));
+	});
+
+	teardown(() => disposables.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function waitForTransport(count: number): Promise<void> {
+		while (transports.length < count) {
+			await Event.toPromise(remoteAgentHostService.onDidChangeConnections);
+		}
+	}
+
+	function createIsolatedRenderer(): { remoteAgentHostService: EditorWindowRemoteAgentHostService; service: SSHRemoteAgentHostService } {
+		const rendererInstantiationService = disposables.add(new TestInstantiationService());
+		const rendererStorageService = disposables.add(new InMemoryStorageService());
+		rendererInstantiationService.stub(ILogService, new NullLogService());
+		rendererInstantiationService.stub(IConfigurationService, new TestConfigurationService() as Partial<IConfigurationService>);
+		rendererInstantiationService.stub(IStorageService, rendererStorageService);
+		rendererInstantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
+		rendererInstantiationService.stub(ILabelService, { registerFormatter: () => toDisposable(() => undefined) } as Partial<ILabelService>);
+		rendererInstantiationService.stub(ITelemetryService, NullTelemetryService);
+		rendererInstantiationService.stub(IAgentHostResourceService, new class extends mock<IAgentHostResourceService>() {
+			override connectionClosed(): void { }
+		});
+		rendererInstantiationService.stub(IWorkspaceTrustEnablementService, new class extends mock<IWorkspaceTrustEnablementService>() {
+			override isWorkspaceTrustEnabled() { return false; }
+		});
+		rendererInstantiationService.stub(IWorkspaceTrustManagementService, new class extends mock<IWorkspaceTrustManagementService>() {
+			override readonly onDidChangeTrustedFolders = Event.None;
+			override readonly onDidChangeTrust = Event.None;
+			override getTrustedUris() { return []; }
+		});
+		rendererInstantiationService.stub(IWorkspaceTrustRequestService, new class extends mock<IWorkspaceTrustRequestService>() { });
+		rendererInstantiationService.stub(ISharedProcessService, {
+			getChannel: () => asChannel(mainService),
+		} as Partial<ISharedProcessService>);
+		rendererInstantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
+		rendererInstantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
+		rendererInstantiationService.stub(IRemoteAgentHostLocationPreferenceService, disposables.add(new TestRemoteAgentHostLocationPreferenceService()) as Partial<IRemoteAgentHostLocationPreferenceService>);
+		rendererInstantiationService.stub(IDialogService, { prompt: (() => { throw new Error('unexpected prompt'); }) as unknown as IDialogService['prompt'] } as Partial<IDialogService>);
+		rendererInstantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);
+		rendererInstantiationService.stub(ISSHHostKeyTrustService, disposables.add(new SSHHostKeyTrustService(disposables.add(new InMemoryStorageService()))) as Partial<ISSHHostKeyTrustService>);
+
+		const isolatedRemoteAgentHostService = disposables.add(rendererInstantiationService.createInstance(EditorWindowRemoteAgentHostService));
+		rendererInstantiationService.stub(IRemoteAgentHostService, isolatedRemoteAgentHostService);
+		rendererInstantiationService.stub(ISSHRelayClientFactory, rendererInstantiationService.createInstance(SSHRelayClientFactory));
+		return {
+			remoteAgentHostService: isolatedRemoteAgentHostService,
+			service: disposables.add(rendererInstantiationService.createInstance(SSHRemoteAgentHostService)),
+		};
+	}
+
+	test('acquires an independent relay lease before creating the first protocol client', async () => {
+		const retained = await mainService.connect(config);
+		mainService.initializedRelays.add(retained.connectionId);
+
+		const connection = service.connect(config);
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		await connection;
+
+		assert.deepStrictEqual({
+			relayGeneration: mainService.relayGeneration,
+			connectCalls: mainService.connectCalls.map(call => call.expectedConnectionId),
+			initializedRelayCount: mainService.initializedRelays.size,
+		}, {
+			relayGeneration: 2,
+			connectCalls: [undefined, undefined],
+			initializedRelayCount: 2,
+		});
+
+	});
+
+	test('real reconnecting relay clients initialize independently and release only their own lease', async () => {
+		const first = await mainService.connect(config);
+		const second = await mainService.connect(config);
+		const relayFactory = instantiationService.createInstance(SSHRelayClientFactory);
+		const firstClient = relayFactory.createClient(mainService, first.connectionId, first.address, async () => mainService.reconnect(config.sshConfigHost!, config.name, undefined, undefined, false, undefined, first.connectionId));
+		const secondClient = relayFactory.createClient(mainService, second.connectionId, second.address, async () => mainService.reconnect(config.sshConfigHost!, config.name, undefined, undefined, false, undefined, second.connectionId));
+		disposables.add(firstClient);
+		disposables.add(secondClient);
+
+		await Promise.all([firstClient.connect(), secondClient.connect()]);
+		firstClient.dispose();
+
+		assert.deepStrictEqual({
+			firstState: firstClient.connectionState,
+			secondState: secondClient.connectionState,
+			initializedRelays: [...mainService.initializedRelays].sort(),
+			releasedRelays: mainService.releaseRelayCalls,
+		}, {
+			firstState: 'closed',
+			secondState: 'connected',
+			initializedRelays: [first.connectionId, second.connectionId].sort(),
+			releasedRelays: [first.connectionId],
+		});
+	});
+
+	test('releases a late replacement relay after the protocol client is disposed', async () => {
+		const initial = await mainService.connect(config);
+		const replacement = new DeferredPromise<{ connectionId: string }>();
+		const replacementStarted = new DeferredPromise<void>();
+		const relayFactory = instantiationService.createInstance(SSHRelayClientFactory);
+		const client = disposables.add(relayFactory.createClient(mainService, initial.connectionId, initial.address, async () => {
+			replacementStarted.complete();
+			return replacement.p;
+		}));
+
+		await client.connect();
+		mainService.fireRelayClose(initial.connectionId);
+		await replacementStarted.p;
+		const lateRelease = Event.toPromise(Event.filter(mainService.onDidReleaseRelay, connectionId => connectionId === 'late-relay'));
+		client.dispose();
+		replacement.complete({ connectionId: 'late-relay' });
+		await lateRelease;
+
+		assert.deepStrictEqual(mainService.releaseRelayCalls, [initial.connectionId, 'late-relay']);
+	});
+
+	test('two renderer services keep independent protocol leases through recovery and disposal', async () => {
+		const firstRenderer = createIsolatedRenderer();
+		const secondRenderer = createIsolatedRenderer();
+
+		await Promise.all([firstRenderer.service.connect(config), secondRenderer.service.connect(config)]);
+		const initialFirstRelay = 'ssh:remote.example:1';
+
+		const reconnectStarted = Event.toPromise(mainService.onDidReconnect);
+		const recovered = Event.toPromise(Event.filter(firstRenderer.remoteAgentHostService.onDidChangeConnections,
+			() => mainService.reconnectCalls.length === 1 && !!firstRenderer.remoteAgentHostService.getConnection('ssh:remote.example')));
+		mainService.fireRelayClose(initialFirstRelay);
+		await Promise.all([reconnectStarted, recovered]);
+
+		assert.deepStrictEqual({
+			firstConnected: !!firstRenderer.remoteAgentHostService.getConnection('ssh:remote.example'),
+			secondConnected: !!secondRenderer.remoteAgentHostService.getConnection('ssh:remote.example'),
+			reconnectCalls: mainService.reconnectCalls,
+		}, {
+			firstConnected: true,
+			secondConnected: true,
+			reconnectCalls: [{ sshConfigHost: 'remote.example', preferredAgentLocation: undefined, expectedConnectionId: initialFirstRelay }],
+		});
+
+		const replacementReleased = Event.toPromise(Event.filter(mainService.onDidReleaseRelay, connectionId => connectionId === 'ssh:remote.example:3'));
+		firstRenderer.remoteAgentHostService.dispose();
+		await replacementReleased;
+
+		assert.deepStrictEqual({
+			releasedRelays: mainService.releaseRelayCalls,
+			secondConnected: !!secondRenderer.remoteAgentHostService.getConnection('ssh:remote.example'),
+		}, {
+			releasedRelays: ['ssh:remote.example:3'],
+			secondConnected: true,
+		});
+	});
+
+	test('config-less persisted recovery acquires an independent relay lease', async () => {
+		const directConfig = { ...config, sshConfigHost: undefined };
+		const retained = await mainService.connect(directConfig);
+		mainService.initializedRelays.add(retained.connectionId);
+		addSSHRemoteAgentHostEntry(storageService, {
+			name: config.name,
+			connection: {
+				type: RemoteAgentHostEntryType.SSH,
+				address: retained.address,
+				hostName: config.host,
+				user: config.username,
+				port: 22,
+			},
+		});
+		remoteAgentHostService.reconnect(retained.address);
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		await remoteAgentHostService.waitForConnection(retained.address);
+
+		assert.deepStrictEqual({
+			connectCalls: mainService.connectCalls.map(call => call.expectedConnectionId),
+			initializedRelayCount: mainService.initializedRelays.size,
+			disconnectCalls: mainService.disconnectCalls,
+		}, {
+			connectCalls: [undefined, undefined],
+			initializedRelayCount: 2,
+			disconnectCalls: [],
+		});
+	});
+
+	test('coalesces concurrent connects before staging another SSH configuration', async () => {
+		const first = service.connect(config);
+		const second = service.connect({ ...config, username: 'different-user' });
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		const [firstHandle, secondHandle] = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({
+			sameHandle: firstHandle === secondHandle,
+			transports: transports.length,
+			connectCalls: mainService.connectCalls.length,
+			username: mainService.connectCalls[0].config.username,
+		}, {
+			sameHandle: true,
+			transports: 1,
+			connectCalls: 1,
+			username: 'user',
+		});
+
+		const reusedHandle = await service.connect(config);
+		assert.strictEqual(reusedHandle, firstHandle);
+
+		const recovery = service.reconnect('remote.example', config.name, false);
+		await waitForTransport(2);
+		await transports[1].completeInitialize();
+		await recovery;
+		assert.deepStrictEqual({
+			connectCalls: mainService.connectCalls.length,
+			reconnectCalls: mainService.reconnectCalls.length,
+		}, {
+			connectCalls: 1,
+			reconnectCalls: 1,
+		});
+	});
+
+	test('replaces the relay during explicit recovery and disposes the transferred lease without disconnecting it', async () => {
+		const initial = service.connect(config);
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		await initial;
+
+		const recovery = service.reconnect('remote.example', 'My Remote', false);
+		await waitForTransport(2);
+		await transports[1].completeInitialize();
+		await recovery;
+
+		assert.deepStrictEqual({
+			relayGeneration: mainService.relayGeneration,
+			reconnectCalls: mainService.reconnectCalls,
+			disconnectCalls: mainService.disconnectCalls,
+			initializedRelays: [...mainService.initializedRelays].sort(),
+			sessionStartCount: mainService.sessionStartCount,
+			sessionCloseCount: mainService.sessionCloseCount,
+			selectedEndpoint: mainService.selectedEndpoint,
+			connection: service.connections.map(connection => ({ address: connection.localAddress, serverType: connection.serverType, instanceId: connection.instanceId })),
+		}, {
+			relayGeneration: 2,
+			reconnectCalls: [{ sshConfigHost: 'remote.example', preferredAgentLocation: undefined, expectedConnectionId: undefined }],
+			disconnectCalls: [],
+			initializedRelays: ['ssh:remote.example:1', 'ssh:remote.example:2'],
+			sessionStartCount: 1,
+			sessionCloseCount: 0,
+			selectedEndpoint: 'editor-7',
+			connection: [{ address: 'ssh:remote.example', serverType: 'editor', instanceId: 'editor-7' }],
+		});
+
+		remoteAgentHostService.dispose();
+		assert.deepStrictEqual({
+			releasedRelays: mainService.releaseRelayCalls,
+			activeRelayIds: [...mainService.activeRelayIds],
+			sessionCloseCount: mainService.sessionCloseCount,
+			selectedEndpoint: mainService.selectedEndpoint,
+		}, {
+			releasedRelays: ['ssh:remote.example:1', 'ssh:remote.example:2'],
+			activeRelayIds: [],
+			sessionCloseCount: 1,
+			selectedEndpoint: undefined,
+		});
+	});
+
+	test('releases the retained SSH lease when explicit recovery cannot acquire a replacement', async () => {
+		const initial = service.connect(config);
+		await waitForTransport(1);
+		await transports[0].completeInitialize();
+		await initial;
+
+		mainService.nextReconnectError = new Error('replacement failed');
+		await assert.rejects(() => service.reconnect('remote.example', 'My Remote', false), /replacement failed/);
+
+		assert.deepStrictEqual({
+			releasedRelays: mainService.releaseRelayCalls,
+			activeRelayIds: [...mainService.activeRelayIds],
+			sessionCloseCount: mainService.sessionCloseCount,
+			selectedEndpoint: mainService.selectedEndpoint,
+			connection: remoteAgentHostService.getConnection('ssh:remote.example'),
+		}, {
+			releasedRelays: ['ssh:remote.example:1'],
+			activeRelayIds: [],
+			sessionCloseCount: 1,
+			selectedEndpoint: undefined,
+			connection: undefined,
+		});
 	});
 });

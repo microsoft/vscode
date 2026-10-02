@@ -227,7 +227,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	});
 
-	test('setCommonProperty adds property to all subsequent events', function () {
+	test('setCommonProperty adds and removes property from subsequent events', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
 			appenders: [testAppender],
@@ -236,9 +236,27 @@ suite('TelemetryService', () => {
 		service.publicLog('eventBeforeSet');
 		service.setCommonProperty('common.copilotTrackingId', 'test-tracking-id');
 		service.publicLog('eventAfterSet');
+		service.setCommonProperty('common.copilotTrackingId', undefined);
+		service.publicLog('eventAfterClear');
 
-		assert.strictEqual(testAppender.events[0].data['common.copilotTrackingId'], undefined);
-		assert.strictEqual(testAppender.events[1].data['common.copilotTrackingId'], 'test-tracking-id');
+		assert.deepStrictEqual(testAppender.events.map(event => event.data['common.copilotTrackingId']), [
+			undefined,
+			'test-tracking-id',
+			undefined,
+		]);
+
+		service.dispose();
+	});
+
+	test('msftInternal reflects common properties set after construction', function () {
+		const service = new TelemetryService({
+			appenders: [NullAppender],
+		}, new TestConfigurationService(), TestProductService);
+
+		const beforeSet = service.msftInternal;
+		service.setCommonProperty('common.msftInternal', true);
+
+		assert.deepStrictEqual({ beforeSet, afterSet: service.msftInternal }, { beforeSet: undefined, afterSet: true });
 
 		service.dispose();
 	});

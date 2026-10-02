@@ -47,6 +47,7 @@ import { CommandsRegistry, ICommandService } from '../../../platform/commands/co
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { isManagedSettingsFreshnessBlocking } from '../../../platform/policy/common/managedSettingsFreshness.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService, PolicyValueSource } from '../../../platform/policy/common/policy.js';
@@ -63,7 +64,9 @@ import { IAgentHostService } from '../../../platform/agentHost/common/agentServi
 import { IAgentHostEnablementService } from '../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { markdownDetails, markdownJsonBlock, markdownTable, markdownText } from './policyDiagnosticsMarkdown.js';
+import { agentHostPolicyReadiness, markdownDetails, markdownJsonBlock, markdownTable, markdownText, policyDiagnosticsReport } from './policyDiagnosticsMarkdown.js';
+import { agentHostPolicySupport } from '../../../platform/agentHost/common/agentHostPolicySupport.js';
+import { getAgentHostPolicyGaps } from '../../../platform/agentHost/common/agentHostPolicyReadiness.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -1006,19 +1009,22 @@ class PolicyDiagnosticsAction extends Action2 {
 			summary.effectiveManagedSettings = `${effectiveKeyCount} ${effectiveKeyCount === 1 ? 'key' : 'keys'}`;
 			summary.managedSettingsIssues = `${parseErrors.length} ${parseErrors.length === 1 ? 'issue' : 'issues'}`;
 
+			const resolutions = [...pick.resolutions.entries()].filter(([key]) => key !== 'telemetry').sort(([first], [second]) => first.localeCompare(second));
+			const suppressedTelemetry = [...pick.suppressedTelemetry.entries()].filter(([key]) => key !== 'telemetry').sort(([first], [second]) => first.localeCompare(second));
+			const telemetrySource = [...pick.resolutions.entries()].find(([key]) => key === 'telemetry' || key.startsWith('telemetry.'))?.[1].source;
 			content += markdownTable(
 				['Property', 'Value'],
 				[
 					['Active sources (precedence order)', activeSources],
-					['Supplied keys', String(pick.resolutions.size)],
+					['Supplied keys', String(resolutions.length + suppressedTelemetry.length)],
+					[localize('telemetryBlockSource', "Selected telemetry block"), managedSettingsSourceShortLabel(telemetrySource ?? 'none')],
 					['Effective VS Code policy keys', String(effectiveKeyCount)]
 				]
 			);
-			content += '*Precedence is resolved per key: native MDM wins over the server endpoint, which wins over the file on disk. A key left unset by a higher channel is still filled in by a lower one.*\n\n';
+			content += `*${localize('managedSettingsPrecedence', "Precedence is native MDM, then server, then file. Most settings resolve per key, filling gaps from lower channels. Telemetry selects one whole block: omitted leaves never inherit from weaker blocks. Empty or unknown-only server/file objects still select a block; native MDM exposes only declared flat keys. The internal telemetry presence marker is not a policy setting. For sandbox.enabled, any managed true wins regardless of channel precedence, matching the runtime sandbox floor.")}*\n\n`;
 
 			content += '### Effective Resolution\n\n';
-			if (pick.resolutions.size > 0) {
-				const resolutions = [...pick.resolutions.entries()].sort(([first], [second]) => first.localeCompare(second));
+			if (resolutions.length > 0) {
 				content += markdownTable(
 					['Key', 'Effective Value', 'Winning Source'],
 					resolutions.map(([key, resolution]) => [
@@ -1039,7 +1045,20 @@ class PolicyDiagnosticsAction extends Action2 {
 					markdownTable(['Key', 'Source', 'Value', 'Status'], contributionRows)
 				);
 			} else {
-				content += '*No managed-settings keys are supplied by any channel.*\n\n';
+				content += `*${localize('noSelectedManagedSettingsKeys', "The selected sources supply no managed-settings leaves.")}*\n\n`;
+			}
+			if (suppressedTelemetry.length > 0) {
+				content += markdownDetails(
+					localize('excludedTelemetryContributions', "Telemetry contributions excluded by the selected block"),
+					markdownTable(
+						['Key', 'Source', 'Status'],
+						suppressedTelemetry.flatMap(([key, contributions]) => contributions.map(contribution => [
+							key,
+							managedSettingsSourceShortLabel(contribution.channel),
+							localize('excludedTelemetryStatus', "Excluded by higher-priority telemetry block (value omitted)"),
+						]))
+					)
+				);
 			}
 			content += markdownDetails('Merged normalized bag', markdownJsonBlock(pick.values));
 			content += markdownDetails('Effective VS Code policy bag', markdownJsonBlock(effective));
@@ -1072,12 +1091,24 @@ class PolicyDiagnosticsAction extends Action2 {
 			const fetchedAt = defaultAccountService.managedSettingsFetchedAt;
 			const clientIdentity = appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', productService);
 			const compatibilityError = defaultAccountService.managedSettingsCompatibilityError;
+			const freshness = defaultAccountService.managedSettingsFreshness;
+			const freshnessScope = freshness.state === 'notRequired' ? undefined : freshness.scope;
+			const freshnessFailure = freshness.state === 'blocked'
+				? freshness.failure === 'httpError'
+					? `${freshness.failure} (${freshness.httpStatus})`
+					: freshness.failure
+				: 'none';
 			content += '#### GitHub Server API\n\n';
 			content += markdownTable(
 				['Property', 'Value'],
 				[
 					['Endpoint', '/copilot_internal/managed_settings'],
 					['Last fetch', fetchStatus === null ? 'never' : `${fetchStatus}${fetchedAt ? ` at ${new Date(fetchedAt).toLocaleString()}` : ''}`],
+					['Freshness', freshness.state],
+					['Freshness source', freshness.state === 'notRequired' ? 'none' : freshness.source],
+					['Last freshness attempt', freshness.state !== 'notRequired' && freshness.lastAttemptAt ? new Date(freshness.lastAttemptAt).toLocaleString() : 'never'],
+					['Freshness failure', freshnessFailure],
+					['Freshness scope', freshnessScope ? `${freshnessScope.authenticationProviderId} at ${freshnessScope.endpointOrigin}` : 'none'],
 					['Client identity', new URL(clientIdentity).search.replace(/^\?/, '')],
 					['Compatibility', compatibilityError ? `update required (${compatibilityError.clientVersion ?? '?'} → ${compatibilityError.minimumClientVersion ?? '?'})` : 'compatible or not evaluated'],
 					['Contributes winning keys', channelContributes('server') ? 'yes' : 'no']
@@ -1145,6 +1176,12 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error rendering managed settings diagnostics: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
+		const configuredPolicyGaps = getAgentHostPolicyGaps(configurationService);
+		const policyGaps = new Set(configuredPolicyGaps.map(gap => gap.policyName));
+		const readiness = agentHostPolicyReadiness(
+			configuredPolicyGaps.map(gap => ({ ...gap, source: policyValueSourceLabel(policyService.getPolicyValueSource(gap.policyName)) })),
+			agentHostEnablementService.managedSandboxEnforced.get(),
+		);
 		content += '## Policy-Controlled Settings\n\n';
 
 		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
@@ -1194,11 +1231,13 @@ class PolicyDiagnosticsAction extends Action2 {
 			summary.policyControlledSettings = `${appliedPolicy.length} applied, ${notAppliedPolicy.length} not applied`;
 			if (appliedPolicy.length > 0) {
 				content += markdownTable(
-					['Setting Key', 'Policy Name', 'Policy Source'],
+					['Setting Key', 'Policy Name', 'Policy Source', 'Catalog support (all sources)', 'Listed in readiness'],
 					appliedPolicy.map(setting => [
 						setting.key,
 						setting.name,
-						getPolicySource(setting.name)
+						getPolicySource(setting.name),
+						agentHostPolicySupport[setting.name]?.status ?? 'Not audited',
+						policyGaps.has(setting.name) ? 'Yes' : 'No'
 					])
 				);
 
@@ -1223,14 +1262,14 @@ class PolicyDiagnosticsAction extends Action2 {
 				content += '*No settings are currently controlled by policies*\n\n';
 			}
 
-			content += '### Non-applied Policy\n\n';
 			if (notAppliedPolicy.length > 0) {
-				content += markdownTable(
-					['Setting Key', 'Policy Name'],
-					notAppliedPolicy.map(setting => [setting.key, setting.name])
+				content += markdownDetails(
+					'Non-applied policy inventory (not current enforcement gaps)',
+					markdownTable(
+						['Setting Key', 'Policy Name'],
+						notAppliedPolicy.map(setting => [setting.key, setting.name])
+					)
 				);
-			} else {
-				content += '*All policy-controllable settings are currently being enforced*\n\n';
 			}
 		} else {
 			summary.policyControlledSettings = 'No policy-controlled settings found';
@@ -1312,8 +1351,8 @@ class PolicyDiagnosticsAction extends Action2 {
 			content += `*Error retrieving authentication information: ${markdownText(getErrorMessage(error))}*\n\n`;
 		}
 
-		const report = '# VS Code Policy Diagnostics\n\n' +
-			'*WARNING: This file may contain sensitive information.*\n\n' +
+		const report = policyDiagnosticsReport(
+			readiness,
 			'## Summary\n\n' +
 			markdownTable(
 				['Diagnostic', 'Result'],
@@ -1327,7 +1366,8 @@ class PolicyDiagnosticsAction extends Action2 {
 					['Policy-controlled settings', summary.policyControlledSettings]
 				]
 			) +
-			content;
+			content
+		);
 
 		const resource = URI.from({
 			scheme: Schemas.untitled,
@@ -1378,7 +1418,12 @@ class SyncAccountPolicyAction extends Action2 {
 
 		try {
 			logService.info('[DefaultAccount] Manually syncing account policy');
-			await defaultAccountService.refresh({ forceRefresh: true });
+			await defaultAccountService.refresh({ forceRefresh: true, retryManagedSettings: true });
+			if (isManagedSettingsFreshnessBlocking(defaultAccountService.managedSettingsFreshness)) {
+				logService.warn('[DefaultAccount] Account policy sync completed without satisfying managed settings freshness');
+				await dialogService.error(localize('syncAccountPolicy.blocked', "Failed to sync account policy."), localize('syncAccountPolicy.blocked.detail', "The required managed settings could not be refreshed."));
+				return;
+			}
 			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
 		} catch (error) {
 			logService.error('[DefaultAccount] Failed to sync account policy', error);

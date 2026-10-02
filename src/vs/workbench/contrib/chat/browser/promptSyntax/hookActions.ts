@@ -307,6 +307,8 @@ export interface IHookQuickPickOptions {
 	readonly onHookFileCreated?: (uri: URI) => void;
 	/** Filter the displayed hook types to those supported by the given target. */
 	readonly target?: Target;
+	/** Restrict hook files and creation destinations to one storage scope. */
+	readonly preferredStorage?: PromptsStorage;
 }
 
 /**
@@ -347,7 +349,7 @@ export async function showConfigureHooksQuickPick(
 		userHome,
 		targetOS,
 		CancellationToken.None,
-		{ includeAgentHooks: true }
+		{ includeAgentHooks: true, preferredStorage: options?.preferredStorage }
 	);
 
 	// Count hooks per type
@@ -573,9 +575,9 @@ export async function showConfigureHooksQuickPick(
 				}
 
 				case Step.SelectFile: {
-					// Step 3: Handle "Add new hook" - show create new file + existing hook files
-					// Get existing hook files (local storage only, not User Data)
-					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, PromptsStorage.local, CancellationToken.None);
+					// Step 3: Handle "Add new hook" - show create new file + existing hook files.
+					const hookStorage = options?.preferredStorage ?? PromptsStorage.local;
+					const hookFiles = await promptsService.listPromptFilesForStorage(PromptsType.hook, hookStorage, CancellationToken.None);
 
 					const fileItems: (IHookFileQuickPickItem | IQuickPickSeparator)[] = [];
 
@@ -647,10 +649,13 @@ export async function showConfigureHooksQuickPick(
 				case Step.SelectFolder: {
 					// Get source folders for hooks (uses getSourceFolders which
 					// excludes Claude paths and normalizes to directories)
-					const allFolders = await promptsService.getSourceFolders(PromptsType.hook);
+					const allFolders = (await promptsService.getSourceFolders(PromptsType.hook))
+						.filter(folder => options?.preferredStorage === undefined || folder.storage === options.preferredStorage);
 
 					if (allFolders.length === 0) {
-						notificationService.error(localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
+						notificationService.error(options?.preferredStorage === PromptsStorage.user
+							? localize('commands.hook.noUserFolders', "No user hooks folder is available.")
+							: localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
 						return;
 					}
 

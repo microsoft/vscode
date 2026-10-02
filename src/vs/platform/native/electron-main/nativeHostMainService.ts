@@ -27,8 +27,9 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
+import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -50,6 +51,7 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { GPUCompositingState } from './gpuCompositingState.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -57,6 +59,8 @@ export const INativeHostMainService = createDecorator<INativeHostMainService>('n
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly gpuCompositingState: GPUCompositingState;
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
@@ -72,9 +76,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IRequestService private readonly requestService: IRequestService,
 		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService
+		@IGlobalKeybindingsMainService private readonly globalKeybindingsMainService: IGlobalKeybindingsMainService,
+		@IGPUProcessMainService gpuProcessMainService: IGPUProcessMainService
 	) {
 		super();
+
+		this.gpuCompositingState = this._register(new GPUCompositingState(gpuProcessMainService));
 
 		// Events
 		{
@@ -149,6 +156,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
+			this.onDidChangeGPUCompositing = this.gpuCompositingState.onDidChange;
+
 			this.onDidChangeDisplay = Event.debounce(Event.any(
 				Event.filter(Event.fromNodeEventEmitter(screen, 'display-metrics-changed', (event: Electron.Event, display: Display, changedMetrics?: string[]) => changedMetrics), changedMetrics => {
 					// Electron will emit 'display-metrics-changed' events even when actually
@@ -205,6 +214,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	readonly onDidChangePassword = this._onDidChangePassword.event;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
 
 	//#endregion
 
@@ -219,7 +229,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
-			dirty: window.isDocumentEdited()
+			dirty: window.isDocumentEdited(),
+			iconPath: window.iconPath
 		}));
 
 		const auxiliaryWindows = [];
@@ -319,7 +330,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			context: OpenContext.API,
 			contextWindowId: windowId,
 			cli: this.environmentMainService.args,
-		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source);
+		}, options?.folderUri ? URI.revive(options.folderUri) : undefined, options?.sessionResource ? URI.revive(options.sessionResource) : undefined, options?.source, options?.folderUriIsDefault, options?.draft, options?.onboardingSessionResource ? URI.revive(options.onboardingSessionResource) : undefined);
 		if (windows.length > 0) {
 			windows[0].focus();
 		}
@@ -654,6 +665,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setDocumentEdited(edited);
 	}
 
+	async setApplicationBadge(windowId: number | undefined, badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		window?.setApplicationBadge(badge);
+	}
+
 	async openExternal(windowId: number | undefined, url: string, defaultApplication?: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
 		try {
@@ -871,6 +887,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getOSVirtualMachineHint(): Promise<number> {
 		return virtualMachineHint.value();
+	}
+
+	async isGPUCompositingEnabled(): Promise<boolean> {
+		return this.gpuCompositingState.enabled;
 	}
 
 	async getOSColorScheme(): Promise<IColorScheme> {
@@ -1347,10 +1367,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Toast Notifications
 
 	private readonly activeToasts = this._register(new DisposableMap<string>());
+	private readonly activeToastDedupeKeys = new Map<string, string>();
 
 	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
 		if (!Notification.isSupported()) {
 			return { supported: false, clicked: false };
+		}
+		if (options.dedupeKey && this.activeToastDedupeKeys.has(options.dedupeKey)) {
+			return { supported: true, suppressed: true, clicked: false };
 		}
 
 		const toast = new Notification({
@@ -1365,11 +1389,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const disposables = new DisposableStore();
 		this.activeToasts.set(options.id, disposables);
+		if (options.dedupeKey) {
+			this.activeToastDedupeKeys.set(options.dedupeKey, options.id);
+		}
 
 		const cts = new CancellationTokenSource();
 
 		disposables.add(toDisposable(() => {
 			this.activeToasts.deleteAndDispose(options.id);
+			if (options.dedupeKey && this.activeToastDedupeKeys.get(options.dedupeKey) === options.id) {
+				this.activeToastDedupeKeys.delete(options.dedupeKey);
+			}
 			toast.removeAllListeners();
 			toast.close();
 			cts.dispose(true);

@@ -32,11 +32,12 @@ import {
 	SessionHasMultipleOpenChatsContext,
 	SessionActiveChatIsClosableContext,
 	SessionActiveChatIsDeletableContext,
-	SessionActiveChatHasSubagentsContext,
+	SessionActiveChatHasSideChatsContext,
+	SessionActiveChatResourceContext,
 	SessionHasGitRepositoryContext,
 } from '../../../common/contextkeys.js';
-import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, ISession, SessionStatus } from './session.js';
-import { ISessionChangesStatsCache, readSessionChangesStats } from './sessionChangesStatsCache.js';
+import { ChatOriginKind, getChatCapabilities, isActiveSessionStatus, isSideChatOf, ISession, SessionStatus } from './session.js';
+import { ISessionChangesStatsCache, readChatChangesStats, readSessionChangesStats } from './sessionChangesStatsCache.js';
 import { IActiveSession } from './sessionsManagement.js';
 
 /**
@@ -69,7 +70,8 @@ interface ISessionContextKeys {
 	readonly hasMultipleOpenChats: IContextKey<boolean>;
 	readonly activeChatIsClosable: IContextKey<boolean>;
 	readonly activeChatIsDeletable: IContextKey<boolean>;
-	readonly activeChatHasSubagents: IContextKey<boolean>;
+	readonly activeChatResource: IContextKey<string>;
+	readonly activeChatHasSideChats: IContextKey<boolean>;
 }
 
 /**
@@ -112,7 +114,8 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
 			hasMultipleOpenChats: SessionHasMultipleOpenChatsContext.bindTo(contextKeyService),
 			activeChatIsClosable: SessionActiveChatIsClosableContext.bindTo(contextKeyService),
 			activeChatIsDeletable: SessionActiveChatIsDeletableContext.bindTo(contextKeyService),
-			activeChatHasSubagents: SessionActiveChatHasSubagentsContext.bindTo(contextKeyService),
+			activeChatResource: SessionActiveChatResourceContext.bindTo(contextKeyService),
+			activeChatHasSideChats: SessionActiveChatHasSideChatsContext.bindTo(contextKeyService),
 		};
 		boundKeysByService.set(contextKeyService, keys);
 	}
@@ -137,6 +140,12 @@ function getBoundKeys(contextKeyService: IContextKeyService): ISessionContextKey
  * be shown optimistically while the session's own changes are still loading.
  */
 export function setSessionContextKeys(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
+	contextKeyService.bufferChangeEvents(() => {
+		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
+	});
+}
+
+function setSessionContextKeysUnbuffered(session: ISession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
 	const keys = getBoundKeys(contextKeyService);
 	keys.sessionId.set(session?.sessionId ?? '');
 	keys.providerId.set(session?.providerId ?? '');
@@ -154,21 +163,14 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
 	keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
 	keys.hasGitRepository.set(session?.hasGitRepository?.read(reader) ?? workspace?.folders.some(folder => folder.gitRepository !== undefined) ?? false);
 
-	// Mirror the changes pill: the default changeset, falling back to the session's changes — but while the worktree is pending those changes belong to the checkout, not the session.
 	const worktreePending = session?.worktreePending?.read(reader) ?? false;
-	const defaultChangeset = session?.changesets.read(reader)?.find(c => c.isDefault.read(reader));
-	let insertions = 0;
-	let deletions = 0;
-	for (const change of defaultChangeset?.changes.read(reader) ?? session?.changes.read(reader) ?? []) {
-		insertions += change.insertions;
-		deletions += change.deletions;
-	}
-	keys.hasChanges.set(!worktreePending && (insertions > 0 || deletions > 0));
+	const changesStats = session ? readSessionChangesStats(session, reader) : undefined;
+	keys.hasChanges.set(!worktreePending && !!changesStats && (changesStats.insertions > 0 || changesStats.deletions > 0));
 
 	// A session reports its changes late, so until it does the pill it last showed
 	// is rendered from the cache. The remembered pill is dropped as soon as the
 	// session reports its own changes, even when it reports none.
-	const changesReported = session ? readSessionChangesStats(session, reader) !== undefined : true;
+	const changesReported = changesStats !== undefined;
 	const cachedFiles = !changesReported && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
 	keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
@@ -196,46 +198,54 @@ export function setSessionContextKeys(session: ISession | undefined, contextKeyS
  * See {@link setSessionContextKeys} for the `reader` and `undefined` semantics.
  */
 export function setActiveSessionContextKeys(session: IActiveSession | undefined, contextKeyService: IContextKeyService, reader: IReader | undefined, changesStatsCache?: ISessionChangesStatsCache): void {
-	setSessionContextKeys(session, contextKeyService, reader, changesStatsCache);
-	const keys = getBoundKeys(contextKeyService);
-	keys.isCreated.set(session?.isCreated.read(reader) ?? false);
-	keys.sticky.set(session?.sticky.read(reader) ?? false);
+	contextKeyService.bufferChangeEvents(() => {
+		setSessionContextKeysUnbuffered(session, contextKeyService, reader, changesStatsCache);
+		const keys = getBoundKeys(contextKeyService);
+		keys.isCreated.set(session?.isCreated.read(reader) ?? false);
+		keys.sticky.set(session?.sticky.read(reader) ?? false);
+		const focusedChat = session?.activeChat.read(reader);
+		const activeChatStats = focusedChat ? readChatChangesStats(focusedChat, reader) : undefined;
+		const worktreePending = session?.worktreePending?.read(reader) ?? false;
+		keys.hasChanges.set(!worktreePending && !!activeChatStats && (activeChatStats.insertions > 0 || activeChatStats.deletions > 0));
+		const mainChat = session?.mainChat?.read(reader);
+		const isMainChat = mainChat && focusedChat && isEqual(mainChat.resource, focusedChat.resource);
+		const cachedFiles = activeChatStats === undefined && isMainChat && session ? changesStatsCache?.get(session.sessionId, reader)?.files ?? 0 : 0;
+		keys.hasCachedChanges.set(!worktreePending && cachedFiles > 0);
 
-	// Count committed (non-draft) chats: untitled in-composer drafts are excluded
-	// so the Chats dropdown only surfaces once a session has more than one
-	// real chat. Counts the whole chat list (open or closed) so a committed chat
-	// that was closed still keeps the menu available to reopen it.
-	const committedChatCount = session?.chats.read(reader)
-		.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
-	keys.hasMultipleCommittedChats.set(committedChatCount > 1);
+		// Count committed (non-draft) chats: untitled in-composer drafts are excluded
+		// so the Chats dropdown only surfaces once a session has more than one
+		// real chat. Counts the whole chat list (open or closed) so a committed chat
+		// that was closed still keeps the menu available to reopen it.
+		const committedChatCount = session?.chats.read(reader)
+			.reduce((count, chat) => chat.status.read(reader) === SessionStatus.Untitled || chat.origin?.kind === ChatOriginKind.Tool ? count : count + 1, 0) ?? 0;
+		keys.hasMultipleCommittedChats.set(committedChatCount > 1);
 
-	// The tab strip is shown when the session has more than one chat (counting
-	// closed chats) or its single remaining chat's title diverged from the session title.
-	keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
+		// The tab strip is shown when the session has more than one chat (counting
+		// closed chats) or its single remaining chat's title diverged from the session title.
+		keys.shouldShowChatTabs.set(session?.shouldShowChatTabs.read(reader) ?? false);
 
-	// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
-	// so it stays a no-op when only a single open chat remains (e.g. a single
-	// chat with a diverged title, or one open + one closed chat).
-	keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
+		// More than one open chat tab (incl. drafts): scopes chat-to-chat navigation
+		// so it stays a no-op when only a single open chat remains (e.g. a single
+		// chat with a diverged title, or one open + one closed chat).
+		keys.hasMultipleOpenChats.set((session?.visibleChatTabs.read(reader).length ?? 0) > 1);
 
-	// The active chat can be closed (hidden) from the tab strip when it is a
-	// non-main chat — including read-only subagent chats, which surface as
-	// closeable tabs. The main chat lives and dies with its session.
-	const activeChat = session?.activeChat.read(reader);
-	const mainResource = session?.mainChat.read(reader).resource;
-	const isNonMainChat = !!activeChat && !!mainResource && !isEqual(activeChat.resource, mainResource);
-	keys.activeChatIsClosable.set(isNonMainChat);
-	// It can be permanently deleted only when its effective capabilities allow
-	// it: the main chat and worker (subagent) chats report `canDelete: false`,
-	// so they are closeable but not deletable.
-	keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
+		// The active chat can be closed (hidden) from the tab strip when it is a
+		// non-main chat — including read-only subagent chats, which surface as
+		// closeable tabs. The main chat lives and dies with its session.
+		const activeChat = session?.activeChat.read(reader);
+		const mainResource = session?.mainChat.read(reader).resource;
+		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
+		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
+		keys.activeChatIsClosable.set(isNonMainChat);
+		// It can be permanently deleted only when its effective capabilities allow
+		// it: the main chat and worker (subagent) chats report `canDelete: false`,
+		// so they are closeable but not deletable.
+		keys.activeChatIsDeletable.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canDelete);
+		const workspace = activeChat?.workspace.read(reader);
+		keys.workspaceIsVirtual.set(workspace?.isVirtualWorkspace ?? true);
+		keys.hasWorkspace.set(!!workspace?.label);
 
-	const allChats = session?.chats.read(reader) ?? [];
-	const subagentScopeResource = activeChat?.origin?.kind === ChatOriginKind.Tool && activeChat.origin.parentChat
-		? activeChat.origin.parentChat
-		: activeChat?.resource;
-	keys.activeChatHasSubagents.set(!!subagentScopeResource && allChats.some(chat =>
-		chat.origin?.kind === ChatOriginKind.Tool &&
-		!!chat.origin.parentChat &&
-		isEqual(chat.origin.parentChat, subagentScopeResource)));
+		const allChats = session?.chats.read(reader) ?? [];
+		keys.activeChatHasSideChats.set(!!activeChat && allChats.some(chat => isSideChatOf(chat, activeChat.resource)));
+	});
 }

@@ -6,7 +6,9 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { fromNow } from '../../../../../base/common/date.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { chatLinesAddedForeground, chatLinesRemovedForeground } from '../../common/widget/chatColors.js';
@@ -41,6 +43,24 @@ export interface ISessionSummaryHoverPullRequest {
 	readonly title: string;
 	/** Icon carrying the pull request's state (and its color). */
 	readonly icon?: ThemeIcon;
+	/**
+	 * Where the pull request lives. Together with {@link onOpen} it makes the row
+	 * a real link, so it is announced as one and offers a link's affordances
+	 * (copying the target, opening it in a new tab).
+	 */
+	readonly uri?: URI;
+	/**
+	 * Opens the pull request. Activation is routed through this rather than the
+	 * anchor's own navigation, so it goes through the opener service instead of
+	 * navigating the window {@link uri} is rendered in.
+	 */
+	readonly onOpen?: () => void;
+}
+
+export interface ISessionSummaryHoverWorkspace {
+	readonly name: string;
+	readonly parentPath?: string;
+	readonly icon?: ThemeIcon;
 }
 
 /**
@@ -53,6 +73,8 @@ export interface ISessionSummaryHoverPullRequest {
  */
 export interface ISessionSummaryHoverData {
 	readonly title: string;
+	/** When the session was last updated. */
+	readonly updatedAt?: Date;
 	readonly location?: ISessionSummaryHoverLocation;
 	/**
 	 * Pull requests this session produced. Pull requests inherited from the
@@ -60,14 +82,30 @@ export interface ISessionSummaryHoverData {
 	 */
 	readonly pullRequests?: readonly ISessionSummaryHoverPullRequest[];
 	/**
-	 * Session type and provider, most specific first, rendered as
-	 * "Claude · Local Agent Host".
+	 * The kind of agent serving the session, e.g. "Claude", shown beside the
+	 * title as "Fix the redirect loop · Claude".
 	 */
-	readonly providerLabels?: readonly string[];
+	readonly providerLabel?: string;
+	/** The remote host serving the session, shown after {@link providerLabel} when present. */
+	readonly remoteName?: string;
 	/** Session that created this session, when available. */
 	readonly createdBy?: {
 		readonly title: string;
 		readonly onOpen: () => void;
+	};
+	/**
+	 * Set while the session is treated as external. The row names
+	 * that status and, when activated, leads to whatever controls whether such
+	 * sessions are shown here.
+	 */
+	readonly externalSession?: {
+		readonly onOpen: () => void;
+	};
+	/** Aggregate context shown after chat-specific details for a multi-folder session. */
+	readonly sessionSummary?: {
+		readonly workspaces: readonly ISessionSummaryHoverWorkspace[];
+		readonly changes?: ISessionSummaryHoverLocation['changes'];
+		readonly pullRequests?: readonly ISessionSummaryHoverPullRequest[];
 	};
 }
 
@@ -75,10 +113,10 @@ export interface ISessionSummaryHoverData {
  * The hover shown for a session, wherever a session is surfaced: rows in the
  * Agents window sessions list, and `agent-host-session://` pills in chat output.
  *
- * Owns the whole presentation — icons, the ordering of rows, the separators and
- * the muted provider footer — so every surface shows the same thing. Callers
- * supply data through {@link update} and place {@link domNode}; the widget is
- * pure DOM and holds no listeners, so it needs no disposal.
+ * Owns the whole presentation — icons, the ordering of rows and the separators —
+ * so every surface shows the same thing. Callers supply data through
+ * {@link update} and place {@link domNode}; the widget is pure DOM and holds no
+ * listeners, so it needs no disposal.
  */
 export class SessionSummaryHoverWidget {
 
@@ -88,7 +126,8 @@ export class SessionSummaryHoverWidget {
 	private readonly _location: HTMLElement;
 	private readonly _pullRequests: HTMLElement;
 	private readonly _createdBy: HTMLElement;
-	private readonly _provider: HTMLElement;
+	private readonly _externalSession: HTMLElement;
+	private readonly _sessionSummary: HTMLElement;
 
 	constructor(data?: ISessionSummaryHoverData) {
 		this.domNode = dom.$('.session-summary-hover');
@@ -96,73 +135,118 @@ export class SessionSummaryHoverWidget {
 		this._location = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-location'));
 		this._pullRequests = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-pull-requests'));
 		this._createdBy = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-created-by'));
-		this._provider = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-provider'));
+		this._externalSession = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-external-session'));
+		this._sessionSummary = dom.append(this.domNode, dom.$('.session-summary-hover-section.session-summary-hover-session-summary'));
 		if (data) {
 			this.update(data);
 		}
 	}
 
 	update(data: ISessionSummaryHoverData): void {
-		this._title.textContent = data.title;
+		dom.clearNode(this._title);
+		dom.append(this._title, dom.$('span.session-summary-hover-title-text', undefined, data.title));
+		// The agent is part of the session's identity, so it reads on the title
+		// line rather than as a footnote below everything else.
+		if (data.providerLabel) {
+			appendSeparator(this._title);
+			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.providerLabel));
+		}
+		if (data.remoteName) {
+			appendSeparator(this._title);
+			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, data.remoteName));
+		}
+		if (data.updatedAt) {
+			appendSeparator(this._title);
+			dom.append(this._title, dom.$('span.session-summary-hover-provider', undefined, fromNow(data.updatedAt, true)));
+		}
 
 		dom.clearNode(this._location);
 		this._renderLocation(data.location);
 		this._location.classList.toggle('hidden', !this._location.hasChildNodes());
 
 		dom.clearNode(this._pullRequests);
-		for (const pullRequest of data.pullRequests ?? []) {
-			this._appendRow(this._pullRequests, pullRequest.icon ?? Codicon.gitPullRequest, pullRequest.title);
-		}
+		this._renderPullRequests(this._pullRequests, data.pullRequests);
 		this._pullRequests.classList.toggle('hidden', !this._pullRequests.hasChildNodes());
 
 		dom.clearNode(this._createdBy);
 		if (data.createdBy) {
-			const button = dom.append(this._createdBy, dom.$<HTMLButtonElement>('button.session-summary-hover-row.session-summary-hover-link'));
-			button.type = 'button';
-			button.onclick = data.createdBy.onOpen;
-			this._appendRowContent(button, Codicon.reply, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
+			this._appendButtonRow(this._createdBy, Codicon.reply, data.createdBy.onOpen, localize('sessionSummaryHover.createdBy', "Created by"), data.createdBy.title);
 		}
 		this._createdBy.classList.toggle('hidden', !this._createdBy.hasChildNodes());
 
-		dom.clearNode(this._provider);
-		if (data.providerLabels?.length) {
-			dom.append(this._provider, dom.$('.session-summary-hover-row', undefined, data.providerLabels.join(SEPARATOR)));
+		this.updateExternalSession(data.externalSession);
+
+		dom.clearNode(this._sessionSummary);
+		if (data.sessionSummary) {
+			dom.append(this._sessionSummary, dom.$('.session-summary-hover-section-title', undefined, localize('sessionSummaryHover.sessionSummary', "Session summary")));
+			this._renderWorkspaces(this._sessionSummary, data.sessionSummary.workspaces);
+			this._appendChangesRow(this._sessionSummary, data.sessionSummary.changes);
+			this._renderPullRequests(this._sessionSummary, data.sessionSummary.pullRequests);
 		}
-		this._provider.classList.toggle('hidden', !this._provider.hasChildNodes());
+		this._sessionSummary.classList.toggle('hidden', !this._sessionSummary.hasChildNodes());
 	}
 
-	private _renderLocation(location: ISessionSummaryHoverLocation | undefined): void {
+	updateExternalSession(externalSession: ISessionSummaryHoverData['externalSession']): void {
+		dom.clearNode(this._externalSession);
+		if (externalSession) {
+			this._appendButtonRow(this._externalSession, Codicon.multipleWindows, externalSession.onOpen, localize('sessionSummaryHover.externalSession', "External Session"));
+		}
+		this._externalSession.classList.toggle('hidden', !this._externalSession.hasChildNodes());
+	}
+
+	private _renderLocation(location: ISessionSummaryHoverLocation | undefined, parent = this._location): void {
 		if (!location) {
 			return;
 		}
 
+		// Each row names what it is before showing it, so the block reads as a
+		// list of facts about the session rather than a stack of bare paths. The
+		// name carries the emphasis; the value it names stays muted behind it.
 		if (location.workspace) {
-			this._appendRow(this._location, location.workspaceIcon ?? Codicon.folder, location.workspace);
+			this._appendRow(parent, location.workspaceIcon ?? Codicon.folder, localize('sessionSummaryHover.workspace', "Workspace"), location.workspace);
 		}
 
-		// A worktree is named explicitly: an isolated checkout is the single most
-		// consequential thing to know about where a session's edits land.
 		if (location.worktreePending) {
-			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktreePending', "Creating worktree…"));
+			this._appendRow(parent, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), localize('sessionSummaryHover.worktreeCreating', "Creating…"));
 		} else if (location.worktree) {
-			this._appendRow(this._location, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), location.worktree);
+			this._appendRow(parent, Codicon.worktree, localize('sessionSummaryHover.worktree', "Worktree"), location.worktree);
 		}
 
-		const changes = location.changes;
-		if (location.branch || changes) {
-			const text = this._appendRow(this._location, location.branch ? Codicon.gitBranch : Codicon.diffMultiple, location.branch);
-			if (changes) {
-				if (location.branch) {
-					appendSeparator(text);
-				}
-				const files = changes.files === 1
-					? localize('sessionSummaryHover.fileChanged', "1 file changed")
-					: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
-				dom.append(text, dom.$('span.session-summary-hover-detail', undefined, files));
-				appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
-				appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
+		if (location.branch) {
+			this._appendRow(parent, Codicon.gitBranch, localize('sessionSummaryHover.branch', "Branch"), location.branch);
+		}
+
+		// Changes name themselves, so they take no separate label.
+		this._appendChangesRow(parent, location.changes);
+	}
+
+	private _renderWorkspaces(parent: HTMLElement, workspaces: readonly ISessionSummaryHoverWorkspace[]): void {
+		for (const workspace of workspaces) {
+			this._appendRow(parent, workspace.icon ?? Codicon.folder, workspace.name, workspace.parentPath);
+		}
+	}
+
+	private _renderPullRequests(parent: HTMLElement, pullRequests: readonly ISessionSummaryHoverPullRequest[] | undefined): void {
+		for (const pullRequest of pullRequests ?? []) {
+			const icon = pullRequest.icon ?? Codicon.gitPullRequest;
+			if (pullRequest.uri && pullRequest.onOpen) {
+				this._appendLinkRow(parent, icon, pullRequest.uri, pullRequest.onOpen, pullRequest.title);
+			} else {
+				this._appendRow(parent, icon, pullRequest.title);
 			}
 		}
+	}
+
+	private _appendChangesRow(parent: HTMLElement, changes: ISessionSummaryHoverLocation['changes']): void {
+		if (!changes) {
+			return;
+		}
+		const files = changes.files === 1
+			? localize('sessionSummaryHover.fileChanged', "1 file changed")
+			: localize('sessionSummaryHover.filesChanged', "{0} files changed", changes.files);
+		const text = this._appendRow(parent, Codicon.diffMultiple, files);
+		appendCount(text, 'session-summary-hover-insertions', chatLinesAddedForeground, `+${changes.insertions}`);
+		appendCount(text, 'session-summary-hover-deletions', chatLinesRemovedForeground, `-${changes.deletions}`);
 	}
 
 	/**
@@ -173,6 +257,31 @@ export class SessionSummaryHoverWidget {
 	private _appendRow(parent: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
 		const row = dom.append(parent, dom.$('.session-summary-hover-row'));
 		return this._appendRowContent(row, icon, label, detail);
+	}
+
+	/**
+	 * A row that navigates somewhere: a real anchor, so assistive technology
+	 * announces a link and the usual affordances (copy the target, open it in a
+	 * new tab) are available. Activation is handled rather than left to the
+	 * anchor, so the target is opened through the caller's opener service
+	 * instead of navigating the window the hover is shown in.
+	 */
+	private _appendLinkRow(parent: HTMLElement, icon: ThemeIcon, uri: URI, onOpen: () => void, label?: string, detail?: string): HTMLElement {
+		const link = dom.append(parent, dom.$<HTMLAnchorElement>('a.session-summary-hover-row.session-summary-hover-link'));
+		link.href = uri.toString();
+		link.onclick = event => {
+			dom.EventHelper.stop(event, true);
+			onOpen();
+		};
+		return this._appendRowContent(link, icon, label, detail);
+	}
+
+	/** A row that runs an in-app action, so it has no target to link to. */
+	private _appendButtonRow(parent: HTMLElement, icon: ThemeIcon, onOpen: () => void, label?: string, detail?: string): HTMLElement {
+		const button = dom.append(parent, dom.$<HTMLButtonElement>('button.session-summary-hover-row.session-summary-hover-link'));
+		button.type = 'button';
+		button.onclick = onOpen;
+		return this._appendRowContent(button, icon, label, detail);
 	}
 
 	private _appendRowContent(row: HTMLElement, icon: ThemeIcon, label?: string, detail?: string): HTMLElement {
