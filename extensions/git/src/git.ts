@@ -21,6 +21,12 @@ import { StringDecoder } from 'string_decoder';
 // https://github.com/microsoft/vscode/issues/65693
 const MAX_CLI_LENGTH = 30000;
 
+function assertValidObjectId(sha: string, allowZero = false): void {
+	if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(sha) || (!allowZero && /^0+$/.test(sha))) {
+		throw new Error(allowZero ? 'Expected a full Git object ID' : 'Expected a full, non-zero Git object ID');
+	}
+}
+
 export interface IGit {
 	path: string;
 	version: string;
@@ -2210,6 +2216,18 @@ export class Repository {
 		await this.exec(args);
 	}
 
+	async updateRef(ref: string, newSha: string, oldSha: string): Promise<void> {
+		const branch = ref.slice('refs/heads/'.length);
+		if (!ref.startsWith('refs/heads/') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a local branch ref');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(oldSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.exec(['update-ref', ref, newSha, oldSha]);
+	}
+
 	async merge(ref: string): Promise<void> {
 		const args = ['merge', ref];
 
@@ -2321,6 +2339,14 @@ export class Repository {
 	async reset(treeish: string, hard: boolean = false): Promise<void> {
 		const args = ['reset', hard ? '--hard' : '--soft', treeish];
 		await this.exec(args);
+	}
+
+	async resetKeep(ref: string): Promise<void> {
+		if (!ref || ref.startsWith('-')) {
+			throw new Error('Expected a commit reference');
+		}
+
+		await this.exec(['reset', '--keep', ref]);
 	}
 
 	async revert(treeish: string, paths: string[]): Promise<void> {
@@ -2505,13 +2531,21 @@ export class Repository {
 		}
 	}
 
-	async rebase(branch: string, options: PullOptions = {}): Promise<void> {
+	async rebase(branch: string, options: { onto?: string; rebaseMerges?: boolean } = {}): Promise<void> {
 		const args = ['rebase'];
+
+		if (options.rebaseMerges) {
+			args.push('--rebase-merges');
+		}
+
+		if (options.onto !== undefined) {
+			args.push('--onto', options.onto);
+		}
 
 		args.push(branch);
 
 		try {
-			await this.exec(args, options);
+			await this.exec(args);
 		} catch (err) {
 			if (/^CONFLICT \([^)]+\): \b/m.test(err.stdout || '')) {
 				err.gitErrorCode = GitErrorCodes.Conflict;
@@ -2523,11 +2557,11 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, followTags = false, forcePushMode?: ForcePushMode, tags = false, lease?: { branch: string; expectedSha: string }): Promise<void> {
 		const args = ['push'];
 
 		if (forcePushMode === ForcePushMode.ForceWithLease || forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes) {
-			args.push('--force-with-lease');
+			args.push(lease ? `--force-with-lease=refs/heads/${lease.branch}:${lease.expectedSha}` : '--force-with-lease');
 			if (forcePushMode === ForcePushMode.ForceWithLeaseIfIncludes && this._git.compareGitVersionTo('2.30') !== -1) {
 				args.push('--force-if-includes');
 			}
@@ -2576,6 +2610,17 @@ export class Repository {
 
 			throw err;
 		}
+	}
+
+	async pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void> {
+		if (!remote || remote.startsWith('-') || !branch || branch.startsWith('-')) {
+			throw new Error('Expected a remote and a branch name');
+		}
+
+		assertValidObjectId(newSha);
+		assertValidObjectId(expectedSha, true);
+		await this.exec(['check-ref-format', '--branch', branch]);
+		await this.push(remote, `${newSha}:refs/heads/${branch}`, false, false, ForcePushMode.ForceWithLease, false, { branch, expectedSha });
 	}
 
 	async cherryPick(commitHash: string): Promise<void> {
@@ -3003,9 +3048,9 @@ export class Repository {
 		const fn = (line: string): Ref | null => {
 			let match: RegExpExecArray | null;
 
-			if (match = /^([0-9a-f]{40})\trefs\/heads\/([^ ]+)$/.exec(line)) {
-				return { name: match[1], commit: match[2], type: RefType.Head };
-			} else if (match = /^([0-9a-f]{40})\trefs\/tags\/([^ ]+)$/.exec(line)) {
+			if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/heads\/([^ ]+)$/.exec(line)) {
+				return { name: match[2], commit: match[1], type: RefType.Head };
+			} else if (match = /^((?:[0-9a-f]{40}|[0-9a-f]{64}))\trefs\/tags\/([^ ]+)$/.exec(line)) {
 				return { name: match[2], commit: match[1], type: RefType.Tag };
 			}
 
