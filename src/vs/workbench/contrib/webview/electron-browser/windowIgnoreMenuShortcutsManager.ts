@@ -16,7 +16,6 @@ export class WindowIgnoreMenuShortcutsManager {
 	private readonly _isUsingNativeTitleBars: boolean;
 
 	private readonly _webviewMainService: IWebviewManagerService;
-	private _isFocused = false;
 
 	constructor(
 		configurationService: IConfigurationService,
@@ -29,16 +28,11 @@ export class WindowIgnoreMenuShortcutsManager {
 	}
 
 	public didFocus(): void {
-		this._isFocused = true;
 		this.setIgnoreMenuShortcuts(true);
 	}
 
 	public didBlur(): void {
-		// Disposal also calls didBlur, even for webviews that do not own focus.
-		if (this._isFocused) {
-			this._isFocused = false;
-			this.setIgnoreMenuShortcuts(false);
-		}
+		this.setIgnoreMenuShortcuts(false);
 	}
 
 	private get _shouldToggleMenuShortcutsEnablement() {
