@@ -636,6 +636,29 @@ function getMarketplaceTypeLabel(resource: ICustomizationMarketplaceResource): s
 	}
 }
 
+function getInstallStateLabel(state: CustomizationMarketplaceInstallState): string {
+	switch (state.kind) {
+		case 'available':
+			return localize('marketplaceDetail.availableState', "Available to install");
+		case 'installing':
+			return localize('marketplaceDetail.installingState', "Installation in progress");
+		case 'checking':
+			return localize('marketplaceDetail.checkingState', "Checking installation");
+		case 'installed':
+			return localize('marketplaceDetail.installedState', "Installed");
+		case 'missing':
+			return localize('marketplaceDetail.missingState', "Installation needs repair");
+		case 'repairing':
+			return localize('marketplaceDetail.repairingState', "Repair in progress");
+		case 'uninstalling':
+			return localize('marketplaceDetail.uninstallingState', "Uninstall in progress");
+		case 'error':
+			return localize('marketplaceDetail.errorState', "Installation error: {0}", state.message);
+		case 'unavailable':
+			return localize('marketplaceDetail.unavailableState', "Unavailable: {0}", state.message);
+	}
+}
+
 function formatList(label: string, values: readonly string[]): string | undefined {
 	return values.length ? `${label}: ${values.join(', ')}` : undefined;
 }

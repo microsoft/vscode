@@ -53,8 +53,10 @@ suite('EmbeddedMarketplaceDetail', () => {
 			override getInstallState() { return installState; }
 			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
 				repairCount++;
-				await actions.repair?.(resource);
-				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+				if (actions.repair) {
+					await actions.repair(resource);
+					installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+				}
 			}
 			override async uninstall() { uninstallCount++; }
 		}());
@@ -71,8 +73,10 @@ suite('EmbeddedMarketplaceDetail', () => {
 			getSourceLabel: () => 'Marketplace',
 			install: async resource => {
 				installCount++;
-				await actions.install?.(resource);
-				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+				if (actions.install) {
+					await actions.install(resource);
+					installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+				}
 			},
 			runPrompt: actions.runPrompt ?? (async () => { }),
 			openExternal: async resource => { openedExternal.push(resource); },
