@@ -15,9 +15,14 @@ non-phone window, and `MobileWorkbench` for mobile web windows below the phone
 breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
 
-`sessions.experimental.chatSpecificLayout` enables focused-chat ownership only
-in a startup desktop workbench. It is an experimental, false-default window
-setting whose effective mode changes only after reload. The concrete workbench
+`sessions.experimental.chatSpecificLayout` is an experimental window setting
+with modes `disabled` (default), `shared`, and `per-chat`. Both enabled modes
+keep ordinary editors, the selected bottom-panel view, and terminals owned by
+the focused chat. `shared` keeps Editor/Details composition and bottom-panel
+visibility shared across all existing workspace chats in the window;
+`per-chat` also scopes that visibility to the focused chat. The mode changes
+only after manual reload, without a reload notification. There is no boolean
+compatibility for this unreleased setting. The concrete workbench
 selection remains fixed at startup. If a desktop window enters a runtime phone
 viewport, experimental layout and terminal operations suspend without discarding
 state, retagging ownership, or killing processes; returning to desktop resumes

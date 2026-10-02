@@ -14,7 +14,7 @@ The file-level `B*` companion rules describe the legacy/default base behavior. E
 
 All non-phone Agents windows use `DesktopWorkbench` with `DesktopLayoutController`. Phone windows use `MobileWorkbench` with `MobileLayoutController`. `contrib/layout/browser/sessions.layout.contribution.ts` selects the controller from the concrete workbench presentation constructed at startup.
 
-`sessions.experimental.chatSpecificLayout` is a false-default, experimental window setting. Its effective mode is fixed at startup; changing the setting requires Reload Window. Only a window constructed with the desktop presentation can enable chat ownership. A startup desktop window suspends experimental layout and terminal operations while its runtime viewport is phone, retaining saved state, ownership metadata, and running processes. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window.
+`sessions.experimental.chatSpecificLayout` is an experimental window setting with modes `disabled` (default), `shared`, and `per-chat`. Its effective mode is fixed at startup; changing it requires manual Reload Window without a reload notification. Boolean values are not supported. Only a window constructed with the desktop presentation can enable chat ownership. A startup desktop window suspends experimental layout and terminal operations while its runtime viewport is phone, retaining saved state, ownership metadata, and running processes. Returning to desktop resumes the focused owner's state. A startup phone window and disabled mode retain their existing behavior; viewport changes do not enable the experiment in a startup phone window.
 
 `DesktopLayoutController` extends `BaseLayoutController` and composes lifecycle strategies for Draft, Existing, and Quick Chat sessions. Shared tab, detail, and visibility mechanics live in coordinators rather than separate contribution controllers. Desktop policy stays in that controller, its strategies, or its coordinators rather than being injected into editor-part construction; in particular, editor-part construction must not acquire `ISessionsService`, because the Sessions service graph already depends on editor parts.
 
@@ -37,9 +37,11 @@ With the experiment disabled, each session owns its editor working set and panel
 
 Draft Sessions do not persist a separate legacy visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and hide the side pane when their editor working set is empty.
 
-While experimental desktop ownership is active, the focused `(sessionResource, chatResource)` owns the singleton Editor's ordinary working set and active editor, Editor/Details composition, last-open composition, bottom-panel visibility, and selected bottom-panel view. Focus changes within one session and between sessions use the same owner boundary, including with multiple visible sessions or chat groups. Resource identities are provider-neutral and opaque. The main chat uses its session resource as its layout key; peers use a composite session/chat key.
+In both enabled desktop modes, the focused `(sessionResource, chatResource)` owns the singleton Editor's ordinary working set and active editor, selected bottom-panel view, and eligible terminals. Focus changes within one session and between sessions use the same owner boundary, including with multiple visible sessions or chat groups. Resource identities are provider-neutral and opaque. The main chat uses its session resource as its layout key; peers use a composite session/chat key.
 
-Saved chat state takes precedence. A main chat without saved chat state inherits the legacy session working set and panel view, and the applicable current visibility or Existing profile. An unvisited peer starts without copied ordinary editors, with side and bottom panes hidden. Managed Changes/Files content keeps its existing lifecycle without revealing those panes. Transient Quick Chat side-pane behavior is unchanged: it does not acquire a durable owner-composition profile.
+In `per-chat`, current and last-open Editor/Details composition and bottom-panel visibility also belong to that owner. In `shared`, one preference across all existing workspace chats in the window owns those visibility fields. It is not partitioned by workspace or session. Draft and Quick Chat visibility remains separate from that shared Existing preference; submission and workspace conversion apply the Existing preference rather than overwriting it.
+
+Saved state for the selected mode takes precedence. A main chat without saved state inherits the legacy session working set and panel view, and the applicable initial visibility/profile. An unvisited peer starts without copied ordinary editors. In `per-chat` it starts with side and bottom panes hidden; in `shared` it uses the shared Existing visibility, even with no ordinary editors. Managed Changes/Files content keeps its existing lifecycle without implicitly revealing panes. Transient Quick Chat side-pane behavior is unchanged: it does not acquire a durable owner-composition profile.
 
 Widths, heights, Sidebar visibility, and Sessions/chat-grid geometry remain shared window state. Terminal ownership is separate from editor/layout records.
 
@@ -57,9 +59,9 @@ All state flows from the `activeSession` and `activeChat` observables. Events no
 
 Editor working-set application waits until the active workspace folders match the incoming chat. Capture and asynchronous work use an immutable owner identity, not a later read of whichever chat is focused. Working-set application is serialized; owner and presentation generations guard publication after asynchronous work so superseded restores cannot publish visibility or detail/tab intent for a newer owner.
 
-In legacy mode, multiple visible sessions suppress per-session panel synchronization; desktop visibility is reveal-only as described in [DESKTOP.md](DESKTOP.md#multiple-visible-sessions). Experimental desktop ownership instead restores the focused chat's state in both directions, regardless of visible-session or chat-group count.
+In legacy mode, multiple visible sessions suppress per-session panel synchronization; desktop visibility is reveal-only as described in [DESKTOP.md](DESKTOP.md#multiple-visible-sessions). Both enabled modes restore focused-chat content regardless of visible-session or chat-group count. Visibility follows the focused owner's saved state in `per-chat` and the shared Existing preference in `shared`.
 
-Working-set restoration and managed-tab reconciliation run under editor-auto-visibility suppression and preserve keyboard focus. Settled restoration, rather than transient editor changes during application, drives managed-tab reconciliation. Legacy initial restoration preserves the workbench-restored part visibility; experimental restoration applies the saved owner composition without changing shared geometry.
+Working-set restoration and managed-tab reconciliation run under editor-auto-visibility suppression and preserve keyboard focus. Settled restoration, rather than transient editor changes during application, drives managed-tab reconciliation. Legacy initial restoration preserves the workbench-restored part visibility; enabled-mode restoration applies the selected visibility policy without changing shared geometry.
 
 ## 3. Desktop side pane
 
@@ -73,11 +75,11 @@ The Auxiliary Bar is visible only when it has an active view container. Browser 
 
 Closing the whole side pane keeps ordinary editors available for restoration. Entering Details-only closes non-docked tabs and captures restorable editors for reopening when Editor content is shown again.
 
-In experimental mode, current composition and the last-open composition are distinct owner records: closing the whole pane remembers which Editor/Details combination to reopen. Collapsed-editor state, Files dismissal, and pending detail/tab intents are owner-scoped and cannot leak to peers. Details-only transitions preserve existing restorable-editor and close-veto behavior. Custom-view coverage, maximization/restoration, and unsupported-editor transient detail hides are not user preferences and must not overwrite remembered composition.
+In both enabled modes, current composition and last-open composition are distinct records: closing the whole pane remembers which Editor/Details combination to reopen. These records are per-owner in `per-chat` and shared across existing workspace chats in `shared`. Collapsed-editor state, Files dismissal, and pending detail/tab intents remain owner-scoped and cannot leak to peers. Details-only transitions preserve existing restorable-editor and close-veto behavior. Custom-view coverage, maximization/restoration, and unsupported-editor transient detail hides are not user preferences and must not overwrite remembered composition.
 
 ## 4. Panel
 
-Legacy desktop layout stores bottom-panel visibility with workbench part visibility and remembers only the active panel view per session in `sessions.singlePane.layoutState`. Experimental desktop layout independently remembers both visibility and view per focused chat in `sessions.singlePane.chatLayoutState`.
+Legacy desktop layout stores bottom-panel visibility with workbench part visibility and remembers only the active panel view per session in `sessions.singlePane.layoutState`. Both enabled modes independently remember visibility and selected view. The view remains per-chat. Visibility is per-chat in `per-chat`, and shared across existing workspace chats in `shared`; draft and Quick Chat visibility does not overwrite that shared preference.
 
 The active panel view is captured from `IPaneCompositePartService.onDidPaneCompositeOpen`. Restoration opens the remembered view only when the panel is intended visible; a hidden panel retains view memory without opening content. Owners without a remembered view fall back to the Terminal. With no active chat, no owner entry is fabricated or captured and the bottom panel is hidden; existing empty/draft side-pane lifecycle remains authoritative.
 
@@ -98,7 +100,7 @@ The session-header Changes action and Add Tab actions are explicit opens, so the
 
 Closing or hiding a chat tab is a presentation operation and retains its working set, composition, and panel state. Missing or loading chat catalogs are not deletion evidence; delayed peers must still restore saved state.
 
-`ISessionsManagementService.onDidDeleteChat` fires only after provider deletion returns `true`. Its immutable payload captures `{ session, sessionResource, chatResource }` before the provider await. A failed, canceled, or throwing delete emits no successful-delete notification. Consumers use the exact resource pair to forget only the deleted owner's working-set reference, panel state, and current/last-open composition. Session archive/removal clears state across that session's owners.
+`ISessionsManagementService.onDidDeleteChat` fires only after provider deletion returns `true`. Its immutable payload captures `{ session, sessionResource, chatResource }` before the provider await. A failed, canceled, or throwing delete emits no successful-delete notification. Consumers use the exact resource pair to forget only the deleted owner's working-set reference, panel state, and owner-scoped composition. Session archive/removal clears state across that session's owners. These operations do not delete shared Existing visibility or last-open composition.
 
 Draft graduation transfers state before source cleanup using the supplied `from`/`to` sessions and their main-chat resources, rather than reconstructing provider URIs. The main chat remaps to the committed main chat; unchanged peer chat resources retain their identity under the new session. Same-resource replacement is not deletion and must not release live state.
 
@@ -108,13 +110,18 @@ Working-set handles are shared references, not owner-exclusive resources. Replac
 
 `BaseLayoutController` persists entries with `StorageTarget.MACHINE` in workspace storage. Legacy desktop state uses `sessions.singlePane.layoutState`; the shared Existing Session profile uses `sessions.singlePane.sidePaneVisibility`. These keys remain usable when the experiment is disabled.
 
-Experimental desktop persistence uses separate version-1 envelopes:
+Enabled-mode persistence uses separate version-1 envelopes:
 
 | Key | Contract |
 |-----|----------|
 | `sessions.singlePane.chatLayoutState` | `{ version: 1, entries }`; working-set handles, panel visibility, and panel-view memory keyed by layout owner |
 | `sessions.chatLayout.sidePaneComposition` | `{ version: 1, entries }`; current Editor/Details composition per owner |
 | `sessions.chatLayout.sidePanePreHideComposition` | `{ version: 1, entries }`; last-open Editor/Details composition per owner |
+| `sessions.singlePane.sharedChatLayoutState` | `{ version: 1, entries }`; per-owner working sets and panel views, plus one shared Existing bottom-visibility entry |
+| `sessions.sharedChatLayout.sidePaneComposition` | `{ version: 1, entries }`; shared Existing current composition and separate draft composition |
+| `sessions.sharedChatLayout.sidePanePreHideComposition` | `{ version: 1, entries }`; shared Existing last-open composition |
+
+The first three keys belong to `per-chat`; the latter three belong to `shared`. Its transient visibility profile uses `sessions.sharedChatLayout.sidePaneVisibility` separately from the legacy/per-chat profile. Reloading into another mode does not overwrite the other mode's saved preferences.
 
 No chat record stores geometry or terminal process metadata. Versioned entries are validated before applying the record; malformed or unsupported records are logged and removed without partially applying earlier entries.
 
@@ -130,7 +137,7 @@ Terminal persistence retains the backend's existing capabilities and settings, i
 - Only one controller manages the active presentation.
 - Editor inputs open through `IEditorService`.
 - Programmatic working-set operations suppress automatic editor visibility.
-- Experimental desktop composition belongs to the focused chat; legacy desktop visibility keeps its shared profile.
+- Enabled-mode content belongs to the focused chat; visibility follows the chosen shared or per-chat policy.
 - Panel content restoration never changes panel visibility.
 - Experimental focused ownership remains authoritative with multiple visible sessions or chat groups.
 - Geometry stays shared, and closing a tab is not deletion.
