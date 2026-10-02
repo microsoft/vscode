@@ -521,23 +521,6 @@ suite('Automation dialog layout', () => {
 			],
 			duplicatedInPrompt: false,
 		});
-
-	});
-
-	test('excludes authorities without dialog configuration support without changing mutation capabilities', () => {
-		const existing = upcastPartial<IAutomationDescriptor>({ id: 'cloud', target: { kind: 'quickChat', providerId: 'cloud', sessionTypeId: 'cloud-agent' } });
-		const service = upcastPartial<IAutomationService>({
-			automations: constObservable([existing]), catalogueState: constObservable('ready'),
-			availableProviders: constObservable([{ id: 'cloud', label: 'Cloud' }, { id: 'host', label: 'Host' }]),
-			canConfigureAutomation: id => id === 'host',
-			canCreateAutomation: () => true,
-			canUpdateAutomation: () => true,
-		});
-		assert.deepStrictEqual({
-			creating: getAutomationDialogProviders(service, undefined).get(),
-			editing: getAutomationDialogProviders(service, existing).get(),
-			mutations: [service.canCreateAutomation('cloud'), service.canUpdateAutomation('cloud')],
-		}, { creating: ['host'], editing: [], mutations: [true, true] });
 	});
 });
 

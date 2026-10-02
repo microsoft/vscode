@@ -227,14 +227,12 @@ export interface IValidationState {
 export function getAutomationDialogProviders(automationService: IAutomationService, existing: IAutomationDescriptor | undefined): IObservable<readonly string[]> {
 	return derived(reader => {
 		if (existing === undefined) {
-			return automationService.availableProviders.read(reader)
-				.filter(provider => automationService.canConfigureAutomation?.(provider.id) !== false)
-				.map(provider => provider.id);
+			return automationService.availableProviders.read(reader).map(provider => provider.id);
 		}
 		automationService.automations.read(reader);
 		automationService.catalogueState.read(reader);
 		const providerId = existing.target.providerId;
-		if (providerId === undefined || automationService.canConfigureAutomation?.(providerId) === false || !automationService.canUpdateAutomation(existing.id)) {
+		if (providerId === undefined || !automationService.canUpdateAutomation(existing.id)) {
 			return [];
 		}
 		return [providerId];

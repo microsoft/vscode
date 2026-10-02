@@ -1084,7 +1084,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	get supportsLocalWorkspaces(): boolean { return this.providerMode !== 'sandbox'; }
 	readonly automations: CloudAutomationStore | undefined;
-	readonly supportsAutomationSessionConfiguration = false;
 
 	constructor(
 		private readonly providerMode: 'default' | 'sandbox',

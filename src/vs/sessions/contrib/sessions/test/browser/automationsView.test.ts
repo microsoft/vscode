@@ -39,7 +39,6 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockContextKeyService, MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -152,15 +151,6 @@ async function waitForSessionActions(): Promise<void> {
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
-	refreshCalls = 0;
-	refreshFailure: Error | undefined;
-	override async refresh(): Promise<void> {
-		this.refreshCalls++;
-		if (this.refreshFailure) {
-			throw this.refreshFailure;
-		}
-	}
-
 	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly catalogueStateValue = observableValue<AutomationCatalogueState>(this, 'loading');
@@ -656,8 +646,6 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
 		instantiationService.stub(ILogService, logService);
-		const refreshErrors: string[] = [];
-		instantiationService.stub(INotificationService, { error: message => refreshErrors.push(String(message)) });
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
@@ -689,18 +677,8 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
 	}
-
-	test('opening the view refreshes remote catalogues and reports refresh failures', async () => {
-		const { widget, automationService, refreshErrors } = setup();
-		widget.focus();
-		await timeout(0);
-		automationService.refreshFailure = new Error('Offline');
-		widget.focus();
-		await timeout(0);
-		assert.deepStrictEqual({ calls: automationService.refreshCalls, errors: refreshErrors }, { calls: 2, errors: ['Could not refresh automations: Offline'] });
-	});
 
 	test('reports the Automations view when rendered', () => {
 		const { telemetryService } = setup();

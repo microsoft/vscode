@@ -33,8 +33,6 @@ import { AgentSessionApprovalModel } from '../../../../../workbench/contrib/chat
 import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -179,8 +177,6 @@ export class AutomationsCardsWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 
@@ -240,12 +236,6 @@ export class AutomationsCardsWidget extends Disposable {
 
 	focus(): void {
 		this.element.focus();
-		void this.automationService.refresh?.().catch(error => {
-			if (!isCancellationError(error)) {
-				this.logService.error('[Automations] Failed to refresh', error);
-				this.notificationService.error(localize('automationsRefreshFailed', "Could not refresh automations: {0}", getErrorMessage(error)));
-			}
-		});
 	}
 }
 
@@ -633,7 +623,7 @@ class AutomationCardsSection extends Disposable {
 					return;
 				}
 				const currentAutomation = this.latestAutomations.get(automation.id);
-				if (!currentAutomation || this.automationService.canConfigureAutomation?.(currentAutomation.target.providerId) === false || !this.automationService.canUpdateAutomation(automation.id)) {
+				if (!currentAutomation || !this.automationService.canUpdateAutomation(automation.id)) {
 					return;
 				}
 				void this.openEditDialog(currentAutomation);
@@ -662,7 +652,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
-		card.main.disabled = this.automationService.canConfigureAutomation?.(automation.target.providerId) === false || !this.automationService.canUpdateAutomation(automation.id);
+		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
 		card.runButton.enabled = this.automationService.canRunAutomation(automation.id);
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
