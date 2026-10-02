@@ -445,6 +445,7 @@ suite('Sessions - SessionsList', () => {
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
 			const customizationsCount = observableValue(disposables, 7);
 			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const keybindingLookupContexts: (IContextKeyService | undefined)[] = [];
 			const createNewSessionKeybinding = (keybinding: number) => {
 				const resolved = createUSLayoutResolvedKeybinding(keybinding, OS);
 				assert.ok(resolved);
@@ -469,8 +470,12 @@ suite('Sessions - SessionsList', () => {
 				});
 				instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
 					override get onDidUpdateKeybindings() { return keybindingsChanged.event; }
-					override lookupKeybinding(commandId: string) {
-						return commandId === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined;
+					override lookupKeybinding(commandId: string, context?: IContextKeyService) {
+						if (commandId !== NEW_SESSION_ACTION_ID) {
+							return undefined;
+						}
+						keybindingLookupContexts.push(context);
+						return newSessionKeybinding;
 					}
 				});
 			});
@@ -560,6 +565,8 @@ suite('Sessions - SessionsList', () => {
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
 				controlNavigationLabels,
 				controlAutomationsFocused,
+				newSessionKeybindingLookupUsesViewContext: keybindingLookupContexts.length >= 2
+					&& keybindingLookupContexts.every(context => context === harness.instantiationService.get(IContextKeyService)),
 			}, {
 				findInput,
 				focusBeforeSwitch: findInput,
@@ -592,6 +599,62 @@ suite('Sessions - SessionsList', () => {
 				sessionsUseTree: true,
 				controlNavigationLabels: ['Automations'],
 				controlAutomationsFocused: true,
+				newSessionKeybindingLookupUsesViewContext: true,
+			});
+		});
+
+		test('notifies the owner when runtime navigation rows change', () => {
+			let setAutomationsEnabled = (_enabled: boolean) => { };
+			const harness = createListHarness(disposables, [], instantiationService => {
+				const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				instantiationService.stub(IContextKeyService, contextKeyService);
+				const automationsEnabled = ChatAutomationsEnabledContext.bindTo(contextKeyService);
+				automationsEnabled.set(false);
+				setAutomationsEnabled = enabled => automationsEnabled.set(enabled);
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([]);
+					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = constObservable(undefined);
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			let navigationHeightChanges = 0;
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				onDidChangeNavigationHeight: () => navigationHeightChanges++,
+				onSessionOpen: () => { },
+			}));
+			const labels = () => Array.from(navigationContainer.querySelectorAll('.session-section-label'), element => element.textContent);
+			list.layout(300, 400);
+			const initialLabels = labels();
+			const initialHeightChanges = navigationHeightChanges;
+
+			setAutomationsEnabled(true);
+			const enabledLabels = labels();
+			const enabledHeightChanges = navigationHeightChanges;
+			setAutomationsEnabled(false);
+
+			assert.deepStrictEqual({
+				initialLabels,
+				enabledLabels,
+				disabledLabels: labels(),
+				notifiedWhenEnabled: enabledHeightChanges > initialHeightChanges,
+				notifiedWhenDisabled: navigationHeightChanges > enabledHeightChanges,
+			}, {
+				initialLabels: ['New', 'Customizations'],
+				enabledLabels: ['New', 'Automations', 'Customizations'],
+				disabledLabels: ['New', 'Customizations'],
+				notifiedWhenEnabled: true,
+				notifiedWhenDisabled: true,
 			});
 		});
 

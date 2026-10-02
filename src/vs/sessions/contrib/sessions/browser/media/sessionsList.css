@@ -9,6 +9,17 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.agent-sessions-navigation-container {
+	.monaco-list-row:is(:hover, .hovered) .session-section-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
+	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
+	}
+}
+
 .sessions-list-control {
 	flex: 1 1 auto;
 	height: 100%;
@@ -1247,28 +1258,9 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	.agent-sessions-navigation-container {
-		.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label {
-			color: var(--vscode-strongForeground);
-		}
-
-		.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
-		.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
-			color: var(--vscode-descriptionForeground);
-		}
-	}
-
-	/* Shortcut sections only change label and icon color on hover, unless active. */
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
-		color: var(--vscode-descriptionForeground);
-	}
-
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected,
-		.monaco-list-row.session-list-shortcut-row.focused,
-		.monaco-list-row.session-list-shortcut-row.selected {
+		.monaco-list-row.session-list-section-row.selected {
 			outline: none !important;
 		}
 	}

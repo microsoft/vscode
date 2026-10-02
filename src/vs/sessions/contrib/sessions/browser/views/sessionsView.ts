@@ -297,6 +297,7 @@ export class SessionsView extends ViewPane {
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
 			navigationContainer,
+			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
 				const session = this.sessionsManagementService.getSession(resource);

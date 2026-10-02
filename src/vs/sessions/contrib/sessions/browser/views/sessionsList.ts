@@ -2287,7 +2287,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		if (element.id === NEW_SESSION_SECTION_ID) {
 			template.container.classList.add('session-section-new-session');
 			template.keybindingHint.classList.add('visible');
-			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID));
+			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
 			updateKeybinding();
 			template.elementDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
 			template.elementDisposables.add(autorun(reader => {
@@ -3424,6 +3424,7 @@ interface ISessionsListControlBaseOptions {
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
 	readonly navigationContainer?: HTMLElement;
+	readonly onDidChangeNavigationHeight?: () => void;
 	readonly findWidgetContainer?: HTMLElement;
 	readonly onDidScroll?: () => void;
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void | Promise<void>;
@@ -3839,7 +3840,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
-		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID)?.getAriaLabel() ?? undefined);
+		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
 		const newSessionActive = derived(this, reader => this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
@@ -4782,6 +4783,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.navigationList.splice(0, this.navigationList.length, sections);
 		this.options.navigationContainer.classList.toggle('empty', sections.length === 0);
 		this.layoutNavigation(this.options.navigationContainer.clientWidth);
+		this.options.onDidChangeNavigationHeight?.();
 
 		if (hadDomFocus && focusedSectionId) {
 			const focusedIndex = sections.findIndex(section => section.id === focusedSectionId);
