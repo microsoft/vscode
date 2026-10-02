@@ -136,12 +136,6 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _panelViewBySession = new ResourceMap<string>();
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
-	/**
-	 * [B3] Working-set ids carried forward, unmutated, from the frozen legacy
-	 * (disabled-mode) storage key on first load. That key's own entries still
-	 * reference these ids, so they must survive even once this owner's copy is
-	 * overwritten or removed.
-	 */
 	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
 	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
@@ -890,7 +884,30 @@ export abstract class BaseLayoutController extends Disposable {
 		return parsed.entries;
 	}
 
+	private _collectLegacyReferencedWorkingSetIds(): void {
+		const legacyPresentationKey = this._legacyLayoutStateStorageKey;
+		if (!legacyPresentationKey) {
+			return;
+		}
+		const legacyPresentationRaw = this._storageService.get(legacyPresentationKey, StorageScope.WORKSPACE);
+		if (!legacyPresentationRaw) {
+			return;
+		}
+		try {
+			const legacyEntries = JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[];
+			for (const entry of legacyEntries) {
+				if (entry.editorWorkingSet) {
+					this._legacyReferencedWorkingSetIds.add(entry.editorWorkingSet.id);
+				}
+			}
+		} catch (error) {
+			this._logService.error(error);
+		}
+	}
+
 	private _loadState(): void {
+		this._collectLegacyReferencedWorkingSetIds();
+
 		// Load from new key first
 		const raw = this._storageService.get(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 		if (raw) {
@@ -913,13 +930,7 @@ export abstract class BaseLayoutController extends Disposable {
 			const legacyPresentationRaw = this._storageService.get(legacyPresentationKey, StorageScope.WORKSPACE);
 			if (legacyPresentationRaw) {
 				try {
-					const legacyEntries = JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[];
-					this._applySessionLayoutEntries(legacyEntries);
-					for (const entry of legacyEntries) {
-						if (entry.editorWorkingSet) {
-							this._legacyReferencedWorkingSetIds.add(entry.editorWorkingSet.id);
-						}
-					}
+					this._applySessionLayoutEntries(JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[]);
 					return;
 				} catch {
 				}
@@ -1167,12 +1178,6 @@ export abstract class BaseLayoutController extends Disposable {
 		this._releaseWorkingSetReference(existingWorkingSet);
 	}
 
-	/**
-	 * [B8] Whether some other owner key still has a reference to `workingSet`,
-	 * either a live tracked key or the untouched legacy (disabled-mode) storage
-	 * copy-forward. A referenced handle must never be passed to the destructive
-	 * `deleteWorkingSet` API; only a dropped last reference may be.
-	 */
 	private _isWorkingSetStillReferenced(workingSet: IEditorWorkingSet): boolean {
 		if (this._legacyReferencedWorkingSetIds.has(workingSet.id)) {
 			return true;

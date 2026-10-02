@@ -1161,6 +1161,48 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [refreshedWorkingSet!.id], 'a unique, unreferenced working-set handle must still be destroyed exactly once when its owner is actually removed');
 	});
 
+	test('[R8] a working-set handle shared with the frozen legacy storage key survives an outgoing overwrite even when the versioned chat-layout key already has its own current entries on reload', async () => {
+		const sharedWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
+		harness = createTestHarness(store, { desktopLayout: true, chatLayoutEnabled: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		harness.storageService.store(
+			'sessions.singlePane.layoutState',
+			JSON.stringify([{ sessionResource: 'session:a', editorWorkingSet: sharedWorkingSet }]),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE
+		);
+		harness.storageService.store(
+			CHAT_LAYOUT_STATE_STORAGE_KEY,
+			JSON.stringify({ version: 1, entries: [{ sessionResource: 'session:a', editorWorkingSet: sharedWorkingSet }] }),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE
+		);
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		const key = controller.ownerKeyFor(session);
+		assert.deepStrictEqual(controller.capturedWorkingSet(key), sharedWorkingSet, 'the working set must load from the versioned chat-layout key, which already has its own current entry on this reload');
+
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/new-main-content.txt')))];
+		await settle();
+		const other = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(other, undefined);
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'the handle must still be recognised as legacy-referenced and preserved even though it was reached via the versioned-key branch, not the legacy-fallback branch, on this reload');
+		const refreshedWorkingSet = controller.capturedWorkingSet(key);
+		assert.notStrictEqual(refreshedWorkingSet?.id, sharedWorkingSet.id, 'the outgoing save must have captured a fresh working set distinct from the legacy-referenced one');
+
+		harness.onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [refreshedWorkingSet!.id], 'the unique, unreferenced replacement handle must still be destroyed exactly once when its owner is actually removed');
+	});
+
 	test('[R8] deleting a session\'s main chat entity clears its own tracked working set like any other owner, but never destroys a handle still referenced by the frozen legacy storage key', async () => {
 		const legacyWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
 		const controller = createDesktopController({
