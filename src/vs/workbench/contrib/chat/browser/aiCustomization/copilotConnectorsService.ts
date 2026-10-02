@@ -775,6 +775,7 @@ function scoreConnectorField(word: string, value: string): number | undefined {
 }
 
 export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector): ICustomizationMarketplaceEntry {
+	const publisherUrl = connector.homepage ?? connector.author?.url;
 	return {
 		identifier: connector.name,
 		displayName: connector.displayName,
@@ -787,6 +788,7 @@ export function toCopilotConnectorMarketplaceEntry(connector: ICopilotConnector)
 		externalUrl: connector.documentation?.toString(true),
 		icon: connector.icon,
 		publisher: localize('copilotConnectors.publisher', "GitHub Copilot"),
+		...(publisherUrl ? { publisherUrl } : {}),
 		installation: { kind: 'copilotConnector', name: connector.name },
 	};
 }

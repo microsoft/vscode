@@ -85,6 +85,7 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 				representativeQueries: [],
 				originLabel: customReference.displayLabel,
 				publisher: 'microsoft',
+				publisherUrl: URI.parse('https://github.com/microsoft'),
 				version: '1.0',
 				url: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
 				readmeUri: URI.parse('https://raw.githubusercontent.com/microsoft/plugins/stable/plugins/review/README.md'),
@@ -118,7 +119,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.strictEqual(page.items[0].publisher, 'octo-org');
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+			publisher: 'octo-org',
+			publisherUrl: 'https://github.com/octo-org',
+		});
 	});
 
 	test('uses a GitHub URL plugin source owner as the publisher', async () => {
@@ -134,7 +138,10 @@ suite('PluginCustomizationMarketplaceProvider', () => {
 
 		const page = await provider.query({}, CancellationToken.None);
 
-		assert.strictEqual(page.items[0].publisher, 'acme');
+		assert.deepStrictEqual({ publisher: page.items[0].publisher, publisherUrl: page.items[0].publisherUrl?.toString() }, {
+			publisher: 'acme',
+			publisherUrl: 'https://github.com/acme',
+		});
 	});
 
 	test('default provider is suppressed while the public feed is enabled', async () => {

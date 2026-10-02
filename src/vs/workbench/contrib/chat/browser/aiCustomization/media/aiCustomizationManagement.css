@@ -2032,6 +2032,10 @@ per-word capitalization does not survive translation. */
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
+.ai-customization-management-editor .embedded-marketplace-detail .embedded-detail-publisher[href] {
+	color: var(--vscode-textLink-foreground);
+}
+
 .ai-customization-management-editor .ai-customization-embedded-detail .embedded-detail-title-actions .embedded-detail-disable-button.monaco-button {
 	color: var(--vscode-descriptionForeground);
 }

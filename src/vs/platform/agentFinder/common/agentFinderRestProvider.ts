@@ -167,7 +167,8 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
 			}
 			const publisher = server?.publisherDisplayName ?? server?.publisher;
-			return icon || publisher ? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}) } : item;
+			const publisherUrl = parseHttpUri(server?.publisherUrl);
+			return icon || publisher || publisherUrl ? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}), ...(publisherUrl ? { publisherUrl } : {}) } : item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
 				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for '${installation.name}'.`, error);
@@ -302,6 +303,7 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	const sourceSet = text(metadata?.sourceSet);
 	const repository = (sourceSet && !sourceSet.includes('://') ? githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true) : undefined) ?? githubRepository(url);
 	const publisher = repository?.path.split('/')[1];
+	const publisherUrl = publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}` }) : undefined;
 	const installation = parseInstallation(mediaType, metadata, url, externalUrl);
 	const readmeUri = getReadmeUri(installation);
 	return {
@@ -318,6 +320,7 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 		...(readmeUri ? { readmeUri } : {}),
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
+		...(publisherUrl ? { publisherUrl } : {}),
 		version: text(value.version) ?? text(metadata?.version),
 		score: value.score,
 		installation,

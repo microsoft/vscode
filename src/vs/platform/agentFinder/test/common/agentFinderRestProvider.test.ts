@@ -96,6 +96,7 @@ function resourceSnapshot(resource: ICustomizationMarketplaceEntry) {
 		url: resource.url?.toString(),
 		repository: resource.repository?.toString(),
 		icon: resource.icon?.toString(),
+		...(resource.publisherUrl ? { publisherUrl: resource.publisherUrl.toString() } : {}),
 	};
 }
 
@@ -141,6 +142,7 @@ suite('AgentFinderRestProvider', () => {
 				repository: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
 				icon: 'https://github.com/ChromeDevTools.png?size%3D64',
 				publisher: 'ChromeDevTools',
+				publisherUrl: 'https://github.com/ChromeDevTools',
 				version: undefined,
 				score: undefined,
 				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
@@ -176,6 +178,7 @@ suite('AgentFinderRestProvider', () => {
 					},
 					publisher: 'pgEdge',
 					publisherDisplayName: 'pgEdge, Inc.',
+					publisherUrl: 'https://registry.modelcontextprotocol.io/publishers/pgEdge',
 				});
 			},
 		});
@@ -191,6 +194,7 @@ suite('AgentFinderRestProvider', () => {
 				externalUrl: page.items[0].externalUrl,
 				repository: page.items[0].repository,
 				publisher: page.items[0].publisher,
+				publisherUrl: page.items[0].publisherUrl?.toString(),
 				icon: page.items[0].icon?.toString(),
 				stars: page.items[0].stars,
 			},
@@ -204,6 +208,7 @@ suite('AgentFinderRestProvider', () => {
 				externalUrl: mcpServer.url,
 				repository: undefined,
 				publisher: 'pgEdge, Inc.',
+				publisherUrl: 'https://registry.modelcontextprotocol.io/publishers/pgEdge',
 				icon: 'https://avatars.githubusercontent.com/u/213697801',
 				stars: undefined,
 			},
@@ -753,8 +758,8 @@ suite('AgentFinderRestProvider', () => {
 		const page = await service.query({}, CancellationToken.None);
 		const item = page.items[0];
 
-		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, version: item.version }, {
-			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', version: '2.0',
+		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, publisherUrl: item.publisherUrl?.toString(), version: item.version }, {
+			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', publisherUrl: 'https://github.com/Owner', version: '2.0',
 		});
 	});
 

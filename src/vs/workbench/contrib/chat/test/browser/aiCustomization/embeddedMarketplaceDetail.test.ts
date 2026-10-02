@@ -31,6 +31,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		let installCount = 0;
 		let repairCount = 0;
 		let uninstallCount = 0;
+		const openedExternal: Array<URI | string> = [];
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChangeEmitter.event;
@@ -50,7 +51,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
 			getSourceLabel: () => 'Marketplace',
 			install: async () => { installCount++; },
-			openExternal: async () => { },
+			openExternal: async resource => { openedExternal.push(resource); },
 		}));
 		detail.setInput(resource);
 		return {
@@ -59,11 +60,12 @@ suite('EmbeddedMarketplaceDetail', () => {
 			fireInstallChange: () => installChangeEmitter.fire(),
 			getRequestCount: () => requestCount,
 			getActionCounts: () => ({ installCount, repairCount, uninstallCount }),
+			getOpenedExternal: () => openedExternal.map(resource => typeof resource === 'string' ? resource : resource.toString()),
 		};
 	}
 
-	test('renders ordered metadata and representative queries', () => {
-		const { detail, parent } = render({
+	test('renders ordered metadata and representative queries', async () => {
+		const { detail, parent, getOpenedExternal } = render({
 			sourceId: 'test',
 			identifier: 'review',
 			displayName: 'Repository review',
@@ -79,23 +81,29 @@ suite('EmbeddedMarketplaceDetail', () => {
 			repository: URI.parse('https://github.com/example/review'),
 			icon: URI.parse('https://example.com/review.svg'),
 		});
+		parent.querySelector<HTMLElement>('.embedded-detail-publisher')?.click();
+		await timeout(0);
 		assert.deepStrictEqual({
 			heading: parent.querySelector('h2')?.textContent,
 			publisher: parent.querySelector<HTMLElement>('.embedded-detail-publisher')?.textContent,
+			publisherHref: parent.querySelector<HTMLAnchorElement>('.embedded-detail-publisher')?.getAttribute('href'),
 			icon: parent.querySelector<HTMLImageElement>('.marketplace-detail-icon img')?.getAttribute('src'),
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
 			queries: [...parent.querySelectorAll('.marketplace-detail-query-list li')].map(element => element.textContent),
 			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
+			openedExternal: getOpenedExternal(),
 			accessible: detail.getAccessibilityContent(),
 		}, {
 			heading: 'Repository review',
 			publisher: 'Example',
+			publisherHref: 'https://github.com/example',
 			icon: 'https://example.com/review.svg',
 			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
 			queries: ['Review this change'],
-			links: ['Marketplace', 'example/review'],
+			links: ['Example', 'Marketplace', 'example/review'],
 			actions: ['Install'],
+			openedExternal: ['https://github.com/example'],
 			accessible: 'Repository review\n\nExample\n\nReviews pull requests.\n\nTry this: Review this change\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
 		});
 	});

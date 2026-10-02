@@ -46,7 +46,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 	private readonly titleEl: HTMLElement;
 	private readonly titleActionsEl: HTMLElement;
 	private readonly descriptionEl: HTMLElement;
-	private readonly publisherEl: HTMLElement;
+	private readonly publisherEl: HTMLAnchorElement;
 	private readonly installStateEl: HTMLElement;
 	private readonly installStateCardEl: HTMLElement;
 	private readonly installStateIconEl: HTMLElement;
@@ -84,7 +84,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		const identity = DOM.append(header, $('.embedded-detail-header-text'));
 		const nameRow = DOM.append(identity, $('.embedded-detail-name-row'));
 		this.titleEl = DOM.append(nameRow, $('h2.embedded-detail-name'));
-		this.publisherEl = DOM.append(nameRow, $('.embedded-detail-publisher'));
+		this.publisherEl = DOM.append(nameRow, $('a.embedded-detail-publisher')) as HTMLAnchorElement;
 		this.titleActionsEl = DOM.append(header, $('.embedded-detail-title-actions'));
 		this.descriptionEl = DOM.append(this.root, $('p.embedded-detail-description.marketplace-detail-description'));
 
@@ -144,6 +144,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.descriptionEl.textContent = '';
 		this.publisherEl.textContent = '';
 		this.publisherEl.style.display = 'none';
+		this.publisherEl.removeAttribute('href');
 		this.installStateEl.style.display = 'none';
 		this.iconDisposables.clear();
 		DOM.clearNode(this.iconEl);
@@ -192,6 +193,16 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.titleEl.textContent = resource.displayName;
 		this.publisherEl.textContent = resource.publisher ?? '';
 		this.publisherEl.style.display = resource.publisher ? '' : 'none';
+		const publisherUrl = getPublisherUrl(resource);
+		if (publisherUrl) {
+			this.publisherEl.href = publisherUrl.toString(true);
+			this.renderDisposables.add(DOM.addDisposableListener(this.publisherEl, DOM.EventType.CLICK, event => {
+				event.preventDefault();
+				void this.options.openExternal(publisherUrl);
+			}));
+		} else {
+			this.publisherEl.removeAttribute('href');
+		}
 		if (resource.publisher) {
 			this.renderDisposables.add(this.hoverService.setupDelayedHover(this.publisherEl, { content: resource.publisher }));
 		}
@@ -200,7 +211,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		this.renderQueries(resource.representativeQueries);
 		this.appendFact(localize('marketplaceDetail.type', "Type"), getMarketplaceTypeLabel(resource));
 		if (resource.publisher) {
-			this.appendFact(localize('marketplaceDetail.publisher', "Publisher"), resource.publisher);
+			this.appendFact(localize('marketplaceDetail.publisher', "Publisher"), this.createLink(resource.publisher, publisherUrl));
 		}
 		if (resource.version) {
 			this.appendFact(localize('marketplaceDetail.version', "Version"), resource.version);
@@ -542,6 +553,17 @@ function getInstallStatePresentation(state: CustomizationMarketplaceInstallState
 		default:
 			return undefined;
 	}
+}
+
+function getPublisherUrl(resource: ICustomizationMarketplaceResource): URI | undefined {
+	if (resource.publisherUrl) {
+		return resource.publisherUrl;
+	}
+	if (resource.publisher && resource.repository?.scheme === Schemas.https && resource.repository.authority.toLowerCase() === 'github.com') {
+		const owner = resource.repository.path.split('/').filter(Boolean)[0];
+		return owner ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${owner}` }) : undefined;
+	}
+	return undefined;
 }
 
 function getRepositoryLabel(repository: URI): string {

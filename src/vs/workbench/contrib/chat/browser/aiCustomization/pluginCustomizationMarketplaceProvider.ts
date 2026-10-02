@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { createLazyCustomizationMarketplaceProvider, CustomizationMarketplaceMediaType, ICustomizationMarketplaceProvider, ICustomizationMarketplaceSourceEntry, ICustomizationMarketplaceSourceInfo, ICustomizationMarketplaceSourcePage, ICustomizationMarketplaceSourceQuery } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
@@ -107,6 +109,7 @@ export class PluginCustomizationMarketplaceProvider implements ICustomizationMar
 }
 
 function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'default', search: boolean): ICustomizationMarketplaceSourceEntry {
+	const publisher = getPluginPublisher(plugin);
 	return {
 		identifier: getPluginMarketplaceIdentifier(plugin),
 		displayName: plugin.name,
@@ -116,7 +119,8 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		capabilities: [],
 		representativeQueries: [],
 		originLabel: plugin.marketplace,
-		publisher: getPluginPublisher(plugin),
+		publisher: publisher?.name,
+		...(publisher ? { publisherUrl: publisher.url } : {}),
 		version: plugin.version,
 		url: plugin.readmeUri,
 		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
@@ -126,17 +130,18 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 	};
 }
 
-function getPluginPublisher(plugin: IMarketplacePlugin): string | undefined {
+function getPluginPublisher(plugin: IMarketplacePlugin): { readonly name: string; readonly url: URI } | undefined {
+	let publisher: string | undefined;
 	if (plugin.sourceDescriptor.kind === PluginSourceKind.GitHub) {
-		return plugin.sourceDescriptor.repo.split('/', 1)[0];
-	}
-	if (plugin.sourceDescriptor.kind === PluginSourceKind.GitUrl) {
+		publisher = plugin.sourceDescriptor.repo.split('/', 1)[0];
+	} else if (plugin.sourceDescriptor.kind === PluginSourceKind.GitUrl) {
 		const match = plugin.sourceDescriptor.url.match(/^https:\/\/github\.com\/(?<owner>[^/]+)\//i);
 		if (match?.groups) {
-			return match.groups.owner;
+			publisher = match.groups.owner;
 		}
 	}
-	return plugin.marketplaceReference.githubRepo?.split('/', 1)[0];
+	publisher ??= plugin.marketplaceReference.githubRepo?.split('/', 1)[0];
+	return publisher ? { name: publisher, url: URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}` }) } : undefined;
 }
 
 function getPluginMarketplaceTypes(mediaType: string | undefined): ReadonlySet<MarketplaceType> | undefined {
