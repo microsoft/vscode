@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { app, BrowserWindow, ipcMain, Menu, net, protocol } from 'electron';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import { registerContextMenuListener } from '../../../electron-main/contextmenu.js';
 import { CONTEXT_MENU_CHANNEL } from '../../../common/contextmenu.js';
 
@@ -35,7 +35,7 @@ async function run(): Promise<void> {
 		if (url.pathname === '/index.html') {
 			return new Response('<!DOCTYPE html><title>Native context menu test</title>');
 		}
-		return net.fetch(pathToFileURL(decodeURIComponent(url.pathname)).href);
+		return net.fetch(`file://${url.pathname}`);
 	});
 
 	let replyChannel = '';
