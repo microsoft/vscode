@@ -2225,7 +2225,7 @@ export class Repository {
 		assertValidObjectId(newSha);
 		assertValidObjectId(oldSha, true);
 		await this.exec(['check-ref-format', '--branch', branch]);
-		await this.exec(['update-ref', ref, newSha, oldSha]);
+		await this.exec(['update-ref', '--no-deref', ref, newSha, oldSha]);
 	}
 
 	async merge(ref: string): Promise<void> {
@@ -2575,6 +2575,8 @@ export class Repository {
 
 		if (followTags) {
 			args.push('--follow-tags');
+		} else if (lease) {
+			args.push('--no-follow-tags');
 		}
 
 		if (tags) {

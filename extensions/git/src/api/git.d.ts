@@ -313,7 +313,7 @@ export interface Repository {
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;
 	push(remoteName?: string, branchName?: string, setUpstream?: boolean, force?: ForcePushMode): Promise<void>;
-	/** Pushes a commit to a remote branch only if it still points at expectedSha (all zeros if absent). */
+	/** Pushes only the specified remote branch if it still points at expectedSha (all zeros if absent), without pushing tags. */
 	pushRefWithLease(remote: string, branch: string, newSha: string, expectedSha: string): Promise<void>;
 
 	blame(path: string): Promise<string>;
@@ -325,7 +325,10 @@ export interface Repository {
 	/** Rebases the current branch; onto and rebaseMerges allow replaying a stack onto a new base. */
 	rebase(branch: string, options?: { onto?: string; rebaseMerges?: boolean }): Promise<void>;
 	rebaseAbort(): Promise<void>;
-	/** Updates a refs/heads/ branch only if its current value matches oldSha; an all-zero oldSha creates it. */
+	/**
+	 * Updates a refs/heads/ branch only if its current value matches oldSha; an all-zero oldSha creates it.
+	 * Replaces symbolic refs rather than updating their targets.
+	 */
 	updateRef(ref: string, newSha: string, oldSha: string): Promise<void>;
 	/** Resets to ref without overwriting local changes. */
 	resetKeep(ref: string): Promise<void>;

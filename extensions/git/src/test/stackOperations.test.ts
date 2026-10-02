@@ -73,7 +73,7 @@ suite('git stack operations', () => {
 
 		assert.deepStrictEqual(calls, [
 			['check-ref-format', '--branch', 'stack/child'],
-			['push', `--force-with-lease=refs/heads/stack/child:${previous}`, 'origin', `${next}:refs/heads/stack/child`],
+			['push', `--force-with-lease=refs/heads/stack/child:${previous}`, '--no-follow-tags', 'origin', `${next}:refs/heads/stack/child`],
 			['push', '--force-with-lease', 'origin', 'main']
 		]);
 	});
@@ -113,7 +113,7 @@ suite('git stack operations', () => {
 		await assert.rejects(repository.resetKeep('--hard'));
 		assert.deepStrictEqual(calls, [
 			['check-ref-format', '--branch', 'stack/child'],
-			['update-ref', 'refs/heads/stack/child', next, missing],
+			['update-ref', '--no-deref', 'refs/heads/stack/child', next, missing],
 			['reset', '--keep', 'HEAD~']
 		]);
 	});
@@ -271,6 +271,44 @@ suite('git stack operations', () => {
 			assert.deepStrictEqual((await repository.getRemoteRefs('origin', { heads: true })).map(ref => ({
 				name: ref.name, commit: ref.commit, type: ref.type
 			})), [{ name: 'stack', commit: next, type: RefType.Head }]);
+		});
+
+		test('branch CAS does not dereference symbolic refs', async () => {
+			const base = (await repository.getCommit('HEAD')).hash;
+			const next = await commit('next\n', 'next');
+			await git.exec(root, ['update-ref', 'refs/tags/release', base]);
+			await git.exec(root, ['symbolic-ref', 'refs/heads/alias', 'refs/tags/release']);
+
+			await assert.rejects(repository.updateRef('refs/heads/alias', next, next));
+			await repository.updateRef('refs/heads/alias', next, base);
+			await assert.rejects(repository.updateRef('refs/heads/alias', base, base));
+
+			assert.deepStrictEqual({
+				branch: (await repository.getBranch('alias')).commit,
+				tag: (await git.exec(root, ['rev-parse', 'refs/tags/release'])).stdout.trim()
+			}, { branch: next, tag: base });
+		});
+
+		test('leased pushes never follow tags, including when the lease is rejected', async () => {
+			const base = (await repository.getCommit('HEAD')).hash;
+			const next = await commit('next\n', 'next');
+			const remote = path.join(directory, 'remote.git');
+			await git.exec(root, ['init', '--bare', remote]);
+			await repository.addRemote('origin', remote);
+			await repository.pushRefWithLease('origin', 'stack', base, '0'.repeat(base.length));
+			await git.exec(root, ['config', 'push.followTags', 'true']);
+			await git.exec(root, ['-c', 'tag.gpgsign=false', 'tag', '-a', 'release', '-m', 'release', next]);
+
+			await assert.rejects(repository.pushRefWithLease('origin', 'stack', next, '0'.repeat(base.length)),
+				{ gitErrorCode: GitErrorCodes.ForcePushWithLeaseRejected });
+			const rejected = await repository.getRemoteRefs('origin');
+			await repository.pushRefWithLease('origin', 'stack', next, base);
+			const successful = await repository.getRemoteRefs('origin');
+
+			assert.deepStrictEqual({ rejected, successful }, {
+				rejected: [{ name: 'stack', commit: base, type: RefType.Head }],
+				successful: [{ name: 'stack', commit: next, type: RefType.Head }]
+			});
 		});
 
 		test('resetKeep refuses to overwrite changes and succeeds once the worktree is clean', async () => {
