@@ -155,7 +155,6 @@ suite('SessionBackgroundShellsControl', () => {
 				return new class extends mock<IDetachedTerminalInstance>() {
 					override readonly xterm = new class extends mock<IDetachedXtermTerminal>() {
 						override write(data: string | Uint8Array): void { writes.push(String(data)); }
-						override reset(): void { writes.push('<reset>'); }
 						override resize(cols: number, rows: number): void { sizes.push(`${cols}x${rows}`); }
 					}();
 					override attachToElement(): void { }
@@ -200,7 +199,7 @@ suite('SessionBackgroundShellsControl', () => {
 			exited: 'Exited with code 0',
 			command: true,
 			commandLineHidden: true,
-			writes: ['\x1b[?25l', 'step 1', '\r\nstep 2', '<reset>', '\x1b[?25lstep 2'],
+			writes: ['\x1b[?25l', 'step 1', '\r\nstep 2', '\x1b[2J\x1b[3J\x1b[Hstep 2'],
 			sizes: ['80x1', '80x2', '80x1'],
 			reused: true,
 			released: true,

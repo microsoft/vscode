@@ -1604,6 +1604,75 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('settles a background shell from a read_bash result when the runtime sends no shell_completed', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-poll');
+			const terminal = defaultNonPtyShellTerminalUri('tc-poll');
+			mockSession.backgroundTasks = [shell('poll')];
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-poll',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run poll', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-poll',
+				success: true,
+				result: { content: '<command started in background with shellId: poll>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-read',
+				toolName: 'read_bash',
+				arguments: { shellId: 'poll', delay: 5 },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-read',
+				success: true,
+				result: { content: 'tick\n<shellId: poll completed with exit code 0>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete) && (signal.action as ChatToolCallCompleteAction).toolCallId === 'tc-read');
+
+			const read = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'tc-read') as ChatToolCallCompleteAction;
+			assert.deepStrictEqual({
+				finalized: terminalManager.outputTerminalsFinalized,
+				created: terminalManager.outputTerminalsCreated.map(created => created.uri),
+				readContent: read.result.content?.map(content => content.type),
+			}, {
+				finalized: [{ uri: terminal, exitCode: 0 }],
+				created: [terminal],
+				readContent: [ToolResultContentType.Text],
+			});
+		});
+
+		test('settles a background shell from a task read that a newer read superseded', async () => {
+			const { mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			const terminal = defaultNonPtyShellTerminalUri('tc-gone');
+			mockSession.backgroundTasks = [shell('gone')];
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-gone',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run gone', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-gone',
+				success: true,
+				result: { content: '<command started in background with shellId: gone>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			// The first read sees the shell gone but is superseded; the newer read fails, so only the first can settle it.
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTaskListResults.push([]);
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.backgroundTaskListError = new Error('temporary task-list failure');
+			mockSession.fire('session.background_tasks_changed', {});
+			await gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminal, exitCode: undefined }]);
+		});
+
 		test('publishes attached and detached active shells but not foreground or finished tasks', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [

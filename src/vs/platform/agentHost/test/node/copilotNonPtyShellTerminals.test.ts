@@ -405,18 +405,55 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 		});
 
-		test('settles a shell the runtime stops listing only after it was listed as running', () => {
+		test('settles a shell from task reads started after it went to the background, even if never listed', () => {
 			streams.track('call-23', 'shell');
+			const earlier = streams.beginShellTaskRead();
 			const uri = streams.completeToolCall('call-23', asyncStarted('10'), undefined)?.uri;
 
-			streams.reconcileBackgroundShells(new Set());
-			const beforeListed = [...manager.outputTerminalsFinalized];
-			streams.reconcileBackgroundShells(new Set(['10']));
-			streams.reconcileBackgroundShells(new Set());
+			// A read started before the call returned can predate the shell.
+			streams.reconcileBackgroundShells(new Set(), earlier);
+			const afterEarlierRead = [...manager.outputTerminalsFinalized];
+			streams.reconcileBackgroundShells(new Set(['10']), streams.beginShellTaskRead());
+			const whileListed = [...manager.outputTerminalsFinalized];
+			// A later read that no longer lists the shell settles it, whether or not an earlier read listed it.
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
 
-			deepStrictEqual({ beforeListed, finalized: manager.outputTerminalsFinalized }, {
-				beforeListed: [],
+			deepStrictEqual({ afterEarlierRead, whileListed, finalized: manager.outputTerminalsFinalized }, {
+				afterEarlierRead: [],
+				whileListed: [],
 				finalized: [{ uri, exitCode: undefined }],
+			});
+		});
+
+		test('settles a shell that exits before any read lists it', () => {
+			streams.track('call-28', 'shell');
+			const uri = streams.completeToolCall('call-28', asyncStarted('12'), undefined)?.uri;
+
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+
+			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+		});
+
+		test('settles a shell from a read result with its exit code and from a stop result', () => {
+			streams.track('call-29', 'shell');
+			const read = streams.completeToolCall('call-29', asyncStarted('13'), undefined)?.uri;
+			streams.track('call-30', 'shell');
+			const stopped = streams.completeToolCall('call-30', asyncStarted('14'), undefined)?.uri;
+			streams.track('call-31', 'shell');
+			const running = streams.completeToolCall('call-31', asyncStarted('15'), undefined)?.uri;
+
+			streams.completeBackgroundShellFromHelperResult('done\n<shellId: 13 completed with exit code 3>');
+			streams.completeBackgroundShellFromHelperResult('<command with id: 14 stopped>');
+			streams.completeBackgroundShellFromHelperResult('<shellId: 99 completed with exit code 1>');
+			streams.completeBackgroundShellFromHelperResult('still running');
+			streams.completeBackgroundShellFromHelperResult('log: <command with id: 15 stopped>\nlog: <shellId: 15 completed with exit code 0>\nstill running');
+
+			deepStrictEqual({ finalized: manager.outputTerminalsFinalized, running: streams.getBackgroundShellTerminal('15') }, {
+				finalized: [
+					{ uri: read, exitCode: 3 },
+					{ uri: stopped, exitCode: undefined },
+				],
+				running,
 			});
 		});
 

@@ -34,6 +34,9 @@ const commandLanguage = 'shellscript';
 /** Hides the cursor, which would otherwise sit on the latest line of this read-only preview. */
 const hideCursor = '\x1b[?25l';
 
+/** Clears the screen and scrollback and homes the cursor, keeping modes such as the hidden cursor. */
+const clearTerminal = '\x1b[2J\x1b[3J\x1b[H';
+
 function toTerminalText(text: string): string {
 	return text.replace(/\r?\n/g, '\r\n');
 }
@@ -146,8 +149,8 @@ export class BackgroundShellOutputView extends Disposable {
 			}
 		} else {
 			// Older output was trimmed or rewritten, so show the current transcript from the start.
-			terminal.xterm.reset();
-			terminal.xterm.write(hideCursor + toTerminalText(displayed));
+			// Clear through the write queue, so output xterm is still parsing can't land after the clear.
+			terminal.xterm.write(clearTerminal + toTerminalText(displayed));
 		}
 		this._displayed = displayed;
 		this._layout();
