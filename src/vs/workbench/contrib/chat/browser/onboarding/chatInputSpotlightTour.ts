@@ -226,7 +226,10 @@ export class ChatInputSpotlightTour extends Disposable {
 			}
 		}
 		await this._whenMenuClosed();
-		picker.open(section === 'permissions');
+		const trigger = picker.triggerElement;
+		if (trigger) {
+			picker.show(trigger, section === 'permissions');
+		}
 	}
 
 	/**
