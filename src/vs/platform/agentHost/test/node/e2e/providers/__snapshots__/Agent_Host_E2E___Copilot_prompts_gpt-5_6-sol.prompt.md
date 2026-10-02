@@ -852,22 +852,46 @@
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.",
+      "description": "Send, replace, or cancel your message in an existing session or chat. Use `delivery: \"steer\"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: \"queue\"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.",
       "parameters": {
         "type": "object",
         "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send",
+              "replace",
+              "cancel"
+            ],
+            "description": "`send` (default) creates a message, `replace` updates one of your pending queued messages, and `cancel` removes one of your pending queued messages."
+          },
           "session": {
             "type": "string",
             "description": "The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat."
           },
           "message": {
             "type": "string",
-            "description": "The message to send."
+            "description": "The complete message text. Required for `send` and `replace`; omit for `cancel`."
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "queue",
+              "steer"
+            ],
+            "description": "For `send`, use `steer` to update an active turn or `queue` for a separate turn. Defaults to `queue`."
+          },
+          "messageId": {
+            "type": "string",
+            "description": "For `replace` or `cancel`, the ID returned when this chat sent the message."
+          },
+          "expectedRevision": {
+            "type": "number",
+            "description": "For `replace` or `cancel`, the revision returned with a pending queued message. The operation fails if the message changed or started processing."
           }
         },
         "required": [
-          "session",
-          "message"
+          "session"
         ]
       },
       "strict": false,
@@ -875,7 +899,7 @@
     },
     {
       "name": "get_session_context",
-      "description": "Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
+      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
       "parameters": {
         "type": "object",
         "properties": {
