@@ -48,6 +48,7 @@ export class ControlTransport extends Disposable {
 		this._queue = this._register(new RequestQueue(_scheduler, context => this._rateLimits.getDelay(context.account, _policy.resource)));
 	}
 
+	/** Callers identify the credential and representation; coalescing is additionally scoped to its quota account. */
 	async get(
 		key: string,
 		account: RequestAccount,
@@ -62,9 +63,10 @@ export class ControlTransport extends Disposable {
 		if (!Number.isFinite(deadline) || deadline <= this._scheduler.now()) {
 			throw new RequestTimeoutError();
 		}
-		let shared = this._inFlight.get(key);
+		const operationKey = JSON.stringify([RequestQueue.accountKey(account), key]);
+		let shared = this._inFlight.get(operationKey);
 		if (shared && shared.deadline <= this._scheduler.now()) {
-			this._inFlight.delete(key);
+			this._inFlight.delete(operationKey);
 			shared.controller.abort(new RequestTimeoutError());
 			shared = undefined;
 		}
@@ -88,21 +90,21 @@ export class ControlTransport extends Disposable {
 			}
 			const created: IInFlightOperation<IControlResponse> = { controller, deadline: requestDeadline, waiters: new OperationWaiters() };
 			shared = created;
-			this._inFlight.set(key, created);
+			this._inFlight.set(operationKey, created);
 			const updateCooldown = () => created.waiters.setBlockedUntil(this._queue.isPending(controller.signal)
 				? this._scheduler.now() + this._rateLimits.getDelay(account, this._policy.resource) : 0);
 			const cooldownListener = this._rateLimits.onDidChange(updateCooldown);
 			updateCooldown();
 			void pending.then(value => {
 				cooldownListener.dispose();
-				if (this._inFlight.get(key) === created) {
-					this._inFlight.delete(key);
+				if (this._inFlight.get(operationKey) === created) {
+					this._inFlight.delete(operationKey);
 				}
 				created.waiters.resolve(value);
 			}, error => {
 				cooldownListener.dispose();
-				if (this._inFlight.get(key) === created) {
-					this._inFlight.delete(key);
+				if (this._inFlight.get(operationKey) === created) {
+					this._inFlight.delete(operationKey);
 				}
 				created.waiters.reject(error);
 			});
@@ -115,8 +117,8 @@ export class ControlTransport extends Disposable {
 				error: delay => new RequestRateLimitError(delay),
 			});
 		} finally {
-			if (shared.waiters.size === 0 && this._inFlight.get(key) === shared) {
-				this._inFlight.delete(key);
+			if (shared.waiters.size === 0 && this._inFlight.get(operationKey) === shared) {
+				this._inFlight.delete(operationKey);
 				shared.controller.abort(new Error('All Control request waiters cancelled'));
 			}
 		}
