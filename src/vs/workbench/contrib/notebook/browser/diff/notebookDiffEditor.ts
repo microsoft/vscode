@@ -516,16 +516,9 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			return;
 		}
 
-		if (this._originalWebview) {
-			this._modifiedResourceDisposableStore.add(this._originalWebview);
-		}
 		await this._createModifiedWebview(generateUuid(), this._model.modified.viewType, this._model.modified.resource);
 		if (token.isCancellationRequested || this.input !== input || this._model !== model) {
 			return;
-		}
-
-		if (this._modifiedWebview) {
-			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
 		}
 
 		await this.updateLayout(this._layoutCancellationTokenSource.token, options?.cellSelections ? cellRangesToIndexes(options.cellSelections) : undefined);
@@ -619,10 +612,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private async _createModifiedWebview(id: string, viewType: string, resource: URI): Promise<void> {
 		this._modifiedWebview?.dispose();
 
-		this._modifiedWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, viewType, resource, {
+		const webview = this._modifiedWebview = this._modifiedResourceDisposableStore.add(this.instantiationService.createInstance(BackLayerWebView, this, id, viewType, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
 			fontFamily: this._generateFontFamily()
-		}, undefined) as BackLayerWebView<IDiffCellInfo>;
+		}, undefined) as BackLayerWebView<IDiffCellInfo>);
+		this._modifiedResourceDisposableStore.add(toDisposable(() => webview.element.remove()));
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._modifiedWebview.element);
 		this._modifiedWebview.createWebview(this.window);
@@ -636,10 +630,11 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private async _createOriginalWebview(id: string, viewType: string, resource: URI): Promise<void> {
 		this._originalWebview?.dispose();
 
-		this._originalWebview = this.instantiationService.createInstance(BackLayerWebView, this, id, viewType, resource, {
+		const webview = this._originalWebview = this._modifiedResourceDisposableStore.add(this.instantiationService.createInstance(BackLayerWebView, this, id, viewType, resource, {
 			...this._notebookOptions.computeDiffWebviewOptions(),
 			fontFamily: this._generateFontFamily()
-		}, undefined) as BackLayerWebView<IDiffCellInfo>;
+		}, undefined) as BackLayerWebView<IDiffCellInfo>);
+		this._modifiedResourceDisposableStore.add(toDisposable(() => webview.element.remove()));
 		// attach the webview container to the DOM tree first
 		this._list.rowsContainer.insertAdjacentElement('afterbegin', this._originalWebview.element);
 		this._originalWebview.createWebview(this.window);

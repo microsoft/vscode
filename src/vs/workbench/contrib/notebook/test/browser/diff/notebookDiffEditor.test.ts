@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { NotebookTextDiffEditor } from '../../../browser/diff/notebookDiffEditor.js';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from '../../../common/notebookCommon.js';
 import { NotebookDiffEditorInput } from '../../../common/notebookDiffEditorInput.js';
@@ -26,11 +29,14 @@ suite('NotebookTextDiffEditor', () => {
 		_modifiedResourceDisposableStore: DisposableStore;
 		_layoutCancellationTokenSource: CancellationTokenSource | undefined;
 		_model: INotebookDiffEditorModel | null;
-		_list: { length: number; clear(): void; splice(start: number, deleteCount: number): void };
+		_list: { length: number; rowsContainer: HTMLElement; clear(): void; splice(start: number, deleteCount: number): void };
 		_listViewContainer: { style: { display: string } };
+		_notebookOptions: { computeDiffWebviewOptions(): object };
+		instantiationService: Pick<IInstantiationService, 'createInstance'>;
+		_generateFontFamily(): string;
 		_attachModel(model: INotebookDiffEditorModel): void;
-		_createOriginalWebview(): Promise<void>;
-		_createModifiedWebview(): Promise<void>;
+		_createOriginalWebview(id: string, viewType: string, resource: URI): Promise<void>;
+		_createModifiedWebview(id: string, viewType: string, resource: URI): Promise<void>;
 		updateLayout(token: CancellationToken): Promise<void>;
 	};
 
@@ -42,7 +48,7 @@ suite('NotebookTextDiffEditor', () => {
 		editor._localStore = store.add(new DisposableStore());
 		editor._modifiedResourceDisposableStore = store.add(new DisposableStore());
 		editor._model = null;
-		editor._list = { length: 0, clear() { }, splice() { } };
+		editor._list = { length: 0, rowsContainer: document.createElement('div'), clear() { }, splice() { } };
 		editor._listViewContainer = { style: { display: '' } };
 		editor._attachModel = model => { editor._model = model; };
 		editor._createOriginalWebview = async () => { };
@@ -82,6 +88,79 @@ suite('NotebookTextDiffEditor', () => {
 		editor.clearInput();
 		assert.strictEqual(editor.currentChangedIndex.get(), -1);
 	});
+
+	test('replacing an input without clearing resets the current change index', async () => {
+		const editor = createEditor();
+		await editor.setInput(createInput(), undefined, { newInGroup: true }, CancellationToken.None);
+		editor._currentChangedIndex.set(2, undefined);
+
+		await editor.setInput(createInput(), undefined, { newInGroup: true }, CancellationToken.None);
+		assert.strictEqual(editor.currentChangedIndex.get(), -1);
+	});
+
+	class TestWebview extends Disposable {
+		readonly element = document.createElement('div');
+		isDisposed = false;
+		createWebview(): void { }
+		override dispose(): void {
+			this.isDisposed = true;
+			super.dispose();
+		}
+	}
+
+	for (const stage of ['_createOriginalWebview', '_createModifiedWebview'] as const) {
+		for (const action of ['clear', 'replace', 'cancel'] as const) {
+			test(`${action} input after ${stage} cleans up the created webviews`, async () => {
+				const editor = createEditor();
+				const prototype = Object.getPrototypeOf(editor) as TestEditor;
+				editor._createOriginalWebview = prototype._createOriginalWebview;
+				editor._createModifiedWebview = prototype._createModifiedWebview;
+				Object.defineProperty(editor, 'window', { value: mainWindow });
+				editor._notebookOptions = { computeDiffWebviewOptions: () => ({}) };
+				editor._generateFontFamily = () => 'monospace';
+				const webviews: TestWebview[] = [];
+				editor.instantiationService = {
+					createInstance: stub().callsFake(() => {
+						const webview = store.add(new TestWebview());
+						webviews.push(webview);
+						return webview;
+					})
+				};
+				const reachedStage = new DeferredPromise<void>();
+				const resume = new DeferredPromise<void>();
+				editor[stage] = async (id, viewType, resource) => {
+					await prototype[stage].call(editor, id, viewType, resource);
+					await reachedStage.complete();
+					await resume.p;
+				};
+				const cancellation = store.add(new CancellationTokenSource());
+				const opening = editor.setInput(createInput(), undefined, { newInGroup: true }, cancellation.token);
+				await reachedStage.p;
+				const obsoleteWebviews = webviews.slice();
+				assert.ok(obsoleteWebviews.every(webview => !webview.isDisposed && webview.element.parentElement));
+
+				if (action === 'cancel') {
+					cancellation.cancel();
+				} else {
+					editor.clearInput();
+					if (action === 'replace') {
+						editor[stage] = prototype[stage];
+						await editor.setInput(createInput(), undefined, { newInGroup: true }, CancellationToken.None);
+					}
+				}
+				await resume.complete();
+				await opening;
+				if (action === 'cancel') {
+					editor.clearInput();
+				}
+				assert.deepStrictEqual(obsoleteWebviews.map(webview => ({ disposed: webview.isDisposed, parent: webview.element.parentElement })),
+					obsoleteWebviews.map(() => ({ disposed: true, parent: null })));
+				if (action === 'replace') {
+					assert.ok(webviews.slice(obsoleteWebviews.length).every(webview => !webview.isDisposed && webview.element.parentElement));
+				}
+			});
+		}
+	}
 
 	for (const stage of ['resolve', 'original webview', 'modified webview'] as const) {
 		for (const action of ['clear', 'replace', 'cancel'] as const) {
