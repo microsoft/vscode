@@ -320,21 +320,24 @@ suite('LazyGitHubResourceHover', () => {
 	test('does not resurrect an evicted prefetch when its hover is waiting', async () => {
 		const acquired = new DeferredPromise<IReference<IGitHubClient>>();
 		let acquisitions = 0;
+		let acquisitionSignal: AbortSignal | undefined;
+		const refreshCancellation: boolean[] = [];
 		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
 			onDidChangeDefaultClient: Event.None,
-			acquireDefaultAccountClient: () => { acquisitions++; return acquired.p; },
+			acquireDefaultAccountClient: signal => { acquisitions++; acquisitionSignal = signal; return acquired.p; },
 		}), new NullLogService()));
 		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
 		const prefetched = resolver.prefetchPullRequest(target);
 		const hover = resolver.resolvePullRequest(target);
 		resolver.retain([]);
+		const abortedOnEviction = acquisitionSignal?.aborted;
 		acquired.complete(new ImmortalReference(upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				getCredential: async signal => ({ account: { host: 'github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
 			}),
 			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 				subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
-					refresh: async () => { },
+					refresh: async (_fragment, token) => { refreshCancellation.push(token?.isCancellationRequested ?? false); },
 					dispose: () => { },
 					resource: {
 						ref: upcastPartial({}), snapshot: observableValue('evicted', upcastPartial<PullRequestSnapshot>({
@@ -352,8 +355,8 @@ suite('LazyGitHubResourceHover', () => {
 			}),
 		})));
 		await prefetched;
-		assert.deepStrictEqual({ hover: await hover, acquisitions, state: resolver.getPullRequestState(target).get() }, {
-			hover: undefined, acquisitions: 1, state: { status: 'idle' },
+		assert.deepStrictEqual({ hover: await hover, acquisitions, abortedOnEviction, refreshCancellation, state: resolver.getPullRequestState(target).get() }, {
+			hover: undefined, acquisitions: 1, abortedOnEviction: true, refreshCancellation: [true], state: { status: 'idle' },
 		});
 	});
 

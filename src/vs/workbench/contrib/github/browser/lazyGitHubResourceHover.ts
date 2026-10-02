@@ -5,6 +5,8 @@
 
 import { $, append } from '../../../../base/browser/dom.js';
 import type { IManagedHoverTooltipHTMLElement } from '../../../../base/browser/ui/hover/hover.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -36,6 +38,7 @@ export type LazyGitHubResourceState<T> =
 interface ILazyGitHubResourceEntry<T> {
 	readonly state: ReturnType<typeof observableValue<LazyGitHubResourceState<T>>>;
 	promise: Promise<T | undefined> | undefined;
+	controller: AbortController | undefined;
 	complete: boolean;
 }
 
@@ -57,6 +60,7 @@ export class LazyGitHubResourceResolver extends Disposable {
 			this._issues.clear();
 			this._pullRequests.clear();
 			for (const entry of entries) {
+				entry.controller?.abort();
 				entry.state.set({ status: 'idle' }, undefined);
 			}
 		}));
@@ -93,6 +97,7 @@ export class LazyGitHubResourceResolver extends Disposable {
 		for (const [cache, keys] of [[this._issues, issues], [this._pullRequests, pullRequests]] as const) {
 			for (const key of cache.keys()) {
 				if (!keys.has(key)) {
+					cache.get(key)?.controller?.abort();
 					cache.delete(key);
 				}
 			}
@@ -108,28 +113,29 @@ export class LazyGitHubResourceResolver extends Disposable {
 	}
 
 	resolveIssue(target: IGitHubReferenceTarget): Promise<IGitHubIssueHoverModel | undefined> {
-		return this._resolve(this._issues, target, true, () => this._resolveIssue(target), 'issue');
+		return this._resolve(this._issues, target, true, signal => this._resolveIssue(target, signal), 'issue');
 	}
 
 	resolvePullRequest(target: IGitHubReferenceTarget): Promise<IPullRequestHoverDetails | undefined> {
-		return this._resolve(this._pullRequests, target, true, () => this._resolvePullRequest(target, true), 'pull request');
+		return this._resolve(this._pullRequests, target, true, signal => this._resolvePullRequest(target, true, signal), 'pull request');
 	}
 
 	prefetchPullRequest(target: IGitHubReferenceTarget): Promise<IPullRequestHoverDetails | undefined> {
-		return this._resolve(this._pullRequests, target, false, () => this._resolvePullRequest(target, false), 'pull request');
+		return this._resolve(this._pullRequests, target, false, signal => this._resolvePullRequest(target, false, signal), 'pull request');
 	}
 
 	private _getEntry<T>(cache: Map<string, ILazyGitHubResourceEntry<T>>, target: IGitHubReferenceTarget): ILazyGitHubResourceEntry<T> {
 		const key = githubTargetKey(target);
 		let entry = cache.get(key);
 		if (!entry) {
-			entry = { state: observableValue(this, { status: 'idle' }), promise: undefined, complete: false };
+			entry = { state: observableValue(this, { status: 'idle' }), promise: undefined, controller: undefined, complete: false };
 			cache.set(key, entry);
 		}
 		return entry;
 	}
 
-	private _resolve<T>(cache: Map<string, ILazyGitHubResourceEntry<T>>, target: IGitHubReferenceTarget, requireComplete: boolean, resolve: () => Promise<T | undefined>, kind: string): Promise<T | undefined> {
+	private _resolve<T>(cache: Map<string, ILazyGitHubResourceEntry<T>>, target: IGitHubReferenceTarget, requireComplete: boolean, resolve: (signal: AbortSignal) => Promise<T | undefined>, kind: string): Promise<T | undefined> {
+		const key = githubTargetKey(target);
 		const entry = this._getEntry(cache, target);
 		const state = entry.state.get();
 		if (state.status === 'resolved' && (!requireComplete || entry.complete)) {
@@ -137,64 +143,88 @@ export class LazyGitHubResourceResolver extends Disposable {
 		}
 		if (entry.promise) {
 			return requireComplete
-				? entry.promise.then(result => result && cache.get(githubTargetKey(target)) === entry ? this._resolve(cache, target, true, resolve, kind) : undefined)
+				? entry.promise.then(result => result && cache.get(key) === entry ? this._resolve(cache, target, true, resolve, kind) : undefined)
 				: entry.promise;
 		}
 		if (!entry.promise) {
 			if (state.status !== 'resolved') {
 				entry.state.set({ status: 'loading' }, undefined);
 			}
-			entry.promise = resolve().then(result => {
-				entry.state.set(result ? { status: 'resolved', value: result } : { status: 'failed' }, undefined);
+			const controller = new AbortController();
+			entry.controller = controller;
+			const signal = AbortSignal.any([this._lifetime.signal, controller.signal]);
+			entry.promise = resolve(signal).then(result => {
+				if (cache.get(key) === entry) {
+					entry.state.set(result ? { status: 'resolved', value: result } : { status: 'failed' }, undefined);
+				}
 				entry.complete = !!result && requireComplete;
 				return result;
 			}, error => {
-				entry.state.set({ status: 'failed' }, undefined);
-				if (!this._lifetime.signal.aborted) {
+				if (cache.get(key) === entry) {
+					entry.state.set({ status: 'failed' }, undefined);
+				}
+				if (!signal.aborted) {
 					this._logService.warn(`[LazyGitHubResourceResolver] Failed to resolve GitHub ${kind}`, error);
 				}
 				return undefined;
 			}).finally(() => {
-				entry.promise = undefined;
+				if (entry.controller === controller) {
+					entry.controller = undefined;
+					entry.promise = undefined;
+				}
 			});
 		}
 		return entry.promise;
 	}
 
-	private async _resolveIssue(target: IGitHubReferenceTarget): Promise<IGitHubIssueHoverModel | undefined> {
-		const clientReference = await this._gitHubService.acquireDefaultAccountClient(this._lifetime.signal);
+	private async _resolveIssue(target: IGitHubReferenceTarget, signal: AbortSignal): Promise<IGitHubIssueHoverModel | undefined> {
+		const cancellation = new CancellationTokenSource();
+		const abortListener = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel());
+		if (signal.aborted) {
+			cancellation.cancel();
+		}
+		let clientReference: Awaited<ReturnType<IWorkbenchGitHubService['acquireDefaultAccountClient']>> | undefined;
 		try {
+			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
 			const client = clientReference.object;
-			const credential = await client.credentials.getCredential(this._lifetime.signal);
+			const credential = await client.credentials.getCredential(signal);
 			const ref: GitHubIssueRef = { ...credential.account, ...target };
 			const subscription = client.query.subscribeIssue(ref, { priority: 'interactive' });
 			try {
-				await subscription.refresh();
+				await subscription.refresh(cancellation.token);
 				const issue = subscription.resource.state.get().value;
 				return issue ? toIssueHoverModel(issue) : undefined;
 			} finally {
 				subscription.dispose();
 			}
 		} finally {
-			clientReference.dispose();
+			clientReference?.dispose();
+			abortListener.dispose();
+			cancellation.dispose();
 		}
 	}
 
-	private async _resolvePullRequest(target: IGitHubReferenceTarget, includeChecks: boolean): Promise<IPullRequestHoverDetails | undefined> {
-		const clientReference = await this._gitHubService.acquireDefaultAccountClient(this._lifetime.signal);
+	private async _resolvePullRequest(target: IGitHubReferenceTarget, includeChecks: boolean, signal: AbortSignal): Promise<IPullRequestHoverDetails | undefined> {
+		const cancellation = new CancellationTokenSource();
+		const abortListener = Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel());
+		if (signal.aborted) {
+			cancellation.cancel();
+		}
+		let clientReference: Awaited<ReturnType<IWorkbenchGitHubService['acquireDefaultAccountClient']>> | undefined;
 		try {
+			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
 			const client = clientReference.object;
-			const credential = await client.credentials.getCredential(this._lifetime.signal);
+			const credential = await client.credentials.getCredential(signal);
 			const ref: PullRequestRef = { ...credential.account, ...target };
 			const subscription = client.pullRequests.subscribePullRequest(ref, {
 				priority: 'interactive',
 				core: true,
 			});
 			try {
-				await subscription.refresh('core');
+				await subscription.refresh('core', cancellation.token);
 				if (includeChecks) {
 					subscription.update({ priority: 'interactive', core: true, checks: { includeOptional: true } });
-					await subscription.refresh('checks').catch(error => {
+					await subscription.refresh('checks', cancellation.token).catch(error => {
 						if (!this._lifetime.signal.aborted) {
 							this._logService.warn('[LazyGitHubResourceResolver] Failed to resolve optional pull request checks', error);
 						}
@@ -209,7 +239,9 @@ export class LazyGitHubResourceResolver extends Disposable {
 				subscription.dispose();
 			}
 		} finally {
-			clientReference.dispose();
+			clientReference?.dispose();
+			abortListener.dispose();
+			cancellation.dispose();
 		}
 	}
 
