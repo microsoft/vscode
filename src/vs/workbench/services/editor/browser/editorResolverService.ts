@@ -500,14 +500,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		const diffFilename = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
 		const diffLanguage = this.getRawAssociationsForResourceFromLanguageSetting(resource, diffEditorLanguageAssociationsSettingId);
-		const diffAssociations = [...diffFilename, ...diffLanguage];
-		if (diffAssociations.length) {
-			return diffAssociations;
-		}
 
-		const generalFilename = this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
-		const generalLanguage = this.getRawAssociationsForResourceFromLanguageSetting(resource, editorLanguageAssociationsSettingId);
-		return [...generalFilename, ...generalLanguage];
+		const generalFilename = this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+		const generalLanguage = this.getRawAssociationsForResourceFromLanguageSetting(resource, editorLanguageAssociationsSettingId)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+
+		return [...diffFilename, ...generalFilename, ...diffLanguage, ...generalLanguage];
 	}
 
 	private getRawAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
@@ -1125,7 +1124,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				let configured = langAssociations.find(a => a.language === langId);
 				if (!configured && defaultAssociationType === EditorAssociationType.DiffEditor) {
 					const generalAssociations = this.getAllUserAssociationsForSetting(editorLanguageAssociationsSettingId, true);
-					configured = generalAssociations.find(a => a.language === langId);
+					configured = generalAssociations.find(a => a.language === langId && !this.isExplicitForAssociationType(a.viewType, defaultAssociationType));
 				}
 				if (configured) {
 					defaultEditorId = configured.viewType;
@@ -1136,7 +1135,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					const naturalLangEditor = this._registeredEditors.find(e =>
 						e.options?.language === langId &&
 						(isDiffKind ? !!e.editorFactoryObject.createDiffEditorInput : true) &&
-						e.editorInfo.priority.editor === RegisteredEditorPriority.default &&
+						this.getEffectivePriority(e.editorInfo, defaultAssociationType) === RegisteredEditorPriority.default &&
 						// Only language-wide registrations (synthetic '*' glob, no filename restriction)
 						(e.globPattern === '*' || e.globPattern === '')
 					);
@@ -1403,6 +1402,15 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 						(!!c.editorFactoryObject.createDiffEditorInput && priorityToRank(c.editorInfo.priority.diff) >= priorityToRank(RegisteredEditorPriority.builtin)))
 				) {
 					cacheStorage.add(`lang:${c.options.language}`);
+					// Also cache the language's known extensions and filenames. On the next startup,
+					// the language might not be registered yet when resourceMatchesCache runs,
+					// so we need these pre-registration-matchable selectors to trigger the wait.
+					for (const ext of this.languageService.getExtensions(c.options.language)) {
+						cacheStorage.add(`*${ext}`);
+					}
+					for (const filename of this.languageService.getFilenames(c.options.language)) {
+						cacheStorage.add(filename);
+					}
 				}
 			}
 		}
