@@ -25,6 +25,7 @@ import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 
 import '../../../../browser/media/style.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../browser/media/chatView.css';
 
@@ -94,12 +95,15 @@ const stickyAssistantResponse = [
 	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
-	container.style.width = `${fixtureWidth}px`;
-	container.style.height = `${options.height ?? fixtureHeight}px`;
+	const width = options.width ?? fixtureWidth;
+	const height = options.height ?? fixtureHeight;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
 
 	const part = withBackground
 		? createChatBackgroundPart(container, disposableStore)
@@ -113,8 +117,8 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 
 	await renderChatWidget({ ...context, container: chatView }, {
-		width: fixtureWidth,
-		height: fixtureHeight,
+		width,
+		height,
 		listHeight: 430,
 		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
 		hostLayoutMode: 'listOnly',
@@ -126,6 +130,29 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	chatView.style.backgroundColor = 'transparent';
 	const auxiliaryBar = chatView.querySelector<HTMLElement>('.part.auxiliarybar');
 	auxiliaryBar?.classList.remove('auxiliarybar');
+}
+
+async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		width: 390,
+		height: 760,
+		listHeight: 570,
+		contentHorizontalPadding: 8,
+		hostLayoutMode: 'listOnly',
+		messages: [{
+			user: 'Keep the phone composer controls aligned.',
+			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
+		}],
+	}, true);
+
+	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
+	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
+	const submitBounds = submitButton?.getBoundingClientRect();
+	const inputActionBounds = inputAction?.getBoundingClientRect();
+	if (!submitBounds || !inputActionBounds
+		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
+		throw new Error('The in-chat phone submit button must align with the other input toolbar actions.');
+	}
 }
 
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
@@ -342,6 +369,11 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	PhoneChatComposer: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A phone-sized active chat shows a short conversation above the bottom-pinned composer, with the send arrow vertically aligned to the other input toolbar actions.'],
+		render: renderPhoneChatComposer,
+	}),
 	CheckpointControlsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],

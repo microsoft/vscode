@@ -118,13 +118,16 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a9a72f5d00532c1586d755d73b51034bcde48fe6b4f3a103f4cb9517d6e579)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposer/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/f19dcb001841df87f9bcefb10e6753b6039ca9571396e5578816c14c1f8b9ae4)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ccb1c750e1572e661f7bc555efb8c63f64e779746d478eced3a990ac2225dea9)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneSettingsDisabled/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/302cb1e540f8a0e283a82d3e590eaebd8cc807e3bc8feeaedbdfdf961fdbb5a6)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/25c1ec76a310651e997058ba6edcd90d3c1c7cf968cdeba8a8e248c15c387cd0)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/879ab0dfe23982b5cdd249b246d3e0e2d5b3b2ce35c7715717b4232134572efe)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/1a007f0866e406685a531d6c9441e4c9fba6854860f26091c1bbfdd2543a3dac)
+
+#### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/782989a7fe504de874931bdb2a2aa18a06cfb7e657acdb61de5cf76654711369)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)
@@ -140,6 +143,9 @@
 
 #### sessions/chat/view/chatView/CheckpointControlsBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/8103a4528aa4899566d3316f213ebb0775ba6e6021882c99877aa8c2f131ee77)
+
+#### sessions/chat/view/chatView/PhoneChatComposer/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ae8b46eb64765042325a4b16fc02c6c2117ece87e63185db7be36fea5c887b4f)
 
 #### sessions/chat/view/chatView/RequestAttachmentBackground/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/b143a14c0a785fd33a98619f34607323a542186bbaef728e4cacef566686d013)

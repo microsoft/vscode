@@ -130,6 +130,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly experimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
+	readonly welcomePhrases?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -274,6 +275,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		experimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
+		welcomePhrases = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -298,7 +300,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}();
 	const configurationService = new TestConfigurationService({
 		[NEW_SESSION_WELCOME_NAME_SETTING]: '',
-		[NEW_SESSION_WELCOME_PHRASES_SETTING]: false,
+		[NEW_SESSION_WELCOME_PHRASES_SETTING]: welcomePhrases,
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
 		[TABBED_MODEL_PICKER_SETTING_ID]: experimentalComposerLayout && withConfiguredModel,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
@@ -922,6 +924,27 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(!!content);
 		assert(content.style.top === '');
 	}
+	if (phoneLayout) {
+		const attachButton = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button');
+		const sendButton = view.element.querySelector<HTMLElement>('.sessions-chat-send-button');
+		const attachBounds = attachButton?.getBoundingClientRect();
+		const sendBounds = sendButton?.getBoundingClientRect();
+		assert(!!attachBounds && !!sendBounds
+			&& Math.abs((attachBounds.top + attachBounds.bottom) / 2 - (sendBounds.top + sendBounds.bottom) / 2) <= 1,
+			'The phone send button must align with the other input toolbar actions.');
+	}
+	if (phoneLayout && welcomePhrases) {
+		const content = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
+		const welcomeMessage = view.element.querySelector<HTMLElement>('.new-session-welcome-message');
+		const workspacePickerContainer = view.element.querySelector<HTMLElement>('.new-session-workspace-picker-container');
+		const contentBounds = content?.getBoundingClientRect();
+		const welcomeBounds = welcomeMessage?.getBoundingClientRect();
+		const workspaceBounds = workspacePickerContainer?.getBoundingClientRect();
+		assert(!!contentBounds && !!welcomeBounds && !!workspaceBounds
+			&& welcomeBounds.top >= contentBounds.top + contentBounds.height * 0.2
+			&& welcomeBounds.bottom < workspaceBounds.top,
+			'Phone welcome phrases must stay grouped above the centered workspace hero.');
+	}
 	if (withAutoModel) {
 		const statusItems = [...view.element.querySelectorAll<HTMLElement>('.new-chat-status-toolbar .action-item')];
 		const iconItems = statusItems.filter(item => item.classList.contains('new-chat-status-icon-action'));
@@ -1146,6 +1169,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. Status icons remain touch-friendly pills rather than inheriting the desktop 22-pixel square width.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withAttachedContext: true, withAutoModel: true, phoneLayout: true }),
+	}),
+	NewSessionPhoneWelcomePhrase: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With welcome phrases enabled, the phone keeps the greeting visually grouped with the centered Sessions logo and workspace controls instead of leaving it near the top of the screen.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, welcomePhrases: true, phoneLayout: true }),
 	}),
 	NewSessionPhoneSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
