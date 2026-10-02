@@ -1071,11 +1071,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result']; freshInitialize: boolean }> {
 		try {
 			const result = await this._dispatchRequest<CommandMap['reconnect']['result']>('reconnect', {
+				channel: ROOT_STATE_URI,
 				clientId: this._clientId,
 				lastSeenServerSeq,
 				subscriptions,
 				_meta: this._clientMeta(),
-			}, { bypassReconnectGate: true });
+			} satisfies CommandMap['reconnect']['params'], { bypassReconnectGate: true });
 			return { result, freshInitialize: false };
 		} catch (error) {
 			if (!(error instanceof ProtocolError) || error.code !== AhpErrorCodes.NotFound) {

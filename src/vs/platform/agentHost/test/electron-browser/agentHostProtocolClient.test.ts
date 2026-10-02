@@ -3903,6 +3903,28 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('includes the required root channel in reconnect requests', async () => {
+			const { client, transports } = createFactoryClient();
+			await runWithFakedTimers({}, async () => {
+				await completeHandshake(transports[0], client.connect());
+
+				const { transport, request } = await beginRecovery(client, transports);
+				assert.deepStrictEqual(request.params, {
+					channel: ROOT_STATE_URI,
+					clientId: client.clientId,
+					lastSeenServerSeq: 5,
+					subscriptions: [ROOT_STATE_URI],
+					_meta: { 'vscode.telemetryLevel': 'off' },
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await waitForConnectedWithin(client);
+				client.dispose();
+			});
+		});
+
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
