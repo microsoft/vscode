@@ -403,7 +403,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		// Status icon for external items with sync/loading status
 		const hideLoadedStatus = element.status === 'loaded'
-			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions);
+			&& (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook);
 		if (element.status && !hideLoadedStatus) {
 			templateData.statusIcon.style.display = '';
 			templateData.statusIcon.className = 'item-status-icon';
@@ -480,7 +480,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 
 		const updateActions = () => {
 			templateData.actionBar.clear();
-			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions) {
+			if (element.promptType === PromptsType.agent || element.promptType === PromptsType.skill || element.promptType === PromptsType.instructions || element.promptType === PromptsType.hook) {
 				const moreAction = templateData.elementDisposables.add(new Action(
 					'aiCustomization.moreActions',
 					localize('customizationMoreActionsAria', "More actions for {0}", displayName),

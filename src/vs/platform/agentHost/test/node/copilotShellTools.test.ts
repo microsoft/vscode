@@ -199,11 +199,6 @@ suite('CopilotShellTools', () => {
 		const initialSandboxValues: Record<string, unknown> = {};
 		if (options?.sandboxEnabled) {
 			initialSandboxValues[AgentHostSandboxKey.Enabled] = AgentSandboxEnabledValue.On;
-			// Windows uses a separate enable key; the engine treats
-			// `Enabled=On` on non-Windows and `WindowsEnabled=On`
-			// on Windows as "sandbox active". Set both so tests exercise
-			// the sandbox path on every OS.
-			initialSandboxValues[AgentHostSandboxKey.WindowsEnabled] = AgentSandboxEnabledValue.On;
 		}
 		const agentConfigurationService = createFakeAgentConfigurationService(initialSandboxValues);
 		const services = new ServiceCollection();
@@ -844,7 +839,6 @@ suite('CopilotShellTools', () => {
 		agentConfigurationService.service.updateSessionConfig(owner, { sandboxEnabled: 'off' });
 		const disabled = await engine.isEnabled();
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.Enabled, AgentSandboxEnabledValue.On);
-		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.WindowsEnabled, AgentSandboxEnabledValue.On);
 		const afterGlobalChange = await engine.isEnabled();
 		agentConfigurationService.service.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
 		assert.deepStrictEqual({

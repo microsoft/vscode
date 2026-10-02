@@ -897,6 +897,10 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
+		this._register(autorun(reader => newChatBottomContainer.classList.toggle(
+			'standard-new-session-composer-layout',
+			!(this.options.useExperimentalLayout?.read(reader) ?? false),
+		)));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this._sessionControlsContainer && this._inputToolbar && this._configContainer) {
 			const sessionControlsContainer = this._sessionControlsContainer;
@@ -972,9 +976,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
+			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
 			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
+		this._register(autorun(reader => {
+			this.options.useExperimentalLayout?.read(reader);
+			this._secondaryPickerResponsiveLayout?.layout();
+		}));
 
 		// Restore draft input state from storage
 		this._restoreState();

@@ -12,7 +12,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ActionWidgetService, IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getAgentHostOperatingSystem } from '../../../../../../platform/agentHost/common/agentHostOperatingSystem.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -83,7 +84,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 	}({
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-		[getAgentHostCopilotSandboxSettingId(false)]: sandboxed ? 'on' : 'off',
+		[AgentSandboxSettingId.AgentSandboxEnabled]: sandboxed ? 'on' : 'off',
 	});
 	disposableStore.add(configuration.onDidChangeConfigurationEmitter);
 	const config: ResolveSessionConfigResult = {
