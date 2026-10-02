@@ -96,7 +96,6 @@ const SESSION_OPTIONS_EXPANDED_STORAGE_KEY = 'agentSessions.newSession.sessionOp
 let sessionOptionsIdPool = 0;
 let nextNewSessionWelcomePhraseIndex = 0;
 const githubProfileNames = new Map<string, Promise<string | undefined>>();
-const experimentalComposerLayoutContextKeys = new Set([IsPhoneLayoutContext.key]);
 
 function getComparisonSelectedWorkspaceFolder(selectedWorkspace: ISessionWorkspace | undefined, selectedFolderUri: URI | undefined): ISessionWorkspace['folders'][number] | undefined {
 	if (!selectedFolderUri) {
@@ -120,9 +119,8 @@ function getComparisonHasGitRemote(session: ISession | undefined, selectedWorksp
 	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
 }
 
-export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService, phoneLayout: boolean): boolean {
-	return !phoneLayout
-		&& configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
+export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);
 }
 
@@ -269,16 +267,10 @@ export class NewChatWidget extends Disposable {
 		);
 		this._useExperimentalComposerLayout = observableFromEvent(
 			this,
-			Event.any(
-				Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-					event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-					|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
-				Event.filter(this.contextKeyService.onDidChangeContext, event => event.affectsSome(experimentalComposerLayoutContextKeys)),
-			),
-			() => isExperimentalSessionComposerLayoutEnabled(
-				this.configurationService,
-				IsPhoneLayoutContext.getValue(this.contextKeyService) ?? false,
-			),
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
+			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
 		this._agentsPickerInAttachContextMenu = observableFromEvent(
 			this,
@@ -1697,10 +1689,7 @@ export class NewChatWidget extends Disposable {
 		const storedExpanded = this.storageService.getBoolean(SESSION_OPTIONS_EXPANDED_STORAGE_KEY, StorageScope.PROFILE);
 		let initialExpanded = storedExpanded ?? true;
 		const hasCreatedSession = this._usage.createdSessionCount > 0;
-		if (storedExpanded === undefined && !hasCreatedSession && isExperimentalSessionComposerLayoutEnabled(
-			this.configurationService,
-			IsPhoneLayoutContext.getValue(this.contextKeyService) ?? false,
-		)) {
+		if (storedExpanded === undefined && !hasCreatedSession && isExperimentalSessionComposerLayoutEnabled(this.configurationService)) {
 			logSettingExperimentTrigger(this.telemetryService, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING);
 			initialExpanded = this.configurationService.getValue<boolean>(NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING) ?? true;
 		}

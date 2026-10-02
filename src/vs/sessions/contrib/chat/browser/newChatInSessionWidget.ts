@@ -14,7 +14,6 @@ import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -30,12 +29,10 @@ import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/co
 import { ChatInputNoticeLane } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeWidget.js';
 import { chatInputStackClass, ChatInputStackSlot, setChatInputStackSlot } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 
 // #region --- New Chat In Session Widget ---
 
 const STORAGE_KEY_SUB_SESSION_TIP_DISMISSED = 'sessions.subSessionTipDismissed';
-const experimentalComposerLayoutContextKeys = new Set([IsPhoneLayoutContext.key]);
 
 /**
  * A widget for composing a secondary chat within an existing session.
@@ -57,7 +54,6 @@ export class NewChatInSessionWidget extends Disposable {
 	constructor(
 		_options: IChatViewOptions & { readonly inputVisible?: IObservable<boolean>; readonly petHostPreferred?: IObservable<boolean> },
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
@@ -68,16 +64,10 @@ export class NewChatInSessionWidget extends Disposable {
 
 		this._useExperimentalComposerLayout = observableFromEvent(
 			this,
-			Event.any(
-				Event.filter(this.configurationService.onDidChangeConfiguration, event =>
-					event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
-						|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
-				Event.filter(this.contextKeyService.onDidChangeContext, event => event.affectsSome(experimentalComposerLayoutContextKeys)),
-			),
-			() => isExperimentalSessionComposerLayoutEnabled(
-				this.configurationService,
-				IsPhoneLayoutContext.getValue(this.contextKeyService) ?? false,
-			),
+			Event.filter(this.configurationService.onDidChangeConfiguration, event =>
+				event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)),
+			() => isExperimentalSessionComposerLayoutEnabled(this.configurationService),
 		);
 
 		this._session = derived(reader => {

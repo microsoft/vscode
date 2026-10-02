@@ -401,6 +401,22 @@
 	scrollbar-width: none;
 }
 
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-workspace-picker-container {
+	align-items: stretch !important;
+}
+
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer .new-session-workspace-picker-container::before {
+	align-self: center;
+	flex-shrink: 0;
+}
+
+.agent-sessions-workbench.phone-layout .experimental-new-session-composer .sessions-workspace-category-picker.new-chat-session-options {
+	width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+	overflow-x: hidden;
+}
+
 /* Input slot pinned to the bottom. Flex `order` puts the chip row
  * (order: 1) above the input (order: 2) without restructuring the DOM,
  * matching the iOS pattern where contextual config chips sit between

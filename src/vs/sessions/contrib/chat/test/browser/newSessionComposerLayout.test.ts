@@ -41,20 +41,19 @@ suite('New session composer layout', () => {
 	});
 
 	for (const testCase of [
-		{ unifiedPicker: false, experimentalLayout: false, phoneLayout: false, expected: false },
-		{ unifiedPicker: false, experimentalLayout: true, phoneLayout: false, expected: false },
-		{ unifiedPicker: true, experimentalLayout: false, phoneLayout: false, expected: false },
-		{ unifiedPicker: true, experimentalLayout: true, phoneLayout: false, expected: true },
-		{ unifiedPicker: true, experimentalLayout: true, phoneLayout: true, expected: false },
+		{ unifiedPicker: false, experimentalLayout: false, expected: false },
+		{ unifiedPicker: false, experimentalLayout: true, expected: false },
+		{ unifiedPicker: true, experimentalLayout: false, expected: false },
+		{ unifiedPicker: true, experimentalLayout: true, expected: true },
 	]) {
-		test(`unified picker ${testCase.unifiedPicker}, experimental layout ${testCase.experimentalLayout}, phone layout ${testCase.phoneLayout}`, () => {
+		test(`unified picker ${testCase.unifiedPicker}, experimental layout ${testCase.experimentalLayout}`, () => {
 			const configurationService = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: testCase.unifiedPicker,
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
 
-			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService, testCase.phoneLayout), testCase.expected);
+			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
 		});
 	}
 
@@ -76,7 +75,7 @@ suite('New session composer layout', () => {
 		}
 
 		assert.deepStrictEqual(configurations.map(configurationService => ({
-			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService, false),
+			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
 			welcomePhrases: areNewSessionWelcomePhrasesEnabled(configurationService),
 		})), [
 			{ experimentalLayout: true, welcomePhrases: false },

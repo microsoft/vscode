@@ -89,7 +89,7 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 }
 
 export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService, isPhoneLayout(layoutService));
+	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
 }
 
 /**
