@@ -23,7 +23,7 @@ import { aggregateChatUsage } from '../../../../workbench/contrib/chat/common/ch
 import { isActiveSessionStatus, ISession, SessionStatus } from '../common/session.js';
 import { ISessionGroupsService } from './sessionGroupsService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
-import { getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
+import { getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, getSessionComparisonHarnessLabel, ISessionComparison, ISessionComparisonHarness, ISessionComparisonParticipant, ISessionComparisonService, ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, IStartSessionComparisonOptions, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH, SessionComparisonParticipantRole } from '../common/sessionComparison.js';
 import { getSessionsTelemetryAgentId, getSessionsTelemetryModelId, getSessionsTelemetryProviderId, hashSessionIdForTelemetry, logSessionComparisonAttemptCompleted, logSessionComparisonModelOutcome } from '../../../common/sessionsTelemetry.js';
 
 interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonParticipant, 'sessionResource'> {
@@ -755,12 +755,12 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 				return [];
 			}
 			const attemptLabel = getSessionComparisonAttemptLabel(attempt, index + 1);
-			const notableDifferences = finding.notableDifferences
+			return finding.notableDifferences
 				.map(strength => strength.trim())
-				.filter(strength => strength.length > 0);
-			return notableDifferences.map(strength =>
-				localize('sessionComparison.otherAttemptStrengthPrompt', "- **{0}**: {1}", attemptLabel, strength));
-		});
+				.filter(strength => strength.length > 0)
+				.map(strength => ({ attemptLabel, strength }));
+		}).slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).map(({ attemptLabel, strength }) =>
+			localize('sessionComparison.otherAttemptStrengthPrompt', "- **{0}**: {1}", attemptLabel, getBoundedSessionComparisonManifestText(strength)));
 		return strengths.length
 			? localize('sessionComparison.otherAttemptStrengthsPrompt', "\n\n## Strong points from other attempts\n{0}", strengths.join('\n'))
 			: '';

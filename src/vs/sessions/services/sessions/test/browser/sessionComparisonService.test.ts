@@ -1526,6 +1526,42 @@ suite('SessionComparisonService', () => {
 		});
 	});
 
+	test('bounds strengths included in the synthesis prompt', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('attempt-one'));
+		sessionsManagementService.enqueue(stubSession('attempt-two'));
+		sessionsManagementService.enqueue(stubSession('synthesis'));
+
+		const comparison = await service.startComparison(startOptions());
+		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const longStrength = 'x'.repeat(1001);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
+		service.submitVerdict(comparison.id, {
+			...baseVerdict,
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? [longStrength, ...Array.from({ length: 33 }, (_, strengthIndex) => `Strength ${strengthIndex}`)]
+					: [],
+			})),
+		});
+
+		await service.synthesize(comparison.id);
+		const prompt = sessionsManagementService.createCalls[2].options.query;
+		const strengthLines = prompt.split('\n').filter(line => line.startsWith('- **Attempt 1 (One)**:'));
+		assert.deepStrictEqual({
+			count: strengthLines.length,
+			first: strengthLines[0],
+			last: strengthLines[strengthLines.length - 1],
+			includesFirstExcludedStrength: prompt.includes('Strength 31'),
+		}, {
+			count: 32,
+			first: `- **Attempt 1 (One)**: ${'x'.repeat(1000)}`,
+			last: '- **Attempt 1 (One)**: Strength 30',
+			includesFirstExcludedStrength: false,
+		});
+	});
+
 });
 
 class TestSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
