@@ -151,69 +151,69 @@ suite('RuntimeRequiredPlugins', () => {
 			],
 			snapshots: ['managed', workspace.toString()],
 		});
+	});
 
-		test('routes remote scopes through their owning connection and mapper', async () => {
-			const harness = createHarness();
-			await timeout(150);
-			harness.requests.length = 0;
-			const remoteWorkspace = harness.remoteConnection.resourceUris.fromAgentHost(URI.file('/remote/workspace'));
-			const remotePlugin = '/remote/plugins/demo';
-			harness.setRemoteResult({
-				fingerprint: 'remote',
-				plugins: [{
-					plugin: {
-						name: 'demo',
-						marketplace: 'market',
-						enabled: false,
-						installed_at: '2026-10-02T00:00:00Z',
-						cache_path: remotePlugin,
-					},
-					enabled: true,
-					managed: false,
-				}],
-				warnings: [],
-			});
-
-			await harness.requiredPluginService.ensure([remoteWorkspace], 'remote-remote-copilot');
-			const snapshot = harness.runtimeService.snapshots.get().find(candidate => candidate.workingDirectory?.toString() === remoteWorkspace.toString());
-
-			assert.deepStrictEqual({
-				ambientRequests: harness.requests,
-				remoteRequests: harness.remoteRequests,
-				connectionAuthority: snapshot?.sourceContext.connectionAuthority,
-				pluginUri: snapshot?.sourceContext.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
-			}, {
-				ambientRequests: [],
-				remoteRequests: [
-					{ managedSettings: undefined },
-					{
-						workingDirectory: URI.file('/remote/workspace').toString(),
-						repositoryTrusted: true,
-						managedSettings: undefined,
-					},
-				],
-				connectionAuthority: 'remote',
-				pluginUri: harness.remoteConnection.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
-			});
+	test('routes remote scopes through their owning connection and mapper', async () => {
+		const harness = createHarness();
+		await timeout(150);
+		harness.requests.length = 0;
+		const remoteWorkspace = harness.remoteConnection.resourceUris.fromAgentHost(URI.file('/remote/workspace'));
+		const remotePlugin = '/remote/plugins/demo';
+		harness.setRemoteResult({
+			fingerprint: 'remote',
+			plugins: [{
+				plugin: {
+					name: 'demo',
+					marketplace: 'market',
+					enabled: false,
+					installed_at: '2026-10-02T00:00:00Z',
+					cache_path: remotePlugin,
+				},
+				enabled: true,
+				managed: false,
+			}],
+			warnings: [],
 		});
 
-		test('does not restore a snapshot after capability invalidation', async () => {
-			const harness = createHarness();
-			await timeout(150);
-			const deferred = new DeferredPromise<IAgentHostEnsureRequiredPluginsResult>();
-			harness.setEnsureHandler(request => request.workingDirectory ? deferred.p : Promise.resolve(result));
+		await harness.requiredPluginService.ensure([remoteWorkspace], 'remote-remote-copilot');
+		const snapshot = harness.runtimeService.snapshots.get().find(candidate => candidate.workingDirectory?.toString() === remoteWorkspace.toString());
 
-			const pending = harness.requiredPluginService.ensure([workspace]);
-			while (!harness.requests.some(request => request.workingDirectory)) {
-				await timeout(0);
-			}
-			harness.setCapability(false);
-			await harness.requiredPluginService.ensure([workspace]);
-			deferred.complete(result);
-			await pending;
-
-			assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
+		assert.deepStrictEqual({
+			ambientRequests: harness.requests,
+			remoteRequests: harness.remoteRequests,
+			connectionAuthority: snapshot?.sourceContext.connectionAuthority,
+			pluginUri: snapshot?.sourceContext.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
+		}, {
+			ambientRequests: [],
+			remoteRequests: [
+				{ managedSettings: undefined },
+				{
+					workingDirectory: URI.file('/remote/workspace').toString(),
+					repositoryTrusted: true,
+					managedSettings: undefined,
+				},
+			],
+			connectionAuthority: 'remote',
+			pluginUri: harness.remoteConnection.resourceUris.fromAgentHost(URI.file(remotePlugin)).toString(),
 		});
+	});
+
+	test('does not restore a snapshot after capability invalidation', async () => {
+		const harness = createHarness();
+		await timeout(150);
+		const deferred = new DeferredPromise<IAgentHostEnsureRequiredPluginsResult>();
+		harness.setEnsureHandler(request => request.workingDirectory ? deferred.p : Promise.resolve(result));
+
+		const pending = harness.requiredPluginService.ensure([workspace]);
+		while (!harness.requests.some(request => request.workingDirectory)) {
+			await timeout(0);
+		}
+		harness.setCapability(false);
+		await harness.requiredPluginService.ensure([workspace]);
+		deferred.complete(result);
+		await pending;
+
+		assert.deepStrictEqual(harness.runtimeService.snapshots.get(), []);
 	});
 
 	test('enforces managed requirements without sending an untrusted repository', async () => {
@@ -227,18 +227,18 @@ suite('RuntimeRequiredPlugins', () => {
 			requests: [{ managedSettings: { enabledPlugins: { 'managed@market': true } } }],
 			snapshots: ['managed'],
 		});
+	});
 
-		test('enforces managed requirements when repository plugin integration is disabled', async () => {
-			const harness = createHarness(true, true, false);
-			await timeout(150);
+	test('enforces managed requirements when repository plugin integration is disabled', async () => {
+		const harness = createHarness(true, true, false);
+		await timeout(150);
 
-			assert.deepStrictEqual({
-				requests: harness.requests,
-				snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
-			}, {
-				requests: [{ managedSettings: { enabledPlugins: { 'managed@market': true } } }],
-				snapshots: ['managed'],
-			});
+		assert.deepStrictEqual({
+			requests: harness.requests,
+			snapshots: harness.runtimeService.snapshots.get().map(snapshot => snapshot.workingDirectory?.toString() ?? 'managed'),
+		}, {
+			requests: [{ managedSettings: { enabledPlugins: { 'managed@market': true } } }],
+			snapshots: ['managed'],
 		});
 	});
 
