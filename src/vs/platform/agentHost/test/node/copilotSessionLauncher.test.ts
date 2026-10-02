@@ -709,6 +709,11 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 						return {
 							apiVersion: 1,
 							availability: 'enabled' as const,
+							catalog: {
+								revision: 1,
+								refreshedAtMs: 1,
+								connectors: [{ name: 'mail', displayName: 'Work IQ Mail', status: 'connected' as const, runtimeServerIds: ['connector-mail'] }],
+							},
 							runtimeServers: [{ runtimeServerId: 'connector-mail', connectorName: 'mail', status: 'connected' as const }],
 							pendingConnections: 0,
 						};
@@ -760,9 +765,11 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 			assert.deepStrictEqual({
 				featureFlags,
 				connectorCalls,
+				connectorDisplayName: launched.getMcpServerDisplayName('connector-mail'),
 			}, {
 				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
+				connectorDisplayName: 'Work IQ Mail',
 			});
 		} finally {
 			launched.dispose();

@@ -32,10 +32,11 @@ suite('ChatMcpAuthenticationContentPart', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 	});
 
-	function server(id: string, name: string, status: McpServerStatus, enabled = true): McpServer {
+	function server(id: string, name: string, status: McpServerStatus, enabled = true, displayName?: string): McpServer {
 		return new class extends mock<McpServer>() {
 			override readonly id = id;
 			override readonly name = name;
+			override readonly displayName = displayName;
 			override readonly status = status;
 			override readonly enabled = enabled;
 		}();
@@ -128,6 +129,26 @@ suite('ChatMcpAuthenticationContentPart', () => {
 			authenticated: ['azure-exp'],
 			hidden: true,
 			isUsed: true,
+		});
+	});
+
+	test('uses the presentation name without changing the authentication target', async () => {
+		const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
+		const { part, authenticated } = createPart(
+			[{ id: runtimeServerId, name: runtimeServerId, resource: 'https://api.github.com' }],
+			[server(runtimeServerId, runtimeServerId, McpServerStatus.AuthRequired, true, 'GitHub')],
+		);
+
+		const text = part.domNode.textContent;
+		part.domNode.querySelector<HTMLElement>('[role="button"]')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			text,
+			authenticated,
+		}, {
+			text: 'The MCP server GitHub requires authentication. Authenticate?',
+			authenticated: [runtimeServerId],
 		});
 	});
 

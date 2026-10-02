@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
@@ -158,15 +158,15 @@ suite('McpCustomizationController', () => {
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
 	});
 
-	test('retains source through lifecycle updates and republishes source-only inventory changes', () => {
+	test('retains presentation metadata through lifecycle updates and republishes inventory changes', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);
 		const snapshot = () => controller.topLevelCustomizations().map(item => ({
-			id: item.id, source: readMcpServerSource(item), state: item.state.kind,
+			id: item.id, displayName: readMcpServerDisplayName(item), source: readMcpServerSource(item), state: item.state.kind,
 		}));
 
 		controller.applyOne(server('search', starting()));
-		controller.applyAll([{ ...server('search', starting()), source: 'user' }]);
+		controller.applyAll([{ ...server('search', starting()), displayName: 'Connector Search', source: 'user' }]);
 		const afterInventory = snapshot();
 		controller.applyOne(server('search', ready()));
 		const afterLifecycle = snapshot();
@@ -177,11 +177,13 @@ suite('McpCustomizationController', () => {
 			afterLifecycle,
 			afterSourceChange: snapshot(),
 			publishedSources: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? [readMcpServerSource(action.customization)] : []),
+			publishedDisplayNames: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? [readMcpServerDisplayName(action.customization)] : []),
 		}, {
-			afterInventory: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Starting }],
-			afterLifecycle: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Ready }],
-			afterSourceChange: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'workspace', state: McpServerStatus.Ready }],
+			afterInventory: [{ id: 'mcp-top-level:copilot:session-1:search', displayName: 'Connector Search', source: 'user', state: McpServerStatus.Starting }],
+			afterLifecycle: [{ id: 'mcp-top-level:copilot:session-1:search', displayName: 'Connector Search', source: 'user', state: McpServerStatus.Ready }],
+			afterSourceChange: [{ id: 'mcp-top-level:copilot:session-1:search', displayName: 'Connector Search', source: 'workspace', state: McpServerStatus.Ready }],
 			publishedSources: [undefined, 'user', 'user', 'workspace'],
+			publishedDisplayNames: [undefined, 'Connector Search', 'Connector Search', 'Connector Search'],
 		});
 	});
 

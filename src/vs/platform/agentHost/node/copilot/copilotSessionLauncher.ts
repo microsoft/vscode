@@ -792,10 +792,11 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 
 	private async _finalizeSession(raw: CopilotSessionWrapper['session'], sandboxConfig: (session: CopilotSessionWrapper['session']) => Promise<void>, plan: CopilotSessionLaunchPlan, modelId: string | undefined, config: ResumeSessionConfig): Promise<CopilotSessionWrapper> {
 		plan.stageRecorder?.mark('finalize');
+		let mcpServerDisplayNames: ReadonlyMap<string, string>;
 		try {
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
-			await this._reconcileCopilotConnectors(raw, plan);
+			mcpServerDisplayNames = await this._reconcileCopilotConnectors(raw, plan);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -806,18 +807,21 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (isGpt56Model(modelId)) {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
-		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
+		const wrapper = new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
+		wrapper.setMcpServerDisplayNames(mcpServerDisplayNames);
+		return wrapper;
 	}
 
-	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<void> {
+	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<ReadonlyMap<string, string>> {
+		const displayNames = new Map<string, string>();
 		if (this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) !== true) {
-			return;
+			return displayNames;
 		}
 		try {
 			const capabilities = await session.rpc.connectors.getCapabilities();
 			if (capabilities.availability !== 'enabled') {
 				this._logService.info(`[Copilot:${plan.sessionId}] Connector MCP reconciliation unavailable: ${capabilities.availability}`);
-				return;
+				return displayNames;
 			}
 			const token = plan.githubCredentials.token;
 			const auth = await session.rpc.gitHubAuth.getStatus();
@@ -837,13 +841,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			if (!account?.selectionId) {
 				this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation skipped because the session account could not be resolved`);
-				return;
+				return displayNames;
 			}
 			const status = await session.rpc.connectors.reconcile({ accountId: account.selectionId, refreshCatalog: true });
+			const connectorDisplayNames = new Map(status.catalog?.connectors.map(connector => [connector.name, connector.displayName.trim() || connector.name]));
+			for (const server of status.runtimeServers) {
+				displayNames.set(server.runtimeServerId, connectorDisplayNames.get(server.connectorName) ?? server.connectorName);
+			}
 			this._logService.info(`[Copilot:${plan.sessionId}] Reconciled ${status.runtimeServers.length} connector MCP server(s) through the Copilot runtime`);
 		} catch (error) {
 			this._logService.warn(`[Copilot:${plan.sessionId}] Connector MCP reconciliation failed; continuing without connector tools: ${getErrorMessage(error)}`);
 		}
+		return displayNames;
 	}
 
 	/**

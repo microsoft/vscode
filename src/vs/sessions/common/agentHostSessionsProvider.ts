@@ -98,6 +98,7 @@ export interface IAgentHostGroup {
 export interface IAgentHostMcpServer {
 	readonly id: string;
 	readonly name: string;
+	readonly displayName?: string;
 	readonly source?: McpServerSource;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];

@@ -3198,6 +3198,7 @@ export class CopilotAgentSession extends Disposable {
 		});
 		this._mcpCustomizations.applyOne({
 			name: request.serverName,
+			displayName: this._wrapper?.getMcpServerDisplayName(request.serverName),
 			state: {
 				kind: McpServerStatus.AuthRequired,
 				...auth,
@@ -7816,6 +7817,7 @@ export class CopilotAgentSession extends Disposable {
 			: {};
 		return {
 			name: server.name,
+			displayName: this._wrapper?.getMcpServerDisplayName(server.name),
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: server.status !== 'disabled' && server.status !== 'not_configured',

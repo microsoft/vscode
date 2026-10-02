@@ -6,6 +6,8 @@
 import type { McpServerCustomization } from '../../state/protocol/state.js';
 
 const sourceKey = 'agentHost.mcpServerSource';
+const displayNameKey = 'vscode.mcpServerDisplayName';
+const maxDisplayNameLength = 512;
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
@@ -35,4 +37,23 @@ export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefine
 		return meta;
 	}
 	return { ...(meta ?? {}), [sourceKey]: source };
+}
+
+/** Reads an optional presentation-only MCP server name without changing its runtime identity. */
+export function readMcpServerDisplayName(customization: McpServerCustomization | undefined): string | undefined {
+	return normalizeMcpServerDisplayName(customization?._meta?.[displayNameKey]);
+}
+
+/** Records an optional presentation-only MCP server name while preserving every other metadata entry. */
+export function withMcpServerDisplayNameMeta(meta: Record<string, unknown> | undefined, displayName: string | undefined): Record<string, unknown> | undefined {
+	const normalized = normalizeMcpServerDisplayName(displayName);
+	return normalized === undefined ? meta : { ...(meta ?? {}), [displayNameKey]: normalized };
+}
+
+function normalizeMcpServerDisplayName(value: unknown): string | undefined {
+	if (typeof value !== 'string') {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	return trimmed.length > 0 && trimmed.length <= maxDisplayNameLength ? trimmed : undefined;
 }

@@ -62,6 +62,7 @@ export class CopilotSessionWrapper extends Disposable {
 	private readonly _instanceId = generateUuid();
 	private readonly _lifetime = new StopWatch();
 	private _beforeDisconnect: (() => Promise<void>) | undefined;
+	private _mcpServerDisplayNames: ReadonlyMap<string, string> = new Map();
 
 	constructor(
 		readonly session: CopilotSession,
@@ -97,6 +98,7 @@ export class CopilotSessionWrapper extends Disposable {
 	}
 
 	get sessionId(): string { return this.session.sessionId; }
+	getMcpServerDisplayName(serverName: string): string | undefined { return this._mcpServerDisplayNames.get(serverName); }
 	get lifecycleState(): AgentTurnProviderSessionState {
 		return this._shutdown.isSettled
 			? 'shutdown'
@@ -105,6 +107,10 @@ export class CopilotSessionWrapper extends Disposable {
 				: this._disconnectPromise
 					? 'disconnecting'
 					: 'active';
+	}
+
+	setMcpServerDisplayNames(displayNames: ReadonlyMap<string, string>): void {
+		this._mcpServerDisplayNames = new Map(displayNames);
 	}
 
 	/** Sets bounded, best-effort cleanup to run once before disconnecting the SDK session. */

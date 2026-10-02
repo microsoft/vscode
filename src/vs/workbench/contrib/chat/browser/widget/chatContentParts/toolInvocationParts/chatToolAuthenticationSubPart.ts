@@ -30,6 +30,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 			throw new Error('Tool authentication state is missing');
 		}
 		const mcpServer = customizationService.getMcpServers(context.element.sessionResource).find(server => server.id === state.server.id);
+		const serverName = mcpServer?.displayName ?? state.server.name;
 
 		const widget = this._register(instantiationService.createInstance(
 			ChatCustomConfirmationWidget<() => Promise<void>>,
@@ -37,7 +38,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 			{
 				title: localize('chat.toolAuthentication.title', "MCP authentication required"),
 				icon: Codicon.mcp,
-				subtitle: state.server.name,
+				subtitle: serverName,
 				buttons: [
 					{
 						label: localize('chat.toolAuthentication.authenticate', "Authenticate"),
@@ -61,7 +62,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 						isSecondary: true,
 					}] : []),
 				],
-				message: localize('chat.toolAuthentication.message', "The MCP server {0} requires authentication to continue this tool call.", state.server.name),
+				message: localize('chat.toolAuthentication.message', "The MCP server {0} requires authentication to continue this tool call.", serverName),
 				toolbarData: {
 					arg: toolInvocation,
 					partType: 'chatToolAuthentication',

@@ -86,7 +86,7 @@ export class ChatMcpAuthenticationContentPart extends Disposable implements ICha
 		const dataServerIds = new Set(dataServers.map(server => server.id));
 		return this.agentHostCustomizationService.getMcpServers(sessionResource)
 			.filter(server => dataServerIds.has(server.id) && server.enabled && server.status === McpServerStatus.AuthRequired)
-			.map(server => ({ id: server.id, name: server.name }));
+			.map(server => ({ id: server.id, name: server.displayName ?? server.name }));
 	}
 
 	private render(servers: readonly Pick<IChatMcpAuthenticationRequiredServer, 'id' | 'name'>[], authenticating: IChatMcpAuthenticationRequiredServer | undefined): void {

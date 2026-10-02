@@ -470,7 +470,7 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		if (element.type === 'session-server-item') {
 			templateData.container.classList.remove('builtin');
 			templateData.container.classList.toggle('has-detail', false);
-			templateData.name.textContent = formatDisplayName(element.server.name);
+			templateData.name.textContent = formatDisplayName(element.server.displayName ?? element.server.name);
 			this.updateActiveSessionStatus(templateData, element);
 			return;
 		}
@@ -1095,7 +1095,7 @@ export function getMcpStatusRenderSignature(input: IMcpStatusRenderInput): strin
 
 function getMcpEntryLabel(element: IMcpServerItemEntry | IMcpSessionServerItemEntry | IMcpBuiltinItemEntry): string {
 	return element.type === 'session-server-item'
-		? element.server.name
+		? element.server.displayName ?? element.server.name
 		: element.type === 'builtin-item'
 			? element.label
 			: element.server.label;
@@ -3056,7 +3056,7 @@ export class McpListWidget extends Disposable {
 					server.connector.description,
 					server.serverName,
 				].some(value => value.toLowerCase().includes(query)))
-				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.take([server.serverName])))
+				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.take([server.serverName, server.connector.name, server.connector.displayName])))
 			: [];
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
 		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);
@@ -3199,7 +3199,7 @@ export class McpListWidget extends Disposable {
 				case 'server-item':
 					return entry.server.label === serverName;
 				case 'session-server-item':
-					return entry.server.name === serverName;
+					return entry.server.name === serverName || entry.server.displayName === serverName;
 				case 'builtin-item':
 					return entry.label === serverName || entry.connector?.connector.displayName === serverName;
 				case 'group-header':
