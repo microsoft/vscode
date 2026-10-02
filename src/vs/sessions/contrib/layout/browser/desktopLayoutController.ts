@@ -171,6 +171,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return this._chatLayoutEnabled;
 	}
 
+	protected override get _isPanelVisibilityPersisted(): boolean {
+		return this._chatLayoutEnabled;
+	}
+
 	protected override get _isPanelViewPerSession(): boolean {
 		return true;
 	}

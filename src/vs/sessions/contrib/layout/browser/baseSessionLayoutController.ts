@@ -71,6 +71,7 @@ interface ISessionLayoutEntry {
 	readonly editorPartHidden?: boolean;
 	/** [B6] The panel view container id this session last showed in the panel. */
 	readonly panelViewContainerId?: string;
+	readonly panelVisible?: boolean;
 }
 
 /** New unified storage key for all per-session layout state. */
@@ -181,6 +182,10 @@ export abstract class BaseLayoutController extends Disposable {
 
 	protected get _isPanelViewPerSession(): boolean {
 		return !this._isPanelVisibilityPerSession;
+	}
+
+	protected get _isPanelVisibilityPersisted(): boolean {
+		return false;
 	}
 
 	protected get _chatLayoutEnabled(): boolean {
@@ -444,6 +449,7 @@ export abstract class BaseLayoutController extends Disposable {
 				this._viewStateBySession.delete(session.resource);
 				this._editorPartHiddenBySession.delete(session.resource);
 				this._panelViewBySession.delete(session.resource);
+				this._panelVisibilityBySession.delete(session.resource);
 				this._onOwnerKeysForgotten([session.resource]);
 				if (this._chatLayoutEnabled) {
 					this._forgetPeerChatState(this._chatLayoutOwnerKeys.forgetSession(session.resource));
@@ -619,6 +625,13 @@ export abstract class BaseLayoutController extends Disposable {
 			}
 		}
 
+		if (this._isPanelVisibilityPerSession) {
+			const panelVisible = this._panelVisibilityBySession.get(from.resource);
+			if (panelVisible !== undefined) {
+				this._panelVisibilityBySession.set(to.resource, panelVisible);
+			}
+		}
+
 		if (this._chatLayoutEnabled) {
 			for (const { oldKey, newKey } of this._chatLayoutOwnerKeys.remapSession({ from, to })) {
 				this._remapOwnerKeyState(oldKey, newKey);
@@ -650,6 +663,11 @@ export abstract class BaseLayoutController extends Disposable {
 			this._panelViewBySession.set(newKey, panelView);
 			this._panelViewBySession.delete(oldKey);
 		}
+		const panelVisible = this._panelVisibilityBySession.get(oldKey);
+		if (panelVisible !== undefined) {
+			this._panelVisibilityBySession.set(newKey, panelVisible);
+			this._panelVisibilityBySession.delete(oldKey);
+		}
 		this._onOwnerKeyRemapped(oldKey, newKey);
 	}
 
@@ -659,6 +677,7 @@ export abstract class BaseLayoutController extends Disposable {
 			this._viewStateBySession.delete(key);
 			this._editorPartHiddenBySession.delete(key);
 			this._panelViewBySession.delete(key);
+			this._panelVisibilityBySession.delete(key);
 		}
 		this._onOwnerKeysForgotten(keys);
 	}
@@ -793,6 +812,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._isPanelViewPerSession && entry.panelViewContainerId) {
 				this._panelViewBySession.set(resource, entry.panelViewContainerId);
 			}
+			if (this._isPanelVisibilityPersisted && entry.panelVisible !== undefined) {
+				this._panelVisibilityBySession.set(resource, entry.panelVisible);
+			}
 		}
 	}
 
@@ -879,6 +901,10 @@ export abstract class BaseLayoutController extends Disposable {
 			this._panelViewBySession.forEach((_, r) => allResources.set(r, true));
 		}
 
+		if (this._isPanelVisibilityPersisted) {
+			this._panelVisibilityBySession.forEach((_, r) => allResources.set(r, true));
+		}
+
 		if (allResources.size === 0) {
 			this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 			return;
@@ -892,6 +918,7 @@ export abstract class BaseLayoutController extends Disposable {
 				viewState: this._isViewStatePerSession ? this._viewStateBySession.get(resource) : undefined,
 				editorPartHidden: this._isEditorPartVisibilityPerSession ? this._editorPartHiddenBySession.get(resource) : undefined,
 				panelViewContainerId: this._isPanelViewPerSession ? this._panelViewBySession.get(resource) : undefined,
+				panelVisible: this._isPanelVisibilityPersisted ? this._panelVisibilityBySession.get(resource) : undefined,
 			});
 		});
 		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);

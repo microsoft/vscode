@@ -210,20 +210,69 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			[{ id: peerWorkingSetName, name: peerWorkingSetName }],
 			'a fresh controller must restore the saved peer chat\'s own distinct editor working set'
 		);
-		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'the panel must remain hidden immediately after a fresh restart, even though the peer\'s panel view is restorable');
-
-		harness.openPaneCompositeCalls = [];
-		harness.partVisibility.set(Parts.PANEL_PART, true);
-		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), true, 'the peer\'s own persisted bottomVisible must be restored once it becomes the active chat');
 		assert.deepStrictEqual(
 			harness.openPaneCompositeCalls,
 			[{ id: 'view.peer', location: ViewContainerLocation.Panel }],
-			'the peer\'s own panel view must be restored once the panel is shown, not forced open merely to restore it'
+			'restoring the peer\'s persisted bottomVisible must also restore its own panel view, not force it open merely to restore it'
 		);
 		assert.notStrictEqual(controllerB.composition(peerKey), undefined, 'the peer\'s composition catalog entry must not be pruned by a fresh controller restoring the main chat first');
 
 		const legacyRawAfter = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
 		assert.deepStrictEqual(legacyRawAfter, legacyRawBefore, 'restoring a saved peer chat on a fresh controller must not touch the legacy session-keyed key');
+	});
+
+	test('[R7] a fresh controller restores a saved peer chat\'s own bottomVisible independently of the main chat and of its panel view', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		const firstRunStore = new DisposableStore();
+		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		setActiveChat(session, peer);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+		const peerKey = controllerA.ownerKeyFor(session);
+
+		setActiveChat(session, session.mainChat.get());
+		await settle();
+
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const chatLayoutStateRaw = harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		assert.notStrictEqual(chatLayoutStateRaw, undefined, 'the peer chat\'s own bottomVisible must be serialized under the per-chat key before reconstructing storage');
+		assert.ok(JSON.parse(chatLayoutStateRaw!).some((entry: { panelVisible?: boolean }) => entry.panelVisible === true), 'the serialized per-chat entries must include the peer\'s captured panelVisible');
+		firstRunStore.dispose();
+
+		const reconstructedStorageService = store.add(new TestStorageService());
+		reconstructedStorageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, chatLayoutStateRaw!, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		harness.instaService.set(IStorageService, reconstructedStorageService);
+		harness.storageService = reconstructedStorageService;
+
+		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.partVisibility.set(Parts.PANEL_PART, false);
+		harness.setPartHiddenCalls = [];
+		harness.openPaneCompositeCalls = [];
+
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		assert.strictEqual(harness.partVisibility.get(Parts.PANEL_PART), false, 'the main chat has no saved bottomVisible and must stay hidden on a fresh restart');
+		assert.strictEqual(controllerB.capturedPanelVisibility(peerKey), true, 'the peer\'s own persisted bottomVisible must be loaded from storage even before it becomes the active chat, like its other per-chat state');
+
+		setActiveChat(session, peer);
+		await settle();
+
+		assert.strictEqual(harness.partVisibility.get(Parts.PANEL_PART), true, 'switching to the saved peer chat on a fresh controller must restore its own persisted bottomVisible, independent of the main chat');
+		assert.deepStrictEqual(
+			harness.openPaneCompositeCalls,
+			[{ id: 'view.peer', location: ViewContainerLocation.Panel }],
+			'restoring bottomVisible must independently also restore the peer\'s own panel view, not just reveal the panel'
+		);
 	});
 
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
