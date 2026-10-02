@@ -30,9 +30,12 @@ suite('ChatRequestTelemetry request context', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 			override getChatSessionContribution(sessionType: string) {
-				return sessionType === 'agent-host-copilotcli' ? {
-					type: sessionType, name: 'Copilot', displayName: 'Copilot', description: 'Copilot',
-					agentHostProviderId: 'copilotcli',
+				const provider = sessionType === 'agent-host-copilotcli' ? 'copilotcli'
+					: sessionType === 'agent-host-claude' ? 'claude'
+						: sessionType === 'agent-host-unresolved' ? 'unknown' : undefined;
+				return provider ? {
+					type: sessionType, name: 'Test', displayName: 'Test', description: 'Test',
+					agentHostProviderId: provider,
 					icon: undefined,
 				} : undefined;
 			}
@@ -111,6 +114,8 @@ suite('ChatRequestTelemetry request context', () => {
 		{ name: 'local Copilot', metadata: model, expected: 'copilot' },
 		{ name: 'local BYOK', metadata: { ...model, isBYOK: true }, expected: 'byok' },
 		{ name: 'host Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli' }, expected: 'copilot' },
+		{ name: 'known non-Copilot host provider', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-claude' }, expected: 'other' },
+		{ name: 'explicitly unknown host provider', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-unresolved' }, expected: 'unknown' },
 		{ name: 'host BYOK bridge', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli', byokModelIdentifier: 'private/model' }, expected: 'byok' },
 		{ name: 'empty BYOK bridge takes precedence over Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli', byokModelIdentifier: '' }, expected: 'byok' },
 		{ name: 'empty BYOK bridge takes precedence over unknown host', metadata: { ...model, vendor: 'host', targetChatSessionType: 'private-host', byokModelIdentifier: '' }, expected: 'byok' },

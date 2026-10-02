@@ -17,8 +17,10 @@ constructed, before invoking the provider:
 Explicit BYOK metadata, including a present Agent Host BYOK bridge identifier (even an empty string), takes
 precedence over the catalog's vendor. A resolved Copilot catalog model or model
 targeting a registered `copilotcli` host provider is `copilot`. A resolved model
-from another non-host catalog is `other`. Missing selection, unresolved metadata,
-and other host providers are `unknown`; they must not be interpreted as non-BYOK.
+from another non-host catalog or a known non-Copilot host provider is `other`.
+Missing selection, unresolved metadata, and unresolved session providers are
+`unknown`. Neither `other` nor `unknown` proves non-BYOK credentials; use `copilot`
+to select the Copilot-classified population.
 Only the category is emitted, not custom vendor names or BYOK bridge identifiers.
 
 This is selection context, not an assertion about every model call: Auto,

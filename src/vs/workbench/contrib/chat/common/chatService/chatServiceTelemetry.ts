@@ -379,7 +379,7 @@ export class ChatRequestTelemetry {
 		this.selectedModelSource = !metadata ? 'unknown'
 			: isByokModel(metadata) ? 'byok'
 				: metadata.vendor === COPILOT_VENDOR_ID || modelProvider === 'copilotcli' ? 'copilot'
-					: metadata.targetChatSessionType ? 'unknown'
+					: metadata.targetChatSessionType && (!modelProvider || modelProvider === 'unknown') ? 'unknown'
 						: 'other';
 	}
 
