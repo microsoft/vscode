@@ -17,10 +17,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IAICustomizationItemsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationToolsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ICustomizationMigrationHint, ICustomizationMigrationService } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
-import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
@@ -30,45 +29,17 @@ import { CustomizationsNavigationState } from '../../browser/customizationsNavig
 suite('Customizations toolbar', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('includes enabled Tools in customization totals', () => {
-		const toolSets = [
-			upcastPartial<IToolSet>({
-				id: 'builtin',
-				getTools: () => [
-					upcastPartial<IToolData>({ id: 'one' }),
-					upcastPartial<IToolData>({ id: 'two' }),
-				],
-			}),
-			upcastPartial<IToolSet>({
-				id: 'deprecated',
-				deprecated: true,
-				getTools: () => [upcastPartial<IToolData>({ id: 'ignored' })],
-			}),
-		];
-		const toolsService = new class extends mock<ILanguageModelToolsService>() {
-			override readonly toolSets = constObservable(toolSets);
-		};
-		const enablementService = new class extends mock<IAgentHostToolSetEnablementService>() {
-			override observe() {
-				return constObservable({
-					toolSets: new Map([['builtin', false]]),
-					tools: new Map([['one', true]]),
-				});
-			}
-		};
-
+	test('reads the Tools count from the shared tools model', () => {
 		const count = derived(reader => readCustomizationCount(
 			{ id: 'tools', label: 'Tools', icon: Codicon.tools, isTools: true },
 			reader,
 			new class extends mock<IAICustomizationItemsModel>() { },
-			new class extends mock<IAICustomizationMcpServerCountService>() {
-				override readonly enabledToolCount = constObservable(2);
+			new class extends mock<IAICustomizationMcpServerCountService>() { },
+			new class extends mock<IAICustomizationToolsModel>() {
+				override readonly enabledToolCount = constObservable(3);
 			},
-			toolsService,
-			enablementService,
 		)).get();
 
-		// One enabled built-in tool plus two tools from enabled MCP servers.
 		assert.strictEqual(count, 3);
 	});
 
@@ -84,15 +55,9 @@ suite('Customizations toolbar', () => {
 		};
 		const mcpServerCountService = new class extends mock<IAICustomizationMcpServerCountService>() {
 			override readonly count = constObservable(3);
+		};
+		const toolsModel = new class extends mock<IAICustomizationToolsModel>() {
 			override readonly enabledToolCount = constObservable(0);
-		};
-		const toolsService = new class extends mock<ILanguageModelToolsService>() {
-			override readonly toolSets = constObservable<readonly IToolSet[]>([]);
-		};
-		const toolEnablementService = new class extends mock<IAgentHostToolSetEnablementService>() {
-			override observe() {
-				return constObservable({ toolSets: new Map(), tools: new Map() });
-			}
 		};
 		const harnessDescriptor = upcastPartial<IHarnessDescriptor>({ id: 'agent-host-test', label: 'Test', icon: Codicon.extensions });
 		const harnessService = new class extends mock<ICustomizationHarnessService>() {
@@ -119,8 +84,7 @@ suite('Customizations toolbar', () => {
 			},
 			itemsModel,
 			mcpServerCountService,
-			toolsService,
-			toolEnablementService,
+			toolsModel,
 			harnessService,
 			migrationService,
 			new class extends mock<IConfigurationService>() {
@@ -175,8 +139,7 @@ suite('Customizations toolbar', () => {
 			{ id: 'test.customization', label: 'Customization', icon: Codicon.settingsGear },
 			new class extends mock<IAICustomizationItemsModel>() { },
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
-			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			new class extends mock<IAICustomizationToolsModel>() { },
 		));
 		const container = mainWindow.document.createElement('div');
 		item.render(container);
@@ -203,8 +166,7 @@ suite('Customizations toolbar', () => {
 			{ id: action.id, label: action.label, icon: Codicon.settingsGear },
 			new class extends mock<IAICustomizationItemsModel>() { },
 			new class extends mock<IAICustomizationMcpServerCountService>() { },
-			new class extends mock<ILanguageModelToolsService>() { },
-			new class extends mock<IAgentHostToolSetEnablementService>() { },
+			new class extends mock<IAICustomizationToolsModel>() { },
 		);
 		const actionBar = disposables.add(new ActionBar(container, {
 			actionViewItemProvider: action => createViewItem(action),

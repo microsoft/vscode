@@ -17,8 +17,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationToolsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 import { Menus } from '../../../browser/menus.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon, hookIcon, toolsIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -72,8 +71,7 @@ export function readCustomizationCount(
 	reader: IReader,
 	itemsModel: IAICustomizationItemsModel,
 	mcpServerCountService: IAICustomizationMcpServerCountService,
-	toolsService: ILanguageModelToolsService,
-	toolEnablementService: IAgentHostToolSetEnablementService,
+	toolsModel: IAICustomizationToolsModel,
 ): number {
 	if (config.modelSection) {
 		return itemsModel.getCount(config.modelSection).read(reader);
@@ -85,9 +83,7 @@ export function readCustomizationCount(
 		return itemsModel.getPluginCount().read(reader);
 	}
 	if (config.isTools) {
-		const state = toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-		return countEnabledCustomizationTools(toolsService.toolSets.read(reader), state, reader)
-			+ mcpServerCountService.enabledToolCount.read(reader);
+		return toolsModel.enabledToolCount.read(reader);
 	}
 	return 0;
 }
@@ -96,8 +92,7 @@ export function readTotalCustomizationCount(
 	reader: IReader,
 	itemsModel: IAICustomizationItemsModel,
 	mcpServerCountService: IAICustomizationMcpServerCountService,
-	toolsService: ILanguageModelToolsService,
-	toolEnablementService: IAgentHostToolSetEnablementService,
+	toolsModel: IAICustomizationToolsModel,
 	harnessService: ICustomizationHarnessService,
 ): number {
 	harnessService.activeHarness.read(reader);
@@ -108,7 +103,7 @@ export function readTotalCustomizationCount(
 		if (config.section && hiddenSections.has(config.section)) {
 			continue;
 		}
-		total += readCustomizationCount(config, reader, itemsModel, mcpServerCountService, toolsService, toolEnablementService);
+		total += readCustomizationCount(config, reader, itemsModel, mcpServerCountService, toolsModel);
 	}
 	return total;
 }
@@ -217,8 +212,7 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		private readonly _config: ICustomizationItemConfig,
 		@IAICustomizationItemsModel private readonly _itemsModel: IAICustomizationItemsModel,
 		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
-		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAICustomizationToolsModel private readonly _toolsModel: IAICustomizationToolsModel,
 	) {
 		super(undefined, action, options);
 		this._viewItemDisposables = this._register(new DisposableStore());
@@ -257,7 +251,7 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		this._countContainer = append(this._button.element, $('span.customization-link-counts'));
 
 		this._viewItemDisposables.add(autorun(reader => {
-			const count = readCustomizationCount(this._config, reader, this._itemsModel, this._mcpServerCountService, this._toolsService, this._toolEnablementService);
+			const count = readCustomizationCount(this._config, reader, this._itemsModel, this._mcpServerCountService, this._toolsModel);
 			if (this._countContainer) {
 				this._renderTotalCount(this._countContainer, count);
 			}

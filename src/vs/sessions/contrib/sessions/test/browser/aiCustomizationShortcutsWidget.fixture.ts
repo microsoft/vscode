@@ -32,6 +32,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
+import { AICustomizationToolsModel, IAICustomizationToolsModel } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
@@ -213,6 +214,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override getMcpServers() { return []; }
 			}());
 			reg.define(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService);
+			reg.define(IAICustomizationToolsModel, AICustomizationToolsModel);
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
 			}());

@@ -30,9 +30,7 @@ import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE, countEnabledCustomizationTools, IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IAICustomizationMcpServerCountService } from '../../sessions/browser/customizationMcpServerCount.js';
+import { IAICustomizationToolsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 
 const $ = DOM.$;
 
@@ -79,9 +77,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
-		@IAICustomizationMcpServerCountService private readonly mcpServerCountService: IAICustomizationMcpServerCountService,
+		@IAICustomizationToolsModel private readonly toolsModel: IAICustomizationToolsModel,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -228,9 +224,7 @@ export class AICustomizationOverviewView extends ViewPane {
 		const toolsSection = this.sections.find(s => s.id === AICustomizationManagementSection.Tools);
 		if (toolsSection) {
 			this._register(autorun(reader => {
-				const state = this.toolEnablementService.observe(AGENT_HOST_COPILOT_CLI_SESSION_TYPE).read(reader);
-				const toolSets = this.languageModelToolsService.toolSets.read(reader);
-				toolsSection.count = countEnabledCustomizationTools(toolSets, state, reader) + this.mcpServerCountService.enabledToolCount.read(reader);
+				toolsSection.count = this.toolsModel.enabledToolCount.read(reader);
 				this.updateCountElements();
 			}));
 		}

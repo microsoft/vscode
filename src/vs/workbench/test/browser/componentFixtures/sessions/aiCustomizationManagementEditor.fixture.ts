@@ -82,6 +82,7 @@ import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/p
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { IAICustomizationItemSource, IAICustomizationListItem } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationItemsModel, IAICustomizationItemsModel, ItemsModelSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
+import { AICustomizationToolsModel, IAICustomizationToolsModel } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 import { createWorkbenchMcpServerDetailInput, EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../../contrib/chat/browser/aiCustomization/embeddedMcpServerDetail.js';
 import { EmbeddedAgentPluginDetail } from '../../../../contrib/chat/browser/aiCustomization/embeddedAgentPluginDetail.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../../contrib/chat/browser/agentPluginEditor/agentPluginItems.js';
@@ -1424,6 +1425,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			// in the editor. Register the real implementation — it will resolve
 			// items via the mock prompts service / harness service above.
 			reg.define(IAICustomizationItemsModel, AICustomizationItemsModel);
+			reg.define(IAICustomizationToolsModel, AICustomizationToolsModel);
 			reg.defineInstance(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 				override readonly onDidChangeCustomizations = Event.None;
 				override async getCustomizations() { return undefined; }

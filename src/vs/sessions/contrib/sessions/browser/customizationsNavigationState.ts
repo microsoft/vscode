@@ -13,10 +13,9 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { getCustomizationMigrationCategory, homepageMigrationCategories } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationCategories.js';
-import { IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationToolsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
 import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
@@ -31,8 +30,7 @@ export class CustomizationsNavigationState extends Disposable {
 		@ISessionsService sessionsService: ISessionsService,
 		@IAICustomizationItemsModel itemsModel: IAICustomizationItemsModel,
 		@IAICustomizationMcpServerCountService mcpServerCountService: IAICustomizationMcpServerCountService,
-		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAICustomizationToolsModel toolsModel: IAICustomizationToolsModel,
 		@ICustomizationHarnessService harnessService: ICustomizationHarnessService,
 		@ICustomizationMigrationService migrationService: ICustomizationMigrationService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -48,8 +46,7 @@ export class CustomizationsNavigationState extends Disposable {
 				reader,
 				itemsModel,
 				mcpServerCountService,
-				toolsService,
-				toolEnablementService,
+				toolsModel,
 				harnessService,
 			);
 		});

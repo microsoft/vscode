@@ -162,6 +162,7 @@ import { AICustomizationManagementCommands } from '../common/aiCustomizationWork
 
 import { ChatAccessibilityService } from './accessibility/chatAccessibilityService.js';
 import './aiCustomization/aiCustomizationItemsModel.js';
+import './aiCustomization/aiCustomizationToolsModel.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';

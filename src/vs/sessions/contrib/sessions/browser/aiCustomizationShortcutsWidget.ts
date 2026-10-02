@@ -22,8 +22,7 @@ import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat
 import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
 import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
-import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IAICustomizationToolsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationToolsModel.js';
 const $ = DOM.$;
 const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
 const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
@@ -71,8 +70,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
-		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
+		@IAICustomizationToolsModel private readonly toolsModel: IAICustomizationToolsModel,
 	) {
 		super();
 
@@ -112,8 +110,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			reader,
 			this.itemsModel,
 			this.mcpServerCountService,
-			this.toolsService,
-			this.toolEnablementService,
+			this.toolsModel,
 			this.harnessService,
 		));
 	}
