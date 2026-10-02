@@ -9,11 +9,12 @@ import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IGitHubService } from '../../../github/common/githubService.js';
+import type { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import type { PullRequestMergeOptions, PullRequestMergePreparation } from '../../../github/common/githubPullRequestMutationService.js';
 import type { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { AgentMergeConfigKey } from '../../common/agentMerge.js';
-import { buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildBranchChangesetUri, buildFolderChangesetOwnerUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostPullRequestLifecycleOperationHandler, type PullRequestLifecycleAction } from '../../node/agentHostPullRequestLifecycleOperationHandler.js';
 import type { IAgentHostPullRequestStatus, IAgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
@@ -73,6 +74,8 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			readonly preparation?: PullRequestMergePreparation;
 			readonly prepareMergeError?: Error;
 			readonly mergeMethod?: string;
+			/** Status per owner key; takes precedence over `status`. */
+			readonly statusByOwner?: ReadonlyMap<string, IAgentHostPullRequestStatus>;
 		},
 	): { readonly handler: AgentHostPullRequestLifecycleOperationHandler; readonly recorded: IRecordedCalls; readonly refreshes: string[]; readonly merged: string[] } {
 		const recorded: IRecordedCalls = { calls: [] };
@@ -101,7 +104,7 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			override async disableAutoMerge(): Promise<void> { recorded.calls.push('disableAutoMerge'); }
 		}();
 
-		const gitHubService = new class extends mock<IGitHubService>() {
+		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly mutations = mutations;
 			override readonly credentials = {
 				onDidInvalidate: Event.None,
@@ -111,14 +114,15 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 				async resolveCredential(): Promise<never> { throw new Error('not implemented'); },
 				handleRequestError() { },
 			};
-		}();
+		}());
 
 		const statusService: IAgentHostPullRequestStatusService = {
 			_serviceBrand: undefined,
 			onDidChangePullRequestStatus: Event.None,
-			getPullRequestStatus: () => currentStatus,
+			getPullRequestStatus: key => options?.statusByOwner ? options.statusByOwner.get(key) : currentStatus,
 			markPullRequestMerged: (sessionKey, url) => { merged.push(`${sessionKey}|${url}`); },
 			refresh: async (sessionKey: string) => { refreshes.push(sessionKey); },
+			resolveForLifecycle: async () => currentStatus,
 			dispose: () => { },
 		};
 
@@ -154,6 +158,22 @@ suite('AgentHostPullRequestLifecycleOperationHandler', () => {
 			calls: ['prepareMerge', 'merge:SQUASH'],
 			refreshed: 1,
 			merged: [`${sessionUri}|${pullRequestUrl}`],
+		});
+	});
+
+	test('acts on the pull request of the folder whose changes the action was invoked on', async () => {
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'other-folder');
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const { handler, recorded, refreshes, merged } = createHandler('merge', {
+			statusByOwner: new Map([[folderOwner, status({ url: otherPullRequestUrl, number: 9 })]]),
+		});
+
+		await handler.invoke({ channel: buildBranchChangesetUri(folderOwner), operationId: 'pr-merge' }, CancellationToken.None);
+
+		assert.deepStrictEqual({ calls: recorded.calls, refreshes, merged }, {
+			calls: ['prepareMerge', 'merge:SQUASH'],
+			refreshes: [folderOwner],
+			merged: [`${folderOwner}|${otherPullRequestUrl}`],
 		});
 	});
 

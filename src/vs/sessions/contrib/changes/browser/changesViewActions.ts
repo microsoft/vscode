@@ -6,31 +6,42 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { observableFromEvent } from '../../../../base/common/observable.js';
-import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
+import { DIFF_VIEW_MODE_INLINE_TEMPORARY, SET_DIFF_VIEW_MODE_AUTOMATIC, SET_DIFF_VIEW_MODE_INLINE, SET_DIFF_VIEW_MODE_SIDE_BY_SIDE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../../../../workbench/browser/parts/editor/diffEditorCommands.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ActiveEditorContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext, TextCompareEditorActiveContext } from '../../../../workbench/common/contextkeys.js';
+import { IEditorCommandsContext } from '../../../../workbench/common/editor.js';
 import { DiffEditorInput } from '../../../../workbench/common/editor/diffEditorInput.js';
+import { readTransientState, writeTransientState } from '../../../../workbench/contrib/codeEditor/browser/toggleWordWrap.js';
+import { TEXT_FILE_EDITOR_ID } from '../../../../workbench/contrib/files/common/files.js';
+import { OpenMultiDiffEditorLayoutDebugAction } from '../../../../workbench/contrib/multiDiffEditor/browser/actions.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { MultiDiffEditor } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { Menus } from '../../../browser/menus.js';
-import { CustomViewVisibleContext, SessionHasChangesContext, SessionIsCreatedContext, SinglePaneDiffEditorInputActiveContext, SinglePaneLayoutEnabledContext } from '../../../common/contextkeys.js';
+import { CustomViewVisibleContext, SessionIsCreatedContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 import { logChangesViewViewModeChange } from '../../../common/sessionsTelemetry.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { OPEN_PULL_REQUEST_ACTION_ID } from '../../github/common/types.js';
 import { ActiveSessionContextKeys, CHANGES_VIEW_ID, ChangesContextKeys, ChangesViewMode, SESSIONS_CHANGES_OPEN_SINGLE_FILE_DIFF_SETTING } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
-import { SessionsDiffRenderSideBySideContext } from '../../editor/common/diffEditorOptionsService.js';
+import { IDiffEditorOptionsService, SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING, SESSIONS_EDITOR_WORD_WRAP_SETTING, SessionsDiffViewModeContext, SessionsWordWrap } from '../../editor/common/diffEditorOptionsService.js';
 import { CHANGES_HEADER_ACTIONS_ID } from './changesView.js';
 import { SessionChangesEditor } from './sessionChangesEditor.js';
+import { isChangesFileResource } from './changesViewRenderer.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -67,13 +78,13 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		// Bind context key: true when the active session has changes
+		// Bind context key: true when the active chat has changes
 		this._register(bindContextKey(ActiveSessionContextKeys.HasChanges, contextKeyService, reader => {
 			const activeSession = sessionsService.activeSession.read(reader);
 			if (!activeSession) {
 				return false;
 			}
-			const changes = activeSession.changes.read(reader);
+			const changes = activeSession.activeChat.read(reader).changes.read(reader);
 			return changes.length > 0;
 		}));
 
@@ -82,7 +93,7 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 		}));
 
 		const activeEditor = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor);
-		this._register(bindContextKey(SinglePaneDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
+		this._register(bindContextKey(DesktopDiffEditorInputActiveContext, contextKeyService, reader => activeEditor.read(reader) instanceof DiffEditorInput));
 	}
 }
 
@@ -122,54 +133,225 @@ class OpenPullRequestAction extends Action2 {
 
 registerAction2(OpenPullRequestAction);
 
-const singlePaneChangesEditorActive = ContextKeyExpr.and(
+const agentsChangesEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
-	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID),
-	SinglePaneLayoutEnabledContext
+	ActiveEditorContext.isEqualTo(SessionChangesEditor.ID)
 );
 
-const singlePaneFileDiffEditorActive = ContextKeyExpr.and(
+const desktopFileDiffEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
-	SinglePaneDiffEditorInputActiveContext,
-	SinglePaneLayoutEnabledContext
+	DesktopDiffEditorInputActiveContext,
+	DesktopLayoutContext
 );
 
-const singlePaneTextDiffEditorActive = ContextKeyExpr.and(
+const agentsTextDiffEditorActive = ContextKeyExpr.and(
 	IsSessionsWindowContext,
-	TextCompareEditorActiveContext,
-	SinglePaneLayoutEnabledContext
+	TextCompareEditorActiveContext
 );
+
+const agentsMultiDiffEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(MultiDiffEditor.ID)
+);
+
+const agentsTextEditorActive = ContextKeyExpr.and(
+	IsSessionsWindowContext,
+	ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+);
+
+const agentsDiffEditorActive = ContextKeyExpr.or(
+	agentsChangesEditorActive,
+	agentsTextDiffEditorActive,
+	agentsMultiDiffEditorActive
+);
+
+const agentsMultiDiffEditorsActive = ContextKeyExpr.or(
+	agentsChangesEditorActive,
+	agentsMultiDiffEditorActive
+);
+
+const desktopChangesEditorActive = ContextKeyExpr.and(agentsChangesEditorActive, DesktopLayoutContext);
+const desktopTextDiffEditorActive = ContextKeyExpr.and(agentsTextDiffEditorActive, DesktopLayoutContext);
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: OpenMultiDiffEditorLayoutDebugAction.ID,
+		title: OpenMultiDiffEditorLayoutDebugAction.TITLE,
+		category: Categories.Developer,
+	},
+	when: desktopChangesEditorActive
+});
 
 // Title-bar (tab-row) gate that does NOT require the editor content area to be
 // visible, so session-level title actions (e.g. Create Pull Request) stay available
 // when the editor area is closed but the docked tab bar is still shown.
-const singlePaneChangesEditorTitle = ContextKeyExpr.and(
-	singlePaneChangesEditorActive,
+const desktopChangesEditorTitle = ContextKeyExpr.and(
+	desktopChangesEditorActive,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneChangesEditorTitleVisible = ContextKeyExpr.and(
-	singlePaneChangesEditorTitle,
+const desktopChangesEditorTitleVisible = ContextKeyExpr.and(
+	desktopChangesEditorTitle,
 	MainEditorAreaVisibleContext
 );
 
-const singlePaneDiffEditorTitle = ContextKeyExpr.and(
-	ContextKeyExpr.or(singlePaneChangesEditorActive, singlePaneFileDiffEditorActive),
+const desktopDiffEditorTitle = ContextKeyExpr.and(
+	ContextKeyExpr.or(desktopChangesEditorActive, desktopFileDiffEditorActive),
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneTextDiffEditorTitle = ContextKeyExpr.and(
-	singlePaneTextDiffEditorActive,
+const desktopTextDiffEditorTitle = ContextKeyExpr.and(
+	desktopTextDiffEditorActive,
 	IsAuxiliaryWindowContext.toNegated(),
 	IsTopRightEditorGroupContext
 );
 
-const singlePaneDiffEditorTitleVisible = ContextKeyExpr.and(
-	ContextKeyExpr.or(singlePaneChangesEditorTitle, singlePaneTextDiffEditorTitle),
+const desktopMultiDiffEditorTitle = ContextKeyExpr.and(
+	agentsMultiDiffEditorActive,
+	DesktopLayoutContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
+const desktopTextEditorTitle = ContextKeyExpr.and(
+	agentsTextEditorActive,
+	DesktopLayoutContext,
+	IsAuxiliaryWindowContext.toNegated(),
+	IsTopRightEditorGroupContext
+);
+
+const desktopDiffEditorTitleVisible = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		desktopChangesEditorTitle,
+		desktopTextDiffEditorTitle,
+		desktopMultiDiffEditorTitle
+	),
 	MainEditorAreaVisibleContext
 );
+
+const desktopMultiDiffEditorTitleVisible = ContextKeyExpr.and(
+	ContextKeyExpr.or(
+		desktopChangesEditorTitle,
+		desktopMultiDiffEditorTitle,
+	),
+	MainEditorAreaVisibleContext
+);
+
+const desktopTextEditorTitleVisible = ContextKeyExpr.and(
+	desktopTextEditorTitle,
+	MainEditorAreaVisibleContext
+);
+
+function wordWrapToggled(settingId: string) {
+	return ContextKeyExpr.or(
+		ContextKeyExpr.equals(`config.${settingId}`, 'on'),
+		ContextKeyExpr.and(
+			ContextKeyExpr.equals(`config.${settingId}`, 'inherit'),
+			ContextKeyExpr.notEquals('config.editor.wordWrap', 'off'),
+		),
+	);
+}
+
+class ToggleSessionsEditorWordWrapAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.toggleEditorWordWrap';
+
+	constructor() {
+		super({
+			id: ToggleSessionsEditorWordWrapAction.ID,
+			title: localize2('agentSessions.editorWordWrap', "Word Wrap"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: desktopTextEditorTitleVisible,
+			}, {
+				id: MenuId.EditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: ContextKeyExpr.and(agentsTextEditorActive, DesktopLayoutContext.negate()),
+			}],
+			toggled: wordWrapToggled(SESSIONS_EDITOR_WORD_WRAP_SETTING),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
+		await toggleSessionsWordWrap(accessor, 'editor', context);
+	}
+}
+
+class ToggleSessionsDiffEditorWordWrapAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.toggleDiffEditorWordWrap';
+
+	constructor() {
+		super({
+			id: ToggleSessionsDiffEditorWordWrapAction.ID,
+			title: localize2('agentSessions.diffEditorWordWrap', "Word Wrap"),
+			f1: false,
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: desktopMultiDiffEditorTitleVisible,
+			}, {
+				id: MenuId.EditorTitle,
+				group: '1_diff',
+				order: 20,
+				when: ContextKeyExpr.and(agentsMultiDiffEditorsActive, DesktopLayoutContext.negate()),
+			}],
+			toggled: wordWrapToggled(SESSIONS_DIFF_EDITOR_WORD_WRAP_SETTING),
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IEditorCommandsContext): Promise<void> {
+		await toggleSessionsWordWrap(accessor, 'diffEditor', context);
+	}
+}
+
+async function toggleSessionsWordWrap(accessor: ServicesAccessor, target: 'editor' | 'diffEditor', context?: IEditorCommandsContext): Promise<void> {
+	const codeEditorService = accessor.get(ICodeEditorService);
+	const optionsService = accessor.get(IDiffEditorOptionsService);
+	const editorService = accessor.get(IEditorService);
+	const activeEditorPane = context
+		? accessor.get(IEditorGroupsService).getGroup(context.groupId)?.activeEditorPane
+		: editorService.activeEditorPane;
+	const activeControl = activeEditorPane?.getControl();
+	const diffEditor = target === 'diffEditor' && isDiffEditor(activeControl) ? activeControl : null;
+	const codeEditor = target === 'editor' && isCodeEditor(activeControl)
+		? activeControl
+		: diffEditor?.getModifiedEditor() ?? null;
+	const wordWrap = target === 'editor' ? optionsService.editorWordWrap.get() : optionsService.diffEditorWordWrap.get();
+	const inheritedWordWrap = accessor.get(IConfigurationService).getValue<'off' | 'on' | 'wordWrapColumn' | 'bounded'>('editor.wordWrap');
+	const isWordWrapEnabled = wordWrap === 'on' || wordWrap === 'inherit' && inheritedWordWrap !== 'off';
+	const editors = codeEditor
+		? diffEditor
+			? [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()]
+			: [codeEditor]
+		: [];
+	const nextWordWrap: SessionsWordWrap = isWordWrapEnabled ? 'off' : 'on';
+	if (target === 'editor') {
+		await optionsService.setEditorWordWrap(nextWordWrap);
+	} else {
+		await optionsService.setDiffEditorWordWrap(nextWordWrap);
+	}
+
+	let didClearTransientState = false;
+	for (const editor of editors) {
+		const model = editor.getModel();
+		if (model && readTransientState(model, codeEditorService)) {
+			writeTransientState(model, null, codeEditorService);
+			didClearTransientState = true;
+		}
+	}
+	if (didClearTransientState) {
+		diffEditor?.updateOptions({});
+	}
+}
+
+registerAction2(ToggleSessionsEditorWordWrapAction);
+registerAction2(ToggleSessionsDiffEditorWordWrapAction);
 
 /** Anchor action hosting the Create Pull Request button bar in the title bar. */
 class ChangesHeaderActionsAction extends Action2 {
@@ -186,9 +368,8 @@ class ChangesHeaderActionsAction extends Action2 {
 					IsSessionsWindowContext,
 					IsAuxiliaryWindowContext.toNegated(),
 					CustomViewVisibleContext.negate(),
-					SinglePaneLayoutEnabledContext,
-					SessionIsCreatedContext,
-					SessionHasChangesContext
+					DesktopLayoutContext,
+					SessionIsCreatedContext
 				)
 			},
 		});
@@ -208,11 +389,11 @@ class SetChangesListViewModeAction extends Action2 {
 			icon: Codicon.listFlat,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
+					desktopDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.Tree))
 			}
@@ -237,11 +418,11 @@ class SetChangesTreeViewModeAction extends Action2 {
 			icon: Codicon.listTree,
 			f1: false,
 			menu: {
-				id: Menus.SessionsEditorHeaderLayout,
-				group: 'secondary/2_viewMode',
+				id: Menus.SessionsEditorTitle,
+				group: '2_viewMode',
 				order: 20,
 				when: ContextKeyExpr.and(
-					singlePaneDiffEditorTitle,
+					desktopDiffEditorTitle,
 					AuxiliaryBarVisibleContext,
 					ChangesContextKeys.ViewMode.isEqualTo(ChangesViewMode.List))
 			}
@@ -270,7 +451,7 @@ class CollapseAllSessionChangesDiffsAction extends Action2 {
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorTitleVisible,
+					desktopChangesEditorTitleVisible,
 					ContextKeyExpr.not('multiDiffEditorAllCollapsed'))
 			}
 		});
@@ -300,7 +481,7 @@ class ExpandAllSessionChangesDiffsAction extends Action2 {
 				group: 'secondary/1_diff',
 				order: 10,
 				when: ContextKeyExpr.and(
-					singlePaneChangesEditorActive,
+					desktopChangesEditorActive,
 					IsAuxiliaryWindowContext.toNegated(),
 					IsTopRightEditorGroupContext,
 					MainEditorAreaVisibleContext,
@@ -323,19 +504,66 @@ registerAction2(ExpandAllSessionChangesDiffsAction);
 // user's keybinding for it carries over here (issue #324765). The sessions override of
 // IDiffEditorCommandsService updates the Changes editor's own preferred layout.
 
-// The action changes the preferred layout. Side by side still falls back to inline
-// when the editor is narrow, so the label must not promise an immediate layout.
 MenuRegistry.appendMenuItem(Menus.SessionsEditorHeaderLayout, {
-	command: {
-		id: TOGGLE_DIFF_SIDE_BY_SIDE,
-		title: localize('alwaysShowInlineDiff', "Always Show Inline Diff"),
-		tooltip: localize('alwaysShowInlineDiff.tooltip', "Always uses inline layout."),
-		icon: Codicon.diffSidebyside,
-		toggled: SessionsDiffRenderSideBySideContext.negate(),
-	},
+	submenu: Menus.SessionsDiffEditorView,
+	title: localize('diffView', "Diff View"),
 	group: 'secondary/1_diff',
 	order: 20,
-	when: singlePaneDiffEditorTitleVisible
+	when: desktopDiffEditorTitleVisible,
+});
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	submenu: Menus.SessionsDiffEditorView,
+	title: localize('diffView', "Diff View"),
+	group: '1_diff',
+	order: 10,
+	when: ContextKeyExpr.and(agentsDiffEditorActive, DesktopLayoutContext.negate()),
+});
+MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
+	command: {
+		id: SET_DIFF_VIEW_MODE_INLINE,
+		title: localize('diffView.inline', "Inline"),
+		toggled: SessionsDiffViewModeContext.isEqualTo('inline'),
+	},
+	group: '1_view',
+	order: 1,
+});
+MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
+	command: {
+		id: SET_DIFF_VIEW_MODE_SIDE_BY_SIDE,
+		title: localize('diffView.sideBySide', "Side by Side"),
+		toggled: SessionsDiffViewModeContext.isEqualTo('sideBySide'),
+	},
+	group: '1_view',
+	order: 2,
+});
+for (const [title, when] of [
+	[localize('diffView.automaticSideBySide', "Automatic (Currently Side by Side)"), EditorContextKeys.diffEditorAutomaticRenderSideBySide],
+	[localize('diffView.automaticInline', "Automatic (Currently Inline)"), EditorContextKeys.diffEditorAutomaticRenderSideBySide.toNegated()],
+] as const) {
+	MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
+		command: {
+			id: SET_DIFF_VIEW_MODE_AUTOMATIC,
+			title,
+			toggled: ContextKeyExpr.and(
+				SessionsDiffViewModeContext.isEqualTo('automatic'),
+				EditorContextKeys.diffEditorTemporaryInlineMode.toNegated(),
+			),
+		},
+		group: '1_view',
+		order: 3,
+		when,
+	});
+}
+MenuRegistry.appendMenuItem(Menus.SessionsDiffEditorView, {
+	command: {
+		id: DIFF_VIEW_MODE_INLINE_TEMPORARY,
+		title: localize('diffView.inlineTemporary', "Inline (Temporary)"),
+		toggled: EditorContextKeys.diffEditorTemporaryInlineMode,
+		precondition: ContextKeyExpr.false(),
+	},
+	group: '1_view',
+	order: 4,
+	when: EditorContextKeys.diffEditorTemporaryInlineMode,
 });
 
 // Discoverable in the command palette while a Changes diff editor is visible.
@@ -345,7 +573,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: localize2('togglePreferredDiffView', "Toggle Preferred Diff View"),
 		category: localize2('changes', "Changes"),
 	},
-	when: singlePaneDiffEditorTitleVisible
+	when: agentsDiffEditorActive
 });
 
 class OpenChangesAction extends Action2 {
@@ -367,7 +595,7 @@ class OpenChangesAction extends Action2 {
 		const sessionChanges = changesViewService.activeSessionChangesObs.get();
 
 		const changes = sessionChanges?.filter(change =>
-			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+			resources.some(resource => isChangesFileResource(change, resource))
 		) ?? [];
 
 		await Promise.all(changes.map(change => editorService.openEditor({

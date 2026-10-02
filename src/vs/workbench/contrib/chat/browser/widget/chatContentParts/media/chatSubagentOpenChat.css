@@ -32,6 +32,10 @@
 	outline: none;
 }
 
+.chat-subagent-open-chat-toolbar .actions-container .action-item.chat-subagent-pill-widget.hidden {
+	display: none;
+}
+
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-header {
 	display: inline-flex;
 	align-items: center;
@@ -51,6 +55,10 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
 	border-radius: var(--vscode-cornerRadius-small);
 	cursor: pointer;
+}
+
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.disabled .chat-subagent-pill-content {
+	cursor: default;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-label,
@@ -119,6 +127,20 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.chat-subagent-pill-active-tool-label .monaco-link {
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	vertical-align: bottom;
+	color: inherit;
+}
+
+.chat-subagent-pill-active-tool-label .monaco-link:hover {
+	text-decoration: underline;
 }
 
 .chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-model {
@@ -245,11 +267,11 @@
 	}
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content:hover {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget:not(.disabled) .chat-subagent-pill-content:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget.focused .chat-subagent-pill-content {
+.chat-subagent-open-chat-toolbar .action-item.chat-subagent-pill-widget .chat-subagent-pill-content.focused {
 	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }
@@ -360,12 +382,11 @@
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label .monaco-button,
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-collapsible-content-animation,
+.chat-subagent-part.chat-used-context.chat-subagent-open-chat-only > .chat-collapsible-content-animation,
 .chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-list {
 	display: none;
 }
 
-.chat-subagent-part.chat-subagent-open-chat-only > .chat-used-context-label::after {
+.chat-subagent-part > .chat-used-context-label::after {
 	display: none;
 }

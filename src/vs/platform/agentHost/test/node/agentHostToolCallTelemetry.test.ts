@@ -13,6 +13,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
@@ -20,7 +22,8 @@ import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -29,15 +32,24 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
 import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
-import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
@@ -73,6 +85,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {
@@ -112,6 +126,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let telemetry: CapturingTelemetryService;
+	let clientConnectionService: AgentHostClientConnectionService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -154,6 +169,20 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	function completeTurn(turnId: string): void {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
+	}
+
+	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
+		let connected = initiallyConnected;
+		const source: IAgentHostClientConnectionSource = {
+			hasSeenClient: candidate => candidate === clientId,
+			isClientConnected: candidate => connected && candidate === clientId,
+			isLocalClient: () => false,
+			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
+		};
+		disposables.add(clientConnectionService.registerSource(source));
+		return value => connected = value;
 	}
 
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
@@ -243,6 +272,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			whenIdle: async () => { },
 		};
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
+		const worktreeIsolation = createNoopWorktreeIsolation();
 		const services = new ServiceCollection(
 			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
@@ -251,17 +282,38 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostGitStateService, createNoopGitStateService()],
 			[IAgentHostStateManager, stateManager],
+			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-			[IAgentHostWorktreeIsolation, createNoopWorktreeIsolation()],
-			[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostClientConnectionService, clientConnectionService],
+			[IAgentHostPeerChatPersistenceService, {
+				_serviceBrand: undefined,
+				setArchived: async () => { },
+			}],
+			[ISessionWorkspaceConversionService, {
+				_serviceBrand: undefined,
+				requestSessionWorkspaceUpdate: () => { },
+				isPending: () => false,
+				cancel: () => { },
+				updateSessionWorkspace: async () => { },
+			}],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
-		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
+		const providerService = createTestAgentHostProviderService(() => agent);
+		services.set(IAgentHostProviderService, providerService);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -375,6 +427,14 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {
 		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.McpServer,
+			id: 'c1',
+			uri: 'mcp://managed/mail',
+			name: 'mail',
+			state: { kind: McpServerStatus.Ready },
+			_meta: withMcpServerSourceMeta(undefined, 'managed'),
+		}]);
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
@@ -389,6 +449,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'lookup',
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
+				mcpSourceKind: 'managed',
 				toolCallId: 'tc-mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
@@ -405,6 +466,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			toolId: 'lookup',
 			toolExtensionId: undefined,
 			toolSourceKind: 'mcp',
+			mcpSourceKind: 'managed',
 			toolCallId: 'tc-mcp',
 			provider: 'mock',
 			invocationTimeMs: undefined,
@@ -413,6 +475,84 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			model: undefined,
 			errorCode: 'denied',
 			msg: 'denied',
+		});
+	});
+
+	test('attributes parser-created plugin MCP children to their owning plugin', () => {
+		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugins/mail/plugin.json',
+			name: 'mail',
+			children: [{
+				type: CustomizationType.McpServer,
+				id: 'plugin-mcp',
+				uri: 'file:///plugins/mail/.mcp.json',
+				name: 'search',
+				state: { kind: McpServerStatus.Ready },
+			}],
+		}]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-plugin-mcp', 'search', { kind: ToolCallContributorKind.MCP, customizationId: 'plugin-mcp' });
+		toolComplete('turn-1', 'tc-plugin-mcp', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			languageModelToolInvoked: toolEvents()[0].data.mcpSourceKind,
+			agentHostToolInvoked: agentHostToolEvents()[0].data.mcpSourceKind,
+		}, {
+			languageModelToolInvoked: 'plugin',
+			agentHostToolInvoked: 'plugin',
+		});
+	});
+
+	test('emits every bounded MCP source kind and omits unknown provenance', () => {
+		setupSession();
+		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		stateManager.setSessionCustomizations(sessionKey, [
+			...sources.map(source => ({
+				type: CustomizationType.McpServer,
+				id: source,
+				uri: `mcp://${source}/server`,
+				name: source,
+				state: { kind: McpServerStatus.Ready } as const,
+				_meta: withMcpServerSourceMeta(undefined, source),
+			} satisfies McpServerCustomization)),
+			{
+				type: CustomizationType.McpServer,
+				id: 'unknown',
+				uri: 'mcp://unknown/server',
+				name: 'unknown',
+				state: { kind: McpServerStatus.Ready },
+			} satisfies McpServerCustomization,
+		]);
+		startTurn('turn-1');
+
+		for (const source of [...sources, 'unknown'] as const) {
+			toolStart('turn-1', `tc-${source}`, source, { kind: ToolCallContributorKind.MCP, customizationId: source });
+			toolComplete('turn-1', `tc-${source}`, { success: true, pastTenseMessage: source });
+		}
+		completeTurn('turn-1');
+
+		const summarize = (events: { data: Record<string, unknown> }[]) => events.map(event => ({
+			toolId: event.data.toolId,
+			mcpSourceKind: event.data.mcpSourceKind,
+		}));
+		const expected = [
+			{ toolId: 'user', mcpSourceKind: 'user' },
+			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
+			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
+			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'unknown', mcpSourceKind: undefined },
+		];
+		assert.deepStrictEqual({
+			languageModelToolInvoked: summarize(toolEvents()),
+			agentHostToolInvoked: summarize(agentHostToolEvents()),
+		}, {
+			languageModelToolInvoked: expected,
+			agentHostToolInvoked: expected,
 		});
 	});
 
@@ -704,8 +844,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
+				toolCallId: 'tc-confirm',
 				toolId: 'write',
 				toolSourceKind: 'agentHost',
+				executorClientConnectionState: undefined,
 				stalledTimeMs: true,
 			},
 		}]);
@@ -735,7 +877,42 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			await timeout(5 * 60 * 1000);
 		});
 
-		assert.deepStrictEqual(stalledEvents().map(e => e.data.blockerKind), [SessionInputRequestKind.ToolClientExecution]);
+		assert.deepStrictEqual(stalledEvents(), [{
+			eventName: 'agentHost.toolCallStalled',
+			data: {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-client-stall',
+				toolId: 'run_tests',
+				toolSourceKind: 'client',
+				executorClientConnectionState: 'unknown',
+				stalledTimeMs: true,
+			},
+		}]);
+	});
+
+	test('reports a disconnected client tool executor', async () => {
+		registerClientConnection('client-1', false);
+
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-1');
+
+			toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-disconnected',
+				invocationMessage: 'Run tests',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await timeout(5 * 60 * 1000);
+		});
+
+		assert.strictEqual(stalledEvents()[0].data.executorClientConnectionState, 'disconnected');
 	});
 
 	test('does not emit after a client tool completes or its turn is cancelled', async () => {
@@ -771,6 +948,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	});
 
 	test('emits when a stalled client tool later completes', async () => {
+		const setClientConnected = registerClientConnection('client-1', true);
+
 		await runWithFakedTimers({}, async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -785,6 +964,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			});
 
 			await timeout(5 * 60 * 1000);
+			setClientConnected(false);
 			toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
 		});
 
@@ -795,8 +975,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-recovered',
 				toolId: 'run_tests',
 				toolSourceKind: 'client',
+				executorClientConnectionState: 'connected',
 				result: 'success',
 				totalTimeMs: true,
 				timeAfterStallMs: true,

@@ -6,15 +6,22 @@
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IRelayChannel } from './relayTransport.js';
+import { IDevContainerRepository, IDevContainerSampleSource } from './devContainerSamples.js';
 
 export const DEV_CONTAINER_AGENT_HOST_CHANNEL = 'devContainerAgentHost';
+export const VSCODE_REMOTE_CONTAINERS_SESSION_ENV = 'VSCODE_REMOTE_CONTAINERS_SESSION';
 
 /** Inputs required to start or reuse a workspace's Dev Container Agent Host. */
-export interface IDevContainerAgentHostConfig {
+export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly connectionId: string;
+	/** Native workspace path; the remote protocol facade also accepts a host URI's path. */
 	readonly workspaceFolder: string;
 	readonly name: string;
+	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
+	readonly resume?: boolean;
 }
+
+export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig | (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource);
 
 /** Serializable connection metadata returned to the renderer. */
 export interface IDevContainerAgentHostConnectResult {
@@ -22,6 +29,9 @@ export interface IDevContainerAgentHostConnectResult {
 	readonly address: string;
 	readonly name: string;
 	readonly remoteWorkspaceFolder: string;
+	/** Native source workspace path on the parent host, when reported by the launcher. */
+	readonly hostWorkspaceFolder?: string;
+	readonly repository?: IDevContainerRepository;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
@@ -32,7 +42,7 @@ export interface IDevContainerAgentHostOutput {
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
 
-/** Shared-process service that owns Dev Container CLI processes and protocol relays. */
+/** Host-side service that owns Dev Container CLI processes and protocol relays. */
 export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly _serviceBrand: undefined;
 
@@ -44,4 +54,6 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	isDockerAvailable(): Promise<boolean>;
 	connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult>;
 	disconnect(connectionId: string): Promise<void>;
+	stopContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
+	removeContainer(source: string | IDevContainerSampleSource): Promise<boolean>;
 }

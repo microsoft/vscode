@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
+import { canInitializeSessionTypeOnSelection, getSessionTypeAvailability, getSessionTypePickerAvailability, SessionTypeAvailability } from '../../../browser/agentSessions/sessionTypeAvailability.js';
 import { IChatSessionsService, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 
@@ -118,34 +118,49 @@ suite('getSessionTypeAvailability', () => {
 		});
 	});
 
-	suite('a harness with a setup banner stays selectable', () => {
-		// The banner renders inside a session of the type it is scoped to, so
-		// greying the harness out would hide the only route to it.
-		const pickerAvailability = (availability: SessionTypeAvailability, hasSetupBanner: boolean, allowSignedOutWhenUsable = true) =>
-			getSessionTypePickerAvailability(SessionType.AgentHostClaude, availability, allowSignedOutWhenUsable, hasSetupBanner);
+	suite('a harness that initializes on selection stays selectable', () => {
+		// Agent SDK model discovery starts only after the user selects the harness,
+		// so requiring a discovered model before selection creates a deadlock.
+		const pickerAvailability = (availability: SessionTypeAvailability, hasAgentSdkSetup: boolean, entitlement: ChatEntitlement, allowSignedOutWhenUsable: boolean, hasProviderAccount = false) =>
+			getSessionTypePickerAvailability(
+				SessionType.AgentHostClaude,
+				availability,
+				allowSignedOutWhenUsable,
+				canInitializeSessionTypeOnSelection(entitlement, allowSignedOutWhenUsable, hasAgentSdkSetup, hasProviderAccount),
+			);
 
-		test('a signed-out user with no Claude models can still pick the harness the banner belongs to', () => {
-			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, true), SessionTypeAvailability.Available);
+		test('a signed-out user can initialize the harness when the experiment is enabled', () => {
+			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true), SessionTypeAvailability.Available);
 		});
 
-		test('the same harness with no banner stays greyed out, since there is nothing to send the user to', () => {
-			// e.g. a signed-in user whose Claude harness has no models: the banner
-			// is deliberately hidden for them, so "No models available" is honest.
-			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, false), SessionTypeAvailability.NoModels);
+		test('a harness with no initialization path stays greyed out', () => {
+			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, false, ChatEntitlement.Unknown, true), SessionTypeAvailability.NoModels);
 		});
 
-		test('a banner does not unlock a harness the user must sign in or upgrade for', () => {
+		test('a Copilot Free user can initialize a native agent without upgrading or enabling signed-out use', () => {
+			assert.strictEqual(
+				pickerAvailability(SessionTypeAvailability.UpgradeRequired, true, ChatEntitlement.Free, false),
+				SessionTypeAvailability.Available,
+			);
+		});
+
+		test('a user signed in to the provider can initialize it without GitHub or the experiment', () => {
+			assert.strictEqual(
+				pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false, true),
+				SessionTypeAvailability.Available,
+			);
+		});
+
+		test('a signed-out user still needs the experiment when the harness has no models', () => {
 			assert.deepStrictEqual({
-				signIn: pickerAvailability(SessionTypeAvailability.SignInRequired, true),
-				upgrade: pickerAvailability(SessionTypeAvailability.UpgradeRequired, true),
+				disabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, false),
+				unresolved: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unresolved, false),
+				enabled: pickerAvailability(SessionTypeAvailability.NoModels, true, ChatEntitlement.Unknown, true),
 			}, {
-				signIn: SessionTypeAvailability.SignInRequired,
-				upgrade: SessionTypeAvailability.UpgradeRequired,
+				disabled: SessionTypeAvailability.NoModels,
+				unresolved: SessionTypeAvailability.NoModels,
+				enabled: SessionTypeAvailability.Available,
 			});
-		});
-
-		test('the whole override stays behind the signed-out opt-in', () => {
-			assert.strictEqual(pickerAvailability(SessionTypeAvailability.NoModels, true, false), SessionTypeAvailability.NoModels);
 		});
 	});
 

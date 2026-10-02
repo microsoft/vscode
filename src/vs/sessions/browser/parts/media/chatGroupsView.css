@@ -39,6 +39,14 @@
 	max-width: none;
 }
 
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
+	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {
+	max-width: none;
+}
+
 /* With a lone group, the tab strip aligns with the centered header/content band
  * rather than spanning the full leaf width. With more than one group it spans
  * the full leaf (the default) so the grid reads edge-to-edge. */

@@ -150,6 +150,70 @@ suite('ChatRequestParser', () => {
 		});
 	});
 
+	test('dynamic variable prompt text remaps ranges ending inside a later replacement', () => {
+		const text = '  aa xxx bb yyyyy cc';
+		const firstStart = text.indexOf('xxx');
+		const secondStart = text.indexOf('yyyyy');
+		variableService.setDynamicVariables(testSessionUri, [{
+			id: 'first',
+			fullName: 'xxx',
+			range: new Range(1, firstStart + 1, 1, firstStart + 4),
+			data: undefined,
+			promptText: 'XXXXXXXX',
+		}, {
+			id: 'second',
+			fullName: 'yyyyy',
+			range: new Range(1, secondStart + 1, 1, secondStart + 6),
+			data: undefined,
+			promptText: 'Z',
+		}]);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const promptText = getPromptText(parser.parseChatRequest(testSessionUri, text));
+		const variableData = updateRanges({
+			variables: [{
+				id: 'first',
+				name: 'first',
+				kind: 'generic',
+				value: undefined,
+				range: { start: firstStart, endExclusive: firstStart + 3 },
+			}, {
+				id: 'second',
+				name: 'second',
+				kind: 'generic',
+				value: undefined,
+				range: { start: secondStart, endExclusive: secondStart + 5 },
+			}, {
+				id: 'overlap',
+				name: 'overlap',
+				kind: 'generic',
+				value: undefined,
+				range: { start: secondStart - 2, endExclusive: secondStart + 3 },
+			}, {
+				id: 'after',
+				name: 'after',
+				kind: 'generic',
+				value: undefined,
+				range: { start: text.indexOf('cc'), endExclusive: text.length },
+			}],
+		}, promptText);
+
+		assert.deepStrictEqual({
+			message: promptText.message,
+			ranges: variableData.variables.map(variable => variable.range),
+			hasInvertedRanges: variableData.variables.some(variable => variable.range && variable.range.start > variable.range.endExclusive),
+		}, {
+			message: 'aa XXXXXXXX bb Z cc',
+			ranges: [
+				{ start: 3, endExclusive: 11 },
+				{ start: 15, endExclusive: 16 },
+				{ start: 13, endExclusive: 16 },
+				{ start: 17, endExclusive: 19 },
+			],
+			hasInvertedRanges: false,
+		});
+	});
+
 	test('multi-word #chat reference preserves its range through toVariableEntry', () => {
 		// The reference carries the opaque backend chat URI verbatim.
 		const chatResource = URI.parse('ahp-chat://chat-2/base64session');

@@ -29,8 +29,10 @@ import type { ICustomizationSyncProvider } from '../../../common/customizationHa
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet } from '../../../common/tools/languageModelToolsService.js';
+import { RenameToolId } from '../../tools/renameTool.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -56,6 +58,8 @@ export interface IAgentCustomizationScope extends IDisposable {
 	readonly isResolved: IObservable<boolean>;
 	/** Resolves once the scope's initial customization resolution has completed. */
 	whenResolved(): Promise<void>;
+	/** Finds the bundled URI for a source file in this scope. */
+	getSyncedUri(sourceUri: URI): URI | undefined;
 }
 
 export interface IAgentHostActiveClientService {
@@ -111,6 +115,7 @@ class AgentCustomizationScope extends Disposable {
 		scopeKey: string,
 		private readonly _syncProvider: ICustomizationSyncProvider,
 		private readonly _options: ILocalCustomizationSyncOptions | undefined,
+		private readonly _windowRemoteAuthority: string | null,
 		private readonly _getClientTools: (sessionType: string) => IObservable<readonly ToolDefinition[]>,
 		private readonly _onDispose: () => void,
 		@IFileService private readonly _fileService: IFileService,
@@ -140,6 +145,7 @@ class AgentCustomizationScope extends Disposable {
 						this._sessionType,
 						this._options,
 						this._roots,
+						this._windowRemoteAuthority,
 					),
 					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
 				]);
@@ -209,6 +215,7 @@ class AgentCustomizationScope extends Disposable {
 			tools: this.tools,
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
+			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
 				if (!released) {
@@ -283,6 +290,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentHostToolSetEnablementService private readonly _toolSetEnablementService: IAgentHostToolSetEnablementService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
@@ -306,6 +314,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				scopeKey,
 				this.getSyncProvider(sessionType),
 				options,
+				this._environmentService.remoteAuthority ?? null,
 				type => this._getClientTools(type),
 				() => this._removeScope(serviceScopeKey, createdScope),
 			);
@@ -328,6 +337,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 				AgentHostMcpServerSupportScope,
 				sessionType,
 				normalizedRoots,
+				this._environmentService.remoteAuthority ?? null,
 				() => this._removeMcpServerSupportScope(serviceScopeKey, createdScope),
 			);
 			scope = createdScope;
@@ -386,7 +396,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 						}
 					}
 				}
-				return coalesce(tools.filter(tool => enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool)).map(tool => {
+				return coalesce(tools.filter(tool => tool.id !== RenameToolId && (enabledToolIds.has(tool.id) || (semanticSearchEnabled && tool === semanticSearchTool))).map(tool => {
 					if (!isCopilotSession) {
 						return toolDataToDefinition(tool);
 					}

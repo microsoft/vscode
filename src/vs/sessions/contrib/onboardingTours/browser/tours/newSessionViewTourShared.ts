@@ -9,7 +9,7 @@ import { EditorPartModalVisibleContext } from '../../../../../workbench/common/c
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISpotlightStep } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
+import { AgentHostSessionTypesAvailableContext, IsNewChatSessionContext, NewSessionOnboardingHandoffContext, SessionHasWorkspaceContext, SessionWorkspacePickerVisibleContext } from '../../../../common/contextkeys.js';
 
 export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | undefined {
 	return ContextKeyExpr.and(
@@ -18,20 +18,24 @@ export function createNewSessionViewRecentTourWhen(): ContextKeyExpression | und
 		AgentHostSessionTypesAvailableContext,
 		ChatEntitlementContextKeys.Entitlement.signedOut.toNegated(),
 		EditorPartModalVisibleContext.toNegated(),
+		NewSessionOnboardingHandoffContext.toNegated(),
 	);
 }
 
-export function createNewSessionViewWorkspaceStep(): ISpotlightStep {
+export function createNewSessionViewWorkspaceStep(options: { requireSelection?: boolean } = {}): ISpotlightStep {
+	const requireSelection = options.requireSelection ?? true;
 	return {
 		id: 'workspacePicker',
 		targetId: 'sessions.newSession.workspacePicker',
 		title: localize('sessions.onboarding.newSessionViewV2.workspace.title', "Choose a workspace"),
-		description: localize('sessions.onboarding.newSessionViewV2.workspace.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files."),
+		description: requireSelection
+			? localize('sessions.onboarding.newSessionViewV2.workspace.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one so it can understand your project and work on the right files.")
+			: localize('sessions.onboarding.newSessionViewV2.workspace.optional.description', "A workspace is the folder or repository where your agent reads context and makes changes. Choose one for project-specific work, or continue without one."),
 		placement: 'above',
 		when: ContextKeyExpr.and(SessionWorkspacePickerVisibleContext, SessionHasWorkspaceContext.toNegated()),
 		missingTarget: { kind: 'skip' },
 		openTarget: true,
 		allowTargetInteraction: true,
-		advanceWhen: SessionHasWorkspaceContext,
+		advanceWhen: requireSelection ? SessionHasWorkspaceContext : undefined,
 	};
 }

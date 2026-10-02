@@ -12,7 +12,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, IExtensionContributions, ExtensionType, IExtension, IExtensionManifest, IExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 import { areSameExtensions } from '../../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -1294,7 +1294,8 @@ suite('ExtensionEnablementService Test', () => {
 		]);
 	});
 
-	test('test extensions declaring agents window support are enabled in sessions window', () => {
+	test('test extensions declaring agents window support are enabled in sessions window', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY, true);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
 

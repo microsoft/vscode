@@ -22,6 +22,7 @@ exports[`SSEProcessor > real world snapshots > multiple tool calls > completion 
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "ba49856c-7de2-485b-87cd-6ff61c58407e",
 			"created": 1741911507,
 			"serverExperiments": "",
@@ -1942,6 +1943,7 @@ exports[`SSEProcessor > real world snapshots > n > 1 - intent detector > complet
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9XTwlPjQvCcybmQxvS39Ouj4EEG89",
 			"created": 1717766967,
 			"serverExperiments": "",
@@ -1960,6 +1962,7 @@ exports[`SSEProcessor > real world snapshots > n > 1 - intent detector > complet
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9XTwlPjQvCcybmQxvS39Ouj4EEG89",
 			"created": 1717766967,
 			"serverExperiments": "",
@@ -1978,6 +1981,7 @@ exports[`SSEProcessor > real world snapshots > n > 1 - intent detector > complet
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9XTwlPjQvCcybmQxvS39Ouj4EEG89",
 			"created": 1717766967,
 			"serverExperiments": "",
@@ -2081,6 +2085,7 @@ exports[`SSEProcessor > real world snapshots > panel chat - plain text assistant
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9XTNuRVy7pKFgXL5VsZKe5wfpiWQU",
 			"created": 1717764806,
 			"serverExperiments": "",
@@ -2212,6 +2217,7 @@ exports[`SSEProcessor > real world snapshots > single function call > completion
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9WkN0MexQZVb1yEgTn8jqMX24oHej",
 			"created": 1717591770,
 			"serverExperiments": "",
@@ -2251,6 +2257,7 @@ exports[`SSEProcessor > real world snapshots > single tool call > completion res
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-A5iQJExrRR9lZjObeHBzjesQ5HvT1",
 			"created": 1725925767,
 			"serverExperiments": "",
@@ -2393,6 +2400,7 @@ exports[`SSEProcessor > real world snapshots > single tool call with annotations
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-A5iQJExrRR9lZjObeHBzjesQ5HvT1",
 			"created": 1725925767,
 			"serverExperiments": "",
@@ -3225,6 +3233,7 @@ exports[`SSEProcessor > real world snapshots > stream from @github (bing-search 
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9X3aOY9DtjweQLHsmnLgzQYg36KpW",
 			"created": 1717665636,
 			"serverExperiments": "",
@@ -3343,6 +3352,7 @@ exports[`SSEProcessor > real world snapshots > stream from @github (bing-search 
 		"requestId": {
 			"headerRequestId": "",
 			"gitHubRequestId": "",
+			"copilotServiceRequestId": "",
 			"completionId": "chatcmpl-9X3aOY9DtjweQLHsmnLgzQYg36KpW",
 			"created": 1717665636,
 			"serverExperiments": "",

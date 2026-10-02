@@ -74,6 +74,15 @@ suite('PreferencesService', () => {
 		assert.strictEqual(options.query, 'test query');
 	});
 
+	test('opens keyboard shortcuts in the modal group regardless of the source group', async () => {
+		const mainGroup = new TestEditorGroupView(1);
+		const testObject = createTestObject(new TestEditorGroupsService([mainGroup]));
+
+		await testObject.openGlobalKeybindingSettings(false, { groupId: mainGroup.id });
+
+		assert.strictEqual(lastOpenEditorGroup, MODAL_GROUP);
+	});
+
 	test('opens in the source group when it lives in the main editor part (even with modal editors enabled)', async () => {
 		const mainGroup = new TestEditorGroupView(1);
 		const testObject = createTestObject(new TestEditorGroupsService([mainGroup]));

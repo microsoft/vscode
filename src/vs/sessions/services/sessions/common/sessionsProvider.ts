@@ -6,14 +6,16 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ILanguageModelChatMetadataAndIdentifier } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
-import { IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -27,6 +29,19 @@ export interface ISessionChangeEvent {
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
 
+/** Provider-owned permission choice exposed while configuring a new session. */
+export interface ISessionPermissionOption {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly isDefault?: boolean;
+	readonly isAllowAll?: boolean;
+	/** Optional session mode applied only when a comparison bulk permission toggle selects this option. */
+	readonly comparisonModeId?: string;
+	readonly locked?: boolean;
+	readonly lockedReason?: string;
+}
+
 /** A provider-prepared replacement draft and its rollback operation. */
 export interface IPreparedNewSession {
 	readonly session: ISession;
@@ -37,8 +52,12 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** UI-only response observation, forwarded to the chat service rather than the backend. */
+	readonly onDidCreateResponse?: IChatSendRequestOptions['onDidCreateResponse'];
 	/** The query text to send. */
 	readonly query: string;
+	/** Provider-specific request metadata, separate from the prompt. */
+	readonly metadata?: Record<string, unknown>;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	/** Optional display title for the new session. */
@@ -51,6 +70,34 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Session that created this session, when it should be presented as a child. */
+	readonly createdBySession?: ISessionCreationReference;
+	/** Initial model identifier selected for the draft. */
+	readonly modelId?: string;
+	/** Model-specific primitive values applied only to this draft. */
+	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option resolved before the first request. */
+	readonly permissionId?: string;
+	/** Initial chat mode applied before the provider creates the draft session. */
+	readonly modeId?: string;
+	/** Complete Automation state for providers that also own compatibility projections. */
+	readonly automationConfiguration?: IAutomationSessionConfiguration;
+}
+
+/** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
+export interface ISessionConfigurationSnapshot {
+	/** Selected isolation mode, or undefined when the provider cannot determine it. */
+	readonly isolation?: 'worktree' | 'folder';
+	/** Provider-specific values may contain sensitive data and must not be logged wholesale. */
+	readonly providerConfig: Readonly<Record<string, unknown>>;
+}
+
+/** Provider-owned Automation draft state plus temporary compatibility projections. */
+export interface IAutomationSessionConfiguration {
+	readonly sessionTemplate?: IAutomationSessionTemplate;
+	readonly modelId?: string;
+	readonly mode?: string;
+	readonly permissionLevel?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -94,45 +141,17 @@ export interface ISessionModelsSnapshot {
 	readonly modelTarget: string | undefined;
 }
 
-export interface IAutomation {
-	readonly automation: IAutomationDescriptor;
-	readonly runs: readonly IAutomationRun[];
-}
-
-export type IAutomationSnapshotImportResult =
-	| { readonly kind: 'inserted' }
-	| { readonly kind: 'alreadyPresent' }
-	| { readonly kind: 'conflict'; readonly current: IAutomation };
-
-export type IGuardedAutomationSnapshotRemovalResult =
-	| { readonly kind: 'removed' }
-	| { readonly kind: 'conflict'; readonly current: IAutomation }
-	| { readonly kind: 'missing' };
-
+/**
+ * One concrete Sessions provider's Automation catalogue and operations, with provider-local capability state.
+ * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
+ */
 export interface ISessionsProviderAutomations extends IAutomationStore {
-	canRunAutomation?(automationId: string): boolean;
-	canUpdateAutomation?(automationId: string): boolean;
-	canDeleteAutomation?(automationId: string): boolean;
-	/** Whether this provider's authority currently evaluates the given Automation's schedule. */
-	isSchedulingOwnedByHost?(automationId: string): boolean;
-	/** Whether importing a snapshot preserves its historical runs. Defaults to true. */
-	readonly preservesImportedRunHistory?: boolean;
-	/** Whether every persisted source row was understood and can be migrated without loss. */
-	canCompleteMigration?(): boolean;
-	/** Imports a snapshot without replacing an Automation already stored under the same ID. */
-	importAutomationSnapshot(snapshot: IAutomation): Promise<IAutomationSnapshotImportResult>;
-	/** Inserts or replaces an Automation snapshot without publishing create or update telemetry. */
-	upsertAutomationSnapshot(snapshot: IAutomation): Promise<void>;
-	/** Removes a snapshot only when the currently stored Automation and runs still match it. */
-	removeAutomationSnapshotIfUnchanged(expected: IAutomation): Promise<IGuardedAutomationSnapshotRemovalResult>;
-	/**
-	 * Signals that an imported snapshot's source row has been durably removed and the destination
-	 * store may release any staging holds (e.g. the pending-import flag that suppresses scheduling
-	 * authority until the source is gone).
-	 */
-	acknowledgeAutomationSnapshotImported?(snapshot: IAutomation): Promise<void>;
-	/** Finalizes any authority migration after all snapshots have been imported and verified. */
-	completeMigration?(): Promise<void>;
+	/** Whether this provider accepts new definitions; existing definitions may independently allow updates. */
+	readonly canCreateAutomation: IObservable<boolean>;
+	/** Explanation and recovery guidance for provider unavailability, when present. */
+	readonly unavailableReason?: IObservable<string | undefined>;
+	/** Optional category for grouped unavailability messages. */
+	readonly unavailableReasonCode?: IObservable<AutomationUnavailableReasonCode | undefined>;
 }
 
 /**
@@ -164,6 +183,7 @@ export interface ISessionsProvider {
 	 * A human-readable label for the provider, used in the UI.
 	 */
 	readonly label: string;
+	readonly environment: ISessionEnvironment;
 
 	/**
 	 * Icon for the provider, used in the UI.
@@ -192,6 +212,13 @@ export interface ISessionsProvider {
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Returns an opaque target that the provider's session-context tool accepts
+	 * for the given chat, or `undefined` when transcript access is unavailable.
+	 */
+	getSessionContextReference?(chatResource: URI): string | undefined;
+
 	/**
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
@@ -212,6 +239,11 @@ export interface ISessionsProvider {
 	 */
 	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
+	 * Optional. Prepares a known session for opening or restoration; it may already be visible.
+	 * Startup restoration invokes this only for the active session.
+	 */
+	prepareSessionForOpen?(session: ISession, reason: SessionResourceResolveReason): Promise<void>;
+	/**
 	 * Optional. Fires when a temporary (untitled) session is atomically replaced
 	 * by a committed session after the first turn.
 	 *
@@ -224,6 +256,12 @@ export interface ISessionsProvider {
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+
+	/**
+	 * Whether this provider participates in workspace selection for new sessions and Automations.
+	 * Defaults to true; opting out does not prevent resolution of existing session workspaces.
+	 */
+	readonly supportsWorkspaceSelection?: boolean;
 
 	/**
 	 * Whether this provider can resolve and run sessions against local file-system workspaces.
@@ -241,13 +279,22 @@ export interface ISessionsProvider {
 	 */
 	readonly supportsQuickChats?: boolean;
 
+	/** Whether phone layouts replace separate Mode and Model controls with one picker. */
+	readonly usesCombinedNewSessionConfigPicker?: boolean;
+	/** Whether model-specific configuration can be scoped to a newly created draft. */
+	readonly supportsModelConfigurationForCreation?: boolean;
+	/** Exact permission choices available while creating the given session type. */
+	getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
+	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
+	readonly supportsAutomationSessionConfiguration?: boolean;
+
 	/**
 	 * Optional. Fires when a capability flag that consumers gate UI on (e.g.
 	 * {@link supportsQuickChats}) changes at runtime, so they can re-evaluate.
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
-	/** Provider-owned Automation entities, persistence, and run history. */
+	/** Provider-owned Automation entities, persistence, and run history; absent for providers that do not participate in Automations. */
 	readonly automations?: ISessionsProviderAutomations;
 
 	/**
@@ -257,6 +304,13 @@ export interface ISessionsProvider {
 	 * @param workspaceUri The URI of the repository to resolve the workspace for.
 	 */
 	resolveWorkspace(workspaceUri: URI): ISessionWorkspace | undefined;
+
+	/**
+	 * Returns the canonical URI for a workspace represented by this provider.
+	 * Providers may use this to collapse alternate execution environments onto
+	 * the user-selected source workspace.
+	 */
+	canonicalizeWorkspaceUri?(workspaceUri: URI): URI;
 
 	/**
 	 * Create a new session for the given workspace URI.
@@ -296,7 +350,7 @@ export interface ISessionsProvider {
 	 * support quick chats must throw.
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
-	createQuickChat(sessionTypeId: string): ISession;
+	createQuickChat(sessionTypeId: string, options?: ISessionsProviderCreateSessionOptions): ISession;
 
 	/**
 	 * Delete a new (untitled, not-yet-sent) session previously created via
@@ -306,6 +360,12 @@ export interface ISessionsProvider {
 	 * @param sessionId The id of the new session to delete.
 	 */
 	deleteNewSession(sessionId: string): void;
+
+	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
+	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
+
+	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
+	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
 
 	/**
 	 * Get the session types supported for a given workspace URI.
@@ -329,11 +389,20 @@ export interface ISessionsProvider {
 	 */
 	renameSession(sessionId: string, title: string): Promise<void>;
 
+	/** Remove a recorded artifact without changing independent session associations. */
+	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
+
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.
 	 * Callers wait for {@link onDidChangeModels} while the requested model is pending.
 	 */
 	getModelsSnapshot(sessionId: string, desiredModelId?: string): ISessionModelsSnapshot;
+
+	/**
+	 * Get selectable models before creating a session.
+	 * Providers apply the same availability, visibility, and identifier-resolution rules as {@link getModelsSnapshot}.
+	 */
+	getModelsSnapshotForCreation?(workspaceUri: URI, sessionTypeId: string, desiredModelId?: string): ISessionModelsSnapshot;
 
 	/**
 	 * Get the presentation options for the sessions-core model picker for the
@@ -381,6 +450,9 @@ export interface ISessionsProvider {
 	 */
 	setPermissionLevel?(sessionId: string, level: string): void;
 
+	/** Snapshots the draft configuration after pending changes settle, normalizing common properties at the provider boundary. */
+	getNewSessionConfig?(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined>;
+
 	/**
 	 * Set the isolation mode for a session.
 	 * @param sessionId The ID of the session.
@@ -416,11 +488,26 @@ export interface ISessionsProvider {
 	 */
 	archiveSession(sessionId: string): Promise<void>;
 
+	/** Permanently imports an external session without sending a message or changing its identity. */
+	importSession?(sessionId: string): Promise<void>;
+
+	/**
+	 * Returns the current on-disk size of the session's isolated worktree.
+	 * Providers without host-owned worktrees leave this capability undefined.
+	 */
+	getSessionWorktreeDiskUsage?(sessionId: string): Promise<number | undefined>;
+
 	/**
 	 * Unarchive a session.
 	 * @param sessionId The ID of the session to unarchive.
 	 */
 	unarchiveSession(sessionId: string): Promise<void>;
+
+	/** Archive a chat independently of its owning session. */
+	archiveChat?(sessionId: string, chatResource: URI): Promise<void>;
+
+	/** Unarchive a chat independently of its owning session. */
+	unarchiveChat?(sessionId: string, chatResource: URI): Promise<void>;
 
 	/**
 	 * Set the read/unread state of a session. The provider owns and persists

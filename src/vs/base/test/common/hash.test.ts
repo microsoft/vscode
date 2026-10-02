@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { isStringInSample } from '../../common/hash.js';
+import { ConstantStringHash, isStringInSample, stringHash } from '../../common/hash.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('isStringInSample', () => {
@@ -28,5 +28,25 @@ suite('isStringInSample', () => {
 		assert.throws(() => isStringInSample('session', -1));
 		assert.throws(() => isStringInSample('session', 1.5));
 		assert.throws(() => isStringInSample('session', 101));
+	});
+});
+
+suite('ConstantStringHash', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches stringHash for int32 accumulators', () => {
+		const values = ['', 'a', 'label', 'description', 'values', 'value', 'expectContiguousMatch', 'allowNonContiguousMatches', 'ünïcödé', '\u0000\u0001', '\uD83D\uDE80', '\uD800', '\uDFFF', 'x'.repeat(200)];
+		const hashVals = [0, 1, -1, 149417, 2147483647, -2147483648, 123456789, ...Array.from({ length: 128 }, (_, index) => Math.imul(index + 1, 2654435761))];
+
+		assert.deepStrictEqual(
+			values.map(value => hashVals.map(hashVal => new ConstantStringHash(value).apply(hashVal))),
+			values.map(value => hashVals.map(hashVal => stringHash(value, hashVal)))
+		);
+	});
+
+	test('can be chained like stringHash', () => {
+		const chained = new ConstantStringHash('b').apply(new ConstantStringHash('a').apply(0));
+
+		assert.strictEqual(chained, stringHash('b', stringHash('a', 0)));
 	});
 });

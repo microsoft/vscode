@@ -140,12 +140,7 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 
 **Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
 
-**Size, spacing, radius, font and stroke** values have their own design-system
-**size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the
-compact-glyph convention). Those live in the **ux-css-layout** skill (§10
-Design-System Size Tokens) and the auto-injected
-`.github/instructions/design-tokens.instructions.md`. Reach for those when a flag
-is about *how big / how round / how bold* something is rather than *what color*.
+**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
 
 
 ---
