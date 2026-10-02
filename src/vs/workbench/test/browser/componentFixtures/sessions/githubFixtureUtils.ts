@@ -266,7 +266,7 @@ function upcastGitHubCredentials(): IGitHubClient['credentials'] {
 		override readonly onDidInvalidate = Event.None;
 		override async getCredential(signal: AbortSignal) {
 			return {
-				account: { host: 'github.com', accountId: 'fixture' },
+				account: { host: 'api.github.com', accountId: 'fixture' },
 				token: 'fixture',
 				generation: 1,
 				signal,

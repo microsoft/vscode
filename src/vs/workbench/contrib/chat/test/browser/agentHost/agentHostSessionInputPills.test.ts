@@ -149,7 +149,7 @@ suite('AgentHostSessionInputPills', () => {
 						}
 					}
 					return {
-						account: { host: 'github.com', accountId: 'test' },
+						account: { host: 'api.github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
 						signal,

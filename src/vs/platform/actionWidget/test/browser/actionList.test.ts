@@ -2402,6 +2402,23 @@ suite('ActionListWidget', () => {
 		}, { panelVisible: true, layouts: 1 });
 	}));
 
+	test('does not prefetch initially visible rows on the first small scroll', async () => {
+		const visible: string[] = [];
+		const widget = createActionListWidget(disposables, {
+			items: Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
+				...action(`item-${index}`),
+				onDidBecomeVisible: () => visible.push(`item-${index}`),
+			})),
+			listOptions: { showFilter: false },
+		});
+		widget.layout(47, 200);
+		await settleLayout();
+		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
+		list.scrollTop = 1;
+		await settleLayout();
+		assert.deepStrictEqual(visible, []);
+	});
+
 	test('notifies virtualized items when scrolling makes them visible', async () => {
 		const visible: string[] = [];
 		const items = Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({

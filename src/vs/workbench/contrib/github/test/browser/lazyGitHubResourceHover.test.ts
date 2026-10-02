@@ -21,6 +21,37 @@ import { createLazyGitHubResourceHover, LazyGitHubResourceResolver, parseGitHubR
 suite('LazyGitHubResourceHover', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('never subscribes to public references through enterprise credentials', async () => {
+		const subscriptions: string[] = [];
+		const warnings: string[] = [];
+		const client = upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({
+				getCredential: async signal => ({
+					account: { host: 'github.enterprise.example', accountId: 'enterprise' }, token: 'token', generation: 1, signal,
+				}),
+			}),
+			query: upcastPartial<IGitHubClient['query']>({
+				subscribeIssue: () => { subscriptions.push('issue'); throw new Error('Must not subscribe'); },
+			}),
+			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+				subscribePullRequest: () => { subscriptions.push('pullRequest'); throw new Error('Must not subscribe'); },
+			}),
+		});
+		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => new ImmortalReference(client),
+		}), new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		}()));
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const results = await Promise.all([resolver.resolveIssue(target), resolver.resolvePullRequest(target)]);
+		assert.deepStrictEqual({
+			results, subscriptions, warnings: warnings.length,
+			issue: resolver.getIssueState(target).get().status,
+			pullRequest: resolver.getPullRequestState(target).get().status,
+		}, { results: [undefined, undefined], subscriptions: [], warnings: 2, issue: 'failed', pullRequest: 'failed' });
+	});
+
 	for (const invalidation of ['evict', 'account', 'dispose'] as const) {
 		for (const rejects of [true, false]) {
 			test(`discards canceled checks after ${invalidation} when refresh ${rejects ? 'rejects' : 'resolves'}`, async () => {
@@ -30,7 +61,7 @@ suite('LazyGitHubResourceHover', () => {
 				const warnings: string[] = [];
 				const client = upcastPartial<IGitHubClient>({
 					credentials: upcastPartial<IGitHubClient['credentials']>({
-						getCredential: async signal => ({ account: { host: 'github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+						getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
 					}),
 					pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 						subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
@@ -130,7 +161,7 @@ suite('LazyGitHubResourceHover', () => {
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
 				getCredential: async (signal: AbortSignal) => ({
-					account: { host: 'github.com', accountId: 'test' },
+					account: { host: 'api.github.com', accountId: 'test' },
 					token: 'token',
 					generation: 1,
 					signal,
@@ -305,7 +336,7 @@ suite('LazyGitHubResourceHover', () => {
 				credentials: upcastPartial<IGitHubClient['credentials']>({
 					onDidInvalidate: Event.None,
 					getCredential: async (signal: AbortSignal) => ({
-						account: { host: 'github.com', accountId: 'test' },
+						account: { host: 'api.github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
 						signal,
@@ -393,7 +424,7 @@ suite('LazyGitHubResourceHover', () => {
 		const abortedOnEviction = acquisitionSignal?.aborted;
 		acquired.complete(new ImmortalReference(upcastPartial<IGitHubClient>({
 			credentials: upcastPartial<IGitHubClient['credentials']>({
-				getCredential: async signal => ({ account: { host: 'github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
+				getCredential: async signal => ({ account: { host: 'api.github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
 			}),
 			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 				subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
@@ -437,7 +468,7 @@ suite('LazyGitHubResourceHover', () => {
 			credentials: upcastPartial<IGitHubClient['credentials']>({
 				onDidInvalidate: Event.None,
 				getCredential: async (signal: AbortSignal) => ({
-					account: { host: 'github.com', accountId: 'test' },
+					account: { host: 'api.github.com', accountId: 'test' },
 					token: 'token',
 					generation: 1,
 					signal,

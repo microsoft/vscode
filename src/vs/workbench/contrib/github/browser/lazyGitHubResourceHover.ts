@@ -191,6 +191,9 @@ export class LazyGitHubResourceResolver extends Disposable {
 			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
 			const client = clientReference.object;
 			const credential = await client.credentials.getCredential(signal);
+			if (credential.account.host.toLowerCase() !== 'api.github.com') {
+				throw new Error('The selected GitHub account does not host github.com references.');
+			}
 			const ref: GitHubIssueRef = { ...credential.account, ...target };
 			const subscription = client.query.subscribeIssue(ref, { priority: 'interactive' });
 			try {
@@ -219,6 +222,9 @@ export class LazyGitHubResourceResolver extends Disposable {
 			clientReference = await this._gitHubService.acquireDefaultAccountClient(signal);
 			const client = clientReference.object;
 			const credential = await client.credentials.getCredential(signal);
+			if (credential.account.host.toLowerCase() !== 'api.github.com') {
+				throw new Error('The selected GitHub account does not host github.com references.');
+			}
 			const ref: PullRequestRef = { ...credential.account, ...target };
 			const subscription = client.pullRequests.subscribePullRequest(ref, {
 				priority: 'interactive',
