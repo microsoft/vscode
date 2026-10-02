@@ -11,7 +11,7 @@ import { Gesture } from '../../../../../base/browser/touch.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType, NotSelectableGroupId } from '../../../../../base/browser/ui/list/list.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, ObjectTreeElementCollapseState, ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
-import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { LabelFuzzyScore, RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -41,6 +41,7 @@ import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../commo
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { parseGitHubPullRequestUrl } from '../../../../../platform/github/common/githubUrls.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -56,7 +57,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionArtifactKind, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -402,6 +403,34 @@ function isSessionPlaceholder(item: SessionListItem): item is ISessionPlaceholde
 
 function isSessionItem(item: SessionListItem): item is ISession {
 	return !isSessionChatItem(item) && !isSessionGroupItem(item) && !isSessionSection(item) && !isSessionShowMore(item) && !isSessionPlaceholder(item);
+}
+
+function getSessionKeyboardNavigationLabels(session: ISession): string[] {
+	const labels = [session.title.get()];
+	for (const folder of session.workspace.get()?.folders ?? []) {
+		for (const pullRequest of getGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.get())) {
+			labels.push(`#${pullRequest.number}`);
+		}
+	}
+	for (const artifact of session.artifacts?.get() ?? []) {
+		const pullRequest = artifact.kind === SessionArtifactKind.PullRequest && artifact.isGitHub !== false && artifact.link
+			? parseGitHubPullRequestUrl(artifact.link.toString(true))
+			: undefined;
+		if (pullRequest) {
+			labels.push(`#${pullRequest.number}`);
+		}
+	}
+	return labels;
+}
+
+function getSessionTitleMatches(session: ISession, filterData: FuzzyScore | LabelFuzzyScore | undefined): IMatch[] | undefined {
+	if (!filterData) {
+		return undefined;
+	}
+	if (Array.isArray(filterData)) {
+		return createMatches(filterData);
+	}
+	return filterData.label === session.title.get() ? createMatches(filterData.score) : undefined;
 }
 
 const SHOW_MORE_FOLDERS_LABEL = '__more_folders__';
@@ -1324,7 +1353,7 @@ export interface ISessionCIFixModel {
 	fixCI(session: ISession): void;
 }
 
-class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, ISessionItemTemplate> {
+class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore | LabelFuzzyScore, ISessionItemTemplate> {
 	static readonly TEMPLATE_ID = 'session-item';
 	readonly templateId = SessionItemRenderer.TEMPLATE_ID;
 	readonly rowClassName = 'session-list-inset-row';
@@ -1495,12 +1524,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return { container, statusIcon, title, titleRow, titleContainer, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
 	}
 
-	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	renderElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		const element = node.element;
 		if (!isSessionItem(element)) {
 			return;
 		}
-		this.renderSession(element, template, createMatches(node.filterData));
+		this.renderSession(element, template, getSessionTitleMatches(element, node.filterData));
 	}
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
@@ -2008,7 +2037,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		return target?.capabilities.get().supportsRename ? target : undefined;
 	}
 
-	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
+	disposeElement(node: ITreeNode<SessionListItem, FuzzyScore | LabelFuzzyScore>, _index: number, template: ISessionItemTemplate): void {
 		if (isSessionItem(node.element) && this.renameState && isEqual(this.renameState.session.resource, node.element.resource) && !this.resolveRenameTarget(node.element)) {
 			this.editingSession.set(undefined, undefined);
 			this.renameState = undefined;
@@ -4054,7 +4083,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 						if (isSessionChatItem(element)) {
 							return getChatTitle(element.chat);
 						}
-						return element.title.get();
+						return getSessionKeyboardNavigationLabels(element);
 					}
 				},
 				overrideStyles: this.options.overrideStyles,
