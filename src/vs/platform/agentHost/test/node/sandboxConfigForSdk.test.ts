@@ -6,9 +6,9 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
+import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
-import { AgentSandboxEnabledValue, type IAgentSandboxFileSystemSetting } from '../../../sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, type IAgentSandboxUserConfiguredPaths } from '../../../sandbox/common/settings.js';
 import { buildSandboxConfigForSdk, type SandboxConfig } from '../../node/copilot/sandboxConfigForSdk.js';
 
 suite('VS Code sandbox read roots', () => {
@@ -33,20 +33,11 @@ suite('VS Code sandbox read roots', () => {
 	});
 });
 
-/**
- * Build the host-side `sandbox` root-config bag (the shape the workbench
- * forwarder dispatches in a `RootConfigChanged` action) for the given
- * `enabled` enum + optional per-OS filesystem rules and network host lists.
- *
- * Mirrors the per-OS dispatch in the Copilot extension's
- * `buildSandboxConfigForCLI` tests — the SDK helper consumes the same fields
- * but receives them via the host root bag instead of the per-OS keyed
- * object.
- */
+/** Builds the host-side sandbox bag with Copilot user-configured paths. */
 function sandbox(
-	platform: NodeJS.Platform,
+	_platform: NodeJS.Platform,
 	enabled: AgentSandboxEnabledValue | undefined,
-	fs?: IAgentSandboxFileSystemSetting,
+	fs?: IAgentSandboxUserConfiguredPaths,
 	hosts?: { allowedHosts?: readonly string[]; blockedHosts?: readonly string[] },
 	allowNetwork?: boolean,
 ): ISandboxConfigValue | undefined {
@@ -58,12 +49,7 @@ function sandbox(
 		cfg[AgentHostSandboxKey.Enabled] = enabled;
 	}
 	if (fs) {
-		const fsKey = platform === 'win32'
-			? AgentHostSandboxKey.WindowsFileSystem
-			: platform === 'darwin'
-				? AgentHostSandboxKey.MacFileSystem
-				: AgentHostSandboxKey.LinuxFileSystem;
-		cfg[fsKey] = fs;
+		cfg[AgentHostSandboxKey.UserConfiguredPaths] = fs;
 	}
 	if (hosts?.allowedHosts?.length) {
 		cfg[AgentHostSandboxKey.AllowedNetworkDomains] = [...hosts.allowedHosts];
@@ -226,28 +212,57 @@ suite('buildSandboxConfigForSdk', () => {
 	});
 
 	suite('filesystem policy', () => {
-		test('selects the OS-specific slice from the per-OS filesystem keys', () => {
+		test('validates the three optional path lists at the host boundary', () => {
+			assert.deepStrictEqual([
+				{},
+				{ readwritePaths: [], readonlyPaths: ['./read'], deniedPaths: ['./private'] },
+				{ readwritePaths: 'not-an-array' },
+				{ readonlyPaths: [1] },
+				{ deniedPaths: null },
+			].map(paths => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { [AgentHostSandboxKey.UserConfiguredPaths]: paths })),
+				[true, true, false, false, false]);
+		});
+
+		test('normalizes Windows paths before deduplication without mutating input', () => {
+			const fs = {
+				readwritePaths: ['C:/work', 'C:\\work', 'C:/private'],
+				readonlyPaths: ['C:/read', 'C:\\private'],
+				deniedPaths: ['C:/private'],
+			};
+			const original = JSON.stringify(fs);
+			const result = buildSandboxConfigForSdk('win32', sandbox('win32', AgentSandboxEnabledValue.On, fs), ['C:/private', 'C:/work', 'C:/generated']);
+			assert.deepStrictEqual({
+				filesystem: result?.userPolicy?.filesystem,
+				stored: JSON.stringify(fs),
+			}, {
+				filesystem: { deniedPaths: ['C:\\private'], readonlyPaths: ['C:\\read', 'C:\\generated'], readwritePaths: ['C:\\work'] },
+				stored: original,
+			});
+		});
+
+		test('ignores legacy per-OS paths without fallback or merging', () => {
 			const cfg: ISandboxConfigValue = {
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 				[AgentHostSandboxKey.LinuxFileSystem]: { allowWrite: ['/linux'] },
 				[AgentHostSandboxKey.MacFileSystem]: { allowWrite: ['/mac'] },
 				[AgentHostSandboxKey.WindowsFileSystem]: { allowWrite: ['C:\\windows'] },
 			};
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/linux'] }).userPolicy?.filesystem);
-			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/mac'] }).userPolicy?.filesystem);
-			assert.deepStrictEqual(buildSandboxConfigForSdk('win32', cfg)?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['C:\\windows'] }).userPolicy?.filesystem);
+			for (const platform of ['linux', 'darwin', 'win32'] as const) {
+				assert.deepStrictEqual([undefined, {}, { readwritePaths: ['workspace'] }].map(paths =>
+					buildSandboxConfigForSdk(platform, { ...cfg, [AgentHostSandboxKey.UserConfiguredPaths]: paths })?.userPolicy?.filesystem),
+					[{}, {}, { readwritePaths: ['workspace'] }]);
+			}
 		});
 
 		test('maps each setting to the corresponding SDK list', () => {
-			const fs: IAgentSandboxFileSystemSetting = {
-				allowWrite: ['/work'],
-				allowRead: ['/read'],
-				denyWrite: ['/readonly'],
-				denyRead: ['/secret'],
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				readwritePaths: ['/work'],
+				readonlyPaths: ['/read'],
+				deniedPaths: ['/secret'],
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs)), expectedSandboxConfig({
 				readwritePaths: ['/work'],
-				readonlyPaths: ['/readonly', '/read'],
+				readonlyPaths: ['/read'],
 				deniedPaths: ['/secret'],
 			}));
 		});
@@ -256,37 +271,34 @@ suite('buildSandboxConfigForSdk', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, {})), expectedSandboxConfig());
 		});
 
-		test('denyRead wins over every other setting for the same path', () => {
-			const fs: IAgentSandboxFileSystemSetting = {
-				allowRead: ['/p'],
-				allowWrite: ['/p'],
-				denyWrite: ['/p'],
-				denyRead: ['/p'],
+		test('denied paths win over every other permission for the same path', () => {
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				readonlyPaths: ['/p'],
+				readwritePaths: ['/p'],
+				deniedPaths: ['/p'],
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ deniedPaths: ['/p'] }).userPolicy?.filesystem);
 		});
 
-		test('denyWrite wins over allowWrite / allowRead for the same path', () => {
-			const fs: IAgentSandboxFileSystemSetting = {
-				allowRead: ['/p'],
-				allowWrite: ['/p'],
-				denyWrite: ['/p'],
+		test('read-only wins over read/write for the same path', () => {
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				readonlyPaths: ['/p'],
+				readwritePaths: ['/p'],
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ readonlyPaths: ['/p'] }).userPolicy?.filesystem);
 		});
 
-		test('allowWrite wins over allowRead for the same path', () => {
-			const fs: IAgentSandboxFileSystemSetting = {
-				allowRead: ['/p'],
-				allowWrite: ['/p'],
+		test('deduplicates paths within each permission', () => {
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				readwritePaths: ['/p', '/p'],
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({ readwritePaths: ['/p'] }).userPolicy?.filesystem);
 		});
 
 		test('keeps distinct paths in their own lists when settings overlap on some paths', () => {
-			const fs: IAgentSandboxFileSystemSetting = {
-				allowWrite: ['/work', '/shared'],
-				denyWrite: ['/shared'],
+			const fs: IAgentSandboxUserConfiguredPaths = {
+				readwritePaths: ['/work', '/shared'],
+				readonlyPaths: ['/shared'],
 			};
 			assert.deepStrictEqual(buildSandboxConfigForSdk('darwin', sandbox('darwin', AgentSandboxEnabledValue.On, fs))?.userPolicy?.filesystem, expectedSandboxConfig({
 				readwritePaths: ['/work'],
@@ -323,22 +335,22 @@ suite('buildSandboxConfigForSdk', () => {
 			});
 		});
 
-		test('keeps user denyRead winning over a host-generated path', () => {
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { denyRead: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
+		test('keeps user denied paths winning over a host-generated path', () => {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { deniedPaths: ['/data/shellInit/s1'] }), ['/data/shellInit/s1'])?.userPolicy?.filesystem, {
 				deniedPaths: ['/data/shellInit/s1'],
 			});
 		});
 
 		test('does not downgrade a path the user already made readwrite', () => {
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowWrite: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { readwritePaths: ['/work'] }), ['/work'])?.userPolicy?.filesystem, {
 				readwritePaths: ['/work'],
 			});
 		});
 
 		test('changes nothing when omitted or empty', () => {
-			const base = buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }));
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), []), base);
-			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { allowRead: ['/repo'] }), undefined), base);
+			const base = buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: ['/repo'] }));
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: ['/repo'] }), []), base);
+			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', sandbox('linux', AgentSandboxEnabledValue.On, { readonlyPaths: ['/repo'] }), undefined), base);
 		});
 
 		test('stays undefined when sandboxing is off, regardless of extra paths', () => {

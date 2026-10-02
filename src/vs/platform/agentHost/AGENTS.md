@@ -614,6 +614,14 @@ enablement, bypass, and outbound-network toggles against the runtime-resolved fl
 Managed enablement forces on; managed bypass and outbound denial force off, while
 managed permission never widens a local restriction. Filesystem settings remain
 local inputs and are not intersected or unioned by this helper.
+Copilot Agent Host reads filesystem permissions only from
+`chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as
+`sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`,
+and `deniedPaths` arrays apply on all host operating systems, with path separators
+normalized on the executing host. Denied paths take precedence over read-only
+paths, which take precedence over read/write paths. There is no migration or
+fallback from the deprecated per-OS filesystem settings; those remain inputs to
+the existing terminal sandbox engine, not the Copilot SDK sandbox.
 The SDK configuration builder forwards enablement, configured
 bypass/network choices, filesystem rules, and required host-generated read paths.
 It leaves optional working-directory grants, developer-tool access, credential

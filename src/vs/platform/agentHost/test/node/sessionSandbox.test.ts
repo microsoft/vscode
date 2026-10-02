@@ -375,6 +375,7 @@ suite('Session sandbox configuration', () => {
 				enabled: 'on',
 				allowNetwork: localAccess, allowUnsandboxedCommands: localAccess,
 				'fileSystem.linux': { allowRead: ['/reference'], denyRead: ['/private'] },
+				[AgentHostSandboxKey.UserConfiguredPaths]: { readonlyPaths: ['/reference'], deniedPaths: ['/private'] },
 			};
 			configuration.updateRootConfig({ sandbox });
 			const read = () => [owner, peer, buildSubagentSessionUri(buildSubagentSessionUri(owner, 'child'), 'nested')].map(session => {
@@ -515,6 +516,7 @@ suite('Session sandbox configuration', () => {
 			sandbox: {
 				enabled: 'off', allowNetwork: false,
 				[AgentHostSandboxKey.LinuxFileSystem]: { denyRead: ['/private'] },
+				[AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: ['/private'] },
 			}
 		});
 		const effective = getSessionSandboxConfig(configuration, owner);
@@ -559,13 +561,18 @@ suite('Session sandbox configuration', () => {
 	});
 
 	for (const platform of ['win32', 'linux', 'darwin'] as const) {
-		test(`selects and normalizes paths for the ${platform} host after a client configuration action`, () => {
+		test(`normalizes Copilot paths for the ${platform} host after a client configuration action`, () => {
 			const { manager, configuration, create } = setupSession();
 			const owner = create(platform, { sandboxEnabled: 'on' });
 			const sandbox = {
 				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:/private/'], allowRead: ['C:\\private\\'] },
 				[AgentHostSandboxKey.LinuxFileSystem]: { denyRead: ['/home/user/back\\slash', '~/private', './src/**/*.ts'] },
 				[AgentHostSandboxKey.MacFileSystem]: { denyRead: ['/Users/user/back\\slash', '~/private', './src/**/*.ts'] },
+				[AgentHostSandboxKey.UserConfiguredPaths]: {
+					deniedPaths: ['C:/private/'],
+					readonlyPaths: ['C:\\private\\', './read'],
+					readwritePaths: ['./write'],
+				},
 			};
 			manager.dispatchServerAction('ahp-root://', {
 				type: ActionType.RootConfigChanged,
@@ -573,15 +580,16 @@ suite('Session sandbox configuration', () => {
 			});
 			const effective = getSessionSandboxConfig(configuration, owner, platform);
 			const sdk = buildSandboxConfigForSdk(platform, effective);
-			const deniedPaths = platform === 'win32' ? ['C:\\private\\']
-				: platform === 'linux' ? sandbox[AgentHostSandboxKey.LinuxFileSystem].denyRead
-					: sandbox[AgentHostSandboxKey.MacFileSystem].denyRead;
 			assert.deepStrictEqual({
 				filesystem: sdk?.userPolicy?.filesystem,
 				stored: configuration.getRootConfigValues()?.sandbox,
 				windows: effective[AgentHostSandboxKey.WindowsFileSystem],
 			}, {
-				filesystem: { deniedPaths },
+				filesystem: platform === 'win32' ? {
+					deniedPaths: ['C:\\private\\'], readonlyPaths: ['.\\read'], readwritePaths: ['.\\write'],
+				} : {
+					deniedPaths: ['C:/private/'], readonlyPaths: ['C:\\private\\', './read'], readwritePaths: ['./write'],
+				},
 				stored: sandbox,
 				windows: platform === 'win32' ? { denyRead: ['C:\\private\\'], allowRead: ['C:\\private\\'] } : sandbox[AgentHostSandboxKey.WindowsFileSystem],
 			});

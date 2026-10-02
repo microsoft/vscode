@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
+import { OperatingSystem } from '../../../../base/common/platform.js';
+import { AgentSandboxEnabledValue, normalizeSandboxFileSystemPath } from '../../../sandbox/common/settings.js';
 import { AgentHostSandboxKey, type ISandboxConfigValue } from '../../common/sandboxConfigSchema.js';
 
 /**
@@ -97,17 +98,15 @@ export interface SandboxSeatbeltPolicy {
  * opaque `sandboxConfig` shape the Copilot SDK forwards to the runtime
  * via `session.options.update`.
  *
- * Path and network setting mappings mirror `buildSandboxConfigForCLI` in
- * `extensions/copilot/src/extension/chatSessions/copilotcli/node/copilotcliSessionService.ts`
- * while optional capabilities without a host setting are left to the runtime:
- *  - Path precedence: `denyRead` > `denyWrite` > `allowWrite` > `allowRead`.
+ * Optional capabilities without a host setting are left to the runtime:
+ *  - Path precedence: `deniedPaths` > `readonlyPaths` > `readwritePaths`.
  *    Each path appears in exactly one of `deniedPaths` / `readonlyPaths` /
  *    `readwritePaths`.
  *  - Network: the separate `allowNetwork` policy opens outbound to everything.
  *    Domain allow/deny lists are ignored because the SDK's `SandboxConfig`
  *    does not support host-level rules.
  *
- * All platforms share enablement while retaining platform-specific filesystem settings.
+ * All platforms share enablement and user-configured paths; legacy per-OS paths are ignored.
  * Optional toggles are forwarded only when supplied; absent values use runtime defaults.
  *
  * `extraReadonlyPaths` grants read access to session attachments and generated
@@ -123,37 +122,26 @@ export function buildSandboxConfigForSdk(
 		return undefined;
 	}
 
-	const fsRaw = platform === 'win32'
-		? sandbox?.[AgentHostSandboxKey.WindowsFileSystem]
-		: platform === 'darwin'
-			? sandbox?.[AgentHostSandboxKey.MacFileSystem]
-			: sandbox?.[AgentHostSandboxKey.LinuxFileSystem];
-	const hasFileSystemPolicy = fsRaw !== undefined && typeof fsRaw === 'object';
-	const fs = hasFileSystemPolicy ? fsRaw : {};
-
-	const denied = new Set<string>(fs.denyRead ?? []);
+	const fs = sandbox?.[AgentHostSandboxKey.UserConfiguredPaths];
+	const os = platform === 'win32' ? OperatingSystem.Windows : platform === 'darwin' ? OperatingSystem.Macintosh : OperatingSystem.Linux;
+	const denied = new Set((fs?.deniedPaths ?? []).map(path => normalizeSandboxFileSystemPath(path, os)));
 	const readonly = new Set<string>();
 	const readwrite = new Set<string>();
-	for (const p of fs.denyWrite ?? []) {
+	for (const path of fs?.readonlyPaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p)) {
 			readonly.add(p);
 		}
 	}
-	for (const p of fs.allowWrite ?? []) {
+	for (const path of fs?.readwritePaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p)) {
 			readwrite.add(p);
 		}
 	}
-	for (const p of fs.allowRead ?? []) {
-		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
-			readonly.add(p);
-		}
-	}
-	// Host-generated files the shell tool must be able to read (see
-	// `extraReadonlyPaths`). Routed through the same precedence sets as user
-	// paths so an explicit `denyRead` still wins, and so a path the user already
-	// made readwrite is not downgraded.
-	for (const p of extraReadonlyPaths ?? []) {
+	// User denies win over host-generated read grants; existing read/write grants are preserved.
+	for (const path of extraReadonlyPaths ?? []) {
+		const p = normalizeSandboxFileSystemPath(path, os);
 		if (!denied.has(p) && !readonly.has(p) && !readwrite.has(p)) {
 			readonly.add(p);
 		}

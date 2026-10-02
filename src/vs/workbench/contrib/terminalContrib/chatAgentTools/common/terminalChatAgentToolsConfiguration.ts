@@ -16,6 +16,24 @@ import { sortAutoApproveRules } from '../../../../../platform/terminal/common/au
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ConfigurationMigration, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
+
+export const sandboxAllowNetworkMigration: ConfigurationMigration = {
+	key: 'chat.agent.sandbox.allowNetwork',
+	migrateFn: (value, accessor) => {
+		if (typeof value !== 'boolean') {
+			return [];
+		}
+		return accessor(AgentSandboxSettingId.AgentSandboxAllowNetwork) === undefined ? [
+			[AgentSandboxSettingId.AgentSandboxAllowNetwork, { value }],
+			['chat.agent.sandbox.allowNetwork', { value: undefined }],
+		] : [['chat.agent.sandbox.allowNetwork', { value: undefined }]];
+	},
+};
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([sandboxAllowNetworkMigration]);
 
 /**
  * Default idle silence timeout in milliseconds. Used as both the configuration
@@ -636,7 +654,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) !== false),
 		order: 60,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.allowDevToolAccess', "Controls whether the sandbox allows access to common developer tools and caches."),
+		markdownDescription: localize('agentSandbox.allowDevToolAccess', "Grant read access to the tool directories found on PATH, in toolchain env vars (CARGO_HOME, GOROOT, and similar) and under your user profile, plus dev-tool config and caches (including registry tokens), and read-write to shared build caches. See `copilot help sandbox`."),
 		type: 'boolean',
 		default: true,
 		tags: ['preview'],
@@ -662,9 +680,41 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		}
 	},
+	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
+		order: 65,
+		keywords: ['Sandbox', 'sandboxing'],
+		markdownDescription: localize('agentSandbox.userConfiguredPaths', "Customize file path permissions"),
+		type: 'object',
+		properties: {
+			readwritePaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.readwritePaths', "Read/Write: paths the Copilot Agent Host sandbox can read and write."),
+				items: { type: 'string' },
+				default: [],
+			},
+			readonlyPaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.readonlyPaths', "Read-Only: paths the Copilot Agent Host sandbox can read but not write."),
+				items: { type: 'string' },
+				default: [],
+			},
+			deniedPaths: {
+				type: 'array',
+				description: localize('agentSandbox.userConfiguredPaths.deniedPaths', "Denied: paths the Copilot Agent Host sandbox cannot access."),
+				items: { type: 'string' },
+				default: [],
+			},
+		},
+		additionalProperties: false,
+		default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
+		tags: ['preview'],
+		restricted: true,
+	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
 		order: 70,
 		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
@@ -705,6 +755,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem]: {
 		order: 80,
 		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
@@ -745,6 +797,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
 		order: 90,
 		keywords: ['Sandbox', 'sandboxing'],
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {

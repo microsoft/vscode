@@ -393,6 +393,24 @@ suite('AgentHostSandboxForwarder', () => {
 		assert.strictEqual(local.dispatched.length, 1);
 	});
 
+	test('forwards user-configured paths and clears them when reset', async () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const paths = { readwritePaths: ['C:/work'], readonlyPaths: ['~/reference'], deniedPaths: ['./private'] };
+		const { local, configurationService } = setup(disposables, { [key]: paths });
+		local.setRootState(rootStateWithSandboxSchema());
+		await configurationService.setUserConfiguration(key, {});
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectsConfiguration: section => section === key,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+		});
+		assert.deepStrictEqual(local.dispatched, [paths, {}].map(value => ({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.UserConfiguredPaths]: value } },
+		})));
+	});
+
 	test('does not re-push to existing connections when a new remote appears', () => {
 		const { local, remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 		local.setRootState(rootStateWithSandboxSchema());
