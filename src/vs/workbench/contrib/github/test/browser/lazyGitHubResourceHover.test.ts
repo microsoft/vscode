@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { ImmortalReference } from '../../../../../base/common/lifecycle.js';
+import { ImmortalReference, IReference } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -174,66 +174,159 @@ suite('LazyGitHubResourceHover', () => {
 		]);
 	});
 
-	test('prefetches only pull request core metadata before a rich hover requests checks', async () => {
-		const operations: string[] = [];
-		const snapshot = observableValue<PullRequestSnapshot>('prefetchPullRequest', upcastPartial<PullRequestSnapshot>({
-			core: {
-				status: 'ready',
-				complete: true,
-				value: {
-					repositoryNameWithOwner: 'microsoft/vscode',
-					number: 2,
-					title: 'Pull request title',
-					url: 'https://github.com/microsoft/vscode/pull/2',
-					state: 'open',
-					draft: false,
-					headSha: 'head',
-					headRef: 'feature',
-					baseSha: 'base',
-					baseRef: 'main',
+	test('rejects non-canonical and unsafe reference numbers', () => {
+		const segments = ['1e3', '1.0', '+1', '001', '0x10', '0', '-1', '9007199254740993'];
+		assert.deepStrictEqual(segments.map(segment => ({
+			issue: parseGitHubReferenceTarget(URI.parse(`https://github.com/microsoft/vscode/issues/${segment}`), 'issue'),
+			pullRequest: parseGitHubReferenceTarget(URI.parse(`https://github.com/microsoft/vscode/pull/${segment}`), 'pullRequest'),
+		})), segments.map(() => ({ issue: undefined, pullRequest: undefined })));
+	});
+
+	test('retains only current metadata and hover descriptors', () => {
+		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+		}), new NullLogService()));
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const issue = { identity: {}, resource: URI.parse('https://github.com/microsoft/vscode/issues/1') };
+		const pullRequest = { identity: {}, resource: URI.parse('https://github.com/microsoft/vscode/pull/1') };
+		const options = {
+			kind: 'issue' as const, target, resource: issue.resource,
+			onDidClickRepository: () => { }, onDidClickReference: () => { },
+			onDidClickBaseBranch: () => { }, onDidClickHeadBranch: () => { },
+		};
+		const issueState = resolver.getIssueState(target);
+		const pullRequestState = resolver.getPullRequestState(target);
+		const hover = resolver.createHover(issue.identity, options);
+		resolver.retain([issue, pullRequest]);
+		const retained = resolver.getIssueState(target) === issueState && resolver.getPullRequestState(target) === pullRequestState && resolver.createHover(issue.identity, options) === hover;
+		resolver.retain([issue]);
+		const prEvicted = resolver.getPullRequestState(target) !== pullRequestState;
+		resolver.retain([]);
+		assert.deepStrictEqual({
+			retained,
+			prEvicted,
+			issueEvicted: resolver.getIssueState(target) !== issueState,
+			hoverEvicted: resolver.createHover(issue.identity, options) !== hover,
+		}, { retained: true, prEvicted: true, issueEvicted: true, hoverEvicted: true });
+	});
+
+	for (const failChecks of [false, true]) {
+		test(`preserves prefetched core metadata while checks ${failChecks ? 'fail' : 'resolve'}`, async () => {
+			const operations: string[] = [];
+			const checksStarted = new DeferredPromise<void>();
+			const finishChecks = new DeferredPromise<void>();
+			const snapshot = observableValue<PullRequestSnapshot>('prefetchPullRequest', upcastPartial<PullRequestSnapshot>({
+				core: {
+					status: 'ready',
+					complete: true,
+					value: {
+						repositoryNameWithOwner: 'microsoft/vscode',
+						number: 2,
+						title: 'Pull request title',
+						url: 'https://github.com/microsoft/vscode/pull/2',
+						state: 'open',
+						draft: false,
+						headSha: 'head',
+						headRef: 'feature',
+						baseSha: 'base',
+						baseRef: 'main',
+					},
 				},
-			},
-			checks: {
-				status: 'ready',
-				complete: true,
-				value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
-			},
-		}));
-		const client = upcastPartial<IGitHubClient>({
-			credentials: upcastPartial<IGitHubClient['credentials']>({
-				onDidInvalidate: Event.None,
-				getCredential: async (signal: AbortSignal) => ({
-					account: { host: 'github.com', accountId: 'test' },
-					token: 'token',
-					generation: 1,
-					signal,
+				checks: {
+					status: 'ready',
+					complete: true,
+					value: { headSha: 'head', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
+				},
+			}));
+			const client = upcastPartial<IGitHubClient>({
+				credentials: upcastPartial<IGitHubClient['credentials']>({
+					onDidInvalidate: Event.None,
+					getCredential: async (signal: AbortSignal) => ({
+						account: { host: 'github.com', accountId: 'test' },
+						token: 'token',
+						generation: 1,
+						signal,
+					}),
 				}),
+				pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
+					subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
+						resource: { ref: upcastPartial({}), snapshot },
+						update: () => { },
+						refresh: async fragment => {
+							operations.push(String(fragment));
+							if (fragment === 'checks') {
+								checksStarted.complete();
+								await finishChecks.p;
+								if (failChecks) {
+									throw new Error('Checks unavailable');
+								}
+							}
+						},
+						dispose: () => { },
+					}),
+				}),
+			});
+			const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+				onDidChangeDefaultClient: Event.None,
+				acquireDefaultAccountClient: async () => new ImmortalReference(client),
+			}), new NullLogService()));
+			const target = { owner: 'microsoft', repo: 'vscode', number: 2 };
+
+			await resolver.prefetchPullRequest(target);
+			const afterPrefetch = [...operations];
+			const completion = resolver.resolvePullRequest(target);
+			await checksStarted.p;
+			const whileChecking = resolver.getPullRequestState(target).get();
+			finishChecks.complete();
+			const details = await completion;
+
+			assert.deepStrictEqual({
+				afterPrefetch,
+				afterHover: operations,
+				statusWhileChecking: whileChecking.status,
+				title: details?.pullRequest.title,
+			}, {
+				afterPrefetch: ['core'],
+				afterHover: ['core', 'core', 'checks'],
+				statusWhileChecking: 'resolved',
+				title: 'Pull request title',
+			});
+		});
+	}
+
+	test('does not resurrect an evicted prefetch when its hover is waiting', async () => {
+		const acquired = new DeferredPromise<IReference<IGitHubClient>>();
+		let acquisitions = 0;
+		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => { acquisitions++; return acquired.p; },
+		}), new NullLogService()));
+		const target = { owner: 'microsoft', repo: 'vscode', number: 1 };
+		const prefetched = resolver.prefetchPullRequest(target);
+		const hover = resolver.resolvePullRequest(target);
+		resolver.retain([]);
+		acquired.complete(new ImmortalReference(upcastPartial<IGitHubClient>({
+			credentials: upcastPartial<IGitHubClient['credentials']>({
+				getCredential: async signal => ({ account: { host: 'github.com', accountId: 'test' }, token: 'token', generation: 1, signal }),
 			}),
 			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 				subscribePullRequest: () => upcastPartial<ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']>>({
-					resource: { ref: upcastPartial({}), snapshot },
-					update: () => { },
-					refresh: async fragment => { operations.push(String(fragment)); },
+					refresh: async () => { },
 					dispose: () => { },
+					resource: { ref: upcastPartial({}), snapshot: observableValue('evicted', upcastPartial<PullRequestSnapshot>({
+						core: { status: 'ready', complete: true, value: {
+							repositoryNameWithOwner: 'microsoft/vscode', number: 1, title: 'Old PR',
+							url: 'https://github.com/microsoft/vscode/pull/1', state: 'open', draft: false,
+							headSha: 'head', headRef: 'feature', baseSha: 'base', baseRef: 'main',
+						} },
+						checks: { status: 'missing', complete: false },
+					})) },
 				}),
 			}),
-		});
-		const resolver = store.add(new LazyGitHubResourceResolver(upcastPartial<IWorkbenchGitHubService>({
-			onDidChangeDefaultClient: Event.None,
-			acquireDefaultAccountClient: async () => new ImmortalReference(client),
-		}), new NullLogService()));
-		const target = { owner: 'microsoft', repo: 'vscode', number: 2 };
-
-		await resolver.prefetchPullRequest(target);
-		const afterPrefetch = [...operations];
-		await resolver.resolvePullRequest(target);
-
-		assert.deepStrictEqual({
-			afterPrefetch,
-			afterHover: operations,
-		}, {
-			afterPrefetch: ['core'],
-			afterHover: ['core', 'core', 'checks'],
+		})));
+		await prefetched;
+		assert.deepStrictEqual({ hover: await hover, acquisitions, state: resolver.getPullRequestState(target).get() }, {
+			hover: undefined, acquisitions: 1, state: { status: 'idle' },
 		});
 	});
 

@@ -671,6 +671,10 @@ export class AgentHostSessionInputPills extends Disposable {
 				currentMetadata.issueUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'issue')).filter(isDefined),
 				currentMetadata.pullRequestUrls.map(link => parseUri(link)).filter(isDefined).map(resource => parseGitHubReferenceTarget(resource, 'pullRequest')).filter(isDefined),
 			);
+			this._lazyGitHubResourceResolver.retain(currentMetadata.references.flatMap(artifact => {
+				const resource = artifact.isGitHub === true && artifact.link ? parseUri(artifact.link) : undefined;
+				return resource ? [{ identity: artifact, resource }] : [];
+			}));
 			gitHubCommitResolver.retain([...currentMetadata.artifacts, ...currentMetadata.references]
 				.flatMap(artifact => artifact.type === SessionArtifactType.Commit && artifact.link ? [parseUri(artifact.link)] : [])
 				.filter(isDefined)

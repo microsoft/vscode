@@ -71,6 +71,34 @@ export class LazyGitHubResourceResolver extends Disposable {
 		return hover;
 	}
 
+	retain(references: readonly { readonly identity: object; readonly resource: URI }[]): void {
+		const issues = new Set<string>();
+		const pullRequests = new Set<string>();
+		const hovers = new WeakMap<object, ILazyGitHubResourceHover>();
+		for (const reference of references) {
+			const issue = parseGitHubReferenceTarget(reference.resource, 'issue');
+			const pullRequest = parseGitHubReferenceTarget(reference.resource, 'pullRequest');
+			if (issue) {
+				issues.add(githubTargetKey(issue));
+			}
+			if (pullRequest) {
+				pullRequests.add(githubTargetKey(pullRequest));
+			}
+			const hover = this._hovers.get(reference.identity);
+			if (hover && (issue || pullRequest)) {
+				hovers.set(reference.identity, hover);
+			}
+		}
+		this._hovers = hovers;
+		for (const [cache, keys] of [[this._issues, issues], [this._pullRequests, pullRequests]] as const) {
+			for (const key of cache.keys()) {
+				if (!keys.has(key)) {
+					cache.delete(key);
+				}
+			}
+		}
+	}
+
 	getIssueState(target: IGitHubReferenceTarget): IObservable<LazyGitHubResourceState<IGitHubIssueHoverModel>> {
 		return this._getEntry(this._issues, target).state;
 	}
@@ -109,11 +137,13 @@ export class LazyGitHubResourceResolver extends Disposable {
 		}
 		if (entry.promise) {
 			return requireComplete
-				? entry.promise.then(result => result ? this._resolve(cache, target, true, resolve, kind) : undefined)
+				? entry.promise.then(result => result && cache.get(githubTargetKey(target)) === entry ? this._resolve(cache, target, true, resolve, kind) : undefined)
 				: entry.promise;
 		}
 		if (!entry.promise) {
-			entry.state.set({ status: 'loading' }, undefined);
+			if (state.status !== 'resolved') {
+				entry.state.set({ status: 'loading' }, undefined);
+			}
 			entry.promise = resolve().then(result => {
 				entry.state.set(result ? { status: 'resolved', value: result } : { status: 'failed' }, undefined);
 				entry.complete = !!result && requireComplete;
@@ -164,7 +194,11 @@ export class LazyGitHubResourceResolver extends Disposable {
 			try {
 				await Promise.all([
 					subscription.refresh('core'),
-					...(includeChecks ? [subscription.refresh('checks')] : []),
+					...(includeChecks ? [subscription.refresh('checks').catch(error => {
+						if (!this._lifetime.signal.aborted) {
+							this._logService.warn('[LazyGitHubResourceResolver] Failed to resolve optional pull request checks', error);
+						}
+					})] : []),
 				]);
 				const snapshot = subscription.resource.snapshot.get();
 				return snapshot.core.value ? {
@@ -181,6 +215,7 @@ export class LazyGitHubResourceResolver extends Disposable {
 
 	override dispose(): void {
 		this._lifetime.abort();
+		this.retain([]);
 		super.dispose();
 	}
 }
@@ -306,8 +341,8 @@ export function parseGitHubReferenceTarget(resource: URI, kind: GitHubReferenceK
 		&& resource.authority.toLowerCase() === 'github.com'
 		&& segments.length === 4
 		&& segments[2] === expectedKind
-		&& Number.isInteger(number)
-		&& number > 0
+		&& /^[1-9]\d*$/.test(segments[3])
+		&& Number.isSafeInteger(number)
 		? { owner: segments[0], repo: segments[1], number }
 		: undefined;
 }

@@ -535,6 +535,8 @@ export class SessionArtifacts extends Disposable {
 		const gitHubResolver = this._register(new LazyGitHubResourceResolver(workbenchGitHubService, logService));
 		this._register(autorun(reader => {
 			const artifacts = session.read(reader)?.artifacts?.read(reader) ?? [];
+			gitHubResolver.retain(artifacts.flatMap(artifact =>
+				!artifact.isArtifact && artifact.isGitHub === true && artifact.link ? [{ identity: artifact, resource: artifact.link }] : []));
 			const commitTargets = artifacts
 				.flatMap(artifact => artifact.kind === SessionArtifactKind.Commit && artifact.link ? [parseGitHubCommitTarget(artifact.link)] : [])
 				.filter(isDefined);
