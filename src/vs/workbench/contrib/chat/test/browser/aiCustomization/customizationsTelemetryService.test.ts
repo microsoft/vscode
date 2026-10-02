@@ -4,57 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { McpServerStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationType, McpServerStatus, type ChildCustomization, type Customization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { IAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AICustomizationSources } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../../common/chatService/chatService.js';
-import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider } from '../../../common/customizationHarnessService.js';
-import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { IChatChangeEvent, IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { CustomizationsTelemetryContribution, CustomizationsTelemetryService, ICustomizationsTelemetryService } from '../../../browser/aiCustomization/customizationsTelemetryService.js';
 
 suite('CustomizationsTelemetryService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('reports source counts once after customization discovery completes', async () => {
-		const discovery = new DeferredPromise<boolean>();
-		let providerCalls = 0;
-		const itemProvider = new class extends mock<ICustomizationItemProvider>() {
-			override readonly onDidChange = Event.None;
-			override async provideChatSessionCustomizations(): Promise<ICustomizationItem[]> {
-				providerCalls++;
-				return [
-					item(PromptsType.agent, AICustomizationSources.user),
-					item(PromptsType.agent, AICustomizationSources.extension),
-					item(PromptsType.instructions, AICustomizationSources.local),
-					item(PromptsType.prompt, AICustomizationSources.plugin),
-					item(PromptsType.skill, AICustomizationSources.builtin),
-					item(PromptsType.hook, AICustomizationSources.user),
-					item('plugin', AICustomizationSources.plugin),
-				];
-			}
-		}();
-		const harnessService = new class extends mock<ICustomizationHarnessService>() {
-			override findHarnessById() {
-				return { id: 'agent-host-copilotcli', label: 'Copilot', icon: Codicon.copilot, itemProvider };
-			}
-		}();
+	test('reports source counts once from the completed session snapshot', () => {
 		const customizationService = new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
-			override async whenCustomizationsReady(): Promise<boolean> {
-				return discovery.p;
-			}
 			override getClientWorkingDirectoryUris() {
 				return [];
+			}
+			override getWorkingDirectories() {
+				return ['file:///workspace'];
+			}
+			override getCustomizations(): readonly Customization[] {
+				return [
+					plugin('file:///plugin', [
+						child(CustomizationType.Prompt, 'file:///plugin/commands/prompt.md'),
+					]),
+					plugin('vscode-synced-customization:/bundle', [
+						child(CustomizationType.Agent, 'file:///host/agents/extension.agent.md'),
+						child(CustomizationType.Skill, 'file:///host/skills/builtin/SKILL.md'),
+					]),
+					directory([
+						child(CustomizationType.Rule, 'file:///workspace/.github/instructions/workspace.instructions.md'),
+						child(CustomizationType.Hook, 'file:///user/hooks/hooks.json'),
+					]),
+				];
 			}
 			override getMcpServers() {
 				return [
@@ -64,6 +55,17 @@ suite('CustomizationsTelemetryService', () => {
 					mcpServer('managed'),
 					mcpServer(undefined),
 				];
+			}
+		}();
+		const activeClientService = new class extends mock<IAgentHostActiveClientService>() {
+			override getOrigin(resource: URI) {
+				if (resource.path.endsWith('/agents/extension.agent.md')) {
+					return { uri: URI.file('/extension.agent.md'), source: AICustomizationSources.extension };
+				}
+				if (resource.path.endsWith('/skills/builtin/SKILL.md')) {
+					return { uri: URI.file('/builtin/SKILL.md'), source: AICustomizationSources.builtin };
+				}
+				return undefined;
 			}
 		}();
 		const events: { eventName: string; data: unknown }[] = [];
@@ -76,8 +78,8 @@ suite('CustomizationsTelemetryService', () => {
 		}();
 		const errors: unknown[][] = [];
 		const service = new CustomizationsTelemetryService(
-			harnessService,
 			customizationService,
+			activeClientService,
 			telemetryService as ITelemetryService,
 			new class extends mock<ILogService>() {
 				override error(...args: unknown[]): void {
@@ -89,19 +91,13 @@ suite('CustomizationsTelemetryService', () => {
 
 		service.reportNewSession(sessionResource);
 		service.reportNewSession(sessionResource);
-		assert.deepStrictEqual({ providerCalls, events }, { providerCalls: 0, events: [] });
-
-		await discovery.complete(true);
-		await timeout(0);
 		assert.deepStrictEqual({
-			providerCalls,
 			errors,
 			events,
 		}, {
-			providerCalls: 1,
 			errors: [],
 			events: [
-				event('agent', { userCount: 1, extensionCount: 1 }),
+				event('agent', { extensionCount: 1 }),
 				event('instructions', { workspaceCount: 1 }),
 				event('prompt', { pluginCount: 1 }),
 				event('skill', { builtinCount: 1 }),
@@ -112,11 +108,28 @@ suite('CustomizationsTelemetryService', () => {
 		});
 	});
 
-	test('reports the first accepted request for a new session', () => {
+	test('reports after the first accepted request for a new session completes', () => {
 		const requests = new Emitter<IChatRequestAcceptedEvent>();
 		const reported: string[] = [];
+		const firstRequest = new class extends mock<IChatRequestModel>() { override readonly id = 'first'; }();
+		const secondRequest = new class extends mock<IChatRequestModel>() { override readonly id = 'second'; }();
+		const firstModelChanges = new Emitter<IChatChangeEvent>();
+		const secondModelChanges = new Emitter<IChatChangeEvent>();
+		const models = new Map<string, IChatModel>([
+			['agent-host-copilotcli:/one', new class extends mock<IChatModel>() {
+				override readonly onDidChange = firstModelChanges.event;
+				override readonly lastRequest = firstRequest;
+			}()],
+			['agent-host-claude:/two', new class extends mock<IChatModel>() {
+				override readonly onDidChange = secondModelChanges.event;
+				override readonly lastRequest = secondRequest;
+			}()],
+		]);
 		const contribution = new CustomizationsTelemetryContribution(new class extends mock<IChatService>() {
 			override readonly onDidAcceptRequest = requests.event;
+			override getSession(resource: URI): IChatModel | undefined {
+				return models.get(resource.toString());
+			}
 		}(), new class extends mock<ICustomizationsTelemetryService>() {
 			override reportNewSession(resource: URI): void {
 				reported.push(resource.toString());
@@ -126,8 +139,14 @@ suite('CustomizationsTelemetryService', () => {
 		requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: true });
 		requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: false });
 		requests.fire({ chatSessionResource: URI.parse('agent-host-claude:/two'), isNewSession: true });
+		assert.deepStrictEqual(reported, []);
+
+		firstModelChanges.fire({ kind: 'completedRequest', request: firstRequest });
+		secondModelChanges.fire({ kind: 'completedRequest', request: secondRequest });
 		contribution.dispose();
 		requests.dispose();
+		firstModelChanges.dispose();
+		secondModelChanges.dispose();
 
 		assert.deepStrictEqual(reported, [
 			'agent-host-copilotcli:/one',
@@ -136,14 +155,35 @@ suite('CustomizationsTelemetryService', () => {
 	});
 });
 
-function item(type: string, source: ICustomizationItem['source']): ICustomizationItem {
+function child(type: ChildCustomization['type'], uri: string): ChildCustomization {
 	return {
-		uri: URI.parse(`file:///${type}-${source}`),
+		id: uri,
+		uri,
 		type,
-		name: `${type}-${source}`,
-		source,
-		extensionId: undefined,
-		pluginUri: undefined,
+		name: uri,
+	} as ChildCustomization;
+}
+
+function plugin(uri: string, children: ChildCustomization[]): Customization {
+	return {
+		id: uri,
+		uri,
+		type: CustomizationType.Plugin,
+		name: uri,
+		children,
+	};
+}
+
+function directory(children: ChildCustomization[]): Customization {
+	return {
+		id: 'directory',
+		uri: 'file:///user',
+		type: CustomizationType.Directory,
+		name: 'directory',
+		enabled: true,
+		contents: CustomizationType.Rule,
+		writable: true,
+		children,
 	};
 }
 
