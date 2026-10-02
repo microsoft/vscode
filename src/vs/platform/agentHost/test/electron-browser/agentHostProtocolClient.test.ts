@@ -18,8 +18,10 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
-import { AgentCanvasAvailability, AgentSession } from '../../common/agent.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
+import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
@@ -41,7 +43,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
+import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import type { IConnectionDiagnosticEvent } from '../../common/connectionDiagnostics.js';
@@ -193,6 +195,9 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
@@ -204,6 +209,10 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 
 	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
+	}
+
+	fireData(): void {
+		this._onDidReceiveData.fire();
 	}
 
 	fireExtensionNotification(message: JsonRpcNotification): void {
@@ -1254,6 +1263,47 @@ suite('AgentHostProtocolClient', () => {
 		await rejected;
 	});
 
+	test('a throwing dispose callback still closes the client and disposes its transport', async () => {
+		let transportDisposed = false;
+		const transport = disposables.add(new class extends TestProtocolTransport {
+			override dispose(): void {
+				transportDisposed = true;
+				super.dispose();
+			}
+		}());
+		const logService = new CountingLogService();
+		let callbackCount = 0;
+		const trust = createWorkspaceTrustServices();
+		const client = disposables.add(new AgentHostProtocolClient(
+			'test.example:1234', transport,
+			{ onDispose: () => { callbackCount++; throw new Error('release failed'); } },
+			logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService,
+			workspaceTrustEnablementService, trust.management, trust.request,
+		));
+		let closeCount = 0;
+		disposables.add(client.onDidClose(() => closeCount++));
+		const pending = client.resourceList(URI.file('/workspace'));
+		const rejected = assertRemoteProtocolError(pending, { code: -32000, message: 'Connection disposed: test.example:1234' });
+
+		client.dispose();
+		client.dispose();
+		await rejected;
+
+		assert.deepStrictEqual({
+			callbackCount,
+			closeCount,
+			warnings: logService.warnCount,
+			state: client.connectionState,
+			transportDisposed,
+		}, {
+			callbackCount: 1,
+			closeCount: 1,
+			warnings: 1,
+			state: AgentHostClientState.Closed,
+			transportDisposed: true,
+		});
+	});
+
 	test('dispose rejection wins when transport emits close while disposing', async () => {
 		const transport = disposables.add(new CloseOnDisposeProtocolTransport());
 		const { client } = createClient(transport);
@@ -1335,6 +1385,31 @@ suite('AgentHostProtocolClient', () => {
 
 			assert.strictEqual(closeCount, 0);
 			assert.ok(answered >= 4, `expected several pings to have been answered, got ${answered}`);
+			client.dispose();
+		});
+	});
+
+	test('liveness keeps the connection open while a large message is still arriving', async () => {
+		return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const lowLoad = { hasHighLoad: () => false };
+			const { client, transport } = createClient(undefined, undefined, lowLoad);
+			let closeCount = 0;
+			disposables.add(client.onDidClose(() => closeCount++));
+
+			// A message that takes a minute to download: bytes keep arriving, but none completes.
+			for (let second = 0; second < 60; second++) {
+				await timeout(1_000);
+				transport.fireData();
+			}
+			const whileDownloading = { closeCount, pings: transport.sentMessages.filter(isPingRequest).length };
+
+			// Once the bytes stop, the usual liveness window applies.
+			await timeout(30_000);
+
+			assert.deepStrictEqual({ whileDownloading, afterDownloadStalls: closeCount }, {
+				whileDownloading: { closeCount: 0, pings: 0 },
+				afterDownloadStalls: 1,
+			});
 			client.dispose();
 		});
 	});
@@ -1683,7 +1758,6 @@ suite('AgentHostProtocolClient', () => {
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1722,10 +1796,40 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
-		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
+	for (const identity of [LOCAL_AGENT_HOST_RESOURCE_IDENTITY, 'remote.example:1234'] as const) {
+		test(`forwards sandbox policy independently of ordinary settings and the permission bridge (${String(identity)})`, async () => {
+			const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+			const configurationService = new class extends TestConfigurationService {
+				policyActive = false;
+				override inspect<T>(key: string) {
+					const inspected = super.inspect<T>(key);
+					return { ...inspected, policyValue: key === setting && this.policyActive ? inspected.value : undefined };
+				}
+			}({ [setting]: 'on' });
+			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
+			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
+			await connectClient(client, transport);
+			assert.deepStrictEqual(contributions(), [expected(false)]);
+
+			for (const policyActive of [true, false]) {
+				transport.sentMessages.length = 0;
+				configurationService.policyActive = policyActive;
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(policyActive)]);
+			}
+			configurationService.policyActive = true;
+			for (const value of [true, false, 'off', 'on']) {
+				transport.sentMessages.length = 0;
+				await configurationService.setUserConfiguration(setting, value);
+				fireConfigurationChange(configurationService, setting);
+				assert.deepStrictEqual(contributions(), [expected(value === true || value === 'on')]);
+			}
 		});
+	}
+
+	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
+		const configurationService = new ManagedPermissionsConfigurationService({});
 		// Isolate this setting's notification path from the global auto-approve mapping.
 		configurationService.clearGlobalAutoApprovePolicy();
 		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
@@ -2193,6 +2297,109 @@ suite('AgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(resultPromise, { code: -32000, message: 'Connection closed: test.example:1234' });
 		transport.fireClose();
 		await rejected;
+	});
+
+	suite('reverse MCP authentication', () => {
+		const request = {
+			serverName: 'Docs',
+			auth: {
+				reason: McpAuthRequiredReason.Required,
+				resource: {
+					resource: 'https://docs.example/mcp',
+					authorization_servers: ['https://issuer.example'],
+					scopes_supported: ['read', 'write'],
+				},
+				oauthClient: { clientId: 'docs-client' },
+				requiredScopes: ['read'],
+			},
+		};
+
+		test('routes the challenge to the registered handler and returns its result', async () => {
+			const requests: IAgentHostMcpAuthenticationRequest[] = [];
+			const responses: ProtocolTransportMessage[] = [];
+			for (const authenticated of [true, false]) {
+				const { client, transport } = createClient();
+				disposables.add(client.registerMcpAuthenticationHandler(async challenge => {
+					requests.push(challenge);
+					return authenticated;
+				}));
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+				await timeout(0);
+				responses.push(...transport.sentMessages);
+			}
+			assert.deepStrictEqual({ requests, responses }, {
+				requests: [request, request],
+				responses: [
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: true } },
+					{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				],
+			});
+		});
+
+		test('returns false without a handler or after disposing the registration', async () => {
+			const { client, transport } = createClient();
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			const registration = disposables.add(client.registerMcpAuthenticationHandler(async () => true));
+			registration.dispose();
+			transport.fireExtensionRequest(52, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual(transport.sentMessages, [
+				{ jsonrpc: '2.0', id: 51, result: { authenticated: false } },
+				{ jsonrpc: '2.0', id: 52, result: { authenticated: false } },
+			]);
+		});
+
+		test('logs handler errors and returns false', async () => {
+			const errors: string[] = [];
+			const logService = new class extends NullLogService {
+				override error(message: string): void {
+					errors.push(message);
+				}
+			}();
+			const { client, transport } = createClient(undefined, undefined, undefined, logService);
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				throw new Error('Authentication failed');
+			}));
+			transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, request);
+			await timeout(0);
+			assert.deepStrictEqual({ errors, responses: transport.sentMessages }, {
+				errors: ['[AgentHostProtocolClient] Failed to silently authenticate MCP server'],
+				responses: [{ jsonrpc: '2.0', id: 51, result: { authenticated: false } }],
+			});
+		});
+
+		test('rejects invalid parameters before invoking the handler', async () => {
+			const { client, transport } = createClient();
+			let calls = 0;
+			disposables.add(client.registerMcpAuthenticationHandler(async () => {
+				calls++;
+				return true;
+			}));
+			const invalidRequests = [
+				{},
+				{ ...request, serverName: 1 },
+				{ ...request, auth: null },
+				{ ...request, auth: { ...request.auth, reason: 'invalid' } },
+				{ ...request, auth: { ...request.auth, resource: { resource: 1 } } },
+				{ ...request, auth: { ...request.auth, requiredScopes: [1] } },
+				{ ...request, auth: { ...request.auth, oauthClient: { clientId: 1 } } },
+			];
+			for (const params of invalidRequests) {
+				transport.fireExtensionRequest(51, RequestAgentHostMcpAuthenticationExtensionMethod, params);
+			}
+			await timeout(0);
+			assert.deepStrictEqual({
+				calls,
+				responses: transport.sentMessages.map(message => {
+					assert.ok(hasKey(message, { error: true, id: true }));
+					return { id: message.id, code: message.error.code };
+				}),
+			}, {
+				calls: 0,
+				responses: invalidRequests.map(() => ({ id: 51, code: -32000 })),
+			});
+		});
 	});
 
 	suite('reverse workspace trust', () => {
@@ -2904,7 +3111,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2912,10 +3119,11 @@ suite('AgentHostProtocolClient', () => {
 				return t;
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
+			const configurationService = new TestConfigurationService();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined || prepareReconnect !== undefined || authentication !== undefined ? { clientInfo, reconnectPolicy, loadEstimator, prepareReconnect, ...authentication } : undefined, new NullLogService(), permissionService, configurationService, telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
-			return { client, transports };
+			return { client, transports, configurationService };
 		}
 
 		async function completeHandshake(transport: TestClientProtocolTransport, connectPromise: Promise<void>, meta?: Record<string, unknown>): Promise<void> {
@@ -3695,6 +3903,28 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('includes the required root channel in reconnect requests', async () => {
+			const { client, transports } = createFactoryClient();
+			await runWithFakedTimers({}, async () => {
+				await completeHandshake(transports[0], client.connect());
+
+				const { transport, request } = await beginRecovery(client, transports);
+				assert.deepStrictEqual(request.params, {
+					channel: ROOT_STATE_URI,
+					clientId: client.clientId,
+					lastSeenServerSeq: 5,
+					subscriptions: [ROOT_STATE_URI],
+					_meta: { 'vscode.telemetryLevel': 'off' },
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await waitForConnectedWithin(client);
+				client.dispose();
+			});
+		});
+
 		test('reuses clientId across transport reconnects', async function () {
 			this.timeout(10_000);
 			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
@@ -3803,9 +4033,11 @@ suite('AgentHostProtocolClient', () => {
 				});
 				await flushMicrotasks();
 				const managedSettingsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+				const sandboxPolicyIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
 				const listSessionsIndex = reconnectTransport.sentMessages.findIndex(message => hasKey(message, { method: true }) && message.method === 'listSessions');
 				assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
 				assert.ok(managedSettingsIndex >= 0 && managedSettingsIndex < listSessionsIndex, 'managed settings must be sent before requests triggered by the connected transition');
+				assert.ok(sandboxPolicyIndex >= 0 && sandboxPolicyIndex < listSessionsIndex, 'sandbox policy must be sent before requests triggered by the connected transition');
 			} finally {
 				connectedRequest.dispose();
 				client.dispose();
@@ -3814,7 +4046,13 @@ suite('AgentHostProtocolClient', () => {
 
 		test('restores subscriptions before replaying pending actions when the server forgot the client', async function () {
 			this.timeout(10_000);
-			const { client, transports } = createFactoryClient();
+			const { client, transports, configurationService } = createFactoryClient();
+			await configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+			const inspect = configurationService.inspect.bind(configurationService);
+			configurationService.inspect = <T>(key: string) => {
+				const inspected = inspect<T>(key);
+				return { ...inspected, policyValue: key === AgentSandboxSettingId.AgentSandboxEnabled ? inspected.value : undefined };
+			};
 			const sessionUri = URI.parse('copilot:/test-session');
 			const chatUri = URI.parse('ahp-chat://default/test-session');
 			const annotationsUri = URI.parse(buildAnnotationsUri(sessionUri.toString()));
@@ -3839,8 +4077,10 @@ suite('AgentHostProtocolClient', () => {
 				jsonrpc: '2.0', id: initialAnnotationsSubscribe.id,
 				result: { snapshot: { resource: annotationsUri.toString(), state: { annotations: [] }, fromSeq: 5 } },
 			});
-			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600 });
+			const accountMeta = authenticationAccountMeta({ providerId: 'github', accountId: 'account' });
+			const authentication = client.authenticate({ resource: 'https://api.github.com', token: 'token', expiresIn: 3600, _meta: accountMeta });
 			const initialAuthenticate = await waitForRequest(transports[0], 'authenticate');
+			assert.deepStrictEqual((initialAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			transports[0].fireMessage({ jsonrpc: '2.0', id: initialAuthenticate.id, result: {} });
 			await authentication;
 			await flushMicrotasks();
@@ -3885,9 +4125,14 @@ suite('AgentHostProtocolClient', () => {
 			});
 
 			const restoredAuthenticate = await waitForRequestAt(reconnectTransport, 'authenticate', 0);
+			assert.deepStrictEqual((restoredAuthenticate.params as AuthenticateParams)._meta, accountMeta);
 			const restoredExpiresIn = (restoredAuthenticate.params as { expiresIn?: number }).expiresIn;
 			assert.ok(restoredExpiresIn !== undefined && restoredExpiresIn > 0 && restoredExpiresIn <= 3600);
 			const managedSettings = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientManagedSettingsPermissions');
+			const sandboxPolicy = reconnectTransport.sentMessages.find(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
+			assert.ok(sandboxPolicy, 'sandbox policy should be restored after fresh initialization');
+			assert.deepStrictEqual(sandboxPolicy, { jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required: true } });
+			assert.ok(reconnectTransport.sentMessages.indexOf(sandboxPolicy) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate));
 			assert.ok(managedSettings, 'managed settings should be restored after fresh initialization');
 			assert.ok(
 				reconnectTransport.sentMessages.indexOf(managedSettings) < reconnectTransport.sentMessages.indexOf(restoredAuthenticate),
@@ -5255,6 +5500,43 @@ suite('AgentHostProtocolClient', () => {
 					});
 					await flushMicrotasks();
 					assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+				} finally {
+					client.dispose();
+				}
+			});
+		});
+
+		test('watchdog keeps a reconnect alive while its large response is still arriving', async () => {
+			return runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				try {
+					await completeHandshake(transports[0], client.connect());
+					transports[0].fireClose();
+					const reconnectTransport = await waitForTransport(transports, 1);
+					reconnectTransport.connectDeferred.complete();
+					const reconnect = await waitForRequest(reconnectTransport, 'reconnect');
+
+					// The host answers promptly, but the response takes a minute to download.
+					for (let second = 0; second < 60; second++) {
+						await timeout(1_000);
+						reconnectTransport.fireData();
+					}
+					const whileDownloading = {
+						transports: transports.length,
+						connection: client.connectionState,
+						pings: reconnectTransport.sentMessages.filter(isPingRequest).length,
+					};
+
+					reconnectTransport.fireMessage({
+						jsonrpc: '2.0', id: reconnect.id,
+						result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+					});
+					await flushMicrotasks();
+
+					assert.deepStrictEqual({ whileDownloading, afterDownload: client.connectionState }, {
+						whileDownloading: { transports: 2, connection: AgentHostClientState.Reconnecting, pings: 0 },
+						afterDownload: AgentHostClientState.Connected,
+					});
 				} finally {
 					client.dispose();
 				}

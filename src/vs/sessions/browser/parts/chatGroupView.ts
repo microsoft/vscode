@@ -19,7 +19,7 @@ import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWor
 import { ChatInteractivity, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext } from '../../common/contextkeys.js';
+import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
@@ -117,6 +117,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _activeChatResourceKey: IContextKey<string>;
 	private readonly _activeChatHasSideChatsKey: IContextKey<boolean>;
 	private readonly _headerShowsChatKey: IContextKey<boolean>;
+	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 	private readonly _focusedChatIsRenameTargetKey: IContextKey<boolean>;
 	private readonly _connection: SessionRemoteConnection;
 
@@ -153,6 +154,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._activeChatResourceKey = SessionActiveChatResourceContext.bindTo(scopedContextKeyService);
 		this._activeChatHasSideChatsKey = SessionActiveChatHasSideChatsContext.bindTo(scopedContextKeyService);
 		this._headerShowsChatKey = SessionHeaderShowsChatContext.bindTo(scopedContextKeyService);
+		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(scopedContextKeyService);
 		this._focusedChatIsRenameTargetKey = SessionFocusedChatIsRenameTargetContext.bindTo(scopedContextKeyService);
 
 		// Assigned here rather than as a field initializer: `_instantiationService`
@@ -233,6 +235,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			this._activeChatResourceKey.reset();
 			this._activeChatHasSideChatsKey.reset();
 			this._headerShowsChatKey.reset();
+			this._toolbarShowsSessionKey.reset();
 			this._focusedChatIsRenameTargetKey.reset();
 			this._chatHeader.setChat(undefined);
 			this._compositeBar.setGroup(undefined);
@@ -255,6 +258,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const visible = context.chatHeaderVisible.read(reader);
 			this._chatHeader.setVisible(visible);
 			this._headerShowsChatKey.set(visible);
+		}));
+		this._contextDisposables.add(autorun(reader => {
+			this._toolbarShowsSessionKey.set(context.showSessionActions.read(reader));
 		}));
 
 		const delegate: IChatCompositeBarDelegate = {
@@ -327,7 +333,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 				return { banner: connectionBanner, recovery: undefined };
 			}
 
-			return { banner: view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
+			return { banner: !transcriptSettled || view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
 		});
 
 		this._contextDisposables.add(autorun(reader => {

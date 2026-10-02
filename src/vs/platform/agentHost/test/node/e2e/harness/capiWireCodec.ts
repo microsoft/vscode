@@ -393,7 +393,7 @@ function usageFromResponsesEvent(evt: ISseEvent): { inputTokens?: number; output
 
 /** Summarize a `/responses` request into the shared readable request shape. */
 export function summarizeResponsesRequest(requestBody: string): IReadableAnthropicRequest | undefined {
-	let parsed: { model?: string; instructions?: unknown; input?: unknown };
+	let parsed: { model?: string; instructions?: unknown; input?: string | Array<{ type?: string; role?: string }> };
 	try {
 		parsed = JSON.parse(requestBody);
 	} catch {
@@ -402,9 +402,10 @@ export function summarizeResponsesRequest(requestBody: string): IReadableAnthrop
 	if (typeof parsed.model !== 'string') {
 		return undefined;
 	}
+	const hasSystemMessage = Array.isArray(parsed.input) && parsed.input.some(item => item?.type === 'message' && item.role === 'system');
 	return {
 		model: parsed.model,
-		system: parsed.instructions !== undefined ? SYSTEM_PLACEHOLDER : '',
+		system: parsed.instructions !== undefined || hasSystemMessage ? SYSTEM_PLACEHOLDER : '',
 		messages: responsesInputToMessages(parsed.input),
 	};
 }
@@ -423,9 +424,7 @@ function responsesInputToMessages(input: unknown): Array<{ role: string; content
 		const item = raw as { type?: string; role?: string; content?: unknown; name?: string; arguments?: string; input?: string; call_id?: string; output?: unknown };
 		switch (item.type) {
 			case 'message': {
-				// Skip harness-injected instruction messages (Codex uses the
-				// `developer` / `system` roles for its permissions + environment
-				// preamble); the real system prompt is already a placeholder.
+				// System prompt presence is captured separately; omit environment-derived instruction text.
 				if (item.role === 'system' || item.role === 'developer') {
 					break;
 				}

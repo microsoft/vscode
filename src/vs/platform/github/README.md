@@ -11,15 +11,57 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) composes credentials, capabilities, transport, queries, mutations, and PR subscriptions. It already provides concurrency limits, rate-limit handling, REST ETags, and read coalescing.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, and PR subscriptions.
 
-- The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per window and selects the default account.
-- The [Agent Host service graph](../agentHost/node/agentHostServices.ts) creates a separate instance, alongside its own GitHub and CAPI clients.
+- The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
+- The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. CAPI remains an independent client awaiting migration.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
 
 The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
+
+### Authorization clients
+
+The hosting binding selects provider/session/scopes and endpoints and supplies a context-specific credential bridge. The engine does not select accounts, prompt for sign-in, or fall back to another session. A missing repository-scoped session surfaces an authentication error; existing explicit sign-in actions remain responsible for consent. Account selection and credential resolution each have a cancellable five-minute deadline, including stalled authentication providers.
+
+Consumers retain a disposable reference from `acquireClient`. Equivalent grants share one client, including resources and coalesced reads. Different sessions, scope sets, issuers or endpoints have separate private caches and subscriptions, even when they resolve to the same GitHub account. They still share account/host/caller limits and stable-account cooldowns within the engine.
+
+At most 64 authorization contexts are retained. Releasing the last reference cancels only that client's work and disposes its resources; bounded identity-backoff bookkeeping remains for up to five minutes so reacquisition cannot reset repeated-failure backoff. Unused bookkeeping can be evicted for a new client. Grant changes retire only affected session clients; same-session token-only renewals preserve the client, and default-account selection changes do not revoke explicit clients for other accounts. Live server quota and identity-bootstrap cooldowns survive client release/recreation until expiry. A resolved account's core or secondary cooldown also gates subsequent identity bootstrap; a search-only limit does not block identity lookup.
+
+Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
+
+### Anonymous public reads
+
+`acquireAnonymousClient` is an explicit, read-only capability for an approved HTTPS API base. It does not select an account, invoke a credential provider, resolve `/user`, or acquire scopes. Anonymous-only hosts can construct the engine without a credential provider; attempting to acquire an authenticated client then fails explicitly.
+
+Anonymous clients expose API-relative JSON `GET` requests, not mutations, GraphQL, raw tokens, or arbitrary request headers. Requests omit authorization, cookies and referrers, including on retries and same-origin redirects. Credential-bearing URLs, insecure endpoints and paths escaping the API base are rejected, including redirect targets outside the normalized API base path. Authenticated failures never automatically fall back to anonymous traffic.
+
+Equivalent anonymous clients share requests and ETag state, but never share cached data with authenticated clients. All anonymous clients using the same API origin and engine-owned executor share an anonymous quota identity, independent of signed-in accounts; creating another client or releasing the final reference does not reset live server cooldowns. The engine's existing global/host/caller admission limits and client-capacity bound still apply. Independent engines/processes and unrelated clients behind the same public IP are not coordinated yet.
+
+The Issue Reporter's GitHub similar-issue searches, in both the wizard and legacy/web UI, use this capability with cancellable ten-second deadlines. Both search backends invalidate obsolete work when the source/input changes or the reporter is disposed, so late responses cannot cancel or replace a newer search. Existing duplicate-detection service calls and authenticated issue submission remain separate. Anonymous Copilot/device token issuance, general text/binary transfers, CAPI, and shared-process relocation are not implemented by this slice.
+
+Existing consumers use these clients directly; there is no compatibility singleton API for queries or mutations. Agent Merge captures its authorized client with the turn. Host token refresh preserves the client and rotates credentials on the next request; revocation, endpoint changes and a resolved account change reset the dependent runtime. Async consumers release references that arrive after their owning scope has ended and do not install subscriptions with invalidated credentials.
+
+VS Code forwards optional account provenance through the standard authentication `_meta` bag under `vscode.authentication.account`. The Agent Host uses the provider/account/issuer tuple to separate client and bootstrap quota ownership before `/user` resolves a new token; GitHub still establishes the authoritative account identity. Token expiry alone does not reset that selection. The binding reconciles provenance during token lookup and acquisition as well as authentication events, so scoped-token fallback and expired-token pruning notify dependent consumers. Hosts and clients without this metadata remain supported with a conservative per-resource bootstrap cooldown. Sealed-token adapters that substitute a different credential omit the original token's provenance.
+
+### Agent Host repository and PR operations
+
+The [association resolver](../agentHost/node/agentHostPullRequestAssociationResolver.ts), [creation handler](../agentHost/node/agentHostPullRequestOperationHandler.ts) and [title controller](../agentHost/node/agentHostSessionTitleController.ts) retain an authorized client for each operation. They reuse the binding's selected repository resource and existing silent missing-token checks; title context does not introduce another scope requirement or a sign-in prompt.
+
+Title enrichment submits its bounded batch directly to the engine's request queue, without a separate concurrency limiter. The caller still caps enrichment at ten references, bounds the model context, and imposes a five-second budget on the optional reads.
+
+Operation cancellation spans the workflow, while individual domain requests manage credential-generation signals. Same-account token renewal can therefore recover through subsequent requests or create reconciliation without switching the captured client or account.
+
+Query operations preserve fork head owners, caller-approved URL filtering and ordering, exact head-SHA matching, open/closed selection, and PR identity/title/creation metadata. An empty approved set issues no lookup. A full commit-association page remains inconclusive, and only GitHub's specific missing-commit 422 response means no match. The minimal issue/PR context read accepts the issues endpoint's PR payload without subscribing to an issue-only resource.
+
+Git/worktree changes, folder/session association and notifications remain caller-owned. PR creation uses the existing mutation operation; after a create failure the handler reconciles by reading the same head through the captured client, never by replaying the write. A timeout before dispatch is not reconciled. Repository settings and auto-merge share governed transport, while optional settings/context failures retain the existing logged fallback behavior. There is no separate Agent Host repository HTTP client or lookup cache.
+
+### Review-thread replies
+
+Review-thread reply outcomes distinguish publication: `succeeded` and `reconciled` require a `SUBMITTED` comment, `pending` means an unpublished reply in the viewer's pending review, and `indeterminate` means publication could not be confirmed. Only confirmed published replies permit `replyAndResolveThread` to resolve the thread. Mutation responses and fully paginated reconciliation reads retain comment state; duplicate operation markers cannot identify a unique reply and never trigger replay or resolution.
+
+The service never submits, discards, or replaces a pending review. Agent Merge reports pending or unconfirmed replies and leaves review management to the user. After a confirmed pending reply, it disables monitoring for that folder when the repair turn ends and notifies the user; resuming requires explicitly enabling Agent Merge again. Turn finalization waits for in-flight replies, including after cancellation, and preserves the changed-worktree safeguard before clearing the repair baseline. Explicit `resolveThread` remains a separate intentional operation.
 
 ### Request execution
 

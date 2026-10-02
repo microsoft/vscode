@@ -13,7 +13,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../tele
 import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
 import { GitHubRequestTelemetry, gitHubRequestOutcome } from '../../common/githubRequestTelemetry.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
+import { GitHubAccountHandle, GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 
 class RecordingTelemetryService extends mock<ITelemetryService>() {
@@ -36,7 +36,7 @@ class RecordingTelemetryService extends mock<ITelemetryService>() {
 	}
 }
 
-function context(overrides: Partial<GitHubRequestContext> = {}): GitHubRequestContext {
+function context(overrides: Partial<GitHubRequestContext & { account: GitHubAccountHandle }> = {}): GitHubRequestContext & { account: GitHubAccountHandle } {
 	return {
 		kind: 'rest',
 		account: { host: 'private-tenant.example', accountId: 'private-account' },
@@ -324,23 +324,25 @@ suite('GitHubRequestTelemetry', () => {
 		});
 	}
 
-	test('counts GraphQL partial errors and rate limits without their contents', async () => {
-		const { scheduler, sink, telemetry } = setup();
-		const transport = store.add(new GitHubTransport(async () => new Response(JSON.stringify({
-			data: { private: 'private-body' },
-			errors: [{ type: 'RATE_LIMITED', message: 'private-error' }],
-		})), scheduler, false, undefined, undefined, telemetry));
-		await transport.graphql(context().account, 'private-token', 'https://private-host.example/graphql', 'query PrivateOperation { viewer { login } }', { private: 'private-variable' }, context().signal);
-		telemetry.flush();
-		assert.deepStrictEqual({
-			requests: sink.summary().requests,
-			succeeded: sink.summary().succeeded,
-			graphqlErrors: sink.summary().graphqlErrorResponses,
-			limited: sink.summary().rateLimitedResponses,
-			http2xx: sink.summary().http2xx,
-			containsPrivateData: JSON.stringify(sink.events).includes('private') || JSON.stringify(sink.events).includes('PrivateOperation'),
-		}, { requests: 1, succeeded: 1, graphqlErrors: 1, limited: 1, http2xx: 1, containsPrivateData: false });
-	});
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`counts GraphQL ${type} and partial errors without their contents`, async () => {
+			const { scheduler, sink, telemetry } = setup();
+			const transport = store.add(new GitHubTransport(async () => new Response(JSON.stringify({
+				data: { private: 'private-body' },
+				errors: [{ type, message: 'private-error' }],
+			})), scheduler, false, undefined, undefined, telemetry));
+			await transport.graphql(context().account, 'private-token', 'https://private-host.example/graphql', 'query PrivateOperation { viewer { login } }', { private: 'private-variable' }, context().signal);
+			telemetry.flush();
+			assert.deepStrictEqual({
+				requests: sink.summary().requests,
+				succeeded: sink.summary().succeeded,
+				graphqlErrors: sink.summary().graphqlErrorResponses,
+				limited: sink.summary().rateLimitedResponses,
+				http2xx: sink.summary().http2xx,
+				containsPrivateData: JSON.stringify(sink.events).includes('private') || JSON.stringify(sink.events).includes('PrivateOperation'),
+			}, { requests: 1, succeeded: 1, graphqlErrors: 1, limited: 1, http2xx: 1, containsPrivateData: false });
+		});
+	}
 
 	test('counts the remaining failure and HTTP status categories', () => {
 		const { sink, telemetry } = setup();

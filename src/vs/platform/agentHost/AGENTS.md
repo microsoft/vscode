@@ -96,6 +96,8 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 ### Orchestrator layer
 
+When `chat.experimental.workspaceSnapshot` is enabled (root config `workspaceSnapshotEnabled`; off by default and experiment-controlled), Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution` on the first turn of a new conversation: the default chat or a user-created peer chat whose chat state is loaded and has no turns, never a restored chat (even one whose history is not loaded yet, such as a `send_message` target), fork, side chat, or tool-spawned chat. It uses the working directories resolved for the turn (`IOutgoingTurn.workingDirectories`, including a worktree created on the first send, which session state does not reflect until the provider materializes). Like the classic Copilot Chat workspace structure, it walks directories breadth first through `IFileService`, reading only the directories whose names fit the 2,000-character budget and keeping no more entries of a directory than the budget could list; it skips hidden entries, a short list of dependency and build folders, and Git storage directories, does not apply `.gitignore`, and reads no file contents (its Git-storage check reads only a linked worktree's `commondir` pointer, capped at 4 KB). The contribution returns the listing as an ordinary host instruction (a `<workspace_info>` block), so no provider changes are involved. The listing is not checked against content exclusion: it holds file names only, never contents. Preparation starts when the first turn's `ChatTurnStarted` is dispatched (`onDidDispatchAction`, so client and host-started turns such as `send_message`, `create_session`, and automations both overlap it with the rest of the send path), or, for a session creating its worktree, as soon as the worktree exists (`onDidChangeWorkingDirectoryPending`); the send waits at most one second for unfinished roots and omits the rest. The snapshot counts as sent when the host hands the turn to the provider (`AgentHostTurnTracker.onDidDispatchTurn`, after the final pre-dispatch cancellation checks). Only then is it logged at info level and reported as `agentHost.workspaceSnapshot` telemetry (roots included, pending, empty, or unreadable, and the snapshot's length). A turn that fails after that point is not retried with the snapshot. A first turn that never reaches the provider, such as a local command or a turn cancelled before dispatch, leaves the snapshot for the next turn that does. Only the chat's active turn may use or clean up snapshot state, so a cancelled send that is still unwinding cannot affect the next turn. A first turn's end is observed from its terminal state action (`ChatTurnComplete`, `ChatTurnCancelled`, or `ChatError`) through `onDidDispatchAction` and matched by turn id, not from `onTurnEnd`: a cancelled local command's turn end arrives only when the command finishes, possibly after a replacement turn started. Preparation stops once the send has run, or when the turn ends, the chat is removed (`SessionChatRemoved`), or the session is removed (`onDidRemoveSession`).
+
 Shared UI first-progress observations use the capability-gated VS Code-only
 `vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
 handler validates a content-free payload and drains the existing OTel exporter
@@ -105,6 +107,8 @@ by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
+
+Artifact tools read and mutate only the invoking chat's artifacts. The session database keeps one `sessionArtifacts` JSON array; each new entry carries its owning chat URI, and the session-level `ISession.artifacts` projection remains the combined list across every chat. Unscoped legacy entries are assigned to the default chat and migrated in that same collection during catalog synchronization.
 
 **`AgentService` (`node/agentService.ts`):**
 - Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for orchestration.
@@ -462,6 +466,10 @@ No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibli
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
+`CopilotSessionLauncher` enables the SDK cross-session store for created and resumed user sessions only when `localIndexEnabled` is true (the default), and never for internal ephemeral sessions. The local host receives the globally scoped, experiment-aware `github.copilot.chat.localIndex.enabled` value; remote operators can set `localIndexEnabled` in host configuration. Changes restart the Copilot client at the next idle point so existing chats resume with the new preference. Chronicle suggestions are hidden when indexing is disabled. This is separate from cloud session sync and does not delete existing indexed data.
+
+Chronicle commands and subcommands come from the SDK command catalog and execute through `rpc.commands.invoke`; agent-prompt results retain the SDK's `displayPrompt` when sent so history shows the command rather than its expanded instructions. The SDK owns Chronicle indexing and retrieval.
+
 ### Codex (`node/codex/codexAgent.ts`)
 
 Client-synced skills are advertised through `turn/start.additionalContext`, using the enabled plugins' skill names, descriptions, and file paths. Every turn receives the current catalog, including an explicit empty catalog after removal; older catalogs can remain in conversation history but no longer describe the current selection. Native skills discovery remains unchanged and separate from the session's client-plugin customization projection.
@@ -597,9 +605,11 @@ Live provider runtimes that react to session config subscribe to `IAgentConfigur
 
 Copilot advertises the optional `sandboxEnabled` session property (`default`,
 `on`, or `off`). Omission and `default` follow the root sandbox settings;
-selections are saved in session-config metadata and restored across window reloads
-and agent-host restarts. The effective sandbox state is recomputed from the saved
-selection, current root settings, and the runtime's current managed policy.
+the successfully applied enablement is saved in session-config metadata, not a
+pending or rejected selection. Restore reconciles saved values against current
+root settings and the runtime's current managed policy before notifying live
+providers. A saved `off` that conflicts with required sandboxing becomes `on`;
+successful application persists `on` so removing the policy cannot revive `off`.
 Chats and subagents share their configuration owner's selection. New sessions
 and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
@@ -623,7 +633,22 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-Explicit managed enablement replaces disallowed `off` selections with `default`;
+The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
+through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
+local and remote hosts independently of the legacy managed-permissions bridge.
+The host owns these transient, handler-scoped client contributions and requires
+sandboxing while any contributing client requires it. Ordinary root settings
+cannot change that floor; withdrawal or disconnect-grace expiry removes only the
+owning client's contribution. On macOS/Linux, the configuration service combines
+that VS Code policy requirement with the runtime floor before resolving
+session overrides or publishing policy metadata. Ordinary user `on` remains
+overridable; Windows continues to use its independent enablement setting.
+Runtime bypass/outbound restrictions cannot be weakened by this requirement.
+Approved bypass also requires the local `allowUnsandboxedCommands` setting.
+An explicit VS Code requirement does not offer the unresolved-runtime-policy
+retry-Off path. Removing it restores the underlying runtime floor, not an
+unconditional permission to disable sandboxing.
+Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
 Managed asks remain one-time-only. Direct disabling is locked even when managed
@@ -642,7 +667,8 @@ Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Enforcement remains runtime-owned.
+evidence of an enforced floor. Native managed settings remain runtime-enforced;
+the forwarded VS Code requirement is enforced in host session configuration.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 

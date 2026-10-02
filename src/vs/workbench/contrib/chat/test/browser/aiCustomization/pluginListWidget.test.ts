@@ -12,7 +12,7 @@ import { PluginFormat } from '../../../../../../platform/agentPlugins/common/plu
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { CustomizationEnablementKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
+import { getInstalledPluginMetadata, getRemotePluginDisabledLabel, getToggledPluginEnablementState, isCurrentPluginMarketplaceRequest, partitionInstalledPluginItemsByScope, PluginListWidget, PluginMarketplaceSnapshotModel, setPluginEnablementAndReadEffective, shouldLoadPluginMarketplaceSnapshot, shouldShowLegacyPluginMarketplace, shouldShowPluginTree } from '../../../browser/aiCustomization/pluginListWidget.js';
 import { AgentPluginItemKind, IInstalledPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
@@ -80,6 +80,91 @@ suite('pluginListWidget', () => {
 		}, {
 			user: ['profile'],
 			workspace: ['workspace'],
+		});
+	});
+
+	test('renders User before Workspace even when User has no plugins', () => {
+		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(state);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		const renderGroupLabels = (installedItems: readonly IInstalledPluginItem[]): readonly string[] => {
+			type TreeNode = { readonly element: { readonly type: string; readonly label?: string } };
+			let renderedChildren: readonly TreeNode[] = [];
+			const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+				list: {
+					setChildren: (_input: null, children?: readonly TreeNode[]) => {
+						renderedChildren = children ?? [];
+					},
+				},
+				installedItems,
+				remoteItems: [],
+				marketplaceItems: [],
+				marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
+				searchQuery: '',
+				browseMode: false,
+				configurationService: new TestConfigurationService({
+					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+				}),
+				cardScrollableNode: document.createElement('div'),
+				updateToolbarActions: () => { },
+				updatePluginTreeEmptyState: () => { },
+			});
+			const renderPluginTree = Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void;
+			renderPluginTree.call(widget);
+			return renderedChildren
+				.filter(child => child.element.type === 'group-header')
+				.map(child => child.element.label ?? '');
+		};
+		const workspace = createItem('workspace', ContributionEnablementState.EnabledWorkspace);
+
+		assert.deepStrictEqual({
+			bothGroupsPopulated: renderGroupLabels([
+				workspace,
+				createItem('user', ContributionEnablementState.EnabledProfile),
+			]),
+			userEmpty: renderGroupLabels([workspace]),
+		}, {
+			bothGroupsPopulated: ['User', 'Workspace'],
+			userEmpty: ['User', 'Workspace'],
+		});
+	});
+
+	test('reveals, selects, and focuses an installed plugin by URI', async () => {
+		const targetUri = URI.file('/plugins/security');
+		const targetEntry = {
+			type: 'plugin-item' as const,
+			item: {
+				plugin: { uri: targetUri },
+			},
+		};
+		const calls: string[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			browseMode: false,
+			searchQuery: '',
+			filterPlugins: async () => { },
+			currentTreeGroups: [{
+				element: { type: 'group-header' },
+				children: [targetEntry],
+			}],
+			list: {
+				reveal: (entry: object) => calls.push(entry === targetEntry ? 'reveal' : 'reveal-other'),
+				setFocus: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'focus' : 'focus-other'),
+				setSelection: (entries: readonly object[]) => calls.push(entries[0] === targetEntry ? 'select' : 'select-other'),
+				domFocus: () => calls.push('dom-focus'),
+			},
+		}) as PluginListWidget;
+
+		assert.deepStrictEqual({
+			revealed: await widget.revealAndSelectItemByUri(targetUri),
+			calls,
+		}, {
+			revealed: true,
+			calls: ['reveal', 'focus', 'select', 'dom-focus'],
 		});
 	});
 
