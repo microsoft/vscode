@@ -239,28 +239,55 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		}
 		for (const query of resource.representativeQueries) {
 			const item = DOM.append(this.queriesEl, $('li'));
-			const button = DOM.append(item, $('button.marketplace-detail-query-button', {
-				type: 'button',
-				'aria-label': localize('marketplaceDetail.runQueryAria', "Install {0} and run prompt: {1}", resource.displayName, query),
-			})) as HTMLButtonElement;
-			DOM.append(button, $('span.marketplace-detail-query-text')).textContent = query;
-			const action = DOM.append(button, $('span.marketplace-detail-query-action'));
+			const button = this.renderDisposables.add(new Button(item, {
+				...defaultButtonStyles,
+				secondary: true,
+				buttonSecondaryBackground: 'transparent',
+				supportIcons: true,
+				ariaLabel: localize('marketplaceDetail.runQueryAria', "Install {0} and run prompt: {1}", resource.displayName, query),
+			}));
+			button.label = query;
+			button.element.classList.add('marketplace-detail-query-button');
+			button.element.firstElementChild?.classList.add('marketplace-detail-query-text');
+			const action = DOM.append(button.element, $('span.marketplace-detail-query-action'));
 			const icon = DOM.append(action, $(`span.codicon.codicon-${Codicon.arrowUpCompact.id}`));
 			icon.setAttribute('aria-hidden', 'true');
-			this.renderDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, async () => {
-				button.disabled = true;
-				button.setAttribute('aria-busy', 'true');
+			this.renderDisposables.add(button.onDidClick(async () => {
+				button.enabled = false;
+				button.element.setAttribute('aria-busy', 'true');
 				try {
-					await this.options.install(resource);
+					await this.ensureInstalled(resource);
 					await this.options.runPrompt(query);
 					status(localize('marketplaceDetail.promptStartedStatus', "Started a new Copilot session with {0}.", resource.displayName));
 				} catch (error) {
 					this.notificationService.error(localize('marketplaceDetail.runPromptError', "Could not run the prompt with {0}. {1}", resource.displayName, getErrorMessage(error)));
 				} finally {
-					button.disabled = false;
-					button.removeAttribute('aria-busy');
+					button.enabled = true;
+					button.element.removeAttribute('aria-busy');
 				}
 			}));
+		}
+	}
+
+	private async ensureInstalled(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const state = this.installService.getInstallState(resource);
+		switch (state.kind) {
+			case 'installed':
+				return;
+			case 'available':
+			case 'installing':
+				await this.options.install(resource);
+				break;
+			case 'missing':
+			case 'repairing':
+				await this.installService.repair(resource);
+				break;
+			default:
+				throw new Error(localize('marketplaceDetail.promptUnavailable', "The customization cannot run while its state is: {0}.", getInstallStateLabel(state)));
+		}
+		const installedState = this.installService.getInstallState(resource);
+		if (installedState.kind !== 'installed') {
+			throw new Error(localize('marketplaceDetail.promptInstallIncomplete', "The customization was not installed successfully. Its state is: {0}.", getInstallStateLabel(installedState)));
 		}
 	}
 

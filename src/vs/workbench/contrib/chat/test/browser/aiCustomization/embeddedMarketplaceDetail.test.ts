@@ -13,11 +13,11 @@ import { IRequestContext } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { EmbeddedMarketplaceDetail } from '../../../browser/aiCustomization/embeddedMarketplaceDetail.js';
-import { ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../../common/customizationMarketplaceInstallService.js';
 
 suite('EmbeddedMarketplaceDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -27,18 +27,30 @@ suite('EmbeddedMarketplaceDetail', () => {
 		readmeContent?: string,
 		actions: {
 			readonly install?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
+			readonly repair?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
 			readonly runPrompt?: (prompt: string) => Promise<void>;
+			readonly installState?: CustomizationMarketplaceInstallState;
 		} = {},
 	) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const installChangeEmitter = store.add(new Emitter<void>());
+		let installState = actions.installState ?? { kind: 'available' };
+		const errors: string[] = [];
 		let requestCount = 0;
-		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage | NotificationMessage[]): void {
+				errors.push(String(message));
+			}
+		}());
 		instantiationService.stub(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
 			override readonly onDidChange = installChangeEmitter.event;
-			override getInstallState() { return { kind: 'available' as const }; }
+			override getInstallState() { return installState; }
+			override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+				await actions.repair?.(resource);
+				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+			}
 		}());
 		instantiationService.stub(IRequestService, new class extends mock<IRequestService>() {
 			override async request(): Promise<IRequestContext> {
@@ -51,7 +63,10 @@ suite('EmbeddedMarketplaceDetail', () => {
 		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
 			getSourceLabel: () => 'Marketplace',
-			install: actions.install ?? (async () => { }),
+			install: async resource => {
+				await actions.install?.(resource);
+				installState = { kind: 'installed', target: { kind: 'skill', uri: URI.file('/installed') } };
+			},
 			runPrompt: actions.runPrompt ?? (async () => { }),
 			openExternal: async () => { },
 		}));
@@ -61,6 +76,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			parent,
 			fireInstallChange: () => installChangeEmitter.fire(),
 			getRequestCount: () => requestCount,
+			getErrors: () => errors,
 		};
 	}
 
@@ -119,7 +135,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
 		});
 
-		parent.querySelector<HTMLButtonElement>('.marketplace-detail-query-button')?.click();
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
 		await timeout(0);
 
 		assert.deepStrictEqual({
@@ -132,6 +148,59 @@ suite('EmbeddedMarketplaceDetail', () => {
 			label: 'Review this change',
 			ariaLabel: 'Install Repository review and run prompt: Review this change',
 			ariaBusy: null,
+		});
+	});
+
+	test('repairs a missing item before running a representative query', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent } = render(resource, undefined, {
+			installState: { kind: 'missing', target: { kind: 'skill', uri: URI.file('/missing') } },
+			repair: async repairedResource => { calls.push(`repair:${repairedResource.identifier}`); },
+			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
+		});
+
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual(calls, ['repair:review', 'prompt:Review this change']);
+	});
+
+	test('does not run a representative query from a non-runnable install state', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent, getErrors } = render(resource, undefined, {
+			installState: { kind: 'error', target: { kind: 'skill', uri: URI.file('/broken') }, message: 'Broken' },
+			runPrompt: async prompt => { calls.push(prompt); },
+		});
+
+		parent.querySelector<HTMLElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls,
+			errors: getErrors(),
+		}, {
+			calls: [],
+			errors: ['Could not run the prompt with Repository review. The customization cannot run while its state is: Installation error: Broken.'],
 		});
 	});
 

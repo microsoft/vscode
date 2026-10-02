@@ -1157,16 +1157,21 @@ suite('Sessions - Actions', () => {
 		const { session } = createTestSession('prompted');
 		const activeSession = upcastPartial<IActiveSession>(session);
 		const quickChat = upcastPartial<IActiveSession>({ ...session, sessionId: 'quick-chat' });
-		const currentSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
-		const requests: (IOpenNewSessionOptions | undefined)[] = [];
+		const currentSession = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+		const quickChatRequests: { options: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		let openNewSessionCalls = 0;
 		let accessorValid = true;
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			override readonly activeSession = currentSession;
-			override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
-				requests.push(options);
-				currentSession.set(activeSession, undefined);
+			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
+				quickChatRequests.push({ options, preserveNavigation });
+				currentSession.set(quickChat, undefined);
 				accessorValid = false;
-				return { session: activeSession, trustDeclined: false };
+				return quickChat;
+			}
+			override async openNewSession(): Promise<IOpenNewSessionResult> {
+				openNewSessionCalls++;
+				return { session: quickChat, trustDeclined: false };
 			}
 		});
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
@@ -1176,7 +1181,6 @@ suite('Sessions - Actions', () => {
 			getSessionView: sessionId => {
 				viewSessionIds.push(sessionId);
 				return upcastPartial<SessionView>({
-					selectNoWorkspace: () => currentSession.set(quickChat, undefined),
 					sendQuery: query => queries.push(query),
 				});
 			},
@@ -1192,11 +1196,12 @@ suite('Sessions - Actions', () => {
 				return instantiationService.get(id);
 			},
 		};
-		await command.handler(invocationAccessor, { prompt: 'Review this change', noWorkspace: true });
+		await command.handler(invocationAccessor, { prompt: 'Review this change', noWorkspace: true, sessionTypeId: 'copilotcli' });
 
-		assert.deepStrictEqual({ requests, viewSessionIds, queries }, {
-			requests: [{ folderUri: undefined, toSide: undefined }],
-			viewSessionIds: [activeSession.sessionId, quickChat.sessionId],
+		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
+			quickChatRequests: [{ options: { sessionTypeId: 'copilotcli' }, preserveNavigation: true }],
+			openNewSessionCalls: 0,
+			viewSessionIds: [quickChat.sessionId],
 			queries: ['Review this change'],
 		});
 	});

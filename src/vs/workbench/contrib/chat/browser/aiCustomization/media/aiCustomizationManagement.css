@@ -1833,34 +1833,18 @@ per-word capitalization does not survive translation. */
 	list-style: none;
 }
 
-.ai-customization-management-editor .marketplace-detail-query-button {
-	appearance: none;
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button {
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	width: 100%;
 	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-	border: 0;
 	border-radius: var(--vscode-cornerRadius-small);
-	background: transparent;
-	color: var(--vscode-foreground);
-	font: inherit;
 	text-align: left;
-	cursor: pointer;
 }
 
-.ai-customization-management-editor .marketplace-detail-query-button:hover {
-	background: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .marketplace-detail-query-button:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
-}
-
-.ai-customization-management-editor .marketplace-detail-query-button:disabled {
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button.disabled {
 	cursor: wait;
-	opacity: 0.7;
 }
 
 .ai-customization-management-editor .marketplace-detail-query-text {

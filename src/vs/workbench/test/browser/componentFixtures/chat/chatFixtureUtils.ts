@@ -454,6 +454,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
 		override getDefaultFolder() { return undefined; }
+		override isNoFolderSelected() { return false; }
 		override resolveNewSessionPrimary() { return undefined; }
 	}());
 	reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {

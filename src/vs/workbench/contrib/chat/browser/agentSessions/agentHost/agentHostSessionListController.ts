@@ -12,6 +12,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agentS
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatOriginKind, isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
@@ -49,6 +50,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IChatService chatService: IChatService,
@@ -118,7 +120,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		// create path; ambiguous final-URI cleanup rejects to prevent unsafe reuse.
 		if (request.untitledResource) {
 			const noWorkspace = this._newSessionFolderService.isNoFolderSelected(request.untitledResource);
-			const workingDirectory = this._newSessionFolderService.resolveNewSessionPrimary(request.untitledResource);
+			const workingDirectory = noWorkspace
+				? undefined
+				: this._newSessionFolderService.getFolder(request.untitledResource)
+					?? this._newSessionFolderService.getDefaultFolder()
+					?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 			// Carry the chosen folder forward onto the real resource so the
 			// handler's working-directory resolution stays consistent after the
 			// untitled-to-real rebind. The untitled entry is left in place and

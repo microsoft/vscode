@@ -1003,7 +1003,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private async runMarketplacePrompt(prompt: string): Promise<void> {
 		if (this.workspaceService.isSessionsWindow) {
-			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, noWorkspace: true });
+			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, noWorkspace: true, sessionTypeId: 'copilotcli' });
 			return;
 		}
 		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt, noWorkspace: true });
