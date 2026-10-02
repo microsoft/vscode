@@ -36,6 +36,7 @@ class CustomizationMigrationAccessibleView implements IAccessibleViewImplementat
 			() => this.type === AccessibleViewType.Help ? [
 				localize('migrationHelpOverview', "The migrations tree groups each migration type by workspace or user. Expand a group to inspect each customization, its source location, and its destination."),
 				localize('migrationHelpNavigation', "Use the arrow keys to move through and expand the tree. Use each row's checkbox to include or exclude it. Open a customization to view its editor or details. The More Actions menu can migrate or delete one item."),
+				localize('migrationHelpAgent', "Migrate with Agent starts a new chat for the selected harness. The agent guides scope selection, creates a recovery log and backups in a VS Code-managed location, and explains each migration before making changes."),
 				localize('migrationHelpActions', "Migrate applies to the selected items in one group and shows the planned source and destination changes before modifying files. Ignore permanently hides a group. Show Ignored Migrations restores hidden groups."),
 				localize('migrationHelpLocations', "Activate a destination path to change the destination. Workspace MCP servers migrate to the root .mcp.json. User MCP servers migrate to mcp-config.json in Copilot home. Disabled user servers may become enabled after migration."),
 				localize('migrationHelpMcpChanges', "MCP servers that migrate with changes explain each property removal in their row. Review these warnings before confirming migration."),

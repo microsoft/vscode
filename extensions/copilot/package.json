@@ -6868,6 +6868,15 @@
         ]
       },
       {
+        "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
+        "sessionTypes": [
+          "local",
+          "agent-host-copilotcli",
+          "agent-host-claude",
+          "agent-host-codex"
+        ]
+      },
+      {
         "path": "./assets/prompts/skills/init/SKILL.md",
         "sessionTypes": [
           "local"

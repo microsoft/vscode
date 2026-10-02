@@ -102,9 +102,10 @@ export interface ICustomizationMigrationDashboardOverview {
 }
 
 export interface ICustomizationMigrationDashboardCallbacks {
-	readonly actionClicked: (action: 'retryClicked' | 'destinationsClicked' | 'migrationCategoryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', categoryId?: CustomizationMigrationCategoryId) => void;
+	readonly actionClicked: (action: 'retryClicked' | 'destinationsClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', categoryId?: CustomizationMigrationCategoryId) => void;
 	readonly configureLocations: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly dismissResult: () => void;
+	readonly migrateWithAgent: () => void;
 	readonly migrateCategory: (id: CustomizationMigrationCategoryId, storage: PromptsStorage) => void;
 	readonly setItemSelected: (item: ICustomizationMigrationDashboardItem, selected: boolean) => void;
 	readonly showItemActions: (item: ICustomizationMigrationDashboardItem, storage: PromptsStorage, anchor: HTMLElement) => void;
@@ -311,6 +312,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
 				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 			overview.hasIgnoredGroups === true,
+			migrationGroups.length ? () => {
+				this.callbacks.actionClicked('agentMigrationClicked');
+				this.callbacks.migrateWithAgent();
+			} : undefined,
 		);
 
 		if (overview.result) {
@@ -408,20 +413,31 @@ export class CustomizationMigrationDashboard extends Disposable {
 		return [...this.focusTargets].find(([, element]) => element === active)?.[0];
 	}
 
-	private renderHeader(title: string, description: string, hasIgnoredGroups = false): HTMLElement {
+	private renderHeader(title: string, description: string, hasIgnoredGroups = false, migrateWithAgent?: () => void): HTMLElement {
 		const page = DOM.append(this.element, $('.migration-page'));
 		const header = DOM.append(page, $('.migration-page-header'));
 		const titleRow = DOM.append(header, $('.migration-page-title-row'));
 		const heading = DOM.append(titleRow, $('h1', { tabindex: -1 }, title));
 		this.focusTargets.set('title', heading);
+		const actions = DOM.append(titleRow, $('.migration-page-title-actions'));
 		if (hasIgnoredGroups) {
 			this.button(
-				titleRow,
+				actions,
 				'restoreIgnored',
 				localize('showIgnoredMigrations', "Show Ignored Migrations"),
 				localize('showIgnoredMigrationsAriaLabel', "Show and restore ignored migrations"),
 				this.callbacks.restoreIgnoredCategories,
 				'link',
+			);
+		}
+		if (migrateWithAgent) {
+			this.button(
+				actions,
+				'migrateWithAgent',
+				localize('migrateWithAgent', "Migrate with Agent"),
+				localize('migrateWithAgentAriaLabel', "Start an agent-guided customization migration"),
+				migrateWithAgent,
+				'primary',
 			);
 		}
 		DOM.append(header, $('p.migration-intro', {}, description));
@@ -779,10 +795,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 		}
 	}
 
-	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables): Button {
+	private button(parent: HTMLElement, key: string, label: string, ariaLabel: string, run: () => void, kind: 'primary' | 'secondary' | 'link' | 'icon' = 'secondary', icon?: ThemeIcon, disposables: DisposableStore = this.renderDisposables): Button {
 		const button = disposables.add(new Button(parent, {
 			...defaultButtonStyles,
-			secondary: true,
+			secondary: kind !== 'primary',
 			buttonSecondaryBackground: 'transparent',
 			buttonSecondaryForeground: kind === 'link' ? 'var(--vscode-textLink-foreground)' : 'var(--vscode-foreground)',
 			buttonSecondaryHoverBackground: 'var(--vscode-list-hoverBackground)',

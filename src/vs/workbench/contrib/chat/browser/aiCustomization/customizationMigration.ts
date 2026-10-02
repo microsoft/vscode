@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -55,6 +55,38 @@ export interface ICustomizationMigrationOptions {
 	 * Falls back to the target folder of the customization type and storage.
 	 */
 	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
+}
+
+export function createCustomizationMigrationAgentPrompt(
+	harness: { readonly id: string; readonly label: string },
+	migrationFlowId: string,
+	recoveryBundleFolder: URI,
+	customizations: readonly CustomizationMigrationCandidate[],
+	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+): string {
+	const customizationLocations = customizations.map(customization => {
+		if (isMcpServerCustomizationMigrationCandidate(customization)) {
+			return `- MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+		}
+		return `- ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+	});
+	const targetLocations = [...targetFoldersByType]
+		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));
+
+	return [
+		'/migrate-customizations',
+		'',
+		`Selected harness: ${harness.label} (${harness.id})`,
+		`Migration telemetry flow: ${migrationFlowId}`,
+		`Recovery bundle folder: ${recoveryBundleFolder.toString(true)}`,
+		`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
+		'',
+		'Customizations that need migration:',
+		...customizationLocations,
+		'',
+		'Valid target folders reported by the selected harness:',
+		...(targetLocations.length ? targetLocations : ['- None reported for these customization types.']),
+	].join('\n');
 }
 
 /**
