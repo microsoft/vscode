@@ -41,19 +41,20 @@ suite('New session composer layout', () => {
 	});
 
 	for (const testCase of [
-		{ unifiedPicker: false, experimentalLayout: false, expected: false },
-		{ unifiedPicker: false, experimentalLayout: true, expected: false },
-		{ unifiedPicker: true, experimentalLayout: false, expected: false },
-		{ unifiedPicker: true, experimentalLayout: true, expected: true },
+		{ unifiedPicker: false, experimentalLayout: false, phoneLayout: false, expected: false },
+		{ unifiedPicker: false, experimentalLayout: true, phoneLayout: false, expected: false },
+		{ unifiedPicker: true, experimentalLayout: false, phoneLayout: false, expected: false },
+		{ unifiedPicker: true, experimentalLayout: true, phoneLayout: false, expected: true },
+		{ unifiedPicker: true, experimentalLayout: true, phoneLayout: true, expected: false },
 	]) {
-		test(`unified picker ${testCase.unifiedPicker}, experimental layout ${testCase.experimentalLayout}`, () => {
+		test(`unified picker ${testCase.unifiedPicker}, experimental layout ${testCase.experimentalLayout}, phone layout ${testCase.phoneLayout}`, () => {
 			const configurationService = new TestConfigurationService({
 				[UNIFIED_WORKSPACE_PICKER_SETTING]: testCase.unifiedPicker,
 				[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: testCase.experimentalLayout,
 			});
 			store.add(configurationService.onDidChangeConfigurationEmitter);
 
-			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService), testCase.expected);
+			assert.strictEqual(isExperimentalSessionComposerLayoutEnabled(configurationService, testCase.phoneLayout), testCase.expected);
 		});
 	}
 

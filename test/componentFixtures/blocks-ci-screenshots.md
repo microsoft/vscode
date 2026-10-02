@@ -117,6 +117,9 @@
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneAttachedContext/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/44a9a72f5d00532c1586d755d73b51034bcde48fe6b4f3a103f4cb9517d6e579)
 
+#### sessions/chat/newWidget/newChatWidget/NewSessionPhoneExperimentalComposerDisabled/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/c592bd3b3c24d986167f7c32bb4138d50d2a43d278e37396951e67620e96d6a2)
+
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)
 

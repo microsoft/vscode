@@ -63,6 +63,7 @@ import { NullLanguageModelsService } from '../../../../../workbench/contrib/chat
 import { IHistoryService } from '../../../../../workbench/services/history/common/history.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
 import { FixtureMenuService, registerChatFixtureServices } from '../../../../../workbench/test/browser/componentFixtures/chat/chatFixtureUtils.js';
@@ -519,6 +520,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
+	IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService)).set(phoneLayout);
 
 	const background = isHighContrast(context.theme.type)
 		? undefined
@@ -619,7 +621,17 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	await nextFrame();
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
-	if (experimentalComposerLayout) {
+	const experimentalComposerLayoutEnabled = view.element.querySelector('.new-chat-widget-content')?.classList.contains('experimental-new-session-composer') ?? false;
+	if (phoneLayout && experimentalComposerLayout) {
+		const workspacePicker = view.element.querySelector<HTMLElement>('.sessions-workspace-category-picker');
+		assert(!experimentalComposerLayoutEnabled && !!workspacePicker,
+			'Phone must retain the established mobile composer when the experimental layout setting is enabled.');
+		const workspacePickerBounds = workspacePicker.getBoundingClientRect();
+		const containerBounds = container.getBoundingClientRect();
+		assert(workspacePickerBounds.left >= containerBounds.left && workspacePickerBounds.right <= containerBounds.right,
+			'The phone workspace picker must stay within the viewport.');
+	}
+	if (experimentalComposerLayoutEnabled) {
 		const optionsToggle = view.element.querySelector<HTMLElement>('.new-chat-session-options-toggle');
 		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
 		const optionsTray = view.element.querySelector<HTMLElement>('.new-chat-session-options');
@@ -671,7 +683,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		}
 		const trayStyle = targetWindow.getComputedStyle(optionsTray);
 		const hasRoundedTopCorners = parseFloat(trayStyle.borderTopLeftRadius) > 0 && parseFloat(trayStyle.borderTopRightRadius) > 0;
-		if (hasChatBackground && experimentalComposerLayout) {
+		if (hasChatBackground && experimentalComposerLayoutEnabled) {
 			assert(hasRoundedTopCorners
 				&& parseFloat(trayStyle.borderBottomLeftRadius) === 0 && parseFloat(trayStyle.borderBottomRightRadius) === 0,
 				'The custom-background experimental tray must have rounded top corners and square bottom corners.');
@@ -806,7 +818,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
 		assert(!!primaryToolbar && !!attachButton && !!secondaryControls && !!bottomContainer);
 		const configItems = primaryToolbar.querySelectorAll<HTMLElement>('.sessions-chat-config-toolbar:not(.new-chat-session-controls) .actions-container > .action-item');
-		if (experimentalComposerLayout) {
+		if (experimentalComposerLayoutEnabled) {
 			const [attach, controls, models] = [...primaryToolbar.children];
 			assert(sessionOptions.contains(repositoryConfigContainer)
 				&& attach.classList.contains('sessions-chat-attach-button')
@@ -1067,6 +1079,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The phone new-session composer shows attachment pills without shifting the full-height content surface upward or leaving a gap below it. Status icons remain touch-friendly pills rather than inheriting the desktop 22-pixel square width.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withAttachedContext: true, withAutoModel: true, phoneLayout: true }),
+	}),
+	NewSessionPhoneExperimentalComposerDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With the unified workspace picker and experimental new-session composer settings enabled, the phone layout keeps the established mobile composer: the workspace row stays contained below the centered Sessions logo and the input remains pinned to the bottom.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, experimentalComposerLayout: true, phoneLayout: true }),
 	}),
 	NewSessionRemoteWorkspace: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
