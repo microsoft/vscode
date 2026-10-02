@@ -9,6 +9,27 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.agent-sessions-navigation-container {
+	.monaco-list-row:is(:hover, .hovered) .session-section-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list .monaco-list-row.session-section.focused.session-section-shortcut:is(:hover, .hovered) {
+		background-color: var(--vscode-list-hoverBackground);
+		border-radius: 0;
+	}
+
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut:not(.active):not(:hover, .hovered) {
+		background-color: transparent;
+		outline: 0 !important;
+	}
+}
+
 .sessions-list-control {
 	flex: 1 1 auto;
 	height: 100%;
@@ -1097,18 +1118,6 @@
 	box-sizing: border-box;
 }
 
-.sessions-list-header-row {
-	--vscode-list-hoverBackground: transparent;
-}
-
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:is(:hover, .hovered),
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
-	background-color: transparent;
-	cursor: default;
-}
-
 .session-section {
 	display: flex;
 	align-items: center;
@@ -1167,6 +1176,20 @@
 		text-transform: uppercase;
 		white-space: nowrap;
 		pointer-events: none;
+	}
+
+	.session-section-keybinding {
+		display: none;
+		flex-shrink: 0;
+		margin-left: var(--vscode-spacing-size40);
+
+		&.visible {
+			display: inline-flex;
+		}
+	}
+
+	&.session-section-new-session {
+		color: var(--vscode-foreground);
 	}
 
 	.session-section-new-badge-accent {
@@ -1268,17 +1291,9 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	/* Shortcut sections only change label and icon color on hover, unless active. */
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
-		color: var(--vscode-descriptionForeground);
-	}
-
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected,
-		.monaco-list-row.session-list-shortcut-row.focused,
-		.monaco-list-row.session-list-shortcut-row.selected {
+		.monaco-list-row.session-list-section-row.selected {
 			outline: none !important;
 		}
 	}
