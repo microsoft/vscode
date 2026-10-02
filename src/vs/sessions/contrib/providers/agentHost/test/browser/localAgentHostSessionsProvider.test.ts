@@ -57,7 +57,7 @@ import { ChatModeKind } from '../../../../../../workbench/contrib/chat/common/co
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
 import type { IChatModel, IChatModelInputState, IInputModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatModelSource, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, IChat, ISession, SESSION_CHANGES_CHANGESET_ID, SessionStatus, TURN_CHANGES_CHANGESET_ID } from '../../../../../services/sessions/common/session.js';
 import { getSessionGitHubReferences } from '../../../../github/common/sessionGitHubReferences.js';
 import { IActiveSession, WorkspaceNotTrustedError } from '../../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
@@ -7189,6 +7189,36 @@ suite('LocalAgentHostSessionsProvider', () => {
 				},
 				source: 'https://example.test/preview-1/2',
 			});
+		});
+
+		test('nested chats default to their own Session Changes while the main chat keeps Branch Changes', () => {
+			const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', undefined);
+			const provider = createProvider(disposables, agentHost, undefined, { activeSession });
+			const rawId = 'nested-default-changeset';
+			const repo = URI.file('/repo');
+			const session = setupMultiChatSession(provider, rawId, [repo]);
+			const backend = AgentSession.uri('copilotcli', rawId).toString();
+			const main = buildDefaultChatUri(backend);
+			const peer = buildChatUri(backend, 'peer');
+			const entry = (owner: string, changeKind: string, path: string) => ({ label: changeKind, changeKind, uriTemplate: `${owner}/changeset/${path}` });
+			const chatState = (resource: string, changesets: ChatState['changesets']): ChatState => ({
+				resource, title: '', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), turns: [], changesets,
+			});
+			agentHost.setSessionState(rawId, 'copilotcli', {
+				...makeState([makeChatSummary(main, 'Main'), makeChatSummary(peer, 'Peer')], { defaultChat: main, workingDirectories: [repo.toString()] }),
+				changesets: [entry(backend, 'session', 'session')],
+			});
+			agentHost.setChatState(main, chatState(main, [entry(main, 'branch', 'branch'), entry(main, 'turn', 'turn/{turnId}')]));
+			agentHost.setChatState(peer, chatState(peer, [entry(peer, 'branch', 'branch'), entry(peer, 'session', 'session'), entry(peer, 'turn', 'turn/{turnId}')]));
+			activeSession.set(new class extends mock<IActiveSession>() {
+				override readonly resource = session.resource;
+			}(), undefined);
+			let defaults: (string | undefined)[] = [];
+			disposables.add(autorun(reader => {
+				defaults = session.chats.read(reader).map(chat => chat.changesets.read(reader)?.find(changeset => changeset.isDefault.read(reader))?.id);
+			}));
+
+			assert.deepStrictEqual(defaults, [BRANCH_CHANGES_CHANGESET_ID, SESSION_CHANGES_CHANGESET_ID]);
 		});
 
 		test('reads background shells from each chat\'s state while the session is active', () => {
