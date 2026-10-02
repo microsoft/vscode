@@ -76,6 +76,12 @@ describe('InlineEditsModelService', () => {
 		expect(service.defaultModelConfiguration().modelName).toBe('copilot-nes-lysithea-24');
 	});
 
+	it('keeps the existing default model while the user plan is unknown', () => {
+		const service = createService();
+
+		expect(service.defaultModelConfiguration().modelName).toBe('copilot-nes-oct');
+	});
+
 	it('reports no opinion for a model whose strategy does not bake the capability in', () => {
 		const service = createService();
 
