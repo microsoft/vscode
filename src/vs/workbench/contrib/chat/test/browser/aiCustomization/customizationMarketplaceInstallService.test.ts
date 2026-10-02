@@ -112,13 +112,14 @@ function mcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function connectorResource(): ICustomizationMarketplaceResource {
+function connectorResource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return resource({
 		sourceId: 'copilotConnectors',
 		identifier: 'mail',
 		displayName: 'Mail',
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		installation: { kind: 'copilotConnector', name: 'mail' },
+		...overrides,
 	});
 }
 
@@ -427,6 +428,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
 			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
+			documentationOverride: URI | undefined;
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
@@ -441,6 +443,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					representativeQueries: [],
 					connectionStatus: this.statusOverride ?? (connectedConnectors.has('mail') ? 'connected' as const : 'not_connected' as const),
 					connectionStatusDetail: this.statusDetailOverride,
+					documentation: this.documentationOverride,
 					scopes: [],
 					mcpServers: [],
 				}] : [];
@@ -1205,7 +1208,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
 			const fixture = await createFixture();
-			const candidate = resource({ version: '1.0.0', icon: URI.parse('https://example.com/review.png') });
+			const candidate = resource({
+				version: '1.0.0',
+				url: URI.parse('https://example.com/a%2Fb'),
+				externalUrl: 'https://example.com/a%2Fb',
+				icon: URI.parse('https://example.com/review.png'),
+			});
 			await fixture.service.install(candidate);
 			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
 			assert.ok(storageKey);
@@ -1245,6 +1253,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					mediaType: CustomizationMarketplaceMediaType.Skill,
 					catalogue: {
 						resourceId: 'skill-resource',
+						itemUrl: 'https://example.com/a%2Fb',
 						displayName: 'Demo Skill',
 						description: 'A skill with scripts and assets',
 						version: '1.0.0',
@@ -2454,6 +2463,47 @@ suite('CustomizationMarketplaceInstallService', () => {
 					installation: { kind: 'copilotConnector', name: 'mail' },
 				}],
 				installationRecordCount: 1,
+			});
+		});
+
+		test('refreshes connector installation record URL and publisher metadata', async () => {
+			const fixture = await createFixture();
+			const firstDocumentation = URI.parse('https://example.com/connector');
+			fixture.connectorsService.documentationOverride = firstDocumentation;
+			await fixture.service.install(connectorResource({
+				url: firstDocumentation,
+				externalUrl: firstDocumentation.toString(true),
+			}));
+			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
+			assert.ok(storageKey);
+
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const afterPublisherRefresh = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!).record.catalogue;
+
+			fixture.connectorsService.documentationOverride = URI.parse('https://example.com/updated-connector');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const afterUrlRefresh = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!).record.catalogue;
+
+			assert.deepStrictEqual({
+				afterPublisherRefresh: {
+					itemUrl: afterPublisherRefresh.itemUrl,
+					publisher: afterPublisherRefresh.publisher,
+				},
+				afterUrlRefresh: {
+					itemUrl: afterUrlRefresh.itemUrl,
+					publisher: afterUrlRefresh.publisher,
+				},
+			}, {
+				afterPublisherRefresh: {
+					itemUrl: 'https://example.com/connector',
+					publisher: 'GitHub Copilot',
+				},
+				afterUrlRefresh: {
+					itemUrl: 'https://example.com/updated-connector',
+					publisher: 'GitHub Copilot',
+				},
 			});
 		});
 

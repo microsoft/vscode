@@ -381,8 +381,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				const record = await this.createConnectorRecord(resource, account, existing);
 				const didChange = !existing
 					|| existing.catalogue.version !== record.catalogue.version
+					|| existing.catalogue.itemUrl !== record.catalogue.itemUrl
 					|| existing.catalogue.displayName !== record.catalogue.displayName
 					|| existing.catalogue.description !== record.catalogue.description
+					|| existing.catalogue.publisher !== record.catalogue.publisher
 					|| !isCustomizationMarketplaceIconEqual(existing.icon, record.icon);
 				if (didChange) {
 					this.recordStore.upsert(record);
@@ -1227,7 +1229,7 @@ function createInstallationRecord(
 		mediaType: resource.mediaType,
 		catalogue: {
 			resourceId: resource.identifier,
-			itemUrl: resource.url?.toString(true) ?? resource.externalUrl,
+			itemUrl: resource.externalUrl ?? resource.url?.toString(true),
 			displayName: resource.displayName,
 			description: resource.description,
 			publisher: resource.publisher,
