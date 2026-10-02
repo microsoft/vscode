@@ -14,7 +14,7 @@ import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } fr
 import { GitHubRequestError } from '../../common/githubTransport.js';
 import { IPullRequestQuery, PullRequestFragmentResult } from '../../common/pullRequestQueryService.js';
 import { PullRequestPollingPolicy, PullRequestResourceService } from '../../common/pullRequestResourceService.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
 const account = { host: 'github.example.test', accountId: '101' };
 const ref: PullRequestRef = { ...account, owner: 'old-owner', repo: 'old-repo', number: 7 };
@@ -33,8 +33,7 @@ const policy: PullRequestPollingPolicy = {
 	mergeabilityVisible: 20,
 	mergeabilityBackground: 200,
 	participants: 300,
-	failureRetryBase: 5,
-	failureRetryMaximum: 20,
+	failureBackoff: { immediateRetries: 0, base: 5, maximum: 20, jitter: 0 },
 	jitter: 0,
 };
 
@@ -156,12 +155,12 @@ suite('PullRequestResourceService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(): {
-		readonly clock: FakeGitHubScheduler;
+		readonly clock: FakeScheduler;
 		readonly credentials: TestGitHubCredentialService;
 		readonly queries: TestPullRequestQueryService;
 		readonly service: PullRequestResourceService;
 	} {
-		const clock = new FakeGitHubScheduler({ now: 0 });
+		const clock = new FakeScheduler({ now: 0 });
 		const credentials = disposables.add(new TestGitHubCredentialService());
 		const queries = new TestPullRequestQueryService();
 		const service = disposables.add(new PullRequestResourceService(clock, policy, credentials, queries, new NullLogService()));

@@ -10,16 +10,18 @@ import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IOpenURLOptions, IURLService } from '../../../../../platform/url/common/url.js';
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import '../../browser/issueActions.js';
 
-function createSessionWithIssue(issueUri: URI): ISession {
+function createSessionWithIssue(issueUri: URI, issues?: readonly { readonly owner: string; readonly repo: string; readonly number: number; readonly uri: URI }[]): ISession {
 	const workspaceUri = URI.from({ scheme: 'test', path: '/workspace' });
 	const workspace: ISessionWorkspace = {
 		uri: workspaceUri,
@@ -37,7 +39,7 @@ function createSessionWithIssue(issueUri: URI): ISession {
 				gitHubInfo: constObservable({
 					owner: 'owner',
 					repo: 'repo',
-					issues: [{ owner: 'owner', repo: 'repo', number: 7, uri: issueUri }],
+					issues: issues ?? [{ owner: 'owner', repo: 'repo', number: 7, uri: issueUri }],
 				}),
 			},
 		}],
@@ -145,5 +147,45 @@ suite('Issue Actions', () => {
 			}],
 			opened: [],
 		});
+	});
+
+	test('Copy Issue URL falls back to the active session when no argument is provided', async () => {
+		const issueUri = URI.parse('https://github.com/owner/repo/issues/7');
+		const session = createSessionWithIssue(issueUri);
+		const instantiationService = new TestInstantiationService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable<IActiveSession | undefined>(session as IActiveSession);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor));
+
+		assert.deepStrictEqual(clipboardService.writes, [issueUri.toString(true)]);
+	});
+
+	test('Copy Issue URL uses an explicit contextual issue', async () => {
+		const secondIssueUri = URI.parse('https://github.com/upstream/project/issues/11');
+		const secondIssue = { owner: 'upstream', repo: 'project', number: 11, uri: secondIssueUri };
+		const instantiationService = new TestInstantiationService();
+		const clipboardService = new class extends mock<IClipboardService>() {
+			readonly writes: string[] = [];
+			override async writeText(text: string): Promise<void> {
+				this.writes.push(text);
+			}
+		};
+		instantiationService.stub(IClipboardService, clipboardService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = constObservable(undefined);
+		});
+
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('workbench.agentSessions.action.copyIssueUrl')!.handler(accessor, { issue: secondIssue }));
+
+		assert.deepStrictEqual(clipboardService.writes, [secondIssueUri.toString(true)]);
 	});
 });

@@ -20,6 +20,7 @@ task.task(compilation.compileExtensionPointNamesTask);
 const require = createRequire(import.meta.url);
 
 // API proposal names
+task.task(compilation.checkApiProposalNamesTask);
 task.task(compilation.compileApiProposalNamesTask);
 task.task(compilation.watchApiProposalNamesTask);
 
@@ -34,7 +35,7 @@ const transpileClientTask = task.define('transpile-client', task.series(util.rim
 task.task(transpileClientTask);
 
 // Fast compile for development time
-const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out', false)));
+const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compilation.copyCodiconsTask, compilation.compileApiProposalNamesTask, compilation.compileExtensionPointNamesTask, compilation.compileTask('src', 'out')));
 task.task(compileClientTask);
 
 const watchClientTask = task.define('watch-client', task.parallel(compilation.watchTypeCheckTask('src'), compilation.watchApiProposalNamesTask, compilation.watchExtensionPointNamesTask, compilation.watchCodiconsTask));

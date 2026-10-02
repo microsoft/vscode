@@ -13,25 +13,52 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/runWithFakedTimers.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
+import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { AgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalTurns, IAgentHostLocalTurns } from '../../node/agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/localCommands/localChatCommand.js';
+import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
+import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
+import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
+import { ISessionWorkspaceConversionService } from '../../node/chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
+import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
+import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
+import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
+import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
+import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
+import { AgentHostClientConnectionService, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from '../../node/agentHostClientConnectionService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -52,13 +79,14 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	refreshChangesetCatalog(): void { }
 	onWorkingDirectoryAvailable(): void { }
 	recomputeSubscribedChangesets(): void { }
-	onSessionDisposed(): void { }
 	async computeUncommittedChangeset(session: string): Promise<string> { return `${session}/changeset/uncommitted`; }
 	async computeTurnChangeset(session: string): Promise<string> { return `${session}/x`; }
 	async computeCompareTurnsChangeset(session: string): Promise<string> { return `${session}/y`; }
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {
@@ -70,14 +98,16 @@ class CapturingTelemetryService implements ITelemetryService {
 	readonly devDeviceId = 'test-dev-device';
 	readonly firstSessionDate = 'test-first-session-date';
 	readonly sendErrorTelemetry = false;
-	readonly events: { eventName: string; data: unknown }[] = [];
+	readonly events: { eventName: string; data: unknown; level: 'usage' | 'error' }[] = [];
 
 	publicLog(): void { }
 	publicLog2(eventName: string, data?: unknown): void {
-		this.events.push({ eventName, data });
+		this.events.push({ eventName, data, level: 'usage' });
 	}
 	publicLogError(): void { }
-	publicLogError2(): void { }
+	publicLogError2(eventName: string, data?: unknown): void {
+		this.events.push({ eventName, data, level: 'error' });
+	}
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 }
@@ -96,6 +126,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let telemetry: CapturingTelemetryService;
+	let clientConnectionService: AgentHostClientConnectionService;
 
 	const sessionUri = AgentSession.uri('mock', 'session-1');
 	const sessionKey = sessionUri.toString();
@@ -140,9 +171,41 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1000 });
 	}
 
+	function registerClientConnection(clientId: string, initiallyConnected: boolean): (connected: boolean) => void {
+		let connected = initiallyConnected;
+		const source: IAgentHostClientConnectionSource = {
+			hasSeenClient: candidate => candidate === clientId,
+			isClientConnected: candidate => connected && candidate === clientId,
+			isLocalClient: () => false,
+			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
+		};
+		disposables.add(clientConnectionService.registerSource(source));
+		return value => connected = value;
+	}
+
 	function toolEvents(): { eventName: string; data: Record<string, unknown> }[] {
 		return telemetry.events
 			.filter(e => e.eventName === 'languageModelToolInvoked')
+			.map(e => {
+				const data = e.data as Record<string, unknown>;
+				return {
+					eventName: e.eventName,
+					data: {
+						...data,
+						invocationTimeMs: data.invocationTimeMs === undefined
+							? undefined
+							: typeof data.invocationTimeMs === 'number' && data.invocationTimeMs >= 0,
+						model: data.model instanceof TelemetryTrustedValue ? { trusted: true, value: data.model.value } : data.model,
+					},
+				};
+			});
+	}
+
+	function agentHostToolEvents(): { eventName: string; data: Record<string, unknown> }[] {
+		return telemetry.events
+			.filter(e => e.eventName === 'agentHost.toolInvoked')
 			.map(e => {
 				const data = e.data as Record<string, unknown>;
 				return {
@@ -208,21 +271,65 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			setEnablement: () => ({ kind: 'resolved', enablement: [], enabled: true, workingDirectory: { kind: 'workspaceless' } }),
 			whenIdle: async () => { },
 		};
-		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
+		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
+		clientConnectionService = disposables.add(new AgentHostClientConnectionService());
+		const worktreeIsolation = createNoopWorktreeIsolation();
+		const services = new ServiceCollection(
+			[IAgentHostLocalTurns, sharedLocalTurns],
 			[ILogService, logService],
 			[IAgentConfigurationService, configService],
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
+			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostStateManager, stateManager],
+			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
+			[IFileService, disposables.add(new FileService(logService))],
 			[ITelemetryService, telemetryService],
 			[IAgentHostTerminalManager, disposables.add(new TestAgentHostTerminalManager())],
 			[ISessionDataService, sessionDataService],
-		), /*strict*/ true));
+			[IAgentHostWorktreeIsolation, worktreeIsolation],
+			[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(sessionDataService, worktreeIsolation)],
+			[IAgentHostClientConnectionService, clientConnectionService],
+			[IAgentHostPeerChatPersistenceService, {
+				_serviceBrand: undefined,
+				setArchived: async () => { },
+			}],
+			[ISessionWorkspaceConversionService, {
+				_serviceBrand: undefined,
+				requestSessionWorkspaceUpdate: () => { },
+				isPending: () => false,
+				cancel: () => { },
+				updateSessionWorkspace: async () => { },
+			}],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
+		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
+		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
+		const providerService = createTestAgentHostProviderService(() => agent);
+		services.set(IAgentHostProviderService, providerService);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
+		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
+		services.set(IAgentHostTelemetryReporter, telemetryReporter);
+		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
+		services.set(IAgentHostTurnTracker, turnTracker);
+		services.set(IAgentHostToolCallTracker, disposables.add(instantiationService.createInstance(AgentHostToolCallTracker)));
+		const localCommands = disposables.add(instantiationService.createInstance(AgentHostLocalCommands));
+		services.set(IAgentHostLocalCommands, localCommands);
+		// Blocked/unblocked tool-call telemetry is reported by
+		// `SessionInputNeededContribution`, so the built-in contributions must be
+		// registered for this graph to mirror production wiring.
+		disposables.add(registerBuiltInChatContributions(chatContributions));
 		sideEffects = disposables.add(instantiationService.createInstance(AgentSideEffects, stateManager, customizationEnablementService, {
 			getAgent: () => agent,
 			agents: agentList,
 			sessionDataService,
-			localTurns: new AgentHostLocalTurns(sessionDataService, logService),
-			onTurnComplete: () => { },
+			localTurns: sharedLocalTurns,
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));
 	});
@@ -263,6 +370,26 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+		assert.deepStrictEqual(agentHostToolEvents(), [{
+			eventName: 'agentHost.toolInvoked',
+			data: {
+				result: 'success',
+				agentSessionId: 'session-1',
+				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+				isSubagentSession: false,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-1',
+				provider: 'mock',
+				invocationTimeMs: true,
+				resultSizeInCharacters: 41,
+				turnId: 'turn-1',
+				model: undefined,
+				errorCode: undefined,
+				msg: undefined,
+			},
+		}]);
 	});
 
 	test('attributes tool telemetry to the initiating turn client', () => {
@@ -300,6 +427,14 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {
 		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.McpServer,
+			id: 'c1',
+			uri: 'mcp://managed/mail',
+			name: 'mail',
+			state: { kind: McpServerStatus.Ready },
+			_meta: withMcpServerSourceMeta(undefined, 'managed'),
+		}]);
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
@@ -314,6 +449,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'lookup',
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
+				mcpSourceKind: 'managed',
 				toolCallId: 'tc-mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
@@ -322,6 +458,102 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				model: undefined,
 			},
 		}]);
+		assert.deepStrictEqual(agentHostToolEvents()[0].data, {
+			result: 'userCancelled',
+			agentSessionId: 'session-1',
+			chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+			isSubagentSession: false,
+			toolId: 'lookup',
+			toolExtensionId: undefined,
+			toolSourceKind: 'mcp',
+			mcpSourceKind: 'managed',
+			toolCallId: 'tc-mcp',
+			provider: 'mock',
+			invocationTimeMs: undefined,
+			resultSizeInCharacters: 90,
+			turnId: 'turn-1',
+			model: undefined,
+			errorCode: 'denied',
+			msg: 'denied',
+		});
+	});
+
+	test('attributes parser-created plugin MCP children to their owning plugin', () => {
+		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugins/mail/plugin.json',
+			name: 'mail',
+			children: [{
+				type: CustomizationType.McpServer,
+				id: 'plugin-mcp',
+				uri: 'file:///plugins/mail/.mcp.json',
+				name: 'search',
+				state: { kind: McpServerStatus.Ready },
+			}],
+		}]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-plugin-mcp', 'search', { kind: ToolCallContributorKind.MCP, customizationId: 'plugin-mcp' });
+		toolComplete('turn-1', 'tc-plugin-mcp', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			languageModelToolInvoked: toolEvents()[0].data.mcpSourceKind,
+			agentHostToolInvoked: agentHostToolEvents()[0].data.mcpSourceKind,
+		}, {
+			languageModelToolInvoked: 'plugin',
+			agentHostToolInvoked: 'plugin',
+		});
+	});
+
+	test('emits every bounded MCP source kind and omits unknown provenance', () => {
+		setupSession();
+		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		stateManager.setSessionCustomizations(sessionKey, [
+			...sources.map(source => ({
+				type: CustomizationType.McpServer,
+				id: source,
+				uri: `mcp://${source}/server`,
+				name: source,
+				state: { kind: McpServerStatus.Ready } as const,
+				_meta: withMcpServerSourceMeta(undefined, source),
+			} satisfies McpServerCustomization)),
+			{
+				type: CustomizationType.McpServer,
+				id: 'unknown',
+				uri: 'mcp://unknown/server',
+				name: 'unknown',
+				state: { kind: McpServerStatus.Ready },
+			} satisfies McpServerCustomization,
+		]);
+		startTurn('turn-1');
+
+		for (const source of [...sources, 'unknown'] as const) {
+			toolStart('turn-1', `tc-${source}`, source, { kind: ToolCallContributorKind.MCP, customizationId: source });
+			toolComplete('turn-1', `tc-${source}`, { success: true, pastTenseMessage: source });
+		}
+		completeTurn('turn-1');
+
+		const summarize = (events: { data: Record<string, unknown> }[]) => events.map(event => ({
+			toolId: event.data.toolId,
+			mcpSourceKind: event.data.mcpSourceKind,
+		}));
+		const expected = [
+			{ toolId: 'user', mcpSourceKind: 'user' },
+			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
+			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
+			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'unknown', mcpSourceKind: undefined },
+		];
+		assert.deepStrictEqual({
+			languageModelToolInvoked: summarize(toolEvents()),
+			agentHostToolInvoked: summarize(agentHostToolEvents()),
+		}, {
+			languageModelToolInvoked: expected,
+			agentHostToolInvoked: expected,
+		});
 	});
 
 	test('emits client source kind for a client-contributed tool', () => {
@@ -508,10 +740,46 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-err', 'bash');
-		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'boom' } });
+		toolComplete('turn-1', 'tc-err', { success: false, pastTenseMessage: 'boom', error: { message: 'bridge call \'session_effect\' failed to schedule: GenericFailure', code: 'failure' } });
 		completeTurn('turn-1');
 
-		assert.strictEqual(toolEvents()[0].data.result, 'error');
+		assert.deepStrictEqual({
+			legacy: toolEvents()[0].data,
+			agentHost: agentHostToolEvents()[0].data,
+			agentHostLevel: telemetry.events.find(event => event.eventName === 'agentHost.toolInvoked')?.level,
+		}, {
+			legacy: {
+				result: 'error',
+				chatSessionId: sessionKey,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-err',
+				provider: 'mock',
+				invocationTimeMs: undefined,
+				resultSizeInCharacters: 146,
+				turnId: 'turn-1',
+				model: undefined,
+			},
+			agentHost: {
+				result: 'error',
+				agentSessionId: 'session-1',
+				chatSessionId: getTelemetryChatSessionId(defaultChatUri),
+				isSubagentSession: false,
+				toolId: 'bash',
+				toolExtensionId: undefined,
+				toolSourceKind: 'agentHost',
+				toolCallId: 'tc-err',
+				provider: 'mock',
+				invocationTimeMs: undefined,
+				resultSizeInCharacters: 146,
+				turnId: 'turn-1',
+				model: undefined,
+				errorCode: 'failure',
+				msg: 'bridge call \'session_effect\' failed to schedule: GenericFailure',
+			},
+			agentHostLevel: 'usage',
+		});
 	});
 
 	test('emits a single event when a tool completion is duplicated', () => {
@@ -523,7 +791,13 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		toolComplete('turn-1', 'tc-dup', { success: true, pastTenseMessage: 'ran' });
 		completeTurn('turn-1');
 
-		assert.strictEqual(toolEvents().length, 1);
+		assert.deepStrictEqual({
+			legacyEvents: toolEvents().length,
+			agentHostEvents: agentHostToolEvents().length,
+		}, {
+			legacyEvents: 1,
+			agentHostEvents: 1,
+		});
 	});
 
 	test('drops an in-flight tool call when the turn is cancelled before completion', () => {
@@ -570,8 +844,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolConfirmation,
+				toolCallId: 'tc-confirm',
 				toolId: 'write',
 				toolSourceKind: 'agentHost',
+				executorClientConnectionState: undefined,
 				stalledTimeMs: true,
 			},
 		}]);
@@ -601,7 +877,42 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			await timeout(5 * 60 * 1000);
 		});
 
-		assert.deepStrictEqual(stalledEvents().map(e => e.data.blockerKind), [SessionInputRequestKind.ToolClientExecution]);
+		assert.deepStrictEqual(stalledEvents(), [{
+			eventName: 'agentHost.toolCallStalled',
+			data: {
+				provider: 'mock',
+				agentSessionId: 'session-1',
+				isSubagentSession: false,
+				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-client-stall',
+				toolId: 'run_tests',
+				toolSourceKind: 'client',
+				executorClientConnectionState: 'unknown',
+				stalledTimeMs: true,
+			},
+		}]);
+	});
+
+	test('reports a disconnected client tool executor', async () => {
+		registerClientConnection('client-1', false);
+
+		await runWithFakedTimers({}, async () => {
+			setupSession();
+			startTurn('turn-1');
+
+			toolStart('turn-1', 'tc-disconnected', 'run_tests', { kind: ToolCallContributorKind.Client, clientId: 'client-1' });
+			fire({
+				type: ActionType.ChatToolCallReady,
+				turnId: 'turn-1',
+				toolCallId: 'tc-disconnected',
+				invocationMessage: 'Run tests',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+
+			await timeout(5 * 60 * 1000);
+		});
+
+		assert.strictEqual(stalledEvents()[0].data.executorClientConnectionState, 'disconnected');
 	});
 
 	test('does not emit after a client tool completes or its turn is cancelled', async () => {
@@ -637,6 +948,8 @@ suite('AgentSideEffects — tool call telemetry', () => {
 	});
 
 	test('emits when a stalled client tool later completes', async () => {
+		const setClientConnected = registerClientConnection('client-1', true);
+
 		await runWithFakedTimers({}, async () => {
 			setupSession();
 			startTurn('turn-1');
@@ -651,6 +964,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			});
 
 			await timeout(5 * 60 * 1000);
+			setClientConnected(false);
 			toolComplete('turn-1', 'tc-recovered', { success: true, pastTenseMessage: 'ran tests' });
 		});
 
@@ -661,8 +975,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				agentSessionId: 'session-1',
 				isSubagentSession: false,
 				blockerKind: SessionInputRequestKind.ToolClientExecution,
+				toolCallId: 'tc-recovered',
 				toolId: 'run_tests',
 				toolSourceKind: 'client',
+				executorClientConnectionState: 'connected',
 				result: 'success',
 				totalTimeMs: true,
 				timeAfterStallMs: true,

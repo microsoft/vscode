@@ -105,6 +105,24 @@ export interface SessionDefaultChatChangedAction {
 }
 
 /**
+ * The owning session's authoritative chat catalog order changed.
+ *
+ * Host-emitted convergence signal; it never originates from a client
+ * dispatch. `chats` is the complete resulting order and MUST contain every
+ * chat currently in the session exactly once. Reducers replace the catalog
+ * order while preserving each matching summary. Invalid or incomplete orders
+ * are ignored.
+ *
+ * @category Session Actions
+ * @version 1
+ */
+export interface SessionChatsReorderedAction {
+	type: ActionType.SessionChatsReordered;
+	/** Every chat URI in authoritative catalog order. */
+	chats: URI[];
+}
+
+/**
  * Session title updated. Fired by the server when the title is auto-generated
  * from conversation, or dispatched by a client to rename a session.
  *
@@ -280,7 +298,10 @@ export interface SessionWorkingDirectorySetAction {
  * reduced set — so this action is safe to model as idempotent. A host MAY
  * decline to apply the removal (e.g. an immutable primary directory, see
  * {@link MultipleWorkingDirectoriesCapability.immutablePrimary}); it then leaves
- * the set unchanged.
+ * the set unchanged. When the agent advertises
+ * {@link MultipleWorkingDirectoriesCapability.primaryReplacement}, clients MUST
+ * NOT use this generic membership action to remove index `0`; the host MUST
+ * reject such a removal, leaving the protected slot intact.
  *
  * @category Session Actions
  * @version 1
@@ -290,6 +311,37 @@ export interface SessionWorkingDirectoryRemovedAction {
 	type: ActionType.SessionWorkingDirectoryRemoved;
 	/** The working directory to revoke the session's agent tool access to. */
 	directory: URI;
+}
+
+/**
+ * Atomically replaces one of the session's working directories.
+ *
+ * This is a targeted compare-and-swap: the reducer is a no-op when
+ * {@link SessionState.workingDirectories} does not contain `directory`.
+ * Otherwise it replaces that entry with `replacement` and deduplicates the
+ * result, preserving every other directory's relative order. When
+ * `replacement` occurs after the target, it moves to the target's position;
+ * for example, `[A, B, C]` with `B → C` becomes `[A, C]`. When it occurs
+ * before the target, it retains its earlier position and the target is removed;
+ * `[A, B, C]` with `C → A` becomes `[A, B]`.
+ *
+ * Only valid when the agent advertises
+ * {@link AgentCapabilities.multipleWorkingDirectories}. Replacing index `0`
+ * additionally requires
+ * {@link MultipleWorkingDirectoriesCapability.primaryReplacement}; clients
+ * MUST NOT target an immutable primary. The host MUST validate and apply its
+ * backend side effect before broadcasting an accepted action, or reject it.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionWorkingDirectoryReplacedAction {
+	type: ActionType.SessionWorkingDirectoryReplaced;
+	/** URI of the existing entry to replace. */
+	directory: URI;
+	/** URI to place in the replaced entry's position. */
+	replacement: URI;
 }
 
 // ─── Input Needed Actions ────────────────────────────────────────────────────
@@ -476,6 +528,36 @@ export interface SessionMcpServerStateChangedAction {
 export interface SessionMcpServerStartRequestedAction {
 	type: ActionType.SessionMcpServerStartRequested;
 	/** The id of the {@link McpServerCustomization} to start. */
+	id: string;
+}
+
+/**
+ * Requests that the host background the startup of an existing
+ * {@link McpServerCustomization} that is currently blocking message
+ * processing (see {@link McpServerStartingState.blocking}), so that new
+ * messages can be processed without waiting for the server to finish
+ * starting.
+ *
+ * The server keeps starting in the background; backgrounding only stops the
+ * host from holding message processing on it.
+ *
+ * Locates the target entry by `id`, searching both the top-level
+ * customization list and the `children` array of every container. When the
+ * server is {@link McpServerStatus.Starting | `starting`} with
+ * `blocking: true`, the reducer optimistically sets `blocking` to `false`,
+ * preserving the rest of the entry. Is a no-op otherwise (no matching
+ * `McpServerCustomization`, a different lifecycle state, or not blocking).
+ * The host remains authoritative and MAY reject the request by following with
+ * {@link SessionMcpServerStateChangedAction | `session/mcpServerStateChanged`}
+ * restoring `blocking: true`.
+ *
+ * @category Session Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface SessionMcpServerBackgroundRequestedAction {
+	type: ActionType.SessionMcpServerBackgroundRequested;
+	/** The id of the {@link McpServerCustomization} to background. */
 	id: string;
 }
 

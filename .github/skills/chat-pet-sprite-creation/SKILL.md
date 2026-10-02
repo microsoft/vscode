@@ -171,6 +171,35 @@ Every frame uses the same rectangle. Never shift frame boundaries or add per-fra
 
 Choose a meaningful static pose that communicates the state without motion. Do not assume the first animation frame is automatically the best reduced-motion fallback.
 
+## Layered accessories
+
+Wearable accessories use a body-owned attachment rig and one palette-independent atlas per appearance under `media/chatPet/accessories/`. Do not export copies for individual runtime states or frames. Body animation metadata owns attachment movement; an accessory atlas only contains the few canonical shapes needed when the body geometry changes.
+
+The default atlas is `256×192`, divided into `64×64` cells. A hat whose supplied silhouette genuinely needs the full 12-logical-pixel body width may declare `atlasCellSize: 96` and use a `384×288` atlas with `96×96` cells. Do not choose the wider tier merely to add detail; both tiers still use the same whole `8×8` logical pixels.
+
+```text
+columns: upright | sleeping | impact | splat
+row 0:   head back layers
+row 1:   head front layers
+row 2:   right-eye front layers
+```
+
+An appearance may leave any cell transparent. For example, a plain hat leaves the eye row empty, while a combined Top Hat & Monocle appearance uses both head rows and the eye row. The airborne rig pose reuses the upright column. Add another canonical column only when an existing pose plus body-owned translation cannot preserve the intended silhouette.
+
+Attachment tracks live in `chatPetAccessoryRig.ts`. Each track uses compressed frame spans with a canonical pose and independent head/right-eye anchors. A slot is omitted while a body-authored expression, prop, or complete silhouette replacement owns the same geometry, such as dizzy eyes, sunglasses, or the rare icon transformation. When frames inside one sheet bake different facing directions, the track marks those frames so the head accessory mirrors with the body before the whole pet's outer facing transform is applied. Update the body-owned track only when body geometry changes. Adding an ordinary accessory must not require editing tracks or renderer code.
+
+Head-slot anchors include a one-logical-pixel wear offset so hats overlap the top of the head rather than resting on its silhouette. The love animation suppresses head accessories because its transformed head/antenna silhouette is the reaction. Treat slot visibility and fit as body-owned behavior, not per-hat exceptions.
+
+Appearances that tuck the antennae under a larger hat opt into `coversAntennae`. The compositor uses body-owned occlusion bounds before drawing the hat front, so the behavior follows animation tracks and mirroring without painting body-colored cover pixels into each atlas.
+
+Directional head accessories are authored for the canonical right-facing body and mirror with the complete pet canvas. A hat with directional structure should stay visually balanced over the head while expressing facing through a restrained one-logical-pixel cue in its brim, visor, lean, nose guard, or other asymmetric detail; do not shift the whole silhouette far off-center. Make asymmetric parts read correctly after mirroring. Identity-bound eye accessories may opt out of mirroring and use a direction-specific eye anchor so they remain on the same eye; the Top Hat & Monocle is the reference. Fixed-eye anchors must include the body origin shift for wide frames (`frameWidth - 96`). Review every appearance in both directions with the facing fixture.
+
+Static reduced-motion art may represent a later frame of its animated sheet. Keep `getChatPetReducedMotionRigFrame()` aligned with the representative body frame; do not assume rig frame zero merely because the static PNG has one image frame.
+
+Author every wearable part on the same `8×8` logical-pixel grid as the body. Brims, crowns, bands, rims, chains, highlights, and shadows must all be composed from whole aligned logical pixels; do not use diagonal polygons or source-pixel stair steps to imply curves. The small-effect exception does not apply to wearable accessories. Use the current Stable body sheets as geometry guides and validate that every alpha value is fully transparent or fully opaque. The runtime mirrors layers with the body; fixed-orientation body decorations are restored without erasing accessory pixels.
+
+When changing the accessory source at runtime, keep the current composite visible until the replacement image loads and passes exact dimension validation. Redraw the current frame without restarting the body animation. A failed or malformed accessory source falls back to the body alone and must not repeatedly retry.
+
 ## Animation design
 
 Animate key poses, not noise.
@@ -330,6 +359,19 @@ Keep the visuals silent: images, canvases, eyes, and effects use empty alt text 
 - [ ] User-triggered behavior has localized screen-reader output.
 - [ ] Visual children are `aria-hidden`; the button owns semantics and tab order.
 - [ ] `ChatPetWidget` tests cover state names, exact timings, geometry, state priority, and reduced motion.
+- [ ] Every runtime state maps to the intended body-owned attachment track.
+- [ ] The atlas matches its declared compact (`256×192`) or wide (`384×288`) cell tier and the documented column/row contract.
+- [ ] Every accessory color/alpha block is aligned to the `8×8` logical-pixel grid.
+- [ ] Atlas artwork stays within the body canvas after applying the documented pivots and anchors.
+- [ ] Head accessories overlap the head by the shared wear offset and are absent during love.
+- [ ] Asymmetric artwork reads correctly in both canonical and mirrored facing directions.
+- [ ] Adding the accessory requires no state-specific exports or renderer changes.
+- [ ] Reduced-motion sources use the rig frame represented by their static body art.
+- [ ] Body-authored eye expressions and props suppress incompatible eye-slot accessories.
+- [ ] Switching accessories preserves the active body frame and animation timer.
+- [ ] Accessory load failure leaves the body visible and does not retry continuously.
+
+Use the `chat/chatPetAccessoryRig/chatPetAccessoryRig/CriticalPoses` component fixture to review critical animated and reduced-motion poses, and `AllAccessoriesFacing` to compare every appearance in both directions.
 
 Run the focused unit tests using the repository's `unit-tests` skill. At minimum, run the `ChatPetWidget` test suite.
 

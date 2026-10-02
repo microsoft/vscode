@@ -33,6 +33,9 @@ jobs:
     pool:
       name: ${{ parameters.poolName }}
       os: ${{ parameters.os }}
+      ${{ if eq(parameters.os, 'macOS') }}:
+        demands:
+          - ImageOverride -equals ACES_VM_SharedPool_Sequoia
     timeoutInMinutes: 30
     templateContext:
       outputs:
@@ -73,7 +76,7 @@ jobs:
       - checkout: self
         fetchDepth: 1
         fetchTags: false
-        sparseCheckoutDirectories: build/azure-pipelines/config test/sanity .nvmrc
+        sparseCheckoutDirectories: build/azure-pipelines/config build/azure-pipelines/common test/sanity .nvmrc
         retryCountOnTaskFailure: 3
         displayName: Checkout test/sanity
 
@@ -102,6 +105,9 @@ jobs:
           displayName: Create Crash Dumps Directory
 
       - ${{ if and(eq(parameters.os, 'windows'), eq(parameters.arch, 'arm64')) }}:
+        - task: NuGetAuthenticate@1
+          displayName: Setup NuGet Authentication
+
         - script: |
             @echo off
             setlocal enabledelayedexpansion
@@ -117,7 +123,7 @@ jobs:
               if exist "!SDK_ROOT!" rmdir /s /q "!SDK_ROOT!"
 
               set "SDK_PACKAGE=$(Agent.TempDirectory)\windows-sdk-build-tools.nupkg"
-              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors "https://api.nuget.org/v3-flatcontainer/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
+              curl.exe -fsSL --retry 5 --retry-delay 2 --retry-all-errors -u "vscode:%VSS_NUGET_ACCESSTOKEN%" "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/flat2/microsoft.windows.sdk.buildtools/!PACKAGE_VERSION!/microsoft.windows.sdk.buildtools.!PACKAGE_VERSION!.nupkg" -o "!SDK_PACKAGE!"
 
               set "ACTUAL_HASH="
               for /f "skip=1" %%A in ('certutil -hashfile "!SDK_PACKAGE!" SHA256') do if not defined ACTUAL_HASH set "ACTUAL_HASH=%%A"
@@ -141,6 +147,11 @@ jobs:
         inputs:
           version: '22.22.0'
         displayName: Install Node.js
+
+      - ${{ if eq(parameters.os, 'macOS') }}:
+        - script: node build/azure-pipelines/common/captureDarwinMemory.ts
+          displayName: Capture macOS memory before dependency setup
+          continueOnError: true
 
       - task: Cache@2
         inputs:
@@ -187,12 +198,21 @@ jobs:
 
       # macOS
       - ${{ if eq(parameters.os, 'macOS') }}:
-        - bash: $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
+        - script: node build/azure-pipelines/common/captureDarwinMemory.ts
+          displayName: Capture macOS memory before sanity tests
+          continueOnError: true
+
+        - bash: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/captureDarwinMemory.ts" -- $(TEST_DIR)/scripts/run-macOS.sh -c $(BUILD_COMMIT) -q $(BUILD_QUALITY) -t $(LOG_FILE) -s $(SCREENSHOTS_DIR) -d $(CRASH_DUMPS_DIR) -v $(ARTIFACTS_ARG) ${{ parameters.args }}
           workingDirectory: $(TEST_DIR)
           displayName: Run Sanity Tests
           env:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
+
+        - script: node build/azure-pipelines/common/captureDarwinMemory.ts
+          displayName: Capture macOS memory after sanity tests
+          condition: always()
+          continueOnError: true
 
       # Native Linux host
       - ${{ if and(eq(parameters.container, ''), eq(parameters.os, 'linux')) }}:

@@ -94,7 +94,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const errorNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/error'));
 		const errorAction = getActionEnvelope(errorNotif).action;
 		if (errorAction.type === 'chat/error') {
-			assert.strictEqual(errorAction.error.message, 'Something went wrong');
+			assert.strictEqual(errorAction.part.error.message, 'Something went wrong');
 		}
 	});
 
@@ -107,7 +107,7 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		client.notify('dispatchAction', {
 			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
-			action: { type: 'chat/turnCancelled', turnId: 'turn-cancel' },
+			action: { type: 'chat/turnCancelled', turnId: 'turn-cancel', duration: 10 },
 		});
 
 		await client.waitForNotification(n => isActionNotification(n, 'chat/turnCancelled'));

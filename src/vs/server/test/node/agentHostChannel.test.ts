@@ -11,6 +11,14 @@ import type { Client, IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { NullLogService } from '../../../platform/log/common/log.js';
 import { AgentHostChannel, IAgentHostUpstreamEndpoint, IUpstreamConnection, UnavailableAgentHostChannel } from '../../node/agentHostChannel.js';
 
+class TestLogService extends NullLogService {
+	readonly infos: string[] = [];
+
+	override info(message: string, ...args: unknown[]): void {
+		this.infos.push([message, ...args].join(' '));
+	}
+}
+
 class FakeUpstream extends Disposable implements IUpstreamConnection {
 	private readonly _onFrame = this._register(new Emitter<string>());
 	readonly onFrame: Event<string> = this._onFrame.event;
@@ -146,6 +154,27 @@ suite('AgentHostChannel', () => {
 
 		await channel.call('renderer', 'connect');
 		assert.strictEqual(resolveCount, 1);
+	});
+
+	test('does not log the upstream connection token', async () => {
+		const ipc = ds.add(new FakeIPCServer());
+		const logService = new TestLogService();
+		const channel = ds.add(new AgentHostChannel<string>(
+			ipc as unknown as IPCServer<string>,
+			{ host: 'localhost', port: '12345', connectionToken: 'secret-token' },
+			logService,
+			() => ds.add(new FakeUpstream()),
+		));
+
+		channel.listen('renderer', 'frame');
+		assert.deepStrictEqual(logService.infos, []);
+
+		await channel.call('renderer', 'connect');
+
+		assert.deepStrictEqual(logService.infos, [
+			'[AgentHostChannel] Renderer ctx=renderer requested connect to upstream',
+			'[AgentHostChannel] Opening upstream to localhost:12345',
+		]);
 	});
 
 	test('shares deferred endpoint resolution between renderer contexts', async () => {

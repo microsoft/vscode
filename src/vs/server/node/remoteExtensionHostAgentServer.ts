@@ -37,6 +37,7 @@ import { ManagementConnection } from './remoteExtensionManagement.js';
 import { determineServerConnectionToken, requestHasValidConnectionToken as httpRequestHasValidConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from './serverConnectionToken.js';
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { IServerLifetimeService } from './serverLifetimeService.js';
+import { getRemoteResourceResponseHeaders } from './remoteResourceResponse.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
 const require = createRequire(import.meta.url);
@@ -174,7 +175,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				return serveError(req, res, 400, `Bad request.`);
 			}
 
-			const responseHeaders: Record<string, string> = Object.create(null);
+			const requestOrigin = req.headers['origin'];
+			const responseHeaders = getRemoteResourceResponseHeaders(requestOrigin, origin => this._webEndpointOriginChecker.matches(origin));
 			if (this._environmentService.isBuilt) {
 				if (isEqualOrParent(filePath, this._environmentService.builtinExtensionsPath, !platform.isLinux)
 					|| isEqualOrParent(filePath, this._environmentService.extensionsPath, !platform.isLinux)
@@ -183,12 +185,6 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 				}
 			}
 
-			// Allow cross origin requests from the web worker extension host
-			responseHeaders['Vary'] = 'Origin';
-			const requestOrigin = req.headers['origin'];
-			if (requestOrigin && this._webEndpointOriginChecker.matches(requestOrigin)) {
-				responseHeaders['Access-Control-Allow-Origin'] = requestOrigin;
-			}
 			return serveFile(filePath, CacheControl.ETAG, this._logService, req, res, responseHeaders);
 		}
 
@@ -613,7 +609,7 @@ export interface IServerAPI {
 	dispose(): void;
 }
 
-export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
+export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, agentHostBridgeConnectionToken: string | undefined): Promise<IServerAPI> {
 
 	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
@@ -654,7 +650,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	const disposables = new DisposableStore();
-	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
+	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, agentHostBridgeConnectionToken, disposables);
 
 	// Set the unexpected error handler after the services have been initialized, to avoid having
 	// the telemetry service overwrite our handler

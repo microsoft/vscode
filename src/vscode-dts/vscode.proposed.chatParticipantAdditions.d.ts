@@ -49,10 +49,15 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	/** The Auto routing tier a request was resolved with. */
+	export type ChatAutoModeTier = 'efficiency' | 'balance' | 'intelligence' | 'fast';
+
 	export class ChatResponseTextEditPart {
 		uri: Uri;
 		edits: TextEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: TextEdit | TextEdit[]);
 	}
@@ -61,6 +66,8 @@ declare module 'vscode' {
 		uri: Uri;
 		edits: NotebookEdit[];
 		isDone?: boolean;
+		/** The Auto routing tier that produced these edits, for edit attribution. */
+		autoTier?: ChatAutoModeTier;
 		constructor(uri: Uri, done: true);
 		constructor(uri: Uri, edits: NotebookEdit | NotebookEdit[]);
 	}
@@ -573,19 +580,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Represents an auto-mode model routing resolution. Displayed as a collapsible
-	 * widget in the chat stream showing which model was selected and why.
+	 * Explains what the "Auto" model routed a turn to, as a single status line.
+	 * Push a part without a model for the in-flight state, then a resolved one.
+	 * Auto may route several times in a turn; each route gets its own row.
 	 */
 	export class ChatResponseAutoModeResolutionPart {
-		/** The model ID that was selected by the router */
-		resolvedModel: string;
-		/** The user-facing display name of the resolved model */
-		resolvedModelName: string;
-		/** The router's classification label */
-		predictedLabel: string;
-		/** Confidence score (0-1) from the router */
-		confidence: number;
-		constructor(resolvedModel: string, resolvedModelName: string, predictedLabel: string, confidence: number);
+		/** The model the router picked, or `undefined` while routing is in flight. */
+		resolvedModel: { id: string; name: string } | undefined;
+		constructor(resolvedModel?: { id: string; name: string });
 	}
 
 	export interface ChatResponseStream {

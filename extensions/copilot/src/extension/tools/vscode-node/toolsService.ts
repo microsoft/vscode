@@ -326,14 +326,6 @@ export class ToolsService extends BaseToolsService {
 					return false;
 				}
 
-				// For semantic_search (codebase) tool, allow experimentally disabling it entirely.
-				if (
-					tool.name === ToolName.Codebase
-					&& this._configurationService.getExperimentBasedConfig(ConfigKey.SemanticSearchToolMode, this._experimentationService) === 'disabled'
-				) {
-					return false;
-				}
-
 				// 0. Check if the tool was disabled via the tool picker. If so, it must be disabled here
 				const toolPickerSelection = requestToolsByName.get(getContributedToolName(tool.name));
 				if (toolPickerSelection === false) {

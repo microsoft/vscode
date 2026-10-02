@@ -15,6 +15,8 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../../workbench/common/contributions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot } from '../../../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
+import { IChatPetService } from '../../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ChatPhoneInputPresenterRequest, IChatPhoneInputPresenter, IChatPhoneInputSessionContext, IChatPhonePresenterImpl } from '../../../../../../workbench/contrib/chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { IModePickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modePickerActionItem.js';
 import { IModelPickerDelegate } from '../../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
@@ -66,6 +68,7 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 		@ISessionsService private readonly _sessionsService: ISessionsService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IChatPetService private readonly _chatPetService: IChatPetService,
 	) {
 		super();
 
@@ -242,9 +245,17 @@ class MobileChatPhoneInputPresenter extends Disposable implements IChatPhonePres
 				break;
 			case 'agentHostMode':
 				if (session && agentHostProvider) {
-					const schema = agentHostProvider.getSessionConfig(session.sessionId)?.schema.properties[SessionConfigKey.Mode];
+					const config = agentHostProvider.getSessionConfig(session.sessionId);
+					const schema = config?.schema.properties[SessionConfigKey.Mode];
 					if (schema && isWellKnownModeValue(schema, action.value)) {
-						agentHostProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, action.value).catch(() => { });
+						const previousMode = String(config?.values[SessionConfigKey.Mode] ?? schema.default ?? '');
+						agentHostProvider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, action.value)
+							.then(() => {
+								if (didExplicitlyEnableChatPetAutopilot(previousMode, action.value)) {
+									this._chatPetService.unlockAchievement(ChatPetAchievementIds.AutopilotEnabled);
+								}
+							})
+							.catch(() => { });
 					}
 				}
 				break;

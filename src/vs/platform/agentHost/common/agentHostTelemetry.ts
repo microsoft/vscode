@@ -18,6 +18,7 @@ export const enum AgentHostClientConnectionKind {
 	Local = 'local',
 	DirectWebSocket = 'direct_websocket',
 	DevTunnel = 'dev_tunnel',
+	DevContainer = 'dev_container',
 	SSH = 'ssh',
 	WSL = 'wsl',
 	RemoteExtensionHost = 'remote_extension_host',
@@ -31,6 +32,86 @@ export const enum AgentHostTransportKind {
 	Unknown = 'unknown',
 }
 
+/**
+ * The stage a turn reached before it failed. Declared here rather than beside the
+ * telemetry reporter so `common` consumers (such as the chat contribution
+ * admission hook) can name a failure stage without importing from `node`.
+ */
+export type AgentHostTurnFailureStage = 'validation' | 'workingDirectory' | 'modelSelection' | 'sendMessage' | 'provider';
+
+/**
+ * A bounded host-owned step that a turn passes through after it is admitted and
+ * before it is dispatched to the provider. Each step is timed separately so the
+ * host's share of time-to-first-progress can be attributed to a specific piece
+ * of work rather than reported as one opaque number.
+ *
+ * This is deliberately finer-grained than {@link AgentHostTurnFailureStage} and
+ * is not a substitute for it: the failure stage answers "where did the turn
+ * break", these answer "where did the turn spend its time". Keep the two
+ * vocabularies independent so neither can be changed for the other's benefit.
+ */
+export type AgentHostTurnSendStage =
+	/** Resolving the session's working directory, including first-send worktree creation. */
+	| 'workingDirectory'
+	/** Applying the turn's model and agent selection on the provider. */
+	| 'modelSelection'
+	/** Resolving chat attachments referenced by the message. */
+	| 'attachments'
+	/** Running the outgoing-turn chat contributions. */
+	| 'contributions'
+	/**
+	 * Waiting for the provider's turn preparation (`IAgentChats.prepareTurn`).
+	 * Preparation is started earlier and runs alongside the stages above and
+	 * the checkpoint capture, so this measures only the time it still costs
+	 * the critical path — not the preparation's total cost.
+	 */
+	| 'providerPreparation'
+	/**
+	 * Waiting for the turn-start checkpoint. The capture is started earlier and
+	 * runs alongside the stages above, so this measures only the time it still
+	 * costs the critical path — not the capture's total cost.
+	 */
+	| 'checkpoint';
+
+/**
+ * A bounded provider-owned step between host dispatch (`timeToProviderDispatch`)
+ * and the turn's first visible progress. Stages are sequential: marking one
+ * closes the previous one, and the open stage closes at first progress, so
+ * their durations partition the provider's share of time-to-first-progress.
+ *
+ * Providers mark only the stages they actually run; an absent stage did not
+ * run, while an observed `0` ran within the clock's resolution.
+ */
+export type AgentHostProviderSendStage =
+	/** Waiting behind earlier operations queued on the same chat. */
+	| 'queue'
+	/** Acquiring (and, when cold, starting) the provider's SDK client. */
+	| 'client'
+	/** Resolving customization, agent and MCP state for a session launch. */
+	| 'snapshot'
+	/** Building the provider session configuration. */
+	| 'config'
+	/** The provider SDK create/resume session call. */
+	| 'create'
+	/** Post-create session setup required before the session can be used. */
+	| 'finalize'
+	/** Registering and persisting a newly launched session. */
+	| 'persist'
+	/** Refreshing an existing live session whose configuration changed. */
+	| 'refresh'
+	/** Per-turn preparation after the session is ready and before the SDK send. */
+	| 'turnPrepare'
+	/** From the SDK send until the first visible progress (model latency). */
+	| 'modelResponse';
+
+/**
+ * Receives provider stage transitions for one turn. Implementations must be
+ * cheap and must never throw; providers call it on the hot send path.
+ */
+export interface IAgentProviderSendStageRecorder {
+	mark(stage: AgentHostProviderSendStage): void;
+}
+
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
 	readonly connectionKind: AgentHostClientConnectionKind;
@@ -38,6 +119,27 @@ export interface IAgentHostClientTelemetryContext {
 	readonly hostLaunchKind: AgentHostLaunchKind;
 	readonly machineId?: string;
 	readonly devDeviceId?: string;
+}
+
+/** Bounded account context at Codex turn admission, independent of the turn's model provider. */
+export interface ICodexAccountTelemetryContext {
+	readonly chatgptAccountState: 'signedIn' | 'signedOut' | 'unknown';
+	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
+	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
+	readonly chatgptWeeklyUsedPercentBucket?: number;
+}
+
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
+}
+
+/** Provider-owned, immutable context captured without I/O when a turn starts. */
+export interface IAgentProviderTurnTelemetryContext {
+	readonly codex?: ICodexAccountTelemetryContext;
 }
 
 export function createUnknownAgentHostClientTelemetryContext(clientType: AgentHostClientType): IAgentHostClientTelemetryContext {
@@ -76,6 +178,7 @@ export function readClientConnectionKind(meta: Record<string, unknown> | undefin
 		case AgentHostClientConnectionKind.Local:
 		case AgentHostClientConnectionKind.DirectWebSocket:
 		case AgentHostClientConnectionKind.DevTunnel:
+		case AgentHostClientConnectionKind.DevContainer:
 		case AgentHostClientConnectionKind.SSH:
 		case AgentHostClientConnectionKind.WSL:
 		case AgentHostClientConnectionKind.RemoteExtensionHost:

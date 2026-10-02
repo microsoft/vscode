@@ -14,7 +14,8 @@ import type { LanguageModelChatInformation, LanguageModelConfigurationSchema } f
  * `undefined`, otherwise the UI shows an "undefined" state.
  *
  * Selection order:
- *  - claude / Kimi K3 families → 'high' if available
+ *  - claude-opus-5.5 → 'medium' if available
+ *  - other claude / Kimi K3 families → 'high' if available
  *  - other families   → 'medium' if available
  *  - fallback         → the first advertised level
  */
@@ -23,7 +24,8 @@ export function pickDefaultReasoningEffort(effortLevels: readonly string[], fami
 		return undefined;
 	}
 	const lowerFamily = family.toLowerCase();
-	const preferred = lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3') ? 'high' : 'medium';
+	const isOpus55 = /^claude-opus-5[.-]5/.test(lowerFamily);
+	const preferred = !isOpus55 && (lowerFamily.startsWith('claude') || lowerFamily.includes('kimi-k3')) ? 'high' : 'medium';
 	if (effortLevels.includes(preferred)) {
 		return preferred;
 	}
@@ -70,16 +72,17 @@ export function getReasoningEffortLabel(level: string): string {
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
- * Copilot and BYOK code paths.
+ * Copilot and BYOK code paths. `defaultOverride` wins over the family default
+ * when it is one of the advertised levels.
  */
-export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string, defaultOverride?: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-		default: pickDefaultReasoningEffort(effortLevels, family),
+		default: defaultOverride && effortLevels.includes(defaultOverride) ? defaultOverride : pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
 }
@@ -90,9 +93,9 @@ export function buildReasoningEffortSchemaProperty(effortLevels: readonly string
  */
 export function getAutoModeTierLabel(tier: string): string {
 	switch (tier) {
-		case 'eco': return l10n.t('Eco');
-		case 'balanced': return l10n.t('Balanced');
-		case 'max': return l10n.t('Max');
+		case 'efficiency': return l10n.t('Efficiency');
+		case 'balance': return l10n.t('Balance');
+		case 'intelligence': return l10n.t('Intelligence');
 		case 'fast': return l10n.t('Fast');
 		default: return tier.charAt(0).toUpperCase() + tier.slice(1);
 	}
@@ -104,9 +107,9 @@ export function getAutoModeTierLabel(tier: string): string {
  */
 export function getAutoModeTierDescription(tier: string): string {
 	switch (tier) {
-		case 'eco': return l10n.t('Cheaper models for everyday tasks');
-		case 'balanced': return l10n.t('Balances capability and cost');
-		case 'max': return l10n.t('Most capable models, higher cost');
+		case 'efficiency': return l10n.t("Optimizes for cost and speed, using more capable models only when needed.");
+		case 'balance': return l10n.t("Balances cost/speed and capability based on task complexity.");
+		case 'intelligence': return l10n.t("Optimizes for capability, using faster models only when the task allows it.");
 		case 'fast': return l10n.t('Lowest latency models');
 		default: return tier;
 	}
@@ -115,12 +118,12 @@ export function getAutoModeTierDescription(tier: string): string {
 /**
  * Builds the `tier` property descriptor for the Auto model's
  * {@link LanguageModelConfigurationSchema}. Rendered by the model picker the
- * same way thinking effort is, but labelled "Tier".
+ * same way thinking effort is, but labelled "Optimize for".
  */
 export function buildAutoModeTierSchemaProperty(tiers: readonly string[], defaultTier: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
-		title: l10n.t('Tier'),
+		title: l10n.t('Optimize for'),
 		enum: [...tiers],
 		enumItemLabels: tiers.map(getAutoModeTierLabel),
 		enumDescriptions: tiers.map(getAutoModeTierDescription),

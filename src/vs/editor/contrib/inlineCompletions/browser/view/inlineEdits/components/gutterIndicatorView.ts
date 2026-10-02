@@ -13,9 +13,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
 import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
@@ -136,17 +134,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 			position: constObservable(null),
 			allowEditorOverflow: false,
 			minContentWidthInPx: constObservable(0),
-		}));
-
-		this._register(this._editorObs.editor.onMouseMove((e: IEditorMouseEvent) => {
-			const state = this._state.get();
-			if (state === undefined) { return; }
-
-			const el = this._iconRef.element;
-			const rect = el.getBoundingClientRect();
-			const rectangularArea = Rect.fromLeftTopWidthHeight(rect.left, rect.top, rect.width, rect.height);
-			const point = new Point(e.event.posx, e.event.posy);
-			this._isHoveredOverIcon.set(rectangularArea.containsPoint(point), undefined);
 		}));
 
 		this._register(this._editorObs.editor.onDidScrollChange(() => {
@@ -548,9 +535,11 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 
 			onmouseenter: () => {
+				this._isHoveredOverIcon.set(true, undefined);
 				// TODO show hover when hovering ghost text etc.
 				this._showHover();
 			},
+			onmouseleave: () => this._isHoveredOverIcon.set(false, undefined),
 			style: {
 				cursor: 'pointer',
 				zIndex: '20',

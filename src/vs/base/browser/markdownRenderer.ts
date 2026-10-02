@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../common/errors.js';
+import { isUNC } from '../common/extpath.js';
 import { escapeDoubleQuotes, IMarkdownString, isPortableLinkTarget, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
 import { defaultGenerator } from '../common/idGenerator.js';
@@ -256,7 +257,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.childNodes);
+		if (syncCodeBlocks.some(([, element]) => target.contains(element))) {
+			replaceChildrenPreservingCodeBlocks(target, renderedContent, syncCodeBlocks);
+		} else {
+			DOM.reset(target, ...renderedContent.childNodes);
+		}
 	} else {
 		outElement = renderedContent;
 	}
@@ -283,7 +288,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 		for (const placeholderElement of placeholderElements) {
 			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
-			if (renderedElement) {
+			if (renderedElement && (placeholderElement.childNodes.length !== 1 || placeholderElement.firstChild !== renderedElement)) {
 				DOM.reset(placeholderElement, renderedElement);
 			}
 		}
@@ -350,6 +355,90 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	};
 }
 
+/** Keeps reused code blocks and their matching ancestors connected so embedded iframes do not reload. */
+function replaceChildrenPreservingCodeBlocks(target: HTMLElement, source: HTMLElement, codeBlocks: readonly [string, HTMLElement][]): void {
+	const renderedElements = new Map(codeBlocks);
+	const replacements = new Map<HTMLElement, HTMLElement>();
+	const existingToNew = new Map<HTMLElement, HTMLElement>();
+	const preservedCodeBlocks = new Set<HTMLElement>();
+
+	// eslint-disable-next-line no-restricted-syntax
+	for (const placeholder of source.querySelectorAll<HTMLElement>('div[data-code]')) {
+		const renderedElement = renderedElements.get(placeholder.dataset.code ?? '');
+		if (!renderedElement || !target.contains(renderedElement)) {
+			continue;
+		}
+
+		let existing = renderedElement.parentElement;
+		if (!existing?.hasAttribute('data-code') || existing.childNodes.length !== 1) {
+			continue;
+		}
+
+		let incoming: HTMLElement | null = placeholder;
+		const ancestors: [HTMLElement, HTMLElement][] = [];
+		while (existing && incoming && existing !== target && incoming !== source
+			&& existing.tagName === incoming.tagName
+			&& (!replacements.has(incoming) || replacements.get(incoming) === existing)
+			&& (!existingToNew.has(existing) || existingToNew.get(existing) === incoming)) {
+			ancestors.push([incoming, existing]);
+			existing = existing.parentElement;
+			incoming = incoming.parentElement;
+		}
+
+		if (existing === target && incoming === source) {
+			for (const [newElement, existingElement] of ancestors) {
+				replacements.set(newElement, existingElement);
+				existingToNew.set(existingElement, newElement);
+			}
+			preservedCodeBlocks.add(placeholder);
+		}
+	}
+
+	if (replacements.size === 0) {
+		DOM.reset(target, ...source.childNodes);
+		return;
+	}
+
+	const updateChildren = (parent: HTMLElement, newParent: HTMLElement): void => {
+		const children = Array.from(newParent.childNodes, child => {
+			if (!DOM.isHTMLElement(child)) {
+				return child;
+			}
+			const replacement = replacements.get(child);
+			if (!replacement) {
+				return child;
+			}
+
+			for (const name of replacement.getAttributeNames()) {
+				if (!child.hasAttribute(name)) {
+					replacement.removeAttribute(name);
+				}
+			}
+			DOM.copyAttributes(child, replacement);
+			if (!preservedCodeBlocks.has(child)) {
+				updateChildren(replacement, child);
+			}
+			return replacement;
+		});
+		const retainedChildren = new Set(children);
+		for (const child of Array.from(parent.childNodes)) {
+			if (!retainedChildren.has(child)) {
+				parent.removeChild(child);
+			}
+		}
+		let cursor = parent.firstChild;
+		for (const child of children) {
+			if (cursor === child) {
+				cursor = cursor.nextSibling;
+			} else {
+				parent.insertBefore(child, cursor);
+			}
+		}
+	};
+
+	updateChildren(target, source);
+}
+
 function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
 	// eslint-disable-next-line no-restricted-syntax
 	for (const el of root.querySelectorAll('img, audio, video, source')) {
@@ -363,13 +452,6 @@ function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRender
 			} catch (err) { }
 
 			el.setAttribute('src', massageHref(markdown, href, true));
-
-			if (options.sanitizerConfig?.remoteImageIsAllowed) {
-				const uri = URI.parse(href);
-				if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.data && !options.sanitizerConfig.remoteImageIsAllowed(uri)) {
-					el.replaceWith(DOM.$('', undefined, el.outerHTML));
-				}
-			}
 		}
 	}
 
@@ -566,6 +648,27 @@ type MdStrConfig = {
 	readonly baseUri?: UriComponents;
 };
 
+function isLocalFileUri(uri: URI): boolean {
+	return uri.scheme === Schemas.file && !uri.authority && !isUNC(uri.fsPath);
+}
+
+function isMediaSourceAllowed(mdStrConfig: MdStrConfig, source: string, remoteImageIsAllowed: (uri: URI) => boolean): boolean {
+	let uri: URI;
+	try {
+		const baseUri = mdStrConfig.baseUri ? URI.from(mdStrConfig.baseUri) : undefined;
+		const hasScheme = /^\w[\w\d+.-]*:/.test(source);
+		if (!hasScheme && baseUri?.scheme === Schemas.file && !isLocalFileUri(baseUri)) {
+			return false;
+		}
+		const href = baseUri ? resolveWithBaseUri(baseUri, source) : source;
+		uri = URI.parse(href);
+	} catch {
+		return false;
+	}
+
+	return isLocalFileUri(uri) || uri.scheme === Schemas.data || remoteImageIsAllowed(uri);
+}
+
 function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
 	originalMdStrConfig: MdStrConfig,
@@ -617,7 +720,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 		shouldKeep: (element, data) => {
 			if (element.tagName === 'SPAN') {
 				if (data.attrName === 'style') {
-					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
+					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(display\:inline-block;)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
 				}
 			}
 			return false;
@@ -640,6 +743,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 
 function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSanitizerConfig): domSanitize.DomSanitizerConfig {
 	const isTrusted = mdStrConfig.isTrusted ?? false;
+	const remoteImageIsAllowed = options.remoteImageIsAllowed;
 	const allowedLinkSchemes = [
 		Schemas.http,
 		Schemas.https,
@@ -688,6 +792,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 			]
 		},
 		allowRelativeMediaPaths: !!mdStrConfig.baseUri,
+		mediaSourceIsAllowed: remoteImageIsAllowed ? source => isMediaSourceAllowed(mdStrConfig, source, remoteImageIsAllowed) : undefined,
 		replaceWithPlaintext: options.replaceWithPlaintext,
 	};
 }
@@ -702,6 +807,16 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	readonly includeCodeBlocksFences?: boolean;
 	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
+	/**
+	 * Controls whether markdown syntax is reduced to its text everywhere, rather than only where
+	 * the renderer already does so.
+	 *
+	 * By default a list item is emitted as its raw source, so inline syntax survives into the
+	 * output — a link keeps its target, as in `- Added [src/](/some/path)`, and `**bold**` keeps
+	 * its asterisks. Enable this for callers that need the text a reader actually sees. Off by
+	 * default because it changes long-standing output for every caller.
+	 */
+	readonly omitMarkdownSyntax?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -719,6 +834,12 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	}
 	if (options?.useLinkFormatter) {
 		renderer.link = linkFormatter;
+	}
+	if (options?.omitMarkdownSyntax) {
+		renderer.listitem = parsedListItem;
+		// A tight list item's content arrives as a block-level text token carrying the inline
+		// tokens, so the list item alone is not enough to reach the inline renderers.
+		renderer.text = parsedText;
 	}
 
 	const html = marked.parse(value, { async: false, renderer });
@@ -814,6 +935,22 @@ const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
 		return text.trim() || pathBasename(href);
 	}
 	return text;
+};
+
+/**
+ * Renders a list item from its parsed tokens rather than its raw source, so inline markdown is
+ * reduced to text the way it already is in a paragraph. Opt-in via `omitMarkdownSyntax`.
+ *
+ * Parses as top-level so a tight item's text becomes a paragraph: without that boundary an item
+ * holding a nested list would run straight into it, as in `outerinner link`.
+ */
+const parsedListItem = function (this: marked.Renderer, { tokens }: marked.Tokens.ListItem): string {
+	return this.parser.parse(tokens, true);
+};
+
+/** Renders a block-level text token through its inline tokens. Opt-in via `omitMarkdownSyntax`. */
+const parsedText = function (this: marked.Renderer, token: marked.Tokens.Text): string {
+	return token.tokens ? this.parser.parseInline(token.tokens) : token.text;
 };
 
 function mergeRawTokenText(tokens: marked.Token[]): string {

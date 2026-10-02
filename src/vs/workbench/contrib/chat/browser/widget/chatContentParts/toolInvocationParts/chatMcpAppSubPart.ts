@@ -129,7 +129,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 			}
 
 			dom.clearNode(this._downloadContainer);
-			const widget = this._instantiationService.createInstance(ChatResourceGroupWidget, parts);
+			const widget = this._instantiationService.createInstance(ChatResourceGroupWidget, parts, undefined);
 			this._downloadWidget.value = widget;
 			this._downloadContainer.appendChild(widget.domNode);
 		}));

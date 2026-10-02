@@ -36,7 +36,7 @@
 			visibility 0s linear 180ms;
 	}
 
-	&.chat-used-context-collapsed .chat-used-context-list {
+	&.chat-used-context-collapsed > .chat-collapsible-content-animation .chat-used-context-list {
 		display: block;
 	}
 }
@@ -46,8 +46,17 @@
 	transition: none !important;
 }
 
+/* Rows that cannot expand drop the affordances that promise a disclosure. */
+.chat-collapsible-hover-chevron.hidden {
+	display: none;
+}
+
+.chat-used-context.chat-collapsible-not-expandable .chat-used-context-label .monaco-button {
+	cursor: default;
+}
+
 @media (prefers-reduced-motion: reduce) {
-	.chat-collapsible-content-animation {
+	.chat-collapsible-content-animation:not(.monaco-enable-motion *) {
 		transition: none !important;
 	}
 }

@@ -16,6 +16,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { createPlatformServices } from '../../../test/node/services';
 import { StaticGitHubAuthenticationService } from '../../common/staticGitHubAuthenticationService';
 import { CopilotToken, createTestExtendedTokenInfo } from '../../common/copilotToken';
+import { ICopilotTokenManager } from '../../common/copilotTokenManager';
 import { ICopilotTokenStore } from '../../common/copilotTokenStore';
 import { FixedCopilotTokenManager } from '../../node/copilotTokenManager';
 
@@ -109,4 +110,66 @@ suite('AuthenticationService', function () {
 		await promise;
 		expect(authenticationService.copilotToken?.token).toBe(newToken);
 	});
+
+	test('Does not emit onDidCopilotTokenChange when token errors change', async () => {
+		const accessor = disposables.add(createPlatformServices().createTestingAccessor());
+		const failingTokenManager = new ScriptedCopilotTokenManager([
+			new Error('first failure'),
+			new Error('second failure'),
+		]);
+		const service = disposables.add(new StaticGitHubAuthenticationService(
+			() => testToken,
+			accessor.get(ILogService),
+			accessor.get(ICopilotTokenStore),
+			failingTokenManager,
+			accessor.get(IConfigurationService),
+		));
+		const tokenChangeSpy = vi.fn();
+		service.onDidCopilotTokenChange(tokenChangeSpy);
+
+		await expect(service.getCopilotToken()).rejects.toThrow('first failure');
+		await expect(service.getCopilotToken()).rejects.toThrow('second failure');
+
+		expect(tokenChangeSpy).not.toHaveBeenCalled();
+	});
+
+	test('Emits onDidCopilotTokenChange when a token is gained and lost', async () => {
+		const accessor = disposables.add(createPlatformServices().createTestingAccessor());
+		const token = new CopilotToken(createTestExtendedTokenInfo({ token: 'tid=scripted' }));
+		const tokenManager = new ScriptedCopilotTokenManager([token, new Error('token lost')]);
+		const service = disposables.add(new StaticGitHubAuthenticationService(
+			() => testToken,
+			accessor.get(ILogService),
+			accessor.get(ICopilotTokenStore),
+			tokenManager,
+			accessor.get(IConfigurationService),
+		));
+		const observedTokens: Array<string | undefined> = [];
+		service.onDidCopilotTokenChange(() => observedTokens.push(service.copilotToken?.token));
+
+		await service.getCopilotToken();
+		await expect(service.getCopilotToken()).rejects.toThrow('token lost');
+
+		expect(observedTokens).toEqual(['tid=scripted', undefined]);
+	});
 });
+
+class ScriptedCopilotTokenManager implements ICopilotTokenManager {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidCopilotTokenRefresh = Event.None;
+
+	constructor(private readonly results: Array<CopilotToken | Error>) { }
+
+	async getCopilotToken(): Promise<CopilotToken> {
+		const result = this.results.shift();
+		if (!result) {
+			throw new Error('No scripted token result');
+		}
+		if (result instanceof Error) {
+			throw result;
+		}
+		return result;
+	}
+
+	resetCopilotToken(): void { }
+}
