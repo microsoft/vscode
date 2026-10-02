@@ -66,4 +66,47 @@ suite('Control transport', () => {
 			kind: 'responseTooLarge',
 		});
 	});
+
+	test('keeps the same caller key isolated between account identities', async () => {
+		const transport = store.add(new ControlTransport(policy, new NullLogService()));
+		const response = new DeferredPromise<Response>();
+		const firstAccount = { host: account.host, accountId: 'first' };
+		const secondAccount = { host: account.host, accountId: 'second' };
+		const signal = new AbortController().signal;
+		const calls: string[] = [];
+		const first = transport.get('same', firstAccount, signal, Date.now() + 1000, async () => {
+			calls.push('first');
+			return response.p;
+		});
+		const second = transport.get('same', secondAccount, signal, Date.now() + 1000, async () => {
+			calls.push('second');
+			return new Response('second account');
+		});
+		await response.complete(new Response('first account'));
+		const results = await Promise.all([first, second]);
+		assert.deepStrictEqual({ calls, bodies: results.map(result => result.body) }, {
+			calls: ['first', 'second'], bodies: ['first account', 'second account'],
+		});
+	});
+
+	test('cancelling one account does not cancel the same key for another account', async () => {
+		const transport = store.add(new ControlTransport(policy, new NullLogService()));
+		const firstResponse = new DeferredPromise<Response>();
+		const secondResponse = new DeferredPromise<Response>();
+		const started = new DeferredPromise<AbortSignal>();
+		const controller = new AbortController();
+		const first = transport.get('same', { host: account.host, accountId: 'first' }, controller.signal, Date.now() + 1000, async () => firstResponse.p);
+		const second = transport.get('same', { host: account.host, accountId: 'second' }, new AbortController().signal, Date.now() + 1000, async signal => {
+			void started.complete(signal);
+			return secondResponse.p;
+		});
+		const active = await started.p;
+		const reason = new Error('First account cancelled');
+		controller.abort(reason);
+		await assert.rejects(first, error => error === reason);
+		assert.strictEqual(active.aborted, false);
+		await firstResponse.complete(new Response('discarded'));
+		await secondResponse.complete(new Response('second account'));
+		assert.strictEqual((await second).body, 'second account');
+	});
 });
