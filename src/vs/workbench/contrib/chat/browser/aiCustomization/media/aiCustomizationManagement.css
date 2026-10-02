@@ -657,7 +657,7 @@ per-word capitalization does not survive translation. */
 }
 
 .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
-	transform: translateX(var(--vscode-spacing-size60));
+	left: calc(50% - 50cqh);
 }
 
 .customization-toggle .monaco-switch.mixed {
@@ -680,13 +680,14 @@ per-word capitalization does not survive translation. */
 }
 
 .hc-light .customization-toggle .monaco-switch .monaco-switch-thumb {
-	background: var(--vscode-foreground);
+	background-color: var(--vscode-foreground);
 }
 
+/* An inset shadow is drawn inside the thumb's padding edge, so it rings the visible
+ * knob rather than the transparent border around it. */
 .hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb {
-	background: var(--vscode-editor-background);
-	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+	background-color: var(--vscode-editor-background);
+	box-shadow: inset 0 0 0 var(--vscode-strokeThickness) var(--vscode-contrastActiveBorder);
 }
 
 .hc-light .customization-toggle .monaco-switch.mixed .monaco-switch-thumb::after {
