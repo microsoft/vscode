@@ -1715,6 +1715,44 @@ suite('ActionListWidget', () => {
 		]);
 	}));
 
+	test('max visible items caps the height at the rows through that many actions, recomputed after filtering', () => withWindowInnerHeight(600, () => {
+		const list = createActionList(disposables, [
+			action('first'),
+			separator(),
+			{ ...action('detailed'), detail: 'Second line' },
+			separator('Group'),
+			...Array.from({ length: 20 }, (_, i) => action(`item-${i}`)),
+		], {
+			listOptions: { anchorPosition: AnchorPosition.BELOW, maxVisibleItems: 3 },
+			anchor: { x: 10, y: 20, width: 20, height: 20 },
+		});
+		list.layout(200);
+		const initial = list.domNode.clientHeight;
+		list.filterInput!.value = 'item-1';
+		list.filterInput!.dispatchEvent(new Event('input'));
+
+		// 24px action + 8px separator + 48px detail action + 24px labeled separator + 24px action,
+		// then the labeled separator kept as a section header above three 24px matches.
+		assert.deepStrictEqual({ initial, filtered: list.domNode.clientHeight }, { initial: 128, filtered: 96 });
+	}));
+
+	test('max visible items placement accounts for rows hidden by the initial filter', () => withWindowInnerHeight(600, () => {
+		const list = createActionList(disposables, [action('first'), action('second'), action('third')], {
+			listOptions: {
+				initialFilterValue: 'first',
+				maxVisibleItems: 3,
+				preferredAnchorPosition: AnchorPosition.BELOW,
+			},
+			anchor: { x: 10, y: 460, width: 20, height: 20 },
+		});
+		list.layout(200);
+
+		assert.deepStrictEqual(
+			{ position: list.anchorPosition, height: list.domNode.clientHeight },
+			{ position: AnchorPosition.ABOVE, height: 24 },
+		);
+	}));
+
 	test('header dismiss removes the banner and requests a re-layout', () => {
 		let dismissed = false;
 		let layoutRequested = false;

@@ -5,8 +5,12 @@
 
 const BRANCH_PICKER_RESULT_LIMIT = 25;
 
-export function filterBranchPickerItems<T extends { readonly value: string }>(items: readonly T[], query?: string): readonly T[] {
+/**
+ * Returns the branch picker items whose value contains `query` (case-insensitive),
+ * keeping at most `limit` results.
+ */
+export function filterBranchPickerItems<T extends { readonly value: string }>(items: readonly T[], query?: string, limit = BRANCH_PICKER_RESULT_LIMIT): readonly T[] {
 	const normalizedQuery = query?.toLowerCase();
 	return (normalizedQuery ? items.filter(item => item.value.toLowerCase().includes(normalizedQuery)) : items)
-		.slice(0, BRANCH_PICKER_RESULT_LIMIT);
+		.slice(0, limit);
 }

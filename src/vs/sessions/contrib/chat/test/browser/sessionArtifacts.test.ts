@@ -82,7 +82,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ workspace }) : undefined)),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
 			new class extends mock<IClipboardService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			configurationService,
@@ -297,6 +297,23 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['other-repo-pr'],
+			references: [],
+		});
+	});
+
+	test('does not re-list a pull request recorded by multiple chats as a generic artifact', () => {
+		const pullRequest = URI.parse('https://github.com/owner/repo/pull/1');
+		const { presentation } = createPresentation([
+			{ id: 'peer-artifact', chat: URI.parse('ahp-chat://peer/session'), kind: SessionArtifactKind.PullRequest, label: 'Peer label', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'main-artifact', chat: URI.parse('ahp-chat://default/session'), kind: SessionArtifactKind.PullRequest, label: 'Main label', isArtifact: true, isGitHub: true, link: pullRequest },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1, uri: pullRequest, recordedReferenceId: 'main-artifact' }],
+		});
+
+		assert.deepStrictEqual(visibleEntries(presentation), {
+			artifacts: [],
 			references: [],
 		});
 	});
