@@ -16,7 +16,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
 import { IActionViewItemService } from '../../../../../../../platform/actions/browser/actionViewItemService.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOptions } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID } from '../../../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { checkoutOperationDirtyWorkingTreeErrorData } from '../../../../../../../platform/agentHost/common/meta/agentCheckoutOperationMeta.js';
@@ -239,6 +239,7 @@ class CapturingActionWidgetHolder {
 	items: readonly IActionListItem<IConfigPickerItem>[] = [];
 	focusedItem: IActionListItem<IConfigPickerItem> | undefined;
 	accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined;
+	listOptions: IActionListOptions | undefined;
 	readonly events: string[] = [];
 }
 
@@ -269,11 +270,12 @@ function setupServices(
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
-		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined) => {
+		show: (_user, _supportsPreview, items: readonly IActionListItem<IConfigPickerItem>[], delegate: IActionListDelegate<IConfigPickerItem>, _anchor, _container, _actionBarActions, accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<IConfigPickerItem>>> | undefined, listOptions: IActionListOptions | undefined) => {
 			actionWidget.items = items;
 			actionWidget.focusedItem = undefined;
 			actionWidget.delegate = delegate;
 			actionWidget.accessibilityProvider = accessibilityProvider;
+			actionWidget.listOptions = listOptions;
 		},
 		focusItemById: (id: string) => {
 			actionWidget.focusedItem = actionWidget.items.find(item => item.item?.id === id);
@@ -1205,16 +1207,16 @@ suite('Agent Host Session Config Picker', () => {
 			queriesAfterFilter,
 			completionQueries: services.provider.completionQueries,
 		}, {
-			initialCount: 25,
+			initialCount: 36,
 			first: 'main',
-			last: 'feature/23',
+			last: 'feature/34',
 			filtered: ['feature/34'],
 			queriesAfterFilter: [undefined],
 			completionQueries: [undefined, undefined],
 		});
 	});
 
-	test('branch picker filters and caps unfiltered host completions locally', async () => {
+	test('branch picker lists every host completion and every filter match', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeDynamicBranchConfig('main');
 		services.provider.completions = ['main', ...Array.from({ length: 35 }, (_, index) => `feature/${index}`)]
@@ -1224,19 +1226,33 @@ suite('Agent Host Session Config Picker', () => {
 		branchSlot(container)!.querySelector<HTMLElement>('a.action-label')!.click();
 		await new Promise(resolve => setTimeout(resolve));
 		const initial = services.actionWidget.items.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label);
-		const filtered = await services.actionWidget.delegate?.onFilter?.('FEATURE/34', CancellationToken.None);
+		const filtered = await services.actionWidget.delegate?.onFilter?.('FEATURE/', CancellationToken.None);
 
 		assert.deepStrictEqual({
 			count: initial.length,
-			last: initial.at(-1),
-			filtered: filtered?.filter(item => item.kind === ActionListItemKind.Action).map(item => item.label),
+			filteredCount: filtered?.filter(item => item.kind === ActionListItemKind.Action).length,
 			completionQueries: services.provider.completionQueries,
 		}, {
-			count: 25,
-			last: 'feature/23',
-			filtered: ['feature/34'],
+			count: 36,
+			filteredCount: 35,
 			completionQueries: [undefined],
 		});
+	});
+
+	test('branch picker caps visible rows while other config pickers do not', async () => {
+		const services = setupServices(store);
+		services.provider.config = makeDynamicBranchConfig('main');
+		services.provider.completions = Array.from({ length: 25 }, (_, index) => ({ value: `branch-${index}`, label: `branch-${index}` }));
+		const { container } = renderPicker(store, services);
+
+		const maxVisibleItems: Record<string, number | undefined> = {};
+		for (const [name, slot] of [['branch', branchSlot(container)], ['isolation', isolationSlot(container)]] as const) {
+			slot!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			maxVisibleItems[name] = services.actionWidget.listOptions?.maxVisibleItems;
+		}
+
+		assert.deepStrictEqual(maxVisibleItems, { branch: 10, isolation: undefined });
 	});
 
 	test('static branch picker does not request dynamic completions', async () => {
