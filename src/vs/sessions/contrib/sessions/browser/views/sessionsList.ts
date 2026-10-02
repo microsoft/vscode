@@ -3841,7 +3841,11 @@ export class SessionsList extends Disposable implements ISessionsList {
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
-		const newSessionActive = derived(this, reader => this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false);
+		const newSessionActive = derived(this, reader =>
+			this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false
+			&& this.customViewService.activeCustomView.read(reader)?.id !== AUTOMATIONS_CUSTOM_VIEW_ID
+			&& !customizationsActive.read(reader)
+		);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(

@@ -439,6 +439,74 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('clears the New active state when Automations opens', () => {
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
+			const draftSession = createTestSession('draft').session;
+			const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
+				...draftSession,
+				isCreated: constObservable(false),
+				activeChat: draftSession.mainChat,
+			}));
+			const harness = createListHarness(disposables, [], instantiationService => {
+				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
+				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
+					override readonly automations = constObservable([]);
+					override readonly runs = constObservable([]);
+					override readonly catalogueState = constObservable('ready' as const);
+				});
+				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
+					override readonly activeCustomView = activeCustomView;
+				});
+				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					override readonly activeSession = activeSession;
+					override readonly visibleSessions = constObservable<readonly IActiveSession[]>([]);
+				});
+			});
+			const container = harness.createContainer();
+			const navigationContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(navigationContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				showNavigationShortcuts: () => true,
+				navigationContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const findRow = (label: string) => Array.from(navigationContainer.querySelectorAll<HTMLElement>('.monaco-list-row'))
+				.find(row => row.querySelector('.session-section-label')?.textContent === label);
+			const newRow = findRow('New');
+			const automationsRow = findRow('Automations');
+			const before = {
+				newActive: newRow?.classList.contains('active'),
+				newAriaCurrent: newRow?.getAttribute('aria-current'),
+				automationsActive: automationsRow?.classList.contains('active'),
+			};
+
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
+
+			assert.deepStrictEqual({
+				before,
+				after: {
+					newActive: newRow?.classList.contains('active'),
+					newAriaCurrent: newRow?.getAttribute('aria-current'),
+					automationsActive: automationsRow?.classList.contains('active'),
+				},
+			}, {
+				before: {
+					newActive: true,
+					newAriaCurrent: 'page',
+					automationsActive: false,
+				},
+				after: {
+					newActive: false,
+					newAriaCurrent: null,
+					automationsActive: true,
+				},
+			});
+		});
+
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
 			const keybindingsChanged = disposables.add(new Emitter<void>());
