@@ -38,7 +38,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isExperimentalRunningSessionComposerLayoutEnabled, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isExperimentalRunningSessionComposerLayoutEnabled, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -61,6 +61,15 @@ suite('Sessions - Chat View', () => {
 		});
 		disposables.add(configurationService.onDidChangeConfigurationEmitter);
 		assert.strictEqual(isExperimentalRunningSessionComposerLayoutEnabled(configurationService), true);
+	});
+
+	test('keeps the running-session secondary toolbar only for standard or phone layouts', () => {
+		assert.deepStrictEqual([
+			shouldRenderRunningSessionSecondaryToolbar(false, false),
+			shouldRenderRunningSessionSecondaryToolbar(false, true),
+			shouldRenderRunningSessionSecondaryToolbar(true, false),
+			shouldRenderRunningSessionSecondaryToolbar(true, true),
+		], [true, true, false, true]);
 	});
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {

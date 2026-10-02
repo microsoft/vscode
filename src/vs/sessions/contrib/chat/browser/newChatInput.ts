@@ -992,6 +992,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
+			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
 			getItems: () => {
 				const preserveModePermissions = isPhoneLayout(this.layoutService)
 					&& !this.options.useExperimentalLayout?.get();

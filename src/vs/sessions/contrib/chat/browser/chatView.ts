@@ -70,6 +70,7 @@ import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../se
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
+import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
 // 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
@@ -89,6 +90,10 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 
 export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
 	return isExperimentalSessionComposerLayoutEnabled(configurationService);
+}
+
+export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean, phoneLayout: boolean): boolean {
+	return !usesExperimentalComposerLayout || phoneLayout;
 }
 
 /**
@@ -327,8 +332,7 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
-				renderSecondaryToolbar: true,
-				renderSecondaryControlsInInput: experimentalComposerLayout,
+				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(experimentalComposerLayout, isPhoneLayout(this.layoutService)),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,

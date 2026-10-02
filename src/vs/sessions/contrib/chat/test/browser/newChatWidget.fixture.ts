@@ -119,6 +119,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly comparisonPrompt?: string;
 	readonly withAttachedContext?: boolean;
 	readonly withControlPickers?: boolean;
+	readonly separatePhonePermissions?: boolean;
 	readonly expandSessionOptions?: boolean;
 	readonly withAutoModel?: boolean;
 	readonly withConfiguredModel?: boolean;
@@ -136,7 +137,7 @@ interface INewChatWidgetFixtureOptions {
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
 	private _compact = false;
 
-	constructor(private readonly _kind: 'agent' | 'mode' | 'isolation' | 'branch') {
+	constructor(private readonly _kind: 'agent' | 'mode' | 'permissions' | 'isolation' | 'branch') {
 		super(undefined, toAction({ id: `fixture.${_kind}`, label: _kind, run: () => { } }));
 	}
 
@@ -153,6 +154,11 @@ class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInp
 			}, {
 				label: 'Allow all', level: ChatPermissionLevel.AutoApprove, sandboxed: false,
 			}, () => { }));
+			return;
+		}
+		if (this._kind === 'permissions') {
+			dom.append(trigger, renderIcon(Codicon.key));
+			dom.append(trigger, dom.$('span.sessions-chat-dropdown-label', undefined, 'Manual permissions'));
 			return;
 		}
 		if (this._kind === 'agent') {
@@ -264,6 +270,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		comparisonPrompt,
 		withAttachedContext = false,
 		withControlPickers = false,
+		separatePhonePermissions = false,
 		expandSessionOptions = true,
 		withAutoModel = false,
 		withConfiguredModel = false,
@@ -551,7 +558,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
 	if (withControlPickers) {
-		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(false) });
+		instantiationService.stub(IChatPhoneInputPresenter, { enabled: constObservable(separatePhonePermissions) });
 		instantiationService.stub(IAgentHostConnectionsService, {
 			onDidChangeSessionResolution: Event.None,
 			resolveSessionResource: () => undefined,
@@ -574,7 +581,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					return () => new FixturePickerActionViewItem('agent');
 				}
 				if (menu === Menus.NewSessionControl && command === 'fixture.mode') {
-					return () => new FixturePickerActionViewItem('mode');
+					return () => new FixturePickerActionViewItem(separatePhonePermissions ? 'permissions' : 'mode');
 				}
 				const property = command === 'fixture.worktree' ? SessionConfigKey.Isolation : command === 'fixture.branch' ? SessionConfigKey.Branch : undefined;
 				return menu === Menus.NewSessionRepositoryConfig && property
@@ -888,7 +895,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					&& targetWindow.getComputedStyle(bottomContainer).overflowX === 'auto'
 					&& (!separator || targetWindow.getComputedStyle(separator).display === 'none'),
 					'Phone controls must remain in a viewport-bounded scrollable row without a repository separator.');
-				if (!experimentalComposerLayout) {
+				if (!experimentalComposerLayout && withControlPickers && !separatePhonePermissions) {
 					const modePermissions = bottomContainer.querySelector<HTMLElement>('.agent-host-mode-permissions-trigger');
 					const phoneControls = bottomContainer.querySelector<HTMLElement>('.new-chat-controls-container');
 					const permissionsLabel = modePermissions?.querySelector<HTMLElement>('.agent-host-mode-permission-summary');
@@ -901,6 +908,12 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 						&& permissionsBounds.right <= modePermissionsBounds.right
 						&& modePermissionsBounds.right <= phoneControlsBounds.right,
 						'The standard phone composer must keep the complete mode and permissions control visible.');
+				} else if (!experimentalComposerLayout && separatePhonePermissions) {
+					const separatePermissions = bottomContainer.querySelector<HTMLElement>('.sessions-chat-dropdown-label');
+					assert(separatePermissions?.textContent === 'Manual permissions'
+						&& separatePermissions.checkVisibility()
+						&& !bottomContainer.querySelector('.agent-host-mode-permissions-trigger'),
+						'The real phone path must show Manual permissions separately instead of the desktop combined picker.');
 				}
 			} else {
 				assert(promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
@@ -921,6 +934,27 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		assert(content.style.top === '');
 	}
 	if (phoneLayout) {
+		const bottomContainer = view.element.querySelector<HTMLElement>('.new-chat-bottom-container');
+		assert(bottomContainer?.scrollLeft === 0, 'The phone chip lane must initially show its leading controls.');
+		if (separatePhonePermissions) {
+			const permissionsLabel = Array.from(bottomContainer.querySelectorAll<HTMLElement>('.sessions-chat-dropdown-label'))
+				.find(label => label.textContent === 'Manual permissions');
+			const controlsContainer = bottomContainer.querySelector<HTMLElement>('.new-chat-controls-container');
+			const sessionControls = bottomContainer.querySelector<HTMLElement>('.new-chat-session-controls');
+			const bottomBounds = bottomContainer.getBoundingClientRect();
+			const controlsBounds = controlsContainer?.getBoundingClientRect();
+			const permissionsBounds = permissionsLabel?.closest<HTMLElement>('.action-label')?.getBoundingClientRect();
+			assert(!!controlsContainer
+				&& controlsContainer.clientWidth >= controlsContainer.scrollWidth
+				&& !!controlsBounds
+				&& !!sessionControls
+				&& sessionControls.clientWidth >= sessionControls.scrollWidth
+				&& !!permissionsBounds
+				&& permissionsBounds.right <= controlsBounds.right
+				&& permissionsBounds.left >= bottomBounds.left
+				&& permissionsBounds.right <= bottomBounds.right,
+			`The separate phone permissions control must be fully visible at the start of the chip lane. controls=${controlsBounds?.width}/${controlsContainer?.scrollWidth}, session=${sessionControls?.clientWidth}/${sessionControls?.scrollWidth}, permissions=${permissionsBounds?.width}`);
+		}
 		const attachButton = view.element.querySelector<HTMLElement>('.sessions-chat-attach-button');
 		const sendButton = view.element.querySelector<HTMLElement>('.sessions-chat-send-button');
 		const attachBounds = attachButton?.getBoundingClientRect();
@@ -1173,8 +1207,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, the phone shows the complete Interactive and Allow all control before the horizontally scrollable Worktree and Branch controls without an empty separator block.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
+		expectedVisualDescriptions: ['With neither the unified workspace picker nor experimental composer setting enabled, the real phone path keeps permissions separate from the horizontally scrollable repository controls instead of forcing the desktop combined Mode/Permissions picker.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, separatePhonePermissions: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
