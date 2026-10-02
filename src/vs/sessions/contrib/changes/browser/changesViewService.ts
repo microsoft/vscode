@@ -42,7 +42,6 @@ interface IChatChangesetSelection {
 }
 
 interface ISessionChangesetSelections {
-	preferredChangesetId: string | undefined;
 	readonly chats: ResourceMap<IChatChangesetSelection>;
 }
 
@@ -89,11 +88,15 @@ function canPreserveChangesetWhileCatalogueLoads(
 	workspace: ISessionWorkspace | undefined,
 	mainWorkspace: ISessionWorkspace | undefined,
 	selectedChangesetId: string | undefined,
+	isMainChat: boolean,
 ): lastValue is IActiveChangesetProjection & { readonly changeset: ISessionChangeset } {
+	// Without an explicit selection a nested chat's default is unknown until its
+	// catalogue loads, so only the main chat keeps Branch Changes implicitly.
+	const expectedChangesetId = selectedChangesetId ?? (isMainChat ? BRANCH_CHANGES_CHANGESET_ID : undefined);
 	if (!lastValue?.changeset
 		|| !isEqual(lastValue.sessionResource, sessionResource)
 		|| lastValue.changeset.id !== BRANCH_CHANGES_CHANGESET_ID
-		|| (selectedChangesetId !== undefined && selectedChangesetId !== lastValue.changeset.id)) {
+		|| expectedChangesetId !== lastValue.changeset.id) {
 		return false;
 	}
 	return changesetWorkspaceScopeEqual(lastValue.workspace, mainWorkspace)
@@ -136,21 +139,17 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			return;
 		}
 
-		const sessionSelections = this._changesetSelectionsBySession.get(activeSession.resource);
-		const currentSelection = sessionSelections?.chats.get(activeChat.resource);
-		if (sessionSelections?.preferredChangesetId === changesetId
-			&& currentSelection?.selectedChangesetId === changesetId
+		const currentSelection = this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource);
+		if (currentSelection?.selectedChangesetId === changesetId
 			&& currentSelection?.transientChangeset === undefined) {
 			return;
 		}
 
 		transaction(tx => {
-			const selections = sessionSelections ?? this._createSessionChangesetSelections(activeSession.resource);
-			selections.preferredChangesetId = changesetId;
 			this._setChatChangesetSelection(activeSession.resource, activeChat.resource, changesetId
 				? { selectedChangesetId: changesetId }
 				: undefined);
-			if (changesetId === undefined && selections.chats.size === 0) {
+			if (this._changesetSelectionsBySession.get(activeSession.resource)?.chats.size === 0) {
 				this._changesetSelectionsBySession.delete(activeSession.resource);
 			}
 			this._changesetSelectionChanged.trigger(tx);
@@ -267,22 +266,20 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 			const activeChat = activeSession?.activeChat.read(reader);
 			const chatWorkspace = activeChat?.workspace.read(reader);
 			this._changesetSelectionChanged.read(reader);
-			const sessionSelections = activeSession
-				? this._changesetSelectionsBySession.get(activeSession.resource)
-				: undefined;
 			const selectedChangesetId = activeSession && activeChat
-				? sessionSelections?.chats.get(activeChat.resource)?.selectedChangesetId
-				?? sessionSelections?.preferredChangesetId
+				? this._changesetSelectionsBySession.get(activeSession.resource)?.chats.get(activeChat.resource)?.selectedChangesetId
 				: undefined;
 			const activeSessionChangesets = currentChangesetsObs.read(reader);
 			if (!activeSessionChangesets) {
-				const mainWorkspace = activeSession?.mainChat.read(reader).workspace.read(reader);
+				const mainChat = activeSession?.mainChat.read(reader);
+				const mainWorkspace = mainChat?.workspace.read(reader);
 				if (activeSession && canPreserveChangesetWhileCatalogueLoads(
 					lastValue,
 					activeSession.resource,
 					chatWorkspace,
 					mainWorkspace,
 					selectedChangesetId,
+					!!activeChat && isEqual(mainChat?.resource, activeChat.resource),
 				)) {
 					return {
 						sessionResource: activeSession.resource,
@@ -468,7 +465,6 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 
 	private _createSessionChangesetSelections(sessionResource: URI): ISessionChangesetSelections {
 		const selections: ISessionChangesetSelections = {
-			preferredChangesetId: undefined,
 			chats: new ResourceMap(),
 		};
 		this._changesetSelectionsBySession.set(sessionResource, selections);
@@ -494,7 +490,6 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		const toMainChat = to.mainChat.get().resource;
 		const existingToSelections = this._changesetSelectionsBySession.get(to.resource);
 		const toSelections: ISessionChangesetSelections = {
-			preferredChangesetId: fromSelections.preferredChangesetId ?? existingToSelections?.preferredChangesetId,
 			chats: new ResourceMap(existingToSelections?.chats),
 		};
 		fromSelections.chats.forEach((selection, chatResource) => {
@@ -520,7 +515,7 @@ export class ChangesViewService extends Disposable implements IChangesViewServic
 		}
 
 		const changed = selections.chats.delete(chatResource);
-		if (selections.chats.size === 0 && selections.preferredChangesetId === undefined) {
+		if (selections.chats.size === 0) {
 			this._changesetSelectionsBySession.delete(sessionResource);
 		}
 		if (changed) {

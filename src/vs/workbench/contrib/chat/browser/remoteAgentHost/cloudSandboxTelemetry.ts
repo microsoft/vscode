@@ -8,6 +8,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { CloudSandboxRequestError, type ICloudSandboxConnectOptions } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IConnectionDiagnosticEvent } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
 import { RemoteAgentHostConnectionObserver } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../../platform/agentHost/common/state/protocol/errors.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
@@ -90,6 +91,7 @@ export interface ICloudSandboxTelemetryService {
 /** How often accumulated request counts are reported. */
 const REQUEST_REPORT_INTERVAL_MS = 30 * 60_000;
 const CONNECTION_REPORT_INTERVAL_MS = 5 * 60_000;
+const KNOWN_PROTOCOL_ERROR_CODES = [...Object.values(JsonRpcErrorCodes), ...Object.values(AhpErrorCodes)];
 
 const nullConnectionTelemetry: ICloudSandboxConnectionTelemetry = {
 	setConnectStage() { },
@@ -260,6 +262,8 @@ interface IConnectionOperation {
 	credentialRequests: number;
 	wakingResponses: number;
 	transportAttempts: number;
+	firstFailure?: { readonly phase: string; readonly code: number | undefined };
+	readonly failures: Record<CloudSandboxConnectionPhase, number>;
 	readonly durations: Record<CloudSandboxConnectionPhase, number>;
 	readonly phases: Map<CloudSandboxConnectionPhase, { readonly id: string; readonly startedAt: number }>;
 }
@@ -289,6 +293,7 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 	private _newOperation(operation: 'connect' | 'recover', stage: CloudSandboxConnectionStage): IConnectionOperation {
 		return {
 			operation, stage, startedAt: Date.now(), credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
+			failures: { credentials: 0, relay: 0, protocol: 0, authentication: 0, restoration: 0 },
 			durations: { credentials: 0, relay: 0, protocol: 0, authentication: 0, restoration: 0 },
 			phases: new Map(),
 		};
@@ -400,6 +405,13 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			}
 		} else if (operation.phases.get(phase)?.id === event.operationId && (event.outcome === 'succeeded' || event.outcome === 'failed')) {
 			this._finishPhase(operation, phase);
+			if (event.outcome === 'failed') {
+				operation.failures[phase]++;
+				operation.firstFailure ??= {
+					phase: event.phase,
+					code: KNOWN_PROTOCOL_ERROR_CODES.find(code => String(code) === event.error?.code),
+				};
+			}
 			const enclosingPhase = [...operation.phases.keys()].at(-1);
 			if (event.outcome === 'succeeded' && enclosingPhase) {
 				operation.stage = enclosingPhase;
@@ -468,6 +480,9 @@ class CloudSandboxConnectionTelemetry extends Disposable implements ICloudSandbo
 			credentialRequests: operation.credentialRequests, wakingResponses: operation.wakingResponses, transportAttempts: operation.transportAttempts,
 			credentialsMs: operation.durations.credentials, relayMs: operation.durations.relay, protocolMs: operation.durations.protocol,
 			authenticationMs: operation.durations.authentication, restorationMs: operation.durations.restoration,
+			firstFailurePhase: operation.firstFailure?.phase, firstFailureCode: operation.firstFailure?.code,
+			credentialFailures: operation.failures.credentials, relayFailures: operation.failures.relay, protocolFailures: operation.failures.protocol,
+			authenticationFailures: operation.failures.authentication, restorationFailures: operation.failures.restoration,
 		});
 	}
 
@@ -498,6 +513,13 @@ type CloudSandboxConnectionOutcomeEvent = {
 	protocolMs: number;
 	authenticationMs: number;
 	restorationMs: number;
+	firstFailurePhase: string | undefined;
+	firstFailureCode: number | undefined;
+	credentialFailures: number;
+	relayFailures: number;
+	protocolFailures: number;
+	authenticationFailures: number;
+	restorationFailures: number;
 };
 
 export type CloudSandboxConnectionOutcomeClassification = {
@@ -515,6 +537,13 @@ export type CloudSandboxConnectionOutcomeClassification = {
 	protocolMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative protocol initialization or reconnect time, including interrupted attempts.' };
 	authenticationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative authentication time, including credential preparation and interrupted attempts.' };
 	restorationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Cumulative subscription restoration time, including interrupted attempts.' };
+	firstFailurePhase: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'First failed diagnostic phase: credentials, transport.connect, transport.reconnect, protocol.initialize, protocol.reconnect, protocol.authentication, or protocol.subscriptions. Absent if no phase failure was observed; preserved across later retries and cancellation. This is the recovery step, not necessarily the failed RPC method.' };
+	firstFailureCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Known JSON-RPC or AHP error code on the first failed phase. Absent for unrecognized or missing codes; no messages or error data are included.' };
+	credentialFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed credential preparation phases, including local cooldown rejections. Nested phase failures may overlap; not a count of HTTP requests.' };
+	relayFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed transport establishment phases in this operation.' };
+	protocolFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed initialization or reconnect phases, including fallback initialization failures; not a count of individual RPC requests.' };
+	authenticationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed authentication phases. May overlap nested credential preparation failures.' };
+	restorationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed subscription restoration phases in this operation.' };
 	owner: 'osortega';
 	comment: 'One outcome per logical sandbox connect or recovery, excluding reuse of a ready connection.';
 };

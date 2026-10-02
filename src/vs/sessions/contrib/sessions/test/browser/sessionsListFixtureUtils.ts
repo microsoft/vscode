@@ -60,7 +60,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/serv
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -168,9 +168,9 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly automations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows New, Automations, and Customizations as navigation rows above the Sessions header. */
+	/** Shows Automations and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
-	/** Count shown on the Customizations navigation row. */
+	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
@@ -344,7 +344,7 @@ class SessionsListFixtureMenuService extends MenuService {
 			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
 			return {
 				onDidChange: Event.None,
-				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				getActions: () => [['navigation', [newSession]]],
 				dispose: () => { },
 			};
 		}
@@ -692,7 +692,6 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
-	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -859,10 +858,7 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 		});
 	}
 	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
-	if (header.navigationShortcuts && newSessionButton) {
-		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
-	}
-	if (!header.navigationShortcuts && !newSessionButton) {
+	if (!newSessionButton) {
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
 import { getErrorCode, getErrorMessage } from '../../../base/common/errors.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -23,12 +25,19 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostChatContributions, type ISendTurnMessageOptions } from '../common/agentHostChatContributionsService.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { isRenameChatTool } from '../common/serverToolNames.js';
-import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import { AgentSession, AgentSignal, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
+import { type CodexModelProvider, AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, IAgentChatContext, IAgentToolPendingConfirmationSignal, type AgentSubagentTaskModelSource, type IAgentModelCallCompletedSignal, type IAgentModelCallFinishedSignal } from '../common/agent.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import { readAgentPermissionResponseMeta } from '../common/meta/agentPermissionResponseMeta.js';
+import { readMcpServerSource, type McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTrigger.js';
+import { AgentHostOverlapProviderPreparationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostOverlapProviderPreparationSettingId } from '../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
@@ -51,7 +60,6 @@ import {
 	parseRequiredSessionUriFromChatUri,
 	PendingMessageKind,
 	ResponsePartKind,
-	readUsageInfoMeta,
 	ROOT_STATE_URI,
 	SessionLifecycle,
 	CustomizationType,
@@ -70,7 +78,8 @@ import {
 	type UsageInfo,
 	type Customization,
 	type McpServerCustomization,
-	type PluginCustomization
+	type PluginCustomization,
+	type ToolCallContributor
 } from '../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
@@ -151,7 +160,7 @@ class PendingSubagentSignals extends Disposable {
 		super.dispose();
 		for (const { signal, agent } of entries) {
 			if (signal.kind === 'pending_confirmation') {
-				agent.respondToPermissionRequest(signal.state.toolCallId, false);
+				agent.respondToPermissionRequest(signal.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 			}
 		}
 	}
@@ -208,6 +217,18 @@ function getCustomizationEnablementCandidates(customizations: readonly Customiza
 	return candidates;
 }
 
+function getMcpSourceKind(customizations: readonly Customization[] | undefined, contributor: ToolCallContributor | undefined): McpServerSource | undefined {
+	if (contributor?.kind !== ToolCallContributorKind.MCP) {
+		return undefined;
+	}
+	const candidate = getCustomizationEnablementCandidates(customizations)
+		.find(candidate => candidate.customization.id === contributor.customizationId);
+	if (candidate?.customization.type !== CustomizationType.McpServer) {
+		return undefined;
+	}
+	return readMcpServerSource(candidate.customization) ?? (candidate.owningPluginUri !== undefined ? 'plugin' : undefined);
+}
+
 type AgentSignalTurnIdRouting = 'preserve' | 'remap';
 
 interface IResumedTurnExecution {
@@ -245,6 +266,8 @@ export class AgentSideEffects extends Disposable {
 	private readonly _pendingSessionCustomizationPublishes = new Map<ProtocolURI, Promise<void>>();
 	private readonly _pendingMcpServerStarts = new NKeyMap<CancellationTokenSource, [ProtocolURI, string]>();
 	private readonly _pendingCustomizationEnablementRefreshes = new Set<ProtocolURI>();
+	/** Set while a turn reached the overlap experiment's divergence before the assignment context arrived. */
+	private _overlapExperimentTriggerPending = false;
 
 	/**
 	 * Buffers signals whose `parentToolCallId` references a subagent
@@ -296,6 +319,16 @@ export class AgentSideEffects extends Disposable {
 		this._register(this._chatContributions.registerHost({
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 			sendTurnMessage: options => void this._sendTurnMessage(options),
+		}));
+		this._register(this._agentConfigService.onDidRootConfigChange(() => {
+			if (this._overlapExperimentTriggerPending) {
+				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
+				queueMicrotask(() => {
+					if (this._overlapExperimentTriggerPending && !this._store.isDisposed) {
+						this._reportOverlapExperimentTrigger();
+					}
+				});
+			}
 		}));
 		this._register(this._stateManager.onDidChangeSessionConfig(e => {
 			const previousMode = getConfiguredSessionMode(e.previous);
@@ -679,7 +712,7 @@ export class AgentSideEffects extends Disposable {
 			if (!this._stateManager.getChatState(sessionKey)) {
 				this._logService.warn(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for disposed parent chat ${sessionKey}`);
 				if (signal.kind === 'pending_confirmation') {
-					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					agent.respondToPermissionRequest(signal.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 				}
 				return;
 			}
@@ -697,7 +730,7 @@ export class AgentSideEffects extends Disposable {
 				} else {
 					this._logService.error(`[AgentSideEffects] Dropping ${this._describeSignal(signal)} for inactive subagent ${sessionKey}/${parentToolCallId}`);
 					if (signal.kind === 'pending_confirmation') {
-						agent.respondToPermissionRequest(signal.state.toolCallId, false);
+						agent.respondToPermissionRequest(signal.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 					}
 				}
 				return;
@@ -706,7 +739,7 @@ export class AgentSideEffects extends Disposable {
 			const key = `${sessionKey}\0${parentToolCallId}`;
 			if (this._failedSubagentRoutes.get(key) !== undefined) {
 				if (signal.kind === 'pending_confirmation') {
-					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					agent.respondToPermissionRequest(signal.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 				}
 				return;
 			}
@@ -714,7 +747,7 @@ export class AgentSideEffects extends Disposable {
 			const buffer = this._getPendingSubagentSignals(sessionKey, parentToolCallId);
 			if (buffer.failed) {
 				if (signal.kind === 'pending_confirmation') {
-					agent.respondToPermissionRequest(signal.state.toolCallId, false);
+					agent.respondToPermissionRequest(signal.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 				}
 				return;
 			}
@@ -863,12 +896,14 @@ export class AgentSideEffects extends Disposable {
 		if (action.type === ActionType.ChatToolCallStart && agent) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			const modelContext = this._turnTracker.getModelTelemetryContext(sessionKey, action.turnId);
+			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 			// Ready may refine the contributor once the complete tool metadata is
 			// available, so the tracker updates the source kind below when needed.
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind);
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind);
 		} else if (action.type === ActionType.ChatToolCallReady) {
-			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor);
+			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
+			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor, mcpSourceKind);
 			if (action.confirmed) {
 				this._toolCallTracker.toolCallExecutionStarted(sessionKey, action.toolCallId);
 			}
@@ -1482,7 +1517,7 @@ export class AgentSideEffects extends Disposable {
 		const activeTurn = this._stateManager.getSessionState(sessionKey)?.activeTurn;
 		if (turnId && activeTurn?.id !== turnId) {
 			this._logService.warn(`[AgentSideEffects] Rejecting permission after its turn ended: turnId=${turnId}, toolCallId=${e.state.toolCallId}`);
-			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'unattended_fallback' });
 			return;
 		}
 		const part = activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === e.state.toolCallId);
@@ -1507,7 +1542,7 @@ export class AgentSideEffects extends Disposable {
 			this._logService.warn(`[AgentSideEffects] Denying write to read-only attachment snapshot: toolCallId=${e.state.toolCallId}`);
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, false);
+			agent.respondToPermissionRequest(e.state.toolCallId, false, { decisionSource: 'host_policy' });
 			return;
 		}
 		const clientShouldAutoApprove = autoApproval !== undefined
@@ -1520,7 +1555,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			this._toolCallAgents.delete(toolCallKey);
 			this._managedApprovalToolCalls.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, approved);
+			agent.respondToPermissionRequest(e.state.toolCallId, approved, { decisionSource: approved ? 'host_policy' : 'unattended_fallback' });
 			return;
 		}
 		if (e.managedApprovalRequired) {
@@ -1533,7 +1568,7 @@ export class AgentSideEffects extends Disposable {
 			effective = { ...e, state: { ...e.state, _meta: { ...toolCall?._meta, ...e.state._meta, ...toToolCallMeta({ autoApproveBySetting: true }) } } };
 		} else if (autoApproval !== undefined) {
 			this._toolCallAgents.delete(toolCallKey);
-			agent.respondToPermissionRequest(e.state.toolCallId, true);
+			agent.respondToPermissionRequest(e.state.toolCallId, true, { decisionSource: 'host_policy' });
 			// Strip confirmationTitle so createToolReadyAction emits the
 			// auto-approved (no-options) action.
 			effective = { ...e, state: { ...e.state, confirmationTitle: undefined } };
@@ -1559,7 +1594,8 @@ export class AgentSideEffects extends Disposable {
 			}, sessionKey, turnId, 'preserve', agent);
 			this._permissionToolStarts.set(`${sessionKey}\0${e.state.toolCallId}`, turnId);
 		}
-		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor);
+		const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, readyAction.contributor);
+		this._toolCallTracker.toolCallMetadataUpdated(sessionKey, readyAction.toolCallId, readyAction.contributor, mcpSourceKind);
 		this._turnTracker.toolCallMetadataUpdated(sessionKey, turnId, readyAction.toolCallId, readyAction.contributor);
 		if (readyAction.confirmed) {
 			this._toolCallTracker.toolCallExecutionStarted(sessionKey, readyAction.toolCallId);
@@ -1665,6 +1701,7 @@ export class AgentSideEffects extends Disposable {
 					this._toolCallAgents.delete(toolCallKey);
 					const agent = this._options.agents.get().find(a => a.id === agentId);
 					agent?.respondToPermissionRequest(action.toolCallId, action.approved, {
+						...readAgentPermissionResponseMeta(action),
 						selectedOptionId: action.selectedOptionId,
 						origin: clientId !== undefined && clientSeq !== undefined ? { clientId, clientSeq } : undefined,
 					});
@@ -2007,6 +2044,31 @@ export class AgentSideEffects extends Disposable {
 			}));
 
 			await Promise.all(selectionUpdates);
+			if (agent.id === CODEX_AGENT_PROVIDER_ID) {
+				const state = this._stateManager.getSessionState(sessionChannel);
+				if (state?.defaultChat === chat) {
+					const model = agent.chats.getModel?.(chatUri, clientOperationContext) ?? message.model;
+					if (model && readCodexSessionModel(state)?.id !== model.id) {
+						this._stateManager.setSessionMeta(sessionChannel, withCodexSessionModel(state._meta, model));
+					}
+				}
+			}
+
+			// A provider can prepare the turn — e.g. materialize a deferred session
+			// with the selection applied above — while attachments, contributions
+			// and the checkpoint capture run. Dispatch still waits for both, so the
+			// checkpoint keeps describing the tree the agent starts from. A failed
+			// preparation is only logged: `sendMessage` then prepares as usual and
+			// surfaces any error exactly as it would without the overlap.
+			let providerPreparation: Promise<void> | undefined;
+			if (agent.chats.prepareTurn) {
+				this._reportOverlapExperimentTrigger();
+				if (this._agentConfigService.getRootValue(platformRootSchema, AgentHostOverlapProviderPreparationConfigKey) === true) {
+					providerPreparation = agent.chats.prepareTurn(chatUri, turnId, resolvedWorkingDirectories, clientOperationContext).catch(err => {
+						this._logService.warn(`[AgentSideEffects] Turn preparation failed for ${chat}; sending will prepare again`, err);
+					});
+				}
+			}
 
 			failureStage = 'sendMessage';
 			this._turnTracker.setCurrentStage(turnChannel, turnId, failureStage);
@@ -2016,6 +2078,8 @@ export class AgentSideEffects extends Disposable {
 			const contribution = await this._chatContributions.outgoingTurn({ session: sessionChannel, chat, message, turnId, workingDirectories: resolvedWorkingDirectories });
 			const sendContext = {
 				...clientOperationContext,
+				turnTelemetryCorrelation: { agentSessionId: AgentSession.id(sessionChannel), chatSessionId: getTelemetryChatSessionId(turnChannel), turnId },
+				reportCodexModelProvider: (provider: CodexModelProvider) => this._turnTracker.setCodexModelProvider(turnChannel, turnId, provider),
 				...(turnTelemetryContext ? { turnTelemetryContext } : {}),
 				...(contribution.instructions?.length ? { hostInstructions: contribution.instructions } : {}),
 				sendStageRecorder: this._turnTracker.createProviderStageRecorder(turnChannel, turnId),
@@ -2023,6 +2087,12 @@ export class AgentSideEffects extends Disposable {
 			if (this._cancelledTurnIds.get(turnChannel)?.has(turnId)) {
 				await this._discardPendingTurnStartCheckpoint(checkpointCapture, sessionChannel, chatUri, turnId);
 				return;
+			}
+			if (providerPreparation) {
+				// Measures only what preparation still costs the critical path
+				// after overlapping the work above, not its total cost.
+				this._turnTracker.markSendStage(turnChannel, turnId, 'providerPreparation');
+				await providerPreparation;
 			}
 			if (checkpointCapture) {
 				// Measures only what the checkpoint still costs the critical path
@@ -2088,6 +2158,18 @@ export class AgentSideEffects extends Disposable {
 	 * caller. It is the only cleanup on the failure path, where no such
 	 * cancellation discard exists.
 	 */
+	/**
+	 * Reports where overlapped and sequential provider preparation diverge. Agent host
+	 * telemetry only carries the assignment context that ExP attributes the event by once
+	 * the workbench has forwarded it, so until then the trigger stays pending.
+	 */
+	private _reportOverlapExperimentTrigger(): void {
+		this._overlapExperimentTriggerPending = typeof this._agentConfigService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
+		if (!this._overlapExperimentTriggerPending) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostOverlapProviderPreparationSettingId);
+		}
+	}
+
 	private async _discardPendingTurnStartCheckpoint(capture: Promise<void> | undefined, sessionChannel: ProtocolURI, chatUri: URI, turnId: string): Promise<void> {
 		if (!capture) {
 			return;

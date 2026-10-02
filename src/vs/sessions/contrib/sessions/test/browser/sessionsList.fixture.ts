@@ -774,14 +774,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['New, Automations, and Customizations appear as three full-width navigation rows at the start of the scrollable Sessions tree. New is the leading row with a plus icon and the platform New Session keybinding aligned on the right. As content scrolls, New remains sticky at the top and the Sessions header joins it when the session list reaches the viewport, without a duplicate New button. Automations has a compact right-aligned NEW capsule, and Customizations shows its count of 8 beside the label in a compact badge with the visible neutral secondary-button fill.'],
+		expectedVisualDescriptions: ['Automations and Customizations appear as two full-width navigation rows at the start of the scrollable Sessions tree. The Sessions header follows them, retains its outlined New button, and becomes sticky as the navigation rows scroll away. Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows the count of 8 beside its label in a compact badge with the visible neutral secondary-button fill, followed by a small warning dot.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],

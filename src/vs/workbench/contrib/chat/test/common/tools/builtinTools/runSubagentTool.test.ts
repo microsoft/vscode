@@ -100,6 +100,7 @@ suite('RunSubagentTool', () => {
 		selectedModels?: Map<string, ILanguageModelChatMetadata>;
 		copilotVendorResolved?: boolean;
 		onSelectLanguageModels?: () => void;
+		modelConfigurations?: Map<string, Record<string, unknown>>;
 	} = {}): ILanguageModelsService {
 		const service: Partial<ILanguageModelsService> = {
 			onDidChangeLanguageModels: Event.None,
@@ -120,7 +121,7 @@ suite('RunSubagentTool', () => {
 					.filter(([, metadata]) => metadata.vendor === selector.vendor && metadata.id === selector.id)
 					.map(([modelId]) => modelId);
 			},
-			getModelConfiguration: () => undefined,
+			getModelConfiguration: modelId => opts.modelConfigurations?.get(modelId),
 		};
 		return service as ILanguageModelsService;
 	}
@@ -435,6 +436,7 @@ suite('RunSubagentTool', () => {
 		function createTool(opts: {
 			models: Map<string, ILanguageModelChatMetadata>;
 			selectedModels?: Map<string, ILanguageModelChatMetadata>;
+			modelConfigurations?: Map<string, Record<string, unknown>>;
 			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
 			customAgents?: ICustomAgent[];
 			defaultToAuto?: boolean;
@@ -504,7 +506,7 @@ suite('RunSubagentTool', () => {
 			);
 		});
 
-		test('uses subagent model when it has equal multiplier', async () => {
+		test('uses subagent model and configuration when it has equal multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1, COPILOT_VENDOR_ID);
 			const sameCostMeta = createMetadata('Claude Sonnet', 1);
 			const autoMeta = createAutoMetadata();
@@ -518,7 +520,14 @@ suite('RunSubagentTool', () => {
 			]);
 
 			const agent = createAgent('SameCostAgent', ['Claude Sonnet (TestVendor)']);
-			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent], defaultToAuto: true });
+			const modelConfiguration = { reasoningEffort: 'high', contextSize: 1000000 };
+			const tool = createTool({
+				models, qualifiedNameMap, customAgents: [agent], defaultToAuto: true,
+				modelConfigurations: new Map([
+					['main-model-id', { reasoningEffort: 'low', contextSize: 200000 }],
+					['same-cost-model-id', modelConfiguration],
+				]),
+			});
 
 			const result = await tool.prepareToolInvocation({
 				parameters: { prompt: 'test', description: 'test task', agentName: 'SameCostAgent' },
@@ -535,6 +544,7 @@ suite('RunSubagentTool', () => {
 				prompt: 'test',
 				modelId: 'same-cost-model-id',
 				modelName: 'Claude Sonnet',
+				modelConfiguration,
 			});
 		});
 
