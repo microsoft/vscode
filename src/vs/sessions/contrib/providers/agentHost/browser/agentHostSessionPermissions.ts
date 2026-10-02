@@ -8,10 +8,24 @@ import { CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID } from '../../../../.
 import { ClaudeSessionConfigKey, narrowClaudePermissionMode } from '../../../../../platform/agentHost/common/claudeSessionConfigKeys.js';
 import { CodexSessionConfigKey, narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getEffectiveSessionApprovalValue, getSessionApprovalProperty, readSessionApprovalLevel } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
+import { ResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { type ISessionPermissionOption } from '../../../../services/sessions/common/sessionsProvider.js';
 
 const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli';
 const policyLockedReason = () => localize('sessionComparison.permissions.policyLocked', "Disabled by your organization");
+
+/** Reads the selected native permission without substituting a different permission choice. */
+export function getAgentHostSessionPermissionId(agentProvider: string, config: ResolveSessionConfigResult): string | undefined {
+	const key = agentProvider === CLAUDE_AGENT_PROVIDER_ID ? ClaudeSessionConfigKey.PermissionMode
+		: agentProvider === CODEX_AGENT_PROVIDER_ID ? CodexSessionConfigKey.PermissionsPreset : undefined;
+	if (key) {
+		const value = config.values[key] ?? config.schema.properties[key]?.default;
+		return typeof value === 'string' ? value : undefined;
+	}
+	const approval = getSessionApprovalProperty(config.schema);
+	return approval ? readSessionApprovalLevel(approval, getEffectiveSessionApprovalValue(approval, config.schema, config.values)) : undefined;
+}
 
 /** Returns the exact permission choices owned by an Agent Host backend. */
 export function getAgentHostSessionPermissionOptions(agentProvider: string, policyRestricted: boolean, assistedPermissionsEnabled: boolean): readonly ISessionPermissionOption[] {

@@ -5,10 +5,22 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionOptions } from '../../browser/agentHostSessionPermissions.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from '../../browser/agentHostSessionPermissions.js';
 
 suite('AgentHostSessionPermissions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('captures exact native permissions without silently changing unknown values', () => {
+		assert.deepStrictEqual({
+			claude: getAgentHostSessionPermissionId('claude', { schema: { type: 'object', properties: {} }, values: { permissionMode: 'acceptEdits' } }),
+			codex: getAgentHostSessionPermissionId('codex', { schema: { type: 'object', properties: {} }, values: { 'codex.permissionsPreset': 'auto-review' } }),
+			unknown: getAgentHostSessionPermissionId('conforming-host', { schema: { type: 'object', properties: {} }, values: {} }),
+			native: getAgentHostSessionPermissionId('conforming-host', {
+				schema: { type: 'object', properties: { approvalMode: { type: 'string', title: 'Approval', enum: ['manual', 'allow-all'] } } },
+				values: { approvalMode: 'allow-all' },
+			}),
+		}, { claude: 'acceptEdits', codex: 'auto-review', unknown: undefined, native: 'autoApprove' });
+	});
 
 	test('exposes exact provider choices and maps allow-all permissions without bypassing policy', () => {
 		assert.deepStrictEqual({

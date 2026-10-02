@@ -4,6 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
+import * as dom from '../../../../../../../base/browser/dom.js';
+import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { SelectBox } from '../../../../../../../base/browser/ui/selectBox/selectBox.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -20,6 +24,8 @@ import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IContextViewService } from '../../../../../../../platform/contextview/browser/contextView.js';
+import { defaultButtonStyles, defaultSelectBoxStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { StateType } from '../../../../../../../platform/update/common/update.js';
@@ -39,6 +45,7 @@ import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsFo
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
 import { ModelPickerWelcome } from './modelPickerWelcome.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
+import { IModelPickerWorkflow } from './modelPickerWorkflow.js';
 
 /** The collapsible section holding models that are neither pinned, recommended nor recent. */
 const OTHER_MODELS_SECTION = 'other';
@@ -49,6 +56,7 @@ const AUTO_TIER_ACTION_PREFIX = 'autoTier:';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
+	readonly workflow?: IModelPickerWorkflow;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
 	readonly recentModelIds: readonly string[];
@@ -133,6 +141,7 @@ export class TabbedModelPicker extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
 	) {
 		super();
 		this._widget = this._register(instantiationService.createInstance(TabbedActionListWidget));
@@ -273,6 +282,8 @@ export class TabbedModelPicker extends Disposable {
 		this._detailsModelId = undefined;
 		this._detailsCard = undefined;
 		this._cards.clearAndDisposeAll();
+		const workflow = context.workflow?.available.get() ? context.workflow : undefined;
+		const step = workflow?.state.get();
 		const destinations = this._buildDestinations(context);
 		if (!destinations.length) {
 			return;
@@ -294,7 +305,7 @@ export class TabbedModelPicker extends Disposable {
 					label,
 					icon: destination.icon,
 					tooltip: label,
-					toggle: destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? {
+					toggle: !step && destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? {
 						label: localize('chat.modelPicker.auto', "Auto"),
 						ariaLabel: localize('chat.modelPicker.autoModeToggle', "Use Auto mode in {0}", destination.label),
 						getState: () => this._getAutoModeToggleState(this._context ?? context),
@@ -311,6 +322,7 @@ export class TabbedModelPicker extends Disposable {
 			tabBarClassName: 'chat-model-picker-tabbar',
 			widgetClassNames: () => [
 				'chat-model-picker-widget',
+				...(step ? ['model-picker-workflow'] : []),
 				...(this._searchVisible ? ['search-mode'] : []),
 			],
 			tabLabels: 'active',
@@ -324,7 +336,7 @@ export class TabbedModelPicker extends Disposable {
 				const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
 				// Size to the Copilot tab, whichever Copilot mode is selected: the taller of
 				// its model list and its Auto view, unless Auto is all there is.
-				const showAuto = isBuiltIn && (forSizing
+				const showAuto = !step && isBuiltIn && (forSizing
 					? this._isAutoOnly(current)
 					: this._isAutoMode(current));
 				const alternateSizingItems = forSizing && isBuiltIn && !showAuto && (this._autoModel(current) || this._hydraFusionModel(current))
@@ -337,7 +349,7 @@ export class TabbedModelPicker extends Disposable {
 					: showAuto
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
-				const hint = current.cacheBreakHint ?? current.configurationCacheBreakHint;
+				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
 				const baseListOptions = withChatInputPickerMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
@@ -360,7 +372,7 @@ export class TabbedModelPicker extends Disposable {
 					headerLink: hint?.link,
 					headerDismiss: hint?.dismiss,
 					// A tab with nothing promoted would open on an empty list, so leave it expanded.
-					collapsedByDefault: hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
+					collapsedByDefault: !step && hasPromotedModels(sections) ? new Set([OTHER_MODELS_SECTION]) : undefined,
 					onDidToggleSection: (section, collapsed) => {
 						if (section === OTHER_MODELS_SECTION) {
 							current.onDidToggleOtherModels(collapsed);
@@ -375,11 +387,12 @@ export class TabbedModelPicker extends Disposable {
 					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
 					: baseListOptions;
 				return {
-					items,
+					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && (isAutoModel(model) || isHydraFusionModel(model)))) : items,
 					listOptions,
 					alternateSizingItems,
 				};
 			},
+			renderFooter: workflow && step ? container => this._renderWorkflowFooter(container, workflow) : undefined,
 			renderEmpty: (container, activeTab) => {
 				const destination = destinations.find(candidate => candidate.id === activeTab);
 				if (!destination?.placeholders.length) {
@@ -392,11 +405,13 @@ export class TabbedModelPicker extends Disposable {
 			delegate: {
 				onSelect: action => {
 					void action.run();
-					this._widget.hide();
+					if (!step) {
+						this._widget.hide();
+					}
 				},
 				onHide: () => { },
 			},
-			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible),
+			accessibilityProvider: getModelPickerAccessibilityProvider(this._searchVisible, !!step),
 		});
 		if (this._context?.selectedModelId) {
 			this._rememberSpeedVariant(this._context.selectedModelId);
@@ -516,6 +531,23 @@ export class TabbedModelPicker extends Disposable {
 
 	private _buildTabBarActions(context: ITabbedModelPickerContext): ITabBarAction[] {
 		const actions: ITabBarAction[] = [];
+		const workflow = context.workflow;
+		if (workflow?.available.get()) {
+			actions.push({
+				id: 'workflow',
+				icon: Codicon.layers,
+				tooltip: workflow.label,
+				checked: !!workflow.state.get(),
+				run: () => {
+					if (workflow.state.get()) {
+						workflow.cancel();
+					} else {
+						workflow.start();
+					}
+					this._showCurrent();
+				},
+			});
+		}
 		// Hidden while searching, when the filter takes the tab strip's place.
 		if (context.showManageModels && !this._searchVisible) {
 			actions.push({
@@ -543,6 +575,50 @@ export class TabbedModelPicker extends Disposable {
 			},
 		});
 		return actions;
+	}
+
+	private _renderWorkflowFooter(container: HTMLElement, workflow: IModelPickerWorkflow): DisposableStore {
+		const store = new DisposableStore();
+		const step = workflow.state.get()!;
+		container.classList.add('model-picker-workflow-footer');
+		if (step.count) {
+			const count = step.count;
+			const row = dom.append(container, dom.$('.model-picker-workflow-count'));
+			dom.append(row, dom.$('span')).textContent = count.label;
+			const select = store.add(new SelectBox(
+				Array.from({ length: count.max - count.min + 1 }, (_, index) => ({ text: String(index + count.min) })),
+				count.value - count.min, this._contextViewService, defaultSelectBoxStyles,
+				{ ariaLabel: count.label, contextViewLayer: (this._contextViewLayer ?? 0) + 1 },
+			));
+			select.render(row);
+			store.add(select.onDidSelect(event => workflow.setCount(event.index + count.min)));
+		}
+		const actions = dom.append(container, dom.$('.model-picker-workflow-actions'));
+		if (step.canGoBack) {
+			const back = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			back.label = localize('modelPicker.workflow.back', "{0} Back", '$(arrow-left)');
+			store.add(back.onDidClick(() => {
+				workflow.back();
+				this._searchVisible = false;
+				this._showCurrent();
+				status(workflow.state.get()!.title);
+			}));
+		}
+		const next = store.add(new Button(actions, { ...defaultButtonStyles, supportIcons: true }));
+		next.label = step.canFinish ? localize('modelPicker.workflow.done', "Done") : localize('modelPicker.workflow.next', "Next {0}", '$(arrow-right)');
+		next.enabled = step.canFinish || step.canGoNext;
+		store.add(next.onDidClick(() => {
+			if (step.canFinish) {
+				workflow.finish();
+				this._widget.hide();
+			} else {
+				workflow.next();
+				this._searchVisible = false;
+				this._showCurrent();
+				status(workflow.state.get()!.title);
+			}
+		}));
+		return store;
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
@@ -737,6 +813,27 @@ export class TabbedModelPicker extends Disposable {
 		section?: string,
 		providerLabel?: string,
 	): IActionListItem<IActionWidgetDropdownAction> {
+		const workflow = context.workflow;
+		const step = workflow?.state.get();
+		if (workflow && step) {
+			const checked = step.selectedModelIds.includes(model.identifier);
+			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
+			const { action, ariaDescription } = createModelAction(model, undefined, () => {
+				workflow.select(model.identifier);
+				this._showCurrent(undefined, model.identifier);
+			}, section, true);
+			return {
+				item: { ...action, checked, enabled: !disabled },
+				kind: ActionListItemKind.Action,
+				label: action.label,
+				ariaDescription,
+				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
+				hideIcon: false,
+				section,
+				disabled,
+				className: 'chat-model-picker-model',
+			};
+		}
 		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
 			this._selectionVersion++;
 			const pair = this._speedVariants.get(next.identifier);

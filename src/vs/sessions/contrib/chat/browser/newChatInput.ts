@@ -102,6 +102,7 @@ import { IChatSubmitRequestHandlerService } from '../../../../workbench/contrib/
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from './newChatModelPicker.js';
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
+import { IModelPickerWorkflow } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
 import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
@@ -633,6 +634,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
 			sendButtonLabel?: IObservable<string | undefined>;
+			modelPickerWorkflow?: IModelPickerWorkflow;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -675,7 +677,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		super();
-		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, {}));
+		this._modelSelection = this._register(this.instantiationService.createInstance(SessionModelSelection, this.options.session, { workflow: this.options.modelPickerWorkflow }));
 		this._canSendRequest = derived(this, reader => {
 			if (this.options.canSubmitWithoutSession?.read(reader)) {
 				return true;
@@ -1446,16 +1448,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		if (this._sendButtonContainer) {
 			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
+				supportIcons: true,
 				title: this.options.supportsBackground
 					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
 					: localize('send', "Send"),
 				ariaLabel: localize('send', "Send"),
 			}));
-			sendButton.icon = Codicon.arrowUpCompact;
+			sendButton.label = '$(arrow-up-compact)';
 			if (this.options.sendButtonLabel) {
 				this._register(autorun(reader => {
 					const label = this.options.sendButtonLabel?.read(reader);
-					sendButton.label = label ?? '';
+					sendButton.label = label ? `$(arrow-up-compact) ${label}` : '$(arrow-up-compact)';
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
 					this._sendButtonContainer?.classList.toggle('labeled', !!label);
 				}));

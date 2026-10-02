@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ISearchService } from '../../../../../workbench/services/search/common/search.js';
@@ -43,6 +43,7 @@ import '../../../../browser/media/style.css';
 
 interface NewChatInputFixtureOptions {
 	readonly value?: string;
+	readonly sendButtonLabel?: string;
 	readonly selection?: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number };
 	/** Docks the sub-session tip above the composer. */
 	readonly subSessionTip?: boolean;
@@ -180,7 +181,9 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 		getContextFolderUri: () => undefined,
 		sendRequest: async () => true,
 		canSendRequest: observableValue('canSendRequest', true),
+		canSubmitWithoutSession: constObservable(!!fixtureOptions.sendButtonLabel),
 		loading: observableValue('loading', false),
+		sendButtonLabel: constObservable(fixtureOptions.sendButtonLabel),
 	}));
 
 	widget.render(content, container);
@@ -234,6 +237,14 @@ async function renderNewChatInput(context: ComponentFixtureContext, fixtureOptio
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/newInput/' }, {
 	Default: defineComponentFixture({ render: context => renderNewChatInput(context, { value: 'What are you building?' }) }),
+	CompareAttempts: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { value: 'Compare these implementations', sendButtonLabel: 'Run 4 Attempts' }),
+	}),
+	CompareAttemptsDisabled: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderNewChatInput(context, { sendButtonLabel: 'Run 4 Attempts' }),
+	}),
 	// Partial multi-line selection so the reverse-rounded selection corners are
 	// rendered. These cut-out pieces use `.monaco-editor-background`, which the
 	// sessions CSS forces transparent — the bug shows here as blocky corners.

@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
@@ -32,6 +33,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../s
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
+import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
@@ -100,6 +102,7 @@ suite('TabbedModelPicker', () => {
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
+		workflow?: IModelPickerWorkflow;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
@@ -182,6 +185,7 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
+			workflow: options.workflow,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0].identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
@@ -258,6 +262,52 @@ suite('TabbedModelPicker', () => {
 	function selectedModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
 	}
+
+	test('guided selection keeps the popup open, excludes routing, and exposes accessible navigation', () => {
+		const attempts: IModelPickerWorkflowState = {
+			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+		};
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		let finished = false;
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), state, label: 'Compare Models',
+			start: () => state.set(attempts, undefined),
+			cancel: () => state.set(undefined, undefined),
+			select: id => state.set({ ...attempts, selectedModelIds: [id], canGoNext: true, count: { label: 'Number of Runs', value: 2, min: 2, max: 10 } }, undefined),
+			setCount: () => { },
+			back: () => state.set(attempts, undefined),
+			next: () => state.set({ ...attempts, title: 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
+			finish: () => finished = true,
+		};
+		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		element(popup, '[aria-label="Compare Models"]').click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
+			checks: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
+		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
+		const list = element(popup, '.monaco-list');
+		list.focus();
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const buttons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')];
+		assert.deepStrictEqual({
+			visible: picker.isVisible, selected: selectedModels(popup).length, selections,
+			count: popup.querySelector('select')?.getAttribute('aria-label'),
+			buttons: buttons().map(button => button.textContent?.trim()),
+		}, { visible: true, selected: 1, selections: [], count: 'Number of Runs', buttons: ['Next'] });
+		buttons()[0].click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			buttons: buttons().map(button => button.textContent?.trim()),
+		}, { heading: 'Judge\nOptional review.', buttons: ['Back', 'Done'] });
+		buttons()[0].click();
+		assert.ok(popup.querySelector('.action-list-header-text')?.textContent?.startsWith('Attempts'));
+		element(popup, '.chat-model-picker-model').click();
+		buttons()[0].click();
+		buttons()[1].click();
+		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections }, { finished: true, visible: false, selections: [] });
+	});
 
 	/** The active list's rows, with separators prefixed by `--` and followed by their heading. */
 	function listRows(popup: HTMLElement): string[] {

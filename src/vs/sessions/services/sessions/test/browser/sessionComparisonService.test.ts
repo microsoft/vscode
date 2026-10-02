@@ -21,7 +21,7 @@ import { IChatService, IChatUsage } from '../../../../../workbench/contrib/chat/
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../common/session.js';
-import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
+import { ISessionComparisonSynthesisPlan, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../common/sessionComparison.js';
 import { ICreateNewSessionOptions, ISendRequestOptions, ISessionsManagementService, NewSessionRequestOptions } from '../../common/sessionsManagement.js';
 import { ISessionChangeEvent } from '../../common/sessionsProvider.js';
 import { ISessionGroup, ISessionGroupsChangeEvent, ISessionGroupsService } from '../../browser/sessionGroupsService.js';
@@ -86,6 +86,66 @@ suite('SessionComparisonService', () => {
 			deletedSessionIds: [],
 			storedComparisons: [],
 		});
+	});
+
+	test('ten completed attempts without a Judge never start evaluation', async () => {
+		const { service, sessionsManagementService } = createServices();
+		const attempts = Array.from({ length: 10 }, (_, index) => ({
+			id: `attempt-${index}`, harness: startOptions().attempts[0].harness,
+		}));
+		for (const attempt of attempts) {
+			sessionsManagementService.enqueue(stubSession(attempt.id, observableValue('status', SessionStatus.Completed)));
+		}
+		const comparison = await service.startComparison({ ...startOptions(), attempts, judgeHarness: undefined, synthesisHarness: undefined });
+		sessionsManagementService.fireChange();
+		await timeout(0);
+		assert.deepStrictEqual({
+			requests: sessionsManagementService.createCalls.length,
+			roles: service.getComparison(comparison.id)?.participants.map(participant => participant.role),
+			canRetry: service.canRetryJudge(comparison.id),
+		}, { requests: 10, roles: Array(10).fill(SessionComparisonParticipantRole.Attempt), canRetry: false });
+		await assert.rejects(service.synthesize(comparison.id), /selected or recommended attempt/);
+		await assert.rejects(service.startComparison({ ...startOptions(), attempts: [...attempts, { ...attempts[0], id: 'extra' }] }), /between two and ten/);
+		await assert.rejects(service.startComparison({ ...startOptions(), judgeHarness: undefined }), /requires a Judge/);
+	});
+
+	test('a Judge without a Synthesizer can submit a verdict but cannot synthesize', async () => {
+		const { service, sessionsManagementService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one', observableValue('one', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('two', observableValue('two', SessionStatus.Completed)));
+		sessionsManagementService.enqueue(stubSession('judge'));
+		const comparison = await service.startComparison({ ...startOptions(), synthesisHarness: undefined });
+		await timeout(0);
+		service.submitVerdict(comparison.id, verdict(comparison.participants[0].id, comparison.participants.map(participant => participant.id)));
+		await assert.rejects(service.synthesize(comparison.id), /configured synthesis model/);
+		assert.strictEqual(sessionsManagementService.createCalls.length, 3);
+	});
+
+	test('restores free-form instructions but discards legacy custom synthesis selections', async () => {
+		const { service, sessionsManagementService, storageService } = createServices();
+		sessionsManagementService.enqueue(stubSession('one'));
+		sessionsManagementService.enqueue(stubSession('two'));
+		const comparison = await service.startComparison(startOptions());
+		service.submitVerdict(comparison.id, verdict(comparison.participants[0].id, comparison.participants.map(participant => participant.id)));
+		service.setSynthesisPlan(comparison.id, { instructions: 'Preserve the API.' });
+		const current = service.getComparison(comparison.id)!;
+		const legacy = {
+			...current,
+			verdict: { ...current.verdict, decisionSections: [{ id: 'obsolete' }] },
+			synthesisPlan: { ...current.synthesisPlan, selections: [{ sectionId: 'obsolete' }] },
+			participants: [...current.participants, {
+				id: 'synthesis', role: SessionComparisonParticipantRole.Synthesis,
+				harness: startOptions().synthesisHarness, sessionResource: URI.parse('test:/synthesis'),
+			}],
+		};
+		storageService.store('sessions.comparisons', JSON.stringify([legacy]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const restored = createServices(storageService).service.getComparison(comparison.id)!;
+		assert.deepStrictEqual({
+			plan: restored.synthesisPlan,
+			decisions: Object.hasOwn(restored.verdict!, 'decisionSections'),
+			synthesis: restored.participants.at(-1)?.sessionResource?.toString(),
+		}, { plan: { instructions: 'Preserve the API.' }, decisions: false, synthesis: 'test:/synthesis' });
+		assert.throws(() => service.setSynthesisPlan(comparison.id, { instructions: 'a'.repeat(4001) }), /invalid additional instructions/);
 	});
 
 	test('creates only the requested attempt sessions before judging', async () => {
@@ -1170,6 +1230,7 @@ suite('SessionComparisonService', () => {
 			prompt: 'Implement',
 			permissionLevel: 'allowedTools',
 			judgeHarness: { providerId: 'judge-provider', sessionTypeId: 'judge-type', label: 'Judge', modelId: 'judge-model' },
+			synthesisHarness: { providerId: 'provider-two', sessionTypeId: 'type-two', label: 'Two', modelId: 'model-two' },
 			participants: [{
 				id: 'attempt-one',
 				role: SessionComparisonParticipantRole.Attempt,
@@ -1380,27 +1441,8 @@ suite('SessionComparisonService', () => {
 				codeQuality: 'Uses the existing implementation pattern.',
 				solution: 'Implements the requested behavior.',
 			},
-			decisionSections: [{
-				id: 'error-handling',
-				title: 'Error handling',
-				description: 'Choose the error representation.',
-				affectedFiles: ['src/parser.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Use ${attempt.harness.label}` })),
-				recommendedParticipantId: attempts[1].id,
-			}, {
-				id: 'validation',
-				title: 'Validation',
-				description: 'Choose the validation scope.',
-				affectedFiles: ['test/parser.test.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: `Validate with ${attempt.harness.label}` })),
-				recommendedParticipantId: attempts[0].id,
-			}],
 		});
 		service.setSynthesisPlan(comparison.id, {
-			selections: [
-				{ sectionId: 'error-handling', participantId: attempts[0].id },
-				{ sectionId: 'validation', participantId: attempts[1].id },
-			],
 			instructions: 'Preserve the public API and add focused tests.',
 		});
 		let synthesisBeforeCreateReturned: {
@@ -1432,106 +1474,16 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat every selected synthesis approach and additional instruction below, plus the synthesis plan in the manifest, as explicit user requirements. Resolve cross-section dependencies coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Selected synthesis approaches\n- **Error handling**: Follow Attempt 1 (One). Use One\n- **Validation**: Follow Attempt 2 (Two). Validate with Two\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
-				selections: [
-					{ sectionId: 'error-handling', participantId: attempts[0].id },
-					{ sectionId: 'validation', participantId: attempts[1].id },
-				],
 				instructions: 'Preserve the public API and add focused tests.',
 			},
 			synthesisBeforeCreateReturned: {
 				sessionResource: 'test:/synthesis',
 				plan: {
-					selections: [
-						{ sectionId: 'error-handling', participantId: attempts[0].id },
-						{ sectionId: 'validation', participantId: attempts[1].id },
-					],
 					instructions: 'Preserve the public API and add focused tests.',
 				},
 			},
-		});
-	});
-
-	test('persists synthesis selections and rejects unknown sections or approaches', async () => {
-		const { service, sessionsManagementService, storageService } = createServices();
-		sessionsManagementService.enqueue(stubSession('attempt-one'));
-		sessionsManagementService.enqueue(stubSession('attempt-two'));
-		const comparison = await service.startComparison(startOptions());
-		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
-		let invalidAssessments: string | undefined;
-		try {
-			service.submitVerdict(comparison.id, {
-				...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
-				decisionSections: [{
-					id: 'tests',
-					title: 'Test strategy',
-					description: 'Choose the preferred coverage structure.',
-					affectedFiles: ['test/parser.test.ts'],
-					options: attempts.map(attempt => ({
-						participantId: attempt.id,
-						approach: attempt.harness.label,
-						assessment: SessionComparisonDecisionAssessment.Neutral,
-					})),
-					recommendedParticipantId: attempts[1].id,
-				}],
-			});
-		} catch (error) {
-			invalidAssessments = error instanceof Error ? error.message : String(error);
-		}
-		service.submitVerdict(comparison.id, {
-			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
-			decisionSections: [{
-				id: 'tests',
-				title: 'Test strategy',
-				description: 'Choose the preferred coverage structure.',
-				affectedFiles: ['test/parser.test.ts'],
-				options: attempts.map(attempt => ({ participantId: attempt.id, approach: attempt.harness.label })),
-				recommendedParticipantId: attempts[1].id,
-			}],
-		});
-		service.setSynthesisPlan(comparison.id, {
-			selections: [{ sectionId: 'tests', participantId: attempts[0].id }],
-			instructions: 'Preserve the public API.',
-		});
-		assert.throws(() => service.submitVerdict(comparison.id, verdict(attempts[1].id, attempts.map(attempt => attempt.id))), /already been submitted/);
-		const stored = JSON.parse(storageService.get('sessions.comparisons', StorageScope.PROFILE) ?? '[]');
-		const restored = createServices(storageService).service.getComparison(comparison.id)?.synthesisPlan;
-		let unknownSection: string | undefined;
-		let unknownAttempt: string | undefined;
-		let invalidInstructions: string | undefined;
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'missing' }] });
-		} catch (error) {
-			unknownSection = error instanceof Error ? error.message : String(error);
-		}
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [{ sectionId: 'tests', participantId: 'missing' }] });
-		} catch (error) {
-			unknownAttempt = error instanceof Error ? error.message : String(error);
-		}
-		try {
-			service.setSynthesisPlan(comparison.id, { selections: [], instructions: 'x'.repeat(4001) });
-		} catch (error) {
-			invalidInstructions = error instanceof Error ? error.message : String(error);
-		}
-
-		assert.deepStrictEqual({
-			live: service.getComparison(comparison.id)?.synthesisPlan,
-			stored: stored[0].synthesisPlan,
-			restored,
-			invalidAssessments,
-			unknownSection,
-			unknownAttempt,
-			invalidInstructions,
-		}, {
-			live: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			stored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			restored: { selections: [{ sectionId: 'tests', participantId: attempts[0].id }], instructions: 'Preserve the public API.' },
-			invalidAssessments: 'The comparison verdict contains an invalid synthesis decision section.',
-			unknownSection: 'The synthesis plan contains an invalid section selection.',
-			unknownAttempt: 'The synthesis plan contains an invalid section selection.',
-			invalidInstructions: 'The synthesis plan contains invalid additional instructions.',
 		});
 	});
 

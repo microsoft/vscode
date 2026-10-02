@@ -94,7 +94,7 @@ import { computePullRequestIcon, GitHubPullRequestState } from '../../../github/
 import { mapProtocolStatus } from './agentHostDiffs.js';
 import { createActiveSessionSubscriptionObs, createChangesets, createChatChangesets, type IAgentHostCurrentTurnChanges } from './agentHostSessionChangesets.js';
 import { createSessionOutputObs, ISessionOutputObs } from './agentHostSessionFiles.js';
-import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
+import { getAgentHostSessionPermissionConfig, getAgentHostSessionPermissionId, getAgentHostSessionPermissionOptions } from './agentHostSessionPermissions.js';
 
 const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.sessionConfigPicker.selectedValues';
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
@@ -3539,6 +3539,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			isAutoApprovePolicyRestricted(this._baseConfigurationService),
 			true,
 		);
+	}
+
+	getPermissionOptionForSession(sessionId: string): ISessionPermissionOption | undefined {
+		const sessionType = this._getNewSession(sessionId)?.agentProvider;
+		const config = this.getSessionConfig(sessionId);
+		if (!sessionType || !config) {
+			return undefined;
+		}
+		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
+		return this.getPermissionOptionsForCreation(sessionType).find(option => option.id === permissionId);
 	}
 
 	get order(): number { return 0; }
