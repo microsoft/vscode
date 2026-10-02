@@ -14,6 +14,11 @@
 		color: var(--vscode-strongForeground);
 	}
 
+	.monaco-list .monaco-list-row.session-section.focused.session-section-shortcut:is(:hover, .hovered) {
+		background-color: var(--vscode-list-hoverBackground);
+		border-radius: 0;
+	}
+
 	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
 	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
 		color: var(--vscode-descriptionForeground);
