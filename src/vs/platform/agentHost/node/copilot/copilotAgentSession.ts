@@ -48,6 +48,7 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { AgentCanvasAvailability, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AGENT_HOST_CANVAS_LIMIT } from '../../common/agentHostExtensionProtocol.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -1765,7 +1766,7 @@ export class CopilotAgentSession extends Disposable {
 		return toolCallId !== undefined && this._fusionPhaseLabels.has(toolCallId) ? toolCallId : undefined;
 	}
 
-	private _updateSubagentModel(parentToolCallId: string, model: string | undefined): void {
+	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
 		if (!model) {
 			return;
 		}
@@ -1773,6 +1774,9 @@ export class CopilotAgentSession extends Disposable {
 		const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
 		const modelId = isAutoModel(model) ? autoModeResolved?.chosenModel ?? model : model;
 		const metadata = { ...previous?._meta };
+		if (configuration && (configuration.reasoningEffort !== undefined || configuration.contextTier !== undefined || readAgentRuntimeModelConfiguration(previous))) {
+			metadata[agentModelConfigurationMetaKey] = configuration;
+		}
 		if (autoModeResolved) {
 			metadata.autoModeResolved = autoModeResolved;
 		} else {
@@ -7009,7 +7013,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute model configuration for unknown subagent agentId=${e.agentId}`);
 				return;
 			}
-			this._updateSubagentModel(parentToolCallId, e.data.model);
+			this._updateSubagentModel(parentToolCallId, e.data.model, {
+				...(e.data.reasoningEffort ? { reasoningEffort: e.data.reasoningEffort } : {}),
+				...(e.data.contextTier ? { contextTier: e.data.contextTier } : {}),
+			});
 		}));
 
 		this._register(wrapper.onTurnStart(e => {
@@ -7217,6 +7224,10 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
 				const metadata: UsageInfoMeta = {};
+				const modelConfiguration = directOwnerToolCallId ? readAgentRuntimeModelConfiguration(this._lastSubagentUsageByToolCallId.get(directOwnerToolCallId)) : undefined;
+				if (modelConfiguration) {
+					metadata[agentModelConfigurationMetaKey] = modelConfiguration;
+				}
 				if (modelCall) {
 					metadata[agentModelCallMetaKey] = modelCall;
 				}
