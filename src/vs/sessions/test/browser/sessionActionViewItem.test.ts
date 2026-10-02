@@ -10,8 +10,7 @@ import { ActionRunner } from '../../../base/common/actions.js';
 import { DeferredPromise } from '../../../base/common/async.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,9 +29,6 @@ import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOpt
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const accessibilitySignalService = new class extends mock<IAccessibilitySignalService>() {
-		override async playSignal(): Promise<void> { }
-	}();
 
 	function createMenuItemAction(id: string): MenuItemAction {
 		return new MenuItemAction(
@@ -50,7 +46,7 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
-	function createArchiveActionViewItem(run: () => Promise<void>, options: IMenuEntryActionViewItemOptions = { onClickAnimation: ClickAnimation.Confetti }): MenuEntryActionViewItem {
+	function createArchiveActionViewItem(run: () => Promise<void>): MenuEntryActionViewItem {
 		const action = new MenuItemAction(
 			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
 			undefined,
@@ -69,7 +65,7 @@ suite('SessionActionViewItem', () => {
 		);
 		const viewItem = disposables.add(new MenuEntryActionViewItem(
 			action,
-			options,
+			{ onClickAnimation: ClickAnimation.Confetti },
 			new class extends mock<IKeybindingService>() { }(),
 			new TestNotificationService(),
 			new class extends mock<IContextKeyService>() { }(),
@@ -90,7 +86,7 @@ suite('SessionActionViewItem', () => {
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
 		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
-		const provider = createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService);
+		const provider = createSessionActionViewItemProvider(instantiationService, configurationService);
 
 		assert.deepStrictEqual({
 			archive: provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}),
@@ -105,7 +101,7 @@ suite('SessionActionViewItem', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
 		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
-		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService(), accessibilitySignalService);
+		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService());
 
 		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), expected);
 	});
@@ -115,7 +111,7 @@ suite('SessionActionViewItem', () => {
 			const telemetryService = new TestExperimentTriggerTelemetryService();
 			const viewItem = disposables.add(new SessionArchiveActionViewItem(
 				createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID),
-				getSessionArchiveActionViewItemOptions({}, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false }), accessibilitySignalService),
+				getSessionArchiveActionViewItemOptions({}, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false })),
 				telemetryService,
 				new class extends mock<IKeybindingService>() { }(),
 				new TestNotificationService(),
@@ -141,54 +137,18 @@ suite('SessionActionViewItem', () => {
 
 	test('resolves configured archive animation when clicked', async () => {
 		const configurationService = new TestConfigurationService();
-		const playedSignals: AccessibilitySignal[] = [];
-		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService, new class extends mock<IAccessibilitySignalService>() {
-			override async playSignal(signal: AccessibilitySignal): Promise<void> {
-				playedSignals.push(signal);
-			}
-		}());
+		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService);
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
 		const disabled = options.onClickAnimation;
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const enabled = options.onClickAnimation;
-		options.onDidTriggerClickAnimation?.();
 
 		assert.deepStrictEqual({
 			disabled,
 			enabled,
-			playedSignals,
 		}, {
 			disabled: undefined,
 			enabled: ClickAnimation.Confetti,
-			playedSignals: [AccessibilitySignal.confetti],
-		});
-	});
-
-	test('plays the confetti signal when archive is triggered with the keyboard', async () => {
-		const playedSignals: AccessibilitySignal[] = [];
-		const viewItem = createArchiveActionViewItem(
-			async () => { },
-			getSessionArchiveActionViewItemOptions(
-				{},
-				new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: true }),
-				new class extends mock<IAccessibilitySignalService>() {
-					override async playSignal(signal: AccessibilitySignal): Promise<void> {
-						playedSignals.push(signal);
-					}
-				}(),
-			),
-		);
-
-		await viewItem.trigger(undefined);
-		const animation = document.body.querySelector('.animation-overlay');
-		animation?.remove();
-
-		assert.deepStrictEqual({
-			animation: !!animation,
-			playedSignals,
-		}, {
-			animation: true,
-			playedSignals: [AccessibilitySignal.confetti],
 		});
 	});
 

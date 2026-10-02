@@ -66,7 +66,6 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../../../browser/sessionActionViewItem.js';
-import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -1328,7 +1327,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly configurationService: IConfigurationService,
-		private readonly accessibilitySignalService: IAccessibilitySignalService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -1430,7 +1428,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.toolbarMenuId) {
 			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions, this.options.handleToolbarAction));
-			const actionViewItemProvider = createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService, this.accessibilitySignalService);
+			const actionViewItemProvider = createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService);
 			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
@@ -1449,7 +1447,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 								}
 							}));
 						}
-					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService, this.accessibilitySignalService));
+					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService));
 				},
 			}));
 		}
@@ -3689,7 +3687,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -3795,7 +3792,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			instantiationService,
 			contextKeyService,
 			this.configurationService,
-			this.accessibilitySignalService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
@@ -6573,7 +6569,6 @@ export class SessionsFlatList extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -6618,7 +6613,6 @@ export class SessionsFlatList extends Disposable {
 			instantiationService,
 			contextKeyService,
 			configurationService,
-			accessibilitySignalService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,

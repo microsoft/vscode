@@ -7,7 +7,6 @@ import { IActionViewItemProvider } from '../../base/browser/ui/actionbar/actionb
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { ClickAnimation } from '../../base/browser/ui/animations/animations.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
-import { AccessibilitySignal, IAccessibilitySignalService } from '../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../platform/actions/common/actions.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../platform/chat/common/sessionArchiveActions.js';
@@ -22,15 +21,14 @@ import { ITelemetryService } from '../../platform/telemetry/common/telemetry.js'
 import { IThemeService } from '../../platform/theme/common/themeService.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../common/sessionCommands.js';
 
-export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService, accessibilitySignalService: IAccessibilitySignalService): IMenuEntryActionViewItemOptions {
+export function getSessionArchiveActionViewItemOptions(options: IActionViewItemOptions, configurationService: IConfigurationService): IMenuEntryActionViewItemOptions {
 	return {
 		...options,
 		get onClickAnimation() {
 			return configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
 				? ClickAnimation.Confetti
 				: undefined;
-		},
-		onDidTriggerClickAnimation: () => accessibilitySignalService.playSignal(AccessibilitySignal.confetti)
+		}
 	};
 }
 
@@ -52,27 +50,18 @@ export class SessionArchiveActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override onClick(event: MouseEvent): Promise<void> {
-		this._reportExperimentTrigger();
-		return super.onClick(event);
-	}
-
-	override trigger(context: unknown): Promise<void> {
-		this._reportExperimentTrigger();
-		return super.trigger(context);
-	}
-
-	private _reportExperimentTrigger(): void {
 		// Reduced motion never animates, so the setting cannot change what those users see.
 		if (!this._accessibility.isMotionReduced()) {
 			logSettingExperimentTrigger(this._telemetryService, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING);
 		}
+		return super.onClick(event);
 	}
 }
 
-export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService, accessibilitySignalService: IAccessibilitySignalService): IActionViewItemProvider {
+export function createSessionActionViewItemProvider(instantiationService: IInstantiationService, configurationService: IConfigurationService): IActionViewItemProvider {
 	return (action, options) => {
 		if (action instanceof MenuItemAction && action.id === ARCHIVE_SESSION_COMMAND_ID) {
-			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService, accessibilitySignalService));
+			return instantiationService.createInstance(SessionArchiveActionViewItem, action, getSessionArchiveActionViewItemOptions(options, configurationService));
 		}
 		return undefined;
 	};

@@ -28,7 +28,6 @@ import { onUnexpectedError } from '../../../base/common/errors.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { createSessionActionViewItemProvider } from '../sessionActionViewItem.js';
-import { IAccessibilitySignalService } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
 export interface ISessionHeaderBarContext {
 	readonly session: IActiveSession;
@@ -97,7 +96,6 @@ export class SessionHeaderBar extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -142,7 +140,7 @@ export class SessionHeaderBar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._menuActionArgs },
 			highlightToggledItems: true,
-			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService),
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		// Report height changes so the host can re-layout.
@@ -479,7 +477,6 @@ export class SessionViewFloatingToolbar extends Disposable {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 	) {
 		super();
 
@@ -491,7 +488,7 @@ export class SessionViewFloatingToolbar extends Disposable {
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { shouldForwardArgs: true },
 			highlightToggledItems: true,
-			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService, accessibilitySignalService),
+			actionViewItemProvider: createSessionActionViewItemProvider(instantiationService, configurationService),
 		}));
 
 		this._setVisible(false);

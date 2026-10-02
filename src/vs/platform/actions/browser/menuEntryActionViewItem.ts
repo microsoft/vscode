@@ -211,14 +211,6 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		event.preventDefault();
 		event.stopPropagation();
 
-		return this._runAction(this._context);
-	}
-
-	async trigger(context: unknown): Promise<void> {
-		return this._runAction(context);
-	}
-
-	private async _runAction(context: unknown): Promise<void> {
 		const commandAction = this._commandAction;
 		let actionError: Error | undefined;
 		const actionRunnerListener = this.actionRunner.onDidRun(event => {
@@ -228,7 +220,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 		});
 		try {
 			const animationTarget = this._options?.onClickAnimation && this.element ? captureAnimationTarget(this.element) : undefined;
-			await this.actionRunner.run(commandAction, context);
+			await this.actionRunner.run(commandAction, this._context);
 			if (!actionError && this._options?.onClickAnimation && animationTarget && !this._accessibilityService.isMotionReduced()) {
 				const icon = this._menuItemAction.item.icon;
 				triggerClickAnimation(animationTarget, this._options.onClickAnimation, ThemeIcon.isThemeIcon(icon) ? icon : undefined);
