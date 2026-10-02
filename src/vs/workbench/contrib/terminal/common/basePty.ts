@@ -17,6 +17,8 @@ import { ProcessPropertyType, type IProcessDataEvent, type IProcessProperty, typ
  */
 export abstract class BasePty extends Disposable implements Partial<ITerminalChildProcess> {
 	protected readonly _properties: IProcessPropertyMap = {
+		chatOwner: undefined,
+		sessionOwner: undefined,
 		cwd: '',
 		initialCwd: '',
 		fixedDimensions: { cols: undefined, rows: undefined },
