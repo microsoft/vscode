@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, ok, strictEqual } from 'assert';
+import { deepStrictEqual, ok, rejects, strictEqual } from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+
+type TaskList = Awaited<ReturnType<NonPtyShellTerminalStreams['reconcileBackgroundShells']>>;
 
 suite('NonPtyShellTerminalStreams', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -405,49 +408,73 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 		});
 
-		test('settles a shell from task reads started after it went to the background, even if never listed', () => {
+		test('does not settle a shell that went to the background while the task read was pending', async () => {
 			streams.track('call-23', 'shell');
-			const earlier = streams.captureBackgroundShells();
+			const taskList = new DeferredPromise<TaskList>();
+			const read = streams.reconcileBackgroundShells(() => taskList.p);
 			const uri = streams.completeToolCall('call-23', asyncStarted('10'), undefined)?.uri;
 
-			// A read started before the call returned can predate the shell.
-			streams.reconcileBackgroundShells(new Set(), earlier);
+			await taskList.complete({ tasks: [] });
+			await read;
 			const afterEarlierRead = [...manager.outputTerminalsFinalized];
-			streams.reconcileBackgroundShells(new Set(['10']), streams.captureBackgroundShells());
-			const whileListed = [...manager.outputTerminalsFinalized];
-			// A later read that no longer lists the shell settles it, whether or not an earlier read listed it.
-			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
+			await streams.reconcileBackgroundShells(async () => ({ tasks: [] }));
 
-			deepStrictEqual({ afterEarlierRead, whileListed, finalized: manager.outputTerminalsFinalized }, {
+			deepStrictEqual({ afterEarlierRead, finalized: manager.outputTerminalsFinalized }, {
 				afterEarlierRead: [],
-				whileListed: [],
 				finalized: [{ uri, exitCode: undefined }],
 			});
 		});
 
-		test('settles a shell that exits before any read lists it', () => {
+		test('settles a shell that exits before any read lists it', async () => {
 			streams.track('call-28', 'shell');
 			const uri = streams.completeToolCall('call-28', asyncStarted('12'), undefined)?.uri;
 
-			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
+			await streams.reconcileBackgroundShells(async () => ({ tasks: [] }));
 
 			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
 		});
 
-		test('does not settle a replacement command from a task read started before its shell ID was reused', () => {
+		for (const status of ['running', 'idle'] as const) {
+			test(`keeps a ${status} shell live and returns the unmodified task list`, async () => {
+				streams.track('call-listed', 'shell');
+				const uri = streams.completeToolCall('call-listed', asyncStarted('listed'), undefined)?.uri;
+				const taskList: TaskList = {
+					tasks: [{
+						type: 'shell', id: 'listed', status, description: 'Run tests',
+						command: 'npm test', startedAt: new Date(0).toISOString(), attachmentMode: 'attached',
+					}],
+				};
+
+				const result = await streams.reconcileBackgroundShells(async () => taskList);
+
+				deepStrictEqual({
+					sameTaskList: result === taskList,
+					finalized: manager.outputTerminalsFinalized,
+					terminal: streams.getBackgroundShellTerminal('listed'),
+				}, {
+					sameTaskList: true,
+					finalized: [],
+					terminal: uri,
+				});
+			});
+		}
+
+		test('does not settle a replacement command from a task read started before its shell ID was reused', async () => {
 			streams.track('call-32', 'shell');
 			const first = streams.completeToolCall('call-32', asyncStarted('16'), undefined)?.uri;
-			const earlier = streams.captureBackgroundShells();
+			const taskList = new DeferredPromise<TaskList>();
+			const read = streams.reconcileBackgroundShells(() => taskList.p);
 
 			streams.track('call-33', 'shell');
 			const second = streams.completeToolCall('call-33', asyncStarted('16'), undefined)?.uri;
-			streams.reconcileBackgroundShells(new Set(), earlier);
+			await taskList.complete({ tasks: [] });
+			await read;
 			const afterEarlierRead = {
 				finalized: [...manager.outputTerminalsFinalized],
 				terminal: streams.getBackgroundShellTerminal('16'),
 				streaming: streams.isStreamingInBackground('call-33'),
 			};
-			streams.reconcileBackgroundShells(new Set(), streams.captureBackgroundShells());
+			await streams.reconcileBackgroundShells(async () => ({ tasks: [] }));
 
 			deepStrictEqual({ afterEarlierRead, finalized: manager.outputTerminalsFinalized }, {
 				afterEarlierRead: {
@@ -459,13 +486,15 @@ suite('NonPtyShellTerminalStreams', () => {
 			});
 		});
 
-		test('preserves shell completion received while a task read is pending', () => {
+		test('preserves shell completion received while a task read is pending', async () => {
 			streams.track('call-34', 'shell');
 			const uri = streams.completeToolCall('call-34', asyncStarted('17'), undefined)?.uri;
-			const snapshot = streams.captureBackgroundShells();
+			const taskList = new DeferredPromise<TaskList>();
+			const read = streams.reconcileBackgroundShells(() => taskList.p);
 
 			streams.completeBackgroundShell('17', 3);
-			streams.reconcileBackgroundShells(new Set(), snapshot);
+			await taskList.complete({ tasks: [] });
+			await read;
 
 			deepStrictEqual({
 				finalized: manager.outputTerminalsFinalized,
@@ -473,6 +502,43 @@ suite('NonPtyShellTerminalStreams', () => {
 			}, {
 				finalized: [{ uri, exitCode: 3 }],
 				terminal: undefined,
+			});
+		});
+
+		test('propagates a failed task read without settling shells and can retry', async () => {
+			streams.track('call-failed-read', 'shell');
+			const uri = streams.completeToolCall('call-failed-read', asyncStarted('failed-read'), undefined)?.uri;
+			const error = new Error('Task list failed');
+
+			await rejects(streams.reconcileBackgroundShells(async () => { throw error; }), error);
+			const afterFailure = {
+				finalized: [...manager.outputTerminalsFinalized],
+				streaming: streams.isStreamingInBackground('call-failed-read'),
+			};
+			await streams.reconcileBackgroundShells(async () => ({ tasks: [] }));
+
+			deepStrictEqual({ afterFailure, finalized: manager.outputTerminalsFinalized }, {
+				afterFailure: { finalized: [], streaming: true },
+				finalized: [{ uri, exitCode: undefined }],
+			});
+		});
+
+		test('does not settle terminals after disposal while a task read is pending', async () => {
+			streams.track('call-disposed', 'shell');
+			const uri = streams.completeToolCall('call-disposed', asyncStarted('disposed'), undefined)?.uri;
+			const taskList = new DeferredPromise<TaskList>();
+			const read = streams.reconcileBackgroundShells(() => taskList.p);
+
+			streams.dispose();
+			await taskList.complete({ tasks: [] });
+			await read;
+
+			deepStrictEqual({
+				finalized: manager.outputTerminalsFinalized,
+				disposed: manager.disposedTerminals,
+			}, {
+				finalized: [],
+				disposed: [uri],
 			});
 		});
 

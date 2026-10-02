@@ -1952,20 +1952,8 @@ export class CopilotAgentSession extends Disposable {
 				this._refreshDetachedBackgroundShells = false;
 				await this._wrapper.session.rpc.tasks.refresh();
 			}
-			const shellSnapshot = this._nonPtyShellTerminals.captureBackgroundShells();
-			const tasks = await this._wrapper.session.rpc.tasks.list();
-			if (this._store.isDisposed) {
-				return false;
-			}
-			const runningShellIds = new Set<string>();
-			for (const task of tasks.tasks) {
-				if (task.type === 'shell' && (task.status === 'running' || task.status === 'idle')) {
-					runningShellIds.add(task.id);
-				}
-			}
-			// Completion evidence remains useful even when publication is superseded.
-			this._nonPtyShellTerminals.reconcileBackgroundShells(runningShellIds, shellSnapshot);
-			if (revision !== this._backgroundTaskStatusRevision) {
+			const tasks = await this._nonPtyShellTerminals.reconcileBackgroundShells(() => this._wrapper.session.rpc.tasks.list());
+			if (this._store.isDisposed || revision !== this._backgroundTaskStatusRevision) {
 				return false;
 			}
 			this._publishBackgroundWork(tasks.tasks);

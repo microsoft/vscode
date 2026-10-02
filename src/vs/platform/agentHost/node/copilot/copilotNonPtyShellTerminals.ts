@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CopilotSession } from '@github/copilot-sdk';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
+
+type TaskList = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>;
 
 export function buildNonPtyShellTerminalClaim(session: URI | string, chat: URI | string, toolCallId: string): TerminalSessionClaim {
 	return {
@@ -325,21 +328,26 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		}
 	}
 
-	/** Captures shell IDs and their tool calls before a task-list request. */
-	captureBackgroundShells(): ReadonlyMap<string, string> {
-		return new Map(this._backgroundShells);
-	}
+	/** Reconciles only shell executions tracked before the request; returns the task list for publication. */
+	async reconcileBackgroundShells(listTasks: () => Promise<TaskList>): Promise<TaskList> {
+		const shells = new Map(this._backgroundShells);
+		const result = await listTasks();
+		if (this._store.isDisposed) {
+			return result;
+		}
 
-	/**
-	 * Settles captured shell executions the runtime no longer lists as running.
-	 * Shells started or replaced since the snapshot are left untouched.
-	 */
-	reconcileBackgroundShells(runningShellIds: ReadonlySet<string>, snapshot: ReadonlyMap<string, string>): void {
-		for (const [shellId, toolCallId] of snapshot) {
+		const runningShellIds = new Set<string>();
+		for (const task of result.tasks) {
+			if (task.type === 'shell' && (task.status === 'running' || task.status === 'idle')) {
+				runningShellIds.add(task.id);
+			}
+		}
+		for (const [shellId, toolCallId] of shells) {
 			if (this._backgroundShells.get(shellId) === toolCallId && !runningShellIds.has(shellId)) {
 				this.completeBackgroundShell(shellId, undefined);
 			}
 		}
+		return result;
 	}
 
 	finalizeToolCall(toolCallId: string, exitCode: number | undefined, authoritativeOutput?: string): void {
