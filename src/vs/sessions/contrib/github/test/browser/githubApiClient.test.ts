@@ -182,7 +182,7 @@ suite('GitHubApiClient', () => {
 		test(`${kind} does not read an HTTP error body`, async () => {
 			requestService.nextResponse = {
 				res: { statusCode: 500, headers: {} },
-				get stream() { throw new Error('Error body must not be read'); },
+				get stream(): never { throw new Error('Error body must not be read'); },
 			};
 			await assert.rejects(request(), error => error instanceof GitHubApiError && error.statusCode === 500);
 		});
