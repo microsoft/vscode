@@ -57,6 +57,9 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	public async findInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean; forward?: boolean }): Promise<void> {
 		const initialFrame = this.getFrameByName(id, frameName);
+		if (!initialFrame) {
+			return;
+		}
 
 		type WebFrameMainWithFindSupport = WebFrameMain & {
 			findInFrame?(text: string, findOptions: FindInFrameOptions): void;
@@ -81,6 +84,9 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	public async stopFindInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
 		const initialFrame = this.getFrameByName(id, frameName);
+		if (!initialFrame) {
+			return;
+		}
 
 		type WebFrameMainWithFindSupport = WebFrameMain & {
 			stopFindInFrame?(stopOption: 'keepSelection' | 'clearSelection'): void;
@@ -92,8 +98,24 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	private getFrameByName(id: WebviewWebContentsId | WebviewWindowId, frameName: string): WebFrameMain {
-		const frame = this.getWebContents(id).mainFrame.framesInSubtree.find(frame => {
+	private getFrameByName(id: WebviewWebContentsId | WebviewWindowId, frameName: string): WebFrameMain | undefined {
+		const contents = this.getWebContents(id);
+
+		// The render frame backing this webContents may already be disposed
+		// (e.g. the originating webview/window was closed or navigated away)
+		// by the time a find/stop-find request is handled. Accessing the frame
+		// subtree of a disposed webContents yields `undefined`, so guard before
+		// reading it to avoid a `Cannot read properties of undefined` throw.
+		if (contents.isDestroyed()) {
+			return undefined;
+		}
+
+		const framesInSubtree = contents.mainFrame?.framesInSubtree;
+		if (!framesInSubtree) {
+			return undefined;
+		}
+
+		const frame = framesInSubtree.find(frame => {
 			return frame.name === frameName;
 		});
 		if (!frame) {
