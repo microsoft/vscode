@@ -413,14 +413,14 @@ suite('Dev Container Agent Host Connector', () => {
 		assert.deepStrictEqual(calls, []);
 	});
 
-	test('registers a disabled-by-default user setting', () => {
+	test('registers an enabled-by-default user setting', () => {
 		assert.deepStrictEqual({
 			default: devContainerAgentHostEnabledProperty.default,
 			scope: devContainerAgentHostEnabledProperty.scope,
 			tags: devContainerAgentHostEnabledProperty.tags,
 			experiment: devContainerAgentHostEnabledProperty.experiment,
 		}, {
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['onExP'],
 			experiment: { mode: 'auto' },
