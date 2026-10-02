@@ -193,6 +193,28 @@ suite('SessionTypePickerActionItem', () => {
 		}), SessionTypeAvailability.Available);
 	});
 
+	test('an unknown Codex account can reach selection-time discovery without GitHub or the signed-out experiment', () => {
+		const availability = (codexAccountStatus: ICodexAccountService['account']['status'], setupAgents = ['codex']) => getAvailability({
+			type: SessionType.AgentHostCodex,
+			allowSignedOutWhenUsable: false,
+			requiresCopilotSignIn: true,
+			setupAgents,
+			codexAccountStatus,
+		});
+
+		assert.deepStrictEqual({
+			beforeDiscovery: availability('unknown'),
+			afterChatGPTDiscovery: availability('signedIn'),
+			afterSignedOutDiscovery: availability('signedOut'),
+			withoutSetup: availability('unknown', []),
+		}, {
+			beforeDiscovery: SessionTypeAvailability.Available,
+			afterChatGPTDiscovery: SessionTypeAvailability.Available,
+			afterSignedOutDiscovery: SessionTypeAvailability.SignInRequired,
+			withoutSetup: SessionTypeAvailability.SignInRequired,
+		});
+	});
+
 	test('a fully signed-out user still needs the signed-out experiment', () => {
 		assert.strictEqual(getAvailability({
 			type: SessionType.AgentHostCodex,

@@ -131,6 +131,20 @@ flakySuite('StorageService (browser specific)', () => {
 			serviceValue: 'second',
 		});
 	});
+	test('application-shared compare-and-swap stays machine-local and publishes the new value', async () => {
+		const result = await storageService.compareAndSwapApplicationSharedValue('shared-claim', undefined, 'owner');
+		const rejected = await storageService.compareAndSwapApplicationSharedValue('shared-claim', undefined, 'other');
+		deepStrictEqual({
+			result, rejected,
+			value: await storageService.readApplicationSharedValue('shared-claim'),
+			cached: storageService.get('shared-claim', StorageScope.APPLICATION_SHARED),
+			machine: storageService.keys(StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE).includes('shared-claim'),
+			synced: storageService.keys(StorageScope.APPLICATION_SHARED, StorageTarget.USER).includes('shared-claim'),
+		}, {
+			result: { swapped: true, currentValue: 'owner' }, rejected: { swapped: false, currentValue: 'owner' },
+			value: 'owner', cached: 'owner', machine: true, synced: false,
+		});
+	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 });

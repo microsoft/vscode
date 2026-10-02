@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IModelPickerOpenOptions } from './modelPickerWidget.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, toAction } from '../../../../../../../base/common/actions.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -178,7 +179,12 @@ export class TabbedModelPicker extends Disposable {
 		super.dispose();
 	}
 
-	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number): void {
+	openWithFilter(options: IModelPickerOpenOptions): void {
+		this._searchVisible = true;
+		this._showCurrent(options.initialFilterValue, options.initialFocusItemId);
+	}
+
+	show(anchor: HTMLElement, context: ITabbedModelPickerContext, detailsModelId?: string, focusConfiguration = false, contextViewLayer?: number, options?: IModelPickerOpenOptions): void {
 		if (!this._widget.isVisible) {
 			this._activeDestination = undefined;
 		}
@@ -190,7 +196,10 @@ export class TabbedModelPicker extends Disposable {
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
 		this._rememberSelection(pickerContext.selectedModelId);
-		this._showCurrent();
+		if (options?.initialFilterValue !== undefined) {
+			this._searchVisible = true;
+		}
+		this._showCurrent(options?.initialFilterValue, options?.initialFocusItemId);
 		const detailsModel = pickerContext.models.find(model => model.identifier === detailsModelId);
 		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
 			this._showModelDetails(detailsModel, focusConfiguration);
@@ -253,7 +262,7 @@ export class TabbedModelPicker extends Disposable {
 		return this._filterModelsForEntitlement({ ...context, models, controlModels });
 	}
 
-	private _showCurrent(initialFilterValue?: string): void {
+	private _showCurrent(initialFilterValue?: string, initialFocusItemId?: string): void {
 		const context = this._context;
 		const anchor = this._anchor;
 		if (!context || !anchor) {
@@ -338,6 +347,7 @@ export class TabbedModelPicker extends Disposable {
 					filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 					focusFilterOnOpen: searching,
 					initialFilterValue,
+					initialFocusItemId,
 					filterAsCombobox: true,
 					onType: text => {
 						this._searchVisible = true;

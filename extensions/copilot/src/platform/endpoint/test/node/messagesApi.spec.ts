@@ -19,6 +19,7 @@ import { HeadersImpl, Response } from '../../../networking/common/fetcherService
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
@@ -2102,6 +2103,68 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 		}
 		expect(results).toHaveLength(1);
 		expect(results[0].message.content).toHaveLength(1);
+	});
+});
+
+suite('processResponseFromMessagesEndpoint X-GitHub-Copilot-Request-Te', () => {
+	const messageBody = {
+		id: 'msg_te',
+		type: 'message',
+		role: 'assistant',
+		content: [{ type: 'text', text: 'hi' }],
+		model: 'claude-sonnet-4-20250514',
+		stop_reason: 'end_turn',
+		usage: { input_tokens: 10, output_tokens: 5 },
+	};
+
+	function createStreamingBody(): string {
+		const events = [
+			{ type: 'message_start', message: { ...messageBody, content: [], stop_reason: null, stop_sequence: null } },
+			{ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+			{ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } },
+			{ type: 'content_block_stop', index: 0 },
+			{ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } },
+			{ type: 'message_stop' },
+		];
+		return events.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+	}
+
+	async function collect(contentType: string, body: string, headers: Record<string, string>) {
+		const telemetryService = new SpyingTelemetryService();
+		const response = Response.fromText(200, 'OK', new HeadersImpl({ 'content-type': contentType, 'x-request-id': 'req-te', ...headers }), body, 'node-fetch');
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			telemetryService,
+			new TestLogService(),
+			response,
+			async () => undefined,
+			TelemetryData.createAndMarkAsIssued(),
+		);
+		const valueOrAbsent = (bag: object) => 'gitHubCopilotRequestTe' in bag ? (bag as { gitHubCopilotRequestTe: string }).gitHubCopilotRequestTe : '<absent>';
+		const requestTes: string[] = [];
+		for await (const c of completions) {
+			requestTes.push(valueOrAbsent(c.requestId));
+		}
+		const finishReasonEvents = telemetryService.getEvents().telemetryServiceEvents
+			.filter(e => e.eventName === 'completion.finishReason')
+			.map(e => valueOrAbsent(e.properties ?? {}));
+		return { requestTes, finishReasonEvents };
+	}
+
+	test('non-streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('application/json', JSON.stringify(messageBody), { 'X-GitHub-Copilot-Request-Te': ' TRUE ' }))
+			.toEqual({ requestTes: [' TRUE '], finishReasonEvents: [' TRUE '] });
+	});
+
+	test('streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), { 'x-github-copilot-request-te': 'false' }))
+			.toEqual({ requestTes: ['false'], finishReasonEvents: ['false'] });
+	});
+
+	test('absent header omits the property', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), {}))
+			.toEqual({ requestTes: ['<absent>'], finishReasonEvents: ['<absent>'] });
 	});
 });
 

@@ -40,7 +40,7 @@ import { AICustomizationManagementSection, AICustomizationSources, type AICustom
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import type { CustomizationMigrationTargetFolders, IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
-import type { ICustomizationMigrationCategorySummary } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
+import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
@@ -80,6 +80,64 @@ suite('aiCustomizationManagementEditor', () => {
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Agents, true),
 			isCurrentPluginContributionNavigation(2, 2, AICustomizationManagementSection.Skills, AICustomizationManagementSection.Skills, false),
 		], [true, false, false, false]);
+	});
+
+	test('routes installed discovery items to their focused list rows', async () => {
+		const skillUri = URI.file('/skills/security/SKILL.md');
+		const pluginUri = URI.file('/plugins/security');
+		const calls: string[] = [];
+		const sectionLoad = new DeferredPromise<void>();
+		const editor = {
+			listWidgetSectionLoad: Promise.resolve(),
+			selectSection: (section: AICustomizationManagementSection) => {
+				calls.push(`section:${section}`);
+				editor.listWidgetSectionLoad = section === AICustomizationManagementSection.Skills ? sectionLoad.p : Promise.resolve();
+			},
+			isPromptsSection: (section: AICustomizationManagementSection) => section === AICustomizationManagementSection.Skills,
+			revealCustomizationByUri: async (uri: URI) => { calls.push(`prompt:${uri.path}`); },
+			pluginListWidget: {
+				revealAndSelectItemByUri: async (uri: URI) => {
+					calls.push(`plugin:${uri.path}`);
+					return true;
+				},
+			},
+			mcpListWidget: {
+				revealAndSelectServer: (serverId: string | undefined, name: string, connectorName?: string) => {
+					calls.push(`mcp:${serverId}:${name}:${connectorName}`);
+					return true;
+				},
+			},
+		};
+		const revealInstalledCustomization = Reflect.get(AICustomizationManagementEditor.prototype, 'revealInstalledCustomization') as (
+			this: typeof editor,
+			target: IInstalledCustomizationTarget,
+		) => Promise<void>;
+
+		const skillNavigation = revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.Skills, name: 'Security skill', uri: skillUri });
+		await timeout(0);
+		const beforeSectionLoaded = [...calls];
+		sectionLoad.complete();
+		await skillNavigation;
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.Plugins, name: 'Security plugin', uri: pluginUri });
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Security server', mcpServerId: 'security-server' });
+		await revealInstalledCustomization.call(editor, { section: AICustomizationManagementSection.McpServers, name: 'Mail', mcpConnectorName: 'mail' });
+
+		assert.deepStrictEqual({
+			beforeSectionLoaded,
+			calls,
+		}, {
+			beforeSectionLoaded: [`section:${AICustomizationManagementSection.Skills}`],
+			calls: [
+				`section:${AICustomizationManagementSection.Skills}`,
+				'prompt:/skills/security/SKILL.md',
+				`section:${AICustomizationManagementSection.Plugins}`,
+				'plugin:/plugins/security',
+				`section:${AICustomizationManagementSection.McpServers}`,
+				'mcp:security-server:Security server:undefined',
+				`section:${AICustomizationManagementSection.McpServers}`,
+				'mcp:undefined:Mail:mail',
+			],
+		});
 	});
 
 	test('marks an MCP detail migratable from the authoritative candidate', () => {
@@ -581,7 +639,9 @@ suite('aiCustomizationManagementEditor', () => {
 	test('showing Discover from its navigation button resets its filters', () => {
 		const { editor } = createContributedSectionEditor();
 		const calls: string[] = [];
+		const homeButton = $('button');
 		Object.assign(editor, {
+			homeButton,
 			welcomePage: {
 				container: $('div'),
 				setVisible() { },
@@ -593,7 +653,15 @@ suite('aiCustomizationManagementEditor', () => {
 
 		editor.showWelcomePage({ resetFilters: true });
 
-		assert.deepStrictEqual(calls, ['resetFilters']);
+		assert.deepStrictEqual({
+			calls,
+			selected: homeButton.classList.contains('selected'),
+			ariaCurrent: homeButton.getAttribute('aria-current'),
+		}, {
+			calls: ['resetFilters'],
+			selected: true,
+			ariaCurrent: 'page',
+		});
 	});
 
 	test('a contributed section with no source settings remains hidden', () => {

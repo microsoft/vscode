@@ -102,7 +102,7 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	};
 	await overflow().click();
 	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
-		'Archive', 'New Chat in This Session', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
+		'Archive', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
 	]);
 	await activate('menuitemcheckbox', 'Maximize');
 	await expect(page.locator('.session-view:visible')).toHaveCount(1);

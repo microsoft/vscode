@@ -15,9 +15,11 @@ import { timeout } from '../../../../../base/common/async.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
+import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
-import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type ToolDefinition } from '../../../common/state/sessionState.js';
+import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
@@ -201,72 +203,95 @@ session = await joinSession({
 });
 `, 'utf8');
 
-		const sessionUri = await createProviderSession(
-			client,
-			CANVAS_COPILOT_CONFIG,
-			'real-sdk-mock-canvas',
-			createdSessions,
-			URI.file(workspaceDir),
-		);
-		dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
-		const startNotification = await client.waitForNotification(n =>
-			isActionNotification(n, ActionType.ChatToolCallStart)
-			&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'open_canvas',
-			90_000,
-		);
-		const openCanvasStart = getActionEnvelope(startNotification).action as ChatToolCallStartAction;
-		const openCanvasCompleteNotification = await client.waitForNotification(n =>
-			isActionNotification(n, ActionType.ChatToolCallComplete)
-			&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasStart.toolCallId,
-			90_000,
-		);
-		const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
-		await client.waitForNotification(n =>
-			isActionNotification(n, ActionType.ChatTurnComplete)
-			&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-mock-canvas',
-			90_000,
-		);
-		const providerTurnStartedNotification = await client.waitForNotification(n => {
-			if (!isActionNotification(n, ActionType.ChatTurnStarted)) {
-				return false;
-			}
-			const action = getActionEnvelope(n).action as ChatTurnStartedAction;
-			return action.turnId !== 'turn-mock-canvas'
-				&& action.message.text.includes(`[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}]`);
-		}, 90_000);
-		const providerTurnStarted = getActionEnvelope(providerTurnStartedNotification).action as ChatTurnStartedAction;
-		const providerResponseNotification = await client.waitForNotification(n => {
-			if (!isActionNotification(n, ActionType.ChatResponsePart)) {
-				return false;
-			}
-			const action = getActionEnvelope(n).action as ChatResponsePartAction;
-			return action.turnId === providerTurnStarted.turnId
-				&& action.part.kind === ResponsePartKind.Markdown
-				&& action.part.content.includes('Canvas-originated request completed.');
-		}, 90_000);
-		const providerResponse = getActionEnvelope(providerResponseNotification).action as ChatResponsePartAction;
-		await client.waitForNotification(n =>
-			isActionNotification(n, ActionType.ChatTurnComplete)
-			&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === providerTurnStarted.turnId,
-			90_000,
-		);
-
-		assert.deepStrictEqual({
-			openCanvasSucceeded: openCanvasComplete.result.success,
-			providerTurn: {
-				message: providerTurnStarted.message,
-				response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
-			},
-		}, {
-			openCanvasSucceeded: true,
-			providerTurn: {
-				message: {
-					text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,
-					origin: { kind: MessageKind.User },
+		const setCanvasesEnabled = async (enabled: boolean, clientSeq: number) => {
+			client.dispatch({
+				channel: ROOT_STATE_URI,
+				clientSeq,
+				action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } },
+			});
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.RootConfigChanged)
+				&& getActionEnvelope(n).origin?.clientSeq === clientSeq,
+			);
+		};
+		let previousCanvasesEnabled: boolean | undefined;
+		try {
+			const sessionUri = await createProviderSession(
+				client,
+				CANVAS_COPILOT_CONFIG,
+				'real-sdk-mock-canvas',
+				createdSessions,
+				URI.file(workspaceDir),
+				async () => {
+					const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+					previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
+					await setCanvasesEnabled(true, 1);
 				},
-				response: 'Canvas-originated request completed.',
-			},
-		});
+			);
+			dispatchTurn(client, sessionUri, 'turn-mock-canvas', `[scenario:${CANVAS_SCENARIO_ID}] Open the available proof canvas.`, 2);
+			const startNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart)
+				&& (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === 'open_canvas',
+				90_000,
+			);
+			const openCanvasStart = getActionEnvelope(startNotification).action as ChatToolCallStartAction;
+			const openCanvasCompleteNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallComplete)
+				&& (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasStart.toolCallId,
+				90_000,
+			);
+			const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-mock-canvas',
+				90_000,
+			);
+			const providerTurnStartedNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatTurnStarted)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as ChatTurnStartedAction;
+				return action.turnId !== 'turn-mock-canvas'
+					&& action.message.text.includes(`[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}]`);
+			}, 90_000);
+			const providerTurnStarted = getActionEnvelope(providerTurnStartedNotification).action as ChatTurnStartedAction;
+			const providerResponseNotification = await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatResponsePart)) {
+					return false;
+				}
+				const action = getActionEnvelope(n).action as ChatResponsePartAction;
+				return action.turnId === providerTurnStarted.turnId
+					&& action.part.kind === ResponsePartKind.Markdown
+					&& action.part.content.includes('Canvas-originated request completed.');
+			}, 90_000);
+			const providerResponse = getActionEnvelope(providerResponseNotification).action as ChatResponsePartAction;
+			await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatTurnComplete)
+				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === providerTurnStarted.turnId,
+				90_000,
+			);
+
+			assert.deepStrictEqual({
+				openCanvasSucceeded: openCanvasComplete.result.success,
+				providerTurn: {
+					message: providerTurnStarted.message,
+					response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
+				},
+			}, {
+				openCanvasSucceeded: true,
+				providerTurn: {
+					message: {
+						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,
+						origin: { kind: MessageKind.User },
+					},
+					response: 'Canvas-originated request completed.',
+				},
+			});
+		} finally {
+			if (previousCanvasesEnabled !== undefined) {
+				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+			}
+		}
 	});
 
 	test('routes a client tool after steering to the client that sent the steering message', async function () {

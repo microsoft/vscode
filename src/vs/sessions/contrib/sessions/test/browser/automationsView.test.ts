@@ -15,6 +15,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -298,6 +299,8 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 	beforeReturn: (() => void) | undefined;
 	showCalls = 0;
 	lastOptions: IShowAutomationDialogOptions | undefined;
+	readonly commitErrors: string[] = [];
+	readonly commitFailed = new DeferredPromise<void>();
 
 	override async showAutomationDialog(options: IShowAutomationDialogOptions): Promise<IAutomationDialogResult | undefined> {
 		this.showCalls++;
@@ -306,6 +309,15 @@ class FakeAutomationDialogService extends mock<IAutomationDialogService>() {
 			throw this.error;
 		}
 		this.beforeReturn?.();
+		if (this.result && options.commit) {
+			try {
+				await options.commit(this.result);
+			} catch (error) {
+				this.commitErrors.push(getErrorMessage(error));
+				void this.commitFailed.complete();
+				return undefined;
+			}
+		}
 		return this.result;
 	}
 }
@@ -1576,6 +1588,7 @@ suite('AutomationsCardsWidget', () => {
 				accessibleDescription: describedBy ? widget.element.querySelector(`#${describedBy}`)?.textContent : undefined,
 			}, {
 				dialogOptions: {
+					commit: automationDialogService.lastOptions?.commit,
 					initialValues: {
 						name: template.name,
 						prompt: template.prompt,
@@ -1916,13 +1929,15 @@ suite('AutomationsCardsWidget', () => {
 		automationService.setCatalogueState('ready');
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-template-card')?.click();
-		await dialogService.infoCalled.p;
+		await automationDialogService.commitFailed.p;
 
 		assert.deepStrictEqual({
 			info: dialogService.infos,
+			inlineErrors: automationDialogService.commitErrors,
 			createCalls: automationService.createCalls,
 		}, {
-			info: ['Automations are disabled.'],
+			info: [],
+			inlineErrors: ['Automations were disabled before the change could be saved.'],
 			createCalls: [],
 		});
 	});
@@ -2065,6 +2080,7 @@ suite('AutomationsCardsWidget', () => {
 			runCount: automationService.runs.get().length,
 		}, {
 			dialogOptions: {
+				commit: automationDialogService.lastOptions?.commit,
 				initialValues: {
 					name: 'Daily review Copy',
 					prompt: 'Review all open issues',
@@ -2168,7 +2184,7 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('duplicate creation failures are logged and reported to the user', async () => {
+	test('duplicate creation failures stay in the automation dialog', async () => {
 		const { automationDialogService, automationService, contextKeyService, contextMenuService, dialogService, instantiationService, logService, widget } = setup();
 		const source = automation();
 		const error = new Error('create failed');
@@ -2198,20 +2214,16 @@ suite('AutomationsCardsWidget', () => {
 		const command = CommandsRegistry.getCommand('sessions.automations.duplicate');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		await dialogService.errorCalled.p;
+		await automationDialogService.commitFailed.p;
 
 		assert.deepStrictEqual({
 			loggedErrors: logService.errors,
 			dialogErrors: dialogService.errors,
+			inlineErrors: automationDialogService.commitErrors,
 		}, {
-			loggedErrors: [{
-				message: '[Automations] Failed to duplicate automation',
-				args: [error],
-			}],
-			dialogErrors: [{
-				message: 'Failed to duplicate automation.',
-				detail: 'create failed',
-			}],
+			loggedErrors: [],
+			dialogErrors: [],
+			inlineErrors: ['create failed'],
 		});
 	});
 
@@ -2886,7 +2898,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(!actionIds.includes('sessions.automations.deleteRunSession'), 'delete absent from context menu');
 	});
 
-	test('edit conflict is reported to the user', async () => {
+	test('edit conflict stays in the automation dialog', async () => {
 		const { automationDialogService, automationService, dialogService, widget } = setup();
 		const item = automation();
 		automationService.setAutomations([item]);
@@ -2894,12 +2906,15 @@ suite('AutomationsCardsWidget', () => {
 		automationDialogService.result = { kind: 'update', id: item.id, value: { name: 'Edited' } };
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.click();
-		await dialogService.errorCalled.p;
+		await automationDialogService.commitFailed.p;
 
-		assert.deepStrictEqual(dialogService.errors, [{
-			message: 'Failed to update automation.',
-			detail: 'This automation changed while the dialog was open. Reopen it to review the latest values.',
-		}]);
+		assert.deepStrictEqual({
+			dialogErrors: dialogService.errors,
+			inlineErrors: automationDialogService.commitErrors,
+		}, {
+			dialogErrors: [],
+			inlineErrors: ['This automation changed while the dialog was open. Reopen it to review the latest values.'],
+		});
 	});
 
 	test('edit dialog failures are logged and reported to the user', async () => {
@@ -2949,13 +2964,15 @@ suite('AutomationsCardsWidget', () => {
 		automationDialogService.beforeReturn = () => configurationService.setUserConfiguration('chat.automations.enabled', false);
 
 		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.click();
-		await dialogService.infoCalled.p;
+		await automationDialogService.commitFailed.p;
 
 		assert.deepStrictEqual({
 			info: dialogService.infos,
+			inlineErrors: automationDialogService.commitErrors,
 			updateCalls: automationService.updateCalls,
 		}, {
-			info: ['Automations are disabled.'],
+			info: [],
+			inlineErrors: ['Automations were disabled before the change could be saved.'],
 			updateCalls: 0,
 		});
 	});
