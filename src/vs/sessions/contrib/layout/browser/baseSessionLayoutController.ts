@@ -847,7 +847,7 @@ export abstract class BaseLayoutController extends Disposable {
 	private _parseVersionedSessionLayoutEntries(raw: string, storageKey: string): ISessionLayoutEntry[] {
 		const parsed = JSON.parse(raw) as Partial<ISessionLayoutStateSchema>;
 		if (parsed.version !== SESSION_LAYOUT_STATE_SCHEMA_VERSION || !Array.isArray(parsed.entries)) {
-			throw new Error(`Unsupported ${storageKey} schema: expected version ${SESSION_LAYOUT_STATE_SCHEMA_VERSION} with an entries array, got ${JSON.stringify(parsed)}`);
+			throw new Error(`Unsupported ${storageKey} schema: expected version ${SESSION_LAYOUT_STATE_SCHEMA_VERSION}, got version ${String(parsed.version)}`);
 		}
 		return parsed.entries.filter(isValidSessionLayoutEntry);
 	}

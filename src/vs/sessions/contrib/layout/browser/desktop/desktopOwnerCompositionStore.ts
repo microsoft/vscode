@@ -19,6 +19,21 @@ interface IDesktopOwnerCompositionSchema {
 	entries: [string, ISidePaneState][];
 }
 
+function isValidDesktopOwnerCompositionEntry(value: unknown): value is [string, ISidePaneState] {
+	if (!Array.isArray(value) || value.length !== 2) {
+		return false;
+	}
+	const [ownerKeyRaw, state] = value as [unknown, unknown];
+	if (typeof ownerKeyRaw !== 'string') {
+		return false;
+	}
+	if (typeof state !== 'object' || state === null) {
+		return false;
+	}
+	const sidePaneState = state as Partial<ISidePaneState>;
+	return typeof sidePaneState.editor === 'boolean' && typeof sidePaneState.auxiliaryBar === 'boolean';
+}
+
 export class DesktopOwnerCompositionStore {
 
 	private readonly _byOwner = new ResourceMap<ISidePaneState>();
@@ -95,14 +110,17 @@ export class DesktopOwnerCompositionStore {
 		try {
 			const parsed = JSON.parse(raw) as Partial<IDesktopOwnerCompositionSchema>;
 			if (parsed.version !== DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION || !Array.isArray(parsed.entries)) {
-				throw new Error(`Unsupported ${storageKey} schema: expected version ${DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION} with an entries array, got ${JSON.stringify(parsed)}`);
+				throw new Error(`Unsupported ${storageKey} schema: expected version ${DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION}, got version ${String(parsed.version)}`);
 			}
-			for (const entry of parsed.entries) {
-				const [ownerKeyRaw, state] = entry as [string, { editor?: unknown; auxiliaryBar?: unknown }];
-				if (typeof ownerKeyRaw === 'string' && typeof state?.editor === 'boolean' && typeof state?.auxiliaryBar === 'boolean') {
-					target.set(URI.parse(ownerKeyRaw), { editor: state.editor, auxiliaryBar: state.auxiliaryBar });
+			const staged = new ResourceMap<ISidePaneState>();
+			parsed.entries.forEach((entry, index) => {
+				if (!isValidDesktopOwnerCompositionEntry(entry)) {
+					throw new Error(`Malformed ${storageKey} entry at index ${index}`);
 				}
-			}
+				const [ownerKeyRaw, state] = entry;
+				staged.set(URI.parse(ownerKeyRaw), { editor: state.editor, auxiliaryBar: state.auxiliaryBar });
+			});
+			staged.forEach((state, ownerKey) => target.set(ownerKey, state));
 		} catch (error) {
 			this._logService.error(error);
 			this._storageService.remove(storageKey, StorageScope.WORKSPACE);

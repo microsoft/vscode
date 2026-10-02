@@ -258,7 +258,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _activeOwnerKey(): URI | undefined {
 		const activeSession = this._sessionsService.activeSession.get();
-		return activeSession && this._ctx.ownerKeyFor(activeSession);
+		return activeSession && !activeSession.isQuickChat?.get() ? this._ctx.ownerKeyFor(activeSession) : undefined;
 	}
 
 	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {

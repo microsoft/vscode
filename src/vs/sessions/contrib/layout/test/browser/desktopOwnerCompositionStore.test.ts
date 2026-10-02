@@ -113,4 +113,23 @@ suite('DesktopOwnerCompositionStore', () => {
 		assert.strictEqual(composition.get(URI.parse('session:a')), undefined, 'a pre-versioned bare array must not be interpreted as valid data');
 		assert.strictEqual(logService.errors.length, 1, 'a pre-versioned bare array must be reported, not silently swallowed');
 	});
+
+	test('a malformed entry after a well-formed one discards the whole record rather than half-applying it', () => {
+		const storageService = store.add(new TestStorageService());
+		storageService.store('sessions.chatLayout.sidePaneComposition', JSON.stringify({
+			version: 1,
+			entries: [
+				['session:a', { editor: true, auxiliaryBar: true }],
+				['session:b', { editor: 'not-a-boolean', auxiliaryBar: true }],
+			],
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const logService = new RecordingLogService();
+
+		const composition = createCompositionStore(storageService, logService);
+
+		assert.strictEqual(composition.get(URI.parse('session:a')), undefined, 'a record with any malformed entry must not leave an earlier valid entry partially applied');
+		assert.strictEqual(composition.get(URI.parse('session:b')), undefined);
+		assert.strictEqual(logService.errors.length, 1, 'the malformed entry must be reported, not silently discarded by itself while its siblings are kept');
+		assert.strictEqual(storageService.get('sessions.chatLayout.sidePaneComposition', StorageScope.WORKSPACE), undefined, 'the unreadable record must be cleared so it does not keep failing to load');
+	});
 });

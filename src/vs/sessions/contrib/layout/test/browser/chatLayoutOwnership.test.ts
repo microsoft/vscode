@@ -840,6 +840,28 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.strictEqual(controller.composition(oldKey), undefined, 'the stale draft owner key is forgotten');
 	});
 
+	test('[R8] toggling the side pane while a Quick Chat is active does not capture its composition into the durable owner catalog', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const quickChat = makeSession(URI.parse('session:quick'), { isQuickChat: true });
+		harness.activeSessionObs.set(quickChat, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+
+		setVisible(true, false);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+
+		const quickChatKey = controller.ownerKeyFor(quickChat);
+		assert.strictEqual(controller.preHideComposition(quickChatKey), undefined, 'a Quick Chat side-pane toggle must not populate the durable owner last-open cache');
+		assert.strictEqual(controller.composition(quickChatKey), undefined, 'a Quick Chat side-pane toggle must not populate the durable owner composition catalog');
+	});
+
 	test('[R13] entering a phone layout freezes the on-screen composition; exiting resumes the focused chat\'s own composition', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
