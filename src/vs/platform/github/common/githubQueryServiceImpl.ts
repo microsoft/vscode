@@ -1527,7 +1527,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	}
 	const types = errors.map(error => error.type?.toUpperCase());
 	const codes = errors.map(error => error.extensions?.code?.toUpperCase());
-	const kind = types.includes('RATE_LIMITED')
+	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'

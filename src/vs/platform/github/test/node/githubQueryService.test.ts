@@ -1276,6 +1276,24 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial query data`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Query rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostRecentAssignedIssues',
+					response: gitHubGraphQLResponse({ search: { nodes: [] } }, errors),
+				}));
+				const { service, ref } = setup(server);
+
+				await assert.rejects(() => service.getRecentAssignedIssues(ref, signal()), {
+					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('retries transient capability and untyped GraphQL failures', async () => {
 		await withServer(async server => {
 			server.enqueue(

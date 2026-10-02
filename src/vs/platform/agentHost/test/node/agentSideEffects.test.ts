@@ -38,7 +38,10 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractiv
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
+import { AgentHostOverlapProviderPreparationSettingId } from '../../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -680,6 +683,128 @@ suite('AgentSideEffects', () => {
 			captured: 1,
 			discarded: 1,
 			sends: 0,
+		});
+	});
+
+	suite('overlapped provider preparation', () => {
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+
+		function createOverlapSideEffects(checkpointService: IAgentHostCheckpointService, telemetry: ITelemetryService = NullTelemetryService): AgentSideEffects {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+			}, undefined, telemetry, new FakeChangesetService(), undefined, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			return localSideEffects;
+		}
+
+		function setRootConfig(values: Record<string, unknown>): void {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: values });
+		}
+
+		test('prepares the provider alongside the turn-start checkpoint and dispatches only once both settle', async () => {
+			const capture = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			const order: string[] = [];
+			const localSideEffects = createOverlapSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => {
+					order.push('checkpoint:start');
+					await capture.p;
+					order.push('checkpoint:end');
+				},
+			});
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			const prepared: { turnId: string; directories: string[] | undefined }[] = [];
+			agent.chats.prepareTurn = async (_chat, turnId, workingDirectories) => {
+				prepared.push({ turnId, directories: workingDirectories?.map(directory => directory.toString()) });
+				order.push('prepare:start');
+				await preparation.p;
+				order.push('prepare:end');
+			};
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await timeout(0);
+			const whileBothPending = { order: [...order], sends: agent.sendMessageCalls.length };
+			preparation.complete();
+			await timeout(0);
+			const whileCapturing = { order: [...order], sends: agent.sendMessageCalls.length };
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ whileBothPending, whileCapturing, prepared }, {
+				whileBothPending: { order: ['checkpoint:start', 'prepare:start'], sends: 0 },
+				whileCapturing: { order: ['checkpoint:start', 'prepare:start', 'prepare:end'], sends: 0 },
+				prepared: [{ turnId: 'turn-1', directories: [URI.file('/wd').toString()] }],
+			});
+		});
+
+		test('prepares only when enabled and reports the experiment trigger in both arms', async () => {
+			const results: Record<string, { prepared: number; sends: number; triggers: readonly string[] }> = {};
+			for (const enabled of [true, false]) {
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, telemetry);
+				setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				let prepared = 0;
+				agent.chats.prepareTurn = async () => { prepared++; };
+				const sendsBefore = agent.sendMessageCalls.length;
+
+				stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+				localSideEffects.handleAction(defaultChatUri, turnStarted);
+				await waitForSendMessageCalls(sendsBefore + 1);
+				results[enabled ? 'enabled' : 'disabled'] = { prepared, sends: agent.sendMessageCalls.length - sendsBefore, triggers: telemetry.triggers };
+				stateManager.removeSession(sessionUri.toString());
+			}
+
+			const trigger = [`config.${AgentHostOverlapProviderPreparationSettingId}`];
+			assert.deepStrictEqual(results, {
+				enabled: { prepared: 1, sends: 1, triggers: trigger },
+				disabled: { prepared: 0, sends: 1, triggers: trigger },
+			});
+		});
+
+		test('still sends when provider preparation fails', async () => {
+			const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE);
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			agent.chats.prepareTurn = async () => { throw new Error('preparation failed'); };
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({
+				sends: agent.sendMessageCalls.length,
+				error: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state === TurnState.Error,
+			}, { sends: 1, error: false });
+		});
+
+		test('holds the overlap experiment trigger until the assignment context arrives', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, telemetry);
+			agent.chats.prepareTurn = async () => { };
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+			const beforeContext = [...telemetry.triggers];
+			setRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetry.triggers }, {
+				beforeContext: [],
+				afterContext: [`config.${AgentHostOverlapProviderPreparationSettingId}`],
+			});
 		});
 	});
 
@@ -5705,10 +5830,11 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
+				_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
 			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
 			assert.deepStrictEqual(responses, [
-				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
+				['tc-peer-perm', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});

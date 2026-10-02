@@ -601,6 +601,7 @@ export class NewChatWidget extends Disposable {
 		return [{
 			label: localize('newSession.agentContextAction', "Agent..."),
 			icon: Codicon.agent,
+			placement: 'top',
 			run: async () => this._newChatInput.runAttachContextAction(agentAction),
 		}, ...actions];
 	}

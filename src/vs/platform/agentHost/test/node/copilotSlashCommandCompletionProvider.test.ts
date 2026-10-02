@@ -144,6 +144,85 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			return provider.provideCompletionItems({ kind: CompletionItemKind.UserMessage, channel: session, text, offset }, CancellationToken.None);
 		}
 
+		test('offers SDK Chronicle commands and filters subcommands after a space', async () => {
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				getRuntimeSlashCommands: async () => [{
+					name: 'chronicle',
+					description: 'Session history tools and insights',
+					kind: 'builtin',
+					allowDuringAgentExecution: false,
+					input: {
+						hint: '[standup|search|tips|cost-tips|improve|reindex]',
+						choices: ['standup', 'search', 'tips', 'cost-tips', 'improve', 'reindex'].map(name => ({ name, description: name })),
+					},
+				}],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage,
+				channel: session,
+				text,
+				offset: text.length,
+			}, CancellationToken.None)).map(item => ({
+				insertText: item.insertText,
+				command: item.attachment._meta?.command,
+				rangeStart: item.rangeStart,
+				rangeEnd: item.rangeEnd,
+			}));
+
+			assert.deepStrictEqual({
+				root: await complete('/chron'),
+				subcommands: await complete('/chronicle s'),
+				freeText: await complete('/chronicle search CLI'),
+			}, {
+				root: ['', 'cost-tips', 'improve', 'reindex', 'search', 'standup', 'tips'].map(name => ({
+					insertText: `/chronicle${name ? ' ' + name : ''} `,
+					command: 'chronicle',
+					rangeStart: 0,
+					rangeEnd: 6,
+				})),
+				subcommands: ['search', 'standup'].map(name => ({
+					insertText: `${name} `,
+					command: 'chronicle',
+					rangeStart: 11,
+					rangeEnd: 12,
+				})),
+				freeText: [],
+			});
+		});
+
+		test('hides Chronicle suggestions while local indexing is disabled and restores them when enabled', async () => {
+			let localIndexEnabled = false;
+			const provider = new CopilotSlashCommandCompletionProvider('copilotcli', {
+				isLocalIndexEnabled: () => localIndexEnabled,
+				getRuntimeSlashCommands: async () => [
+					{
+						name: 'chronicle',
+						description: 'Session history tools and insights',
+						kind: 'builtin',
+						allowDuringAgentExecution: false,
+						input: { hint: '[standup|search]', choices: [{ name: 'standup', description: 'Daily report' }, { name: 'search', description: 'Search history' }] },
+					},
+					{ name: 'review', description: 'Review changes', kind: 'builtin', allowDuringAgentExecution: false },
+				],
+				getSessionCustomizations: async () => [],
+			});
+			const complete = async (text: string) => runtimeOnly(await provider.provideCompletionItems({
+				kind: CompletionItemKind.UserMessage, channel: session, text, offset: text.length,
+			}, CancellationToken.None)).map(item => item.insertText);
+
+			const disabled = { root: await complete('/'), subcommands: await complete('/chronicle s') };
+			localIndexEnabled = true;
+
+			assert.deepStrictEqual({
+				disabled,
+				enabled: await complete('/chronicle s'),
+			}, {
+				disabled: { root: ['/review '], subcommands: [] },
+				enabled: ['search ', 'standup '],
+			});
+		});
+
 		test('returns nothing for non-copilotcli scheme', async () => {
 			const items = await provider.provideCompletionItems({
 				kind: CompletionItemKind.UserMessage,

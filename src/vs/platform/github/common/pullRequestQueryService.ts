@@ -808,6 +808,7 @@ function toGraphQLInlineComment(value: unknown, includeBody: boolean, diffSide: 
 		url: stringProperty(item, 'url'),
 		createdAt: stringProperty(item, 'createdAt'),
 		updatedAt: stringProperty(item, 'updatedAt'),
+		state: stringProperty(item, 'state'),
 		path: stringProperty(item, 'path'),
 		line: numberProperty(item, 'line'),
 		originalLine: numberProperty(item, 'originalLine'),
@@ -920,7 +921,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 		return;
 	}
 	const kinds = errors.map(error => error.type?.toUpperCase());
-	const kind = kinds.includes('RATE_LIMITED')
+	const kind = kinds.includes('RATE_LIMIT') || kinds.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: kinds.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'

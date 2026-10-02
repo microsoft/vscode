@@ -5,7 +5,9 @@
 
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { SessionHeaderBar } from './sessionHeaderBar.js';
 
@@ -15,6 +17,7 @@ import { SessionHeaderBar } from './sessionHeaderBar.js';
 export class SessionHeader extends Disposable {
 
 	private readonly _bar: SessionHeaderBar;
+	private readonly _toolbarShowsSessionKey: IContextKey<boolean>;
 
 	get element(): HTMLElement { return this._bar.element; }
 	get visible(): boolean { return this._bar.visible; }
@@ -24,12 +27,15 @@ export class SessionHeader extends Disposable {
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(contextKeyService);
 		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar));
 	}
 
 	setSession(session: IActiveSession | undefined): void {
+		this._toolbarShowsSessionKey.set(!!session);
 		this._bar.setContext(session ? { session, chat: session.activeChat } : undefined);
 	}
 
