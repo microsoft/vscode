@@ -3661,6 +3661,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
+	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
+	readonly onDidOpenSession = this._onDidOpenSession.event;
 
 	private readonly _onDidChangeFindOpenState = this._register(new Emitter<boolean>());
 	readonly onDidChangeFindOpenState: Event<boolean> = this._onDidChangeFindOpenState.event;
@@ -5316,9 +5318,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private invokeOpenRequest(request: IListOpenRequest): void {
 		request.started = true;
 		const invocation = ++request.invocation;
-		const finish = () => {
+		const finish = (opened: boolean) => {
 			if (this.pendingOpenRequest === request && request.invocation === invocation) {
 				this.pendingOpenRequest = undefined;
+				if (opened) { this._onDidOpenSession.fire(request.chat?.resource ?? request.session.resource); }
 			}
 		};
 
@@ -5332,16 +5335,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 				open = this.options.onSessionOpen(request.session.resource, request.preserveFocus, request.sideBySide);
 			}
 		} catch (error) {
-			finish();
+			finish(false);
 			throw error;
 		}
 
 		if (!open) {
-			finish();
+			finish(true);
 			return;
 		}
-		open.then(finish, error => {
-			finish();
+		open.then(() => finish(true), error => {
+			finish(false);
 			onUnexpectedError(error);
 		});
 	}

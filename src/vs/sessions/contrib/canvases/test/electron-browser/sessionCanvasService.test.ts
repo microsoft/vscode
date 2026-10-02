@@ -9,6 +9,9 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
@@ -21,7 +24,7 @@ import { SessionCanvasService } from '../../electron-browser/sessionCanvasServic
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHarness() {
+	function createHarness(canvasesEnabled = true) {
 		const sessionResource = URI.parse('agent-host-session:/session');
 		const chatResource = URI.parse('agent-host-chat:/session/main');
 		const canvas: ISessionCanvas = {
@@ -48,6 +51,7 @@ suite('SessionCanvasService', () => {
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({ onDidChangeSessions: sessionChanges.event });
 		const opened: SessionCanvasInput[] = [];
 		const openOptions: unknown[] = [];
+		let closeCount = 0;
 		const editorService = new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				opened.push(args[0] as SessionCanvasInput);
@@ -57,26 +61,50 @@ suite('SessionCanvasService', () => {
 			override findEditors(): never[] {
 				return [];
 			}
-			override async closeEditors(): Promise<void> { }
+			override async closeEditors(): Promise<void> {
+				closeCount++;
+			}
 		}();
 		const entitlementService = upcastPartial<IChatEntitlementService>({
 			sentiment: { hidden: false },
 			onDidChangeSentiment: Event.None,
 		});
+		const configurationService = new TestConfigurationService({ [CanvasesEnabledSettingId]: canvasesEnabled });
 		store.add(new SessionCanvasService(
 			sessionsService,
 			sessionsManagementService,
 			editorService,
 			entitlementService,
+			configurationService,
 			new NullLogService(),
 		));
-		return { activeSession, canvas, canvases, opened, openOptions, session, sessionChanges };
+		const setCanvasesEnabled = async (enabled: boolean) => {
+			await configurationService.setUserConfiguration(CanvasesEnabledSettingId, enabled);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+				affectsConfiguration: key => key === CanvasesEnabledSettingId,
+			}));
+		};
+		return { activeSession, canvas, canvases, opened, openOptions, session, sessionChanges, get closeCount() { return closeCount; }, setCanvasesEnabled };
 	}
 
 	test('automatically reveals a newly opened canvas', () => {
 		const { openOptions } = createHarness();
 
 		assert.deepStrictEqual(openOptions, [{ pinned: true, revealIfOpened: true, preserveFocus: false }]);
+	});
+
+	test('does not reveal Canvases while the setting is disabled', () => {
+		const { opened } = createHarness(false);
+
+		assert.deepStrictEqual(opened, []);
+	});
+
+	test('closes Canvases when the setting is disabled', async () => {
+		const harness = createHarness();
+
+		await harness.setCanvasesEnabled(false);
+
+		assert.deepStrictEqual({ opened: harness.opened.length, closed: harness.closeCount }, { opened: 1, closed: 1 });
 	});
 
 	test('forgets a dismissed revision when the provider removes the canvas', () => {

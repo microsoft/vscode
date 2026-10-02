@@ -92,6 +92,7 @@ const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdCon
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
 const PICKER_OPEN_ATTRIBUTE = 'data-picker-open';
+const BRANCH_PICKER_MAX_VISIBLE_ITEMS = 10;
 const repositoryConfigSequencer = new SequencerByKey<string>();
 
 function showActiveSessionModePicker(accessor: ServicesAccessor): void {
@@ -1015,7 +1016,9 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const branchCompletions = presentation === SessionConfigKey.Branch && schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property)
 			: undefined;
-		const rawItems = await this._getItems(provider, sessionId, property, schema, undefined, branchCompletions);
+		// The dropdown limits its height with `maxVisibleItems`, so it can list every branch.
+		const branchResultLimit = Number.POSITIVE_INFINITY;
+		const rawItems = await this._getItems(provider, sessionId, property, schema, undefined, branchCompletions, branchResultLimit);
 		if (!this._isCurrentSession(provider, sessionId)) {
 			return;
 		}
@@ -1047,7 +1050,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
-			const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query, branchCompletions);
+			const filteredRawItems = await this._getItems(provider, sessionId, property, schema, query, branchCompletions, branchResultLimit);
 			if (!this._isCurrentSession(provider, sessionId)) {
 				return [];
 			}
@@ -1132,9 +1135,12 @@ export class AgentHostSessionConfigPicker extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			items.length > 10
-				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255, anchorPosition: AnchorPosition.BELOW }
-				: { minWidth: 255, anchorPosition: AnchorPosition.BELOW },
+			{
+				...(items.length > 10 ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
+				minWidth: 255,
+				anchorPosition: AnchorPosition.BELOW,
+				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
+			},
 		);
 		const upstreamBranchName = repositoryState?.upstreamBranchName;
 		if (isBranchPicker && isolationKey !== undefined && config?.values[isolationKey] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
@@ -1177,7 +1183,11 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[]): Promise<readonly IConfigPickerItem[]> {
+	/**
+	 * Returns the picker items for `property`. Base branch results are filtered by `query`
+	 * and capped at `branchResultLimit`, which defaults to the shared branch picker limit.
+	 */
+	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			const worktreeDisabled = !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
 			return ['worktree', schema.enum?.includes('workspace') ? 'workspace' : 'folder'].filter(value => schema.enum?.includes(value)).map(value => ({
@@ -1202,7 +1212,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? branchCompletions ?? await provider.getSessionConfigCompletions(sessionId, property, isBaseBranch ? undefined : query || undefined)
 			: undefined;
 		if (dynamicItems) {
-			const items = (isBaseBranch ? filterBranchPickerItems(dynamicItems, query) : dynamicItems)
+			const items = (isBaseBranch ? filterBranchPickerItems(dynamicItems, query, branchResultLimit) : dynamicItems)
 				.map(item => this._fromCompletionItem(item));
 			this._cacheDynamicValueLabels(sessionId, property, items);
 			return items;
