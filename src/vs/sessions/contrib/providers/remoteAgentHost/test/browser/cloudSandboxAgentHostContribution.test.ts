@@ -17,7 +17,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { StorageValue } from '../../../../../../base/parts/storage/common/storage.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agent.js';
 import { IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
-import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
 import {
@@ -44,6 +44,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -206,6 +208,7 @@ const GITHUB_SANDBOX_GROUP: IAgentHostGroup = {
 
 interface ITestHarness {
 	readonly contribution: TestCloudSandboxContribution;
+	readonly workspaceTrust: TestWorkspaceTrustManagementService;
 	readonly configurationService: TestConfigurationService;
 	setEnabled(enabled: boolean): Promise<void>;
 	setChatHidden(hidden: boolean): void;
@@ -276,7 +279,10 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	let accountKey = options?.accountKey === null ? undefined : options?.accountKey ?? '["github","account-1"]';
 	let focused = true;
 	let selectedHostId: string | undefined;
+	const workspaceTrust = store.add(new TestWorkspaceTrustManagementService(false));
+	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	const harness: ITestHarness = {
+		workspaceTrust,
 		discovered: sessions,
 		environmentStatus: 'offline',
 		readOnlySessionTypes,
@@ -1070,8 +1076,11 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 		});
 		await started.p;
 		const provider = restored.contribution.stubProviders.get(cloudSandboxAddress(session.environmentId));
+		const folder = toAgentHostUri(URI.file('/workspaces/repo'), agentHostAuthority(cloudSandboxAddress(session.environmentId)));
 
 		assert.deepStrictEqual({
+			offlineTrusted: (await restored.workspaceTrust.getUriTrustInfo(folder)).trusted,
+			previousRegistrationReleased: (await first.workspaceTrust.getUriTrustInfo(folder)).trusted,
 			cached: readInventory(storageService),
 			machineKeys: storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE),
 			seeded: provider?.seeded.map(meta => ({
@@ -1081,6 +1090,8 @@ suite('CloudSandboxAgentHostContribution startup inventory', () => {
 			connected: restored.connectedTo,
 			history: restored.historyRequests,
 		}, {
+			offlineTrusted: true,
+			previousRegistrationReleased: false,
 			cached: [session],
 			machineKeys: [entryKey(session)],
 			seeded: [{ id: session.sessionId, title: session.name, modifiedTime: Date.parse(session.updatedAt!), repository: session.repoName }],

@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
+import type { AttributedPermissionResult, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, PermissionDecisionSource, PermissionMode, PermissionAssistedApproval, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
 import { realpath as fsRealpath } from 'fs';
 import { cp, rm } from 'fs/promises';
 import { promisify } from 'util';
@@ -39,7 +41,7 @@ import { withCustomizationEnablement } from '../../common/customizationEnablemen
 import type { AutoModeTier } from '../../common/autoModeTiers.js';
 import type { ChatInputRequestWithPlanReview, IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
-import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
@@ -47,6 +49,7 @@ import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTele
 import { AgentCanvasAvailability, AgentSession, AgentSignal, AgentWorkingDirectoryChangedError, AuthenticateParams, IMcpNotification, subagentChatTitle, type AgentSubagentTaskModelSource, type AgentTurnProviderCallState, type IAgentCanvas, type IAgentCanvasSnapshot, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AGENT_HOST_CANVAS_LIMIT } from '../../common/agentHostExtensionProtocol.js';
 import { isReasoningEffortLevel } from '../../common/reasoningEffort.js';
+import { agentModelConfigurationMetaKey, IAgentRuntimeModelConfiguration, readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { ObservedTokenUsage } from './observedTokenUsage.js';
 import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
@@ -65,7 +68,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { BackgroundWorkKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type UsageInfoMeta, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
 import { allowCopilotSdkExecution, restoreDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -156,6 +159,10 @@ interface CopilotExitPlanModeResponse extends ExitPlanModeResult {
 	readonly autoApproveEdits?: ExitPlanModeCompletedData['autoApproveEdits'];
 }
 
+type PendingPermissionResponse =
+	| { readonly kind: 'decision'; readonly result: PermissionRequestResult; readonly source?: PermissionDecisionSource }
+	| { readonly kind: 'disable-sandbox'; readonly context: IAgentPermissionResponseContext };
+
 function isCopilotSdkAuthRejection(error: { readonly errorType: string; readonly statusCode?: number }): boolean {
 	return (error.errorType === 'authentication' || error.errorType === 'authorization') && error.statusCode === 401;
 }
@@ -212,20 +219,6 @@ const EMPTY_TOOL_RESULT_TEXT = '<empty />';
 const MCP_ROUTING_PROXY_DESCRIPTION_MAX_LENGTH = 12_000;
 const USER_DENIED_PERMISSION_RESULT = { kind: 'reject', feedback: 'The user denied permission.' } satisfies PermissionRequestResult;
 
-function isPermissionDeniedKind(kind: PermissionResult['kind'] | undefined): boolean {
-	switch (kind) {
-		case 'cancelled':
-		case 'denied-by-rules':
-		case 'denied-no-approval-rule-and-could-not-request-from-user':
-		case 'denied-interactively-by-user':
-		case 'denied-by-content-exclusion-policy':
-		case 'denied-by-permission-request-hook':
-			return true;
-		default:
-			return false;
-	}
-}
-
 function getMcpRoutingProxyDescription(serverName: string, cachedTools: readonly ICopilotMcpRoutingTool[]): string {
 	const activation = `Route to the MCP server named "${serverName}". This server is not currently available to the model. Calling this tool starts or connects to the server, may ask the user to authenticate, and then discovers its current tools. Call it only when the current task clearly needs capabilities likely provided by this server; do not call it speculatively.`;
 	if (cachedTools.length === 0) {
@@ -234,20 +227,6 @@ function getMcpRoutingProxyDescription(serverName: string, cachedTools: readonly
 	const catalog = cachedTools.map(tool => tool.description ? `${tool.name}: ${tool.description}` : tool.name).join('; ');
 	return `${activation} Previously observed tool metadata follows. It is a routing hint only and may be stale: ${catalog}`;
 }
-
-function mapPermissionResultToConfirmKind(kind: PermissionResult['kind'] | undefined, resolvedByHook: boolean): 'userAction' | 'setting' | 'confirmationNotNeeded' | 'denied' {
-	if (kind === undefined) {
-		return 'confirmationNotNeeded';
-	}
-	if (isPermissionDeniedKind(kind)) {
-		return 'denied';
-	}
-	if (kind === 'approved-for-session' || kind === 'approved-for-location') {
-		return 'setting';
-	}
-	return resolvedByHook ? 'confirmationNotNeeded' : 'userAction';
-}
-
 
 function normalizeMcpServerUrl(value: string): string | undefined {
 	if (!URL.canParse(value)) {
@@ -988,12 +967,13 @@ export class CopilotAgentSession extends Disposable {
 		resolvedByHook: boolean;
 		requestSandboxBypass: boolean;
 		resultKind: PermissionResult['kind'] | undefined;
+		decisionSource?: PermissionDecisionSource;
 		toolName: string | undefined;
 		mcpServerName: string | undefined;
 		reported: boolean;
 	}>();
 	/** Pending permission requests awaiting a renderer-side decision. */
-	private readonly _pendingPermissions = new PendingRequestRegistry<PermissionRequestResult | { kind: 'disable-sandbox'; context: IAgentPermissionResponseContext }, {
+	private readonly _pendingPermissions = new PendingRequestRegistry<PendingPermissionResponse, {
 		readonly managedApprovalRequired: boolean;
 		readonly sdkSandboxBypass?: boolean;
 	}>();
@@ -1070,6 +1050,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
 	/** Monotonic 0-based ordinal assigned to each turn as it starts, for numeric `turnIndex` telemetry parity. */
 	private _nextTurnOrdinal = 0;
+	/** Dropped-tool count last surfaced by {@link reportByokToolsCapped}, to avoid repeating the same warning. */
+	private _reportedByokDroppedToolCount: number | undefined;
 	/**
 	 * Protocol turn ID of the active turn, or `''` when idle. Used by file
 	 * edit tracking and emitted on per-turn actions.
@@ -1785,7 +1767,7 @@ export class CopilotAgentSession extends Disposable {
 		return toolCallId !== undefined && this._fusionPhaseLabels.has(toolCallId) ? toolCallId : undefined;
 	}
 
-	private _updateSubagentModel(parentToolCallId: string, model: string | undefined): void {
+	private _updateSubagentModel(parentToolCallId: string, model: string | undefined, configuration?: IAgentRuntimeModelConfiguration): void {
 		if (!model) {
 			return;
 		}
@@ -1793,6 +1775,9 @@ export class CopilotAgentSession extends Disposable {
 		const autoModeResolved = this._autoModeResolvedByToolCallId.get(parentToolCallId);
 		const modelId = isAutoModel(model) ? autoModeResolved?.chosenModel ?? model : model;
 		const metadata = { ...previous?._meta };
+		if (configuration && (configuration.reasoningEffort !== undefined || configuration.contextTier !== undefined || readAgentRuntimeModelConfiguration(previous))) {
+			metadata[agentModelConfigurationMetaKey] = configuration;
+		}
 		if (autoModeResolved) {
 			metadata.autoModeResolved = autoModeResolved;
 		} else {
@@ -2418,7 +2403,7 @@ export class CopilotAgentSession extends Disposable {
 		if (!toolName || isHiddenTool(toolName) || record?.reported) {
 			return;
 		}
-		const confirmKind = mapPermissionResultToConfirmKind(record?.resultKind, record?.resolvedByHook === true);
+		const confirmKind = permissionResultToConfirmKind(record?.resultKind, record?.decisionSource, record?.resolvedByHook === true);
 		this._telemetryReporter.toolApproval({
 			clientContext: this._currentTurn.value?.clientContext,
 			telemetryContext: this._currentTurn.value?.telemetryContext,
@@ -2428,6 +2413,8 @@ export class CopilotAgentSession extends Disposable {
 			toolId: toolName,
 			toolSourceKind: this._toolSourceKindFor(toolName, mcpServerName),
 			confirmKind,
+			decisionSource: record?.decisionSource,
+			permissionResult: record?.resultKind,
 			confirmationNotNeededReason: confirmKind === 'confirmationNotNeeded' && record?.resolvedByHook ? 'other' : undefined,
 			requestUnsandboxedExecution: record?.requestSandboxBypass ? true : undefined,
 		});
@@ -2931,7 +2918,7 @@ export class CopilotAgentSession extends Disposable {
 		// Still pending permission, so this call may have errored while getting permission.
 		// Go ahead and allow the call which will immediately see the buffered value.
 		if (this._pendingPermissions.getMetadata(toolCallId)?.managedApprovalRequired !== true) {
-			this.respondToPermissionRequest(toolCallId, true);
+			this.respondToPermissionRequest(toolCallId, true, { decisionSource: 'host_policy' });
 		}
 	}
 
@@ -3100,7 +3087,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			chatUri: this._chatChannelUri,
 			configurationResource: this._ownerSessionUri,
-			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), { kind: 'reject' } satisfies PermissionRequestResult, 'permission'),
+			handlePermissionRequest: this._guarded(request => this._handlePermissionRequest(request), attributePermissionResult({ kind: 'reject' }, 'unattended_fallback'), 'permission'),
 			handleExitPlanModeRequest: this._guarded((request, invocation) => this._handleExitPlanModeRequest(request, invocation), { approved: false } satisfies CopilotExitPlanModeResponse, 'exit-plan-mode'),
 			handleUserInputRequest: this._guarded((request, invocation) => this._handleUserInputRequest(request, invocation), { answer: '', wasFreeform: true } satisfies UserInputResponse, 'user-input'),
 			handleElicitationRequest: this._guarded(context => this._handleElicitationRequest(context), { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
@@ -4875,7 +4862,7 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private async _handlePermissionRequest(
 		request: PermissionRequest,
-	): Promise<PermissionRequestResult> {
+	): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		let sandboxRequestId: string | undefined;
 		try {
 			const abortToken = this._abortToken;
@@ -4883,11 +4870,11 @@ export class CopilotAgentSession extends Disposable {
 			if (!toolCallId) {
 				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
 				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
-				return { kind: 'reject' };
+				return attributePermissionResult({ kind: 'reject' }, 'host_policy');
 			}
 			if (this._unroutableSubagentToolCallIds.delete(toolCallId)) {
 				this._logService.error(`[Copilot:${this.sessionId}] Rejecting permission request for unroutable subagent tool call: toolCallId=${toolCallId}, kind=${request.kind}`);
-				return { kind: 'reject' };
+				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 			}
 
 			const managedApprovalRequired = request.managedApprovalRequired === true;
@@ -4929,7 +4916,7 @@ export class CopilotAgentSession extends Disposable {
 						parentToolCallId,
 					});
 				}
-				return { kind: 'approve-once' };
+				return attributePermissionResult({ kind: 'approve-once' }, 'assisted_approval');
 			}
 
 			const approvedSignature = this._approvedDuplicablePermissionSignatures.get(toolCallId);
@@ -4937,14 +4924,14 @@ export class CopilotAgentSession extends Disposable {
 				this._approvedDuplicablePermissionSignatures.delete(toolCallId);
 				if (!managedApprovalRequired && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell') && safeStringify(request) === approvedSignature) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving duplicate ${request.kind} permission request for tool call ${toolCallId}`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 			}
 
 			const sessionResourcePath = this._getInternalSessionResourcePath(request);
 			if (!managedApprovalRequired && sessionResourcePath) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
-				return { kind: 'approve-once' };
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
 			// Auto-approve reads of large-tool-output temp files written by the
@@ -4954,7 +4941,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string') {
 				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 			}
 
@@ -4962,7 +4949,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!managedApprovalRequired && !requestSandboxBypass && request.kind === 'read' && typeof request.path === 'string') {
 				if (await this._isReadWithinAppliedPluginDirectory(request.path)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving read within an applied plugin directory: ${request.path}`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 			}
 
@@ -4980,14 +4967,14 @@ export class CopilotAgentSession extends Disposable {
 					&& !serverToolHost.requiresConfirmation(this._chatChannelUri.toString(), serverToolName)
 				) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName} because it has nothing to confirm`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 				// Server tools that never confirm only read or mutate the
 				// session's own server-held state and never touch the workspace,
 				// shell, or network, so prompting for them is redundant noise.
 				if (!canRequireConfirmation && !managedApprovalRequired) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving server tool ${serverToolName}`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
 			}
 
@@ -5020,7 +5007,7 @@ export class CopilotAgentSession extends Disposable {
 				&& this._pendingClientToolCalls.hasBufferedResult(toolCallId)
 			) {
 				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving client tool ${request.toolName} because its result arrived before the permission request`);
-				return { kind: 'approve-once' };
+				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
 			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
@@ -5040,11 +5027,11 @@ export class CopilotAgentSession extends Disposable {
 				// check; if so the deferred has already been settled and
 				// removed, so leave it alone.
 				if (this._pendingPermissions.has(toolCallId)) {
-					this._pendingPermissions.respond(toolCallId, { kind: 'approve-once' });
+					this._pendingPermissions.respond(toolCallId, { kind: 'decision', result: { kind: 'approve-once' }, source: 'host_policy' });
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving sandboxed shell command for tool call ${toolCallId}`);
-					return { kind: 'approve-once' };
+					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
-				return { kind: 'reject' };
+				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 			}
 
 			// For write permission requests, build a FileEdit preview so the
@@ -5059,7 +5046,7 @@ export class CopilotAgentSession extends Disposable {
 			// `pending-edit-content:` entry has been cleaned up. Bail without
 			// firing tool_ready.
 			if (!this._pendingPermissions.has(toolCallId)) {
-				return { kind: 'reject' };
+				return attributePermissionResult({ kind: 'reject' }, 'unattended_fallback');
 			}
 
 			// A tool from a provisional Fusion phase is hidden until it needs
@@ -5120,11 +5107,11 @@ export class CopilotAgentSession extends Disposable {
 			if (result.kind === 'disable-sandbox') {
 				return await this._disableSandboxForPendingRequest(toolCallId, sandboxRequestId, result.context, abortToken);
 			}
-			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.kind}`);
-			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
+			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, result=${result.result.kind}`);
+			if (!abortToken.isCancellationRequested && !managedApprovalRequired && result.result.kind === 'approve-once' && (request.kind === 'write' || request.kind === 'read' || request.kind === 'shell')) {
 				this._approvedDuplicablePermissionSignatures.set(toolCallId, safeStringify(request));
 			}
-			return result;
+			return attributePermissionResult(result.result, result.source);
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
 			throw error;
@@ -5135,7 +5122,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private async _disableSandboxForPendingRequest(toolCallId: string, requestId: string | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult> {
+	private async _disableSandboxForPendingRequest(toolCallId: string, requestId: string | undefined, context: IAgentPermissionResponseContext, token: CancellationToken): Promise<PermissionRequestResult | AttributedPermissionResult> {
 		const owner = this._ownerSessionUri.toString();
 		let enabled = this._configurationService.getSessionSandboxEnabled(owner) ?? true;
 		let resolved = false;
@@ -5147,7 +5134,11 @@ export class CopilotAgentSession extends Disposable {
 				if (this._configurationService.getSessionSandboxEnabled(owner) === false) {
 					return true;
 				}
-				const result = await this._wrapper.session.rpc.sandbox.disableForSession({ requestId });
+				const attributed = attributePermissionResult({ kind: 'approve-once' }, context.decisionSource);
+				const result = await this._wrapper.session.rpc.sandbox.disableForSession({
+					requestId,
+					...(attributed.kind === 'attributed' ? { decisionContext: attributed.decisionContext } : {}),
+				});
 				resolved = result.success;
 				enabled = result.enabled;
 				if (!result.success || result.enabled) {
@@ -5159,11 +5150,15 @@ export class CopilotAgentSession extends Disposable {
 				this._configurationService.updateSessionConfig(owner, { [SessionConfigKey.SandboxEnabled]: 'off' });
 				return false;
 			});
-			return { kind: alreadyDisabled ? 'approve-once' : 'no-result' };
+			return alreadyDisabled ? attributePermissionResult({ kind: 'approve-once' }, context.decisionSource) : { kind: 'no-result' };
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to disable sandboxing from a permission request`);
 			this._configurationService.setSessionSandboxEnabled(owner, enabled, context.origin && { ...context.origin, message: getErrorMessage(error) });
-			return resolved ? { kind: 'no-result' } : { kind: 'reject' };
+			const data = isObject(error) ? error.data : undefined;
+			const source = token.isCancellationRequested || !requestId || this._sandboxBypassRequests.get(toolCallId) !== requestId
+				? 'unattended_fallback'
+				: isObject(data) && data.code === 'managed_sandbox_policy_conflict' ? 'host_policy' : undefined;
+			return resolved ? { kind: 'no-result' } : attributePermissionResult({ kind: 'reject' }, source);
 		}
 	}
 
@@ -5618,7 +5613,7 @@ export class CopilotAgentSession extends Disposable {
 		const metadata = this._pendingPermissions.getMetadata(requestId);
 		const result = approved && context?.selectedOptionId === 'allow-session' && metadata?.sdkSandboxBypass && !metadata.managedApprovalRequired
 			? { kind: 'disable-sandbox', context } as const
-			: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT;
+			: { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource } as const;
 		if (this._pendingPermissions.respond(requestId, result)) {
 			this._deletePendingEditContent(requestId);
 			return true;
@@ -5671,7 +5666,8 @@ export class CopilotAgentSession extends Disposable {
 			managedApprovalRequired,
 		});
 
-		const approved = (await pendingPermission).kind === 'approve-once';
+		const decision = await pendingPermission;
+		const approved = decision.kind === 'decision' && decision.result.kind === 'approve-once';
 		const currentPolicy = this._configurationService.getSessionSandboxPolicy(this._ownerSessionUri.toString());
 		return approved && currentPolicy?.allowBypass !== false && !(currentPolicy?.enabled && !currentPolicy.allowBypass);
 	}
@@ -6347,6 +6343,7 @@ export class CopilotAgentSession extends Disposable {
 				resolvedByHook: existing?.resolvedByHook || e.data.resolvedByHook === true,
 				requestSandboxBypass: existing?.requestSandboxBypass || permissionRequest.requestSandboxBypass === true,
 				resultKind: existing?.resultKind,
+				decisionSource: undefined,
 				toolName: existing?.toolName ?? permissionRequest.toolName,
 				mcpServerName: existing?.mcpServerName,
 				reported: existing?.reported ?? false,
@@ -6367,6 +6364,7 @@ export class CopilotAgentSession extends Disposable {
 				resolvedByHook: existing?.resolvedByHook ?? false,
 				requestSandboxBypass: existing?.requestSandboxBypass ?? false,
 				resultKind: e.data.result.kind,
+				decisionSource: e.data.decisionSource,
 				toolName: existing?.toolName,
 				mcpServerName: existing?.mcpServerName,
 				reported: existing?.reported ?? false,
@@ -6499,6 +6497,7 @@ export class CopilotAgentSession extends Disposable {
 				resolvedByHook: existingApproval?.resolvedByHook ?? false,
 				requestSandboxBypass: existingApproval?.requestSandboxBypass ?? false,
 				resultKind: existingApproval?.resultKind,
+				decisionSource: existingApproval?.decisionSource,
 				toolName: e.data.toolName,
 				mcpServerName,
 				reported: existingApproval?.reported ?? false,
@@ -7015,7 +7014,10 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.warn(`[Copilot:${sessionId}] Unable to attribute model configuration for unknown subagent agentId=${e.agentId}`);
 				return;
 			}
-			this._updateSubagentModel(parentToolCallId, e.data.model);
+			this._updateSubagentModel(parentToolCallId, e.data.model, {
+				...(e.data.reasoningEffort ? { reasoningEffort: e.data.reasoningEffort } : {}),
+				...(e.data.contextTier ? { contextTier: e.data.contextTier } : {}),
+			});
 		}));
 
 		this._register(wrapper.onTurnStart(e => {
@@ -7223,6 +7225,10 @@ export class CopilotAgentSession extends Disposable {
 			// Copilot billing metadata, or `undefined` when nothing is billed yet.
 			const buildUsage = (context: UsageContext, scopedCopilotUsage: UsageInfoMeta['copilotUsage'], isParentScope: boolean, directOwnerToolCallId: string | undefined): UsageInfo => {
 				const metadata: UsageInfoMeta = {};
+				const modelConfiguration = directOwnerToolCallId ? readAgentRuntimeModelConfiguration(this._lastSubagentUsageByToolCallId.get(directOwnerToolCallId)) : undefined;
+				if (modelConfiguration) {
+					metadata[agentModelConfigurationMetaKey] = modelConfiguration;
+				}
 				if (modelCall) {
 					metadata[agentModelCallMetaKey] = modelCall;
 				}
@@ -8050,7 +8056,7 @@ export class CopilotAgentSession extends Disposable {
 				};
 				this._telemetryService.publicLog2<AgentHostInstructionsCollectedEvent, AgentHostInstructionsCollectedClassification>('agentHost.instructionsCollected', {
 					...toInitiatorTelemetry(clientContext),
-					provider: this.resourceUri.scheme,
+					provider: this._ownerSessionUri.scheme,
 					agentSessionId: AgentSession.id(this.resourceUri),
 					isSubagentSession: isSubagentSession(this.resourceUri),
 					totalInstructionsCount: sources.length,
@@ -8328,6 +8334,39 @@ export class CopilotAgentSession extends Disposable {
 			turnId: this._turnId,
 			part: { kind: ResponsePartKind.Markdown, id: generateUuid(), content },
 		}, parentToolCallId);
+	}
+
+	/**
+	 * Warns in the active turn that the BYOK proxy dropped tools to stay within
+	 * the model's tool limit. The turn continues with the kept tools. The warning
+	 * repeats only when the number of dropped tools changes.
+	 */
+	reportByokToolsCapped(requestedToolCount: number, sentToolCount: number): void {
+		const turn = this._currentTurn.value;
+		const droppedToolCount = requestedToolCount - sentToolCount;
+		if (!turn || droppedToolCount <= 0 || droppedToolCount === this._reportedByokDroppedToolCount) {
+			return;
+		}
+		this._reportedByokDroppedToolCount = droppedToolCount;
+		// Later parent reasoning belongs after this notice.
+		turn.reasoningPartIds.delete('');
+		this._emitAction({
+			type: ActionType.ChatResponsePart,
+			turnId: turn.id,
+			part: {
+				kind: ResponsePartKind.SystemNotification,
+				content: localize(
+					'agentHost.byokToolLimitExceeded',
+					"The model only supports {0} tools, {1} tools were not provided to the model.",
+					sentToolCount,
+					droppedToolCount,
+				),
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ByokToolLimitExceeded,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			},
+		});
 	}
 
 	private _subscribeToSdkEvents(): void {
@@ -8778,7 +8817,7 @@ export class CopilotAgentSession extends Disposable {
 		for (const [toolCallId] of this._pendingPermissions.entries()) {
 			this._deletePendingEditContent(toolCallId);
 		}
-		this._pendingPermissions.denyAll({ kind: 'reject' });
+		this._pendingPermissions.denyAll({ kind: 'decision', result: { kind: 'reject' }, source: 'unattended_fallback' });
 		this._sandboxBypassRequests.clear();
 		this._approvedDuplicablePermissionSignatures.clear();
 	}

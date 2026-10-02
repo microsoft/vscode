@@ -16,7 +16,7 @@ import { ChatEntitlement } from '../../../../../../services/chat/common/chatEnti
 import { IModelControlEntry, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, createModelAction, createModelItem, createPinAction, createUnavailableModelItem, getProviderGroupForModel, getProviderGroupKey, getUnavailableReason, isVersionAtLeast, ProviderGroupKey, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import type { IBuildModelPickerItemsOptions } from './modelPickerItemTypes.js';
-import { isAutoModel, isHydraFusionModel } from './modelPickerPresentation.js';
+import { isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 
 export const ModelPickerSection = {
 	Other: 'other',
@@ -144,7 +144,7 @@ export function buildFlatModelItems(options: IBuildModelPickerItemsOptions): IAc
 		items.push(createModelItem(action, model, options.openerService, undefined, options.presentation.isUBB, ariaDescription));
 	}
 	const unavailableHydraFusion = options.controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
-	if (options.chatEntitlementService.entitlement === ChatEntitlement.Free && unavailableHydraFusion && !unavailableHydraFusion.exists) {
+	if (isHydraFusionUpgradeOnly(options.chatEntitlementService.entitlement) && unavailableHydraFusion && !unavailableHydraFusion.exists) {
 		items.push(createUnavailableModelItem(
 			COPILOT_HYDRA_FUSION_MODEL_ID,
 			unavailableHydraFusion,
@@ -305,7 +305,7 @@ function appendPromotedModels(context: IGroupedContext, autoModel: ILanguageMode
 			}
 			const model = context.resolveModel(entryId);
 			const showUnavailable = options.presentation.showUnavailableFeatured ||
-				(options.chatEntitlementService.entitlement === ChatEntitlement.Free && entryId === COPILOT_HYDRA_FUSION_MODEL_ID);
+				(isHydraFusionUpgradeOnly(options.chatEntitlementService.entitlement) && entryId === COPILOT_HYDRA_FUSION_MODEL_ID);
 			if (model && !context.placed.has(model.identifier)) {
 				if (entry.minVSCodeVersion && !isVersionAtLeast(options.currentVSCodeVersion, entry.minVSCodeVersion)) {
 					if (showUnavailable) {

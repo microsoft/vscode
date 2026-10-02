@@ -42,6 +42,10 @@ export interface ILanguageModelChatSelector {
 }
 
 export interface IToolData {
+	readonly agentHostPreferences?: {
+		readonly defer?: 'auto' | 'never';
+		readonly availability?: 'session' | 'userChats';
+	};
 	readonly id: string;
 	readonly source: ToolDataSource;
 	readonly toolReferenceName?: string;

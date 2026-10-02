@@ -601,9 +601,11 @@ Live provider runtimes that react to session config subscribe to `IAgentConfigur
 
 Copilot advertises the optional `sandboxEnabled` session property (`default`,
 `on`, or `off`). Omission and `default` follow the root sandbox settings;
-selections are saved in session-config metadata and restored across window reloads
-and agent-host restarts. The effective sandbox state is recomputed from the saved
-selection, current root settings, and the runtime's current managed policy.
+the successfully applied enablement is saved in session-config metadata, not a
+pending or rejected selection. Restore reconciles saved values against current
+root settings and the runtime's current managed policy before notifying live
+providers. A saved `off` that conflicts with required sandboxing becomes `on`;
+successful application persists `on` so removing the policy cannot revive `off`.
 Chats and subagents share their configuration owner's selection. New sessions
 and forks do not copy it. Codex retains its native sandbox/permission preset;
 Claude does not advertise this unsupported control.
@@ -627,7 +629,22 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-Explicit managed enablement replaces disallowed `off` selections with `default`;
+The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
+through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
+local and remote hosts independently of the legacy managed-permissions bridge.
+The host owns these transient, handler-scoped client contributions and requires
+sandboxing while any contributing client requires it. Ordinary root settings
+cannot change that floor; withdrawal or disconnect-grace expiry removes only the
+owning client's contribution. On macOS/Linux, the configuration service combines
+that VS Code policy requirement with the runtime floor before resolving
+session overrides or publishing policy metadata. Ordinary user `on` remains
+overridable; Windows continues to use its independent enablement setting.
+Runtime bypass/outbound restrictions cannot be weakened by this requirement.
+Approved bypass also requires the local `allowUnsandboxedCommands` setting.
+An explicit VS Code requirement does not offer the unresolved-runtime-policy
+retry-Off path. Removing it restores the underlying runtime floor, not an
+unconditional permission to disable sandboxing.
+Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
 Managed asks remain one-time-only. Direct disabling is locked even when managed
@@ -646,7 +663,8 @@ Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Enforcement remains runtime-owned.
+evidence of an enforced floor. Native managed settings remain runtime-enforced;
+the forwarded VS Code requirement is enforced in host session configuration.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 

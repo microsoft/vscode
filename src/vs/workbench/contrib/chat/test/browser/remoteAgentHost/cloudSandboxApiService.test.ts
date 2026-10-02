@@ -15,6 +15,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/virtualSc
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
 import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -1426,7 +1427,7 @@ suite('CloudSandboxApiService task deletion', () => {
 				timeout: 10_000,
 				headers: {
 					Accept: 'application/json',
-					'Copilot-Integration-Id': 'code-oss',
+					'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 					Authorization: 'Bearer tok',
 				},
 			}]);
