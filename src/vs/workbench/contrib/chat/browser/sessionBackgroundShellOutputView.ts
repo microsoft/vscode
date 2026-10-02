@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
+import { getActiveElement, getWindow, h, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { createPixelSpinner } from '../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -11,12 +11,16 @@ import { autorun, IObservable } from '../../../../base/common/observable.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { asCssVariable, menuBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { computeChatTerminalMirrorCols } from '../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../terminal/browser/detachedTerminal.js';
 import { IDetachedTerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { DecorationSelector, getTerminalCommandDecorationState } from '../../terminal/browser/xterm/decorationStyles.js';
+import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import type { ChatBackgroundShellOutput } from '../common/sessionChatPills.js';
 import { getChatMarkdownRenderOptions } from './widget/chatContentMarkdownRenderer.js';
 import './widget/chatContentParts/media/chatTerminalToolProgressPart.css';
@@ -57,6 +61,34 @@ function countTrailingRows(text: string, cols: number, limit: number): number {
 	return Math.min(rows, limit);
 }
 
+function getStatusLabel(output: ChatBackgroundShellOutput): string {
+	switch (output.status) {
+		case 'loading':
+		case 'running':
+			return localize('backgroundShells.running', "Running");
+		case 'unavailable':
+			return localize('backgroundShells.statusUnknown', "Status unknown");
+		case 'exited':
+			return output.exitCode === undefined
+				? localize('backgroundShells.exited', "Exited")
+				: localize('backgroundShells.exitedWithCode', "Exited with code {0}", output.exitCode);
+	}
+}
+
+/** Each output region's view, so the accessible view can read the output that has focus. */
+const viewsByRegion = new WeakMap<Element, BackgroundShellOutputView>();
+
+/** Returns the background shell output view whose output region contains focus, if any. */
+export function getFocusedBackgroundShellOutputView(): BackgroundShellOutputView | undefined {
+	for (let element = getActiveElement(); element; element = element.parentElement) {
+		const view = viewsByRegion.get(element);
+		if (view) {
+			return view;
+		}
+	}
+	return undefined;
+}
+
 /**
  * A background shell's command and live output, presented like a chat
  * terminal tool call: the command with its status, above a small read-only
@@ -65,6 +97,7 @@ function countTrailingRows(text: string, cols: number, limit: number): number {
 export class BackgroundShellOutputView extends Disposable {
 	readonly element: HTMLElement;
 	private readonly _decoration: HTMLElement;
+	private readonly _region: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 	private _terminal: IDetachedTerminalInstance | undefined;
@@ -74,10 +107,12 @@ export class BackgroundShellOutputView extends Disposable {
 	private _size: { readonly cols: number; readonly rows: number } | undefined;
 
 	constructor(
-		command: string,
+		private readonly _command: string,
 		private readonly _output: IObservable<ChatBackgroundShellOutput>,
 		@ITerminalService terminalService: ITerminalService,
 		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
+		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		const elements = h('.chat-terminal-content-part.chat-background-shell-output@root', [
@@ -97,14 +132,24 @@ export class BackgroundShellOutputView extends Disposable {
 		]);
 		this.element = elements.root;
 		this._decoration = elements.decoration;
+		this._region = elements.output;
 		this._terminalContainer = elements.terminal;
 		this._emptyElement = elements.empty;
 		this._register(toDisposable(() => this.element.remove()));
 		this._register(createPixelSpinner(this._decoration));
-		const renderedCommand = this._register(markdownRendererService.render(new MarkdownString().appendCodeblock(commandLanguage, command), getChatMarkdownRenderOptions()));
+		const renderedCommand = this._register(markdownRendererService.render(new MarkdownString().appendCodeblock(commandLanguage, _command), getChatMarkdownRenderOptions()));
 		elements.commandBlock.appendChild(renderedCommand.element);
 		elements.output.style.backgroundColor = asCssVariable(menuBackground);
-		elements.output.setAttribute('aria-label', localize('backgroundShells.outputAria', "Output of {0}", command));
+		// The terminal only draws the output, so the region is focusable and opens it as text in the accessible view.
+		this._region.tabIndex = 0;
+		this._region.setAttribute('role', 'region');
+		const accessibleViewHint = accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
+		this._region.setAttribute('aria-label', accessibleViewHint
+			? localize('backgroundShells.outputRegionWithHint', "Terminal output for {0}, {1}", _command, accessibleViewHint)
+			: localize('backgroundShells.outputRegion', "Terminal output for {0}", _command));
+		const regionContextKeyService = this._register(contextKeyService.createScoped(this._region));
+		ChatContextKeys.inChatBackgroundShellOutput.bindTo(regionContextKeyService).set(true);
+		viewsByRegion.set(this._region, this);
 
 		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
 		void terminalService.createDetachedTerminal({
@@ -127,6 +172,26 @@ export class BackgroundShellOutputView extends Disposable {
 			this._render(this._output.get());
 		});
 		this._register(autorun(reader => this._render(this._output.read(reader))));
+	}
+
+	/** The command, its status, and its output without ANSI escapes, for the accessible view. */
+	getAccessibleContent(): string {
+		const output = this._output.get();
+		const text = output.status === 'running' || output.status === 'exited' ? removeAnsiEscapeCodes(output.text).trimEnd() : '';
+		return [
+			localize('backgroundShells.accessibleCommand', "Command: {0}", this._command),
+			localize('backgroundShells.accessibleStatus', "Status: {0}", getStatusLabel(output)),
+			text || this._emptyText(output),
+		].join('\n');
+	}
+
+	/** Focuses the output region. Returns false when the view is no longer shown. */
+	focusOutput(): boolean {
+		if (!this._region.isConnected) {
+			return false;
+		}
+		this._region.focus();
+		return true;
 	}
 
 	private _render(output: ChatBackgroundShellOutput): void {
@@ -176,21 +241,14 @@ export class BackgroundShellOutputView extends Disposable {
 	private _renderStatus(output: ChatBackgroundShellOutput): void {
 		const decoration = this._decoration;
 		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
-		let label: string;
 		if (output.status === 'loading' || output.status === 'running') {
 			decoration.classList.add('chat-terminal-running-spinner', DecorationSelector.DefaultColor, DecorationSelector.Default);
-			label = localize('backgroundShells.running', "Running");
 		} else {
 			const exitCode = output.status === 'exited' ? output.exitCode : undefined;
 			const state = getTerminalCommandDecorationState(undefined, exitCode === undefined ? undefined : { exitCode });
 			decoration.classList.add(DecorationSelector.Codicon, ...state.classNames, ...ThemeIcon.asClassNameArray(state.icon));
-			label = output.status === 'unavailable'
-				? localize('backgroundShells.statusUnknown', "Status unknown")
-				: exitCode === undefined
-					? localize('backgroundShells.exited', "Exited")
-					: localize('backgroundShells.exitedWithCode', "Exited with code {0}", exitCode);
 		}
-		decoration.setAttribute('aria-label', label);
+		decoration.setAttribute('aria-label', getStatusLabel(output));
 	}
 
 	private _emptyText(output: ChatBackgroundShellOutput): string {

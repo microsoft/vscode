@@ -12,7 +12,10 @@ import type { IMarkdownString } from '../../../../../base/common/htmlContent.js'
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
+import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
@@ -169,6 +172,10 @@ suite('SessionBackgroundShellsControl', () => {
 				return { element, dispose: () => { } };
 			}
 		}());
+		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+			override getOpenAriaHint(): string | null { return null; }
+		}());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		const output = observableValue<ChatBackgroundShellOutput>('output', { status: 'loading' });
 		const shells = constObservable<readonly IChatBackgroundShell[]>([{
 			id: 'stream', description: 'Stream', command: 'stream.sh', startedAt: new Date(0).toISOString(), output,
