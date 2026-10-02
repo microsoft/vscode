@@ -430,9 +430,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	private getDefaultAssociationPattern(resource: URI, selectedEditor?: RegisteredEditor): string {
 		if (selectedEditor) {
-			return typeof selectedEditor.globPattern === 'string' && globMatchesResource(selectedEditor.globPattern, resource)
-				? selectedEditor.globPattern
-				: `*${extname(resource)}`;
+			// If the editor is language-constrained with a synthetic '*' glob, do NOT return '*' as
+			// the association pattern — that would let "Set Default for '*'" write a global wildcard
+			// association affecting every file. Instead, derive from the resource extension.
+			const isLanguageOnlySyntheticGlob = selectedEditor.options?.language && selectedEditor.globPattern === '*';
+			if (!isLanguageOnlySyntheticGlob && typeof selectedEditor.globPattern === 'string' && globMatchesResource(selectedEditor.globPattern, resource)) {
+				return selectedEditor.globPattern;
+			}
 		}
 
 		return `*${extname(resource)}`;
@@ -1116,8 +1120,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				if (configured) {
 					defaultEditorId = configured.viewType;
 				} else {
-					// Fallback to natural default for the language if any
-					const naturalLangEditor = this._registeredEditors.find(e => e.options?.language === langId && e.editorInfo.priority.editor === RegisteredEditorPriority.default);
+					// Fallback to natural default for the language: only accept language-wide
+					// registrations (no filenamePattern restriction) and the correct editor kind.
+					const isDiffKind = defaultAssociationType === EditorAssociationType.DiffEditor;
+					const naturalLangEditor = this._registeredEditors.find(e =>
+						e.options?.language === langId &&
+						(isDiffKind ? !!e.editorFactoryObject.createDiffEditorInput : true) &&
+						e.editorInfo.priority.editor === RegisteredEditorPriority.default &&
+						// Only language-wide registrations (synthetic '*' glob, no filename restriction)
+						(e.globPattern === '*' || e.globPattern === '')
+					);
 					if (naturalLangEditor) {
 						defaultEditorId = naturalLangEditor.editorInfo.id;
 					} else {
@@ -1354,20 +1366,31 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Store just the relative pattern pieces without any path info
 		for (const [globPattern, contribPoint] of this._flattenedEditors) {
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority.editor !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
-			if (!nonOptional) {
-				continue;
+			// Check if any non-optional, non-default registration has no language constraint.
+			// Language-only registrations use '*' as a synthetic glob — we must NOT cache that '*'
+			// since it would match every file on startup and block all file opens unnecessarily.
+			const hasNonOptionalGlobBoundRegistration = !!contribPoint.find(c =>
+				c.editorInfo.priority.editor !== RegisteredEditorPriority.option &&
+				c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id &&
+				!c.options?.language  // only non-language-constrained registrations should cache their glob
+			);
+
+			if (hasNonOptionalGlobBoundRegistration) {
+				if (glob.isRelativePattern(globPattern)) {
+					cacheStorage.add(`${globPattern.pattern}`);
+				} else {
+					cacheStorage.add(globPattern as string);
+				}
 			}
-			if (glob.isRelativePattern(globPattern)) {
-				cacheStorage.add(`${globPattern.pattern}`);
-			} else {
-				cacheStorage.add(globPattern);
-			}
-			
-			// Also store language patterns
+
+			// Always store language-constrained registrations as lang: entries.
+			// This is safe because resourceMatchesCache handles lang: entries by language matching.
 			for (const c of contribPoint) {
-				if (c.options?.language) {
+				if (
+					c.options?.language &&
+					c.editorInfo.priority.editor !== RegisteredEditorPriority.option &&
+					c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id
+				) {
 					cacheStorage.add(`lang:${c.options.language}`);
 				}
 			}

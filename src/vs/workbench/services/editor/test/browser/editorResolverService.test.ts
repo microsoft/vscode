@@ -1551,7 +1551,7 @@ suite('EditorResolverService', () => {
 	test('Language-targeted custom editor resolves for matching resource', async () => {
 		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorLanguage';
 		const [part, service, accessor] = await createEditorResolverService();
-		(accessor.languageService as any).registerLanguage({ id: 'test-lang', extensions: ['.test-lang'] });
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'test-lang', extensions: ['.test-lang'] }));
 
 		const registeredEditor = service.registerEditor('*',
 			{
@@ -1597,7 +1597,7 @@ suite('EditorResolverService', () => {
 	test('Selector with both filenamePattern and language matches with AND semantics', async () => {
 		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorAnd';
 		const [part, service, accessor] = await createEditorResolverService();
-		(accessor.languageService as any).registerLanguage({ id: 'test-json', extensions: ['.custom.json'] });
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'test-json', extensions: ['.custom.json'] }));
 
 		const registeredEditor = service.registerEditor('*.custom.json',
 			{
@@ -1647,7 +1647,7 @@ suite('EditorResolverService', () => {
 		const FILENAME_EDITOR_INPUT_ID = 'testFilenameEditor';
 		const LANGUAGE_EDITOR_INPUT_ID = 'testLanguageEditor';
 		const [part, service, accessor] = await createEditorResolverService();
-		(accessor.languageService as any).registerLanguage({ id: 'precedence-lang', extensions: ['.prec'] });
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'precedence-lang', extensions: ['.prec'] }));
 
 		const filenameEditor = service.registerEditor('*.prec',
 			{ id: 'FILENAME_EDITOR', label: 'Filename Editor', priority: RegisteredEditorPriority.option },
@@ -1685,7 +1685,7 @@ suite('EditorResolverService', () => {
 	test('Language default setting overrides natural priority', async () => {
 		const LANG_EDITOR_INPUT_ID = 'testLangAssociationEditor';
 		const [part, service, accessor] = await createEditorResolverService();
-		(accessor.languageService as any).registerLanguage({ id: 'lang-override', extensions: ['.override'] });
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'lang-override', extensions: ['.override'] }));
 
 		const langEditor = service.registerEditor('*',
 			{ id: 'OPTIONAL_LANG_EDITOR', label: 'Optional Lang Editor', priority: RegisteredEditorPriority.option },
@@ -1724,7 +1724,7 @@ suite('EditorResolverService', () => {
 		const GENERAL_DIFF_ID = 'generalDiffEditor';
 		const DIFF_SPECIFIC_ID = 'diffSpecificEditor';
 		const [part, service, accessor] = await createEditorResolverService();
-		(accessor.languageService as any).registerLanguage({ id: 'diff-lang', extensions: ['.diff-lang'] });
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'diff-lang', extensions: ['.diff-lang'] }));
 
 		const generalEditor = service.registerEditor('*',
 			{ id: 'GENERAL_EDITOR', label: 'General Editor', priority: RegisteredEditorPriority.option },

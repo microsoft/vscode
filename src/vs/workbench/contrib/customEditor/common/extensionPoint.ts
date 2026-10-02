@@ -144,7 +144,7 @@ class CustomEditorsDataRenderer extends Disposable implements IExtensionFeatureT
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const customEditors = manifest.contributes?.customEditors || [];
+		const customEditors = (manifest.contributes?.customEditors || []) as ICustomEditorsExtensionPoint[];
 		if (!customEditors.length) {
 			return { data: { headers: [], rows: [] }, dispose: () => { } };
 		}
