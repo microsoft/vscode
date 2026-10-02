@@ -1542,6 +1542,10 @@
 		max-height: var(--vscode-spacing-size160);
 	}
 
+	.session-chat-item .session-approval-row.visible {
+		margin-bottom: var(--vscode-spacing-size60);
+	}
+
 	.session-item .session-icon {
 		line-height: 20px;
 

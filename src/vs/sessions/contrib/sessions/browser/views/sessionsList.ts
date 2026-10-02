@@ -420,6 +420,8 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
 	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
+	/** Phone chat rows have no bottom padding, so approvals reserve matching rounding slack. */
+	private static readonly CHAT_APPROVAL_PHONE_BOTTOM_SLACK = 6;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -535,7 +537,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (!approval) {
 			return height;
 		}
-		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines);
+		return height
+			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {

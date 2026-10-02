@@ -6623,6 +6623,46 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
 		});
 
+		test('reserves approval rounding slack in phone chat rows', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvalModel = createApprovalModel(new Map([[peer.resource.toString(), terminalApproval(peer, 'npm run build')]]));
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			setSessionChatsExpanded(container, true);
+
+			const approvalRow = approvalRowFor(container, 'Task A');
+			const chatRow = approvalRow?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(approvalRow);
+			assert.ok(chatRow);
+			assert.deepStrictEqual({
+				height: chatRow.style.height,
+				approvalBottomMargin: mainWindow.getComputedStyle(approvalRow).marginBottom,
+			}, {
+				height: '100px',
+				approvalBottomMargin: '6px',
+			});
+		});
+
 		test('confirms the chat approval when its Allow button is clicked', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Task A', ChatOriginKind.User);
