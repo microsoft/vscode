@@ -86,7 +86,9 @@ function createStrategyTestContext(store: DisposableStore, harness: ITestLayoutH
 		chatLayoutActive: () => false,
 		chatLayoutSuspended: () => false,
 		ownerKeyFor: session => session.resource,
-		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore),
+		compositionKeyFor: session => session.resource,
+		sharedChatLayout: false,
+		compositionStore: harness.instaService.createInstance(DesktopOwnerCompositionStore, false),
 	};
 	return { ctx, state };
 }
@@ -114,7 +116,7 @@ suite('Desktop layout strategies', () => {
 	}
 
 	function createVisibilityStore(): DesktopVisibilityProfileStore {
-		return harness.instaService.createInstance(DesktopVisibilityProfileStore);
+		return harness.instaService.createInstance(DesktopVisibilityProfileStore, false);
 	}
 
 	test('untitled editors map to Files Details', () => {
@@ -184,7 +186,7 @@ suite('Desktop layout strategies', () => {
 		const strategy = store.add(harness.instaService.createInstance(
 			DesktopExistingSessionStrategy,
 			ctx,
-			harness.instaService.createInstance(DesktopVisibilityProfileStore),
+			harness.instaService.createInstance(DesktopVisibilityProfileStore, false),
 			createDetailPanel()
 		));
 		harness.setPartHiddenCalls.length = 0;
@@ -665,7 +667,7 @@ suite('Desktop layout strategies', () => {
 		const ctx = setup();
 		const session = makeSession(URI.parse('session:/existing'));
 		const editor = store.add(new TestStubEditorInput(URI.file('/repo/file.ts')));
-		const visibilityStore = harness.instaService.createInstance(DesktopVisibilityProfileStore);
+		const visibilityStore = harness.instaService.createInstance(DesktopVisibilityProfileStore, false);
 		harness.activeGroupEditors.push(editor);
 		store.add(harness.instaService.createInstance(
 			DesktopExistingSessionStrategy,
@@ -711,7 +713,7 @@ suite('Desktop layout strategies', () => {
 		store.add(harness.instaService.createInstance(
 			DesktopExistingSessionStrategy,
 			ctx,
-			harness.instaService.createInstance(DesktopVisibilityProfileStore),
+			harness.instaService.createInstance(DesktopVisibilityProfileStore, false),
 			createDetailPanel()
 		));
 		harness.activeSessionObs.set(session, undefined);

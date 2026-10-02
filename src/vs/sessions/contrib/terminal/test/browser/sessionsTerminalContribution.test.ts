@@ -461,7 +461,7 @@ suite('SessionsTerminalContribution', () => {
 			override isViewVisible(): boolean { return false; }
 			override onDidChangeViewVisibility = store.add(new Emitter<{ id: string; visible: boolean }>()).event;
 		});
-		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: false });
+		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'disabled' });
 		phone = observableValue('phone', false);
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
@@ -486,10 +486,10 @@ suite('SessionsTerminalContribution', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function enableChatOwnership(): void {
+	function enableChatOwnership(mode: 'per-chat' | 'shared' = 'per-chat'): void {
 		contribution.dispose();
 		layoutPresentation.dispose();
-		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true });
+		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: mode });
 		layoutPresentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = layoutPresentation;
@@ -503,28 +503,30 @@ suite('SessionsTerminalContribution', () => {
 		return peer;
 	}
 
-	test('chat ownership isolates same-session same-cwd A/B/A processes without focus or pane reveal', async () => {
-		enableChatOwnership();
-		const session = makeAgentSession({ repository: URI.file('/same') });
-		const peer = addPeer(session, 'peer');
-		activeSessionObs.set(session, undefined);
-		await tick();
-		const first = terminalInstances.get(1)!;
-		session.activeChat.set(peer, undefined);
-		await tick();
-		const second = terminalInstances.get(2)!;
-		addCommandToInstance(first, 10);
-		addCommandToInstance(second, 100);
-		session.activeChat.set(session.mainChat.get(), undefined);
-		await tick();
-		assert.deepStrictEqual({
-			identities: [...terminalInstances.keys()],
-			owners: [first, second].map(instance => instance.shellLaunchConfig.chatOwner?.chatResource),
-			active: activeInstanceId,
-			foreground: [...terminalInstances.keys()].filter(id => !backgroundedInstances.has(id)),
-			focused: focusCalls,
-		}, { identities: [1, 2], owners: [session.mainChat.get().resource.toString(), peer.resource.toString()], active: 1, foreground: [1], focused: 0 });
-	});
+	for (const mode of ['shared', 'per-chat'] as const) {
+		test(`${mode} chat ownership isolates same-session same-cwd A/B/A processes without focus or pane reveal`, async () => {
+			enableChatOwnership(mode);
+			const session = makeAgentSession({ repository: URI.file('/same') });
+			const peer = addPeer(session, 'peer');
+			activeSessionObs.set(session, undefined);
+			await tick();
+			const first = terminalInstances.get(1)!;
+			session.activeChat.set(peer, undefined);
+			await tick();
+			const second = terminalInstances.get(2)!;
+			addCommandToInstance(first, 10);
+			addCommandToInstance(second, 100);
+			session.activeChat.set(session.mainChat.get(), undefined);
+			await tick();
+			assert.deepStrictEqual({
+				identities: [...terminalInstances.keys()],
+				owners: [first, second].map(instance => instance.shellLaunchConfig.chatOwner?.chatResource),
+				active: activeInstanceId,
+				foreground: [...terminalInstances.keys()].filter(id => !backgroundedInstances.has(id)),
+				focused: focusCalls,
+			}, { identities: [1, 2], owners: [session.mainChat.get().resource.toString(), peer.resource.toString()], active: 1, foreground: [1], focused: 0 });
+		});
+	}
 
 	test('delayed creation retains its origin while a same-cwd peer takes focus', async () => {
 		enableChatOwnership();
@@ -571,7 +573,7 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	test('closing a chat retains processes and confirmed deletion affects only its owner', async () => {
-		enableChatOwnership();
+		enableChatOwnership('shared');
 		const session = makeAgentSession({ repository: URI.file('/same') });
 		const peer = addPeer(session, 'peer');
 		activeSessionObs.set(session, undefined);
@@ -744,7 +746,7 @@ suite('SessionsTerminalContribution', () => {
 	});
 
 	test('queued main and peer creation follows consecutive promotions without retagging peers as main', async () => {
-		enableChatOwnership();
+		enableChatOwnership('shared');
 		const barrier = new DeferredPromise<void>();
 		terminalCreationBarriers.set('/same', barrier);
 		const from = makeAgentSession({ repository: URI.file('/same'), sessionResource: URI.parse('opaque:/draft'), chatResource: URI.parse('opaque:/draft/main') });
@@ -801,7 +803,7 @@ suite('SessionsTerminalContribution', () => {
 		const peer = addPeer(session, 'peer');
 		activeSessionObs.set(session, undefined);
 		await tick();
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, true);
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'per-chat');
 		session.activeChat.set(peer, undefined);
 		await tick();
 		assert.deepStrictEqual({ ids: [...terminalInstances.keys()], enabled: layoutPresentation.enabled }, { ids: [1], enabled: false });

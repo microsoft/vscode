@@ -125,7 +125,7 @@ suite('WorkbenchSessionTaskRunner', () => {
 			}
 		});
 		phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: false }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'disabled' }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
@@ -150,8 +150,8 @@ suite('WorkbenchSessionTaskRunner', () => {
 		workspaceFoldersByUri.set(folder.toString(), { uri: folder, name: 'folder', index: 0, toResource: () => folder } as IWorkspaceFolder);
 	}
 
-	function enableChatOwnership(): void {
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true }), true, phone));
+	function enableChatOwnership(mode: 'per-chat' | 'shared' = 'per-chat'): void {
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: mode }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
@@ -160,21 +160,23 @@ suite('WorkbenchSessionTaskRunner', () => {
 		tasksByLabel.set('build', new InMemoryTask('build', { kind: 'inMemory', label: 'test' }, 'build', 'composite', RunOptions.defaults, {}));
 	}
 
-	test('same-cwd sibling workbench tasks carry distinct immutable scopes through task cloning', async () => {
-		enableChatOwnership();
-		const session = makeSession({ repository: repoUri, worktree: worktreeUri });
-		const peer = { ...session.mainChat.get(), resource: URI.parse('opaque:/peer'), workspace: session.workspace };
-		store.add((await runner.runTask(makeTask('build'), session))!);
-		store.add((await runner.runTask(makeTask('build'), session, peer))!);
-		store.add((await runner.runTask(makeTask('build'), session))!);
-		const cloned = executedTasks.map(task => task.clone());
-		assert.deepStrictEqual({
-			owners: cloned.map(task => task.terminalScope?.owner.chatResource),
-			sameOwnerReusesKey: cloned[0].getMapKey() === cloned[2].getMapKey(),
-			peerHasDistinctKey: cloned[0].getMapKey() !== cloned[1].getMapKey(),
-			catalogUnmodified: tasksByLabel.get('build')!.terminalScope,
-		}, { owners: [session.mainChat.get().resource.toString(), peer.resource.toString(), session.mainChat.get().resource.toString()], sameOwnerReusesKey: true, peerHasDistinctKey: true, catalogUnmodified: undefined });
-	});
+	for (const mode of ['shared', 'per-chat'] as const) {
+		test(`${mode} same-cwd sibling workbench tasks carry distinct immutable scopes through task cloning`, async () => {
+			enableChatOwnership(mode);
+			const session = makeSession({ repository: repoUri, worktree: worktreeUri });
+			const peer = { ...session.mainChat.get(), resource: URI.parse('opaque:/peer'), workspace: session.workspace };
+			store.add((await runner.runTask(makeTask('build'), session))!);
+			store.add((await runner.runTask(makeTask('build'), session, peer))!);
+			store.add((await runner.runTask(makeTask('build'), session))!);
+			const cloned = executedTasks.map(task => task.clone());
+			assert.deepStrictEqual({
+				owners: cloned.map(task => task.terminalScope?.owner.chatResource),
+				sameOwnerReusesKey: cloned[0].getMapKey() === cloned[2].getMapKey(),
+				peerHasDistinctKey: cloned[0].getMapKey() !== cloned[1].getMapKey(),
+				catalogUnmodified: tasksByLabel.get('build')!.terminalScope,
+			}, { owners: [session.mainChat.get().resource.toString(), peer.resource.toString(), session.mainChat.get().resource.toString()], sameOwnerReusesKey: true, peerHasDistinctKey: true, catalogUnmodified: undefined });
+		});
+	}
 
 	test('exact confirmed chat deletion cancels workbench task lookup without removing catalog entries', async () => {
 		enableChatOwnership();

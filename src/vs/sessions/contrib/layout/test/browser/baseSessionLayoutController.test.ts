@@ -131,7 +131,7 @@ suite('BaseLayoutController', () => {
 	});
 
 	test('[R13] a phone transition leaves per-chat panel visibility untouched, then resumes the focused chat\'s own preference', () => {
-		createController({ chatLayoutEnabled: true, desktopLayout: true });
+		createController({ chatLayoutMode: 'per-chat', desktopLayout: true });
 		const session = makeSession(URI.parse('session:1'));
 		const main = session.mainChat.get();
 		const peer = addPeerChat(session, URI.parse('chat:peer'));
@@ -371,7 +371,7 @@ suite('BaseLayoutController', () => {
 
 	test('[R5] same-session A/B/A keeps each chat\'s own editor working set and panel view distinct', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		createWorkbenchPanelController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders });
+		createWorkbenchPanelController({ useModal: 'some', chatLayoutMode: 'per-chat', desktopLayout: true, workspaceFolders });
 		harness.partVisibility.set(Parts.PANEL_PART, true);
 
 		const session = makeSession(URI.parse('session:a'));
@@ -652,7 +652,7 @@ suite('BaseLayoutController', () => {
 	test('[R4] a superseded working-set apply does not publish stale reveal/hide once the chat-layout owner has moved on', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
-		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders, layoutState });
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutMode: 'per-chat', desktopLayout: true, workspaceFolders, layoutState });
 
 		const sessionC = makeSession(URI.parse('session:c'));
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -689,7 +689,7 @@ suite('BaseLayoutController', () => {
 	test('[R13] a working-set apply superseded by a phone transition does not publish stale reveal/hide', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
-		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders, layoutState });
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutMode: 'per-chat', desktopLayout: true, workspaceFolders, layoutState });
 
 		const sessionC = makeSession(URI.parse('session:c'));
 		const sessionA = makeSession(URI.parse('session:a'));
@@ -724,7 +724,7 @@ suite('BaseLayoutController', () => {
 
 	test('[R13] entering and leaving a phone layout freezes the working-set derive, resuming with whichever chat is focused on exit', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
-		createController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders });
+		createController({ useModal: 'some', chatLayoutMode: 'per-chat', desktopLayout: true, workspaceFolders });
 
 		const session = makeSession(URI.parse('session:a'));
 		const main = session.mainChat.get();
@@ -741,8 +741,8 @@ suite('BaseLayoutController', () => {
 		await timeout(0);
 		harness.visibleEditorsList = [{}, {}];
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
-		assert.strictEqual(harness.saveWorkingSetCalls.length, 2, 'the peer chat\'s working set must be captured under its own owner key');
-		const peerWorkingSetName = harness.saveWorkingSetCalls[1];
+		assert.deepStrictEqual(harness.saveWorkingSetCalls.slice(0, 2), [mainWorkingSetName, mainWorkingSetName]);
+		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
 		assert.notStrictEqual(peerWorkingSetName, mainWorkingSetName, 'each chat must capture its working set under a distinct owner key');
 
 		harness.applyWorkingSetCalls = [];

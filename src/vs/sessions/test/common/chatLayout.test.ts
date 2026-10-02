@@ -28,30 +28,46 @@ suite('Chat layout contract', () => {
 		});
 	}
 
-	test('configuration is frozen until reconstruction and defaults to disabled', async () => {
+	test('string mode is frozen until reconstruction and defaults to disabled', async () => {
 		const configuration = new TestConfigurationService();
 		const phone = observableValue('phone', false);
 		const initial = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, true);
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'per-chat');
 		const enabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, false);
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'shared');
+		const shared = store.add(new ChatLayoutPresentation(configuration, true, phone));
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'disabled');
 		const disabled = store.add(new ChatLayoutPresentation(configuration, true, phone));
-		assert.deepStrictEqual([initial.state.get().active, enabled.state.get().active, disabled.state.get().active], [false, true, false]);
+		assert.deepStrictEqual([initial, enabled, shared, disabled].map(presentation => ({
+			mode: presentation.state.get().mode, active: presentation.state.get().active, frozen: Object.isFrozen(presentation.state.get()),
+		})), [
+			{ mode: 'disabled', active: false, frozen: true },
+			{ mode: 'per-chat', active: true, frozen: true },
+			{ mode: 'shared', active: true, frozen: true },
+			{ mode: 'disabled', active: false, frozen: true },
+		]);
+	});
+
+	test('booleans and invalid enum values never enable ownership', () => {
+		assert.deepStrictEqual([true, false, 'enabled', null].map(value => {
+			const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: value }), true, constObservable(false)));
+			return { mode: presentation.state.get().mode, enabled: presentation.enabled };
+		}), Array.from({ length: 4 }, () => ({ mode: 'disabled', enabled: false })));
 	});
 
 	test('phone startup remains legacy even after returning to desktop', () => {
-		const configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true });
+		const configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' });
 		const phone = observableValue('phone', true);
 		const presentation = store.add(new ChatLayoutPresentation(configuration, false, phone));
 		phone.set(false, undefined);
 		assert.deepStrictEqual({ configured: presentation.configured, enabled: presentation.enabled, active: presentation.state.get().active }, {
-			configured: true, enabled: false, active: false,
+			configured: 'per-chat', enabled: false, active: false,
 		});
 	});
 
 	test('runtime suspension invalidates queued work and resumes the focused owner without changing captured ownership', () => {
 		const phone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true }), true, phone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' }), true, phone));
 		const main = chat('opaque-main:/one');
 		const peer = chat('different-peer:/two');
 		const activeChat = observableValue('activeChat', main);
@@ -78,7 +94,7 @@ suite('Chat layout contract', () => {
 
 	test('same-session, cross-session, and A/B/A focus changes invalidate snapshots; no session has no owner', () => {
 		const localPhone = observableValue('phone', false);
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true }), true, localPhone));
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'per-chat' }), true, localPhone));
 		const main = chat('chat:/main');
 		const peer = chat('chat:/peer');
 		const activeChat = observableValue('activeChat', main);

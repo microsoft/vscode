@@ -248,6 +248,14 @@ export abstract class BaseLayoutController extends Disposable {
 		return this._chatLayoutEnabled && !this._chatLayoutActive(reader);
 	}
 
+	protected _panelVisibilityKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		return this._ownerKeyFor(session, reader);
+	}
+
+	protected _defaultPanelVisibility(_key: URI): boolean {
+		return false;
+	}
+
 	constructor(
 
 		@IAgentWorkbenchLayoutService protected readonly _layoutService: IAgentWorkbenchLayoutService,
@@ -279,6 +287,22 @@ export abstract class BaseLayoutController extends Disposable {
 
 		// [B4] Persist on shutdown.
 		this._register(this._storageService.onWillSaveState(() => this._saveState()));
+		if (this._chatLayoutContext) {
+			this._register(runOnChange(this._chatLayoutContext.state, (current, previous) => {
+				const session = this._sessionsService.activeSession.get();
+				if (previous.presentation.active && current.presentation.active
+					&& previous.owner && current.owner && session
+					&& isEqual(previous.owner.sessionResource, current.owner.sessionResource)
+					&& !isEqual(previous.owner.chatResource, current.owner.chatResource)
+					&& session.status.read(undefined) !== SessionStatus.Untitled
+					&& !this._isRestoringSessionLayout) {
+					const key = this._ownerKeyForChat(previous.owner.sessionResource, previous.owner.chatResource, session.mainChat.get().resource);
+					if (key) {
+						this._saveWorkingSet(key);
+					}
+				}
+			}));
+		}
 
 		// All session-switch logic is observable-driven.
 		this.activeSessionResourceObs = derivedOpts<URI | undefined>({
@@ -330,7 +354,7 @@ export abstract class BaseLayoutController extends Disposable {
 			if (activeSession && this._chatLayoutSuspended(reader)) {
 				return;
 			}
-			this._syncPanelVisibility(activeSession ? this._ownerKeyFor(activeSession, reader) : undefined);
+			this._syncPanelVisibility(activeSession ? this._panelVisibilityKeyFor(activeSession, reader) : undefined);
 		}));
 
 		// [B1] Track panel visibility changes by the user
@@ -342,7 +366,7 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
-			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
+			const ownerKey = activeSession && this._panelVisibilityKeyFor(activeSession);
 			if (ownerKey) {
 				this._panelVisibilityBySession.set(ownerKey, e.visible);
 			}
@@ -1031,7 +1055,7 @@ export abstract class BaseLayoutController extends Disposable {
 
 		const wasVisible = this._panelVisibilityBySession.get(sessionResource);
 		// Default to hidden if we have no record for this session
-		this._layoutService.setPartHidden(wasVisible !== true, Parts.PANEL_PART);
+		this._layoutService.setPartHidden(!(wasVisible ?? this._defaultPanelVisibility(sessionResource)), Parts.PANEL_PART);
 	}
 
 	// --- Panel view [B6] ---

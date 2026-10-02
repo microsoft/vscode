@@ -27,7 +27,7 @@ suite('DesktopOwnerCompositionStore', () => {
 	}
 
 	function createCompositionStore(storageService: IStorageService = store.add(new TestStorageService()), logService = new RecordingLogService()): DesktopOwnerCompositionStore {
-		return new DesktopOwnerCompositionStore(storageService, logService);
+		return new DesktopOwnerCompositionStore(false, storageService, logService);
 	}
 
 	test('remembers and reloads a composition by owner key', () => {

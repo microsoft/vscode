@@ -213,7 +213,7 @@ suite('AgentHostSessionTaskRunner', () => {
 			}
 		});
 
-		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: false });
+		configuration = new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: 'disabled' });
 		phone = observableValue('phone', false);
 		const presentation = store.add(new ChatLayoutPresentation(configuration, true, phone));
 		onDidDeleteChat = store.add(new Emitter<IChatDeletedEvent>());
@@ -240,32 +240,34 @@ suite('AgentHostSessionTaskRunner', () => {
 		return { label: 'build', type: 'shell', command: 'echo', args: ['hi'] };
 	}
 
-	function enableChatOwnership(): void {
-		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: true }), true, phone));
+	function enableChatOwnership(mode: 'per-chat' | 'shared' = 'per-chat'): void {
+		const presentation = store.add(new ChatLayoutPresentation(new TestConfigurationService({ [CHAT_SPECIFIC_LAYOUT_SETTING]: mode }), true, phone));
 		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly chatLayoutPresentation = presentation;
 		});
 		runner = instantiationService.createInstance(AgentHostSessionTaskRunner);
 	}
 
-	test('same-cwd sibling tasks use distinct terminals and reuse only within their origin owner', async () => {
-		enableChatOwnership();
-		commandExecuting = false;
-		const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
-		const main = session.mainChat.get();
-		const peer = { ...main, resource: URI.parse('opaque:/peer'), workspace: session.workspace };
-		const owner = { ...session, chats: constObservable([main, peer]) };
-		store.add((await runner.runTask(shellTask(), owner))!);
-		store.add((await runner.runTask(shellTask(), owner, peer))!);
-		backgroundedTerminals.push(createdTerminals[0].instance);
-		store.add((await runner.runTask(shellTask(), owner))!);
-		assert.deepStrictEqual({
-			terminalIds: createdTerminals.map(entry => entry.instance.instanceId),
-			owners: createdTerminals.map(entry => entry.options?.chatOwner?.chatResource),
-			commands: sentText.filter(entry => entry.shouldExecute).length,
-			panelReveals: showPanelCallCount,
-		}, { terminalIds: [1, 2], owners: [main.resource.toString(), peer.resource.toString()], commands: 3, panelReveals: 0 });
-	});
+	for (const mode of ['shared', 'per-chat'] as const) {
+		test(`${mode} same-cwd sibling tasks use distinct terminals and reuse only within their origin owner`, async () => {
+			enableChatOwnership(mode);
+			commandExecuting = false;
+			const session = makeSession({ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, cwd: URI.file('/x') });
+			const main = session.mainChat.get();
+			const peer = { ...main, resource: URI.parse('opaque:/peer'), workspace: session.workspace };
+			const owner = { ...session, chats: constObservable([main, peer]) };
+			store.add((await runner.runTask(shellTask(), owner))!);
+			store.add((await runner.runTask(shellTask(), owner, peer))!);
+			backgroundedTerminals.push(createdTerminals[0].instance);
+			store.add((await runner.runTask(shellTask(), owner))!);
+			assert.deepStrictEqual({
+				terminalIds: createdTerminals.map(entry => entry.instance.instanceId),
+				owners: createdTerminals.map(entry => entry.options?.chatOwner?.chatResource),
+				commands: sentText.filter(entry => entry.shouldExecute).length,
+				panelReveals: showPanelCallCount,
+			}, { terminalIds: [1, 2], owners: [main.resource.toString(), peer.resource.toString()], commands: 3, panelReveals: 0 });
+		});
+	}
 
 	test('task resolution retains the explicit peer origin through focus changes', async () => {
 		enableChatOwnership();

@@ -31,7 +31,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { CHAT_SPECIFIC_LAYOUT_SETTING, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
+import { CHAT_SPECIFIC_LAYOUT_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionChangesService, SessionChangesService } from '../../../changes/browser/sessionChangesService.js';
@@ -194,7 +194,7 @@ export interface ICreateOptions {
 	readonly activateAux?: boolean;
 	/** When true, the layout service reports desktop layout (drives base desktop branches). */
 	readonly desktopLayout?: boolean;
-	readonly chatLayoutEnabled?: boolean;
+	readonly chatLayoutMode?: ChatLayoutMode;
 }
 
 /**
@@ -313,7 +313,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('workbench.editor.useModal', options.useModal ?? 'all');
-	configService.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, options.chatLayoutEnabled ?? false);
+	configService.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, options.chatLayoutMode ?? 'disabled');
 	instaService.stub(IConfigurationService, configService);
 	const contextKeyService = store.add(new MockContextKeyService());
 	instaService.stub(IContextKeyService, contextKeyService);
@@ -810,7 +810,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	});
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-		override get onDidChangeWorkspaceFolders() { return harness.onDidChangeWorkspaceFolders.event; }
+		override get onDidChangeWorkspaceFolders() { return Event.map(harness.onDidChangeWorkspaceFolders.event, () => ({ added: [], removed: [], changed: [] })); }
 		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
 	});
 

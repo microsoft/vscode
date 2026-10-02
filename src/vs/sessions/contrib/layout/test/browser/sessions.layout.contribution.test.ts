@@ -22,10 +22,10 @@ suite('Sessions chat layout configuration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	teardown(() => sinon.restore());
 
-	test('registers a false-default experimental window setting', () => {
+	test('registers a disabled-default experimental window enum with descriptions', () => {
 		const property = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()[CHAT_SPECIFIC_LAYOUT_SETTING];
-		assert.deepStrictEqual({ type: property.type, default: property.default, scope: property.scope, tags: property.tags }, {
-			type: 'boolean', default: false, scope: ConfigurationScope.WINDOW, tags: ['experimental'],
+		assert.deepStrictEqual({ type: property.type, default: property.default, scope: property.scope, tags: property.tags, enum: property.enum, descriptions: property.enumDescriptions?.length }, {
+			type: 'string', default: 'disabled', scope: ConfigurationScope.WINDOW, tags: ['experimental'], enum: ['disabled', 'shared', 'per-chat'], descriptions: 3,
 		});
 	});
 
@@ -40,11 +40,11 @@ suite('Sessions chat layout configuration', () => {
 			agentWorkbenchLayout: AgentWorkbenchLayout.Desktop, chatLayoutPresentation: presentation,
 		})));
 		const change = upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === CHAT_SPECIFIC_LAYOUT_SETTING });
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, true);
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'per-chat');
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		const activeAfterEnable = presentation.state.get().active;
 		const reloadedPresentation = store.add(new ChatLayoutPresentation(configuration, true, constObservable(false)));
-		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, false);
+		await configuration.setUserConfiguration(CHAT_SPECIFIC_LAYOUT_SETTING, 'disabled');
 		configuration.onDidChangeConfigurationEmitter.fire(change);
 		assert.deepStrictEqual({
 			configurationListeners: configurationListener.callCount,

@@ -12,6 +12,7 @@ import { IActiveSession } from '../services/sessions/common/sessionsManagement.j
 import { ISession } from '../services/sessions/common/session.js';
 
 export const CHAT_SPECIFIC_LAYOUT_SETTING = 'sessions.experimental.chatSpecificLayout';
+export type ChatLayoutMode = 'disabled' | 'shared' | 'per-chat';
 
 export interface IChatLayoutOwner {
 	readonly sessionResource: URI;
@@ -35,25 +36,29 @@ export function getChatLayoutOwnerAfterReplacement(owner: IChatLayoutOwner, repl
 }
 
 export interface IChatLayoutPresentationSnapshot {
+	readonly mode: ChatLayoutMode;
 	readonly active: boolean;
 	readonly generation: number;
 }
 
 export class ChatLayoutPresentation extends Disposable {
-	readonly configured: boolean;
+	readonly configured: ChatLayoutMode;
 	readonly enabled: boolean;
-	private readonly _state = observableValue<IChatLayoutPresentationSnapshot>(this, Object.freeze({ active: false, generation: 0 }));
-	readonly state: IObservable<IChatLayoutPresentationSnapshot> = this._state;
+	private readonly _state: ISettableObservable<IChatLayoutPresentationSnapshot>;
+	readonly state: IObservable<IChatLayoutPresentationSnapshot>;
 
 	constructor(configurationService: IConfigurationService, startupDesktop: boolean, isPhoneLayout: IObservable<boolean>) {
 		super();
-		this.configured = configurationService.getValue<boolean>(CHAT_SPECIFIC_LAYOUT_SETTING) === true;
-		this.enabled = startupDesktop && this.configured;
+		const configured = configurationService.getValue<string>(CHAT_SPECIFIC_LAYOUT_SETTING);
+		this.configured = configured === 'shared' || configured === 'per-chat' ? configured : 'disabled';
+		this.enabled = startupDesktop && this.configured !== 'disabled';
+		this._state = observableValue<IChatLayoutPresentationSnapshot>(this, Object.freeze({ mode: this.configured, active: false, generation: 0 }));
+		this.state = this._state;
 		this._register(autorun(reader => {
 			const active = this.enabled && !isPhoneLayout.read(reader);
 			const previous = this._state.read(undefined);
 			if (active !== previous.active) {
-				this._state.set(Object.freeze({ active, generation: previous.generation + 1 }), undefined);
+				this._state.set(Object.freeze({ mode: this.configured, active, generation: previous.generation + 1 }), undefined);
 			}
 		}));
 	}

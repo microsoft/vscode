@@ -30,7 +30,9 @@ export interface IDesktopLayoutContext {
 	completeChangesEditorTransition(): void;
 	chatLayoutActive(reader?: IReader): boolean;
 	chatLayoutSuspended(reader?: IReader): boolean;
+	readonly sharedChatLayout: boolean;
 	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
 	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 

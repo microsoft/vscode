@@ -40,11 +40,17 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	title: localize('sessionsConfigurationTitle', "Sessions"),
 	properties: {
 		[CHAT_SPECIFIC_LAYOUT_SETTING]: {
-			type: 'boolean',
-			default: false,
+			type: 'string',
+			enum: ['disabled', 'shared', 'per-chat'],
+			enumDescriptions: [
+				localize('chatSpecificLayout.disabled', "Use the existing session layout and terminal behavior."),
+				localize('chatSpecificLayout.shared', "Keep editors, selected panel views, and terminals separate for each chat, with shared Editor, Details, and bottom-panel visibility across existing workspace chats."),
+				localize('chatSpecificLayout.perChat', "Keep editors, Editor and Details composition, bottom-panel visibility, selected panel views, and terminals separate for each chat."),
+			],
+			default: 'disabled',
 			scope: ConfigurationScope.WINDOW,
 			tags: ['experimental'],
-			description: localize('chatSpecificLayout.description', "Keep editor layout, panel state, and terminals separate for each chat in non-phone Agents windows. Requires a window reload."),
+			description: localize('chatSpecificLayout.description', "Choose chat layout ownership in non-phone Agents windows. Pane sizes remain shared. Changes take effect after manually reloading the window."),
 		},
 	},
 });

@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../base/common/event.js';
+import { IReader } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
 import { ISidePaneState } from '../../../browser/workbench.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
@@ -25,6 +28,8 @@ export { TOGGLE_DETAILS_COMMAND_ID } from './desktop/desktopExistingSessionStrat
 /** Storage key for per-session desktop layout state. */
 const DESKTOP_LAYOUT_STATE_KEY = 'sessions.singlePane.layoutState';
 const DESKTOP_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.chatLayoutState';
+const DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY = 'sessions.singlePane.sharedChatLayoutState';
+const SHARED_EXISTING_VISIBILITY_KEY = URI.from({ scheme: 'vscode-chat-layout-visibility', path: '/existing' });
 
 type ChangesEditorTransitionPhase = 'idle' | 'awaitingWorkingSet' | 'restoringWorkingSet' | 'reconciling';
 
@@ -58,7 +63,34 @@ export class DesktopLayoutController extends BaseLayoutController {
 	private readonly _changesEditorTransitionContextKey = DesktopChangesEditorTransitionContext.bindTo(this._contextKeyService);
 
 	protected override get _layoutStateStorageKey(): string {
+		if (this._sharedChatLayout) {
+			return DESKTOP_SHARED_CHAT_LAYOUT_STATE_KEY;
+		}
 		return this._chatLayoutEnabled ? DESKTOP_CHAT_LAYOUT_STATE_KEY : DESKTOP_LAYOUT_STATE_KEY;
+	}
+
+	private get _sharedChatLayout(): boolean {
+		return this._chatLayoutEnabled && this._layoutService.chatLayoutPresentation.configured === 'shared';
+	}
+
+	private _compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		const ownerKey = this._ownerKeyFor(session, reader);
+		return ownerKey && this._sharedChatLayout && session.isCreated.read(reader)
+			&& !session.isQuickChat?.read(reader) && session.activeChat.read(reader).workspace.read(reader)
+			? SHARED_EXISTING_VISIBILITY_KEY : ownerKey;
+	}
+
+	protected override _panelVisibilityKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
+		return this._compositionKeyFor(session, reader);
+	}
+
+	protected override _defaultPanelVisibility(key: URI): boolean {
+		if (!isEqual(key, SHARED_EXISTING_VISIBILITY_KEY)) {
+			return false;
+		}
+		const visible = this._layoutService.isVisible(Parts.PANEL_PART);
+		this._panelVisibilityBySession.set(key, visible);
+		return visible;
 	}
 
 	protected override get _isLayoutStateVersioned(): boolean {
@@ -96,7 +128,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 				},
 				chatLayoutActive: reader => that._chatLayoutActive(reader),
 				chatLayoutSuspended: reader => that._chatLayoutSuspended(reader),
+				get sharedChatLayout() { return that._sharedChatLayout; },
 				ownerKeyFor: (session, reader) => that._ownerKeyFor(session, reader),
+				compositionKeyFor: (session, reader) => that._compositionKeyFor(session, reader),
 				get compositionStore() { return that._compositionStore!; },
 			};
 		}
@@ -107,8 +141,8 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _registerViewStateManagement(): void {
 		this._register(toDisposable(() => this._changesEditorTransitionContextKey.reset()));
-		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore);
-		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore);
+		this._compositionStore = this._instantiationService.createInstance(DesktopOwnerCompositionStore, this._sharedChatLayout);
+		const visibilityStore = this._instantiationService.createInstance(DesktopVisibilityProfileStore, this._sharedChatLayout);
 		const detailPanel = this._register(this._instantiationService.createInstance(DesktopDetailPanelCoordinator));
 
 		this._existingSession = this._register(this._instantiationService.createInstance(DesktopExistingSessionStrategy, this._ctx, visibilityStore, detailPanel));

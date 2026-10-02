@@ -40,12 +40,18 @@ export class DesktopOwnerCompositionStore {
 	private readonly _preHideByOwner = new ResourceMap<ISidePaneState>();
 
 	constructor(
+		shared: boolean,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._load(DESKTOP_OWNER_COMPOSITION_STATE_KEY, this._byOwner);
-		this._load(DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY, this._preHideByOwner);
+		this._compositionStorageKey = shared ? 'sessions.sharedChatLayout.sidePaneComposition' : DESKTOP_OWNER_COMPOSITION_STATE_KEY;
+		this._preHideStorageKey = shared ? 'sessions.sharedChatLayout.sidePanePreHideComposition' : DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY;
+		this._load(this._compositionStorageKey, this._byOwner);
+		this._load(this._preHideStorageKey, this._preHideByOwner);
 	}
+
+	private readonly _compositionStorageKey: string;
+	private readonly _preHideStorageKey: string;
 
 	get(ownerKey: URI): ISidePaneState | undefined {
 		return this._byOwner.get(ownerKey);
@@ -53,7 +59,7 @@ export class DesktopOwnerCompositionStore {
 
 	set(ownerKey: URI, state: ISidePaneState): void {
 		this._byOwner.set(ownerKey, state);
-		this._save(DESKTOP_OWNER_COMPOSITION_STATE_KEY, this._byOwner);
+		this._save(this._compositionStorageKey, this._byOwner);
 	}
 
 	getPreHide(ownerKey: URI): ISidePaneState | undefined {
@@ -62,7 +68,7 @@ export class DesktopOwnerCompositionStore {
 
 	setPreHide(ownerKey: URI, state: ISidePaneState): void {
 		this._preHideByOwner.set(ownerKey, state);
-		this._save(DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY, this._preHideByOwner);
+		this._save(this._preHideStorageKey, this._preHideByOwner);
 	}
 
 	forget(keys: readonly URI[]): void {
@@ -71,7 +77,7 @@ export class DesktopOwnerCompositionStore {
 			changed = this._byOwner.delete(key) || changed;
 		}
 		if (changed) {
-			this._save(DESKTOP_OWNER_COMPOSITION_STATE_KEY, this._byOwner);
+			this._save(this._compositionStorageKey, this._byOwner);
 		}
 
 		let preHideChanged = false;
@@ -79,7 +85,7 @@ export class DesktopOwnerCompositionStore {
 			preHideChanged = this._preHideByOwner.delete(key) || preHideChanged;
 		}
 		if (preHideChanged) {
-			this._save(DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY, this._preHideByOwner);
+			this._save(this._preHideStorageKey, this._preHideByOwner);
 		}
 	}
 
@@ -91,14 +97,14 @@ export class DesktopOwnerCompositionStore {
 		if (state) {
 			this._byOwner.set(newKey, state);
 			this._byOwner.delete(oldKey);
-			this._save(DESKTOP_OWNER_COMPOSITION_STATE_KEY, this._byOwner);
+			this._save(this._compositionStorageKey, this._byOwner);
 		}
 
 		const preHideState = this._preHideByOwner.get(oldKey);
 		if (preHideState) {
 			this._preHideByOwner.set(newKey, preHideState);
 			this._preHideByOwner.delete(oldKey);
-			this._save(DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY, this._preHideByOwner);
+			this._save(this._preHideStorageKey, this._preHideByOwner);
 		}
 	}
 
