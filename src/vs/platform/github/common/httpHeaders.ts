@@ -5,7 +5,7 @@
 
 /** Reads numeric header feedback, optionally requiring a decimal nonnegative safe integer. */
 export function parseHeaderNumber(value: string | null, nonNegativeInteger = false): number | undefined {
-	if (value === null || (nonNegativeInteger && !/^\d+$/.test(value.trim()))) {
+	if (value === null || !value.trim() || (nonNegativeInteger && !/^\d+$/.test(value.trim()))) {
 		return undefined;
 	}
 	const parsed = Number(value);
