@@ -42,6 +42,9 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		capturedPanelView(ownerKey: URI): string | undefined {
 			return this._panelViewBySession.get(ownerKey);
 		}
+		capturedWorkingSet(ownerKey: URI) {
+			return this._workingSets.get(ownerKey);
+		}
 		preHideComposition(ownerKey: URI) {
 			return super.preHideComposition(ownerKey);
 		}
@@ -674,6 +677,80 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		assert.strictEqual(controller.composition(peerKey), undefined, 'a confirmed chat deletion clears its owner composition');
 		assert.notStrictEqual(controller.composition(mainKey), undefined, 'the main chat\'s composition is unaffected by a peer deletion');
+	});
+
+	test('[R8] a confirmed peer-chat deletion also forgets its captured editor working set and panel visibility/view', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		setActiveChat(session, peer);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/peer-handle.txt')))];
+		await settle();
+		const peerKey = controller.ownerKeyFor(session);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		assert.notStrictEqual(controller.capturedWorkingSet(peerKey), undefined, 'the peer chat\'s editor working set must be captured before deletion');
+		assert.strictEqual(controller.capturedPanelVisibility(peerKey), true, 'the peer chat\'s panel visibility must be captured before deletion');
+		assert.strictEqual(controller.capturedPanelView(peerKey), 'view.peer', 'the peer chat\'s panel view must be captured before deletion');
+
+		setActiveChat(session, session.mainChat.get());
+		await settle();
+
+		const event: IChatDeletedEvent = { session, sessionResource: session.resource, chatResource: peer.resource };
+		harness.onDidDeleteChat.fire(event);
+		await settle();
+
+		assert.strictEqual(controller.capturedWorkingSet(peerKey), undefined, 'a confirmed chat deletion must forget the deleted chat\'s own editor working set, not only its composition');
+		assert.strictEqual(controller.capturedPanelVisibility(peerKey), undefined, 'a confirmed chat deletion must forget the deleted chat\'s own panel visibility');
+		assert.strictEqual(controller.capturedPanelView(peerKey), undefined, 'a confirmed chat deletion must forget the deleted chat\'s own panel view');
+	});
+
+	test('[R8] a draft promotion carries a peer chat\'s editor working set and panel visibility/view to its new owner key', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Completed });
+		const draftPeer = addPeerChat(draft, URI.parse('chat:draftPeer'));
+		harness.activeSessionObs.set(draft, undefined);
+		await settle();
+
+		setActiveChat(draft, draftPeer);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.draftPeer'), viewContainerLocation: ViewContainerLocation.Panel });
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/draft-peer-handle.txt')))];
+		await settle();
+		const oldKey = controller.ownerKeyFor(draft);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const oldWorkingSet = controller.capturedWorkingSet(oldKey);
+		assert.notStrictEqual(oldWorkingSet, undefined, 'the draft peer chat\'s editor working set must be captured before promotion');
+
+		const committed = makeSession(URI.parse('session:committed'));
+		const committedPeer = addPeerChat(committed, draftPeer.resource);
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		harness.activeSessionObs.set(committed, undefined);
+		await settle();
+		setActiveChat(committed, committedPeer);
+		await settle();
+
+		const newKey = controller.ownerKeyFor(committed);
+		assert.deepStrictEqual(controller.capturedWorkingSet(newKey), oldWorkingSet, 'the promoted peer chat keeps its pre-commit editor working set under its new owner key');
+		assert.strictEqual(controller.capturedPanelVisibility(newKey), true, 'the promoted peer chat keeps its pre-commit panel visibility under its new owner key');
+		assert.strictEqual(controller.capturedPanelView(newKey), 'view.draftPeer', 'the promoted peer chat keeps its pre-commit panel view under its new owner key');
+		assert.strictEqual(controller.capturedWorkingSet(oldKey), undefined, 'the stale draft owner key\'s editor working set is forgotten');
+		assert.strictEqual(controller.capturedPanelVisibility(oldKey), undefined, 'the stale draft owner key\'s panel visibility is forgotten');
+		assert.strictEqual(controller.capturedPanelView(oldKey), undefined, 'the stale draft owner key\'s panel view is forgotten');
 	});
 
 	test('[R8] a confirmed peer-chat deletion also forgets its normal-toggle last-open composition cache', async () => {

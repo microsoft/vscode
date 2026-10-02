@@ -1518,7 +1518,7 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual(
 			harness.openPaneCompositeCalls,
 			[{ id: 'view.a', location: ViewContainerLocation.Panel }],
-			'the persisted panel view must be restored once the (runtime-only, not itself persisted) panel visibility is shown'
+			'the persisted panel view must be restored once the panel becomes visible, even though this legacy-migrated entry carries no persisted panelVisible of its own'
 		);
 	});
 

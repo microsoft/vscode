@@ -12,7 +12,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { autorun, derived, derivedObservableWithCache, derivedOpts, IReader, observableFromEvent, runOnChange } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
@@ -124,6 +124,7 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _editorPartHiddenBySession = new ResourceMap<boolean>();
 	private readonly _workingSetSequencer = new Sequencer();
 	private readonly _chatLayoutOwnerKeys = new ChatLayoutOwnerKeyRegistry();
+	private readonly _replacedSessionResources = new ResourceSet();
 	protected readonly _chatLayoutContext: ChatLayoutContext | undefined;
 
 	protected readonly activeSessionResourceObs;
@@ -448,7 +449,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
-				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout) {
+				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !this._replacedSessionResources.has(previousSession.resource)) {
 					const ownerKey = this._ownerKeyFor(previousSession);
 					if (ownerKey) {
 						this._saveWorkingSet(ownerKey);
@@ -623,6 +624,7 @@ export abstract class BaseLayoutController extends Disposable {
 		// inherits the draft's on-screen layout.
 		const activeSession = this._sessionsService.activeSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
+		this._replacedSessionResources.add(from.resource);
 
 		// [B2] Carry the draft's editor-part visibility over so the delayed
 		// working-set apply restores it as-left (instead of the created-session
