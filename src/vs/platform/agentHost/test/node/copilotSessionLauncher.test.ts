@@ -301,7 +301,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				assert.deepStrictEqual({
 					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 					stored: fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled,
-				}, { applied: [true], stored: 'default' });
+				}, { applied: [true], stored: 'on' });
 			});
 		}
 	}
@@ -336,7 +336,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
 			data: { action: 'bypass_permissions_blocked', setting: 'sandbox.enabled', failClosed: false, message: 'Sandbox required' },
 		});
-		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'default');
+		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'on');
 	});
 });
 
