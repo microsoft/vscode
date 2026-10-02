@@ -21,6 +21,9 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
  * session is real, addressable, and unknown to the host all at once.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
+	override get environment() {
+		return { id: 'cloud', label: localize('environment.cloud', "Cloud") };
+	}
 
 	readonly supportsWorkspaceSelection = false;
 

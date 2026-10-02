@@ -100,6 +100,7 @@ export interface ICloudSandboxCreatedSession {
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
+	readonly eventType?: string;
 	/** Mission Control environment id the session's sandbox is bound to. */
 	readonly environmentId: string;
 	/**

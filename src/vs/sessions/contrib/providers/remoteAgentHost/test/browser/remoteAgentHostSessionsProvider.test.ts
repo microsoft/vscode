@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -2725,6 +2726,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
+	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession({
+			...createSession('from-cli', { _meta: withSessionInitiator(undefined, { name: 'github/cli' }) }),
+			provider: 'claude',
+		});
+		const provider = createProvider(disposables, connection, { storageService, connectionName: 'Before' });
+		await timeout(0);
+		await storageService.flush();
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true, connectionName: 'After' });
+		const session = restored.getSessions()[0];
+		assert.deepStrictEqual({
+			harness: session.harness,
+			application: session.application.get(),
+			environment: session.environment,
+			stableId: restored.environment.id,
+			renamed: restored.environment.label !== provider.environment.label,
+			connected: restored.environment.isConnected?.get(),
+		}, {
+			harness: 'claude',
+			application: { id: 'github/cli', label: 'Copilot CLI' },
+			environment: provider.environment.id,
+			stableId: provider.environment.id,
+			renamed: true,
+			connected: false,
+		});
+	}));
+
 	test('authoritative session update persists materialized workspace metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const provider = createProvider(disposables, connection, { storageService });
@@ -3637,6 +3666,47 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			actions: [{ channel: backendResource.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Renamed task' } }],
 		});
 	});
+
+	for (const discoveredFirst of [true, false]) {
+		test(`preserves the discovery application through host hydration and reload (discovery first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createSandboxProvider(storageService);
+			const discoveryMeta = withSessionInitiator(undefined, { name: 'slack' });
+			if (discoveredFirst) {
+				seed(provider, { _meta: discoveryMeta });
+			}
+			connection.addSession({
+				...metadata,
+				session: backendResource,
+				_meta: withSessionInitiator(undefined, { name: 'vscode-agents-window' }),
+			});
+			provider.setConnection(connection);
+			await timeout(0);
+			if (!discoveredFirst) {
+				seed(provider, { _meta: discoveryMeta });
+			}
+			const applications = [provider.getSessions()[0].application.get()];
+			provider.clearConnection();
+			await storageService.flush();
+			provider.dispose();
+
+			const restored = createSandboxProvider(storageService);
+			applications.push(restored.getSessions()[0].application.get());
+			restored.setConnection(connection);
+			await timeout(0);
+			seed(restored);
+			applications.push(restored.getSessions()[0].application.get());
+			seed(restored, { _meta: withSessionInitiator(undefined, { name: 'teams' }) });
+			applications.push(restored.getSessions()[0].application.get());
+
+			assert.deepStrictEqual(applications, [
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'teams', label: 'Teams' },
+			]);
+		}));
+	}
 
 	test('discovery refreshes a provisional session without publishing or replacing it', () => {
 		const provider = createSandboxProvider();

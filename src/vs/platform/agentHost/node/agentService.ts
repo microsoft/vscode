@@ -50,6 +50,7 @@ import { readChatSurfaceMeta, withChatSurfaceMeta } from '../common/meta/agentCh
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { IRemoteSessionOrigin, parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../common/meta/agentRemoteSessionMeta.js';
+import { getLegacySessionInitiator, parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentConfigurationService, getEffectiveWorkingDirectories } from './agentConfigurationService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from '../common/sessionDbUri.js';
@@ -1631,6 +1632,18 @@ export class AgentService extends Disposable implements IAgentService {
 		return artifacts;
 	}
 
+	private _readPersistedSessionInitiator(value: string | undefined, session: string) {
+		if (value === undefined) {
+			return undefined;
+		}
+		try {
+			return parseSessionInitiator(value);
+		} catch (error) {
+			this._logService.warn(`[AgentService] Failed to read session initiator for ${session}`, error);
+			return undefined;
+		}
+	}
+
 	private _readPersistedRemoteSessionOrigin(value: string | undefined, session: string): IRemoteSessionOrigin | undefined {
 		if (value === undefined) {
 			return undefined;
@@ -2035,6 +2048,7 @@ export class AgentService extends Disposable implements IAgentService {
 					? { customTitle: true, configValues: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS, ...changesetKeys }
 					: { customTitle: true, [defaultChatTitleKey]: true, [AH_META_IS_READ_DB_KEY]: true, [AH_META_IS_ARCHIVED_DB_KEY]: true, [AH_META_IS_DONE_DB_KEY]: true, [AH_META_CREATED_BY_SESSION_DB_KEY]: true, [AH_META_WORKSPACELESS_DB_KEY]: true, [AH_META_EHCLI_ADOPTED_DB_KEY]: true, [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true, [SESSION_META_MULTI_ROOT_KEY]: true, [SESSION_META_FOLDER_PICKER_KEY]: true, [SESSION_ARTIFACTS_KEY]: true, [CHAT_BACKING_METADATA_KEY]: true, [WORKTREE_META_REPOSITORY_ROOT]: true, ...GIT_DB_METADATA_KEYS };
 				metadataKeys[REMOTE_SESSION_ORIGIN_METADATA_KEY] = true;
+				metadataKeys[SESSION_INITIATOR_METADATA_KEY] = true;
 				const persisted = await ref.object.getMetadataObject(metadataKeys);
 				if (persisted[CHAT_BACKING_METADATA_KEY]) {
 					return undefined;
@@ -2059,6 +2073,10 @@ export class AgentService extends Disposable implements IAgentService {
 				const remoteOrigin = this._readPersistedRemoteSessionOrigin(persisted[REMOTE_SESSION_ORIGIN_METADATA_KEY], session);
 				if (remoteOrigin) {
 					updated = { ...updated, _meta: withRemoteSessionOrigin(updated._meta, remoteOrigin) };
+				}
+				const initiator = this._readPersistedSessionInitiator(persisted[SESSION_INITIATOR_METADATA_KEY], session);
+				if (initiator) {
+					updated = { ...updated, _meta: withSessionInitiator(updated._meta, initiator) };
 				}
 				if (persisted[META_GIT_STATE]) {
 					try {
@@ -3203,7 +3221,10 @@ export class AgentService extends Disposable implements IAgentService {
 			project: metadata.project ? { uri: metadata.project.uri.toString(), displayName: metadata.project.displayName } : undefined,
 			workingDirectories: metadata.workingDirectories?.map(directory => directory.toString()) ?? [],
 			changes: await this._migrateLegacyChangesetAggregate(metadata.session, metadata, database),
-			meta: withSessionExternal(withSessionMultiRootMetadata(meta, undefined), external),
+			meta: withSessionInitiator(
+				withSessionExternal(withSessionMultiRootMetadata(meta, undefined), external),
+				readSessionInitiator({ _meta: meta }) ?? getLegacySessionInitiator(provider.id, external),
+			),
 			chats: [
 				{
 					uri: buildDefaultChatUri(metadata.session),
@@ -3802,6 +3823,7 @@ export class AgentService extends Disposable implements IAgentService {
 				: summary._meta;
 			additions.push({
 				session: URI.parse(summary.resource),
+				provider: summary.provider,
 				startTime: Date.parse(summary.createdAt),
 				modifiedTime: Date.parse(summary.modifiedAt),
 				summary: summary.title,
@@ -4510,9 +4532,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const creationReference = readSessionCreationReference(config?._meta);
 		const devContainerWorktree = readAgentDevContainerWorktreeMetadata(config?._meta);
 		const remoteOrigin = readRemoteSessionOrigin(config);
-		if ((creationReference || devContainerWorktree || remoteOrigin) && !isEphemeral) {
+		const initiator = readSessionInitiator(config)
+			?? (creationReference ? readSessionInitiator(this._stateManager.getSessionSummary(creationReference.session)) : undefined)
+			?? getLegacySessionInitiator(provider.id, false);
+		config = { ...config, _meta: withSessionInitiator(config?._meta, initiator) };
+		if (!isEphemeral) {
 			try {
-				const metadata: Record<string, string> = {};
+				const metadata: Record<string, string> = { [SESSION_INITIATOR_METADATA_KEY]: JSON.stringify(initiator) };
 				if (creationReference) {
 					metadata[AH_META_CREATED_BY_SESSION_DB_KEY] = JSON.stringify(creationReference);
 				}
@@ -5598,6 +5624,10 @@ export class AgentService extends Disposable implements IAgentService {
 		_meta = withEphemeralSessionMeta(_meta, config ? readEphemeralSessionMeta(config).isEphemeral : undefined);
 		_meta = withChatSurfaceMeta(_meta, readChatSurfaceMeta(config ?? {}));
 		_meta = withSessionExternal(_meta, false);
+		const initiator = readSessionInitiator(config);
+		if (initiator) {
+			_meta = withSessionInitiator(_meta, initiator);
+		}
 		const creationReference = readSessionCreationReference(config?._meta);
 		_meta = creationReference ? withSessionCreationReference(_meta, creationReference) : _meta;
 		const devContainerWorktree = readAgentDevContainerWorktreeMetadata(config?._meta);
@@ -8169,6 +8199,7 @@ export class AgentService extends Disposable implements IAgentService {
 							[AH_META_EHCLI_LAST_TURN_DB_KEY]: true,
 							[AH_META_CREATED_BY_SESSION_DB_KEY]: true,
 							[REMOTE_SESSION_ORIGIN_METADATA_KEY]: true,
+							[SESSION_INITIATOR_METADATA_KEY]: true,
 							[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: true,
 							[SESSION_META_MULTI_ROOT_KEY]: true,
 							[SESSION_ARTIFACTS_KEY]: true,
@@ -8252,6 +8283,10 @@ export class AgentService extends Disposable implements IAgentService {
 						const remoteOrigin = this._readPersistedRemoteSessionOrigin(m[REMOTE_SESSION_ORIGIN_METADATA_KEY], sessionStr);
 						if (remoteOrigin) {
 							sessionMetadata = withRemoteSessionOrigin(sessionMetadata, remoteOrigin);
+						}
+						const initiator = this._readPersistedSessionInitiator(m[SESSION_INITIATOR_METADATA_KEY], sessionStr);
+						if (initiator) {
+							sessionMetadata = withSessionInitiator(sessionMetadata, initiator);
 						}
 						if (m[AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]) {
 							try {

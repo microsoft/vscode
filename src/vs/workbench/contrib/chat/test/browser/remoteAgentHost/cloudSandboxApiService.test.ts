@@ -45,6 +45,7 @@ function task(id: string, name: string, repositoryId: number | undefined, sessio
 }
 
 type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
+	readonly event_type?: string;
 	readonly current_environment?: { readonly id: string; readonly kind: string };
 	readonly updated_at?: string;
 	readonly archived_at?: string;
@@ -335,6 +336,15 @@ suite('CloudSandboxApiService connection credentials', () => {
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves the creating application from cloud task discovery', async () => {
+		const { service } = createService(store, {
+			tasks: [{ ...task('task-1', 'From Slack', undefined, 'session-1', 'environment-1'), event_type: 'slack' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.eventType), ['slack']);
+	});
 
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];

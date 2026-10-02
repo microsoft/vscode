@@ -9,6 +9,7 @@ import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.j
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -2540,6 +2541,22 @@ suite('ProtocolServerHandler', () => {
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
 		});
+	});
+
+	test('createSession captures the initiating Editor or Agents Window client', async () => {
+		const actual = [];
+		for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+			const transport = connectClient(clientInfo.name, undefined, clientInfo);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: `copilot:///${clientInfo.name}`,
+				_meta: withSessionInitiator({ preserved: true }, { name: 'request-supplied-client' }),
+			}));
+			await response;
+			const config = agentService.createSessionConfigs.at(-1);
+			actual.push({ initiator: readSessionInitiator(config), preserved: config?._meta?.preserved });
+		}
+		assert.deepStrictEqual(actual, [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo].map(initiator => ({ initiator, preserved: true })));
 	});
 
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {

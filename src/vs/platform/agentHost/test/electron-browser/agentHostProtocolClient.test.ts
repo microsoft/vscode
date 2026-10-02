@@ -837,10 +837,10 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 
-		assert.deepStrictEqual((await resultPromise).map(session => session.model), [
-			{ id: '@provider=openai:gpt-5.6-sol' },
-			undefined,
-			undefined,
+		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
+			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
+			{ provider: 'codex', model: undefined },
+			{ provider: 'codex', model: undefined },
 		]);
 	});
 

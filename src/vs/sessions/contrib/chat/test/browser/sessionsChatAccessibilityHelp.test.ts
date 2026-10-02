@@ -169,7 +169,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 	});
 
 	test('describes External section keyboard actions only when the section is enabled', () => {
-		const snapshots = [true, false].map(enabled => {
+		const snapshots = [undefined, false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const configuration = new TestConfigurationService({ [SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING]: enabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
@@ -182,7 +182,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			const sectionHelp = content.split('\n').find(line => line.includes('External section above Archived'));
 			return {
-				filter: content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
+				filter: content.includes('Created Externally submenu') && content.includes('None, Recent, Last 24 Hours, Last 7 Days, or Last 30 Days'),
+				defaults: content.includes('Last 7 Days is the default') && content.includes('Show in External Section') && content.includes('This option is off by default'),
 				importAction: content.includes('use Import in its row toolbar, before Archive or Mark as Done'),
 				section: sectionHelp !== undefined,
 				keyboard: sectionHelp?.includes('<keybinding:editor.action.showContextMenu>') ?? false,
@@ -190,8 +191,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 
 		assert.deepStrictEqual(snapshots, [
-			{ filter: true, importAction: true, section: true, keyboard: true },
-			{ filter: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: false, keyboard: false },
+			{ filter: true, defaults: true, importAction: true, section: true, keyboard: true },
 		]);
 	});
 

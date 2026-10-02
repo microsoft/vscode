@@ -43,6 +43,9 @@ import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
 import { readAgentMessageDelegationMeta } from '../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin, type IRemoteSessionOrigin } from '../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
+import { getLegacySessionInitiator, readSessionInitiator, withSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
+import type { Implementation } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 import { readSessionSandboxPolicy, type ISessionSandboxPolicy } from '../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { readSessionSandboxState } from '../../../../../platform/agentHost/common/meta/agentSandboxStateMeta.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -78,7 +81,7 @@ import { buildMutableConfigSchema, IAgentHostMcpServer, IAgentHostSessionsProvid
 import { agentHostSessionWorkspaceKey, buildAgentHostChatWorkspace, type IFolderGitHubInfoResolver } from '../../../../common/agentHostSessionWorkspace.js';
 import { USE_WORKTREE_SETTING, isSessionConfigComplete } from '../../../../common/sessionConfig.js';
 import { linkKey } from '../../../../common/sessionLinks.js';
-import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionArtifact, ISessionCanvas, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionCanvasAvailability, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, ChatModelSource, ChatOriginKind, DEFAULT_CHAT_CAPABILITIES, effectiveChatInteractivity, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionOwnedGitHubPullRequestRefs, IChat, IChatCapabilities, IGitHubInfo, IGitHubIssueRef, IGitHubPullRequestRef, isActiveSessionStatus, ISession, ISessionAgentRef, ISessionApplication, ISessionEnvironment, ISessionArtifact, ISessionCanvas, ISessionCapabilities, ISessionChangesSummary, ISessionChatCustomization, ISessionChangeset, ISessionCreationReference, ISessionFileChange, ISessionPreparationProgress, ISessionTurnFileChange, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, sessionFileChangesEqual, sessionWorkspaceEqual, SessionCanvasAvailability, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus, SessionTypeAuthRequirement, toSessionId } from '../../../../services/sessions/common/session.js';
 import { dedupeLinks, partitionSessionArtifacts, type IRecordedGitHubReference } from './agentHostSessionArtifacts.js';
 import { getWorktreeDiskUsage } from './worktreeDiskUsage.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -219,6 +222,7 @@ interface IAgentHostSessionDiscoveryMetadata {
 	readonly modifiedTime?: number;
 	/** `null` is a discovery-owned absent project; `undefined` leaves the project to the host. */
 	readonly project?: IAgentSessionMetadata['project'] | null;
+	readonly initiator?: Implementation;
 }
 
 /**
@@ -228,6 +232,8 @@ interface IAgentHostSessionDiscoveryMetadata {
  */
 interface ISerializedSessionMetadata {
 	readonly session: string;
+	readonly provider?: string;
+	readonly initiator?: Implementation;
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
@@ -273,6 +279,7 @@ interface ISerializedSessionMetadata {
 		readonly summary?: string;
 		readonly modifiedTime?: number;
 		readonly project?: ISerializedSessionMetadata['project'] | null;
+		readonly initiator?: Implementation;
 	};
 }
 
@@ -289,6 +296,8 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 	const workingDirectoryScopeIds = readWorkingDirectoryScopeIds(meta._meta);
 	return {
 		session: meta.session.toString(),
+		provider: meta.provider,
+		initiator: readSessionInitiator(meta),
 		startTime: meta.startTime,
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
@@ -318,6 +327,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 			summary: discovery.summary,
 			modifiedTime: discovery.modifiedTime,
 			project: discovery.project ? { uri: discovery.project.uri.toString(), displayName: discovery.project.displayName } : discovery.project,
+			initiator: discovery.initiator,
 		} : undefined,
 	};
 }
@@ -328,6 +338,7 @@ function deserializeDiscoveryMetadata(raw: ISerializedSessionMetadata['discovery
 			summary: raw.summary,
 			modifiedTime: raw.modifiedTime,
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : raw.project,
+			initiator: readSessionInitiator({ _meta: { [SESSION_INITIATOR_METADATA_KEY]: raw.initiator } }),
 		} : undefined;
 	} catch (error) {
 		logService.warn('[AgentHostSessionsProvider] Reading cached discovery metadata failed.', error);
@@ -342,6 +353,10 @@ function sessionProjectsEqual(a: IAgentSessionMetadata['project'] | null, b: IAg
 function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMetadata | undefined {
 	try {
 		let _meta = withSessionWorkspaceless(undefined, raw.workspaceless === true);
+		const initiator = readSessionInitiator({ _meta: { [SESSION_INITIATOR_METADATA_KEY]: raw.initiator } });
+		if (initiator) {
+			_meta = withSessionInitiator(_meta, initiator);
+		}
 		_meta = withSessionExternal(_meta, raw.external === true);
 		_meta = withSessionMultiRootMetadata(_meta, readSessionMultiRootMetadata({ [SESSION_META_MULTI_ROOT_KEY]: raw.multiRoot }));
 		_meta = withSessionGitHubData(_meta, parseSessionGitHubData(raw.githubData));
@@ -375,6 +390,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 		}
 		return {
 			session: URI.parse(raw.session),
+			provider: raw.provider,
 			startTime: raw.startTime,
 			modifiedTime: raw.modifiedTime,
 			summary: raw.summary,
@@ -775,6 +791,7 @@ function sessionKind(isQuickChat: boolean): IAgentHostSessionKind {
  */
 export interface IAgentHostAdapterOptions {
 	readonly icon: ThemeIcon;
+	readonly environment: string;
 	/** Loading observable wired to the provider's authentication-pending state. */
 	readonly loading: IObservable<boolean>;
 	/** Builds the session workspace from session metadata; provider-specific (icon, providerLabel, requiresWorkspaceTrust). */
@@ -1203,6 +1220,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	readonly resource: URI;
 	readonly providerId: string;
 	readonly sessionType: string;
+	readonly harness: string;
+	readonly environment: string;
+	readonly application: IObservable<ISessionApplication>;
+	private readonly _legacyInitiator: Implementation;
 	readonly icon: ThemeIcon;
 	readonly createdAt: Date;
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
@@ -1335,7 +1356,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	private _agentBaseDir: URI | undefined;
 	private _meta: SessionMeta | undefined;
 	/** The latest session metadata used to build startup-cache presentation state. */
-	get sessionMeta(): SessionMeta | undefined { return this._meta; }
+	get sessionMeta(): SessionMeta {
+		return withSessionInitiator(this._meta, readSessionInitiator({ _meta: this._meta }) ?? this._legacyInitiator);
+	}
 	/** Settable so authoritative session metadata can change the session kind in place. */
 	private readonly _isQuickChat: ISettableObservable<boolean>;
 	/** Session-kind strategy (quick chat vs. workspace), derived from {@link _isQuickChat}. */
@@ -1414,6 +1437,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this.sessionId = toSessionId(providerId, this.resource);
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
+		const harness = metadata.provider ?? agentProvider;
+		this.harness = harness === 'copilotcli' ? 'copilot' : harness;
+		this.environment = _options.environment;
 		this._isQuickChat = observableValue('isQuickChat', readSessionWorkspaceless(metadata._meta));
 		this.icon = _options.icon;
 		this.createdAt = new Date(metadata.startTime);
@@ -1433,6 +1459,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		this._metaObs = observableValue<SessionMeta | undefined>('agentHostSessionMeta', this._meta);
 		this.isExternal = _options.externalSessionState?.(this.resource, this._store)
 			?? derived(this, reader => readSessionExternal(this._metaObs.read(reader)));
+		this._legacyInitiator = getLegacySessionInitiator(this.harness, this.isExternal.get());
+		this.application = derivedOpts<ISessionApplication>({ owner: this, equalsFn: structuralEquals }, reader => {
+			const initiator = readSessionInitiator({ _meta: this._metaObs.read(reader) }) ?? this._legacyInitiator;
+			return getSessionApplication(initiator.name, initiator.title);
+		});
 		const connectionStatus = _options.connectionStatus;
 		this.remoteConnectionStatus = toSessionRemoteConnectionStatus(this, connectionStatus);
 		this.createdBySession = derived(this, reader => {
@@ -2231,6 +2262,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	 * yet.
 	 */
 	setMeta(meta: SessionMeta | undefined, tx?: ITransaction): boolean {
+		// Discovery knows the creating application even when the host reports a fallback.
+		const initiator = this.discoveryMetadata?.initiator ?? readSessionInitiator({ _meta: meta }) ?? readSessionInitiator({ _meta: this._meta });
+		if (initiator) {
+			meta = withSessionInitiator(meta, initiator);
+		}
 		const metaChanged = !equals(this._meta, meta);
 		this._meta = meta;
 		let didChange = metaChanged;
@@ -2333,12 +2369,13 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	get project(): IAgentSessionMetadata['project'] { return this._project; }
 
 	/** Refresh discovery-owned fields without overwriting fields changed by the host. */
-	updateDiscoveryMetadata(metadata: Pick<IAgentSessionMetadata, 'summary' | 'modifiedTime' | 'project'>): boolean {
-		const previous = this.discoveryMetadata ?? {
+	updateDiscoveryMetadata(metadata: Pick<IAgentSessionMetadata, 'summary' | 'modifiedTime' | 'project' | '_meta'>): boolean {
+		const previous: IAgentHostSessionDiscoveryMetadata = this.discoveryMetadata ?? {
 			summary: metadata.summary,
 			modifiedTime: metadata.modifiedTime,
 			project: this._project ? metadata.project ?? null : null,
 		};
+		const initiator = readSessionInitiator(metadata) ?? previous.initiator;
 		let summary: string | undefined;
 		let modifiedTime: number | undefined;
 		let project: IAgentHostSessionDiscoveryMetadata['project'];
@@ -2365,8 +2402,12 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			didChange ||= !this.discoveryMetadata
 				|| previous.summary !== summary
 				|| previous.modifiedTime !== modifiedTime
-				|| !sessionProjectsEqual(previous.project, project);
-			this.discoveryMetadata = { summary, modifiedTime, project };
+				|| !sessionProjectsEqual(previous.project, project)
+				|| !equals(previous.initiator, initiator);
+			this.discoveryMetadata = { summary, modifiedTime, project, initiator };
+			if (initiator) {
+				didChange = this.setMeta(this._meta, tx) || didChange;
+			}
 		});
 		return didChange;
 	}
@@ -2892,6 +2933,9 @@ class NewSession extends Disposable {
 			resource,
 			providerId: ctx.providerId,
 			sessionType: ctx.sessionType.id,
+			harness: ctx.sessionType.id === 'copilotcli' ? 'copilot' : ctx.sessionType.id,
+			environment: _options.environment,
+			application: constObservable(getSessionApplication('vscode')),
 			icon: ctx.icon,
 			createdAt,
 			workspace: this._workspace,
@@ -3481,6 +3525,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	abstract readonly id: string;
 	abstract readonly label: string;
+	abstract readonly environment: ISessionEnvironment;
 	abstract readonly icon: ThemeIcon;
 	abstract readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 	readonly usesCombinedNewSessionConfigPicker = true;
@@ -3896,6 +3941,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		const options = {
 			icon: this.iconForAgentProvider(provider) ?? this.icon,
+			environment: this.environment.id,
 			loading: this.authenticationPending,
 			mapDiffUri: this._diffUriMapper(),
 			mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
@@ -4488,6 +4534,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				activeClientScope,
 			}, {
 				icon: this.iconForAgentProvider(sessionType.id) ?? this.icon,
+				environment: this.environment.id,
 				loading: this.authenticationPending,
 				mapDiffUri: this._diffUriMapper(),
 				mapWorkingDirectoryUri: uri => this.mapWorkingDirectoryUri(uri),
@@ -7595,6 +7642,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const workingDirs = summary.workingDirectories?.map(d => this.mapWorkingDirectoryUri(URI.parse(d)));
 		const rawMeta: IAgentSessionMetadata = {
 			session: URI.parse(summary.resource),
+			provider: summary.provider,
 			startTime: Date.parse(summary.createdAt),
 			modifiedTime: Date.parse(summary.modifiedAt),
 			summary: summary.title,
