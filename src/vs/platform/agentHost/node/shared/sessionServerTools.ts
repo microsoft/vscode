@@ -7,13 +7,14 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { findAgentSessionMessage, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
+import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
 import { SessionStatus } from '../../common/state/protocol/channels-session/state.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
-import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, getInlineToolInput, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, MessageKind, parseChatUri, PendingMessageKind, readSessionGitState, readSessionGitHubState, getAllSessionRelatedPullRequestUrls, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, TurnState, withSessionCreationReference, type Message, type ModelSelection, type PendingMessage, type ResponsePart, type ToolCallState, type ToolDefinition, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../common/openSessionLink.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -149,13 +150,20 @@ const deleteSessionInputSchema: ToolDefinition['inputSchema'] = {
 	required: ['session'],
 };
 
+const sendMessageOperationValues = ['send', 'replace', 'cancel'] as const;
+const sendMessageDeliveryValues = ['queue', 'steer'] as const;
+
 const sendMessageInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
 	properties: {
+		operation: { type: 'string', enum: [...sendMessageOperationValues], description: '`send` (default) creates a message, `replace` updates one of your pending queued messages, and `cancel` removes one of your pending queued messages.' },
 		session: { type: 'string', description: 'The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat.' },
-		message: { type: 'string', description: 'The message to send.' },
+		message: { type: 'string', description: 'The complete message text. Required for `send` and `replace`; omit for `cancel`.' },
+		delivery: { type: 'string', enum: [...sendMessageDeliveryValues], description: 'For `send`, use `steer` to update an active turn or `queue` for a separate turn. Defaults to `queue`.' },
+		messageId: { type: 'string', description: 'For `replace` or `cancel`, the ID returned when this chat sent the message.' },
+		expectedRevision: { type: 'number', description: 'For `replace` or `cancel`, the revision returned with a pending queued message. The operation fails if the message changed or started processing.' },
 	},
-	required: ['session', 'message'],
+	required: ['session'],
 };
 
 const sessionContextDetailValues = ['summary', 'digest', 'full'] as const;
@@ -219,7 +227,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SendMessage,
 		title: 'Send Message',
-		description: 'Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.',
+		description: 'Send, replace, or cancel your message in an existing session or chat. Use `delivery: "steer"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: "queue"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.',
 		inputSchema: sendMessageInputSchema,
 		annotations: { readOnlyHint: false },
 		deferLoading: true,
@@ -227,7 +235,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.GetSessionContext,
 		title: 'Get Session Context',
-		description: 'Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
+		description: 'Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: "summary"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.',
 		inputSchema: getSessionContextInputSchema,
 		annotations: { readOnlyHint: true },
 		deferLoading: true,
@@ -350,6 +358,7 @@ export interface IChatContextSnapshot {
 	readonly turns: readonly Turn[];
 	/** The in-progress turn, if the chat is mid-response. */
 	readonly activeTurn?: Pick<Turn, 'message' | 'responseParts'>;
+	readonly pendingMessages?: readonly { readonly kind: PendingMessageKind; readonly pending: PendingMessage }[];
 	/** `true` when older completed turns exist beyond the in-memory window. */
 	readonly hasMoreHistory: boolean;
 }
@@ -1223,19 +1232,34 @@ export async function applyRenameChatTool(accessor: ISessionServerToolAccessor, 
 }
 
 interface ISendMessageArgs {
+	readonly operation?: unknown;
 	readonly session?: unknown;
 	readonly message?: unknown;
+	readonly delivery?: unknown;
+	readonly messageId?: unknown;
+	readonly expectedRevision?: unknown;
 }
 
-export interface IResolvedSendMessageArgs {
-	/** The owning backend session URI of the target chat. */
+interface IResolvedSendMessageBase {
 	readonly session: URI;
-	/** The chat channel to deliver the message on (default chat, or a specific chat when the link carried one). */
 	readonly chat: URI;
-	/** The chat id when a specific chat was targeted (from a `create_chat` link). */
 	readonly chatId?: string;
-	readonly message: string;
 }
+
+export type IResolvedSendMessageArgs = IResolvedSendMessageBase & ({
+	readonly operation: 'send';
+	readonly message: string;
+	readonly delivery: 'queue' | 'steer';
+} | {
+	readonly operation: 'replace';
+	readonly messageId: string;
+	readonly expectedRevision: number;
+	readonly message: string;
+} | {
+	readonly operation: 'cancel';
+	readonly messageId: string;
+	readonly expectedRevision: number;
+});
 
 /**
  * Validates and resolves send-message arguments. When the `session` input is a
@@ -1244,7 +1268,6 @@ export interface IResolvedSendMessageArgs {
  */
 export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[]): IResolvedSendMessageArgs {
 	const args = (rawArgs ?? {}) as ISendMessageArgs;
-	const message = getRequiredString(args.message, 'message', SessionServerToolName.SendMessage);
 	const sessionInput = getRequiredString(args.session, 'session', SessionServerToolName.SendMessage);
 	const session = resolveKnownSession(sessionInput, sessions);
 	if (!session) {
@@ -1252,50 +1275,189 @@ export function getSendMessageArgs(rawArgs: unknown, sessions: readonly IAgentSe
 	}
 	const chatId = parseOpenSessionLinkChatId(sessionInput);
 	const chat = URI.parse(chatId ? buildChatUri(session.toString(), chatId) : buildDefaultChatUri(session.toString()));
-	return { session, chat, message, ...(chatId !== undefined ? { chatId } : {}) };
+	const target = { session, chat, ...(chatId !== undefined ? { chatId } : {}) };
+	const operation = getOptionalString(args.operation, 'operation', SessionServerToolName.SendMessage) ?? 'send';
+	if (!(sendMessageOperationValues as readonly string[]).includes(operation)) {
+		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: operation must be one of ${sendMessageOperationValues.join(', ')}.`);
+	}
+	if (operation === 'send') {
+		const delivery = getOptionalString(args.delivery, 'delivery', SessionServerToolName.SendMessage) ?? 'queue';
+		if (!(sendMessageDeliveryValues as readonly string[]).includes(delivery)) {
+			throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: delivery must be one of ${sendMessageDeliveryValues.join(', ')}.`);
+		}
+		return {
+			...target,
+			operation,
+			message: getRequiredString(args.message, 'message', SessionServerToolName.SendMessage),
+			delivery: delivery as 'queue' | 'steer',
+		};
+	}
+	const messageId = getRequiredString(args.messageId, 'messageId', SessionServerToolName.SendMessage);
+	const expectedRevision = getRequiredPositiveInteger(args.expectedRevision, 'expectedRevision', SessionServerToolName.SendMessage);
+	if (operation === 'replace') {
+		return {
+			...target,
+			operation,
+			messageId,
+			expectedRevision,
+			message: getRequiredString(args.message, 'message', SessionServerToolName.SendMessage),
+		};
+	}
+	return { ...target, operation: 'cancel', messageId, expectedRevision };
 }
 
-/**
- * Sends a message to an existing session/chat, starting a new turn there or
- * queuing it behind the target chat's active or pending messages.
- * Refuses to target {@link currentChannel} (the chat channel the tool runs on)
- * to avoid a session trivially messaging itself in a loop.
- */
 export async function applySendMessageTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI, sourceTurnId?: string, stateManager?: AgentHostStateManager): Promise<string> {
 	const sessions = await accessor.listSessions();
-	const { session, chat, chatId, message } = getSendMessageArgs(rawArgs, sessions);
+	const args = getSendMessageArgs(rawArgs, sessions);
+	const { session, chat, chatId } = args;
 	if (currentChannel && chat.toString() === URI.parse(currentChannel).toString()) {
 		throw new Error(`Invalid ${SessionServerToolName.SendMessage} input: refusing to send a message to the current chat.`);
 	}
 	const sourceChat = currentChannel ? URI.parse(currentChannel) : undefined;
 	const sourceSession = sourceChat ? currentSessionUri(sourceChat.toString()) : undefined;
+	const openLink = buildOpenSessionLinkUri(session, chatId);
+	if (args.operation !== 'send') {
+		return applyPendingMessageOperation(args, openLink, sourceChat, sourceSession, sourceTurnId, stateManager);
+	}
+
+	const messageId = generateUuid();
+	const revision = 1;
 	const delegation: IAgentMessageDelegationMeta | undefined = sourceSession ? {
 		sourceSession: sourceSession.toString(),
 		sourceChat: sourceChat?.toString(),
 		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+		messageId,
+		revision,
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
+	if (args.delivery === 'steer') {
+		if (!stateManager || !targetState?.activeTurn || targetState.steeringMessage) {
+			return JSON.stringify({
+				action: 'rejected',
+				reason: 'cannotSteer',
+				targetStatus: targetState?.activeTurn ? 'steeringPending' : 'idle',
+				openLink,
+			});
+		}
+		stateManager.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: messageId,
+			message: createAgentSessionMessage(args.message, delegation),
+		});
+		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
+	}
 	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
-		const queuedMessage: Message = {
-			text: message,
-			origin: { kind: MessageKind.Agent },
-			...(delegation ? { _meta: toAgentMessageDelegationMeta(delegation) } : {}),
-		};
 		stateManager.dispatchServerAction(chat.toString(), {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Queued,
-			id: generateUuid(),
-			message: queuedMessage,
+			id: messageId,
+			message: createAgentSessionMessage(args.message, delegation),
 		});
-		return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), true);
+		return JSON.stringify({ action: 'queued', messageId, revision, status: 'pending', openLink });
 	}
-	await accessor.startPrompt(session, chat, message, delegation);
-	return formatSendMessageResult(buildOpenSessionLinkUri(session, chatId), false);
+	await accessor.startPrompt(session, chat, args.message, delegation);
+	return JSON.stringify({ action: 'started', messageId, revision, status: 'processing', openLink });
 }
 
-/** Builds the model-facing `send_message` result. */
-export function formatSendMessageResult(openLink: string, queued: boolean): string {
-	return `Message ${queued ? 'queued' : 'sent'} (${openLink}).`;
+function getRequiredPositiveInteger(value: unknown, field: string, toolName: string): number {
+	if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+		throw new Error(`Invalid ${toolName} input: ${field} must be a positive integer.`);
+	}
+	return value;
+}
+
+function createAgentSessionMessage(text: string, delegation: IAgentMessageDelegationMeta | undefined, previous?: Message): Message {
+	return {
+		...previous,
+		text,
+		origin: { kind: MessageKind.Agent },
+		...(delegation ? { _meta: { ...previous?._meta, ...toAgentMessageDelegationMeta(delegation) } } : {}),
+	};
+}
+
+function applyPendingMessageOperation(
+	args: Extract<IResolvedSendMessageArgs, { operation: 'replace' | 'cancel' }>,
+	openLink: string,
+	sourceChat: URI | undefined,
+	sourceSession: URI | undefined,
+	sourceTurnId: string | undefined,
+	stateManager: AgentHostStateManager | undefined,
+): string {
+	const state = stateManager?.getChatState(args.chat.toString());
+	const managed = findAgentSessionMessage(state, args.messageId);
+	if (!managed) {
+		return JSON.stringify({ action: 'rejected', reason: 'messageNotFound', messageId: args.messageId, openLink });
+	}
+	const delegation = readOwnedAgentSessionMessage(managed.message, args.messageId, sourceChat);
+	if (!delegation || !sourceChat || !sourceSession) {
+		return JSON.stringify({ action: 'rejected', reason: 'messageNotOwned', messageId: args.messageId, openLink });
+	}
+	if (managed.status === 'pending' && managed.kind === PendingMessageKind.Steering) {
+		return JSON.stringify({
+			action: args.operation === 'replace' ? 'notReplaced' : 'notCancelled',
+			messageId: args.messageId,
+			reason: 'processing',
+			status: 'processing',
+			revision: delegation.revision,
+			openLink,
+		});
+	}
+	if (managed.status !== 'pending') {
+		return JSON.stringify({
+			action: args.operation === 'replace' ? 'notReplaced' : 'notCancelled',
+			messageId: args.messageId,
+			reason: managed.status,
+			status: managed.status,
+			revision: delegation.revision,
+			openLink,
+		});
+	}
+	if (delegation.revision !== args.expectedRevision) {
+		return JSON.stringify({
+			action: 'rejected',
+			reason: 'revisionConflict',
+			messageId: args.messageId,
+			actualRevision: delegation.revision,
+			openLink,
+		});
+	}
+	if (args.operation === 'cancel') {
+		stateManager!.dispatchServerAction(args.chat.toString(), {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: managed.kind,
+			id: args.messageId,
+		});
+		return JSON.stringify({
+			action: 'cancelled',
+			messageId: args.messageId,
+			revision: delegation.revision,
+			previousStatus: 'pending',
+			openLink,
+		});
+	}
+	const revision = args.expectedRevision + 1;
+	const updatedDelegation: IAgentMessageSessionDelegationMeta = {
+		sourceSession: sourceSession.toString(),
+		sourceChat: sourceChat.toString(),
+		...(sourceTurnId !== undefined ? { sourceTurnId } : {}),
+		messageId: args.messageId,
+		revision,
+	};
+	stateManager!.dispatchServerAction(args.chat.toString(), {
+		type: ActionType.ChatPendingMessageSet,
+		kind: managed.kind,
+		id: args.messageId,
+		message: createAgentSessionMessage(args.message, updatedDelegation, managed.message),
+	});
+	return JSON.stringify({
+		action: 'replaced',
+		messageId: args.messageId,
+		revision,
+		status: 'pending',
+		replacedMessage: managed.message.text,
+		openLink,
+	});
 }
 
 // --- get_session_context -----------------------------------------------------
@@ -1395,13 +1557,20 @@ interface ISerializedSessionContext {
 	readonly openLink: string;
 	readonly detail: SessionContextDetail;
 	readonly transcript: readonly ISerializedContextTurn[];
+	readonly messagesSentByMe?: readonly {
+		readonly messageId: string;
+		readonly revision: number;
+		readonly delivery: 'queue' | 'steer';
+		readonly status: 'pending' | 'processing';
+		readonly message: string;
+	}[];
 	readonly hasMoreHistory: boolean;
 	/** `true` when turns were dropped from the window or any field was shortened. */
 	readonly truncated: boolean;
 }
 
 /** Builds the compacted, model-facing session-context payload from a snapshot. */
-export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number): string {
+export function serializeSessionContext(session: URI, chatId: string | undefined, snapshot: IChatContextSnapshot, detail: SessionContextDetail, transcriptLimit: number, sourceChat?: URI): string {
 	const caps = contextCaps[detail];
 	let truncated = false;
 	const trunc = (text: string, max: number): string | undefined => {
@@ -1446,12 +1615,23 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 			...(serializedToolCalls ? { toolCalls: serializedToolCalls } : {}),
 		};
 	});
+	const messagesSentByMe = sourceChat ? snapshot.pendingMessages?.flatMap(({ kind, pending }) => {
+		const delegation = readOwnedAgentSessionMessage(pending.message, pending.id, sourceChat);
+		return delegation?.revision === undefined ? [] : [{
+			messageId: pending.id,
+			revision: delegation.revision,
+			delivery: kind === PendingMessageKind.Steering ? 'steer' as const : 'queue' as const,
+			status: kind === PendingMessageKind.Steering ? 'processing' as const : 'pending' as const,
+			message: pending.message.text,
+		}];
+	}) : undefined;
 
 	const payload: ISerializedSessionContext = {
 		session: session.toString(),
 		openLink: buildOpenSessionLinkUri(session, chatId),
 		detail,
 		transcript,
+		...(messagesSentByMe !== undefined ? { messagesSentByMe } : {}),
 		hasMoreHistory: snapshot.hasMoreHistory,
 		truncated,
 	};
@@ -1459,7 +1639,7 @@ export function serializeSessionContext(session: URI, chatId: string | undefined
 }
 
 /** Reads and serializes the context of an existing session/chat. */
-export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown): Promise<string> {
+export async function applyGetSessionContextTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): Promise<string> {
 	const sessions = await accessor.listSessions();
 	const { session, chatId, detail, transcriptLimit } = getSessionContextArgs(rawArgs, sessions);
 	const snapshot = await accessor.getChatContext(session, chatId);
@@ -1475,7 +1655,7 @@ export async function applyGetSessionContextTool(accessor: ISessionServerToolAcc
 			truncated: false,
 		} satisfies ISerializedSessionContext);
 	}
-	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit);
+	return serializeSessionContext(session, chatId, snapshot, detail, transcriptLimit, currentChannel ? URI.parse(currentChannel) : undefined);
 }
 
 
@@ -1572,11 +1752,27 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 				invocationMessage: localize('toolInvoke.renameChat', "Renaming chat"),
 				pastTenseMessage: localize('toolComplete.renameChat', "Requested chat rename"),
 			};
-		case SessionServerToolName.SendMessage:
+		case SessionServerToolName.SendMessage: {
+			const operation = args === undefined ? undefined : (args as ISendMessageArgs).operation;
+			if (operation === 'replace') {
+				return {
+					displayName: localize('toolName.replaceMessage', "Replace Message"),
+					invocationMessage: localize('toolInvoke.replaceMessage', "Replacing message"),
+					pastTenseMessage: localize('toolComplete.replaceMessage', "Processed message replacement"),
+				};
+			}
+			if (operation === 'cancel') {
+				return {
+					displayName: localize('toolName.cancelMessage', "Cancel Message"),
+					invocationMessage: localize('toolInvoke.cancelMessage', "Cancelling message"),
+					pastTenseMessage: localize('toolComplete.cancelMessage', "Processed message cancellation"),
+				};
+			}
 			return {
 				displayName: localize('toolName.sendMessage', "Send Message"),
 				invocationMessage: localize('toolInvoke.sendMessage', "Send message"),
 			};
+		}
 		case SessionServerToolName.GetSessionContext:
 			return {
 				displayName: localize('toolName.getSessionContext', "Get Session Context"),
@@ -1715,15 +1911,18 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				case SessionServerToolName.RenameChat:
 					return applyRenameChatTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.SendMessage: {
-					if (enforceAgentOrchestrationLimits && sentMessageCount >= maxSentMessages) {
+					const operation = (rawArgs as ISendMessageArgs | undefined)?.operation ?? 'send';
+					if (operation === 'send' && enforceAgentOrchestrationLimits && sentMessageCount >= maxSentMessages) {
 						throw new Error(`Refusing to send more than ${maxSentMessages} messages from server tools in this process.`);
 					}
 					const result = await applySendMessageTool(accessor, rawArgs, currentChannel, context.turnId, stateManager);
-					sentMessageCount++;
+					if (operation === 'send') {
+						sentMessageCount++;
+					}
 					return result;
 				}
 				case SessionServerToolName.GetSessionContext:
-					return applyGetSessionContextTool(accessor, rawArgs);
+					return applyGetSessionContextTool(accessor, rawArgs, currentChannel);
 				case SessionServerToolName.DeleteSession:
 					return applyDeleteSessionTool(accessor, rawArgs, currentSessionUri(currentChannel));
 				default:

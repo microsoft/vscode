@@ -458,6 +458,7 @@ export class AgentSideEffects extends Disposable {
 				channel: envelope.channel,
 				session: isAhpChatChannel(envelope.channel) ? parseRequiredSessionUriFromChatUri(envelope.channel) : envelope.channel,
 				action: envelope.action,
+				...(envelope.origin !== undefined ? { origin: envelope.origin } : {}),
 				...(envelope.rejectionReason !== undefined ? { rejectionReason: envelope.rejectionReason } : {}),
 			});
 		}));
@@ -1768,7 +1769,7 @@ export class AgentSideEffects extends Disposable {
 				if (!chatChannel) {
 					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);
 				}
-				break; // Queue policy lives in QueueDrainContribution via onDidApplyClientAction.
+				break; // Queue policy lives in QueueDrainContribution.
 			}
 			case ActionType.ChatTruncated: {
 				if (!chatChannel) {
