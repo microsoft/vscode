@@ -294,7 +294,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 			const commands = new CopilotSlashCommandProvider(async () => [sandboxCommand], undefined, new NullLogService());
 			assert.deepStrictEqual((await commands.getSlashCommands()).map(command => ({
 				name: command.name, input: command.input,
-			})), [{ name: 'sandbox', input: { choices: [{ name: 'policy', description: 'Show the effective sandbox policy for this session' }] } }]);
+			})), [{ name: 'sandbox', input: { hint: '', choices: [{ name: 'policy', description: 'Show the effective sandbox policy for this session' }] } }]);
 		});
 
 		test('offers only policy even when the SDK only advertises configuration choices', async () => {

@@ -20,6 +20,7 @@ export const copilotSandboxPolicyCommand: RuntimeSlashCommandInfo = {
 	kind: 'builtin',
 	allowDuringAgentExecution: true,
 	input: {
+		hint: '',
 		choices: [{ name: 'policy', description: localize('copilotSlashCommand.sandboxPolicy', "Show the effective sandbox policy for this session") }],
 	},
 };
