@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { extUriBiasedIgnorePathCase, isEqual, type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -199,6 +199,16 @@ export interface IAgentHostNewSessionFolderService {
 	setFolder(sessionResource: URI, folder: URI): void;
 
 	/**
+	 * Record that the session must start without a working directory.
+	 */
+	setNoFolder(sessionResource: URI): void;
+
+	/**
+	 * Whether the session was explicitly configured without a working directory.
+	 */
+	isNoFolderSelected(sessionResource: URI): boolean;
+
+	/**
 	 * Forget any choice recorded for the given session resource.
 	 */
 	clear(sessionResource: URI): void;
@@ -216,8 +226,9 @@ export interface IAgentHostNewSessionFolderService {
 	/**
 	 * The folder a *new* (not-yet-started) session should use, resolved with the
 	 * same precedence a freshly created chat would apply: a still-valid explicit
-	 * per-session choice, else the still-valid sticky {@link getDefaultFolder},
-	 * else the first current workspace folder, else `undefined` (no folders).
+	 * per-session choice, else `undefined` for an explicit no-folder selection,
+	 * else the still-valid sticky {@link getDefaultFolder}, else the first current
+	 * workspace folder, else `undefined` (no folders).
 	 *
 	 * Used to reselect a draft's primary when the folder it pointed at is removed
 	 * from the workspace. Every candidate is validated against the *current*
@@ -231,6 +242,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _folders = new ResourceMap<URI>();
+	private readonly _noFolderSelections = new ResourceSet();
 
 	/**
 	 * The most recently chosen folder in this window. Window-level "sticky"
@@ -287,6 +299,7 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 
 	setFolder(sessionResource: URI, folder: URI): void {
 		this._defaultFolder = folder;
+		this._noFolderSelections.delete(sessionResource);
 		const existing = this._folders.get(sessionResource);
 		if (existing?.toString() === folder.toString()) {
 			return;
@@ -295,8 +308,22 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 		this._onDidChangeFolder.fire(sessionResource);
 	}
 
+	setNoFolder(sessionResource: URI): void {
+		const changed = this._folders.delete(sessionResource) || !this._noFolderSelections.has(sessionResource);
+		this._noFolderSelections.add(sessionResource);
+		if (changed) {
+			this._onDidChangeFolder.fire(sessionResource);
+		}
+	}
+
+	isNoFolderSelected(sessionResource: URI): boolean {
+		return this._noFolderSelections.has(sessionResource);
+	}
+
 	clear(sessionResource: URI): void {
-		if (this._folders.delete(sessionResource)) {
+		const hadFolder = this._folders.delete(sessionResource);
+		const hadNoFolderSelection = this._noFolderSelections.delete(sessionResource);
+		if (hadFolder || hadNoFolderSelection) {
 			this._onDidChangeFolder.fire(sessionResource);
 		}
 	}
@@ -310,6 +337,9 @@ export class AgentHostNewSessionFolderService extends Disposable implements IAge
 	}
 
 	resolveNewSessionPrimary(sessionResource: URI): URI | undefined {
+		if (this._noFolderSelections.has(sessionResource)) {
+			return undefined;
+		}
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		// An explicit choice is honored only while it is still a workspace folder;
 		// the chip records only workspace folders, so a removed one is skipped here

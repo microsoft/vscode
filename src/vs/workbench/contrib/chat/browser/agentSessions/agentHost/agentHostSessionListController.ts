@@ -51,7 +51,6 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		private readonly _description: string | undefined,
 		_connectionAuthority: string,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisional: IAgentHostUntitledProvisionalSessionService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IAgentHostImportConversationStore private readonly _importConversationStore: IAgentHostImportConversationStore,
 		@IChatService chatService: IChatService,
@@ -114,9 +113,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 
 		// Graduate the draft's backend and chip selections without recreating a matching session.
 		if (request.untitledResource) {
-			const workingDirectory = this._newSessionFolderService.getFolder(request.untitledResource)
-				?? this._newSessionFolderService.getDefaultFolder()
-				?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+			const noWorkspace = this._newSessionFolderService.isNoFolderSelected(request.untitledResource);
+			const workingDirectory = this._newSessionFolderService.resolveNewSessionPrimary(request.untitledResource);
 			// Carry the chosen folder forward onto the real resource so the
 			// handler's working-directory resolution stays consistent after the
 			// untitled-to-real rebind. The untitled entry is left in place and
@@ -125,6 +123,8 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			// resource, flickering the chip back to the first folder.
 			if (workingDirectory) {
 				this._newSessionFolderService.setFolder(item.resource, workingDirectory);
+			} else if (noWorkspace) {
+				this._newSessionFolderService.setNoFolder(item.resource);
 			}
 			// Carry any imported ("Continue in…") conversation snapshot from the
 			// untitled chat-input resource to the freshly-minted real resource so

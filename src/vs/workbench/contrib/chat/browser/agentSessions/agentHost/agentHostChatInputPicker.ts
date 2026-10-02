@@ -1110,6 +1110,9 @@ export class AgentHostChatInputPicker extends Disposable {
 			return typeof cwd === 'string' ? URI.parse(cwd) : cwd;
 		}
 		const sessionResource = this._widget.viewModel?.sessionResource;
+		if (sessionResource && this._newSessionFolderService.isNoFolderSelected(sessionResource)) {
+			return undefined;
+		}
 		return (sessionResource && this._newSessionFolderService.getFolder(sessionResource))
 			?? (sessionResource && this._workingDirectoryResolver.resolve(sessionResource))
 			?? this._newSessionFolderService.getDefaultFolder()

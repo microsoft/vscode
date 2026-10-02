@@ -25,11 +25,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -1307,6 +1309,56 @@ suite('Sessions - Actions', () => {
 			}, { lightweight: false, keybindingBackground: false });
 		});
 	}
+
+	test('New Session sends a supplied prompt through the new session view', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		const { session } = createTestSession('prompted');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const quickChat = upcastPartial<IActiveSession>({ ...session, sessionId: 'quick-chat' });
+		const currentSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const requests: (IOpenNewSessionOptions | undefined)[] = [];
+		let accessorValid = true;
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = currentSession;
+			override async openNewSession(options?: IOpenNewSessionOptions): Promise<IOpenNewSessionResult> {
+				requests.push(options);
+				currentSession.set(activeSession, undefined);
+				accessorValid = false;
+				return { session: activeSession, trustDeclined: false };
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		const queries: string[] = [];
+		const viewSessionIds: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: sessionId => {
+				viewSessionIds.push(sessionId);
+				return upcastPartial<SessionView>({
+					selectNoWorkspace: () => currentSession.set(quickChat, undefined),
+					sendQuery: query => queries.push(query),
+				});
+			},
+		}));
+
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		const invocationAccessor: ServicesAccessor = {
+			get: <T>(id: ServiceIdentifier<T>): T => {
+				if (!accessorValid) {
+					throw new Error('Service accessor used after asynchronous invocation');
+				}
+				return instantiationService.get(id);
+			},
+		};
+		await command.handler(invocationAccessor, { prompt: 'Review this change', noWorkspace: true });
+
+		assert.deepStrictEqual({ requests, viewSessionIds, queries }, {
+			requests: [{ folderUri: undefined, toSide: undefined }],
+			viewSessionIds: [activeSession.sessionId, quickChat.sessionId],
+			queries: ['Review this change'],
+		});
+	});
 
 	for (const toSide of [undefined, true]) {
 		for (const scenario of [
