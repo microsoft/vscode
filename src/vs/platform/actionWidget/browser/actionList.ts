@@ -98,6 +98,8 @@ export interface IActionListItemHover {
 	readonly panelClassName?: string;
 	/** Align the panel's adjoining edge with the outer action widget rather than its inset list. */
 	readonly alignToParent?: boolean;
+	/** Align the panel's bottom with the parent popup, keeping content above its trigger. */
+	readonly alignToParentBottom?: boolean;
 	/** Keep the initial top edge as content or rows change, scrolling at the viewport edge. */
 	readonly preserveVerticalPosition?: boolean;
 	/** Align the panel's top edge with the row that opened it. */
@@ -168,7 +170,7 @@ export interface IActionListItem<T> {
 	 * the chevron opens an inline submenu with these actions.
 	 */
 	readonly submenuActions?: IAction[];
-	/** When true, clicking the row opens its submenu instead of selecting the item. */
+	/** Open a submenu or expandable hover on row activation instead of selecting the item. */
 	readonly openSubmenuOnClick?: boolean;
 	/** Options for the action list rendered in the nested submenu panel. */
 	readonly submenuOptions?: IActionListOptions;
@@ -2334,11 +2336,15 @@ export class ActionListWidget<T> extends Disposable {
 				return;
 			}
 		}
-		if (element.openSubmenuOnClick && element.submenuActions?.length && (isPointerActivation || e.browserEvent instanceof AcceptSelectedEvent)) {
+		if (element.openSubmenuOnClick && (element.submenuActions?.length || element.hover?.expandable) && (isPointerActivation || e.browserEvent instanceof AcceptSelectedEvent)) {
 			this._list.setSelection([]);
 			this._showSubmenuForItem(element);
 			if (!isPointerActivation) {
-				this._currentSubmenuWidget?.focus();
+				if (this._currentSubmenuWidget) {
+					this._currentSubmenuWidget.focus();
+				} else {
+					this._submenuContainer.focus();
+				}
 			}
 			return;
 		}
@@ -2607,7 +2613,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		const preserveVerticalPosition = element.hover?.preserveVerticalPosition;
 		const hasSubmenuActions = !!element.submenuActions?.length;
-		const scrollableContent = preserveVerticalPosition || (!hasSubmenuActions && !this._options?.persistentHover && !element.hover?.alignToParent);
+		const scrollableContent = preserveVerticalPosition || element.hover?.alignToParentBottom || (!hasSubmenuActions && !this._options?.persistentHover && !element.hover?.alignToParent);
 		const content = scrollableContent ? dom.$('.action-list-submenu-content') : this._submenuContainer;
 		const viewport = scrollableContent ? dom.$('.action-list-submenu-viewport', undefined, content) : undefined;
 		const scrollbar = viewport && !hasSubmenuActions ? this._submenuDisposables.add(new DomScrollableElement(viewport, {
@@ -2815,7 +2821,7 @@ export class ActionListWidget<T> extends Disposable {
 			}
 			row?.setAttribute('aria-expanded', 'true');
 			const parentRect = this.domNode.getBoundingClientRect();
-			const alignToParent = persistent || currentElement.hover?.alignToParent;
+			const alignToParent = persistent || currentElement.hover?.alignToParent || currentElement.hover?.alignToParentBottom;
 			const edgeRect = alignToParent
 				? this.domNode.parentElement?.closest('.action-widget')?.getBoundingClientRect() ?? parentRect
 				: parentRect;
@@ -2885,13 +2891,16 @@ export class ActionListWidget<T> extends Disposable {
 				openingPanelHeight ??= panelHeight / zoom;
 			}
 			const anchorHeight = openingPanelHeight !== undefined ? openingPanelHeight * zoom : panelHeight;
-			let top = openingPanelTop !== undefined
-				? openingPanelTop * zoom
-				: row && currentElement.hover?.alignToAnchorTop
-					? anchorRect.top - parentRect.top
-					: row
-						? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
-						: panelRect.top - parentRect.top;
+			const bottomBoundary = currentElement.hover?.alignToParentBottom ? Math.min(edgeRect.bottom, targetWindow.innerHeight) : targetWindow.innerHeight;
+			let top = currentElement.hover?.alignToParentBottom
+				? bottomBoundary - parentRect.top - anchorHeight
+				: openingPanelTop !== undefined
+					? openingPanelTop * zoom
+					: row && currentElement.hover?.alignToAnchorTop
+						? anchorRect.top - parentRect.top
+						: row
+							? anchorRect.top - parentRect.top + (anchorRect.height - anchorHeight) / 2
+							: panelRect.top - parentRect.top;
 			if (preserveVerticalPosition && currentElement.hover?.alignToAnchorTop && viewport && submenuWidget) {
 				const outerChromeHeight = panelRect.height - viewport.getBoundingClientRect().height;
 				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0)
@@ -2901,8 +2910,8 @@ export class ActionListWidget<T> extends Disposable {
 				top = Math.min(top, targetWindow.innerHeight - parentRect.top - desiredPanelHeight - 8);
 			}
 			const panelBottom = parentRect.top + top + anchorHeight;
-			if (panelBottom > targetWindow.innerHeight && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
-				top -= panelBottom - targetWindow.innerHeight + 8;
+			if (panelBottom > bottomBoundary && !(preserveVerticalPosition && currentElement.hover?.alignToAnchorTop)) {
+				top -= panelBottom - bottomBoundary + 8;
 			}
 			if (parentRect.top + top < 0) {
 				top = -parentRect.top;
@@ -2911,20 +2920,26 @@ export class ActionListWidget<T> extends Disposable {
 			if (preserveVerticalPosition) {
 				openingPanelTop ??= top / zoom;
 			}
+			const availablePanelHeight = currentElement.hover?.alignToParentBottom
+				? bottomBoundary - 8
+				: targetWindow.innerHeight - parentRect.top - top - 8;
 			if (viewport && scrollbar) {
 				const chromeHeight = (panelRect.height - scrollbar.getDomNode().getBoundingClientRect().height) / zoom;
-				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
+				const availableHeight = Math.max(0, availablePanelHeight / zoom - chromeHeight);
 				viewport.style.height = `${Math.min(content.getBoundingClientRect().height / zoom, availableHeight)}px`;
 				scrollbar.scanDomNode();
 			} else if (viewport && submenuWidget) {
 				const chromeHeight = (panelRect.height - viewport.getBoundingClientRect().height) / zoom;
-				const availableHeight = Math.max(0, (targetWindow.innerHeight - parentRect.top - top - 8) / zoom - chromeHeight);
+				const availableHeight = Math.max(0, availablePanelHeight / zoom - chromeHeight);
 				const submenuChromeHeight = (submenuWidget.headerContainer?.offsetHeight ?? 0)
 					+ (submenuWidget.filterContainer?.offsetHeight ?? 0)
 					+ (submenuWidget.footerContainer?.offsetHeight ?? 0);
 				const submenuHeight = totalHeight === 0 ? 0 : Math.max(this._actionLineHeight, Math.min(totalHeight, availableHeight - submenuChromeHeight));
 				submenuWidget.layout(submenuHeight, maxWidth);
 				viewport.style.height = `${submenuChromeHeight + submenuHeight}px`;
+			}
+			if (currentElement.hover?.alignToParentBottom) {
+				top = Math.max(0, bottomBoundary - this._submenuContainer.getBoundingClientRect().height) - parentRect.top;
 			}
 			this._submenuContainer.style.top = `${top / zoom}px`;
 		};
@@ -2934,7 +2949,7 @@ export class ActionListWidget<T> extends Disposable {
 		// tabThroughPanel content (e.g. a GitHub reference hover) can grow when
 		// focus reveals bounded text, in which case the panel must reposition
 		// itself, not just the row that measured it before the content changed.
-		if ((this._options?.persistentHover || element.hover?.alignToParent || element.hover?.tabThroughPanel || preserveVerticalPosition) && this._currentSubmenuElement === element) {
+		if ((this._options?.persistentHover || element.hover?.alignToParent || element.hover?.tabThroughPanel || preserveVerticalPosition || element.hover?.alignToParentBottom) && this._currentSubmenuElement === element) {
 			if (!submenuWidget) {
 				const scheduledLayout = this._submenuDisposables.add(new MutableDisposable());
 				const observer = this._submenuDisposables.add(new dom.DisposableResizeObserver('ActionListWidget.hoverPanel', () => {

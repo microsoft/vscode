@@ -47,6 +47,7 @@ export interface IModelPickerDelegate {
 	 * Returns `undefined` when no session is active.
 	 */
 	getChatSessionId?(): string | undefined;
+	getProvider?(): string | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it

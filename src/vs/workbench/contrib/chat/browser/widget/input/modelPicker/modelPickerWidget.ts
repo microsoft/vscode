@@ -32,7 +32,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../../../services/chat/common/chatEntitlementService.js';
 import { IModelPickerDelegate } from './modelPickerActionItem.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../actions/chatActions.js';
 import { IUriIdentityService } from '../../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -41,7 +41,7 @@ import { IUpdateService } from '../../../../../../../platform/update/common/upda
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
 import { getCompactCodicon } from '../../../chatIcons.js';
-import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
+import { renderChatInputPickerSplit, withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { buildModelPickerItems, createManageModelsAction, getModelPickerAccessibilityProvider, getModelPickerControlModels, ModelPickerSection, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { ModelPickerConfiguration } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
@@ -49,7 +49,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
-import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -145,7 +145,13 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _updateMinimumWidth(nameWidth: number): void {
-		const minimumWidth = nameWidth + (this._configButton?.offsetWidth ?? 0);
+		let configurationWidth = 0;
+		if (this._configButton && this._configButton.offsetWidth > 0) {
+			const margins = dom.getTotalWidth(this._configButton) - this._configButton.offsetWidth;
+			// Preserve fractional text widths so rounding does not leave space after the readout.
+			configurationWidth = this._configButton.getBoundingClientRect().width + margins;
+		}
+		const minimumWidth = nameWidth + configurationWidth;
 		if (this._minimumWidth !== minimumWidth) {
 			this._minimumWidth = minimumWidth;
 			this._onDidChangeMinimumWidth.fire(minimumWidth);
@@ -175,11 +181,13 @@ export class ModelPickerWidget extends Disposable {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
 			getChatSessionId: () => this._delegate.getChatSessionId?.(),
+			getProvider: () => this._delegate.getProvider ? this._delegate.getProvider() : 'unknown',
 			isDisabled: () => !!this._domNode?.classList.contains('disabled'),
 			shouldShowCacheBreakHint: () => this.shouldShowCacheBreakHint(/* excludeAutoModel */ false),
 			getCacheBreakLearnMoreLink: () => this.getCacheBreakLearnMoreLink(),
 			dismissCacheBreakHint: () => this.dismissCacheBreakHint(),
 			getContextViewLayer: () => this._contextViewLayer,
+			setExpanded: expanded => this._domNode?.classList.toggle('model-picker-active', expanded),
 		});
 		this._register(this._languageModelsService.onDidChangeLanguageModels(() => {
 			if (this._activatingAfterTrust && this._delegate.getModels().length > 0) {
@@ -291,7 +299,7 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (this._entitlementService.entitlement !== ChatEntitlement.Free ||
+		if (!isHydraFusionUpgradeOnly(this._entitlementService.entitlement) ||
 			!model ||
 			!isHydraFusionModel(model) ||
 			isUserProvidedModel(model, this._languageModelsService)) {
@@ -381,29 +389,19 @@ export class ModelPickerWidget extends Disposable {
 
 	render(container: HTMLElement): void {
 		this._domNode = dom.append(container, dom.$('div.action-label.model-picker-split'));
-		this._domNode.setAttribute('role', 'group');
-		// The container groups the individual buttons; only the buttons should be
-		// tab stops, not the container itself.
-		this._domNode.tabIndex = -1;
+		const { primaryButton, secondaryButton } = renderChatInputPickerSplit(this._domNode);
 
 		// Apply initial minimal state now that _domNode exists
 		if (this._minimal?.get()) {
 			this._domNode.classList.toggle('minimal', true);
 		}
 
-		// Model name button
-		this._nameButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-name'));
-		this._nameButton.tabIndex = 0;
-		this._nameButton.setAttribute('role', 'button');
-		this._nameButton.setAttribute('aria-haspopup', 'true');
-		this._nameButton.setAttribute('aria-expanded', 'false');
+		this._nameButton = primaryButton;
+		this._nameButton.classList.add('model-picker-section', 'model-picker-name');
 
 		// The readout opens Auto choices, model details, or the legacy configuration menu.
-		this._configButton = dom.append(this._domNode, dom.$('a.model-picker-section.model-picker-config'));
-		this._configButton.tabIndex = 0;
-		this._configButton.setAttribute('role', 'button');
-		this._configButton.setAttribute('aria-haspopup', 'true');
-		this._configButton.setAttribute('aria-expanded', 'false');
+		this._configButton = secondaryButton;
+		this._configButton.classList.add('model-picker-section', 'model-picker-config');
 		this._configButton.style.display = 'none';
 
 		this._badgeIcon = dom.$('span.model-picker-badge');
@@ -412,12 +410,6 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 
 		this._registerButtonAction(this._nameButton, fromKeyboard => this.show(undefined, false, false, { entryPoint: 'modelName', inputMethod: fromKeyboard ? 'keyboard' : 'mouse' }));
-		this._register(dom.addDisposableListener(this._nameButton, dom.EventType.MOUSE_ENTER, () => {
-			this._domNode?.classList.add('model-picker-name-hovered');
-		}));
-		this._register(dom.addDisposableListener(this._nameButton, dom.EventType.MOUSE_LEAVE, () => {
-			this._domNode?.classList.remove('model-picker-name-hovered');
-		}));
 		this._registerButtonAction(this._configButton, fromKeyboard => {
 			const trigger: IModelPickerOpenTrigger = { entryPoint: 'configuration', inputMethod: fromKeyboard ? 'keyboard' : 'mouse' };
 			if (this.isTabbedPickerEnabled()) {
@@ -527,7 +519,7 @@ export class ModelPickerWidget extends Disposable {
 			telemetrySession.close(whenModelConfigValuesSaved(context.configurationAccess));
 			this._nameButton?.setAttribute('aria-expanded', 'false');
 			this._configButton?.setAttribute('aria-expanded', 'false');
-			this._domNode?.classList.remove('model-picker-name-active');
+			this._domNode?.classList.remove('model-picker-active');
 			const previous = dom.isHTMLElement(previouslyFocusedElement) && previouslyFocusedElement.isConnected && previouslyFocusedElement.style.display !== 'none' ? previouslyFocusedElement : undefined;
 			const target = detailsModelId
 				? (trigger?.isConnected && trigger.style.display !== 'none' ? trigger : this._nameButton)
@@ -539,7 +531,7 @@ export class ModelPickerWidget extends Disposable {
 		if (this._selectedModel && (isAutoModel(this._selectedModel) || isHydraFusionModel(this._selectedModel))) {
 			this._configButton?.setAttribute('aria-expanded', 'true');
 		}
-		this._domNode?.classList.toggle('model-picker-name-active', !detailsModelId);
+		this._domNode?.classList.add('model-picker-active');
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 	}
 
@@ -581,7 +573,7 @@ export class ModelPickerWidget extends Disposable {
 
 		const telemetrySession = telemetry instanceof ModelPickerTelemetrySession
 			? telemetry
-			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.());
+			: new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, telemetry, this._selectedModel, this._delegate.getChatSessionId?.(), this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
 			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());
@@ -777,6 +769,7 @@ export class ModelPickerWidget extends Disposable {
 				}
 				hoverDisposables.dispose();
 				this._nameButton?.setAttribute('aria-expanded', 'false');
+				this._domNode?.classList.remove('model-picker-active');
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -784,6 +777,7 @@ export class ModelPickerWidget extends Disposable {
 		};
 
 		this._nameButton?.setAttribute('aria-expanded', 'true');
+		this._domNode?.classList.add('model-picker-active');
 
 		this._actionWidgetService.show(
 			'ChatModelPicker',

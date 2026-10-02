@@ -273,6 +273,7 @@ suite('Sessions list context menus', () => {
 			resource: URI.parse('test-chat:/main'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
 			changes: constObservable([]),
@@ -284,6 +285,7 @@ suite('Sessions list context menus', () => {
 			title: constObservable('Peer'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
@@ -462,7 +464,6 @@ suite('Sessions list context menus', () => {
 			toolbarLabels: ['Import', 'Mark as Done'],
 		});
 		contextMenuService.delegate!.onHide?.(false);
-
 		const importVisibility = [];
 		for (const variant of ['owned', 'unsupported', 'disabled', 'archived', 'external']) {
 			transaction(tx => {
@@ -477,6 +478,53 @@ suite('Sessions list context menus', () => {
 			importVisibility.push(!!updatedRow?.querySelector('[aria-label="Import"]'));
 		}
 		assert.deepStrictEqual(importVisibility, [false, false, false, false, true]);
+	});
+
+	test('Delete is enabled and executes for external sandbox sessions, including multi-selection', async () => {
+		const sandbox = createTestSession('Offline sandbox', { isExternal: true });
+		const second = createTestSession('Second sandbox', { isExternal: true });
+		for (const session of [sandbox, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsDelete: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [sandbox.session, second.session]);
+		const { instantiationService, store, commandService, managementService } = harness;
+		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const rows = [sandbox, second].map(session => {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(element => element.querySelector('.session-title')?.textContent === session.session.title.get());
+			assert.ok(row);
+			return row;
+		});
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[0]);
+		const action = contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.deleteSession');
+		assert.ok(action);
+		await action.run();
+		const call = commandService.calls.find(call => call.commandId === action.id)!;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(call.commandId)!.handler, ...call.args);
+		assert.deepStrictEqual({
+			enabled: action.enabled,
+			deleted: managementService.deleted.map(session => session.sessionId).sort(),
+		}, { enabled: true, deleted: ['Offline sandbox', 'Second sandbox'] });
+		contextMenuService.delegate!.onHide?.(false);
+
 	});
 
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {

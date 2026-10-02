@@ -18,7 +18,7 @@ import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilt
 import { AgentSessionApprovalModel } from './agentSessionApprovalModel.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -72,6 +72,7 @@ export interface IAgentSessionsControlOptions {
 }
 
 type AgentSessionOpenedClassification = {
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies the agent implementation handling the associated chat session, such as copilotcli, claude, or codex.' };
 	owner: 'bpasero';
 	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the opened agent session.' };
@@ -79,6 +80,7 @@ type AgentSessionOpenedClassification = {
 };
 
 type AgentSessionOpenedEvent = {
+	provider: string | undefined;
 	providerType: string;
 	source: string;
 };
@@ -723,6 +725,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		}
 
 		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
+			provider: getAgentHostProviderForTelemetry(element.providerType, this.chatSessionsService),
 			providerType: element.providerType,
 			source: this.options.source
 		});

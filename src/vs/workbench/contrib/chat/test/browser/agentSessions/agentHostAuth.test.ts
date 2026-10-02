@@ -11,6 +11,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isObject } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { authenticationAccountMeta, readAuthenticationAccount } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -21,6 +22,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
@@ -29,7 +31,7 @@ import { IAuthenticationMcpUsageService } from '../../../../../services/authenti
 import { IAuthenticationService, type AuthenticationSession, type IAuthenticationProvider, type IAuthenticationProviderSessionOptions } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
 import { CHAT_SETUP_ACTION_ID } from '../../../browser/actions/chatActions.js';
-import { AgentHostAuthenticationRecovery, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
+import { AgentHostAuthenticationRecovery, autoAuthenticateMcpServer, authenticateProtectedResources, resolveAuthenticationInteractively, resolveSessionForResource, AgentHostAuthTokenCache, agentHostMcpServerId, resolveMcpServerAuthentication, modelRequiresAgentAuthentication, revokeAuthenticationForRemovedSessions, type IAgentHostAuthenticationOptions } from '../../../browser/agentSessions/agentHost/agentHostAuth.js';
 import { createAgentModelByokMeta } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 
 class TestCommandService extends mock<ICommandService>() {
@@ -938,6 +940,71 @@ suite('AgentHost authentication telemetry', () => {
 			]);
 		});
 	}
+});
+
+suite('autoAuthenticateMcpServer', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reuses remembered server access silently and pushes tokens only when allowed', async () => {
+		const results: {
+			authenticated: boolean;
+			serverIds: string[];
+			sessionRequests: { scopes: readonly string[] | undefined; silent: boolean | undefined }[];
+			authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[];
+		}[] = [];
+		for (const allowed of [true, false]) {
+			const serverIds: string[] = [];
+			const sessionRequests: { scopes: readonly string[] | undefined; silent: boolean | undefined }[] = [];
+			const authenticateRequests: { resource: string; scopes?: readonly string[]; token: string }[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IAuthenticationService, createMockAuthService({
+				isDynamicAuthenticationProvider: () => true,
+				getSessions: async (_providerId, scopes, options) => {
+					sessionRequests.push({ scopes, silent: options.silent });
+					return [{
+						id: 'docs-session', scopes: ['read'], accessToken: 'docs-token',
+						account: { id: 'account-id', label: 'Docs Account' },
+					}];
+				},
+			}));
+			instantiationService.stub(IAuthenticationMcpAccessService, {
+				isAccessAllowedForUrl: (_providerId, _accountName, serverId) => {
+					serverIds.push(serverId);
+					return allowed;
+				},
+			});
+			instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
+			instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+			instantiationService.stub(IDynamicAuthenticationProviderStorageService, {
+				getClientRegistration: async () => ({ clientId: 'docs-client' }),
+			});
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ILabelService, { getHostLabel: () => 'Host' });
+			const connection = new class extends mock<IAgentConnection>() {
+				override async authenticate(request: { resource: string; scopes?: readonly string[]; token: string }) {
+					authenticateRequests.push(request);
+					return { authenticated: true };
+				}
+			}();
+			const authenticated = await instantiationService.invokeFunction(autoAuthenticateMcpServer,
+				connection, { scheme: 'vscode-agent-host', authority: '' }, 'Docs', {
+				resource: {
+					resource: 'https://docs.example/mcp',
+					authorization_servers: ['https://issuer.example'],
+					scopes_supported: ['read', 'write'],
+				},
+				oauthClient: { clientId: 'docs-client' },
+				requiredScopes: ['read'],
+			});
+			results.push({ authenticated, serverIds, sessionRequests, authenticateRequests });
+		}
+		assert.deepStrictEqual(results, [true, false].map(allowed => ({
+			authenticated: allowed,
+			serverIds: [agentHostMcpServerId('', 'Docs', 'https://docs.example/mcp')],
+			sessionRequests: [{ scopes: ['read'], silent: true }],
+			authenticateRequests: allowed ? [{ resource: 'https://docs.example/mcp', scopes: ['read'], token: 'docs-token' }] : [],
+		})));
+	});
 });
 
 suite('resolveMcpServerAuthentication', () => {

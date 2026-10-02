@@ -436,7 +436,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new CancellationError();
 		}
 		if (generation !== this._discoveryGeneration) {
-			return { kind: 'failed', reason: 'Authentication changed during discovery' };
+			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
 		const partial = unresolved > 0 || truncated;
 		if (!partial) {
@@ -460,6 +460,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
 		this._logService.info(`${LOG_PREFIX} ${since ? 'Incremental discovery' : 'Discovery'} found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${scannedTaskIds.size} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		for (const session of sessions) {
+			this._logService.debug(`${LOG_PREFIX} Discovered sandbox session ${JSON.stringify({
+				taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId,
+				name: session.name, repoName: session.repoName, updatedAt: session.updatedAt, status: session.status,
+			})}`);
+		}
 		if (partial) {
 			return { kind: 'partial', sessions, removedTaskIds };
 		}
@@ -513,6 +519,19 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
 	}
 
+	async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+		if (!isSuccess(context) && context.res.statusCode !== 404) {
+			await this._throwForStatus('task delete', context);
+		}
+		this._discoveredTasks.delete(taskId);
+		// Discard discovery responses that started before the deletion.
+		this._discoveryGeneration++;
+	}
+
 	/**
 	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
 	 * failed cleanup must not replace the error that explains why.
@@ -524,18 +543,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 */
 	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
 		try {
-			const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
-				'Accept': 'application/json',
-				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
-			// A rejected delete resolves rather than throwing, so the status decides.
-			if (!isSuccess(context)) {
-				this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}. It remains and can only be removed server-side.`);
-				return;
-			}
-			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
+			await this.deleteTask(taskId, CancellationToken.None);
+			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}.`);
 		} catch (error) {
-			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
+			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}. It remains and can only be removed server-side.`);
 		}
 	}
 

@@ -49,6 +49,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	readonly archived: ISession[] = [];
 	readonly cancelled: ISession[] = [];
 	readonly imported: ISession[] = [];
+	readonly deleted: ISession[] = [];
 	readonly renamedChats: { readonly session: ISession; readonly chatResource: URI; readonly title: string }[] = [];
 	readonly deletedChats: { readonly session: ISession; readonly chatResource: URI }[] = [];
 	readonly deleteChatOptions: (IDeleteChatOptions | undefined)[] = [];
@@ -98,6 +99,10 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		this.imported.push(session);
 	}
 
+	override async deleteSessions(sessions: readonly ISession[]): Promise<void> {
+		this.deleted.push(...sessions);
+	}
+
 	override async deleteChat(session: ISession, chatResource: URI, options?: IDeleteChatOptions): Promise<boolean> {
 		this.deletedChats.push({ session, chatResource });
 		this.deleteChatOptions.push(options);
@@ -142,6 +147,7 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		override readonly resource = resource.with({ fragment: 'main' });
 		override readonly updatedAt = constObservable(now);
 		override readonly status = status;
+		override readonly description = constObservable(undefined);
 		override readonly changes = constObservable([]);
 		override readonly changesets = constObservable([]);
 	}();

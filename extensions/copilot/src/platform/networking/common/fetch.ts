@@ -5,8 +5,10 @@
 
 import { EncryptedThinkingDelta, ThinkingData, ThinkingDelta } from '../../thinking/common/thinking';
 import { AnthropicMessagesTool, ContextManagementResponse } from './anthropic';
-import { IHeaders } from './fetcherService';
+import { HeadersImpl, IHeaders } from './fetcherService';
 import { ChoiceLogProbs, FilterReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from './openai';
+
+type HeadersRecord = Readonly<Record<string, string | string[] | undefined>>;
 
 
 // Request helpers
@@ -23,15 +25,22 @@ export interface RequestId {
 	created: number;
 	serverExperiments: string;
 	deploymentId: string;
+	/**
+	 * Raw CAPI `X-GitHub-Copilot-Request-Te` value for this model call, exactly as received.
+	 * `undefined` when the header is absent (e.g. BYOK/non-CAPI endpoints).
+	 */
+	gitHubCopilotRequestTe?: string;
 }
 
 export const COPILOT_SERVICE_REQUEST_ID_HEADER = 'x-copilot-service-request-id';
+export const GITHUB_COPILOT_REQUEST_TE_HEADER = 'x-github-copilot-request-te';
 
 /**
  * Reads a header without relying on the casing used by the underlying fetcher.
  * `name` must be lowercase.
  */
-export function getHeaderIgnoreCase(headers: IHeaders, name: string): string | undefined {
+export function getHeaderIgnoreCase(headersOrRecord: IHeaders | HeadersRecord, name: string): string | undefined {
+	const headers = typeof headersOrRecord.get === 'function' ? headersOrRecord as IHeaders : new HeadersImpl(headersOrRecord as HeadersRecord);
 	const direct = headers.get(name);
 	if (direct) {
 		return direct;
@@ -48,6 +57,22 @@ export function getCopilotServiceRequestId(headers: IHeaders): string {
 	return getHeaderIgnoreCase(headers, COPILOT_SERVICE_REQUEST_ID_HEADER) || '';
 }
 
+/**
+ * Returns the raw `X-GitHub-Copilot-Request-Te` value, unmodified, from HTTP response headers
+ * or a plain header map (e.g. a WebSocket message envelope's `headers`).
+ * Returns `undefined` when absent.
+ */
+export function getGitHubCopilotRequestTe(headers: IHeaders | HeadersRecord | undefined): string | undefined {
+	return headers && typeof headers === 'object' ? getHeaderIgnoreCase(headers, GITHUB_COPILOT_REQUEST_TE_HEADER) : undefined;
+}
+
+/**
+ * Telemetry property bag for {@link RequestId.gitHubCopilotRequestTe}; empty when the header was absent.
+ */
+export function gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe: string | undefined): { gitHubCopilotRequestTe?: string } {
+	return gitHubCopilotRequestTe === undefined ? {} : { gitHubCopilotRequestTe };
+}
+
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
 	const serverExperiments = headers.get('X-Copilot-Experiment') || '';
 	const capiExpAssignmentContext = headers.get('x-copilot-api-exp-assignment-context') || '';
@@ -61,6 +86,7 @@ export function getRequestId(headers: IHeaders, json?: any): RequestId {
 			? `${serverExperiments};${capiExpAssignmentContext}`
 			: serverExperiments || capiExpAssignmentContext,
 		deploymentId: headers.get('azureml-model-deployment') || '',
+		...gitHubCopilotRequestTeProperty(getGitHubCopilotRequestTe(headers)),
 	};
 }
 

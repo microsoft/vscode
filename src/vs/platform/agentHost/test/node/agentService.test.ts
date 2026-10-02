@@ -45,11 +45,14 @@ import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, M
 import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
+import { getSessionSandboxConfig } from '../../node/sessionSandbox.js';
+import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
 import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
-import { ChatInteractivity, PendingMessageKind, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
@@ -1365,6 +1368,39 @@ suite('AgentService (node dispatcher)', () => {
 		const state = stateManager.getChatState(chat);
 		assert.deepStrictEqual({ input: readChatInputState(stateManager.getSessionState(session.toString()), chat), interactivity: state?.interactivity, error: state?.turns.at(-1)?.responseParts.at(-1) }, {
 			input: { kind: 'blocked', error }, interactivity: ChatInteractivity.ReadOnly, error: createErrorResponsePart(error),
+		});
+	});
+
+	test('observes background work only after chat hydration and shares the observer across subscribers', async () => {
+		const hydrated: boolean[] = [];
+		const published: Array<() => readonly BackgroundWork[]> = [];
+		let stops = 0;
+		const agent = new class extends MockAgent {
+			watchChatBackgroundWork(chat: URI, current: () => readonly BackgroundWork[]) {
+				hydrated.push(!!getStateManager(service).getChatState(chat.toString()));
+				published.push(current);
+				return toDisposable(() => stops++);
+			}
+		}('shells');
+		disposables.add(toDisposable(() => agent.dispose()));
+		registerTestAgentProvider(service, agent);
+		const session = await service.createSession({ provider: 'shells' });
+		const chat = URI.parse(buildDefaultChatUri(session));
+		await service.subscribe(chat, 'first');
+		getStateManager(service).dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatBackgroundWorkSet,
+			work: { kind: BackgroundWorkKind.Shell, id: 'shell:running', label: 'Run tests', command: 'npm test', startedAt: new Date(0).toISOString() },
+		});
+		const publishedIds = published[0]().map(work => work.id);
+		await service.subscribe(chat, 'second');
+		service.unsubscribe(chat, 'first');
+		const afterFirst = stops;
+		service.unsubscribe(chat, 'second');
+		await service.subscribe(chat, 'reconnected');
+		service.unsubscribe(chat, 'reconnected');
+
+		assert.deepStrictEqual({ hydrated, publishedIds, afterFirst, stops }, {
+			hydrated: [true, true], publishedIds: ['shell:running'], afterFirst: 0, stops: 2,
 		});
 	});
 
@@ -24678,6 +24714,45 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('session config persistence', () => {
 
+		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			const configuration = getConfigurationService(localService);
+			configuration.updateRootConfig({ sandbox: { enabled: 'off' } });
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove', sandboxEnabled: 'off' }));
+			configuration.setSessionSandboxPolicy(session.toString(), { enabled: true, allowBypass: false });
+			const applied: boolean[] = [];
+			disposables.add(configuration.onDidSessionConfigChange(event => {
+				if (event.session === session.toString()) {
+					const enabled = buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, event.session))?.enabled ?? false;
+					applied.push(enabled);
+					configuration.setSessionSandboxEnabled(event.session, enabled);
+				}
+			}));
+
+			await localService.restoreSession(session);
+			await timeout(50);
+			const state = getStateManager(localService).getSessionState(session.toString());
+			assert.deepStrictEqual({
+				applied,
+				config: state?.config?.values,
+				policy: readSessionSandboxPolicy(state),
+				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
+				persisted: JSON.parse((await sessionDb.getMetadata('configValues'))!),
+			}, {
+				applied: [true],
+				config: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
+				policy: { enabled: true, allowBypass: false },
+				confirmed: true,
+				persisted: { autoApprove: 'autoApprove', sandboxEnabled: 'on' },
+			});
+		});
+
 		test('createSession persists initial config values to the session DB', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
@@ -24934,6 +25009,7 @@ suite('AgentService (node dispatcher)', () => {
 				provider: 'copilot',
 				config: {
 					autoApprove: 'autoApprove',
+					[SessionConfigKey.SandboxEnabled]: 'off',
 					[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export TRANSIENT=1' }],
 				},
 				_meta: { 'vscode.devContainerWorktree': { version: 1, handle: '00000000-0000-4000-8000-000000000001' } },
@@ -24944,6 +25020,7 @@ suite('AgentService (node dispatcher)', () => {
 			const persistedConfigValues = JSON.parse((await sessionDb.getMetadata('configValues'))!);
 			await sessionDb.setMetadata('configValues', JSON.stringify({
 				autoApprove: 'autoApprove',
+				[SessionConfigKey.SandboxEnabled]: 'off',
 				[SessionConfigKey.ShellInitScripts]: [{ shell: 'bash', script: 'export STALE=1' }],
 			}));
 			getStateManager(localService).removeSession(session.toString());
@@ -24964,7 +25041,7 @@ suite('AgentService (node dispatcher)', () => {
 				devContainerWorktree: state!._meta?.['vscode.devContainerWorktree'],
 			}, {
 				persistedConfigValues: { autoApprove: 'autoApprove' },
-				config: { autoApprove: 'autoApprove' },
+				config: { autoApprove: 'autoApprove', sandboxEnabled: 'off' },
 				listedDevContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 				devContainerWorktree: { version: 1, handle: '00000000-0000-4000-8000-000000000001' },
 			});

@@ -63,6 +63,7 @@ const testRuntime: ICopilotSessionRuntime = {
 };
 
 const testWorkingDirectory = URI.file(process.cwd());
+const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
 
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
@@ -134,7 +135,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		{} as IAgentHostTerminalManager,
 		logService,
 		{} as IFileService,
-		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
 		{
 			_serviceBrand: undefined,
@@ -301,7 +302,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				assert.deepStrictEqual({
 					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 					stored: fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled,
-				}, { applied: [true], stored: 'default' });
+				}, { applied: [true], stored: 'on' });
 			});
 		}
 	}
@@ -336,7 +337,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
 			data: { action: 'bypass_permissions_blocked', setting: 'sandbox.enabled', failClosed: false, message: 'Sandbox required' },
 		});
-		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'default');
+		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'on');
 	});
 });
 
@@ -576,6 +577,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		let disposes = 0;
 		const service: IByokLmProxyService = {
 			_serviceBrand: undefined,
+			onDidCapTools: Event.None,
 			start: async (): Promise<IByokLmProxyHandle> => {
 				const nonce = `NONCE-${++starts}`;
 				return {
@@ -721,7 +723,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 				featureFlags,
 				connectorCalls,
 			}, {
-				featureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
+				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
 			});
 		} finally {
@@ -901,11 +903,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: typeof createConfigs[0].onExitPlanModeRequest === 'function',
 				createLargeOutput: createConfigs[0].largeOutput,
 				createManagedSettings: createConfigs[0].managedSettings,
+				createFeatureFlags: createConfigs[0].featureFlags,
 				createStreaming: createConfigs[0].streaming,
+				createEnableSessionStore: createConfigs[0].enableSessionStore,
 				createRequestExtensions: createConfigs[0].requestExtensions,
 				createRequestCanvasRenderer: createConfigs[0].requestCanvasRenderer,
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				createToolNames: createConfigs[0].tools?.map(tool => tool.name),
+				createExcludedTools: createConfigs[0].excludedTools,
 				resumeClientName: resumeConfigs[0].clientName,
 				resumeGitHubMcpToolConfig: resumeConfigs[0].githubMcpToolConfig,
 				resumePluginDirectories: resumeConfigs[0].pluginDirectories,
@@ -917,12 +922,16 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: typeof resumeConfigs[0].onExitPlanModeRequest === 'function',
 				resumeLargeOutput: resumeConfigs[0].largeOutput,
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
+				resumeFeatureFlags: resumeConfigs[0].featureFlags,
 				resumeStreaming: resumeConfigs[0].streaming,
+				resumeEnableSessionStore: resumeConfigs[0].enableSessionStore,
 				resumeRequestExtensions: resumeConfigs[0].requestExtensions,
 				resumeRequestCanvasRenderer: resumeConfigs[0].requestCanvasRenderer,
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
+				resumeExcludedTools: resumeConfigs[0].excludedTools,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
+				ephemeralEnableSessionStore: createConfigs[1].enableSessionStore,
 				ephemeralMcpOAuthTokenStorage: createConfigs[1].mcpOAuthTokenStorage,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
@@ -962,11 +971,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createHasExitPlanHandler: true,
 				createLargeOutput: { maxSizeBytes: 8192 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
+				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				createStreaming: true,
+				createEnableSessionStore: true,
 				createRequestExtensions: true,
 				createRequestCanvasRenderer: true,
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
+				createExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				resumeClientName: 'vscode-agent-host',
 				resumeGitHubMcpToolConfig: { disableFormDeferral: true },
 				resumePluginDirectories: [pluginDir.fsPath, syntheticPluginDir.fsPath],
@@ -985,15 +997,19 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeHasExitPlanHandler: true,
 				resumeLargeOutput: { maxSizeBytes: 8192 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
+				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				resumeStreaming: true,
+				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
 				resumeRequestCanvasRenderer: true,
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
+				resumeExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralMcpServers: {},
+				ephemeralEnableSessionStore: false,
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
-				ephemeralExcludedTools: ['task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				ephemeralExcludedTools: [...disabledWorkflowTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralRequestExtensions: false,
 				ephemeralRequestCanvasRenderer: false,
 				ephemeralExtensionSdkPath: undefined,
@@ -1035,6 +1051,55 @@ suite('CopilotSessionLauncher shared session config', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
+});
+
+suite('CopilotSessionLauncher local index', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const localIndexEnabled of [undefined, false, true]) {
+		test(`honors local indexing on create and resume (${localIndexEnabled ?? 'default'}) but excludes ephemeral sessions`, async () => {
+			const configs: ResumeSessionConfig[] = [];
+			const session = {
+				sessionId: 'session-1',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
+				override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+				override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+			};
+			const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.LocalIndexEnabled]: localIndexEnabled });
+			const basePlan = {
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+
+			for (const isEphemeral of [false, true]) {
+				store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined, isEphemeral }, testRuntime));
+				store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined }, isEphemeral }, testRuntime));
+			}
+
+			assert.deepStrictEqual(configs.map(config => config.enableSessionStore), [
+				localIndexEnabled !== false, localIndexEnabled !== false, false, false,
+			]);
+		});
+	}
 });
 
 suite('CopilotSessionLauncher canvas config', () => {
@@ -1775,6 +1840,20 @@ suite('CopilotSessionLauncher resume config', () => {
 		return (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ model?: string; reasoningEffort?: string; contextTier?: string; availableTools?: string[]; excludedTools?: string[]; modelCapabilities?: Record<string, unknown>; toolSearch?: { enabled: boolean }; enableExperimentalMode?: boolean; featureFlags?: Record<string, boolean> }> })._buildSessionConfig(plan, runtime, () => { });
 	}
 
+	test('excludes native dynamic workflow tools even when explicitly allowlisted', async () => {
+		const store = disposables.add(new DisposableStore());
+		const config = await buildResumeConfig(createLauncher(store, {
+			modelCapabilityOverrides: { '*': { availableTools: disabledWorkflowTools, excludedTools: ['mcp:*'] } },
+		}), { id: 'gpt-5' });
+		assert.deepStrictEqual({
+			availableTools: config.availableTools,
+			excludedTools: config.excludedTools,
+		}, {
+			availableTools: disabledWorkflowTools,
+			excludedTools: ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+		});
+	});
+
 	test('enables experimental mode only with HydraFusion opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
@@ -1797,14 +1876,15 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledFeatureFlags: {
 				CONNECTORS: false,
 				TGREP: false,
+				CONTENT_EXCLUSION: true,
 				HYDRAFUSION: true,
 				HYDRAFUSION_ROLLOUT: true,
 			},
 			disabledExperimentalMode: undefined,
-			disabledFeatureFlags: { CONNECTORS: false, TGREP: false },
+			disabledFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 			defaultExperimentalMode: undefined,
-			defaultFeatureFlags: { CONNECTORS: false, TGREP: false },
-			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, MANAGED_MCP_SERVERS: true },
+			defaultFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			connectorFeatureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 		});
 	});
 
@@ -1817,8 +1897,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { CONNECTORS: false, TGREP: false },
-			enabled: { CONNECTORS: false, TGREP: true },
+			disabled: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
+			enabled: { CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true },
 		});
 	});
 
@@ -1835,7 +1915,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[`builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], undefined, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[[...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], disabledWorkflowTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
 	});
@@ -1881,7 +1961,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
+			['high', ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
@@ -1923,7 +2003,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				undefined,
 				{
 					availableTools: ['custom:*'],
-					excludedTools: ['mcp:*', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: true } },
 				},
 				undefined,
@@ -1946,7 +2026,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.availableTools, config.excludedTools],
-			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});

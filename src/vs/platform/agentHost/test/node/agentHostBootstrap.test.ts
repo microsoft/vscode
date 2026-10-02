@@ -23,11 +23,13 @@ import { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { StrictServiceCollection } from '../../../instantiation/common/strictServiceCollection.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
-import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import { IAgentHostReviewService } from '../../common/agentHostReviewService.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
+import { SessionStatus } from '../../common/state/sessionState.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -122,6 +124,29 @@ suite('agentHostBootstrap', () => {
 		});
 
 		assert.strictEqual(foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy), 'http://proxy.example:8080');
+	});
+
+	test('wires the shared client policy service into the production configuration service', () => {
+		const services = new StrictServiceCollection();
+		const foundation = createAgentServiceFoundation({
+			services,
+			owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(),
+			productService: { _serviceBrand: undefined, ...product },
+			transientProxyConfiguration: false,
+		});
+		const managedSettings = services.get(IAgentHostManagedSettingsService);
+		assert.ok(managedSettings instanceof AgentHostManagedSettingsService);
+		const session = 'copilot:/sandbox-policy';
+		foundation.stateManager.createSession({
+			resource: session, provider: 'copilot', title: 'Policy', status: SessionStatus.Idle,
+			createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+		});
+		foundation.stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
+		managedSettings.setClientSandboxRequired('client', true);
+		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session)?.enabled, process.platform === 'win32' ? undefined : true);
+		managedSettings.removeClient('client');
+		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session), undefined);
 	});
 
 	test('supplies product and component identification for Node GitHub egress', () => {

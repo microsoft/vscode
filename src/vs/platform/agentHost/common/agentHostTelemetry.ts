@@ -60,6 +60,13 @@ export type AgentHostTurnSendStage =
 	/** Running the outgoing-turn chat contributions. */
 	| 'contributions'
 	/**
+	 * Waiting for the provider's turn preparation (`IAgentChats.prepareTurn`).
+	 * Preparation is started earlier and runs alongside the stages above and
+	 * the checkpoint capture, so this measures only the time it still costs
+	 * the critical path — not the preparation's total cost.
+	 */
+	| 'providerPreparation'
+	/**
 	 * Waiting for the turn-start checkpoint. The capture is started earlier and
 	 * runs alongside the stages above, so this measures only the time it still
 	 * costs the critical path — not the capture's total cost.

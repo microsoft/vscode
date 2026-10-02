@@ -23,7 +23,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { AgentCanvasAvailability, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostCanvases, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -48,6 +48,7 @@ import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
+import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -510,6 +511,37 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('isLocalClient requires an active Local MessagePort connection', () => {
+		const results = [];
+		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.Unknown]) {
+			for (const transportKind of [AgentHostTransportKind.MessagePort, AgentHostTransportKind.WebSocket, AgentHostTransportKind.Unknown]) {
+				const clientId = `${connectionKind}-${transportKind}`;
+				const transport = connectClient(clientId, undefined, undefined, {
+					'vscode.clientConnectionKind': connectionKind,
+				}, transportKind);
+				results.push(clientConnections.isLocalClient(clientId));
+				transport.simulateClose();
+				results.push(clientConnections.isLocalClient(clientId));
+			}
+		}
+		assert.deepStrictEqual({ missing: clientConnections.isLocalClient('missing'), results }, {
+			missing: false,
+			results: [true, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false],
+		});
+	});
+
+	test('isLocalClient follows the qualifying connection when a client has multiple transports', () => {
+		const meta = { 'vscode.clientConnectionKind': AgentHostClientConnectionKind.Local };
+		connectClient('client', undefined, undefined, meta, AgentHostTransportKind.WebSocket);
+		const remoteOnly = clientConnections.isLocalClient('client');
+		const local = connectClient('client', undefined, undefined, meta, AgentHostTransportKind.MessagePort);
+		const withLocal = clientConnections.isLocalClient('client');
+		local.simulateClose();
+		assert.deepStrictEqual({ remoteOnly, withLocal, afterLocalCloses: clientConnections.isLocalClient('client'), connected: clientConnections.isClientConnected('client') }, {
+			remoteOnly: false, withLocal: true, afterLocalCloses: false, connected: true,
+		});
+	});
+
 	test('canvas extension is local-only, publishes full snapshots, and fences source resolution', async () => {
 		const snapshot: IAgentCanvasSnapshot = {
 			chat: URI.parse(defaultChatUri),
@@ -660,6 +692,51 @@ suite('ProtocolServerHandler', () => {
 		const response = findResponse(transport.sent, 2);
 		assert.ok(response && hasKey(response, { error: true }) && response.error?.code === AhpErrorCodes.PermissionDenied);
 		assert.deepStrictEqual(devContainerService.connects, []);
+	});
+
+	test('requests MCP authentication in client order, skipping rejection and disconnect', async () => {
+		const clients = [connectClient('unsupported'), connectClient('disconnected'), connectClient('denied'), connectClient('authenticated'), connectClient('unused')];
+		const params: IAgentHostMcpAuthenticationRequest = {
+			serverName: 'example',
+			auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] } },
+		};
+		const result = clientConnections.requestMcpAuthentication(params);
+		const requests = [];
+		for (let index = 0; index < 4; index++) {
+			let reverseRequest = findRequest(clients[index].sent, RequestAgentHostMcpAuthenticationExtensionMethod);
+			while (!reverseRequest) {
+				await Promise.resolve();
+				reverseRequest = findRequest(clients[index].sent, RequestAgentHostMcpAuthenticationExtensionMethod);
+			}
+			requests.push({ client: index, method: reverseRequest.method, params: reverseRequest.params });
+			if (index === 0) {
+				clients[index].simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Unsupported' } });
+			} else if (index === 1) {
+				clients[index].simulateClose();
+			} else {
+				clients[index].simulateMessage({ jsonrpc: '2.0', id: reverseRequest.id, result: { authenticated: index === 3 } });
+			}
+		}
+		assert.deepStrictEqual({
+			authenticated: await result,
+			requests,
+			unused: findRequest(clients[4].sent, RequestAgentHostMcpAuthenticationExtensionMethod),
+		}, {
+			authenticated: true,
+			requests: [0, 1, 2, 3].map(client => ({ client, method: RequestAgentHostMcpAuthenticationExtensionMethod, params })),
+			unused: undefined,
+		});
+	});
+
+	test('returns false for MCP authentication without connected clients', async () => {
+		const params: IAgentHostMcpAuthenticationRequest = {
+			serverName: 'example',
+			auth: { reason: McpAuthRequiredReason.Required, resource: { resource: 'https://mcp.example.com', authorization_servers: [] } },
+		};
+		const withoutClients = await clientConnections.requestMcpAuthentication(params);
+		const disconnected = connectClient('disconnected');
+		disconnected.simulateClose();
+		assert.deepStrictEqual([withoutClients, await clientConnections.requestMcpAuthentication(params)], [false, false]);
 	});
 
 	test('routes a workspace trust request to the initiating client', async () => {
@@ -4654,6 +4731,7 @@ suite('ProtocolServerHandler', () => {
 
 	test('scopes managed settings contributions to each protocol handler', () => {
 		const firstTransport = connectClient('shared-client-id');
+		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		firstTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
@@ -4682,6 +4760,7 @@ suite('ProtocolServerHandler', () => {
 		secondTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
+		secondTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {
 			disableBypassPermissionsMode: 'disable',
@@ -4692,14 +4771,40 @@ suite('ProtocolServerHandler', () => {
 		secondHandler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, { ask: ['Shell'] });
+		assert.strictEqual(managedSettingsService.sandboxRequired, true);
+		firstTransport.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
+	});
+
+	test('attributes sandbox policy to the initialized client and rejects malformed contributions', () => {
+		const warnings: string[] = [];
+		logService.warn = message => warnings.push(message);
+		const uninitialized = new MockProtocolTransport();
+		server.simulateConnection(uninitialized);
+		uninitialized.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
+
+		const governed = connectClient('governed');
+		const other = connectClient('other');
+		governed.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+		other.simulateMessage(notification('setClientSandboxRequired', { required: false, clientId: 'governed' }));
+		for (const params of [{ required: 'false' }, {}, null]) {
+			governed.simulateMessage(notification('setClientSandboxRequired', params));
+		}
+		assert.strictEqual(managedSettingsService.sandboxRequired, true);
+		assert.strictEqual(warnings.length, 3);
+		governed.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes managed settings contributions for active and grace clients on dispose', () => {
 		const activeTransport = connectClient('client-managed-settings-active');
+		activeTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		activeTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { ask: ['Shell'] },
 		}));
 		const graceTransport = connectClient('client-managed-settings-grace');
+		graceTransport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 		graceTransport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 			permissions: { disableBypassPermissionsMode: 'disable' },
 		}));
@@ -4713,19 +4818,56 @@ suite('ProtocolServerHandler', () => {
 		handler.dispose();
 
 		assert.deepStrictEqual(managedSettingsService.permissions, {});
+		assert.strictEqual(managedSettingsService.sandboxRequired, false);
 	});
 
 	test('removes a managed settings contribution after disconnect grace expires', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const transport = connectClient('client-managed-settings-disconnect');
+			transport.simulateMessage(notification('setClientSandboxRequired', { required: true }));
 			transport.simulateMessage(notification('setClientManagedSettingsPermissions', {
 				permissions: { ask: ['Shell'] },
 			}));
 			transport.simulateClose();
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
 
 			await new Promise(resolve => setTimeout(resolve, 30_001));
 
 			assert.deepStrictEqual(managedSettingsService.permissions, {});
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+		});
+	});
+
+	test('disconnect expiry removes only that client sandbox requirement', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('sandbox-first');
+			const second = connectClient('sandbox-second');
+			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			second.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			first.simulateClose();
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
+			second.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
+		});
+	});
+
+	test('reconnecting preserves the sandbox contribution beyond the disconnect grace period', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const first = connectClient('sandbox-reconnect');
+			first.simulateMessage(notification('setClientSandboxRequired', { required: true }));
+			first.simulateClose();
+			const reconnected = new MockProtocolTransport();
+			server.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(2, 'reconnect', {
+				clientId: 'sandbox-reconnect',
+				lastSeenServerSeq: stateManager.serverSeq,
+				subscriptions: [],
+			}));
+			await new Promise(resolve => setTimeout(resolve, 30_001));
+			assert.strictEqual(managedSettingsService.sandboxRequired, true);
+			reconnected.simulateMessage(notification('setClientSandboxRequired', { required: false }));
+			assert.strictEqual(managedSettingsService.sandboxRequired, false);
 		});
 	});
 

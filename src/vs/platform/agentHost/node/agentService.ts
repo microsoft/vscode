@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { open, unlink, type FileHandle } from 'fs/promises';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
@@ -26,7 +27,7 @@ import { AgentChatMigrationDeferred, AgentProvider, AgentSession, AgentSignal, C
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
-import { omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getPersistedSessionConfigValues, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -39,7 +40,7 @@ import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } f
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
 import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
-import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withMessageRequestHiddenFromTranscript, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
+import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatReadOnly, isDefaultChatUri, isSessionStatusArchived, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionSourceControlState, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
 import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../common/meta/agentEphemeralSessionMeta.js';
@@ -689,7 +690,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _disposingPeerChats = new Set<string>();
 	private readonly _defaultChatBackingWrites = new Map<string, Promise<void>>();
 	private readonly _chatHistoryRefreshes = this._register(new ThrottlerByKey<string>());
-	private readonly _chatHistoryWatches = this._register(new DisposableResourceMap());
+	private readonly _chatWatches = this._register(new DisposableResourceMap());
 	private readonly _pendingChatHistories = new Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>();
 	private readonly _authService: AgentHostAuthenticationService;
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
@@ -853,10 +854,11 @@ export class AgentService extends Disposable implements IAgentService {
 				const provider = this._providerService.resolveProvider(template.provider);
 				return provider !== undefined && provider.isReadyForAutomation?.(template.model, reader) !== false;
 			},
-			createSession: (template, run) => this.createSession({
+			createSession: (template, run, activeClient) => this.createSession({
 				provider: template.provider,
 				model: template.model,
 				agent: template.agent,
+				activeClient,
 				workingDirectories: template.workingDirectories?.map(resource => URI.parse(resource)),
 				config: template.config,
 				_meta: {
@@ -961,9 +963,9 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}));
 		this._register(this._stateManager.onDidRemoveSession(session => {
-			for (const chat of this._chatHistoryWatches.keys()) {
+			for (const chat of this._chatWatches.keys()) {
 				if (parseRequiredSessionUriFromChatUri(chat) === session) {
-					this._chatHistoryWatches.deleteAndDispose(chat);
+					this._chatWatches.deleteAndDispose(chat);
 					this._pendingChatHistories.delete(chat.toString());
 				}
 			}
@@ -5070,7 +5072,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async disposeChat(session: URI, chat: URI): Promise<void> {
-		this._chatHistoryWatches.deleteAndDispose(chat);
+		this._chatWatches.deleteAndDispose(chat);
 		this._pendingChatHistories.delete(chat.toString());
 		const sessionKey = session.toString();
 		const chatKey = chat.toString();
@@ -5349,7 +5351,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
 		await this._restoreSessionInFlight.get(session.toString());
 		const previous = this._stateManager.getChatState(chat.toString());
-		const watch = this._chatHistoryWatches.get(chat);
+		const watch = this._chatWatches.get(chat);
 		if (!previous || this._store.isDisposed || this._providerService.getProviderForSession(session) !== provider || !this._subscriptions.hasSubscribers(chat)) {
 			return;
 		}
@@ -5363,7 +5365,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const refreshed = previous.turns.map(turn => byId.get(turn.id) ?? turn);
 		const existing = new Set(previous.turns.map(turn => turn.id));
 		refreshed.push(...turns.filter(turn => !existing.has(turn.id)));
-		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatHistoryWatches.get(chat) === watch) {
+		if (!this._store.isDisposed && this._providerService.getProviderForSession(session) === provider && this._subscriptions.hasSubscribers(chat) && this._chatWatches.get(chat) === watch) {
 			const current = this._stateManager.getChatState(chat.toString());
 			if (current?.activeTurn) {
 				this._pendingChatHistories.set(chat.toString(), { provider, chat, turns: providerTurns });
@@ -5809,7 +5811,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to open session database to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 			return;
 		}
-		ref.object.setMetadata('configValues', JSON.stringify(omitTransientSessionConfigValues(values))).catch(err => {
+		ref.object.setMetadata('configValues', JSON.stringify(getPersistedSessionConfigValues(values, this._configurationService.getSessionSandboxEnabled(session.toString())))).catch(err => {
 			this._logService.warn(`[AgentService] Failed to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 		}).finally(() => {
 			ref.dispose();
@@ -6367,7 +6369,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			this._sessionResidency.touch(resource);
 			void this._sessionResidency.reconcile();
-			this._watchChatHistory(resource);
+			this._watchChatUpdates(resource);
 			if (isAhpChatChannel(resourceStr)) {
 				await this._chatInputService.prepareChat(resource);
 				if (this._store.isDisposed || (isActive && !isActive())) {
@@ -6437,7 +6439,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// it cares about (e.g. uncommitted changeset → trigger refresh).
 		if (this._subscriptions.addSubscriber(resource, clientId)) {
 			this._changesetCoordinator.onFirstSubscriber(resource);
-			this._watchChatHistory(resource);
+			this._watchChatUpdates(resource);
 		}
 		this._sessionResidency.touch(resource);
 	}
@@ -6449,7 +6451,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!this._subscriptions.removeSubscriber(resource, clientId)) {
 			return;
 		}
-		this._chatHistoryWatches.deleteAndDispose(resource);
+		this._chatWatches.deleteAndDispose(resource);
 		this._pendingChatHistories.delete(resource.toString());
 		if (isAhpChatChannel(resource.toString())) {
 			this._chatInputService.clear(parseRequiredSessionUriFromChatUri(resource.toString()), resource.toString());
@@ -6464,14 +6466,23 @@ export class AgentService extends Disposable implements IAgentService {
 		void this._sessionResidency.reconcile();
 	}
 
-	private _watchChatHistory(chat: URI): void {
-		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatHistoryWatches.has(chat)) {
+	private _watchChatUpdates(chat: URI): void {
+		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatWatches.has(chat)) {
 			return;
 		}
 		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
-		const watch = this._providerService.getProviderForSession(session)?.watchChatHistory?.(chat);
-		if (watch) {
-			this._chatHistoryWatches.set(chat, watch);
+		const provider = this._providerService.getProviderForSession(session);
+		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
+			const watches = new DisposableStore();
+			this._chatWatches.set(chat, watches);
+			const history = provider.watchChatHistory?.(chat);
+			if (history) {
+				watches.add(history);
+			}
+			const backgroundWork = provider.watchChatBackgroundWork?.(chat, () => this._stateManager.getChatState(chat.toString())?.backgroundWork ?? []);
+			if (backgroundWork) {
+				watches.add(backgroundWork);
+			}
 		}
 	}
 
@@ -6853,7 +6864,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 
-			void this._dispatchAutomationAction(action).catch(error => {
+			void this._dispatchAutomationAction(action, clientId).catch(error => {
 				const message = toErrorMessage(error);
 				this._logService.error(`[AgentService] automation action failed: ${message}`);
 				this._stateManager.rejectClientAction(channel, action, origin, message);
@@ -6969,12 +6980,12 @@ export class AgentService extends Disposable implements IAgentService {
 		this._clientDispatchQueues.set(clientId, next);
 	}
 
-	private async _dispatchAutomationAction(action: ClientAutomationAction): Promise<void> {
+	private async _dispatchAutomationAction(action: ClientAutomationAction, clientId: string): Promise<void> {
 		switch (action.type) {
 			case ActionType.AutomationCreateRequested:
-				return this._automationService.handleCreate(action);
+				return this._automationService.handleCreate(action, clientId);
 			case ActionType.AutomationUpdateRequested:
-				return this._automationService.handleUpdate(action);
+				return this._automationService.handleUpdate(action, clientId);
 			case ActionType.AutomationRemoved:
 				return this._automationService.handleRemove(action);
 		}
@@ -8432,7 +8443,7 @@ export class AgentService extends Disposable implements IAgentService {
 		]);
 		if (restoredConfig) {
 			const previousConfig = this._stateManager.getSessionState(sessionStr)?.config;
-			this._stateManager.setSessionConfig(sessionStr, restoredConfig);
+			this._configurationService.restoreSessionConfig(sessionStr, restoredConfig);
 			this._changesetCoordinator.onSessionConfigRestored(sessionStr, previousConfig);
 			// Seeded config bypasses `onDidChangeSessionConfig`, so heal the
 			// index for a session enabled before it was introduced.

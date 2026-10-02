@@ -68,6 +68,7 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"src/vs/platform/agentHost/common/state/protocol/**": true,
+		"src/vs/platform/agentHost/common/meta/copilotd/generated/**": true,
 		"src/vs/platform/agentHost/node/codex/protocol/generated/**": true,
 		"test/integration/browser/out/**": true,
 		// "src/vs/sessions/**": true
@@ -142,8 +143,10 @@
 		"eslint": "warning"
 	},
 	"git.worktreeIncludeFiles": [
-		"/product.overrides.json",
-		"node_modules",
+		"product.overrides.json"
+	],
+	"git.worktreeSymlinkFolders": [
+		"node_modules/"
 	],
 	// --- GitHub ---
 	"githubPullRequests.experimental.createView": true,

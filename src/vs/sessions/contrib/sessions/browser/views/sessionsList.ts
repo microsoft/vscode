@@ -43,8 +43,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles, getCountBadgeStyle } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { buttonSecondaryBorder, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -63,7 +62,6 @@ import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprova
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
-import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -813,11 +811,14 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 			template.container.classList.toggle('archived', isArchived);
 			template.container.classList.toggle('needs-input', status === SessionStatus.NeedsInput);
 		}));
+		const descriptionDisposable = template.elementDisposables.add(new MutableDisposable());
 		template.elementDisposables.add(autorun(reader => {
 			const sessionWorkspace = element.session.workspace.read(reader);
 			const chatWorkspace = element.chat.workspace.read(reader);
 			const folderLabel = getChatWorkspaceBadgeLabel(sessionWorkspace, chatWorkspace);
-			const updatedAt = element.chat.updatedAt.read(reader);
+			const status = element.chat.status.read(reader);
+			const statusMessage = getSessionStatusMessage(status, element.chat.description.read(reader));
+			const updatedAt = status === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
 			template.container.classList.toggle('has-folder-label', !!folderLabel);
 			DOM.clearNode(template.compactHoverDescription);
 			if (folderLabel) {
@@ -827,8 +828,20 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 			const showDetailsRow = !this.compact();
 			template.folderRow.hidden = !showDetailsRow;
+			descriptionDisposable.clear();
 			DOM.clearNode(template.folderRow);
-			if (showDetailsRow && folderLabel && chatWorkspace) {
+			if (showDetailsRow && statusMessage !== undefined) {
+				const statusElement = DOM.append(template.folderRow, $('span.session-description'));
+				const statusDescription = typeof statusMessage === 'string'
+					? statusMessage
+					: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+				if (typeof statusMessage === 'string' || !this.markdownRendererService) {
+					statusElement.textContent = statusDescription;
+				} else {
+					descriptionDisposable.value = this.markdownRendererService.render(statusMessage, { sanitizerConfig: { replaceWithPlaintext: true } }, statusElement);
+				}
+				reader.store.add(this.hoverService.setupDelayedHover(statusElement, { content: statusDescription }, { groupId: 'sessions-list' }));
+			} else if (showDetailsRow && folderLabel && chatWorkspace) {
 				const kind = getSessionWorkspaceKind(chatWorkspace, false);
 				const icon = kind === SessionWorkspaceKind.Worktree ? Codicon.worktreeCompact : Codicon.folderCompact;
 				const iconContainer = DOM.append(template.folderRow, $('span.session-chat-folder-icon'));
@@ -837,7 +850,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				reader.store.add(this.hoverService.setupDelayedHover(label, { content: folderLabel }, { groupId: 'sessions-list' }));
 			}
 			if (showDetailsRow && updatedAt) {
-				if (folderLabel) {
+				if (statusMessage !== undefined || folderLabel) {
 					DOM.append(template.folderRow, $('span.session-chat-separator', undefined, '\u00B7'));
 				}
 				const time = DOM.append(template.folderRow, $('span.session-chat-time'));
@@ -2106,7 +2119,7 @@ function couldShowSessionHeaderStatus(sessions: readonly ISession[], reader: IRe
 	});
 }
 
-function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, statusTrigger: ISessionHeaderStatusTrigger, instantiationService: IInstantiationService): void {
+function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: readonly ISession[], icon: ThemeIcon | undefined, showUnreadInCollapsedSections: IObservable<boolean>, sessionsWithFailingCI: IObservable<ReadonlySet<string>>, statusTrigger: ISessionHeaderStatusTrigger, instantiationService: IInstantiationService, iconOverride?: IObservable<ThemeIcon | undefined>): void {
 	template.elementDisposables.add(autorun(reader => {
 		if (statusTrigger.pending.read(reader) && (template.collapsed.read(reader) || statusTrigger.includeExpanded.read(reader)) && couldShowSessionHeaderStatus(sessions, reader)) {
 			statusTrigger.report();
@@ -2117,9 +2130,11 @@ function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: rea
 		: undefined);
 	template.elementDisposables.add(autorun(reader => {
 		const status = headerStatus.read(reader);
+		const renderedIcon = iconOverride?.read(reader) ?? icon;
 		DOM.clearNode(template.icon);
 		template.icon.className = 'session-section-icon';
-		template.icon.style.display = status !== undefined || icon ? '' : 'none';
+		template.icon.style.color = renderedIcon?.color ? asCssVariable(renderedIcon.color.id) : '';
+		template.icon.style.display = status !== undefined || renderedIcon ? '' : 'none';
 		if (status !== undefined) {
 			const statusIcon = reader.store.add(instantiationService.createInstance(SessionStatusIcon, template.icon));
 			statusIcon.setStatus(
@@ -2128,8 +2143,8 @@ function renderSessionHeaderIcon(template: ISessionHeaderTemplate, sessions: rea
 				false,
 				status === SessionHeaderStatus.FailingCI ? { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') } : undefined,
 			);
-		} else if (icon) {
-			template.icon.classList.add(...ThemeIcon.asClassNameArray(icon));
+		} else if (renderedIcon) {
+			template.icon.classList.add(...ThemeIcon.asClassNameArray(renderedIcon));
 		}
 	}));
 }
@@ -2142,11 +2157,8 @@ function renderSessionHeaderToolbar<T>(template: ISessionHeaderTemplate, element
 interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
-	readonly migrationIndicator: HTMLElement;
 	readonly count: HTMLElement;
 	readonly countLabel: HTMLElement;
-	readonly countBadgeContainer: HTMLElement;
-	readonly countBadge: CountBadge;
 	readonly newBadge: HTMLElement;
 	readonly keybindingHint: HTMLElement;
 	readonly keybindingLabel: KeybindingLabel;
@@ -2193,6 +2205,9 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		}
 		return undefined;
 	});
+	private readonly customizationsIcon = derived(this, reader => this.customizationMigrationsAvailable.read(reader)
+		? { ...Codicon.circleFilled, color: themeColorFromId('activityWarningBadge.background') }
+		: undefined);
 
 	constructor(
 		private readonly hideSectionCount: boolean,
@@ -2211,7 +2226,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly keybindingService: IKeybindingService,
 		private readonly newSessionActive: IObservable<boolean>,
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
-		private readonly customizationsCount: IObservable<number> = constObservable(0),
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
 		readonly rowClassName?: string,
@@ -2233,14 +2247,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		icon.setAttribute('aria-hidden', 'true');
 		const labelContainer = DOM.append(container, $('span.session-section-label-container'));
 		const label = DOM.append(labelContainer, $('span.session-section-label'));
-		const countBadgeContainer = DOM.append(labelContainer, $('span.session-section-count-badge'));
-		const countBadge = disposables.add(new CountBadge(countBadgeContainer, {}, getCountBadgeStyle({
-			badgeBackground: buttonSecondaryHoverBackground,
-			badgeForeground: buttonSecondaryForeground,
-			badgeBorder: buttonSecondaryBorder,
-		})));
-		const migrationIndicator = DOM.append(labelContainer, $('span.session-section-migration-indicator'));
-		migrationIndicator.setAttribute('aria-hidden', 'true');
 		const count = DOM.append(container, $('span.session-section-count'));
 		const countLabel = DOM.append(count, $('span.session-section-count-label'));
 		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
@@ -2303,7 +2309,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, migrationIndicator, count, countLabel, countBadgeContainer, countBadge, newBadge, keybindingHint, keybindingLabel, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, count, countLabel, newBadge, keybindingHint, keybindingLabel, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -2319,7 +2325,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		template.container.classList.remove('session-section-new-session');
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
-		template.migrationIndicator.classList.remove('visible');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
 		template.newBadge.style.display = 'none';
 		template.newBadge.classList.remove(
@@ -2366,13 +2371,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 					row?.removeAttribute('aria-current');
 				}
 			}));
-			template.elementDisposables.add(autorun(reader => {
-				template.countBadge.setCount(this.customizationsCount.read(reader));
-				template.countLabel.style.display = 'none';
-				template.countBadgeContainer.style.display = '';
-				template.count.style.display = 'none';
-				template.migrationIndicator.classList.toggle('visible', this.customizationMigrationsAvailable.read(reader));
-			}));
 		}
 
 		this.updateChevron(template, node.collapsible, node.collapsed);
@@ -2411,20 +2409,26 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 				}
 			}));
 		} else {
-			renderSessionHeaderIcon(template, element.sessions, getSessionSectionIcon(element.id), this.showUnreadInCollapsedSections, this.sessionsWithFailingCI, this.headerStatusTrigger, this.instantiationService);
+			renderSessionHeaderIcon(
+				template,
+				element.sessions,
+				getSessionSectionIcon(element.id),
+				this.showUnreadInCollapsedSections,
+				this.sessionsWithFailingCI,
+				this.headerStatusTrigger,
+				this.instantiationService,
+				element.id === CUSTOMIZATIONS_SECTION_ID ? this.customizationsIcon : undefined,
+			);
 		}
 
 		template.label.textContent = element.label;
-		if (element.id !== CUSTOMIZATIONS_SECTION_ID) {
-			template.countBadgeContainer.style.display = 'none';
-			template.countLabel.style.display = '';
-			if (this.hideSectionCount || shortcut) {
-				template.countLabel.textContent = '';
-				template.count.style.display = 'none';
-			} else {
-				template.countLabel.textContent = String(element.sessions.length);
-				template.count.style.display = '';
-			}
+		template.countLabel.style.display = '';
+		if (this.hideSectionCount || shortcut) {
+			template.countLabel.textContent = '';
+			template.count.style.display = 'none';
+		} else {
+			template.countLabel.textContent = String(element.sessions.length);
+			template.count.style.display = '';
 		}
 
 		// Set context key for section type so toolbar actions can use when clauses
@@ -2854,16 +2858,25 @@ class SessionsAccessibilityProvider {
 		if (isSessionChatItem(element)) {
 			return derived(this, reader => {
 				const title = getChatTitle(element.chat, reader);
-				const updatedAt = element.chat.updatedAt.read(reader);
-				const status = getSessionConversationStatusAriaLabel(element.chat.status.read(reader));
+				const chatStatus = element.chat.status.read(reader);
+				const updatedAt = chatStatus === SessionStatus.InProgress ? undefined : element.chat.updatedAt.read(reader);
+				const status = getSessionConversationStatusAriaLabel(chatStatus);
+				const chatDescription = element.chat.description.read(reader);
+				const statusMessage = getSessionStatusMessage(chatStatus, chatDescription);
 				const folderLabel = getChatWorkspaceBadgeLabel(element.session.workspace.read(reader), element.chat.workspace.read(reader));
-				const label = updatedAt
+				let label = updatedAt
 					? folderLabel
 						? localize('sessionChatItemFolderAria', "{0}, chat in folder {1}, updated {2}, {3}", title, folderLabel, fromNow(updatedAt, true), status)
 						: localize('sessionChatItemAria', "{0}, chat, updated {1}, {2}", title, fromNow(updatedAt, true), status)
 					: folderLabel
 						? localize('sessionChatItemFolderWithoutTimeAria', "{0}, chat in folder {1}, {2}", title, folderLabel, status)
 						: localize('sessionChatItemWithoutTimeAria', "{0}, chat, {1}", title, status);
+				if (statusMessage !== undefined && (chatStatus === SessionStatus.InProgress || chatDescription !== undefined)) {
+					const statusMessageText = typeof statusMessage === 'string'
+						? statusMessage
+						: renderAsPlaintext(statusMessage, { omitMarkdownSyntax: true });
+					label = localize('sessionChatItemStatusMessageAria', "{0}, {1}", label, statusMessageText);
+				}
 				return element.chat.isArchived.read(reader)
 					? localize('sessionChatItemArchivedAria', "{0}, archived", label)
 					: label;
@@ -3875,7 +3888,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.keybindingService,
 			newSessionActive,
 			customizationsActive,
-			customizationsCount,
 			customizationMigrationsAvailable,
 			templateId,
 			rowClassName,

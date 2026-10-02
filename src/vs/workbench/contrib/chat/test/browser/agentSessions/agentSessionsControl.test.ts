@@ -120,6 +120,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
@@ -178,6 +179,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
 		instantiation.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
@@ -243,6 +245,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {
@@ -308,6 +311,7 @@ suite('AgentSessionsControl', () => {
 		};
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
+			override getChatSessionContribution() { return undefined; }
 			override resolveChatSessionItem = async () => undefined;
 		});
 		instantiationService.stub(IVoicePlaybackService, new class extends mock<IVoicePlaybackService>() {

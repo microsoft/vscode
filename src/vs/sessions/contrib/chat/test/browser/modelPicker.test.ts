@@ -17,6 +17,8 @@ import { IWorkspaceTrustManagementService } from '../../../../../platform/worksp
 import { IChatPetService } from '../../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { ModelPickerActionItem } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { MockChatSessionsService } from '../../../../../workbench/contrib/chat/test/common/mockChatSessionsService.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -138,6 +140,7 @@ suite('ModelPicker controls', () => {
 
 	test('exposes the rendered picker and its existing operations without a session', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		const modelPickers = new NewChatModelPickerService();
 		const selectedModels: string[] = [];
 		let opens = 0;
