@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -29,6 +29,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ARCHIVE_SESSION_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ISessionGroup } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -393,6 +394,7 @@ suite('Sessions list context menus', () => {
 		const { instantiationService, store, commandService, managementService } = harness;
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		await configurationService.setUserConfiguration(ChatSessionArchiveActionWordingSettingId, ChatSessionArchiveActionWording.MarkAsDone);
+		await configurationService.setUserConfiguration(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, true);
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		SessionsListPromoteNewChatActionContext.bindTo(contextKeyService).set(true);
@@ -448,7 +450,7 @@ suite('Sessions list context menus', () => {
 
 		assert.deepStrictEqual({
 			configure: configure?.label,
-			options: configure instanceof SubmenuAction ? configure.actions.map(action => action.label) : [],
+			options: configure instanceof SubmenuAction ? configure.actions.map(action => action instanceof Separator ? 'separator' : action.label) : [],
 			archived: managementService.archived.map(session => session.sessionId).sort(),
 			newRowAction: rowActions.some(action => action.id === 'sessions.chatCompositeBar.addChat'),
 			rowDone: rowActions.find(action => action.id === ARCHIVE_SESSION_COMMAND_ID)?.label,
@@ -456,7 +458,7 @@ suite('Sessions list context menus', () => {
 			toolbarLabels,
 		}, {
 			configure: 'Configure External Sessions',
-			options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days'],
+			options: ['None', 'Recent', 'Last 24 Hours', 'Last 7 Days', 'Last 30 Days', 'separator', 'Show in External Section'],
 			archived: ['External', 'Second external'],
 			newRowAction: false,
 			rowDone: 'Mark as Done',
