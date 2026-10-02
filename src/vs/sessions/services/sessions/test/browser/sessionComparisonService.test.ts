@@ -1465,14 +1465,21 @@ suite('SessionComparisonService', () => {
 
 		const comparison = await service.startComparison(startOptions());
 		const attempts = comparison.participants.filter(participant => participant.role === SessionComparisonParticipantRole.Attempt);
+		const baseVerdict = verdict(attempts[1].id, attempts.map(attempt => attempt.id));
 		service.submitVerdict(comparison.id, {
-			...verdict(attempts[1].id, attempts.map(attempt => attempt.id)),
+			...baseVerdict,
 			rationale: {
 				comparison: 'The other attempt leaves the failure unresolved.',
 				validation: 'Focused tests pass.',
 				codeQuality: 'Uses the existing implementation pattern.',
 				solution: 'Implements the requested behavior.',
 			},
+			attempts: baseVerdict.attempts.map((attempt, index) => ({
+				...attempt,
+				notableDifferences: index === 0
+					? ['Keeps the parser API unchanged.', '  ', 'Handles malformed input without throwing.']
+					: ['Uses the winning implementation pattern.'],
+			})),
 		});
 		service.setSynthesisPlan(comparison.id, {
 			instructions: 'Preserve the public API and add focused tests.',
@@ -1506,7 +1513,7 @@ suite('SessionComparisonService', () => {
 			providerId: 'synthesis-provider',
 			sessionTypeId: 'synthesis-type',
 			modelId: 'synthesis-model',
-			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
+			prompt: `Synthesize the strongest parts of comparison \`${comparison.id}\` into a new implementation.\n\n## Process\n1. Call \`#readAttemptComparison\` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If \`changedFilesStatus\` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. When provided, consider the strong points from other attempts below and incorporate them when they improve the solution without conflicting with user requirements.\n5. Call \`get_session_context\` only with an exact \`sessionContextTarget\` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n6. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\nAttempt 2 (Two)\nComparison: The other attempt leaves the failure unresolved.\nValidation: Focused tests pass.\nCode quality: Uses the existing implementation pattern.\nSolution: Implements the requested behavior.\n\n## Strong points from other attempts\n- **Attempt 1 (One)**: Keeps the parser API unchanged.\n- **Attempt 1 (One)**: Handles malformed input without throwing.\n\n## Additional synthesis instructions\nPreserve the public API and add focused tests.\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.`,
 			plan: {
 				instructions: 'Preserve the public API and add focused tests.',
 			},
