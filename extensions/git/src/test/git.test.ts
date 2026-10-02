@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getGitErrorCode } from '../git';
+import { GitErrorCodes } from '../api/git.constants';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -714,6 +715,58 @@ suite('git', () => {
 			assert.deepStrictEqual(
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
+			);
+		});
+	});
+
+	suite('getGitErrorCode', () => {
+		test('IndexCorrupted', () => {
+			assert.strictEqual(
+				getGitErrorCode('fatal: .git/index: index file smaller than expected'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: index file smaller than expected'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: .git/index: index file corrupt'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: index file corrupt'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: .git/index: unable to map index file'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: bad index file'),
+				GitErrorCodes.IndexCorrupted
+			);
+			assert.strictEqual(
+				getGitErrorCode('error: bad signature 0x00000000'),
+				GitErrorCodes.IndexCorrupted
+			);
+		});
+
+		test('Other known error codes', () => {
+			assert.strictEqual(
+				getGitErrorCode('fatal: Not a git repository (or any of the parent directories): .git'),
+				GitErrorCodes.NotAGitRepository
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: Another git process seems to be running in this repository'),
+				GitErrorCodes.RepositoryIsLocked
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: Authentication failed for \'https://github.com/repo.git\''),
+				GitErrorCodes.AuthenticationFailed
+			);
+			assert.strictEqual(
+				getGitErrorCode('fatal: some unknown random git failure message'),
+				undefined
 			);
 		});
 	});
