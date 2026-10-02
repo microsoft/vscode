@@ -119,6 +119,8 @@ export interface PullRequestReview {
 }
 
 export interface PullRequestInlineComment extends PullRequestComment {
+	/** GitHub's review-comment state (PENDING or SUBMITTED), when available. */
+	readonly state?: string;
 	readonly reviewId?: string;
 	readonly replyToId?: string;
 	readonly path?: string;
