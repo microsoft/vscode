@@ -2997,8 +2997,8 @@ suite('Sessions - SessionsList', () => {
 
 		function renderComparison(verdict?: ISessionComparison['verdict'], sessionVariant: 'all' | 'attempt1' | 'none' | 'launching' = 'all', pinnedSessionIds: ReadonlySet<string> = new Set()) {
 			const attempt1 = createTestSession('Stored attempt one', { resourceId: 'attempt-1', status: SessionStatus.InProgress });
-			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress });
-			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress });
+			const attempt2 = createTestSession('Stored attempt two', { resourceId: 'attempt-2', status: SessionStatus.InProgress, application: 'github/cli' });
+			const judge = createTestSession('Judge', { resourceId: 'judge', status: SessionStatus.InProgress, application: 'github/cli' });
 			const synthesis = createTestSession('Synthesis', { resourceId: 'synthesis', status: SessionStatus.InProgress });
 			const comparison: ISessionComparison = {
 				id: 'comparison-1',
@@ -3189,8 +3189,7 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('shows a pending group without partial attempt rows while attempts launch', () => {
-			const { container, list } = renderComparison(undefined, 'launching');
-			list.setShowEmptyGroups(false);
+			const { container } = renderComparison(undefined, 'launching');
 			const comparison = container.querySelector<HTMLElement>('.session-comparison-group');
 			const archive = comparison?.querySelector<HTMLElement>('.session-comparison-archive');
 
@@ -3232,7 +3231,7 @@ suite('Sessions - SessionsList', () => {
 			attempt2.status.set(SessionStatus.NeedsInput, undefined);
 			judge.status.set(SessionStatus.NeedsInput, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
-			list.setStatusExcluded(SessionStatus.NeedsInput, true);
+			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, true);
 			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 			assert.deepStrictEqual({
 				hidden: archive?.hidden,
@@ -3240,12 +3239,14 @@ suite('Sessions - SessionsList', () => {
 				ariaLabel: archive?.getAttribute('aria-label'),
 				checkIcon: archive?.querySelector('.codicon-check') !== null,
 				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
+				sessionRows: [...container.querySelectorAll('.session-item')].map(row => row.querySelector('.session-title')?.textContent),
 			}, {
 				hidden: false,
 				display: 'flex',
 				ariaLabel: 'Archive Comparison',
 				checkIcon: true,
 				stopButtons: 0,
+				sessionRows: ['Synthesis', 'Copilot · Claude Opus 5'],
 			});
 
 			archive?.click();
