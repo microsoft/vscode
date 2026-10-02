@@ -1129,35 +1129,67 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming with the same owner still focused must re-apply its own composition, not leave the stale phone-era on-screen state');
 	});
 
-	test('[R8] deleting a session\'s main chat entity while the session persists does not delete its shared working-set handle, but later session removal still does', async () => {
-		const controller = createDesktopController({ chatLayoutEnabled: true });
+	test('[R8] a working-set handle still referenced by the frozen legacy (disabled-mode) storage key survives an ordinary outgoing save that overwrites the enabled-mode owner\'s copy, and the fresh replacement handle is still correctly freed once unreferenced', async () => {
+		const legacyWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
+		const controller = createDesktopController({
+			chatLayoutEnabled: true,
+			layoutState: [{ sessionResource: 'session:a', editorWorkingSet: legacyWorkingSet }],
+		});
 		await settle();
 
 		const session = makeSession(URI.parse('session:a'));
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		harness.visibleEditorsList = [{} as never];
-		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/main-handle.txt')))];
-		await settle();
-		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
 		const key = controller.ownerKeyFor(session);
-		const workingSet = controller.capturedWorkingSet(key);
-		assert.notStrictEqual(workingSet, undefined, 'the session\'s editor working set must be captured before the main chat entity is deleted');
+		assert.deepStrictEqual(controller.capturedWorkingSet(key), legacyWorkingSet, 'the frozen legacy working set must be copied forward into the enabled-mode owner on first load');
+
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/new-main-content.txt')))];
+		await settle();
+		const other = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(other, undefined);
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'overwriting a working set still referenced by the frozen legacy storage key must not call the destructive deleteWorkingSet API');
+		const refreshedWorkingSet = controller.capturedWorkingSet(key);
+		assert.notStrictEqual(refreshedWorkingSet?.id, legacyWorkingSet.id, 'the outgoing save must have captured a fresh working set distinct from the legacy-referenced one');
+
+		harness.onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [refreshedWorkingSet!.id], 'a unique, unreferenced working-set handle must still be destroyed exactly once when its owner is actually removed');
+	});
+
+	test('[R8] deleting a session\'s main chat entity clears its own tracked working set like any other owner, but never destroys a handle still referenced by the frozen legacy storage key', async () => {
+		const legacyWorkingSet = { id: 'legacy-handle', name: 'legacy-handle' };
+		const controller = createDesktopController({
+			chatLayoutEnabled: true,
+			layoutState: [{ sessionResource: 'session:a', editorWorkingSet: legacyWorkingSet }],
+		});
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		const key = controller.ownerKeyFor(session);
+		assert.deepStrictEqual(controller.capturedWorkingSet(key), legacyWorkingSet, 'the frozen legacy working set must be copied forward into the enabled-mode owner on first load');
 
 		const mainChatDeleted: IChatDeletedEvent = { session, sessionResource: session.resource, chatResource: session.mainChat.get().resource };
 		harness.onDidDeleteChat.fire(mainChatDeleted);
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'deleting the main chat entity alone must not call the destructive deleteWorkingSet API while the session is still alive');
-		assert.deepStrictEqual(controller.capturedWorkingSet(key), workingSet, 'the shared working-set handle must still be tracked and applicable after the main chat entity is deleted');
+		assert.strictEqual(controller.capturedWorkingSet(key), undefined, 'deleting the main chat entity must clear its own tracked working set like any other owner, per R8');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'the destructive deleteWorkingSet API must not be called while the frozen legacy storage key still references the handle');
 
 		harness.onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [workingSet!.id], 'removing the session itself must still correctly delete its working-set handle exactly once, proving last-ref cleanup still occurs');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'the session itself is removed after its main chat entity was already forgotten, so there is no live owner reference left to delete and the legacy-referenced handle must remain untouched');
 	});
 
-	test('[R8] a promotion that collapses a peer chat onto an already-used owner key never calls the destructive deleteWorkingSet API, and later session removal still cleans up exactly once', async () => {
+	test('[R8] a promotion that collapses a peer chat onto an already-used owner key never calls the destructive deleteWorkingSet API on the incoming handle, correctly frees the orphaned pre-existing destination handle it overwrites, and still cleans up the surviving handle exactly once on later removal', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
 
@@ -1169,8 +1201,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const legacyKey = controller.ownerKeyFor(shared);
-		const legacyWorkingSet = controller.capturedWorkingSet(legacyKey);
-		assert.notStrictEqual(legacyWorkingSet, undefined, 'the pre-promotion session\'s editor working set must be captured at the shared owner key');
+		const preExistingDestinationWorkingSet = controller.capturedWorkingSet(legacyKey);
+		assert.notStrictEqual(preExistingDestinationWorkingSet, undefined, 'the pre-promotion session\'s editor working set must be captured at the shared owner key');
 
 		const draft = makeSession(URI.parse('session:draft'));
 		const draftPeer = addPeerChat(draft, URI.parse('chat:shared'));
@@ -1185,18 +1217,19 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const draftKey = controller.ownerKeyFor(draft);
 		const peerWorkingSet = controller.capturedWorkingSet(draftKey);
 		assert.notStrictEqual(peerWorkingSet, undefined, 'the draft peer chat\'s editor working set must be captured before promotion');
+		assert.notStrictEqual(peerWorkingSet!.id, preExistingDestinationWorkingSet!.id, 'the promoted peer handle and the pre-existing destination handle must be genuinely distinct for this to be a meaningful collision test');
 
 		harness.deleteWorkingSetCalls.length = 0;
 		harness.onDidReplaceSession.fire({ from: draft, to: shared });
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [], 'the promotion must not call the destructive deleteWorkingSet API even though it overwrites the shared owner key\'s tracked working set');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id], 'the promotion must never destroy the incoming peer handle it is installing, but the pre-existing destination handle it overwrites is now unreferenced by anything and must be correctly freed exactly once, not leaked');
 		assert.deepStrictEqual(controller.capturedWorkingSet(legacyKey), peerWorkingSet, 'the promoted peer chat\'s working set becomes the tracked working set at the collapsed shared owner key');
 
 		harness.onDidChangeSessions.fire({ added: [], removed: [shared], changed: [] });
 		await settle();
 
-		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [peerWorkingSet!.id], 'removing the session later still correctly deletes its (now-promoted) working-set handle exactly once');
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [preExistingDestinationWorkingSet!.id, peerWorkingSet!.id], 'removing the session later still correctly deletes its (now-promoted) surviving working-set handle exactly once, and does not re-delete the already-freed orphan');
 	});
 
 	test('[R7] a persisted peer-chat owner record survives before the peer is known to the session\'s chat catalog, and restores once the peer is observed and focused', async () => {

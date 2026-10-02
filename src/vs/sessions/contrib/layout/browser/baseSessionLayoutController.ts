@@ -137,6 +137,13 @@ export abstract class BaseLayoutController extends Disposable {
 	protected readonly _viewStateBySession = new ResourceMap<ISessionViewState>();
 	protected readonly _workingSets = new ResourceMap<IEditorWorkingSet>();
 	/**
+	 * [B3] Working-set ids carried forward, unmutated, from the frozen legacy
+	 * (disabled-mode) storage key on first load. That key's own entries still
+	 * reference these ids, so they must survive even once this owner's copy is
+	 * overwritten or removed.
+	 */
+	private readonly _legacyReferencedWorkingSetIds = new Set<string>();
+	/**
 	 * [B2] Whether the editor part was hidden (e.g. the user closed the Side
 	 * Panel while keeping editors open) for a session, captured on switch-away so
 	 * restoring the session's working set does not force the editor part open.
@@ -508,10 +515,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (!this._chatLayoutEnabled) {
 				return;
 			}
-			if (isEqual(chatResource, session.mainChat.get().resource)) {
-				return;
-			}
-			const key = this._chatLayoutOwnerKeys.forgetChat(sessionResource, chatResource);
+			const key = isEqual(chatResource, session.mainChat.get().resource)
+				? sessionResource
+				: this._chatLayoutOwnerKeys.forgetChat(sessionResource, chatResource);
 			if (key) {
 				this._forgetPeerChatState([key]);
 			}
@@ -695,8 +701,12 @@ export abstract class BaseLayoutController extends Disposable {
 		}
 		const workingSet = this._workingSets.get(oldKey);
 		if (workingSet) {
+			const previousAtNewKey = this._workingSets.get(newKey);
 			this._workingSets.set(newKey, workingSet);
 			this._workingSets.delete(oldKey);
+			if (previousAtNewKey && previousAtNewKey.id !== workingSet.id) {
+				this._releaseWorkingSetReference(previousAtNewKey);
+			}
 		}
 		const viewState = this._viewStateBySession.get(oldKey);
 		if (viewState) {
@@ -903,7 +913,13 @@ export abstract class BaseLayoutController extends Disposable {
 			const legacyPresentationRaw = this._storageService.get(legacyPresentationKey, StorageScope.WORKSPACE);
 			if (legacyPresentationRaw) {
 				try {
-					this._applySessionLayoutEntries(JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[]);
+					const legacyEntries = JSON.parse(legacyPresentationRaw) as ISessionLayoutEntry[];
+					this._applySessionLayoutEntries(legacyEntries);
+					for (const entry of legacyEntries) {
+						if (entry.editorWorkingSet) {
+							this._legacyReferencedWorkingSetIds.add(entry.editorWorkingSet.id);
+						}
+					}
 					return;
 				} catch {
 				}
@@ -1147,7 +1163,31 @@ export abstract class BaseLayoutController extends Disposable {
 			return;
 		}
 
-		this._editorGroupsService.deleteWorkingSet(existingWorkingSet);
 		this._workingSets.delete(sessionResource);
+		this._releaseWorkingSetReference(existingWorkingSet);
+	}
+
+	/**
+	 * [B8] Whether some other owner key still has a reference to `workingSet`,
+	 * either a live tracked key or the untouched legacy (disabled-mode) storage
+	 * copy-forward. A referenced handle must never be passed to the destructive
+	 * `deleteWorkingSet` API; only a dropped last reference may be.
+	 */
+	private _isWorkingSetStillReferenced(workingSet: IEditorWorkingSet): boolean {
+		if (this._legacyReferencedWorkingSetIds.has(workingSet.id)) {
+			return true;
+		}
+		for (const tracked of this._workingSets.values()) {
+			if (tracked.id === workingSet.id) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private _releaseWorkingSetReference(workingSet: IEditorWorkingSet): void {
+		if (!this._isWorkingSetStillReferenced(workingSet)) {
+			this._editorGroupsService.deleteWorkingSet(workingSet);
+		}
 	}
 }
