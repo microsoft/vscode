@@ -229,7 +229,7 @@ function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: nu
 
 function countIncludedBudgetSkills(rawBody: string): { skills: number; descriptions: number } {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	const system = extractText(request.instructions ?? request.system);
+	const system = readSystemPrompt(request);
 	const skillSurface = `${system}\n${JSON.stringify(request.tools ?? [])}`;
 	const countUnique = (pattern: RegExp) => new Set([...skillSurface.matchAll(pattern)].map(match => match[1])).size;
 	return {
@@ -314,7 +314,7 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 
 /** A partial view for the shape guard; the cast strips nothing from the serialized body. */
 interface IWireRequest {
-	/** Anthropic Messages spells the system prompt `system`; Responses uses `instructions`. */
+	/** Anthropic Messages uses `system`; Responses uses `instructions` or system-role input messages. */
 	readonly system?: unknown;
 	readonly instructions?: unknown;
 	/** Anthropic Messages carries the turn in `messages`; Responses uses `input`. */
@@ -325,9 +325,9 @@ interface IWireRequest {
 
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	const system = extractText(request.instructions ?? request.system);
+	const system = readSystemPrompt(request);
 	const tools = request.tools;
-	const messages = readMessages(request);
+	const messages = readMessages(request).filter(message => message.role !== 'system' && message.role !== 'developer');
 	const emptyMessage = messages.find(message => message.text.length === 0);
 
 	// A hollow capture would otherwise become a small, plausible-looking baseline.
@@ -356,6 +356,13 @@ function normalizeVolatileValues(value: unknown): unknown {
 		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeVolatileValues(item)]));
 	}
 	return value;
+}
+
+function readSystemPrompt(request: IWireRequest): string {
+	return [
+		extractText(request.instructions ?? request.system),
+		...readMessages(request).filter(message => message.role === 'system').map(message => message.text),
+	].filter(Boolean).join('\n');
 }
 
 /** Reads the turn's messages per dialect, for the shape guard only — never rendered. */
@@ -467,11 +474,24 @@ suite('Copilot prompt snapshot formatting', () => {
 			[{ ...validBody, messages: [] }, /carried no turn messages/],
 			[{ ...validBody, messages: 'not-an-array' }, /carried no turn messages/],
 			[{ ...validBody, messages: [{ role: 'user', content: '' }] }, /turn message was empty/],
+			[{ tools: validBody.tools, input: [{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt' }] }] }, /carried no turn messages/],
 		];
 
 		for (const [body, expected] of cases) {
 			assert.throws(() => formatPromptSnapshot(JSON.stringify(body)), expected);
 		}
+	});
+
+	test('accepts system-role Responses input and preserves prompt cache metadata', () => {
+		const body = {
+			model: 'gpt-5.6-sol',
+			input: [
+				{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt', prompt_cache_breakpoint: { mode: 'explicit' } }] },
+				{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello' }] },
+			],
+			tools: [{ name: 'example', type: 'function', parameters: { type: 'object' } }],
+		};
+		assert.strictEqual(formatPromptSnapshot(JSON.stringify(body)), `\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n`);
 	});
 
 	test('renders the request body whole, normalizing volatile values in place', () => {

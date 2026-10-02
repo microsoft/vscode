@@ -324,6 +324,173 @@
       }
     },
     {
+      "name": "run_dynamic_workflow",
+      "description": "Starts a registered workflow by name, or resumes a prior run by ID, and returns immediately with a run ID while execution continues in the background. Use only when the user explicitly requests a workflow at this scale, or when a skill or slash command specifically instructs you to use one. Do not infer workflow use merely because a task could benefit from parallelism: a workflow may spawn dozens of agents and consume substantial credits. The limits are optional overrides: on a new run, omit them unless the user specified a ceiling.",
+      "input_schema": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the registered workflow to run.\n\n{minLength: 1}"
+          },
+          "args": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Arguments supplied to the workflow as ctx.args. Send a JSON object, or null when the workflow takes no arguments, and never JSON-encoded text. A workflow may declare an argument shape; when present, arguments are validated against its structure -- types, required properties, and enum or const values -- and a mismatch fails the call. Finer constraints such as minLength, pattern, or additionalProperties are recorded in the declaration but not enforced. Use dynamic_workflows_manage inspect to read the declared shape when one is available."
+          },
+          "limits": {
+            "type": "object",
+            "description": "Optional per-invocation overrides of the workflow's declared limits. Omit them on a new run unless the user specified a ceiling: you have no reliable basis to estimate one, and a guessed value imposes unwanted backpressure or ends a valid run. The user approves every run and sees its effective limits first. After a workflow_limit_reached failure, raise only the limit that was reached when resuming.",
+            "properties": {
+              "maxConcurrentSubagents": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "{minimum: 1}"
+              },
+              "maxTotalSubagents": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "{minimum: 1}"
+              },
+              "timeoutSeconds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Maximum accumulated active-execution time in seconds.\n\n{maximum: 2147483.647, exclusiveMinimum: 0}"
+              },
+              "maxAiCredits": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Maximum AI credits consumed by subagents and descendants. This is a post-paid soft ceiling.\n\n{exclusiveMinimum: 0}"
+              }
+            },
+            "additionalProperties": false
+          },
+          "resumeFromRunId": {
+            "type": "string",
+            "description": "Prior run to resume using its persisted workflow name, arguments, journal, and accounting.\n\n{minLength: 1}"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "name": "dynamic_workflows_manage",
+      "description": "Manage registered agent workflows. A workflow is a reusable JavaScript orchestration that coordinates multiple subagents; it may spawn dozens of agents and consume substantial credits. Use one only when the user explicitly requests a workflow, or when a skill or slash command instructs you to. Do not infer workflow use merely because a task could benefit from parallelism. Use \"guide\" to find the workflow documentation, \"list\" to discover registered workflows, \"inspect\" to review one, \"runs\" to find prior runs and resumable work, \"inspect-run\" to read the durable result of a single run by ID without waiting for it to finish, or \"author\" to create or revise a session-scoped workflow, again only when the user or a skill has asked for one. An authored run function must be self-contained: define every schema, constant, and helper inside the function, and load modules with dynamic await import() rather than static imports. Declare meta.limits only with ceilings the user specified. Always call with operation \"guide\" before authoring any workflow code.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "guide",
+              "list",
+              "inspect",
+              "runs",
+              "inspect-run",
+              "author"
+            ],
+            "description": "The management operation to perform."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workflow name. Required for inspect.\n\n{minLength: 1}"
+          },
+          "runId": {
+            "type": "string",
+            "description": "Workflow run identifier. Required for inspect-run.\n\n{minLength: 1}"
+          },
+          "beforeSeq": {
+            "type": "integer",
+            "description": "Exclusive backward cursor for runs."
+          },
+          "meta": {
+            "type": "object",
+            "description": "Workflow metadata passed to defineWorkflow. Required for author.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Stable workflow name. Use only alphanumerics, hyphens, and underscores.\n\n{minLength: 1}"
+              },
+              "description": {
+                "type": "string",
+                "description": "Human-readable workflow description.\n\n{minLength: 1}"
+              },
+              "phases": {
+                "type": "array",
+                "description": "Display metadata for progress phases the workflow may report.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "description": "{minLength: 1}"
+                    },
+                    "detail": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "title"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "argsSchema": {
+                "type": "object",
+                "description": "JSON Schema describing the value available to the workflow as ctx.args."
+              },
+              "limits": {
+                "type": "object",
+                "description": "Optional workflow ceilings, overridable per invocation. Declare only the ceilings the user specified: you have no reliable basis to estimate one, and a guessed value imposes unwanted backpressure or ends a valid run. The user sees the effective limits when approving a run.",
+                "properties": {
+                  "maxConcurrentSubagents": {
+                    "type": "integer",
+                    "description": "{minimum: 1}"
+                  },
+                  "maxTotalSubagents": {
+                    "type": "integer",
+                    "description": "{minimum: 1}"
+                  },
+                  "timeoutSeconds": {
+                    "type": "number",
+                    "description": "Maximum accumulated active-execution time in seconds.\n\n{maximum: 2147483.647, exclusiveMinimum: 0}"
+                  },
+                  "maxAiCredits": {
+                    "type": "number",
+                    "description": "Maximum AI credits consumed by subagents and descendants. This is a post-paid soft ceiling.\n\n{exclusiveMinimum: 0}"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "name",
+              "description",
+              "phases"
+            ],
+            "additionalProperties": false
+          },
+          "run": {
+            "type": "string",
+            "description": "Complete JavaScript function expression for the workflow run body, such as async ({ args, log }) => { log(\"start\"); return args; }. Required for author.\n\n{minLength: 1}"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
       "name": "sql",
       "description": "Query the session SQLite database for structured workflows. `todos` and `todo_deps` already exist—do not recreate them; create other tables as needed. Supports SQLite SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, and DROP.",
       "input_schema": {
