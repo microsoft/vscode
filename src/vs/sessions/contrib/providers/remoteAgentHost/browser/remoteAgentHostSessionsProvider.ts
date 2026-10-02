@@ -174,7 +174,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly showConnectionLog?: () => Promise<void>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
-	readonly automations: ISessionsProviderAutomations;
+	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
 	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -345,8 +345,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
 			},
 		}));
-		this.automations = this._automationStore;
-
 		this._browseActions = [{
 			label: localize('folders', "Folders"),
 			description: displayName,
