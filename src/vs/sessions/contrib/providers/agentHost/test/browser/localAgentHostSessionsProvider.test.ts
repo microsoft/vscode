@@ -97,11 +97,11 @@ function createVSCodeSessionConfigSchema(overrides: SessionConfigSchema['propert
 			branch: { type: 'string', title: 'Base branch', enumDynamic: true, sessionMutable: false },
 			autoApprove: { type: 'string', title: 'Permissions', enum: ['default', 'assisted', 'autoApprove', 'autopilot'], sessionMutable: true },
 			mode: { type: 'string', title: 'Mode', enum: ['interactive', 'plan', 'autopilot'], sessionMutable: true },
-			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', sessionMutable: false },
-			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
-			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, sessionMutable: false },
-			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', sessionMutable: false },
-			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', sessionMutable: false },
+			worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+			worktreeIncludeFiles: { type: 'array', title: 'Included files', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', items: { type: 'string', title: 'Pattern' }, readOnly: true, sessionMutable: false },
+			worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
+			worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
 			sandboxEnabled: { type: 'string', title: 'Sandbox', enum: ['default', 'on', 'off'], sessionMutable: true },
 			providerOption: { type: 'string', title: 'Provider option', enum: ['remembered'], sessionMutable: true },
 			...overrides,
@@ -327,7 +327,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const values = { ...this.resolveSessionConfigResult.values };
 		for (const [key, value] of Object.entries(request.config ?? {})) {
 			const property = this.resolveSessionConfigResult.schema.properties[key];
-			if (property && !property.readOnly) {
+			if (property) {
 				values[key] = value;
 			}
 		}
@@ -829,7 +829,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Copilot schema discovery prevents VS defaults and read-only reports entering creation', async () => {
+	test('Copilot schema discovery prevents VS defaults entering creation without filtering readOnly values', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
@@ -854,8 +854,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eager: agentHost.createSessionConfigs.at(-1)?.config,
 		}, {
 			discovery: [undefined],
-			creation: { approvalMode: 'assisted', target: 'workspace' },
-			eager: { approvalMode: 'assisted', target: 'workspace' },
+			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+			eager: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
 		});
 	});
 
@@ -6064,6 +6064,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('createNewSession forwards Git worktree file settings after schema discovery', async () => {
 		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['product.overrides.json', '**/node_modules/**']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules/**', '.cache/**']);
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService: configService });
@@ -6077,20 +6078,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 			discovery,
 			forwardedToAgentHost: agentHost.resolveSessionConfigRequests.at(-1)?.config,
 		}, {
-			seededImmediately: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			seededImmediately: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 			discovery: undefined,
-			forwardedToAgentHost: { isolation: 'worktree', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
+			forwardedToAgentHost: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['product.overrides.json', '**/node_modules/**'], worktreeSymlinkFolders: ['node_modules/**', '.cache/**'] },
 		});
 	});
 
 	test('sendRequest forwards Git worktree settings of the folder loaded after the draft was created', async () => {
 		const folder = URI.file('/home/user/project');
 		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('git.branchPrefix', 'user/');
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['user.json']);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', ['node_modules']);
 		agentHost.resolveSessionConfigResult = {
 			schema: createVSCodeSessionConfigSchema(),
-			values: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			values: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
 		};
 		let sentConfig: Record<string, unknown> | undefined;
 		const provider = createProvider(disposables, agentHost, undefined, {
@@ -6107,6 +6109,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = await provider.createNewChat(session.sessionId);
 
 		// The Agents window loads the folder settings once it mounts the draft's folder.
+		configService.setUserConfiguration('git.branchPrefix', 'folder/', folder);
 		configService.setUserConfiguration('git.worktreeIncludeFiles', ['folder.json'], folder);
 		configService.setUserConfiguration('git.worktreeSymlinkFolders', [], folder);
 		await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
@@ -6115,8 +6118,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			createdWith: agentHost.createSessionConfigs.at(-1)?.config,
 			sentConfig,
 		}, {
-			createdWith: { isolation: 'worktree', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
-			sentConfig: { isolation: 'worktree', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
+			createdWith: { isolation: 'worktree', worktreeBranchPrefix: 'user/', worktreeIncludeFiles: ['user.json'], worktreeSymlinkFolders: ['node_modules'] },
+			sentConfig: { isolation: 'worktree', worktreeBranchPrefix: 'folder/', worktreeIncludeFiles: ['folder.json'], worktreeSymlinkFolders: [] },
 		});
 	});
 
@@ -6322,6 +6325,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 				autoApprove: 'assisted',
 				providerOption: { enabled: true },
 				clearedOption: true,
+				worktreeBranchPrefix: 'stale-prefix/',
+				shellInitScripts: [{ shell: 'bash', script: 'source ~/.bashrc' }],
 			},
 			modelId: sessionTemplate.modelId,
 			agentUri: sessionTemplate.agent.uri,
