@@ -361,6 +361,85 @@ suite('GitHub HTTP rate-limit governance', () => {
 		assert.deepStrictEqual(requests, ['/repos/o/r/check-runs/1', '/alias']);
 	}));
 
+	for (const limit of ['primary core', 'primary reported resource', 'secondary'] as const) {
+		test(`idle observations from a ${limit} cooldown cannot block other accounts`, () => runWithFakedTimers({}, async () => {
+			const requests: string[] = [];
+			const resource = limit === 'primary reported resource' ? 'checks' : 'core';
+			const lastPath = `/repos/o/r/commits/${GitHubRateLimitCoordinator.maximumRestResourceMappings - 1}/status`;
+			const service = create(async input => {
+				const path = new URL(String(input)).pathname;
+				requests.push(path);
+				if (path.startsWith('/repos/o/r/commits/')) {
+					return path === lastPath && limit === 'secondary'
+						? Response.json({ message: 'You have exceeded a secondary rate limit.' }, { status: 403, headers: headers(resource, 4999) })
+						: Response.json({}, { headers: headers(resource, path === lastPath ? 0 : 4999) });
+				}
+				return Response.json({}, { headers: headers('core', 4999) });
+			});
+			const acquire = (sessionId: string) => store.add(service.acquireClient({
+				authorization: { providerId: 'github', sessionId, scopes: ['repo'] },
+				apiBaseUri: origin, graphQlUri: `${origin}/graphql`,
+			})).object;
+			const busy = acquire('busy');
+			const peer = acquire('peer');
+			const peerAccount = { ...account, accountId: '202' };
+			const peerRequest = (path: string) => peer.transport.rest(peerAccount, 'peer', { method: 'GET', url: `${origin}${path}` }, signal());
+			await peerRequest('/repos/peer/r/pulls/1');
+			for (let index = 0; index < GitHubRateLimitCoordinator.maximumRestResourceMappings; index++) {
+				const result = busy.transport.rest(account, 'busy', { method: 'GET', url: `${origin}/repos/o/r/commits/${index}/status` }, signal());
+				if (index === GitHubRateLimitCoordinator.maximumRestResourceMappings - 1 && limit === 'secondary') {
+					await assert.rejects(result, { kind: 'rateLimit' });
+				} else {
+					await result;
+				}
+			}
+
+			await peerRequest('/repos/peer/r/pulls/1');
+			await peerRequest('/repos/peer/r/pulls/2');
+			const anonymous = store.add(service.acquireAnonymousClient({ apiBaseUri: origin })).object;
+			await anonymous.get('/public', signal());
+			const bootstrap = store.add(service.acquireBootstrapClient({ apiBaseUri: origin, token: 'bootstrap' })).object;
+			await bootstrap.get('/copilot_internal/user', signal());
+			const calls = requests.length;
+			await assert.rejects(busy.transport.rest(account, 'busy', {
+				method: 'GET', url: `${origin}/repos/o/r/commits/0/status`, deadline: Date.now() + 100,
+			}, signal()), { kind: 'timeout' });
+			const renewed = store.add(service.acquireBootstrapClient({ apiBaseUri: origin, token: 'renewed', accountId: account.accountId })).object;
+			await assert.rejects(renewed.get('/copilot_internal/user', signal(), { deadline: Date.now() + 100 }), { kind: 'rateLimit', statusCode: 429 });
+			assert.strictEqual(requests.length, calls);
+			assert.deepStrictEqual(requests.slice(-4), ['/repos/peer/r/pulls/1', '/repos/peer/r/pulls/2', '/public', '/copilot_internal/user']);
+		}));
+	}
+
+	test('compacted cooldowns protect unknown routes without blocking known independent resources', () => runWithFakedTimers({}, async () => {
+		const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		coordinator.retainAccount(account, coordinator);
+		const known = store.add(coordinator.acquireRestResource(account, `${origin}/search/issues`, 'client'));
+		known.object.observe(new Headers({ 'x-ratelimit-resource': 'search' }));
+		for (let index = 0; index < GitHubRateLimitCoordinator.maximumRestResourceMappings - 1; index++) {
+			const mapping = coordinator.acquireRestResource(account, `${origin}/route/${index}`, 'client');
+			mapping.object.observe(new Headers({ 'x-ratelimit-resource': index === 0 ? 'checks' : 'code_search' }));
+			mapping.dispose();
+		}
+		coordinator.updateFromResponse(account, new Response(null, { status: 429, headers: { 'x-ratelimit-resource': 'checks', 'Retry-After': '10' } }));
+		coordinator.updateFromResponse(account, new Response(null, { status: 429, headers: { 'x-ratelimit-resource': 'code_search', 'Retry-After': '20' } }));
+		const peer = { ...account, accountId: '202' };
+		store.add(coordinator.acquireRestResource(peer, `${origin}/first`));
+		assert.strictEqual(coordinator.getDelay(account, coordinator.getRestResource(account, `${origin}/route/0`, 'client')), 10_000);
+		assert.strictEqual(coordinator.getDelay(account, known.object.name), 0);
+		store.add(coordinator.acquireRestResource(peer, `${origin}/second`));
+		const unknown = store.add(coordinator.acquireRestResource(account, `${origin}/unknown`, 'client'));
+		const blockedResource = unknown.object.name;
+		assert.strictEqual(coordinator.getDelay(account, blockedResource), 20_000);
+		assert.strictEqual(unknown.object.responseName, 'core');
+		await timeout(15_000);
+		assert.strictEqual(coordinator.getDelay(account, unknown.object.name), 5_000);
+		await timeout(5_000);
+		assert.deepStrictEqual({ admission: unknown.object.name, response: unknown.object.responseName }, { admission: 'core', response: 'core' });
+		coordinator.releaseAccount(account, coordinator);
+		assert.strictEqual(coordinator.getState(account, blockedResource), undefined);
+	}));
+
 	test('idle mapping eviction cannot forget a live checks cooldown', () => runWithFakedTimers({}, async () => {
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {

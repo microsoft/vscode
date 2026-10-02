@@ -17,7 +17,7 @@ export interface IGitHubRestRateLimitResource {
 	observe(headers: Headers): void;
 }
 
-/** Bounded client-specific route feedback whose live cooldowns prevent idle eviction. */
+/** Bounded client-specific route feedback retained by queued and active operations. */
 interface IRestResourceMapping {
 	readonly account: RequestAccount;
 	readonly accountKey: string;
@@ -36,9 +36,10 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 
 	static readonly maximumRestResourceMappings = 512;
 	private static readonly maximumResourcesPerRoute = 16;
+	private static readonly unobservedRestResource = '<unobserved-rest>';
 	private readonly _restResources = new Map<string, IRestResourceMapping>();
 
-	/** Pins a bounded route-family observation; live cooldowns prevent idle eviction. */
+	/** Pins a bounded route-family observation while preserving evicted quota feedback. */
 	acquireRestResource(account: RequestAccount, url: string, scope = ''): IReference<IGitHubRestRateLimitResource> {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub rate-limit coordinator was disposed', 'unknown');
@@ -48,16 +49,21 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		let entry = this._restResources.get(key);
 		if (!entry) {
 			if (this._restResources.size >= GitHubRateLimitCoordinator.maximumRestResourceMappings) {
-				const unused = [...this._restResources].find(([, candidate]) => candidate.references === 0
-					&& [...candidate.resources].every(resource => this.getDelay(candidate.account, resource) === 0));
+				const idle = [...this._restResources].filter(([, candidate]) => candidate.references === 0);
+				const unused = idle.find(([, candidate]) => [...candidate.resources].every(resource => this.getDelay(candidate.account, resource) === 0)) ?? idle[0];
 				if (!unused) {
 					throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
 				}
+				const cooldown = Math.max(0, ...[...unused[1].resources].map(resource => this.getDelay(unused[1].account, resource)));
 				this._restResources.delete(unused[0]);
+				// Compact lost feedback without letting one idle account monopolize the registry.
+				this.preserveCooldown(unused[1].account, GitHubRateLimitCoordinator.unobservedRestResource, cooldown);
 			}
-			entry = { account, accountKey: RequestQueue.accountKey(account), route: route.key, resource: this.getRestResource(account, url, scope), resources: new Set(), references: 0, overflow: false };
-		} else if (!entry.resources.size) {
-			entry.resource = this.getRestResource(account, url, scope);
+			entry = { account, accountKey: RequestQueue.accountKey(account), route: route.key, resource: route.fallback, resources: new Set(), references: 0, overflow: false };
+		}
+		if (!entry.resources.size) {
+			const resource = this.getRestResource(account, url, scope);
+			entry.resource = resource === GitHubRateLimitCoordinator.unobservedRestResource ? route.fallback : resource;
 		}
 		if (entry.overflow) {
 			throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
@@ -122,6 +128,9 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 					selected = resource;
 				}
 			}
+		}
+		if (!entry?.resources.size && this.getDelay(account, GitHubRateLimitCoordinator.unobservedRestResource) > this.getDelay(account, selected)) {
+			return GitHubRateLimitCoordinator.unobservedRestResource;
 		}
 		return selected;
 	}
