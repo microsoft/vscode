@@ -129,5 +129,3 @@ organization/customer names, prompts, or workspace paths.
 
 For setting registration and policy-export details, see
 [VS Code configuration policy](./vscode-policy.md).
-
-*🤖 Authored with GitHub Copilot on behalf of @rwoll.*
