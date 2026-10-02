@@ -454,12 +454,12 @@ suite('SpotlightOverlay', () => {
 		});
 	});
 
-	test('highlights an open popup together with its target and stays above it', async () => {
+	test('highlights an open popup together with its target and keeps it open when the callout is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 300, 300, 20, 20);
 		const popup: { element?: HTMLElement } = {};
-		overlay.show(target, content(), { placement: 'left', targetOverlayVisible: true, popup: () => popup.element });
+		overlay.show(target, content(), { placement: 'left', targetOverlayVisible: true, allowTargetInteraction: true, popup: () => popup.element });
 		const root = container.querySelector<HTMLElement>('.spotlight-overlay')!;
 		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
 		const holeRect = () => [hole.style.left, hole.style.top, hole.style.width, hole.style.height];
@@ -494,7 +494,7 @@ suite('SpotlightOverlay', () => {
 			open: ['144px', '144px', '182px', '182px'],
 			reclosed: ['294px', '294px', '32px', '32px'],
 			blockers: ['', '', '', ''],
-			targetOverlayVisible: false,
+			targetOverlayVisible: true,
 			keepsFocusWhileClosed: false,
 			keepsFocusWhileOpen: true,
 		});

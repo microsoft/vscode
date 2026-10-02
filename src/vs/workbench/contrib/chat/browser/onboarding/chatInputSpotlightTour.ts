@@ -10,6 +10,7 @@ import { autorun, IObservable, observableValue } from '../../../../../base/commo
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
@@ -19,7 +20,8 @@ import { onboardingScenarioRegistry } from '../../../onboarding/common/onboardin
 import { IOnboardingScenario } from '../../../onboarding/common/onboardingScenario.js';
 import { IOnboardingScenarioService } from '../../../onboarding/common/onboardingScenarioService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AgentHostChatInputPicker, AgentHostPickerSection } from '../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker } from '../agentSessions/agentHost/agentHostChatInputPicker.js';
+import { getModePermissionsPickerOptions } from '../agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IChatWidget } from '../chat.js';
 import { IChatOnboardingEligibility } from './chatOnboardingEligibility.js';
 
@@ -60,6 +62,7 @@ const chatInputTourPayload: ISpotlightPayload = {
 			description: localize('chat.onboarding.chatInput.agentMode.description', "Choose how hands-on the agent is. Work together, review a plan first, or let it run."),
 			placement: 'left',
 			openTarget: true,
+			allowTargetInteraction: true,
 			missingTarget: { kind: 'skip' },
 		},
 		{
@@ -69,6 +72,7 @@ const chatInputTourPayload: ISpotlightPayload = {
 			description: localize('chat.onboarding.chatInput.permissions.description', "Choose when the agent asks before editing files or running commands. Start cautious, then allow more as you trust it."),
 			placement: 'left',
 			openTarget: true,
+			allowTargetInteraction: true,
 			missingTarget: { kind: 'skip' },
 		},
 	],
@@ -92,12 +96,15 @@ export function createChatInputTour(signal: IObservable<boolean>): IOnboardingSc
 	};
 }
 
+/** A section of the combined mode and permissions picker's menu. */
+type ChatInputTourPickerSection = 'mode' | 'permissions';
+
 /** How the tour opens and highlights the chat input's Agent Host pickers. */
 interface IChatInputTourPickerActions {
 	/** The picker's open menu, which the spotlight highlights together with the picker. */
 	getOpenMenu(picker: AgentHostChatInputPicker): HTMLElement | undefined;
 	/** Shows the picker's menu on `section`. */
-	open(picker: AgentHostChatInputPicker, section: AgentHostPickerSection): Promise<void>;
+	open(picker: AgentHostChatInputPicker, section: ChatInputTourPickerSection): Promise<void>;
 }
 
 /**
@@ -109,7 +116,7 @@ interface IChatInputTourPickerActions {
  */
 function resolveChatInputTourTarget(widget: IChatWidget, targetId: string, actions: IChatInputTourPickerActions): IOnboardingTarget | undefined {
 	const input = widget.inputPart;
-	const pickerTarget = (picker: AgentHostChatInputPicker | undefined, section: AgentHostPickerSection): IOnboardingTarget | undefined => {
+	const pickerTarget = (picker: AgentHostChatInputPicker | undefined, section: ChatInputTourPickerSection): IOnboardingTarget | undefined => {
 		const element = picker?.triggerElement;
 		return picker && element ? { element, open: () => actions.open(picker, section), popup: () => actions.getOpenMenu(picker) } : undefined;
 	};
@@ -157,6 +164,7 @@ export class ChatInputSpotlightTour extends Disposable {
 		@IOnboardingScenarioService private readonly onboardingScenarioService: IOnboardingScenarioService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -218,10 +226,10 @@ export class ChatInputSpotlightTour extends Disposable {
 	 * `section` once the collapse has been visible, so the step change reads as one
 	 * menu moving between sections. Otherwise opens the menu on `section`.
 	 */
-	private async _openSection(picker: AgentHostChatInputPicker, section: AgentHostPickerSection): Promise<void> {
-		if (picker.setSectionExpanded(section === 'mode' ? 'permissions' : 'mode', false)) {
+	private async _openSection(picker: AgentHostChatInputPicker, section: ChatInputTourPickerSection): Promise<void> {
+		if (await this._setSectionExpanded(picker, section === 'mode' ? 'permissions' : 'mode', false)) {
 			await timeout(ChatInputSpotlightTour.SECTION_SWITCH_DELAY_MS);
-			if (picker.setSectionExpanded(section, true)) {
+			if (await this._setSectionExpanded(picker, section, true)) {
 				return;
 			}
 		}
@@ -230,6 +238,25 @@ export class ChatInputSpotlightTour extends Disposable {
 		if (trigger) {
 			picker.show(trigger, section === 'permissions');
 		}
+	}
+
+	/**
+	 * Collapses or expands `section` of the picker's open menu, as the arrow keys do on its
+	 * header. Returns `false` when the menu is not open or does not combine mode and permissions.
+	 */
+	private async _setSectionExpanded(picker: AgentHostChatInputPicker, section: ChatInputTourPickerSection, expanded: boolean): Promise<boolean> {
+		if (!picker.isOpen || !picker.combinesPermissions) {
+			return false;
+		}
+		// The picker collapses the mode section when it opens on permissions, and the permissions
+		// section otherwise, so its options name each section's header.
+		const [headerId] = getModePermissionsPickerOptions(section === 'mode').collapsedByDefault ?? [];
+		if (!headerId) {
+			return false;
+		}
+		this.actionWidgetService.focusItemById(headerId);
+		await this.commandService.executeCommand(expanded ? 'expandSectionCodeAction' : 'collapseSectionCodeAction');
+		return true;
 	}
 
 	/**

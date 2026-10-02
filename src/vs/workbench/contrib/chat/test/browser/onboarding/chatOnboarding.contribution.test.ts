@@ -9,6 +9,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -86,6 +87,7 @@ suite('ChatOnboardingContribution', () => {
 		}());
 		instantiationService.stub(IContextViewService, new class extends mock<IContextViewService>() { }());
 		instantiationService.stub(IActionWidgetService, new class extends mock<IActionWidgetService>() { }());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
 
 		const contribution = disposables.add(instantiationService.createInstance(ChatOnboardingContribution));
 		return {

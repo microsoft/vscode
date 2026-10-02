@@ -57,7 +57,7 @@ export class ChatOnboardingEligibility extends Disposable implements IChatOnboar
 	) {
 		super();
 
-		const isNewUser = observableValue(this, new EditorChatUsage(storageService).getMessageCount() === 0);
+		const isNewUser = observableValue(this, new EditorChatUsage(storageService).getTelemetry().editorMessages === 0);
 		this.isNewUser = isNewUser;
 		this._register(chatService.onDidAcceptRequest(() => isNewUser.set(false, undefined)));
 

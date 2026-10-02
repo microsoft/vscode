@@ -210,7 +210,7 @@ this._register(registerOnboardingTargetProvider(MY_FEATURE_ONBOARDING_TARGET, sc
 }));
 ```
 
-A target that opens a menu or another popup can also return `popup`. While the popup is shown, the spotlight highlights it together with the target and keeps its callout above it, so the popup stays readable and interactive without covering the callout.
+A target that opens a menu or another popup can also return `popup`. While the popup is shown, the spotlight highlights it together with the target and places the callout beside it, and clicking the callout keeps focus in the popup so it stays open across steps. Set `allowTargetInteraction` on the step to keep the popup interactive.
 
 The shared resolver validates the element's document and visibility. A registered provider is authoritative: returning `undefined` does not fall back to marked DOM elements. In particular, an unknown or expired scope must not fall back to the feature's active owner.
 

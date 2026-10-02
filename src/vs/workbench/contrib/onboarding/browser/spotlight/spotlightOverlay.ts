@@ -57,9 +57,10 @@ export interface ISpotlightShowOptions {
 	readonly hideNext?: boolean;
 	readonly targetOverlayVisible?: boolean;
 	/**
-	 * Returns an element the target opened, such as its menu. The hole grows to include it and the
-	 * overlay stays above it, so the popup shows through the hole while the callout remains usable.
-	 * Clicking the callout keeps focus in the popup, so the popup stays open across steps.
+	 * Returns an element the target opened, such as its menu. The hole grows to include it, so the
+	 * popup shows through the hole and the callout is placed beside it. Clicking the callout keeps
+	 * focus in the popup, so the popup stays open across steps. Combine with `allowTargetInteraction`
+	 * to keep the popup interactive.
 	 */
 	readonly popup?: () => HTMLElement | undefined;
 	/** Advances on target activation; `advanceOnly` consumes the activation without running its action. */
@@ -184,7 +185,7 @@ export class SpotlightOverlay extends Disposable {
 		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
-		this._root.classList.toggle('target-overlay-visible', externalUiParticipates && !options.popup);
+		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
 		this._callout.setAttribute('aria-modal', externalUiParticipates ? 'false' : 'true');
 
 		this._root.style.display = '';
@@ -331,7 +332,7 @@ export class SpotlightOverlay extends Disposable {
 		// When the target is interactive (explicitly, or because the step advances
 		// on a target click), arrange the click blockers around the hole so events
 		// inside it reach the underlying element.
-		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick || this._options.popup) {
+		if (this._options.allowTargetInteraction || this._options.advanceOnTargetClick) {
 			const right = holeLeft + holeWidth;
 			const bottom = holeTop + holeHeight;
 			this._layoutBlocker(this._blockers[0], 0, 0, viewportWidth, holeTop);

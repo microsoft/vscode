@@ -49,8 +49,8 @@ export interface IModePickerTrigger extends IDisposable {
 	readonly permissionsButton: HTMLElement;
 }
 
-export const MODE_SECTION_ID = 'agentHostModePicker.mode';
-export const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
+const MODE_SECTION_ID = 'agentHostModePicker.mode';
+const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
 export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-picker-open';
 
 export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
