@@ -251,6 +251,34 @@ suite('CloudSandboxApiService connection credentials', () => {
 	}
 
 	for (const action of ['connect', 'reconnect'] as const) {
+		test(`${action} logs safe upstream correlation for an HTTP failure`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const requestId = 'ABCD:1234:5678:90AB:CDEF';
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: async () => {
+					await timeout(35);
+					return jsonResponse({ message: 'private response body', access_token: 'secret-token' }, 500, {
+						'x-github-request-id': requestId,
+						'retry-after': '45',
+						'set-cookie': 'private-cookie',
+					});
+				},
+			});
+			const connecting = action === 'connect'
+				? service.connect(request, CancellationToken.None)
+				: service.reconnect(request, 'client-1', CancellationToken.None);
+			await assert.rejects(connecting, {
+				name: 'CloudSandboxRequestError',
+				message: `Mission Control ${action} failed: HTTP 500 (requestId=${requestId})`,
+				statusCode: 500,
+				retryAfterSeconds: 45,
+			});
+			assert.deepStrictEqual(logService.errors, [
+				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45`,
+			]);
+		}));
+
 		test(`${action} preserves valid credentials and the scoped request`, async () => {
 			const progress: string[] = [];
 			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
@@ -295,6 +323,27 @@ suite('CloudSandboxApiService connection credentials', () => {
 
 			assert.deepStrictEqual({ result, progress }, { result: { kind: 'waking', waking: { retryAfterSeconds: 5 } }, progress: ['issued', 'waking'] });
 		});
+	}
+
+	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\ninjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
+		test(`omits unavailable or invalid request IDs: ${JSON.stringify(header)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: () => {
+					const response = jsonResponse({ message: 'private response body' }, 500);
+					response.res.headers['x-github-request-id'] = header;
+					return response;
+				},
+			});
+			await assert.rejects(service.connect({ environmentId: 'env-1' }, CancellationToken.None), {
+				name: 'CloudSandboxRequestError',
+				message: 'Mission Control connect failed: HTTP 500',
+			});
+			assert.deepStrictEqual(logService.errors, [
+				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none',
+			]);
+		}));
 	}
 
 	test('rejects refreshed credentials for a different client', async () => {

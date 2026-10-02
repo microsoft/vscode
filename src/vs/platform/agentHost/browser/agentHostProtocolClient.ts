@@ -59,6 +59,7 @@ import type { Implementation, InitializeResult } from '../common/state/protocol/
 import { observableValue, type IObservable } from '../../../base/common/observable.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
 import { computeReconnectDelay, DEFAULT_RECONNECT_POLICY, hasExhaustedReconnectAttempts, type IRemoteAgentHostReconnectPolicy } from '../common/reconnectPolicy.js';
 import type { IRemoteAgentHostProtocolClient } from '../common/remoteAgentHostService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../workspace/common/workspaceTrust.js';
@@ -696,6 +697,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * Connect to the remote agent host and perform the protocol handshake.
 	 */
 	async connect(): Promise<void> {
+		const watch = StopWatch.create(false);
+		let stage = 'transport';
 		try {
 			if (isClientTransport(this._transport)) {
 				const transport = this._transport;
@@ -705,6 +708,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw transportLostError(this._address);
 			}
 
+			stage = 'initialize';
 			const result = await this._traceConnection('protocol.initialize', () => this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 				channel: ROOT_STATE_URI,
 				// Advertise every compatible version, most-preferred first, so an
@@ -716,6 +720,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				_meta: this._clientMeta(),
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
+			this._logService.info(`[RemoteAgentHostProtocol] Initialized: address=${this._address} clientId=${this._clientId} durationMs=${watch.elapsed()}`);
 			this._applyInitializeResult(result);
 			// Keep the snapshot even if authentication must finish on a later replay reconnect.
 			for (const snapshot of result.snapshots ?? []) {
@@ -724,6 +729,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 			}
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
+				stage = 'authentication';
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
@@ -740,6 +746,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._diagnostic('connection.ready', `clientId=${this._clientId}`);
 			this._resetLivenessTimers();
 		} catch (error) {
+			this._logService.warn(`[RemoteAgentHostProtocol] Connection failed: address=${this._address} clientId=${this._clientId} stage=${stage} durationMs=${watch.elapsed()} pendingRequests=${this._pendingRequests.size}`);
 			const protocolError = error instanceof ProtocolError
 				? error
 				: new ProtocolError(AHP_CLIENT_CONNECTION_CLOSED, error instanceof Error ? error.message : String(error));
@@ -2573,6 +2580,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		const { request, result } = this._createRequest<TResult>(method, params);
+		if (method === 'initialize') {
+			this._logService.info(`[RemoteAgentHostProtocol] Sending initialize: address=${this._address} clientId=${this._clientId} requestId=${request.id}`);
+		}
 		if (this._firstSessionRequestPending && current.kind === AgentHostClientState.Connected && (method === 'createSession' || method === 'listSessions' || method === 'subscribe')) {
 			this._firstSessionRequestPending = false;
 			return this._traceConnection('protocol.firstSessionRequest', async () => {

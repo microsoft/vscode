@@ -1569,6 +1569,41 @@ suite('AgentHostProtocolClient', () => {
 		assert.strictEqual(transport.sentMessages.length, 0);
 	});
 
+	for (const succeeds of [true, false]) {
+		test(`logs the initialize request identity and ${succeeds ? 'completion' : 'failed stage'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const infos: string[] = [];
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override info(message: string): void { infos.push(message); }
+				override warn(message: string): void { warnings.push(message); }
+			}();
+			const transport = disposables.add(new TestClientProtocolTransport());
+			const { client } = createClient(transport, undefined, undefined, logService, undefined, 'client-1');
+			const connecting = client.connect();
+			const completed = succeeds ? connecting : assert.rejects(connecting, /Connection closed/);
+			await transport.connectDeferred.complete();
+			while (transport.sentMessages.length === 0) {
+				await Promise.resolve();
+			}
+			const request = transport.sentMessages[0];
+			assert.ok(hasKey(request, { id: true, method: true }) && request.method === 'initialize');
+			await timeout(10);
+			if (succeeds) {
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] } });
+			} else {
+				transport.fireClose();
+			}
+			await completed;
+			assert.deepStrictEqual({ infos, warnings }, {
+				infos: [
+					`[RemoteAgentHostProtocol] Sending initialize: address=test.example:1234 clientId=client-1 requestId=${request.id}`,
+					...(succeeds ? ['[RemoteAgentHostProtocol] Initialized: address=test.example:1234 clientId=client-1 durationMs=10'] : []),
+				],
+				warnings: succeeds ? [] : ['[RemoteAgentHostProtocol] Connection failed: address=test.example:1234 clientId=client-1 stage=initialize durationMs=10 pendingRequests=0'],
+			});
+		}));
+	}
+
 	test('initialize handshake includes protocol version and client info', async () => {
 		const transport = disposables.add(new TestClientProtocolTransport(AgentHostClientConnectionKind.DevTunnel));
 		const clientInfo = agentsWindowAgentHostClientInfo;
