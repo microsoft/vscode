@@ -24,7 +24,7 @@ import { IChatEntitlementService } from '../../../../../workbench/services/chat/
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
 import { ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationMutation, ICloudAutomationTask, ICloudAutomationTrigger } from './cloudAutomationApiClient.js';
-import { GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './gitHubCloudAutomationStore.js';
+import { GitHubCloudAutomationStore, ICloudAutomationEntry, ICloudAutomationHistoryEntry } from './githubCloudAutomationStore.js';
 
 /** Adapts the account-bound cloud store to the provider-neutral Automation contract. */
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {

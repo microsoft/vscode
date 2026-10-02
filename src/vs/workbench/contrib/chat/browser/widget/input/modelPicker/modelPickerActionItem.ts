@@ -19,7 +19,7 @@ import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../c
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { IChatInputPickerOptions } from '../chatInputPickerActionItem.js';
 import { IModelConfigurationAccess } from './modelPickerModelConfig.js';
-import { ModelPickerWidget } from './modelPickerWidget.js';
+import { IModelPickerOpenOptions, ModelPickerWidget } from './modelPickerWidget.js';
 
 export interface IModelPickerPresentationOptions {
 	readonly useGroupedModelPicker: boolean;
@@ -47,6 +47,7 @@ export interface IModelPickerDelegate {
 	 * Returns `undefined` when no session is active.
 	 */
 	getChatSessionId?(): string | undefined;
+	getProvider?(): string | undefined;
 	/**
 	 * UI hint flag controlling whether the picker shows the cache-break hint.
 	 * Returns `true` when the session has likely warmed the prompt cache (e.g. it
@@ -76,7 +77,7 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 
 	constructor(
 		action: IAction,
-		delegate: IModelPickerDelegate,
+		private readonly delegate: IModelPickerDelegate,
 		private readonly pickerOptions: IChatInputPickerOptions,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -139,8 +140,24 @@ export class ModelPickerActionItem extends BaseActionViewItem {
 		this._showPicker();
 	}
 
-	public show(anchor?: HTMLElement): void {
-		this._pickerWidget.show(anchor ?? this._getAnchorElement());
+	public show(anchor?: HTMLElement, options?: IModelPickerOpenOptions): void {
+		this._pickerWidget.show(anchor ?? this._getAnchorElement(), false, false, undefined, options);
+	}
+
+	public getModelPickerControl(): { readonly element: HTMLElement; readonly open: (options: IModelPickerOpenOptions) => void; readonly select: (identifier: string) => boolean } | undefined {
+		const element = this._pickerWidget.nameButton;
+		return element && this._pickerWidget.canOpenWithFilter() ? {
+			element,
+			open: options => this.show(undefined, options),
+			select: identifier => {
+				const model = this.delegate.getModels().find(model => model.identifier === identifier && model.metadata.isUserSelectable !== false);
+				if (!model || !this._pickerWidget.canOpenWithFilter()) {
+					return false;
+				}
+				this.delegate.setModel(model);
+				return true;
+			},
+		} : undefined;
 	}
 
 	public setEnabled(enabled: boolean): void {

@@ -69,6 +69,46 @@ export class ToolCallRound implements IToolCallRound {
 	}
 }
 
+/**
+ * Raw CAPI `X-GitHub-Copilot-Request-Te` value of the model call that produced each round. Kept off
+ * the round object so it is never persisted with chat history; it is used only for telemetry.
+ */
+const gitHubCopilotRequestTeByRound = new WeakMap<IToolCallRound, string>();
+
+/**
+ * Associates the `X-GitHub-Copilot-Request-Te` value of the model call that produced `round`.
+ */
+export function setGitHubCopilotRequestTeForRound<T extends IToolCallRound>(round: T, gitHubCopilotRequestTe: string | undefined): T {
+	if (gitHubCopilotRequestTe !== undefined) {
+		gitHubCopilotRequestTeByRound.set(round, gitHubCopilotRequestTe);
+	}
+	return round;
+}
+
+/**
+ * Returns the `X-GitHub-Copilot-Request-Te` value of the model call that produced `round`, if known.
+ */
+export function getGitHubCopilotRequestTeForRound(round: IToolCallRound): string | undefined {
+	return gitHubCopilotRequestTeByRound.get(round);
+}
+
+/**
+ * Returns the `X-GitHub-Copilot-Request-Te` value of the model call whose round emitted the given
+ * tool call, or `undefined` when that round can't be identified. Searches newest-first because
+ * tool call ids may be reused across rounds and only the latest round's calls are invoked.
+ */
+export function getGitHubCopilotRequestTeForToolCall(toolCallRounds: readonly IToolCallRound[] | undefined, chatStreamToolCallId: string | undefined): string | undefined {
+	if (!toolCallRounds || !chatStreamToolCallId) {
+		return undefined;
+	}
+	for (let i = toolCallRounds.length - 1; i >= 0; i--) {
+		if (toolCallRounds[i].toolCalls.some(toolCall => toolCall.id.split('__vscode')[0] === chatStreamToolCallId)) {
+			return getGitHubCopilotRequestTeForRound(toolCallRounds[i]);
+		}
+	}
+	return undefined;
+}
+
 export class ThinkingDataItem implements ThinkingData {
 	public text: string | string[] = '';
 	public metadata?: { [key: string]: any };

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withMessageRequestHiddenFromTranscript } from '../../../common/meta/agentMessageMeta.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
 import { ISessionWorkspaceConversionService } from './sessionWorkspaceConversionService.js';
 
 /** Finalizes requested workspace conversions after a turn and blocks new turns while conversion is pending. */

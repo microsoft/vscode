@@ -75,6 +75,13 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+.ai-customization-management-editor .sidebar-home-button.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
 .ai-customization-management-editor .sidebar-home-button:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
@@ -826,6 +833,14 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-compatibility-message:is(.partially-supported, .unsupported) {
+	flex-shrink: 0;
+}
+
+.mcp-server-item .mcp-server-secondary-line > .mcp-server-source-path {
+	flex-shrink: 1;
+}
+
 .ai-customization-list-item .item-type-icon {
 	display: none;
 }
@@ -883,10 +898,31 @@ per-word capitalization does not survive translation. */
 	line-height: 14px;
 }
 
-.ai-customization-list-item .item-description.is-filename {
-	font-family: monospace;
-	font-size: var(--vscode-fontSize-label3);
-	opacity: 0.7;
+.middle-ellipsis-path-label {
+	display: flex;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label .middle-ellipsis-path-prefix {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label .middle-ellipsis-path-suffix {
+	flex: 0 0 auto;
+	max-width: 70%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.middle-ellipsis-path-label.single-segment .middle-ellipsis-path-suffix {
+	max-width: 100%;
 }
 
 .ai-customization-list-item .item-right {
@@ -2669,8 +2705,17 @@ per-word capitalization does not survive translation. */
 	color: var(--vscode-errorForeground);
 }
 
-.mcp-server-item .mcp-server-source-path.source-link + .mcp-server-compatibility-message::before {
-	content: "· ";
+.ai-customization-management-editor .mcp-server-compatibility-message > .mcp-server-compatibility-icon.codicon {
+	margin-right: var(--vscode-spacing-size40);
+	font-size: var(--vscode-codiconFontSize-compact);
+	color: inherit;
+	position: relative;
+	top: -1px;
+	vertical-align: text-bottom;
+}
+
+.mcp-server-item .mcp-server-secondary-line.has-source .mcp-server-compatibility-message::after {
+	content: " ·";
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -2788,14 +2833,6 @@ per-word capitalization does not survive translation. */
 }
 
 .plugin-list-widget .mcp-server-state-icon.error {
-	color: var(--vscode-errorForeground);
-}
-
-.plugin-list-widget .mcp-server-state-icon.compatibility {
-	color: var(--vscode-chat-mcpCompatibilityWarningForeground);
-}
-
-.plugin-list-widget .mcp-server-state-icon.compatibility.unsupported {
 	color: var(--vscode-errorForeground);
 }
 

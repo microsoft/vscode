@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -60,8 +60,10 @@ class TestAutomationConnection {
 	readonly runRequested = new DeferredPromise<void>();
 	runAdmissionBarrier: Promise<void> | undefined;
 	suppressCreatePublication = false;
+	suppressUpdatePublication = false;
 	updateError: Error | undefined;
 	readonly createRequested = new DeferredPromise<void>();
+	readonly updateRequested = new DeferredPromise<void>();
 
 	constructor(catalogAvailable = true) {
 		this._catalogAvailable = catalogAvailable;
@@ -149,8 +151,12 @@ class TestAutomationConnection {
 				origin: undefined,
 			});
 		} else if (action.type === ActionType.AutomationUpdateRequested) {
+			void this.updateRequested.complete();
 			if (this.updateError) {
 				throw this.updateError;
+			}
+			if (this.suppressUpdatePublication) {
+				return;
 			}
 			const current = this._catalog.entries.find(automation => automation.resource === action.resource);
 			if (!current) {
@@ -359,6 +365,263 @@ suite('AgentHostAutomationStore', () => {
 		}, undefined);
 		return connection;
 	}
+
+	test('customization choices include enabled plugins in scope order, selected for creation', async () => {
+		const activeClient = new TestActiveClientService();
+		const enabled = { ...plugin('virtual://client/plugins/enabled'), version: '1.2.3' };
+		const unnamed = { ...plugin('virtual://client/plugins/unnamed'), name: '' };
+		const bundle = { ...plugin('vscode-synced-customization:/bundle'), name: 'VS Code Synced Data' };
+		activeClient.customizations.set([enabled, plugin('virtual://client/plugins/disabled', false), unnamed, bundle], undefined);
+		const { store } = reconnectable(true, activeClient);
+		store.setConnection(customizationConnection());
+		assert.deepStrictEqual({
+			choices: await store.getCustomizationChoices(createOptions().target, undefined, CancellationToken.None),
+			scopes: activeClient.scopes,
+		}, {
+			choices: [
+				{ id: enabled.id, label: 'Test Plugin', description: 'Version 1.2.3', selected: true, outdated: false },
+				{ id: unnamed.id, label: 'unnamed', description: undefined, selected: true, outdated: false },
+				{ id: bundle.id, label: 'VS Code Customizations', description: 'Customizations synced from VS Code.', selected: true, outdated: false },
+			],
+			scopes: [{ sessionType: 'copilotcli', roots: [], disposed: true }],
+		});
+	});
+
+	test('editing customization choices reflects saved selection, changed refs and saved-only plugins', async () => {
+		const activeClient = new TestActiveClientService();
+		const saved = plugin('virtual://client/plugins/saved');
+		const moved = plugin('virtual://client/plugins/moved');
+		const missing = plugin('virtual://other-client/plugins/missing');
+		activeClient.customizations.set([saved, moved, missing], undefined);
+		const { store } = reconnectable(true, activeClient);
+		store.setConnection(customizationConnection());
+		const automation = await store.createAutomation(createOptions());
+		const added = plugin('virtual://client/plugins/added');
+		activeClient.customizations.set([{ ...saved, nonce: 'v2' }, { ...moved, uri: 'virtual://client/plugins/new-location' }, added], undefined);
+		const choices = await store.getCustomizationChoices(automation.target, automation.id, CancellationToken.None);
+		const retargeted = await store.getCustomizationChoices({ ...automation.target, sessionTypeId: 'claude' }, automation.id, CancellationToken.None);
+		assert.deepStrictEqual({ choices, retargeted: retargeted?.map(({ id, selected, outdated }) => ({ id, selected, outdated })) }, {
+			choices: [
+				{ id: saved.id, label: 'Test Plugin', description: undefined, selected: true, outdated: true },
+				{ id: moved.id, label: 'Test Plugin', description: undefined, selected: true, outdated: true },
+				{ id: added.id, label: 'Test Plugin', description: undefined, selected: false, outdated: false },
+				{ id: missing.id, label: 'Test Plugin', description: 'Not available locally. The saved copy is kept.', selected: true, outdated: false },
+			],
+			retargeted: [saved, moved, added, missing].map(plugin => ({ id: plugin.id, selected: true, outdated: false })),
+		});
+	});
+
+	test('customization choices are unsupported without the capability or a connection', async () => {
+		const activeClient = new TestActiveClientService();
+		const { store } = reconnectable(true, activeClient);
+		const disconnected = await store.getCustomizationChoices(createOptions().target, undefined, CancellationToken.None);
+		store.setConnection(disposables.add(new TestAutomationConnection()));
+		assert.deepStrictEqual({
+			disconnected,
+			unsupported: await store.getCustomizationChoices(createOptions().target, undefined, CancellationToken.None),
+			scopes: activeClient.scopes,
+		}, { disconnected: undefined, unsupported: undefined, scopes: [] });
+	});
+
+	test('changing workspace isolation selects every enabled customization without marking it outdated', async () => {
+		const activeClient = new TestActiveClientService();
+		const saved = plugin('virtual://client/plugins/saved');
+		const added = plugin('virtual://client/plugins/added');
+		activeClient.customizations.set([saved], undefined);
+		const { store } = reconnectable(true, activeClient);
+		store.setConnection(customizationConnection());
+		const target = {
+			kind: 'workspace', providerId: 'host', sessionTypeId: 'copilotcli',
+			folderUri: URI.file('/workspace'), isolation: { kind: 'default' },
+		} as const;
+		const automation = await store.createAutomation({ ...createOptions(), target });
+		activeClient.customizations.set([{ ...saved, nonce: 'v2' }, added], undefined);
+		assert.deepStrictEqual(await store.getCustomizationChoices({ ...target, isolation: { kind: 'folder' } }, automation.id, CancellationToken.None), [
+			{ id: saved.id, label: 'Test Plugin', description: undefined, selected: true, outdated: false },
+			{ id: added.id, label: 'Test Plugin', description: undefined, selected: true, outdated: false },
+		]);
+	});
+
+	test('customization choice cancellation and resolution failures dispose the scope', async () => {
+		for (const failure of ['cancelled', 'resolution'] as const) {
+			const activeClient = new TestActiveClientService();
+			const { store } = reconnectable(true, activeClient);
+			store.setConnection(customizationConnection());
+			const tokenSource = disposables.add(new CancellationTokenSource());
+			const resolution = new DeferredPromise<void>();
+			activeClient.resolution = failure === 'resolution' ? Promise.reject(new Error('Resolution failed')) : resolution.p;
+			const pending = store.getCustomizationChoices(createOptions().target, undefined, tokenSource.token);
+			if (failure === 'cancelled') {
+				tokenSource.cancel();
+			}
+			await assert.rejects(pending, failure === 'resolution' ? /Resolution failed/ : /Canceled/);
+			assert.deepStrictEqual(activeClient.scopes, [{ sessionType: 'copilotcli', roots: [], disposed: true }]);
+			await resolution.complete();
+		}
+	});
+
+	test('creation filters customization ids in scope order and ignores disabled and unknown ids', async () => {
+		const activeClient = new TestActiveClientService();
+		const first = plugin('virtual://client/plugins/first');
+		const second = plugin('virtual://client/plugins/second');
+		const disabled = plugin('virtual://client/plugins/disabled', false);
+		activeClient.customizations.set([first, second, disabled], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		await store.createAutomation({ ...createOptions(), customizationIds: [second.id, 'unknown', disabled.id, first.id] });
+		await store.createAutomation({ ...createOptions(), customizationIds: [second.id] });
+		assert.deepStrictEqual(connection.dispatched.map(({ action }) => {
+			assert.ok(action.type === ActionType.AutomationCreateRequested);
+			return action.definition.session.customizations;
+		}), [[first, second], [second]]);
+	});
+
+	test('updating customization ids refreshes current refs and keeps saved-only refs verbatim', async () => {
+		const activeClient = new TestActiveClientService();
+		const saved = plugin('virtual://client/plugins/saved');
+		const missing = plugin('virtual://other-client/plugins/missing');
+		activeClient.customizations.set([saved, missing], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const refreshed = { ...saved, nonce: 'v2' };
+		activeClient.customizations.set([refreshed, plugin('virtual://client/plugins/unselected')], undefined);
+		await store.updateAutomation(automation.id, { customizationIds: [missing.id, saved.id, 'unknown'] });
+		const update = connection.dispatched[1].action;
+		assert.ok(update.type === ActionType.AutomationUpdateRequested);
+		assert.deepStrictEqual({
+			customizations: update.changes.session?.customizations,
+			savedRefReused: update.changes.session?.customizations?.[1] === missing,
+			scopes: activeClient.scopes,
+		}, {
+			customizations: [refreshed, missing],
+			savedRefReused: true,
+			scopes: [
+				{ sessionType: 'copilotcli', roots: [], disposed: true },
+				{ sessionType: 'copilotcli', roots: [], disposed: true },
+			],
+		});
+	});
+
+	test('empty customization selection clears captured refs on creation and guarded update', async () => {
+		const activeClient = new TestActiveClientService();
+		activeClient.customizations.set([plugin('virtual://client/plugins/saved')], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		await store.createAutomation({ ...createOptions(), customizationIds: [] });
+		const automation = await store.createAutomation(createOptions());
+		await store.updateAutomationIfUnchanged(automation.id, { customizationIds: [] }, automation);
+		assert.deepStrictEqual(connection.dispatched.map(({ action }) => {
+			assert.ok(action.type === ActionType.AutomationCreateRequested || action.type === ActionType.AutomationUpdateRequested);
+			return action.type === ActionType.AutomationCreateRequested ? action.definition.session.customizations : action.changes.session?.customizations;
+		}), [[], activeClient.customizations.get(), []]);
+	});
+
+	test('customization-only updates hold the scope until the refreshed refs are published', async () => {
+		const activeClient = new TestActiveClientService();
+		const saved = plugin('virtual://client/plugins/saved');
+		activeClient.customizations.set([saved], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const refreshed = { ...saved, nonce: 'v2' };
+		activeClient.customizations.set([refreshed], undefined);
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(automation.id, { customizationIds: [saved.id] });
+		await connection.updateRequested.p;
+		await timeout(0);
+		const duringDispatch = activeClient.scopes[1].disposed;
+		const create = connection.dispatched[0].action;
+		const update = connection.dispatched[1].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested && update.type === ActionType.AutomationUpdateRequested);
+		connection.setAutomation({
+			resource: create.resource, definition: { ...create.definition, ...update.changes }, runs: [],
+			operations: [AutomationOperation.Update], createdAt: automation.createdAt, modifiedAt: automation.updatedAt,
+		});
+		await pending;
+		assert.deepStrictEqual({ duringDispatch, afterResponse: activeClient.scopes[1].disposed }, { duringDispatch: false, afterResponse: true });
+	});
+
+	test('unchanged selections wait for a host response even when the catalogue changes during scope resolution', async () => {
+		const activeClient = new TestActiveClientService();
+		const saved = plugin('virtual://client/plugins/saved');
+		activeClient.customizations.set([saved], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automation = await store.createAutomation(createOptions());
+		const create = connection.dispatched[0].action;
+		assert.ok(create.type === ActionType.AutomationCreateRequested);
+		const resolution = new DeferredPromise<void>();
+		activeClient.resolution = resolution.p;
+		connection.suppressUpdatePublication = true;
+		const pending = store.updateAutomation(automation.id, { customizationIds: [saved.id] });
+		const entry = {
+			resource: create.resource, definition: create.definition, runs: [],
+			operations: [AutomationOperation.Update], createdAt: automation.createdAt, modifiedAt: automation.updatedAt,
+		};
+		connection.setAutomation(entry);
+		await resolution.complete();
+		await connection.updateRequested.p;
+		await timeout(0);
+		const duringDispatch = activeClient.scopes[1].disposed;
+		const update = connection.dispatched[1].action;
+		assert.ok(update.type === ActionType.AutomationUpdateRequested);
+		connection.setAutomation({ ...entry, definition: { ...create.definition, ...update.changes } });
+		await pending;
+		assert.deepStrictEqual({ duringDispatch, afterResponse: activeClient.scopes[1].disposed }, { duringDispatch: false, afterResponse: true });
+	});
+
+	test('hosts without customization support ignore explicit selections', async () => {
+		const activeClient = new TestActiveClientService();
+		activeClient.customizations.set([plugin('virtual://client/plugins/saved')], undefined);
+		const { store } = reconnectable(true, activeClient);
+		const connection = disposables.add(new TestAutomationConnection());
+		store.setConnection(connection);
+		const automation = await store.createAutomation({ ...createOptions(), customizationIds: [] });
+		await store.updateAutomation(automation.id, { customizationIds: [] });
+		assert.deepStrictEqual({
+			customizations: connection.dispatched.map(({ action }) => {
+				assert.ok(action.type === ActionType.AutomationCreateRequested || action.type === ActionType.AutomationUpdateRequested);
+				return action.type === ActionType.AutomationCreateRequested ? action.definition.session.customizations : action.changes.session?.customizations;
+			}),
+			scopes: activeClient.scopes,
+		}, { customizations: [undefined, undefined], scopes: [] });
+	});
+
+	test('customization selection remaps bundled agents only when their bundle is selected', async () => {
+		const activeClient = new TestActiveClientService();
+		const source = URI.file('/user/prompts/review.agent.md');
+		const bundle = plugin('vscode-synced-customization:/bundle');
+		const bundledAgent = URI.joinPath(URI.parse(bundle.uri), 'agents', 'review.agent.md');
+		activeClient.customizations.set([bundle], undefined);
+		activeClient.syncedUris.set(source, bundledAgent);
+		const { store } = reconnectable(true, activeClient);
+		const connection = customizationConnection();
+		store.setConnection(connection);
+		const automations: IAutomationDescriptor[] = [];
+		for (const customizationIds of [[bundle.id], []]) {
+			automations.push(await store.createAutomation({ ...createOptions(), sessionTemplate: { agent: { uri: source.toString() } }, customizationIds }));
+		}
+		const refreshed = { ...bundle, uri: 'vscode-synced-customization:/refreshed', nonce: 'v2' };
+		const refreshedAgent = URI.joinPath(URI.parse(refreshed.uri), 'agents', 'review.agent.md');
+		activeClient.customizations.set([refreshed], undefined);
+		activeClient.syncedUris.set(source, refreshedAgent);
+		await store.updateAutomation(automations[0].id, { customizationIds: [bundle.id] });
+		assert.deepStrictEqual(connection.dispatched.map(({ action }) => {
+			assert.ok(action.type === ActionType.AutomationCreateRequested || action.type === ActionType.AutomationUpdateRequested);
+			const session = action.type === ActionType.AutomationCreateRequested ? action.definition.session : action.changes.session!;
+			return { agent: session.agent, customizations: session.customizations };
+		}), [
+			{ agent: { uri: bundledAgent.toString() }, customizations: [bundle] },
+			{ agent: { uri: source.toString() }, customizations: [] },
+			{ agent: { uri: refreshedAgent.toString() }, customizations: [refreshed] },
+		]);
+	});
 
 	test('captures enabled customizations only with negotiated capability', async () => {
 		const enabled = plugin('virtual://client/plugins/enabled');

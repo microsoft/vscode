@@ -177,17 +177,15 @@ interface ITestSetup {
 	configurationService: TestConfigurationService;
 }
 
-function setup(disposables: DisposableStore, configValues: Record<string, unknown> = {}): ITestSetup {
+function setup(disposables: DisposableStore, configValues: Record<string, unknown> = {}, configurationService = new TestConfigurationService({
+	[AgentHostCustomTerminalToolEnabledSettingId]: false,
+	...configValues,
+})): ITestSetup {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const local = new MockAgentHostService();
 	disposables.add({ dispose: () => local.dispose() });
 	const remote = new MockRemoteAgentHostService();
 	disposables.add({ dispose: () => remote.dispose() });
-	const configurationService = new TestConfigurationService({
-		[AgentHostCustomTerminalToolEnabledSettingId]: false,
-		...configValues,
-	});
-
 	instantiationService.stub(IAgentHostService, local);
 	instantiationService.stub(IRemoteAgentHostService, remote);
 	instantiationService.stub(IConfigurationService, configurationService);
@@ -261,6 +259,42 @@ suite('AgentHostSandboxForwarder', () => {
 			type: ActionType.RootConfigChanged,
 			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off } },
 		}]);
+	});
+
+	test('keeps policy authority out of ordinary local and remote settings forwarding', () => {
+		const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+		const configuration = new class extends TestConfigurationService {
+			required = false;
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return { ...inspected, policyValue: key === setting && this.required ? inspected.value : undefined };
+			}
+		}({ [setting]: AgentSandboxEnabledValue.On });
+		const { local, remote } = setup(disposables, {}, configuration);
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		assert.deepStrictEqual(local.dispatched, []);
+
+		const changePolicy = (required: boolean) => {
+			configuration.required = required;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.DEFAULT,
+				affectsConfiguration: key => key === setting,
+				affectedKeys: new Set([setting]),
+				change: { keys: [setting], overrides: [] },
+			});
+		};
+		changePolicy(true);
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		const connection = remote.addConnection('remote.example:9000');
+		connection.setRootState(rootStateWithSandboxSchema());
+		connection.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		changePolicy(false);
+
+		const expected = [
+			{ type: ActionType.RootConfigChanged, config: { sandbox: { enabled: 'on' } } },
+		];
+		assert.deepStrictEqual(local.dispatched, []);
+		assert.deepStrictEqual(connection.dispatched, expected);
 	});
 
 	test('dispatches to remote connections when they appear', () => {

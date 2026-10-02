@@ -14,6 +14,8 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { HeadersImpl, WebSocketConnection } from '../../common/fetcherService';
 import { CAPIWebSocketErrorEvent, ChatWebSocketManager, isCAPIWebSocketError } from '../chatWebSocketManager';
@@ -71,11 +73,11 @@ describe('ChatWebSocketManager', () => {
 		disposables.dispose();
 	});
 
-	async function getConnection(headers: Record<string, string> = {}) {
+	async function getConnection(headers: Record<string, string> = {}, telemetryService: ITelemetryService = new NullTelemetryService()) {
 		manager = new ChatWebSocketManager(
 			new TestLogService(),
 			createFakeCAPIClientService(ws),
-			new NullTelemetryService(),
+			telemetryService,
 			{ getConfig: () => undefined } as unknown as IConfigurationService,
 		);
 		disposables.add(manager);
@@ -444,6 +446,79 @@ describe('ChatWebSocketManager', () => {
 			await handle2.done;
 
 			expect(connection.statefulMarker).toBe('resp-2');
+		});
+	});
+
+	describe('X-GitHub-Copilot-Request-Te message envelope', () => {
+		it('captures the raw value per turn from the envelope headers and reports it on websocket.requestOutcome', async () => {
+			const telemetryService = new SpyingTelemetryService();
+			const connection = await getConnection({}, telemetryService);
+			const turnEnvelopes: (Record<string, string> | undefined)[] = [
+				{ 'X-GitHub-Copilot-Request-Te': ' TRUE ' },
+				{ 'x-github-copilot-request-te': 'false' },
+				undefined,
+			];
+			const handleValues: (string | undefined)[] = [];
+			for (const [index, headers] of turnEnvelopes.entries()) {
+				const cts = disposables.add(new CancellationTokenSource());
+				const handle = connection.sendRequest(
+					{ model: 'test-model', messages: [], stream: true },
+					{ userInitiated: true, turnId: `turn-${index}`, requestId: `req-${index}`, model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+					cts.token,
+				);
+				ws.simulateMessage(JSON.stringify({ type: 'response.created', response: { id: `resp-${index}` }, ...(headers ? { headers } : {}) }));
+				ws.simulateMessage(completedEvent);
+				await handle.done;
+				handleValues.push(handle.gitHubCopilotRequestTe);
+			}
+
+			const outcomes = telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => e.eventName === 'websocket.requestOutcome')
+				.map(e => {
+					const properties = e.properties as Record<string, string>;
+					return [properties.requestId, 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>'];
+				});
+			expect({ handleValues, outcomes }).toEqual({
+				handleValues: [' TRUE ', 'false', undefined],
+				outcomes: [['req-0', ' TRUE '], ['req-1', 'false'], ['req-2', '<absent>']],
+			});
+		});
+
+		it('keeps the turn value when a later CAPI error frame lacks it, and omits it when the turn fails on its first frame', async () => {
+			const telemetryService = new SpyingTelemetryService();
+			const connection = await getConnection({}, telemetryService);
+			// CAPI error frames carry only the request/session ids in their envelope.
+			const errorFrame = JSON.stringify({ type: 'error', error: { code: 'rate_limited', message: 'Rate limited' }, headers: { 'X-Copilot-Service-Request-Id': 'svc-1', 'X-Copilot-WebSocket-Session-Id': 'session-1' } });
+			const turns = [
+				[JSON.stringify({ type: 'response.created', response: { id: 'resp-0' }, headers: { 'X-Copilot-Service-Request-Id': 'svc-0', 'X-Copilot-WebSocket-Session-Id': 'session-1', 'X-GitHub-Copilot-Request-Te': 'true' } }), errorFrame],
+				[errorFrame],
+			];
+			const handleValues: (string | undefined)[] = [];
+			for (const [index, frames] of turns.entries()) {
+				const cts = disposables.add(new CancellationTokenSource());
+				const handle = connection.sendRequest(
+					{ model: 'test-model', messages: [], stream: true },
+					{ userInitiated: true, turnId: `turn-${index}`, requestId: `req-${index}`, model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+					cts.token,
+				);
+				const donePromise = handle.done.catch(() => { });
+				for (const frame of frames) {
+					ws.simulateMessage(frame);
+				}
+				await donePromise;
+				handleValues.push(handle.gitHubCopilotRequestTe);
+			}
+
+			const outcomes = telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => e.eventName === 'websocket.requestOutcome')
+				.map(e => {
+					const properties = e.properties as Record<string, string>;
+					return [properties.requestId, properties.requestOutcome, 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>'];
+				});
+			expect({ handleValues, outcomes }).toEqual({
+				handleValues: ['true', undefined],
+				outcomes: [['req-0', 'error_response', 'true'], ['req-1', 'error_response', '<absent>']],
+			});
 		});
 	});
 

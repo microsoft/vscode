@@ -32,7 +32,7 @@ The Sessions layer direction remains defined by [LAYERS.md](LAYERS.md). Non-prov
 | Injected, multi-provider Automation API | [`IAutomationService`](../workbench/contrib/chat/common/automations/automationService.ts) |
 | Unified catalogue and concrete-provider routing | [`ProviderAutomationService`](contrib/automations/browser/providerAutomationService.ts) |
 | Cloud gate, shared-contract adaptation, and account-scoped identity | [`CloudAutomationStore`](contrib/providers/copilotChatSessions/browser/cloudAutomationStore.ts) |
-| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/gitHubCloudAutomationStore.ts) |
+| Cloud repository discovery, mutation serialization, and bounded history reads | [`GitHubCloudAutomationStore`](contrib/providers/copilotChatSessions/browser/githubCloudAutomationStore.ts) |
 | Connection, feature enablement, and negotiated capability | [`ReconnectableAgentHostAutomationStore`](contrib/providers/agentHost/browser/reconnectableAgentHostAutomationStore.ts) |
 | Definition commands, manual dispatch, and AHP state projection | [`AgentHostAutomationStore`](contrib/providers/agentHost/browser/agentHostAutomationStore.ts) |
 | Manual invocation feedback and observation | [`IAutomationRunner`](../workbench/contrib/chat/common/automations/automationRunner.ts), implemented by [`AutomationRunner`](contrib/automations/browser/automationRunner.ts) |
@@ -71,9 +71,13 @@ Compatibility decoding for configuration values in existing AHP definitions is s
 
 When the host advertises `automations.customizations`, the client sends its enabled plugins for the target's harness and workspace in the AHP session template on creation and when the target changes. Ordinary edits resubmit the saved entries unchanged. The client keeps the customization scope alive until the host accepts or rejects the mutation.
 
+The automation dialog's Advanced section lets the user choose which of those plugins to sync. When editing, it marks saved entries whose local `nonce` changed as outdated. Saving always sends the selection, so outdated entries are refreshed, and saved entries that are no longer available locally keep their copy while selected. The dialog stays open with progress until the host accepts the mutation, and shows a rejection inline.
+
 The host copies each new or changed entry from the dispatching client into an immutable host-owned directory, and reuses the existing copy for entries whose `id`, `uri`, and `nonce` are unchanged. Any capture failure rejects the mutation. The catalogue reports the copies in `AutomationEntry.customizations`.
 
-A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
+For a local VS Code window connected through MessagePort, `file:` plugins are parsed and used at their original host paths instead of copied; edits to their contents on disk take effect in later runs. Virtual bundles and plugins from remote clients are still copied, and garbage collection only removes host-owned copies, never these in-place paths.
+
+A run session receives the copies as a static, host-owned active client created with the session, so providers load them through the same path as any other client plugin, without contacting the originating client. That client's plugin URIs use the `vscode-agent-host-file:` scheme, which tells the plugin manager to use the host directory in place; a `file:` URI always names a client resource. That client contributes no tools and is not re-attached when a session is restored. A selected custom agent inside a captured plugin is remapped to the copy.
 
 After each create, update, or removal, the host deletes copies that no automation references, including those of a rejected capture. Copies used by a run session stay until the host restarts, because that session keeps using them in place for follow-up turns.
 

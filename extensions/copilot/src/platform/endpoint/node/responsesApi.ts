@@ -19,7 +19,7 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../networking/common/anthropic';
-import { FinishedCallback, getRequestId, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, gitHubCopilotRequestTeProperty, IResponseDelta, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OpenAiToolSearchTool } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { APIErrorResponse, ChatCompletion, FilterReason, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -955,8 +955,9 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const { serverExperiments, copilotServiceRequestId } = getRequestId(response.headers);
+		const { serverExperiments, copilotServiceRequestId, gitHubCopilotRequestTe } = getRequestId(response.headers);
 		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, copilotServiceRequestId, serverExperiments, compactionThreshold);
+		processor.gitHubCopilotRequestTe = gitHubCopilotRequestTe;
 		const dumper = createResponsesStreamDumper(requestId, logService);
 		const parser = new SSEParser((ev) => {
 			try {
@@ -989,9 +990,9 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 
 export function sendCompletionOutputTelemetry(telemetryService: ITelemetryService, logService: ILogService, completion: ChatCompletion, telemetryData: TelemetryData): void {
 	const telemetryMessage = rawMessageToCAPI(completion.message);
-	let telemetryDataWithUsage = telemetryData;
+	let telemetryDataWithUsage = telemetryData.extendedBy(gitHubCopilotRequestTeProperty(completion.requestId.gitHubCopilotRequestTe));
 	if (completion.usage) {
-		telemetryDataWithUsage = telemetryData.extendedBy({}, {
+		telemetryDataWithUsage = telemetryDataWithUsage.extendedBy({}, {
 			promptTokens: completion.usage.prompt_tokens,
 			completionTokens: completion.usage.completion_tokens,
 			totalTokens: completion.usage.total_tokens,
@@ -1170,6 +1171,11 @@ export class OpenAIResponsesProcessor {
 	private lastTextDeltaOutputIndex: number | undefined;
 	/** Maps output_index to { name, callId, arguments } for streaming tool call updates */
 	private readonly toolCallInfo = new Map<number, { name: string; callId: string; arguments: string }>();
+	/**
+	 * Raw `X-GitHub-Copilot-Request-Te` value for this model call. Settable after construction
+	 * because WebSocket turns receive it in a message envelope after the request has started.
+	 */
+	gitHubCopilotRequestTe: string | undefined;
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -1393,6 +1399,7 @@ export class OpenAIResponsesProcessor {
 						headerRequestId: this.requestId,
 						gitHubRequestId: this.ghRequestId,
 						model: chunk.response.model,
+						...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 					}, {
 						compactThreshold: this.compactionThreshold,
 						promptTokens,
@@ -1407,6 +1414,7 @@ export class OpenAIResponsesProcessor {
 						headerRequestId: this.requestId,
 						gitHubRequestId: this.ghRequestId,
 						model: chunk.response.model,
+						...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 					}, {
 						compactThreshold: this.compactionThreshold,
 						promptTokens,
@@ -1425,7 +1433,7 @@ export class OpenAIResponsesProcessor {
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, copilotServiceRequestId: this.copilotServiceRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments, ...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe) },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,
@@ -1508,6 +1516,7 @@ export class OpenAIResponsesProcessor {
 				created: response.created_at,
 				deploymentId: '',
 				serverExperiments: this.serverExperiments,
+				...gitHubCopilotRequestTeProperty(this.gitHubCopilotRequestTe),
 			},
 			usage: response.usage ? {
 				prompt_tokens: response.usage.input_tokens ?? 0,

@@ -29,7 +29,7 @@ import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, C
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
@@ -41,9 +41,10 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
@@ -322,7 +323,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
 		return {
-			connection, sessionResource, persistentContent, visibility, commands, pills,
+			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills,
 			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
 			dropdown: (label: string) => {
 				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
@@ -346,6 +347,59 @@ suite('AgentHostSessionInputPills', () => {
 			inputFocused: () => inputFocused,
 		};
 	}
+
+	test('opens single subagent input pills and every dropdown entry to the side', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const children: ChatSummary[] = [
+			{ title: 'Running', status: SessionStatus.InProgress },
+			{ title: 'Waiting', status: SessionStatus.InputNeeded },
+			{ title: 'Completed', status: SessionStatus.Idle },
+		].map(({ title, status }) => ({
+			resource: `vendor-chat:/workers/${title}`,
+			title,
+			status,
+			modifiedAt: '2026-09-01T00:00:00.000Z',
+			origin: { kind: ChatOriginKind.Tool, chat: mainChat, toolCallId: title },
+		}));
+		const session = upcastPartial<SessionState>({ defaultChat: mainChat, chats: [children[0]] });
+		const harness = createActivityPills(session);
+		const opened: Parameters<IChatWidgetService['openSession']>[] = [];
+		harness.instantiationService.stub(IChatWidgetService, {
+			openSession: async (...args) => {
+				opened.push(args);
+				return undefined;
+			},
+		});
+		const executeCommand: ICommandService['executeCommand'] = async (id, ...args) => {
+			const command = CommandsRegistry.getCommand(id);
+			assert.ok(command);
+			await harness.instantiationService.invokeFunction(command.handler, ...args);
+			return undefined;
+		};
+		harness.instantiationService.stub(ICommandService, harness.instantiationService.get(ICommandService), 'executeCommand', executeCommand);
+		harness.visibility.toggle(SessionChatPillKind.Subagents);
+		const singleLabels = harness.labels();
+		harness.dropdown('Running');
+		await timeout(0);
+		harness.connection.setState(StateComponents.Session, { ...session, chats: children });
+		const multipleLabels = harness.labels();
+		for (const child of children) {
+			const entry = harness.dropdown('3 Subagents').find(item => item.label === child.title);
+			assert.ok(entry);
+			entry.select();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+			singleLabels: ['Running'],
+			multipleLabels: ['3 Subagents'],
+			opened: [children[0], ...children].map(child => [
+				getSubagentEditorResource({ chatResource: child.resource, parentSessionResource: harness.sessionResource.toString() }),
+				SIDE_GROUP,
+				{ pinned: true, revealIfOpened: true, title: { preferred: child.title } },
+			]),
+		});
+	});
 
 	test('offers the complete shared catalog and live subagents for host-advertised chat identities', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';

@@ -60,10 +60,20 @@ interface ITestSetup {
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
+	readonly infos: string[] = [];
+	readonly debugs: string[] = [];
 	readonly errors: (string | Error)[] = [];
 
 	override trace(message: string, ...args: unknown[]): void {
 		this.traces.push([message, ...args].join(' '));
+	}
+
+	override info(message: string, ...args: unknown[]): void {
+		this.infos.push([message, ...args].join(' '));
+	}
+
+	override debug(message: string, ...args: unknown[]): void {
+		this.debugs.push([message, ...args].join(' '));
 	}
 
 	override error(error: string | Error, ..._args: unknown[]): void {
@@ -555,6 +565,47 @@ suite('CloudSandboxApiService repository resolution', () => {
 			kind: 'partial',
 			sessions: 1000,
 			listPages: 11,
+		});
+	});
+});
+
+suite('CloudSandboxApiService discovery logs', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('logs only discovered sessions with their identity and display metadata', async () => {
+		const logService = new TestLogService();
+		const bound = {
+			...task('bound', 'Work on repository', 42, 'session-1', 'env-1'),
+			updated_at: '2026-09-22T10:00:00Z',
+			state: 'idle',
+			sessions: [{ id: 'session-1', environment_id: 'env-1', state: 'waiting_for_user', ahp_resource_uri: 'ahp-session:/session-1' }],
+			prompt: 'not-for-logs',
+		};
+		const { service } = createService(store, {
+			tasks: [
+				bound,
+				{ ...task('archived', 'Old task', undefined, 'session-2', 'env-2'), archived_at: '2026-09-21T10:00:00Z' },
+				{ ...task('different-agent', 'Other agent', undefined, 'session-3', 'env-3'), agent_collaborators: [{ slug: 'other' }] },
+				{ ...task('unbound', 'Not ready', undefined, 'session-4', 'env-4'), sessions: [] },
+			],
+			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			logService,
+		});
+
+		await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: logService.debugs,
+			info: logService.infos.filter(message => message.includes('Discovered sandbox session ')),
+			exposedPrompt: [...logService.infos, ...logService.debugs].some(message => message.includes('not-for-logs')),
+		}, {
+			sessions: [`[CloudSandboxApi] Discovered sandbox session ${JSON.stringify({
+				taskId: 'bound', sessionId: 'session-1', environmentId: 'env-1',
+				name: 'Work on repository', repoName: 'owner/repository',
+				updatedAt: bound.updated_at, status: SessionStatus.InputNeeded,
+			})}`],
+			info: [],
+			exposedPrompt: false,
 		});
 	});
 });

@@ -444,12 +444,6 @@
 	flex: 1 1 auto;
 }
 
-.session-comparison-setup-model-picker .action-label.model-picker-split .model-picker-config {
-	border-left: var(--vscode-strokeThickness) solid var(--vscode-dropdown-border, transparent);
-	border-top-left-radius: 0;
-	border-bottom-left-radius: 0;
-}
-
 .session-comparison-setup-add {
 	align-self: flex-start;
 	margin-top: var(--vscode-spacing-size40);
