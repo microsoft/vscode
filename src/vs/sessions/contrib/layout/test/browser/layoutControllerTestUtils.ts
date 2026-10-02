@@ -750,6 +750,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		}
 	});
 
+	const workingSetContents = new Map<string, { readonly resources: URI[]; readonly activeResource: URI | undefined }>();
+
 	instaService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 		override get mainPart() {
 			const groups = this.groups;
@@ -768,9 +770,20 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 				onWillCloseEditor: harness.onWillCloseEditor.event,
 			}] as unknown as IEditorGroupsService['groups'];
 		}
-		override saveWorkingSet(name: string): IEditorWorkingSet { harness.saveWorkingSetCalls.push(name); return { id: name, name }; }
+		override saveWorkingSet(name: string): IEditorWorkingSet {
+			harness.saveWorkingSetCalls.push(name);
+			const resources = harness.activeGroupEditors.map(editor => editor.resource).filter((resource): resource is URI => resource !== undefined);
+			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
+			return { id: name, name };
+		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
+			const contents = workingSet === 'empty' ? { resources: [], activeResource: undefined } : workingSetContents.get(workingSet.id);
+			if (contents) {
+				harness.activeGroupEditors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+				harness.activeEditorInput = contents.activeResource ? harness.activeGroupEditors.find(editor => isEqual(editor.resource, contents.activeResource)) : undefined;
+				harness.onDidEditorsChange.fire();
+			}
 			harness.onApplyWorkingSet?.(workingSet);
 			return true;
 		}

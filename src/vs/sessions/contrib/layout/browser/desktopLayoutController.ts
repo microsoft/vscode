@@ -61,6 +61,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return this._chatLayoutEnabled ? DESKTOP_CHAT_LAYOUT_STATE_KEY : DESKTOP_LAYOUT_STATE_KEY;
 	}
 
+	protected override get _isLayoutStateVersioned(): boolean {
+		return this._chatLayoutEnabled;
+	}
+
 	protected override get _legacyWorkingSetsStorageKey(): string | undefined {
 		return undefined;
 	}

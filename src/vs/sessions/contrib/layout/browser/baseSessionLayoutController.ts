@@ -22,6 +22,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILifecycleService } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -72,6 +73,24 @@ interface ISessionLayoutEntry {
 	/** [B6] The panel view container id this session last showed in the panel. */
 	readonly panelViewContainerId?: string;
 	readonly panelVisible?: boolean;
+}
+
+const SESSION_LAYOUT_STATE_SCHEMA_VERSION = 1;
+
+interface ISessionLayoutStateSchema {
+	version: number;
+	entries: ISessionLayoutEntry[];
+}
+
+function isValidSessionLayoutEntry(value: unknown): value is ISessionLayoutEntry {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const entry = value as Partial<ISessionLayoutEntry>;
+	return typeof entry.sessionResource === 'string'
+		&& (entry.editorPartHidden === undefined || typeof entry.editorPartHidden === 'boolean')
+		&& (entry.panelViewContainerId === undefined || typeof entry.panelViewContainerId === 'string')
+		&& (entry.panelVisible === undefined || typeof entry.panelVisible === 'boolean');
 }
 
 /** New unified storage key for all per-session layout state. */
@@ -188,6 +207,10 @@ export abstract class BaseLayoutController extends Disposable {
 		return false;
 	}
 
+	protected get _isLayoutStateVersioned(): boolean {
+		return false;
+	}
+
 	protected get _chatLayoutEnabled(): boolean {
 		return this._layoutService.chatLayoutPresentation.enabled;
 	}
@@ -221,6 +244,7 @@ export abstract class BaseLayoutController extends Disposable {
 		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@ILifecycleService protected readonly _lifecycleService: ILifecycleService,
+		@ILogService protected readonly _logService: ILogService,
 	) {
 		super();
 
@@ -812,10 +836,18 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this._isPanelViewPerSession && entry.panelViewContainerId) {
 				this._panelViewBySession.set(resource, entry.panelViewContainerId);
 			}
-			if (this._isPanelVisibilityPersisted && entry.panelVisible !== undefined) {
+			if (this._isPanelVisibilityPersisted && typeof entry.panelVisible === 'boolean') {
 				this._panelVisibilityBySession.set(resource, entry.panelVisible);
 			}
 		}
+	}
+
+	private _parseVersionedSessionLayoutEntries(raw: string, storageKey: string): ISessionLayoutEntry[] {
+		const parsed = JSON.parse(raw) as Partial<ISessionLayoutStateSchema>;
+		if (parsed.version !== SESSION_LAYOUT_STATE_SCHEMA_VERSION || !Array.isArray(parsed.entries)) {
+			throw new Error(`Unsupported ${storageKey} schema: expected version ${SESSION_LAYOUT_STATE_SCHEMA_VERSION} with an entries array, got ${JSON.stringify(parsed)}`);
+		}
+		return parsed.entries.filter(isValidSessionLayoutEntry);
 	}
 
 	private _loadState(): void {
@@ -823,10 +855,15 @@ export abstract class BaseLayoutController extends Disposable {
 		const raw = this._storageService.get(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
-				this._applySessionLayoutEntries(JSON.parse(raw) as ISessionLayoutEntry[]);
+				const entries = this._isLayoutStateVersioned
+					? this._parseVersionedSessionLayoutEntries(raw, this._layoutStateStorageKey)
+					: JSON.parse(raw) as ISessionLayoutEntry[];
+				this._applySessionLayoutEntries(entries);
 				return;
-			} catch {
-				// Corrupted data — remove the bad key so we don't keep failing, then fall through to legacy migration
+			} catch (error) {
+				if (this._isLayoutStateVersioned) {
+					this._logService.error(error);
+				}
 				this._storageService.remove(this._layoutStateStorageKey, StorageScope.WORKSPACE);
 			}
 		}
@@ -921,7 +958,10 @@ export abstract class BaseLayoutController extends Disposable {
 				panelVisible: this._isPanelVisibilityPersisted ? this._panelVisibilityBySession.get(resource) : undefined,
 			});
 		});
-		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const payload: ISessionLayoutEntry[] | ISessionLayoutStateSchema = this._isLayoutStateVersioned
+			? { version: SESSION_LAYOUT_STATE_SCHEMA_VERSION, entries }
+			: entries;
+		this._storageService.store(this._layoutStateStorageKey, JSON.stringify(payload), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	// --- Panel [B1] ---

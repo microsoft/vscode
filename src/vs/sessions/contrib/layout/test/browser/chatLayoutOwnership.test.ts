@@ -16,7 +16,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 const SIDE_PANE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const SIDE_PANE_PRE_HIDE_COMPOSITION_STORAGE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
@@ -165,6 +165,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
 		await settle();
 		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/peer-a.txt'))), store.add(new TestStubEditorInput(URI.file('/peer-b.txt')))];
+		harness.activeEditorInput = harness.activeGroupEditors[1];
 		const peerKey = controllerA.ownerKeyFor(session);
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
@@ -193,6 +195,8 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.openPaneCompositeCalls = [];
 		harness.applyWorkingSetCalls = [];
 		harness.partVisibility.set(Parts.PANEL_PART, false);
+		harness.activeGroupEditors = [];
+		harness.activeEditorInput = undefined;
 
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
@@ -209,6 +213,16 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			harness.applyWorkingSetCalls,
 			[{ id: peerWorkingSetName, name: peerWorkingSetName }],
 			'a fresh controller must restore the saved peer chat\'s own distinct editor working set'
+		);
+		assert.deepStrictEqual(
+			harness.activeGroupEditors.map(editor => editor.resource?.toString()),
+			[URI.file('/peer-a.txt').toString(), URI.file('/peer-b.txt').toString()],
+			'a fresh controller restoring the peer\'s working set must reopen its exact saved editor resources, not just replay an opaque working-set id'
+		);
+		assert.strictEqual(
+			harness.activeEditorInput?.resource?.toString(),
+			URI.file('/peer-b.txt').toString(),
+			'a fresh controller restoring the peer\'s working set must also restore its own active tab'
 		);
 		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), true, 'the peer\'s own persisted bottomVisible must be restored once it becomes the active chat');
 		assert.deepStrictEqual(
@@ -246,7 +260,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const chatLayoutStateRaw = harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		assert.notStrictEqual(chatLayoutStateRaw, undefined, 'the peer chat\'s own bottomVisible must be serialized under the per-chat key before reconstructing storage');
-		assert.ok(JSON.parse(chatLayoutStateRaw!).some((entry: { panelVisible?: boolean }) => entry.panelVisible === true), 'the serialized per-chat entries must include the peer\'s captured panelVisible');
+		assert.ok((JSON.parse(chatLayoutStateRaw!) as { entries: { panelVisible?: boolean }[] }).entries.some(entry => entry.panelVisible === true), 'the serialized per-chat entries must include the peer\'s captured panelVisible');
 		firstRunStore.dispose();
 
 		const reconstructedStorageService = store.add(new TestStorageService());
@@ -301,7 +315,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const chatLayoutStateRaw = harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
-		assert.ok(JSON.parse(chatLayoutStateRaw!).some((entry: { panelVisible?: boolean; panelViewContainerId?: string }) => entry.panelVisible === false && entry.panelViewContainerId === 'view.custom'), 'the serialized per-chat entry must keep bottomVisible false alongside its remembered view, not discard either');
+		assert.ok((JSON.parse(chatLayoutStateRaw!) as { entries: { panelVisible?: boolean; panelViewContainerId?: string }[] }).entries.some(entry => entry.panelVisible === false && entry.panelViewContainerId === 'view.custom'), 'the serialized per-chat entry must keep bottomVisible false alongside its remembered view, not discard either');
 		firstRunStore.dispose();
 
 		const reconstructedStorageService = store.add(new TestStorageService());
