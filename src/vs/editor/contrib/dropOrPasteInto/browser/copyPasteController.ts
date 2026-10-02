@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, RefCountedDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { upcast } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -359,7 +359,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				};
 
 				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
-				disposables.add(editSession);
+				const editSessionRef = new RefCountedDisposable(editSession);
+				disposables.add(toDisposable(() => editSessionRef.release()));
 				if (token.isCancellationRequested) {
 					return;
 				}
@@ -373,8 +374,6 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
 					// Applying the paste changes editor state itself. The widget manager handles cancellation during resolve.
 					disposables.delete(editorStateListener);
-					// The widget owns the edits until the user finishes choosing a paste action.
-					disposables.deleteAndLeak(editSession);
 					return await this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: this.getInitialActiveEditIndex(model, editSession.edits), allEdits: editSession.edits }, canShowWidget, async (edit, resolveToken) => {
 						if (!edit.provider.resolveDocumentPasteEdit) {
 							return edit;
@@ -391,7 +390,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 							edit.additionalEdit = resolved.additionalEdit;
 						}
 						return edit;
-					}, token, editSession);
+					}, token, editSessionRef);
 				}
 
 				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
