@@ -167,10 +167,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			}
 
 			this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
-			const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
-				isContextCurrent: isExecutionCurrent,
-				userTarget,
-			});
+			const result = await this.migrateKeepingPrecedence(supportSnapshot, eligibleCandidates, isExecutionCurrent, userTarget);
 			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
 			this.preserveMigratedEnablement(supportSnapshot, eligibleCandidates, combined.failures);
 			for (const failure of combined.failures) {
@@ -185,6 +182,46 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		} finally {
 			scope.dispose();
 		}
+	}
+
+	/**
+	 * Migrates candidates without changing which same-named workspace-folder server the session uses.
+	 * The client registers one `.vscode/mcp.json` server per name and forwards it ahead of root `.mcp.json`
+	 * servers. Moving that server while a server it shadows stays behind would let the shadowed one take over,
+	 * so shadowed servers migrate first and the server shadowing them only migrates once they all have.
+	 */
+	private async migrateKeepingPrecedence(
+		snapshot: IAgentHostMcpServerSupportSnapshot,
+		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
+		isContextCurrent: (candidates: readonly IMcpServerCustomizationMigrationCandidate[]) => Promise<boolean>,
+		userTarget: URI | undefined,
+	): Promise<IMcpServerCustomizationMigrationResult> {
+		const shadowedIds = new Map<string, string[]>();
+		for (const server of snapshot.servers) {
+			if (server.shadowedBy !== undefined && server.applicability === AgentHostMcpServerApplicability.Applicable) {
+				shadowedIds.set(server.shadowedBy, [...shadowedIds.get(server.shadowedBy) ?? [], server.id]);
+			}
+		}
+		const shadowing = candidates.filter(candidate => shadowedIds.has(candidate.id));
+		const first = await this.mcpServerMigration.migrate(candidates.filter(candidate => !shadowedIds.has(candidate.id)), { isContextCurrent, userTarget });
+		const failedIds = new Set(first.failures.map(failure => failure.id));
+		const migratedIds = new Set(candidates.filter(candidate => !shadowedIds.has(candidate.id) && !failedIds.has(candidate.id)).map(candidate => candidate.id));
+		const ready = shadowing.filter(candidate => shadowedIds.get(candidate.id)!.every(id => migratedIds.has(id)));
+		const blocked = shadowing.filter(candidate => !ready.includes(candidate)).map((candidate): IMcpServerCustomizationMigrationFailure => ({
+			storage: candidate.storage,
+			id: candidate.id,
+			name: candidate.name,
+			sourceUri: candidate.sourceUri,
+			targetUri: candidate.targetUri,
+			reason: McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated,
+		}));
+		const second = ready.length > 0
+			? await this.mcpServerMigration.migrate(ready, { isContextCurrent, userTarget })
+			: { migratedCount: 0, failures: [] };
+		return {
+			migratedCount: first.migratedCount + second.migratedCount,
+			failures: [...first.failures, ...blocked, ...second.failures],
+		};
 	}
 
 	private getUserTarget(sessionResource: URI, snapshot: IAgentHostMcpServerSupportSnapshot): Promise<URI | undefined> {

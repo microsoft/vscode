@@ -1482,6 +1482,54 @@ suite('CustomizationMigrationService', () => {
 		});
 	});
 
+	for (const [selection, label] of [['winner', 'only the server that takes precedence'], ['shadowed', 'only the shadowed server'], ['both', 'both servers']] as const) {
+		test(`keeps same-named server precedence when migrating ${label}`, async () => {
+			const roots = [URI.file('/root-one'), URI.file('/root-two')];
+			const fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+			for (const root of roots) {
+				await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+			}
+			const [shadowed, winner] = roots.map((root, index) => ({
+				...createWorkspaceMcpSupportSnapshot(root).servers[0],
+				id: `mcp.config.ws${index}.server`,
+				collectionId: `mcp.config.ws${index}`,
+			}));
+			const supportScope = new MutableMcpServerSupportScope({
+				servers: [
+					{ ...shadowed, enablement: { enabled: false, state: AgentHostMcpServerEnablementState.DisabledNotRegistered }, delivery: AgentHostMcpServerDelivery.NotDelivered, shadowedBy: winner.id },
+					winner,
+				],
+				discoveryComplete: true,
+				coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+			});
+			const harnessService = new TestCustomizationHarnessService();
+			const activeClientService = {
+				acquireMcpServerSupportScope: () => supportScope,
+			} as Partial<IAgentHostActiveClientService> as IAgentHostActiveClientService;
+			const agentHostCustomizationService = {
+				onDidChangeCustomizations: Event.None,
+				getClientWorkingDirectoryUris: () => roots,
+			} as Partial<IAgentHostCustomizationService> as IAgentHostCustomizationService;
+			const service = store.add(new CustomizationMigrationService(store.add(new TestPromptsService([])), harnessService, activeClientService, agentHostCustomizationService, fileService, new NullLogService(), store.add(createMigrationConfiguration()), configurationResolverService, undefined, undefined, createWorkspaceContextService(...roots)));
+
+			const migration = await service.computeMigration(harnessService.activeSessionResource.get(), CustomizationMigrationType.McpServers);
+			// The winner is listed first so the shadowed server must still migrate before it.
+			const selected = [...migration.candidates].reverse().filter(candidate => selection === 'both' || candidate.id === (selection === 'winner' ? winner.id : shadowed.id));
+			const result = await service.migrateMcpServers(harnessService.activeSessionResource.get(), selected);
+
+			assert.deepStrictEqual({
+				migratedCount: result.migratedCount,
+				failures: result.failures.map(failure => [failure.id, failure.reason]),
+				targets: await Promise.all(roots.map(root => fileService.exists(URI.joinPath(root, '.mcp.json')))),
+			}, {
+				migratedCount: selection === 'both' ? 2 : selection === 'shadowed' ? 1 : 0,
+				failures: selection === 'winner' ? [[winner.id, McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated]] : [],
+				targets: [selection !== 'winner', selection === 'both'],
+			});
+		});
+	}
+
 	test('abandons MCP computation when the caller cancels', async () => {
 		const root = URI.file('/cancel');
 		const activeSessionResource = observableValue('activeSessionResource', URI.from({ scheme: SessionType.AgentHostCopilot, path: '/session' }));
