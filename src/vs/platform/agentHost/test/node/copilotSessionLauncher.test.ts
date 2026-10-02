@@ -134,7 +134,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		{} as IAgentHostTerminalManager,
 		logService,
 		{} as IFileService,
-		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
 		{
 			_serviceBrand: undefined,
@@ -614,6 +614,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		let disposes = 0;
 		const service: IByokLmProxyService = {
 			_serviceBrand: undefined,
+			onDidCapTools: Event.None,
 			start: async (): Promise<IByokLmProxyHandle> => {
 				const nonce = `NONCE-${++starts}`;
 				return {

@@ -12,8 +12,9 @@ import { AgentSession, type AgentSubagentTaskModelSource, type AgentTurnProvider
 import { isReasoningEffortLevel } from '../common/reasoningEffort.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
 import { getTelemetryChatSessionId } from '../common/agentTelemetryCorrelation.js';
-import { readAgentErrorTelemetryMeta } from '../common/meta/agentErrorMeta.js';
+import { readAgentErrorTelemetryMeta } from '../common/meta/errorMeta.js';
 import { isAgentMergeMessage } from '../common/meta/agentMergeMessageMeta.js';
+import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import { MessageKind, type ErrorInfo, type Message, type SessionInputRequestKind, type ToolDefinition } from '../common/state/protocol/state.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, isSubagentChatUri, isSubagentSession, parseChatUri, parseRequiredSessionUriFromChatUri, type ISessionWithDefaultChat } from '../common/state/sessionState.js';
@@ -682,9 +683,13 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	timeAfterHangMs: number;
 }
 
-type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry;
+type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
+	mcpSourceKind?: McpServerSource;
+};
 
-type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification;
+type IAgentHostLanguageModelToolInvokedClassification = LanguageModelToolInvokedClassification & IAgentHostEventClassification & {
+	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, or managed. Managed MCP tools include Copilot connectors.' };
+};
 
 export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedReport {
 	provider: string;
@@ -692,6 +697,7 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	turnId: string;
 	toolId: string;
 	toolSourceKind: string;
+	mcpSourceKind: McpServerSource | undefined;
 	toolCallId: string;
 	result: ToolInvokedResult;
 	invocationTimeMs?: number;
@@ -709,6 +715,7 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	isSubagentSession: boolean;
 	errorCode: string | undefined;
 	msg: string | undefined;
+	mcpSourceKind?: McpServerSource;
 };
 
 export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedClassification, 'provider' | 'chatSessionId' | 'owner' | 'comment'> & IAgentHostEventClassification & {
@@ -716,6 +723,7 @@ export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedC
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The Agent Host session identifier.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat identifier within the Agent Host session.' };
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
+	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, or managed. Managed MCP tools include Copilot connectors.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
 	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
@@ -1672,6 +1680,7 @@ export class AgentHostTelemetryReporter {
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
 			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,
@@ -1689,6 +1698,7 @@ export class AgentHostTelemetryReporter {
 			toolId: report.toolId,
 			toolExtensionId: undefined,
 			toolSourceKind: report.toolSourceKind,
+			...(report.mcpSourceKind ? { mcpSourceKind: report.mcpSourceKind } : {}),
 			toolCallId: report.toolCallId,
 			invocationTimeMs: report.invocationTimeMs,
 			provider: report.provider,

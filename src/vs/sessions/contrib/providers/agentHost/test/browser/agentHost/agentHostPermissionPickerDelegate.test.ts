@@ -99,6 +99,9 @@ class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChan
 	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined {
 		return this.sessionConfigs.get(sessionId) ?? this.config;
 	}
+	getCreateSessionConfig(): undefined {
+		return undefined;
+	}
 	getSessionSandboxPolicy(sessionId: string): ISessionSandboxPolicy | undefined {
 		return this.sandboxPolicies.get(sessionId);
 	}
@@ -243,6 +246,71 @@ function makeActiveSession(sessionType = 'copilotcli'): IActiveSession {
 
 suite('AgentHostPermissionPickerDelegate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('uses Copilot approval keys, effective posture and host-available choices', async () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: {
+				type: 'object',
+				properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], default: 'assisted', sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', readOnly: true },
+					availableApprovalModes: { type: 'array', title: 'Available approvals', readOnly: true },
+				},
+			},
+			values: { approvalMode: 'allow-all', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] },
+		};
+		provider.fireChange();
+		const before = {
+			applicable: delegate.isApplicable.get(),
+			level: delegate.currentPermissionLevel.get(),
+			choices: delegate.availableLevels,
+			hover: delegate.getPermissionLevelHover(ChatPermissionLevel.Default, getPermissionLevelMeta(ChatPermissionLevel.Default)),
+		};
+		await delegate.setPermissionLevel(ChatPermissionLevel.AutoApprove);
+		await delegate.setPermissionLevel(ChatPermissionLevel.Assisted);
+		assert.deepStrictEqual({ before, writes: provider.setCalls }, {
+			before: {
+				applicable: true, level: ChatPermissionLevel.Default,
+				choices: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+				hover: 'Effective permissions: manual. Requested permissions: allow-all.',
+			},
+			writes: [[SESSION_ID, 'approvalMode', 'assisted']],
+		});
+	});
+
+	test('Copilot approval schema defaults are shown without inventing VS approval defaults', () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: { type: 'object', properties: { approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted'], default: 'assisted', sessionMutable: true } } },
+			values: {},
+		};
+		provider.fireChange();
+		assert.deepStrictEqual({ applicable: delegate.isApplicable.get(), level: delegate.currentPermissionLevel.get(), choices: delegate.availableLevels }, {
+			applicable: true, level: ChatPermissionLevel.Assisted, choices: [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted],
+		});
+	});
+
+	test('malformed VS approval keys suppress Copilot fallback and readonly bindings are not editable', () => {
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'));
+		provider.config = {
+			schema: {
+				type: 'object', properties: {
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+					autoApprove: { type: 'string', title: 'Custom approvals', enum: ['custom'], sessionMutable: true },
+				}
+			},
+			values: { approvalMode: 'allow-all' },
+		};
+		provider.fireChange();
+		const malformedApplicable = delegate.isApplicable.get();
+		delete provider.config.schema.properties.autoApprove;
+		provider.config.schema.properties.approvalMode.readOnly = true;
+		provider.fireChange();
+		assert.deepStrictEqual({ malformedApplicable, readOnlyApplicable: delegate.isApplicable.get(), writes: provider.setCalls }, {
+			malformedApplicable: false, readOnlyApplicable: false, writes: [],
+		});
+	});
 
 	for (const os of ['linux', 'darwin', 'win32']) {
 		test(`selects the unified sandbox setting without waiting for ${os} host diagnostics`, async () => {

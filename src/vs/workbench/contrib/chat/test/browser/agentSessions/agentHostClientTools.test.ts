@@ -363,6 +363,17 @@ suite('AgentHostClientTools', () => {
 
 	suite('toolDataToDefinition', () => {
 
+		test('publishes explicit loading and chat-scope preferences without guessing defaults', () => {
+			const tool: IToolData = {
+				id: 'tool', displayName: 'Tool', modelDescription: 'Tool', source: ToolDataSource.Internal,
+				agentHostPreferences: { defer: 'auto', availability: 'userChats' },
+			};
+			assert.deepStrictEqual(toolDataToDefinition(tool), {
+				name: 'tool', title: 'Tool', description: 'Tool',
+				_meta: { 'copilot.toolDefer': 'auto', 'copilot.toolAvailability': 'userChats' },
+			});
+		});
+
 		test('maps toolReferenceName, displayName, modelDescription, and inputSchema', () => {
 			const tool: IToolData = {
 				id: 'vscode.runTests',

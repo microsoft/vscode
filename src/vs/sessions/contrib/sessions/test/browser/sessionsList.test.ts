@@ -10,7 +10,7 @@ import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
@@ -515,13 +515,18 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = container.querySelector('.sessions-list-header .test-sessions-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
-			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
-			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
+			const customizationsIcon = customizationsSection?.querySelector<HTMLElement>('.session-section-icon');
 			const customizationsPresentation = {
 				hasTotalCountBadge: customizationsSection?.querySelector('.monaco-count-badge') !== null,
-				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
-				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
-				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
+			};
+			customizationMigrationsAvailable.set(false, undefined);
+			const customizationsPresentationWithoutMigration = {
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
 			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
@@ -556,6 +561,7 @@ suite('Sessions - SessionsList', () => {
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsPresentation,
+				customizationsPresentationWithoutMigration,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
@@ -580,9 +586,14 @@ suite('Sessions - SessionsList', () => {
 				headerInTreatment: true,
 				customizationsPresentation: {
 					hasTotalCountBadge: false,
-					migrationIndicatorVisible: true,
-					migrationIndicatorOutsideLabel: true,
+					hasMigrationIcon: true,
+					hasExtensionsIcon: false,
+					iconColor: 'var(--vscode-activityWarningBadge-background)',
+				},
+				customizationsPresentationWithoutMigration: {
+					hasMigrationIcon: false,
 					hasExtensionsIcon: true,
+					iconColor: '',
 				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
@@ -4082,6 +4093,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(title),
 				updatedAt,
 				status: constObservable(status),
+				description: constObservable(undefined),
 				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
@@ -5144,7 +5156,73 @@ suite('Sessions - SessionsList', () => {
 					},
 				])
 			), {
-				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, State: In Progress, Working...' },
+			});
+		});
+
+		test('shows each chat activity instead of modified time while in progress', () => {
+			const firstStatus = observableValue('first-chat-status', SessionStatus.InProgress);
+			const firstDescription = observableValue<IMarkdownString | undefined>('first-chat-description', new MarkdownString('Reading files'));
+			const firstUpdatedAt = observableValue<Date | undefined>('first-chat-updatedAt', new Date());
+			const first = {
+				...createChat('First task', ChatOriginKind.User),
+				status: firstStatus,
+				description: firstDescription,
+				updatedAt: firstUpdatedAt,
+			};
+			const secondStatus = observableValue('second-chat-status', SessionStatus.InProgress);
+			const secondDescription = observableValue<IMarkdownString | undefined>('second-chat-description', new MarkdownString('Running tests'));
+			const second = {
+				...createChat('Second task', ChatOriginKind.User),
+				status: secondStatus,
+				description: secondDescription,
+			};
+			const main = createChat('Main chat');
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (target, options) => {
+						hovers.set(target, typeof options === 'function' ? options : () => options);
+						return toDisposable(() => hovers.delete(target));
+					},
+				});
+			});
+			const snapshot = () => Object.fromEntries(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => {
+					const statusElement = item.querySelector<HTMLElement>('.session-chat-folder-row .session-description');
+					return [
+						item.querySelector('.session-chat-title')?.textContent,
+						{
+							message: statusElement?.textContent,
+							hover: statusElement ? hovers.get(statusElement)?.().content : undefined,
+							time: item.querySelector('.session-chat-time')?.textContent,
+							ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label'),
+						},
+					];
+				})
+			);
+
+			const whileActive = snapshot();
+			firstStatus.set(SessionStatus.Completed, undefined);
+			const afterFirstCompletes = snapshot();
+
+			assert.deepStrictEqual({ whileActive, afterFirstCompletes }, {
+				whileActive: {
+					'First task': { message: 'Reading files', hover: 'Reading files', time: undefined, ariaLabel: 'First task, chat, State: In Progress, Reading files' },
+					'Second task': { message: 'Running tests', hover: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
+				afterFirstCompletes: {
+					'First task': { message: undefined, hover: undefined, time: 'now', ariaLabel: 'First task, chat, updated now, State: Completed' },
+					'Second task': { message: 'Running tests', hover: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
 			});
 		});
 
@@ -5229,6 +5307,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
+				description: constObservable(undefined),
 				isArchived: constObservable(false),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
@@ -5537,6 +5616,24 @@ suite('Sessions - SessionsList', () => {
 				errorIcon: true,
 				ariaLabel: 'Failed chat, chat, updated now, State: Failed',
 			});
+		});
+
+		test('does not repeat the fallback needs input message in a chat row aria label', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Needs input chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Needs input chat'));
+			assert.ok(peerRow);
+			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Input Needed');
 		});
 
 		test('updates rendered chat row heights across phone layout changes', () => {
