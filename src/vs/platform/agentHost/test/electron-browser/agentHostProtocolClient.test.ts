@@ -18,9 +18,9 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
-import { AgentHostCanvasesChangedNotification, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, ResolveAgentHostCanvasSourceExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
-import { AgentCanvasAvailability, AgentSession, AuthenticateParams } from '../../common/agent.js';
+import { AuthenticateParams } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
 import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
@@ -32,13 +32,13 @@ import { ContentEncoding, ReconnectResultType } from '../../common/state/protoco
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
-import { PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
+import { isActionKnownToVersion, PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS } from '../../common/state/protocol/version/registry.js';
 import { ActionType, type ActionEnvelope, type ChatTurnCompleteAction, type ChatTurnStartedAction, type SessionActiveClientSetAction, type SessionActiveClientRemovedAction, type SessionTitleChangedAction } from '../../common/state/sessionActions.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { ProtocolError, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { mainWindow } from '../../../../base/browser/window.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, createChatState, createSessionState, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, readSessionExternal, readSessionWorkspaceless, ROOT_STATE_URI, SessionStatus, StateComponents, TurnState, customizationId, withSessionExternal, withSessionWorkspaceless, type ChatState, type SessionState } from '../../common/state/sessionState.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError, type IClientTransport, type IProtocolTransport, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
@@ -440,20 +440,6 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(supported, [false, false, false, true]);
 	});
 
-	test('canvas facade requires the versioned capability and a local host identity', async () => {
-		const supported: boolean[] = [];
-		for (const meta of [undefined, { 'vscode.canvases.v1': 1 }, { 'vscode.canvases.v1': false }, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true)]) {
-			const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
-			await connectClient(client, transport, meta);
-			supported.push(client.canvases !== undefined);
-		}
-		const remote = createClientForIdentity('remote.example:1234');
-		await connectClient(remote.client, remote.transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
-		supported.push(remote.client.canvases !== undefined);
-
-		assert.deepStrictEqual(supported, [false, false, false, true, false]);
-	});
-
 	test('Dev Container facade uses the parent transport and validates notifications', async () => {
 		const { client, transport } = createClient();
 		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, true));
@@ -751,6 +737,17 @@ suite('AgentHostProtocolClient', () => {
 				{ chat: 'agent-chat://copilotcli/quick-1/peer', summary: 'Peer Chat', kind: 'peer', origin: undefined, interactivity: ChatInteractivity.Hidden, archived: true },
 			],
 		}]);
+	});
+
+	test('chat read-state actions require AHP 0.10', () => {
+		const action = { type: ActionType.ChatIsReadChanged, isRead: true } as const;
+		assert.deepStrictEqual({
+			v09: isActionKnownToVersion(action, '0.9.0'),
+			v10: isActionKnownToVersion(action, '0.10.0'),
+		}, {
+			v09: false,
+			v10: true,
+		});
 	});
 
 	test('listSessions derives the compatibility directory from the primary root', async () => {
@@ -1133,64 +1130,29 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
-	test('applies full canvas snapshots, suppresses duplicates, clears, and resolves an exact revision', async () => {
-		const { client, transport } = createClientForIdentity(LOCAL_AGENT_HOST_RESOURCE_IDENTITY);
-		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, true));
-		transport.sentMessages.length = 0;
-		const canvases = client.canvases;
-		assert.ok(canvases);
-		const chat = URI.parse(buildDefaultChatUri(AgentSession.uri('copilotcli', 'test')));
-		const snapshots: unknown[] = [];
-		disposables.add(canvases.onDidChange(snapshot => snapshots.push({
-			chat: snapshot.chat.toString(),
-			canvases: snapshot.canvases,
-		})));
-		const params = {
-			chat: chat.toString(),
-			canvases: [{
-				instanceId: 'preview-1',
-				extensionId: 'project:preview',
-				canvasId: 'preview',
-				revision: 3,
-				availability: AgentCanvasAvailability.Ready,
-			}],
-		};
-		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
-		transport.fireMessage({ jsonrpc: '2.0', method: AgentHostCanvasesChangedNotification, params } as unknown as ProtocolMessage);
-
-		const resultPromise = canvases.resolveSource(chat, 'preview-1', 3);
-		const sourceRequest = transport.sentMessages.at(-1) as JsonRpcRequest;
-
-		assert.deepStrictEqual(sourceRequest, {
-			jsonrpc: '2.0',
-			id: sourceRequest.id,
-			method: ResolveAgentHostCanvasSourceExtensionMethod,
-			params: {
-				chat: chat.toString(),
-				instanceId: 'preview-1',
-				revision: 3,
+	test('subscribes to an opaque host-advertised canvas channel', async () => {
+		const { client, transport } = createClient();
+		const resource = URI.parse('ahp-canvas://other-host/document/preview');
+		const reference = disposables.add(client.getSubscription(StateComponents.Canvas, resource, 'canvas-test'));
+		await timeout(0);
+		const request = transport.sentMessages.find((message): message is JsonRpcRequest =>
+			hasKey(message, { method: true, id: true }) && message.method === 'subscribe');
+		assert.ok(request);
+		transport.fireMessage({
+			jsonrpc: '2.0', id: request.id,
+			result: {
+				snapshot: {
+					resource: resource.toString(), state: {
+						instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview',
+						url: 'https://example.test/preview',
+					}, fromSeq: 1
+				}
 			},
 		});
-
-		transport.fireMessage({ jsonrpc: '2.0', id: sourceRequest.id, result: { url: 'https://example.test/preview' } });
-		const source = await resultPromise;
-		transport.fireMessage({
-			jsonrpc: '2.0',
-			method: AgentHostCanvasesChangedNotification,
-			params: { chat: chat.toString(), canvases: [] },
-		} as unknown as ProtocolMessage);
-
-		assert.deepStrictEqual({
-			source,
-			snapshots,
-			current: canvases.getSnapshots(),
-		}, {
-			source: 'https://example.test/preview',
-			snapshots: [
-				params,
-				{ chat: chat.toString(), canvases: [] },
-			],
-			current: [],
+		await timeout(0);
+		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
+			params: { channel: resource.toString() },
+			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
 		});
 	});
 

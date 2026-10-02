@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type ActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
+import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInteractivity, ChatOriginKind, MessageKind, SessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, buildSubagentSessionUriPrefix, createErrorResponsePart, isSubagentSession, mergeSessionWithDefaultChat, parseSubagentSessionUri, readHostBuildInfo, readSessionEhcliAdoptable, withSessionEhcliAdoptable, type ChatState, type MarkdownResponsePart, type SessionState, type Turn } from '../../common/state/sessionState.js';
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -23,6 +23,8 @@ import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../comm
 import { readAgentHostResources } from '../../common/meta/agentHostResources.js';
 import { supportsRemoteSessions } from '../../common/meta/agentRemoteSessionMeta.js';
 import { collectAgentHostResources } from '../../node/agentHostResources.js';
+import { buildCanvasUri } from '../../common/canvasUri.js';
+import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 
 suite('AgentHostStateManager', () => {
 
@@ -125,6 +127,42 @@ suite('AgentHostStateManager', () => {
 			chats: [[], [{ ...shell, command: 'npm run build' }]],
 			mirrored: false,
 		});
+	});
+
+	test('hosts canvas state independently of chat membership and removes dead sources', () => {
+		manager.createSession(makeSessionSummary());
+		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
+		const canvas: CanvasState = {
+			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
+			url: 'https://example.test/preview',
+		};
+		const actions: ActionEnvelope[] = [];
+		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
+		manager.setCanvasState(sessionChatUri, resource, canvas);
+		manager.dispatchServerAction(sessionChatUri, {
+			type: ActionType.ChatCanvasesChanged, canvases: [{ resource }],
+		});
+		const ready = manager.getSnapshot(resource)?.state;
+		const references = manager.getChatState(sessionChatUri)?.canvases;
+		const { url: _url, ...unavailable } = canvas;
+		manager.setCanvasState(sessionChatUri, resource, unavailable);
+		const cleared = manager.getSnapshot(resource)?.state;
+		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatCanvasesChanged, canvases: undefined });
+		assert.deepStrictEqual({
+			ready, cleared, references, removed: manager.getSnapshot(resource),
+			types: actions.map(action => action.action.type),
+		}, {
+			ready: canvas, cleared: unavailable, references: [{ resource }], removed: undefined,
+			types: [ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged, ActionType.CanvasStateChanged, ActionType.ChatCanvasesChanged],
+		});
+	});
+
+	test('session eviction removes owned live canvas channels', () => {
+		manager.createSession(makeSessionSummary());
+		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
+		manager.setCanvasState(sessionChatUri, resource, { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' });
+		manager.removeSession(sessionUri);
+		assert.strictEqual(manager.getSnapshot(resource), undefined);
 	});
 
 	test('getSnapshot returns root snapshot', () => {
@@ -1515,16 +1553,25 @@ suite('AgentHostStateManager', () => {
 
 			manager.dispatchClientAction(peerChat, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, { clientId: 'client', clientSeq: 1 });
 			const peerSummary = manager.getSessionState(sessionUri)?.chats.find(chat => chat.resource === peerChat);
+			const catalogSummary = manager.getSessionSummary(sessionUri)?.chats?.find(chat => chat.resource === peerChat);
 			const chatUpdated = envelopes.find(envelope => envelope.action.type === ActionType.SessionChatUpdated);
 
 			assert.deepStrictEqual({
 				peerArchived: !!peerSummary && (peerSummary.status & SessionStatus.IsArchived) !== 0,
 				peerStateArchived: ((manager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
+				catalogSummary,
 				sessionArchived: ((manager.getSessionSummary(sessionUri)?.status ?? 0) & SessionStatus.IsArchived) !== 0,
 				action: chatUpdated?.action,
 			}, {
 				peerArchived: true,
 				peerStateArchived: true,
+				catalogSummary: {
+					resource: peerChat,
+					title: 'Peer',
+					origin: { kind: ChatOriginKind.User },
+					status: SessionStatus.Idle | SessionStatus.IsArchived,
+					archived: true,
+				},
 				sessionArchived: false,
 				action: {
 					type: ActionType.SessionChatUpdated,
@@ -2137,7 +2184,7 @@ suite('AgentHostStateManager', () => {
 				...makeSessionSummary(),
 				chats: [
 					{ resource: defaultChat, title: '' },
-					{ resource: peerChat, title: 'Peer', archived: false },
+					{ resource: peerChat, title: 'Peer', status: SessionStatus.Idle },
 				],
 				defaultChat,
 			};
