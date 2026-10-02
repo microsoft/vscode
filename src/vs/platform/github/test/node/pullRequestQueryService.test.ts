@@ -651,6 +651,24 @@ suite('PullRequestQueryService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial checks`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Checks rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					response: gitHubGraphQLResponse(checksPage('head-1', [], false), errors),
+				}));
+				const { query, ref, credential } = setup(server);
+
+				await assert.rejects(
+					() => query.fetch('checks', ref, core('head-1'), { priority: 'interactive', checks: { required: true } }, credential, new AbortController().signal),
+					{ name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors },
+				);
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('fails closed for fallback checks and stale-head GraphQL checks', async () => {
 		await withServer(async server => {
 			const unavailable: GitHubHostCapabilities = {
