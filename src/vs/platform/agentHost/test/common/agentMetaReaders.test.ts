@@ -12,7 +12,7 @@ import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -133,6 +133,37 @@ suite('Agent host _meta readers', () => {
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
 			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			unchanged: true,
+		});
+	});
+
+	test('validates MCP display names and source plugins and removes them once they no longer apply', () => {
+		const customization = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id: 'server',
+			uri: 'mcp-top-level:server',
+			name: 'github-copilot-connector-1',
+			state: { kind: McpServerStatus.Ready },
+			_meta: meta,
+		});
+		const opaque = { 'test.opaque': 'kept' };
+		const recorded = withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(opaque, 'Linear'), 'computer-use');
+
+		assert.deepStrictEqual({
+			read: [readMcpServerDisplayName(customization(recorded)), readMcpServerSourcePlugin(customization(recorded))],
+			invalidDisplayNames: [undefined, '', ' ', 1, {}, ['Linear']].map(value => readMcpServerDisplayName(customization({ 'agentHost.mcpServerDisplayName': value }))),
+			invalidPlugins: [undefined, '', 1].map(value => readMcpServerSourcePlugin(customization({ 'agentHost.mcpServerSourcePlugin': value }))),
+			recorded,
+			cleared: withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(recorded, undefined), undefined),
+			emptied: withMcpServerDisplayNameMeta({ 'agentHost.mcpServerDisplayName': 'Linear' }, undefined),
+			unchanged: withMcpServerDisplayNameMeta(opaque, undefined) === opaque && withMcpServerDisplayNameMeta(recorded, 'Linear') === recorded,
+		}, {
+			read: ['Linear', 'computer-use'],
+			invalidDisplayNames: [undefined, undefined, undefined, undefined, undefined, undefined],
+			invalidPlugins: [undefined, undefined, undefined],
+			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerDisplayName': 'Linear', 'agentHost.mcpServerSourcePlugin': 'computer-use' },
+			cleared: { 'test.opaque': 'kept' },
+			emptied: undefined,
 			unchanged: true,
 		});
 	});

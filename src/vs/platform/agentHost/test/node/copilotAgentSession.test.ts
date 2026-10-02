@@ -39,7 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -20910,7 +20910,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(names, ['alpha', 'beta']);
 		});
 
-		test('publishes SDK configuration sources for host-only MCP servers and retains them across status updates', async () => {
+		test('publishes SDK configuration sources, display names and plugins for host-only MCP servers and retains them across status updates', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = {
@@ -20918,26 +20918,32 @@ Use the attached image as context.
 							{ name: 'local-memory', status: 'connected', source: 'user' },
 							{ name: 'github', status: 'failed', source: 'user' },
 							{ name: 'workspace-server', status: 'connected', source: 'workspace' },
-							{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+							{ name: 'plugin-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' },
 							{ name: 'github-mcp-server', status: 'connected', source: 'builtin' },
+							{ name: 'computer-use', status: 'connected', source: 'builtin', sourcePlugin: 'computer-use' },
+							{ name: 'github-copilot-connector-1', status: 'connected', source: 'managed', displayName: 'Linear' },
 						]
 					};
 				},
 			});
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 			const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
-				name: server.name, source: readMcpServerSource(server),
+				name: server.name, source: readMcpServerSource(server), displayName: readMcpServerDisplayName(server), sourcePlugin: readMcpServerSourcePlugin(server),
 			}));
 			const initial = snapshot();
 
 			mockSession.fire('session.mcp_server_status_changed', { serverName: 'local-memory', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'computer-use', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-copilot-connector-1', status: 'stopped' });
 
 			const expected = [
-				{ name: 'local-memory', source: 'user' },
-				{ name: 'github', source: 'user' },
-				{ name: 'workspace-server', source: 'workspace' },
-				{ name: 'plugin-server', source: 'plugin' },
-				{ name: 'github-mcp-server', source: 'builtin' },
+				{ name: 'local-memory', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'github', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'workspace-server', source: 'workspace', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'plugin-server', source: 'plugin', displayName: undefined, sourcePlugin: 'acme' },
+				{ name: 'github-mcp-server', source: 'builtin', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'computer-use', source: 'builtin', displayName: undefined, sourcePlugin: 'computer-use' },
+				{ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear', sourcePlugin: undefined },
 			];
 			assert.deepStrictEqual({ initial, afterStatusChange: snapshot() }, { initial: expected, afterStatusChange: expected });
 		});

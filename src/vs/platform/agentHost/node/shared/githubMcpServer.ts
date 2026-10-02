@@ -8,7 +8,7 @@ import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common
 import type { ICopilotApiService } from './copilotApiService.js';
 import { findExecutable } from '../../../../base/node/processes.js';
 
-export const GITHUB_MCP_SERVER_NAME = 'github-mcp-server';
+export { GITHUB_MCP_SERVER_NAME } from '../../common/githubEndpoints.js';
 export const GITHUB_MCP_FEATURES_HEADER = 'X-MCP-Features';
 export const GITHUB_MCP_FEATURES = 'remote_mcp_ui_apps,mcp_apps_disable_form_deferral';
 export const GITHUB_MCP_TOOLS_HEADER = 'X-MCP-Tools';

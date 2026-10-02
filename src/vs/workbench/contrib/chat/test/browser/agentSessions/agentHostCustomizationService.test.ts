@@ -14,7 +14,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -305,6 +305,50 @@ suite('AbstractAgentHostCustomizationService', () => {
 		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
 			source: server.source, sourceUri: server.sourceUri,
 		})), sources.map(source => ({ source, sourceUri: undefined })));
+	});
+
+	test('exposes host-reported display names and source plugins only when the host publishes them', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		sut.setTarget(session, new FakeTarget([
+			{ ...mcpServer('host-id-7f3a', 'catalog-entry-7f3a'), _meta: withMcpServerDisplayNameMeta(withMcpServerSourceMeta(undefined, 'managed'), 'Linear') },
+			{ ...mcpServer('host-id-9c1e', 'computer-use'), _meta: withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, 'builtin'), 'computer-use') },
+			mcpServer('host-id-2b4d', 'without-extension'),
+		]));
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
+			name: server.name, displayName: server.displayName, sourcePluginName: server.sourcePluginName,
+		})), [
+			{ name: 'catalog-entry-7f3a', displayName: 'Linear', sourcePluginName: undefined },
+			{ name: 'computer-use', displayName: undefined, sourcePluginName: 'computer-use' },
+			{ name: 'without-extension', displayName: undefined, sourcePluginName: undefined },
+		]);
+	});
+
+	test('exposes the agent host configuration only for top-level servers configured there', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const configured = { type: 'http', url: 'http://localhost:2134' };
+		const pluginServerConfiguration = { type: 'stdio', command: 'plugin-server' };
+		const target = new class extends FakeTarget {
+			readonly rootConfig = {
+				schema: { type: 'object' as const, properties: {} },
+				values: { mcpServers: { 'my-mcp-server-618d857f': configured, 'plugin-server': pluginServerConfiguration, 'not-an-object': 'http://localhost:2134' } },
+			};
+		}([
+			{ ...mcpServer('added', 'my-mcp-server-618d857f'), uri: 'mcp-top-level:copilotcli:session-1:my-mcp-server-618d857f' },
+			{ ...mcpServer('inherited', 'constructor'), uri: 'mcp-top-level:copilotcli:session-1:constructor' },
+			{ ...mcpServer('malformed', 'not-an-object'), uri: 'mcp-top-level:copilotcli:session-1:not-an-object' },
+			{ type: CustomizationType.Plugin, id: 'plugin-1', uri: 'file:///plugin-1', name: 'Plugin One', children: [mcpServer('plugin-child', 'plugin-server')] } as unknown as Customization,
+		]);
+		sut.setTarget(session, target);
+
+		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({ name: server.name, hostConfiguration: server.hostConfiguration })), [
+			{ name: 'my-mcp-server-618d857f', hostConfiguration: configured },
+			{ name: 'constructor', hostConfiguration: undefined },
+			{ name: 'not-an-object', hostConfiguration: undefined },
+			{ name: 'plugin-server', hostConfiguration: undefined },
+		]);
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {

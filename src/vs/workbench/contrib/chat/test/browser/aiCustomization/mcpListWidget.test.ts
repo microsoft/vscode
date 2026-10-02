@@ -30,6 +30,7 @@ import { IThemeService } from '../../../../../../platform/theme/common/themeServ
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { mcpAccessConfig, McpAccessValue } from '../../../../../../platform/mcp/common/mcpManagement.js';
+import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { IAuthenticationQueryService } from '../../../../../services/authentication/common/authenticationQuery.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -42,6 +43,7 @@ import { IAgentHostCustomizationService } from '../../../browser/agentSessions/a
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, IMcpSamplingService, IWorkbenchMcpServer, MCP_PLUGIN_COLLECTION_ID_PREFIX, McpCollectionDefinition, McpCollectionProvenance, McpConnectionState, McpServerDefinition, McpServerInstallState, McpServerTransportType } from '../../../../mcp/common/mcpTypes.js';
 import { DisableMcpServerForWorkspaceAction, DisableMcpServerGloballyAction, EnableMcpServerForWorkspaceAction, EnableMcpServerGloballyAction } from '../../../../mcp/browser/mcpServerActions.js';
+import { McpCommandIds } from '../../../../mcp/common/mcpCommandIds.js';
 import {
 	AgentHostMcpServer,
 	authenticateMcpServer,
@@ -49,6 +51,8 @@ import {
 	createInstalledMcpServerDetailInput,
 	getActiveSessionServerLifecycleAction,
 	getActiveSessionServerPresentation,
+	getActiveSessionServerDefinitionUnavailable,
+	getActiveSessionServerProvenance,
 	getBuiltinMcpServerEnablementActions,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
@@ -77,7 +81,7 @@ import {
 	shouldLoadMcpGallerySnapshot,
 	setPrimaryMcpServerEnablement,
 } from '../../../browser/aiCustomization/mcpListWidget.js';
-import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
+import { ActiveSessionMcpServerMatcher, getActiveSessionServerLabel, getEffectiveMcpServerCount, getRuntimeServerMatchKeys } from '../../../browser/aiCustomization/mcpServerCount.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 
@@ -461,12 +465,14 @@ suite('mcpListWidget', () => {
 			getMcpEntryGroup(localEntry(LocalMcpServerScope.Workspace)),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'plugin', label: 'Plugin', description: '', collectionId: `${MCP_PLUGIN_COLLECTION_ID_PREFIX}plugin` }),
 			getMcpEntryGroup({ type: 'builtin-item', id: 'extension', label: 'Extension', description: '', extensionId: new ExtensionIdentifier('publisher.extension') }),
+			getMcpEntryGroup({ type: 'builtin-item', id: 'copilot', label: 'GitHub', description: '', extensionId: new ExtensionIdentifier('GitHub.copilot-chat') }),
 			getMcpEntryGroup(createBuiltinActiveSessionMcpEntries([createAgentHostServer()])[0]),
 		], [
 			'user',
 			'workspace',
 			'plugins',
 			'extensions',
+			'builtin',
 			'builtin',
 		]);
 	});
@@ -556,6 +562,7 @@ suite('mcpListWidget', () => {
 			createAgentHostServer({ name: 'plugin-server', source: 'plugin' }),
 			createAgentHostServer({ name: 'github-mcp-server', source: 'builtin' }),
 			createAgentHostServer({ name: 'managed-server', source: 'managed' }),
+			createAgentHostServer({ name: 'my-mcp-server-618d857f', hostConfiguration: { type: McpServerType.REMOTE, url: 'http://localhost:2134' } }),
 			createAgentHostServer({ name: 'legacy-server' }),
 		];
 
@@ -568,6 +575,7 @@ suite('mcpListWidget', () => {
 			{ name: 'plugin-server', group: 'plugins' },
 			{ name: 'github-mcp-server', group: 'builtin' },
 			{ name: 'managed-server', group: 'builtin' },
+			{ name: 'my-mcp-server-618d857f', group: 'user' },
 			{ name: 'legacy-server', group: 'builtin' },
 		]);
 	});
@@ -766,6 +774,103 @@ suite('mcpListWidget', () => {
 			config: undefined,
 			source: { uri, range: new Range(3, 2, 5, 3) },
 		});
+	});
+
+	test('describes host-only MCP servers without a configuration file by their runtime source', () => {
+		const provenance = (overrides: Partial<AgentHostMcpServer>) => getActiveSessionServerProvenance(createAgentHostServer(overrides), 'Copilot')?.label;
+		const hostConfiguration = { type: McpServerType.REMOTE, url: 'http://localhost:2134' } as const;
+
+		assert.deepStrictEqual([
+			provenance({ source: 'builtin' }),
+			provenance({ source: 'builtin', sourcePluginName: 'computer-use' }),
+			provenance({ source: 'managed', displayName: 'Linear' }),
+			provenance({ source: 'plugin', sourcePluginName: 'acme' }),
+			provenance({ source: 'plugin' }),
+			provenance({ source: 'user' }),
+			provenance({ source: 'workspace' }),
+			provenance({ hostConfiguration }),
+			provenance({ source: 'managed', hostConfiguration }),
+			provenance({}),
+		], [
+			'Built-in: Copilot',
+			'Built-in plugin: computer-use',
+			'Managed by Copilot',
+			'Plugin: acme',
+			undefined,
+			'User configuration',
+			'Workspace configuration',
+			'Agent host configuration',
+			'Managed by Copilot',
+			undefined,
+		]);
+	});
+
+	test('shows the agent host definition of servers configured in the agent host', () => {
+		const hostConfiguration = { type: McpServerType.REMOTE, url: 'http://localhost:2134' } as const;
+		const detail = createInstalledMcpServerDetailInput(createBuiltinActiveSessionMcpEntries([
+			createAgentHostServer({ name: 'my-mcp-server-618d857f', hostConfiguration }),
+		])[0]);
+
+		assert.deepStrictEqual({ name: detail.name, config: detail.config, source: detail.source }, {
+			name: 'my-mcp-server-618d857f',
+			config: hostConfiguration,
+			source: undefined,
+		});
+	});
+
+	test('labels host-only MCP servers by display name only when their name is an opaque managed identifier', () => {
+		assert.deepStrictEqual([
+			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear' })),
+			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-copilot-connector-2', source: 'managed' })),
+			getActiveSessionServerLabel(createAgentHostServer({ name: 'migratable', source: 'workspace', displayName: 'Everything Reference Server' })),
+			getActiveSessionServerLabel(createAgentHostServer({ name: 'github-mcp-server', source: 'builtin', displayName: 'GitHub MCP Server' })),
+		], [
+			'Linear',
+			'github-copilot-connector-2',
+			'migratable',
+			'github-mcp-server',
+		]);
+	});
+
+	test('keeps the configuration key as the detail name when the host reports a display name', () => {
+		const provenance = { label: 'Managed by Copilot' };
+		const definitionUnavailable = { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' };
+		const detail = createInstalledMcpServerDetailInput({
+			type: 'session-server-item',
+			server: createAgentHostServer({ name: 'github-copilot-connector-1', displayName: 'Linear', source: 'managed' }),
+		}, undefined, { provenance, definitionUnavailable });
+
+		assert.deepStrictEqual({ name: detail.name, label: detail.label, source: detail.source, provenance: detail.provenance, definitionUnavailable: detail.definitionUnavailable }, {
+			name: 'github-copilot-connector-1',
+			label: 'Linear',
+			source: undefined,
+			provenance,
+			definitionUnavailable,
+		});
+	});
+
+	test('explains why the agent\'s own MCP servers have no definition and links the GitHub server to its setting', () => {
+		const explain = (overrides: Partial<AgentHostMcpServer>) => getActiveSessionServerDefinitionUnavailable(createAgentHostServer(overrides), 'Copilot');
+
+		assert.deepStrictEqual([
+			explain({ name: 'github-mcp-server', source: 'builtin' }),
+			explain({ name: 'github-mcp-server', source: 'builtin', sourcePluginName: 'acme' }),
+			explain({ name: 'computer-use', source: 'builtin', sourcePluginName: 'computer-use' }),
+			explain({ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear' }),
+			explain({ name: 'github-mcp-server', source: 'user' }),
+			explain({ name: 'workspace-server', source: 'workspace' }),
+			explain({ name: 'plugin-server', source: 'plugin', sourcePluginName: 'acme' }),
+			explain({ name: 'github-mcp-server' }),
+		], [
+			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.', settingId: 'chat.agentHost.githubMcpServer.enabled' },
+			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.' },
+			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.' },
+			{ message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+		]);
 	});
 
 	test('toggles MCP enablement without changing its scope', () => {
@@ -1061,14 +1166,14 @@ suite('mcpListWidget', () => {
 	});
 
 	test('distinguishes membership changes from state-only changes', () => {
-		const getMembershipSignature = (sourceUri: URI, source?: AgentHostMcpServer['source']) => {
+		const getMembershipSignature = (sourceUri: URI | undefined, source?: AgentHostMcpServer['source'], displayName?: string) => {
 			const widget = Object.create(McpListWidget.prototype);
 			Object.assign(widget, {
 				installedEntries: [{
 					entry: {
 						type: 'session-server-item',
 						id: 'server-1',
-						server: createAgentHostServer({ sourceUri, source }),
+						server: createAgentHostServer({ sourceUri, source, displayName }),
 					},
 				}],
 			});
@@ -1079,7 +1184,8 @@ suite('mcpListWidget', () => {
 			hasSameMcpMembership('server:one:session', 'server:one:session|server:two:session'),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/workspace/old.json')), getMembershipSignature(URI.file('/workspace/new.json'))),
 			hasSameMcpMembership(getMembershipSignature(URI.file('/config.json')), getMembershipSignature(URI.file('/config.json'), 'user')),
-		], [true, false, false, false]);
+			hasSameMcpMembership(getMembershipSignature(undefined, 'managed'), getMembershipSignature(undefined, 'managed', 'Linear')),
+		], [true, false, false, false, false]);
 	});
 
 	test('renders host-published disabled reasons without changing legacy rows', () => {
@@ -1562,6 +1668,7 @@ suite('mcpListWidget', () => {
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
+			const executedCommands: unknown[][] = [];
 			let migrationRequests = 0;
 			let inlineOutputRequests = 0;
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
@@ -1582,6 +1689,7 @@ suite('mcpListWidget', () => {
 			} as unknown as IAgentHostCustomizationService;
 			const customizationHarnessService = {
 				activeSessionResource,
+				getActiveDescriptor: () => ({ label: 'Copilot' }),
 			} as unknown as ICustomizationHarnessService;
 			const marketplaceInstallService = new class extends mock<ICustomizationMarketplaceInstallService>() {
 				override readonly onDidChange = Event.None;
@@ -1608,6 +1716,9 @@ suite('mcpListWidget', () => {
 				local: [{
 					identifier: { id: 'publisher.extension' },
 					displayName: 'Example Extension',
+				}, {
+					identifier: { id: 'GitHub.copilot-chat' },
+					displayName: 'GitHub Copilot Chat',
 				}],
 				open: async (extensionId: string) => { openedExtensions.push(extensionId); },
 			} as unknown as IExtensionsWorkbenchService;
@@ -1691,6 +1802,7 @@ suite('mcpListWidget', () => {
 				managementClicks,
 				openedPlugins,
 				openedExtensions,
+				executedCommands,
 				migrationRequests: () => migrationRequests,
 				inlineOutputRequests: () => inlineOutputRequests,
 				hostEnablementCalls,
@@ -1724,7 +1836,7 @@ suite('mcpListWidget', () => {
 					});
 					Object.assign(widget, {
 						instantiationService, mcpService, mcpWorkbenchService, agentPluginService,
-						commandService: { executeCommand: async () => undefined },
+						commandService: { executeCommand: async (...args: unknown[]) => { executedCommands.push(args); } },
 						workspaceService: { isSessionsWindow, getActiveProjectRoot: () => undefined },
 						outputService: { showChannel: async () => { } },
 					});
@@ -1983,6 +2095,101 @@ suite('mcpListWidget', () => {
 				},
 				ariaLabel: 'Extension Server, configured in Extension: Example Extension',
 				openedExtensions: ['publisher.extension'],
+			});
+		});
+
+		function builtinLocalServer(origin?: URI): IMcpServer {
+			const detailServer = createMcpDetailTestServer(origin);
+			return {
+				...detailServer,
+				definition: detailServer.readDefinitions().get().server,
+				collection: { id: 'collection-1', label: 'Collection', order: 0 },
+				enablement: observableValue('enablement', ContributionEnablementState.EnabledProfile),
+				connectionState: observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Running }),
+			} as IMcpServer;
+		}
+
+		test('shows Copilot as the built-in source of its MCP servers in the row and the detail', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const entry: Entry = {
+				type: 'builtin-item',
+				id: 'github',
+				label: 'GitHub',
+				description: '',
+				extensionId: new ExtensionIdentifier('GitHub.copilot-chat'),
+				localServer: builtinLocalServer(),
+			};
+			ctx.render(entry);
+			ctx.templateData.sourcePath.click();
+			const detail = ctx.detailInput(entry);
+			detail.provenance?.open?.();
+
+			assert.deepStrictEqual({
+				group: getMcpEntryGroup(entry),
+				source: ctx.readSource(),
+				ariaLabel: ctx.read().ariaLabel,
+				detail: { source: detail.source, label: detail.provenance?.label, ariaLabel: detail.provenance?.ariaLabel },
+				openedExtensions: ctx.openedExtensions,
+			}, {
+				group: 'builtin',
+				source: {
+					label: 'Built-in: GitHub Copilot Chat',
+					hover: 'Open extension details for GitHub Copilot Chat',
+					tagName: 'A',
+					ariaLabel: 'Open extension details for GitHub Copilot Chat',
+					tabIndex: 0,
+				},
+				ariaLabel: 'GitHub, configured in Built-in: GitHub Copilot Chat',
+				detail: { source: undefined, label: 'Built-in: GitHub Copilot Chat', ariaLabel: 'Open extension details for GitHub Copilot Chat' },
+				openedExtensions: ['GitHub.copilot-chat', 'GitHub.copilot-chat'],
+			});
+		});
+
+		test('shows host display names on runtime-only rows and their runtime source in the detail', () => {
+			const server = createAgentHostServer({ name: 'github-copilot-connector-1', displayName: 'Linear', source: 'managed' });
+			const ctx = createRenderer(server, false);
+			disposables.add(ctx.store);
+			const entry = createBuiltinActiveSessionMcpEntries([server])[0];
+			ctx.render(entry);
+			const detail = ctx.detailInput(entry);
+
+			assert.deepStrictEqual({
+				name: ctx.templateData.name.textContent,
+				source: ctx.readSource().label,
+				ariaLabel: ctx.read().ariaLabel,
+				detail: { name: detail.name, label: detail.label, provenance: detail.provenance, definitionUnavailable: detail.definitionUnavailable },
+			}, {
+				name: 'Linear',
+				source: '',
+				ariaLabel: 'Linear, Running',
+				detail: {
+					name: 'github-copilot-connector-1',
+					label: 'Linear',
+					provenance: { label: 'Managed by Copilot' },
+					definitionUnavailable: { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' },
+				},
+			});
+		});
+
+		test('built-in row menus reveal the extension or configuration file the server comes from', () => {
+			const ctx = createRenderer(createAgentHostServer(), false);
+			disposables.add(ctx.store);
+			const sourceActions = (entry: Extract<Entry, { type: 'builtin-item' }>) => ctx.menu(entry, entry.localServer)
+				.filter(action => action.id === 'mcpServer.showExtension' || action.id === 'mcpServer.showConfiguration');
+			const extension = sourceActions({ type: 'builtin-item', id: 'github', label: 'GitHub', description: '', extensionId: new ExtensionIdentifier('GitHub.copilot-chat'), localServer: builtinLocalServer() });
+			const file = sourceActions({ type: 'builtin-item', id: 'claude', label: 'Claude', description: '', localServer: builtinLocalServer(URI.file('/Users/test/Library/Application Support/Claude/claude_desktop_config.json')) });
+			const none = sourceActions({ type: 'builtin-item', id: 'other', label: 'Other', description: '', localServer: builtinLocalServer() });
+			[...extension, ...file].forEach(runAction);
+
+			assert.deepStrictEqual({
+				labels: [extension, file, none].map(actions => actions.map(action => action.label)),
+				openedExtensions: ctx.openedExtensions,
+				executedCommands: ctx.executedCommands,
+			}, {
+				labels: [['Show Extension'], ['Show Configuration'], []],
+				openedExtensions: ['GitHub.copilot-chat'],
+				executedCommands: [[McpCommandIds.ShowConfiguration, 'collection-1', 'server-1']],
 			});
 		});
 

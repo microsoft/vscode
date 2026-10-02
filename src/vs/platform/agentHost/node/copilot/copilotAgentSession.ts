@@ -7801,12 +7801,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _toSdkMcpServer(server: McpServer): ISdkMcpServer {
 		const hasPendingAuthentication = this._hasPendingMcpAuthentication(server.name);
-		const source = server.source !== undefined
+		// Only inventory records report a source, so only they replace (or clear) provenance; lifecycle updates keep it.
+		const provenance = server.source !== undefined
 			? {
 				source: server.source,
 				sourceUri: server.source === 'user'
 					? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
 					: null,
+				displayName: server.displayName ?? null,
+				pluginName: server.sourcePlugin ?? null,
 			}
 			: {};
 		return {
@@ -7814,8 +7817,7 @@ export class CopilotAgentSession extends Disposable {
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: server.status !== 'disabled' && server.status !== 'not_configured',
-			...source,
-			pluginName: server.sourcePlugin,
+			...provenance,
 			pluginVersion: server.sourcePluginVersion,
 		};
 	}

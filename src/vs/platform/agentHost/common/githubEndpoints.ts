@@ -6,6 +6,9 @@
 import { IGitHubEndpoints } from '../../github/common/githubEndpoints.js';
 import { ProtectedResourceMetadata } from './state/protocol/state.js';
 
+/** Name under which agent hosts register the official GitHub MCP server. */
+export const GITHUB_MCP_SERVER_NAME = 'github-mcp-server';
+
 /**
  * The GitHub Copilot protected resource for the given endpoints. Shared by the
  * endpoint service and tests so the resource identity is defined once.

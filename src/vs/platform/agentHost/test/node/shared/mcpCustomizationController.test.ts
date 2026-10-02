@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
@@ -274,6 +274,54 @@ suite('McpCustomizationController', () => {
 			{ id: 'restored-fs', meta: { 'test.opaque': 'kept' } },
 			{ id: 'restored-search', meta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' } },
 		]);
+	});
+
+	test('publishes display names and source plugins, keeps them through lifecycle updates, and clears them with the inventory', () => {
+		const { controller } = harness(store, {
+			customizations: [{
+				type: CustomizationType.McpServer,
+				id: 'restored-connector',
+				uri: 'mcp-top-level:copilot:session-1:connector',
+				name: 'connector',
+				state: stopped(),
+				_meta: withMcpServerDisplayNameMeta({ 'test.opaque': 'kept' }, 'Linear'),
+			}],
+		});
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			name: item.name, displayName: readMcpServerDisplayName(item), sourcePlugin: readMcpServerSourcePlugin(item),
+		}));
+
+		controller.applyOne(server('connector', ready()));
+		const restored = snapshot();
+		controller.applyAll([
+			{ ...server('connector', ready()), source: 'managed', displayName: 'Linear (Work)', pluginName: null },
+			{ ...server('computer-use', ready()), source: 'builtin', displayName: null, pluginName: 'computer-use' },
+		]);
+		const inventory = snapshot();
+		controller.applyOne(server('computer-use', stopped()));
+		const lifecycle = snapshot();
+		controller.applyAll([
+			{ ...server('connector', ready()), source: 'user', displayName: null, pluginName: null },
+			{ ...server('computer-use', stopped()), source: 'builtin', displayName: null, pluginName: null },
+		]);
+
+		assert.deepStrictEqual({ restored, inventory, lifecycle, cleared: snapshot(), connectorMeta: controller.topLevelCustomizations()[0]._meta }, {
+			restored: [{ name: 'connector', displayName: 'Linear', sourcePlugin: undefined }],
+			inventory: [
+				{ name: 'connector', displayName: 'Linear (Work)', sourcePlugin: undefined },
+				{ name: 'computer-use', displayName: undefined, sourcePlugin: 'computer-use' },
+			],
+			lifecycle: [
+				{ name: 'connector', displayName: 'Linear (Work)', sourcePlugin: undefined },
+				{ name: 'computer-use', displayName: undefined, sourcePlugin: 'computer-use' },
+			],
+			cleared: [
+				{ name: 'connector', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'computer-use', displayName: undefined, sourcePlugin: undefined },
+			],
+			connectorMeta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user' },
+		});
 	});
 
 	test('reapplying an unchanged inventory dispatches nothing', () => {
