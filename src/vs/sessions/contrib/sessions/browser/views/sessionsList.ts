@@ -418,17 +418,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly INPUT_NEEDED_ROW_HEIGHT = 32;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
-	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
 	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
-	/**
-	 * Bottom slack reserved under a chat row's approval prompt. The session row
-	 * absorbs the rendered code-block's line-height rounding in its own bottom
-	 * padding; the chat row has none, so it reserves this small buffer instead.
-	 * Keep in sync with the `.session-approval-row.visible` bottom margin in
-	 * `sessionsList.css`.
-	 */
-	private static readonly CHAT_APPROVAL_BOTTOM_SLACK = 6;
+	/** Phone chat rows have no bottom padding, so approvals reserve matching rounding slack. */
+	private static readonly CHAT_APPROVAL_PHONE_BOTTOM_SLACK = 6;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -469,11 +462,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
-			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact()) {
-				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
-			}
-			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
+			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
@@ -530,11 +519,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		const detailsHeight = !this._isCompact() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(
-			element,
-			(this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT) + detailsHeight,
-		));
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+	}
+
+	private getChatBaseHeight(): number {
+		if (this._isPhone()) {
+			return SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE + (this._isCompact() ? 0 : SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT);
+		}
+		return this._isCompact() ? SessionsTreeDelegate.ITEM_HEIGHT_COMPACT : SessionsTreeDelegate.ITEM_HEIGHT;
 	}
 
 	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
@@ -545,7 +537,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (!approval) {
 			return height;
 		}
-		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
+		return height
+			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {

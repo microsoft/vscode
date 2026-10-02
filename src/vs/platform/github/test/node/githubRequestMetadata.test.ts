@@ -11,15 +11,16 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { IProductService } from '../../../product/common/productService.js';
 import { createGitHubClientMetadata, GitHubRequestMetadata } from '../../common/githubRequestMetadata.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { GitHubAccountHandle, GitHubClientMetadata, IGitHubEndpointProvider } from '../../common/githubTypes.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { GitHubClientMetadata, IGitHubEndpointProvider } from '../../common/githubTypes.js';
+import { AccountHandle } from '../../common/types.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
 const client: GitHubClientMetadata = {
 	application: 'vscode-insiders/1.141.0',
 	source: 'vscode-insiders-workbench/1.141.0',
 	egress: 'node',
 };
-const account: GitHubAccountHandle = { host: 'api.github.com', accountId: '1' };
+const account: AccountHandle = { host: 'api.github.com', accountId: '1' };
 const apiBaseUri = 'https://api.github.com';
 const endpoint: IGitHubEndpointProvider = {
 	onDidChange: Event.None,
@@ -112,7 +113,7 @@ suite('GitHub request metadata', () => {
 	for (const kind of ['rest', 'graphql'] as const) {
 		for (const failure of ['http', 'network'] as const) {
 			test(`${kind}: marks only an actual ${failure} retry and does not mutate earlier headers`, async () => {
-				const scheduler = store.add(new FakeGitHubScheduler({ jitterValues: [50] }));
+				const scheduler = store.add(new FakeScheduler({ jitterValues: [50] }));
 				const started = new DeferredPromise<void>();
 				const attempts: RequestInit[] = [];
 				const transport = store.add(new GitHubTransport(async (_url, init) => {
@@ -164,7 +165,7 @@ suite('GitHub request metadata', () => {
 	}
 
 	test('failed mutations and downloads stay single-attempt operations', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const attempts: RequestInit[] = [];
 		const transport = store.add(new GitHubTransport(async (_url, init) => {
 			assert.ok(init);

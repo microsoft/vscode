@@ -9,34 +9,45 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
-import { GitHubBackoffGate } from './githubBackoff.js';
+import { BackoffGate } from './backoff.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
-import { GitHubRequestQueue } from './githubRequestQueue.js';
+import { RequestQueue } from './requestQueue.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
-import { systemGitHubScheduler } from './githubScheduler.js';
-import { GitHubAnonymousReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
-import { GitHubAnonymousAccount, GitHubAnonymousClientOptions, GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
+import { systemRequestScheduler } from './scheduler.js';
+import { GitHubAnonymousReadOptions, GitHubBootstrapReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
+import { GitHubAnonymousClientOptions, GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
+import { AnonymousAccount, BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
+/** Runtime-owned GitHub engine providing isolated clients with shared admission and quota state. */
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 	acquireClient(options: GitHubClientOptions): IReference<IGitHubClient>;
 	acquireAnonymousClient(options: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient>;
+	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient>;
 }
 
+/** Credential-free public JSON reads confined to an approved API base. */
 export interface IGitHubAnonymousClient {
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
 	get<T>(path: string, signal: AbortSignal, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
 }
 
+/** Explicit-credential reads that do not depend on account selection or accepted-token publication. */
+export interface IGitHubBootstrapClient {
+	readonly apiBaseUri: string;
+	get<T>(path: string, signal: AbortSignal, options?: GitHubBootstrapReadOptions): Promise<GitHubRestResponse<T>>;
+}
+
+/** Authorization-scoped GitHub operations and resources shared by equivalent client leases. */
 export interface IGitHubClient {
 	readonly authorization: GitHubAuthorizationContext;
 	readonly onDidInvalidate: Event<void>;
@@ -49,24 +60,27 @@ export interface IGitHubClient {
 	readonly mutations: IPullRequestMutations;
 }
 
+/** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
 interface IClientEntry {
 	readonly context: GitHubClientOptions;
 	readonly store: DisposableStore;
 	readonly client: MutableDisposable<GitHubClient>;
-	readonly backoff: GitHubBackoffGate;
+	readonly backoff: BackoffGate;
 	readonly expiry: MutableDisposable<IDisposable>;
 	references: number;
 }
 
+/** Coordinates isolated GitHub clients using one runtime admission queue and quota owner. */
 export class GitHubService extends Disposable implements IGitHubService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _clients = new Map<string, IClientEntry>();
 	private readonly _anonymousClients = this._register(new DisposableMap<string, GitHubAnonymousClient>());
+	private readonly _bootstrapClients = this._register(new DisposableMap<string, GitHubBootstrapClient>());
 	private readonly _telemetry: GitHubRequestTelemetry;
 	private readonly _rateLimits: GitHubRateLimitCoordinator;
-	private readonly _queue: GitHubRequestQueue;
+	private readonly _queue: RequestQueue;
 	private static readonly maximumClients = 64;
 	private static readonly unusedBackoffLifetime = 5 * 60_000;
 
@@ -76,9 +90,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
-		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemGitHubScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
-		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemGitHubScheduler));
-		this._queue = this._register(new GitHubRequestQueue(systemGitHubScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
+		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemRequestScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
+		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
 		if (_options.credentialProvider) {
 			this._register(_options.credentialProvider.onDidChange(change => this._invalidateClients(change)));
 		}
@@ -125,7 +139,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const release = toDisposable(() => {
 			if (--retained.references === 0 && !retained.store.isDisposed) {
 				retained.client.clear();
-				retained.expiry.value = systemGitHubScheduler.schedule(() => {
+				retained.expiry.value = systemRequestScheduler.schedule(() => {
 					if (this._clients.get(key) === retained) {
 						this._clients.delete(key);
 					}
@@ -140,16 +154,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
 		}
-		let endpoint: URL;
-		try {
-			endpoint = new URL(options.apiBaseUri);
-		} catch {
-			throw new GitHubRequestError('Invalid anonymous GitHub API endpoint', 'validation');
-		}
-		if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
-			throw new GitHubRequestError('Invalid anonymous GitHub API endpoint', 'validation');
-		}
-		const key = endpoint.href.replace(/\/+$/, '');
+		const key = normalizeReadApiBaseUri(options.apiBaseUri);
 		let client = this._anonymousClients.get(key);
 		if (!client) {
 			this._ensureClientCapacity();
@@ -166,8 +171,33 @@ export class GitHubService extends Disposable implements IGitHubService {
 		return { object: retained, dispose: () => release.dispose() };
 	}
 
+	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient> {
+		if (this._store.isDisposed) {
+			throw new GitHubRequestError('GitHub service was disposed', 'unknown');
+		}
+		if (typeof options.token !== 'string' || !options.token || options.accountId !== undefined && (typeof options.accountId !== 'string' || !options.accountId)) {
+			throw new GitHubRequestError('Invalid GitHub bootstrap credential', 'validation');
+		}
+		const apiBaseUri = normalizeReadApiBaseUri(options.apiBaseUri);
+		const key = JSON.stringify([apiBaseUri, options.accountId, options.token]);
+		let client = this._bootstrapClients.get(key);
+		if (!client) {
+			this._ensureClientCapacity();
+			client = new GitHubBootstrapClient(apiBaseUri, Object.freeze({ ...options, apiBaseUri }), this._options, this._queue, this._rateLimits, this._telemetry, this._logService);
+			this._bootstrapClients.set(key, client);
+		}
+		const retained = client;
+		retained.references++;
+		const release = toDisposable(() => {
+			if (--retained.references === 0 && this._bootstrapClients.get(key) === retained) {
+				this._bootstrapClients.deleteAndDispose(key);
+			}
+		});
+		return { object: retained, dispose: () => release.dispose() };
+	}
+
 	private _ensureClientCapacity(): void {
-		if (this._clients.size + this._anonymousClients.size < GitHubService.maximumClients) {
+		if (this._clients.size + this._anonymousClients.size + this._bootstrapClients.size < GitHubService.maximumClients) {
 			return;
 		}
 		const unused = [...this._clients].find(([, entry]) => entry.references === 0);
@@ -198,6 +228,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 }
 
+/** Owns the credential, transport and domain resources for one selected GitHub grant. */
 class GitHubClient extends Disposable implements IGitHubClient {
 
 	private readonly _onDidInvalidate = this._register(new Emitter<void>());
@@ -215,10 +246,10 @@ class GitHubClient extends Disposable implements IGitHubClient {
 		context: GitHubClientOptions,
 		options: GitHubServiceOptions,
 		credentialProvider: IGitHubCredentialProvider,
-		queue: GitHubRequestQueue,
+		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
 		telemetry: GitHubRequestTelemetry,
-		backoff: GitHubBackoffGate,
+		backoff: BackoffGate,
 		logService: ILogService,
 	) {
 		super();
@@ -275,16 +306,17 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	}
 }
 
+/** Reference-counted public reader with no access to credential providers or private caches. */
 class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient {
 	readonly authorization = Object.freeze({ kind: 'anonymous' as const });
 	references = 0;
-	private readonly _account: GitHubAnonymousAccount;
+	private readonly _account: AnonymousAccount;
 	private readonly _transport: GitHubTransport;
 
 	constructor(
 		readonly apiBaseUri: string,
 		options: GitHubServiceOptions,
-		queue: GitHubRequestQueue,
+		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
 		telemetry: GitHubRequestTelemetry,
 		logService: ILogService,
@@ -304,16 +336,68 @@ class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient
 
 	async get<T>(path: string, signal: AbortSignal, options: GitHubAnonymousReadOptions = {}): Promise<GitHubRestResponse<T>> {
 		signal.throwIfAborted();
-		if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
-			throw new GitHubRequestError('Anonymous GitHub reads require an API-relative path', 'validation');
-		}
-		const url = new URL(`${this.apiBaseUri}${path}`);
-		const endpoint = new URL(this.apiBaseUri);
-		const apiBasePath = `${endpoint.pathname.replace(/\/+$/, '')}/`;
-		if (url.origin !== endpoint.origin || !url.pathname.startsWith(apiBasePath)
-			|| url.username || url.password || url.hash) {
-			throw new GitHubRequestError('Anonymous GitHub read escaped its API endpoint', 'validation');
-		}
+		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
 		return this._transport.anonymousGet<T>(this._account, apiBasePath, { ...options, url: url.href }, signal);
 	}
+}
+
+/** Reference-counted reader for a supplied bootstrap credential and its private request state. */
+class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient {
+	references = 0;
+	private readonly _account: BootstrapAccount;
+	private readonly _transport: GitHubTransport;
+
+	constructor(
+		readonly apiBaseUri: string,
+		private readonly _credential: GitHubBootstrapClientOptions,
+		options: GitHubServiceOptions,
+		queue: RequestQueue,
+		rateLimits: GitHubRateLimitCoordinator,
+		telemetry: GitHubRequestTelemetry,
+		logService: ILogService,
+	) {
+		super();
+		const endpoint = new URL(apiBaseUri);
+		this._account = { kind: 'bootstrap', host: endpoint.host, origin: endpoint.origin, accountId: _credential.accountId };
+		this._transport = this._register(new GitHubTransport(options.fetch, undefined, false, logService, {
+			coordination: { queue, rateLimits },
+			requestMetadata: options.clientMetadata ? new GitHubRequestMetadata(options.clientMetadata, {
+				onDidChange: Event.None,
+				getApiBaseUri: () => apiBaseUri,
+				getGraphQlUri: () => apiBaseUri,
+			}) : undefined,
+		}, telemetry));
+	}
+
+	async get<T>(path: string, signal: AbortSignal, options: GitHubBootstrapReadOptions = {}): Promise<GitHubRestResponse<T>> {
+		signal.throwIfAborted();
+		const { url, apiBasePath } = resolveReadApiUrl(this.apiBaseUri, path);
+		return this._transport.bootstrapGet<T>(this._account, this._credential.token, apiBasePath, { ...options, url: url.href }, signal);
+	}
+}
+
+function normalizeReadApiBaseUri(apiBaseUri: string): string {
+	let endpoint: URL;
+	try {
+		endpoint = new URL(apiBaseUri);
+	} catch {
+		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
+	}
+	if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) {
+		throw new GitHubRequestError('Invalid GitHub read API endpoint', 'validation');
+	}
+	return endpoint.href.replace(/\/+$/, '');
+}
+
+function resolveReadApiUrl(apiBaseUri: string, path: string): { url: URL; apiBasePath: string } {
+	if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
+		throw new GitHubRequestError('GitHub reads require an API-relative path', 'validation');
+	}
+	const url = new URL(`${apiBaseUri}${path}`);
+	const endpoint = new URL(apiBaseUri);
+	const apiBasePath = `${endpoint.pathname.replace(/\/+$/, '')}/`;
+	if (url.origin !== endpoint.origin || !url.pathname.startsWith(apiBasePath) || url.username || url.password || url.hash) {
+		throw new GitHubRequestError('GitHub read escaped its API endpoint', 'validation');
+	}
+	return { url, apiBasePath };
 }
