@@ -101,6 +101,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		await Promise.all(this.getStores().map(store => store.refresh?.()));
 	}
 
+	canConfigureAutomation(providerId: string | undefined): boolean {
+		return providerId !== undefined && this.sessionsProvidersService.getProvider(providerId)?.supportsAutomationSessionConfiguration === true;
+	}
+
 	/** Routes creation only to the explicitly selected provider, rejecting unavailable destinations. */
 	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		const providerId = options.target.providerId;

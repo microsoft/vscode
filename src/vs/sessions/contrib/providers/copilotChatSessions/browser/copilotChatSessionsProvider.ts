@@ -1084,6 +1084,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	get supportsLocalWorkspaces(): boolean { return this.providerMode !== 'sandbox'; }
 	readonly automations: CloudAutomationProvider | undefined;
+	readonly supportsAutomationSessionConfiguration = false;
 
 	constructor(
 		private readonly providerMode: 'default' | 'sandbox',
@@ -1108,12 +1109,17 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._loadCreatedBySessions();
 		if (providerMode === 'default') {
-			this.automations = this._register(this.instantiationService.createInstance(CloudAutomationProvider, this.id, CopilotCloudSessionType.id, uri => {
+			this.automations = this._register(this.instantiationService.createInstance(CloudAutomationProvider, this.id, CopilotCloudSessionType.id, async uri => {
 				if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 					return uri;
 				}
-				const workspace = this.resolveWorkspace(uri);
-				return workspace === undefined ? undefined : this._getCloudWorkspaceForLocalRepository(workspace)?.folders[0]?.root;
+				if (uri.scheme !== Schemas.file) {
+					return undefined;
+				}
+				const repository = await resolveGitRepositoryFromGitConfig(this.fileService, uri, ['github.com']);
+				return repository?.gitHub
+					? URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.gitHub.owner}/${repository.gitHub.repo}/HEAD` })
+					: undefined;
 			}));
 		}
 		if (providerMode === 'sandbox') {

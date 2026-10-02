@@ -146,9 +146,10 @@ export class ListAutomationsTool implements IToolImpl {
 			return automationToolError('Automations are disabled.');
 		}
 
+		await this.automationService.refresh?.();
 		const providers: IAutomationProviderToolOutput[] = this.sessionsProvidersService.getProviders().flatMap(provider => {
 			const store = provider.automations;
-			if (!store) {
+			if (!store || store.enabled?.get() === false) {
 				return [];
 			}
 			const state = store.catalogueState.get();
@@ -157,7 +158,7 @@ export class ListAutomationsTool implements IToolImpl {
 				providerId: provider.id,
 				providerLabel: provider.label,
 				state,
-				canCreateAutomation: store.canCreateAutomation.get(),
+				canCreateAutomation: store.canCreateAutomation.get() && this.automationService.canConfigureAutomation?.(provider.id) !== false,
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
 				automations: store.automations.get().map(automation => toAutomationListToolOutput(automation, this.automationService)),
 			}];
@@ -726,9 +727,9 @@ The change uses the current tool-approval policy. When approval is required, the
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
-		const eligible = candidates.filter(candidate => existing === undefined
+		const eligible = candidates.filter(candidate => this.automationService.canConfigureAutomation?.(candidate.providerId) !== false && (existing === undefined
 			? this.automationService.canCreateAutomation(candidate.providerId)
-			: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id));
+			: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id)));
 		const candidate = findSessionType(eligible, target.providerId, target.sessionTypeId);
 		if (!candidate) {
 			throw new AutomationToolInputError(target.kind === 'quickChat'
@@ -1105,7 +1106,7 @@ function toAutomationListToolOutput(automation: IAutomationDescriptor, automatio
 		...toAutomationToolOutput(automation),
 		availableOperations: [
 			...(automationService.canRunAutomation(automation.id) ? ['run'] as const : []),
-			...(automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
+			...(automationService.canConfigureAutomation?.(automation.target.providerId) !== false && automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
 			...(automationService.canDeleteAutomation(automation.id) ? ['delete'] as const : []),
 		],
 	};

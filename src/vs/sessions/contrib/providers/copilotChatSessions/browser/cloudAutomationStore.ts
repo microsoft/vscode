@@ -47,7 +47,7 @@ export class CloudAutomationStore extends Disposable {
 	readonly mutationUncertain: IObservable<boolean> = this.uncertain;
 
 	constructor(
-		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined,
+		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
 		private readonly api: CloudAutomationApiClient,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -63,7 +63,8 @@ export class CloudAutomationStore extends Disposable {
 	async registerRepository(workspace: URI): Promise<void> {
 		const account = this.requireAccount();
 		const token = this.lifetime.value!.token;
-		const repository = this.resolveRepository(workspace);
+		const repository = await this.resolveRepository(workspace);
+		this.assertCurrent(account, token);
 		if (!repository) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
 		}
@@ -101,7 +102,10 @@ export class CloudAutomationStore extends Disposable {
 	}
 
 	async create(workspace: URI, value: ICloudAutomationMutation, guard?: () => void): Promise<ICloudAutomationEntry> {
-		const repository = this.resolveRepository(workspace);
+		const account = this.requireAccount();
+		const token = this.lifetime.value!.token;
+		const repository = await this.resolveRepository(workspace);
+		this.assertCurrent(account, token);
 		if (!repository) {
 			throw new Error(localize('cloudAutomations.repositoryRequired', "Select a GitHub.com repository for this cloud automation."));
 		}
@@ -231,11 +235,13 @@ export class CloudAutomationStore extends Disposable {
 		for (const recent of this.recentWorkspacesService.getRecentWorkspaces(false)) {
 			const root = recent.workspace.folders[0]?.root;
 			try {
-				const repository = root && this.resolveRepository(root);
+				const repository = root && await this.resolveRepository(root);
+				this.assertCurrent(account, token);
 				if (repository) {
 					repositories.set(repositoryKey(repository), repository);
 				}
 			} catch (error) {
+				this.assertCurrent(account, token);
 				this.logService.warn('[CloudAutomations] Failed to resolve a recent repository', error);
 				errors.push(error);
 			}
@@ -325,8 +331,8 @@ export class CloudAutomationStore extends Disposable {
 		}
 	}
 
-	private resolveRepository(workspace: URI): ICloudAutomationRepository | undefined {
-		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : this.resolveRepositoryUri(workspace);
+	private async resolveRepository(workspace: URI): Promise<ICloudAutomationRepository | undefined> {
+		const uri = workspace.scheme === GITHUB_REMOTE_FILE_SCHEME ? workspace : await this.resolveRepositoryUri(workspace);
 		const match = uri?.scheme === GITHUB_REMOTE_FILE_SCHEME && uri.authority === 'github'
 			? /^\/(?<owner>[^/]+)\/(?<name>[^/]+)(?:\/|$)/.exec(uri.path) : undefined;
 		return match?.groups ? { owner: match.groups.owner, name: match.groups.name } : undefined;

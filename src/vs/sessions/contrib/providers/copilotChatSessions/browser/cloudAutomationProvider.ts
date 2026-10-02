@@ -42,7 +42,7 @@ export class CloudAutomationProvider extends Disposable implements ISessionsProv
 	constructor(
 		private readonly providerId: string,
 		private readonly sessionTypeId: string,
-		resolveRepositoryUri: (workspace: URI) => URI | undefined,
+		resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IChatEntitlementService entitlementService: IChatEntitlementService,

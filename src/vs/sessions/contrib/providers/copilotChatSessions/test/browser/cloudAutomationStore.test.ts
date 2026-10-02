@@ -117,7 +117,7 @@ function recentWorkspace(root: URI): IRecentWorkspace {
 suite('CloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(resolveRepositoryUri: (uri: URI) => URI | undefined = () => undefined) {
+	function setup(resolveRepositoryUri: (uri: URI) => URI | undefined | Promise<URI | undefined> = () => undefined) {
 		const accountChanged = disposables.add(new Emitter<IDefaultAccount | null>());
 		const accounts = new class extends mock<IDefaultAccountService>() {
 			override currentDefaultAccount: IDefaultAccount | null = account;
@@ -275,6 +275,30 @@ suite('CloudAutomationStore', () => {
 		}, { methods: ['visibility'], entries: [], stored: [repository] });
 		await store.refresh();
 		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
+	});
+
+	test('awaits cold local repository resolution before discovery', async () => {
+		const resolved = new DeferredPromise<URI>();
+		const { store, api, recents } = setup(() => resolved.p);
+		recents.workspaces = [recentWorkspace(URI.file('C:\\cold-repository'))];
+		const refresh = store.refresh();
+		assert.deepStrictEqual(api.calls, []);
+		await resolved.complete(workspace);
+		await refresh;
+		assert.deepStrictEqual(store.entries.get(), [{ repository, definition }]);
+	});
+
+	test('account changes during local resolution prevent discovery and creation dispatch', async () => {
+		const resolved = new DeferredPromise<URI>();
+		const { store, api, recents, changeAccount } = setup(() => resolved.p);
+		const local = URI.file('C:\\cold-repository');
+		recents.workspaces = [recentWorkspace(local)];
+		const refresh = assert.rejects(store.refresh(), isCancellationError);
+		const create = assert.rejects(store.create(local, {}), isCancellationError);
+		changeAccount({ ...account, sessionId: 'rotated' });
+		await resolved.complete(workspace);
+		await Promise.all([refresh, create]);
+		assert.deepStrictEqual({ calls: api.calls, mutations: api.mutations }, { calls: [], mutations: [] });
 	});
 
 	test('skips public repositories and rechecks known repository visibility on refresh', async () => {

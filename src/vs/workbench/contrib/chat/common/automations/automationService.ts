@@ -221,6 +221,8 @@ export interface IAutomationService extends IAutomationStore {
 	readonly availableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
 	/** Whether the specified provider currently accepts new definitions. */
 	canCreateAutomation(providerId: string | undefined): boolean;
+	/** Whether provider-owned session configuration is supported by the Automation dialog. */
+	canConfigureAutomation?(providerId: string | undefined): boolean;
 }
 
 export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 'disabled' | 'unsupported' | 'incompatible';

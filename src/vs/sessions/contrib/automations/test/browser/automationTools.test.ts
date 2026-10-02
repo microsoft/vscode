@@ -79,6 +79,8 @@ function createAutomation(overrides?: Partial<IAutomationDescriptor>): IAutomati
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	refreshCalls = 0;
+	override async refresh(): Promise<void> { this.refreshCalls++; }
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly automations = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	override readonly runs = observableValue<readonly IAutomationRun[]>(this, []);
@@ -88,6 +90,8 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	available = true;
 	creationAllowed = true;
 	updatesAllowed = true;
+	configurationAllowed = true;
+	override canConfigureAutomation(): boolean { return this.configurationAllowed; }
 
 	override canCreateAutomation(): boolean { return this.available && this.creationAllowed; }
 	override canRunAutomation(): boolean { return this.available; }
@@ -264,6 +268,7 @@ function createConfigurationService(enabled = true): TestConfigurationService {
 }
 
 interface IListProviderOptions {
+	readonly enabled?: boolean;
 	readonly id: string;
 	readonly label?: string;
 	readonly state?: AutomationCatalogueState;
@@ -285,6 +290,7 @@ function createListAutomationsTool(
 ): ListAutomationsTool {
 	const providers = providerOptions.map(options => {
 		const store = upcastPartial<ISessionsProviderAutomations>({
+			enabled: constObservable(options.enabled ?? true),
 			catalogueState: constObservable(options.state ?? 'ready'),
 			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
 			unavailableReason: constObservable(options.unavailableReason),
@@ -481,6 +487,23 @@ suite('AutomationTools', () => {
 			warnsAboutFalseEmpty: true,
 			describesCapabilities: true,
 		});
+
+	});
+
+	test('listAutomations refreshes remote state but excludes disabled providers', async () => {
+		const service = new FakeAutomationService();
+		const tool = createListAutomationsTool(service, createConfigurationService(), [{ id: 'cloud', enabled: false }]);
+		const result = await invoke(tool, {});
+		assert.deepStrictEqual({ refreshes: service.refreshCalls, providers: JSON.parse(getText(result)) }, { refreshes: 1, providers: [] });
+	});
+
+	test('listAutomations does not advertise dialog operations before configuration support', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		service.configurationAllowed = false;
+		const result = JSON.parse(getText(await invoke(createListAutomationsTool(service, createConfigurationService()), {})));
+		assert.deepStrictEqual({ canCreate: result[0].canCreateAutomation, operations: result[0].automations[0].availableOperations },
+			{ canCreate: false, operations: ['run', 'delete'] });
 	});
 
 	test('listAutomations keeps ready provider results independent from an unavailable provider', async () => {

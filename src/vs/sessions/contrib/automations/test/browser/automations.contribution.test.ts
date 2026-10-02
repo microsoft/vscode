@@ -28,10 +28,11 @@ suite('Automations Contribution', () => {
 			experiment: { mode: 'auto' },
 		});
 
-		test('cloud gate defaults off with machine scope and automatic config treatment', () => {
-			const property = configurationRegistry.getConfigurationProperties()[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING];
-			assert.deepStrictEqual({ id: CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment },
-				{ id: 'chat.automations.cloud.enabled', default: false, scope: ConfigurationScope.MACHINE, tags: ['experimental', 'advanced'], experiment: { mode: 'auto' } });
-		});
+	});
+
+	test('cloud gate defaults off with machine scope and automatic config treatment', () => {
+		const property = configurationRegistry.getConfigurationProperties()[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING];
+		assert.deepStrictEqual({ id: CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment },
+			{ id: 'chat.automations.cloud.enabled', default: false, scope: ConfigurationScope.MACHINE, tags: ['experimental', 'advanced', 'onExP'], experiment: { mode: 'auto' } });
 	});
 });
