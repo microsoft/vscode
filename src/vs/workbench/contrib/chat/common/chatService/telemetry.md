@@ -15,7 +15,7 @@ constructed, before invoking the provider:
 | `requestStartCopilotSku` | The workbench's Copilot entitlement SKU, if known at request start. This does not identify the account or credential used by a remote host. |
 | `selectedModelSource` | `copilot`, `byok`, `other`, or `unknown`, based on the selected model's registered metadata at request start. |
 
-Explicit BYOK metadata, including the Agent Host BYOK bridge identifier, takes
+Explicit BYOK metadata, including a present Agent Host BYOK bridge identifier (even an empty string), takes
 precedence over the catalog's vendor. A resolved Copilot catalog model or model
 targeting a registered `copilotcli` host provider is `copilot`. A resolved model
 from another non-host catalog is `other`. Missing selection, unresolved metadata,

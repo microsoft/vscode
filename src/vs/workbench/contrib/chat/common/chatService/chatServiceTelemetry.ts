@@ -17,6 +17,7 @@ import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../chatSessionsService.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { isByokModel } from '../chatSelectedModel.js';
 
 type ChatSessionModeEvent = {
 	isAgentHostSession: boolean;
@@ -378,7 +379,7 @@ export class ChatRequestTelemetry {
 			? getAgentHostProviderForTelemetry(metadata.targetChatSessionType, chatSessionsService)
 			: undefined;
 		this.selectedModelSource = !metadata ? 'unknown'
-			: metadata.isBYOK || metadata.byokModelIdentifier ? 'byok'
+			: isByokModel(metadata) ? 'byok'
 				: metadata.vendor === COPILOT_VENDOR_ID || modelProvider === 'copilotcli' ? 'copilot'
 					: metadata.targetChatSessionType ? 'unknown'
 						: 'other';

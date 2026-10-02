@@ -112,6 +112,8 @@ suite('ChatRequestTelemetry request context', () => {
 		{ name: 'local BYOK', metadata: { ...model, isBYOK: true }, expected: 'byok' },
 		{ name: 'host Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli' }, expected: 'copilot' },
 		{ name: 'host BYOK bridge', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli', byokModelIdentifier: 'private/model' }, expected: 'byok' },
+		{ name: 'empty BYOK bridge takes precedence over Copilot', metadata: { ...model, vendor: 'host', targetChatSessionType: 'agent-host-copilotcli', byokModelIdentifier: '' }, expected: 'byok' },
+		{ name: 'empty BYOK bridge takes precedence over unknown host', metadata: { ...model, vendor: 'host', targetChatSessionType: 'private-host', byokModelIdentifier: '' }, expected: 'byok' },
 		{ name: 'unresolved host provider', metadata: { ...model, vendor: 'host', targetChatSessionType: 'private-host' }, expected: 'unknown' },
 		{ name: 'other catalog', metadata: { ...model, vendor: 'private-vendor' }, expected: 'other' },
 	]) {
