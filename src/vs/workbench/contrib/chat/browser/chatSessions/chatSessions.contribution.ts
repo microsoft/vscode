@@ -727,9 +727,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
-					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
+					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
 			}),
 			// New chat in sidebar chat (+ button)
@@ -749,9 +749,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
-					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
+					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
 			})
 		);
@@ -1745,7 +1745,7 @@ export type NewChatSessionOpenOptions = {
 	readonly replaceEditorForResource?: URI;
 };
 
-export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
+export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
@@ -1759,6 +1759,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
+	let openedSessionResource = sessionResource;
 
 	// Stash any imported ("Continue in…") conversation before the session is
 	// opened: opening can eagerly pre-create the backend session (via the chat
@@ -1836,7 +1837,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
-		return;
+		return undefined;
 	}
 
 	// Send initial prompt if provided
@@ -1856,6 +1857,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 			const newSessionResource = result.kind === 'sent' || result.kind === 'rejected' ? result.newSessionResource : undefined;
 			if (newSessionResource && !resources.isEqual(newSessionResource, sessionResource)) {
+				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
@@ -1885,6 +1887,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	// working indicator.
 	sessionsListSuppression?.dispose();
 	transitionProgress?.complete();
+	return openedSessionResource;
 }
 
 /**

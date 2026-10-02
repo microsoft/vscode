@@ -96,6 +96,7 @@ export interface ICustomizationMigrationDashboardOverview {
 	readonly scopes: readonly ICustomizationMigrationDashboardScope[];
 	readonly manualReviewItems?: readonly (ICustomizationMigrationDashboardItem & { readonly storage: PromptsStorage })[];
 	readonly hasIgnoredGroups?: boolean;
+	readonly supportsAgentMigration?: boolean;
 	/** Most recent activity first. */
 	readonly activity: readonly ICustomizationMigrationDashboardActivity[];
 	readonly result?: { readonly migratedCount: number };
@@ -312,7 +313,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				? localize('migrationsCompletedDescription', "Your customizations use supported formats and locations.")
 				: localize('migrationsDescription', "Some of your agent customizations need an update to keep working. Review and migrate them to the new formats and locations."),
 			overview.hasIgnoredGroups === true,
-			migrationGroups.length ? () => {
+			migrationGroups.length && overview.supportsAgentMigration !== false ? () => {
 				this.callbacks.actionClicked('agentMigrationClicked');
 				this.callbacks.migrateWithAgent();
 			} : undefined,

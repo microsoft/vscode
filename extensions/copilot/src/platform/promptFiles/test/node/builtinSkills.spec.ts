@@ -84,7 +84,7 @@ suite('built-in skills', () => {
 		}).toEqual({
 			contributions: [{
 				path: './assets/prompts/skills/migrate-customizations/SKILL.md',
-				sessionTypes: ['copilotcli', 'agent-host-copilotcli', 'agent-host-claude', 'agent-host-codex'],
+				sessionTypes: ['copilotcli', 'claude', 'codex'],
 			}],
 			requiredContent: [
 				'name: migrate-customizations',

@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { CustomizationMigrationCandidate, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -57,18 +57,23 @@ export interface ICustomizationMigrationOptions {
 	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
 }
 
+export interface ICategorizedCustomizationMigrationCandidate {
+	readonly category: CustomizationMigrationType;
+	readonly customization: CustomizationMigrationCandidate;
+}
+
 export function createCustomizationMigrationAgentPrompt(
 	harness: { readonly id: string; readonly label: string },
 	migrationFlowId: string,
 	recoveryBundleFolder: URI,
-	customizations: readonly CustomizationMigrationCandidate[],
+	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
 	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
 ): string {
-	const customizationLocations = customizations.map(customization => {
+	const customizationLocations = customizations.map(({ category, customization }) => {
 		if (isMcpServerCustomizationMigrationCandidate(customization)) {
-			return `- MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
 		}
-		return `- ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
 	});
 	const targetLocations = [...targetFoldersByType]
 		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));

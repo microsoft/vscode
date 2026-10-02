@@ -60,7 +60,7 @@ Migrate each MCP server independently.
 
 Input variables require manual configuration. VS Code can prompt for values such as API keys through `${input:api-key}`, but the destination MCP format does not use that input flow. Ask the user how the value should be supplied securely in the Agent Host environment.
 
-## Custom locationms
+## Custom Locations
 
 Agents, skill, and instruction files located in custom locations defined by settings `chat.agentSkillsLocations`, `chat.instructionsFilesLocations`, and `chat.agentFilesLocations` still work when a harness is connected to VS Code. It is better to move these files to standard locations to ensure consistent behavior and easier management.
 

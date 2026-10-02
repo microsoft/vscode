@@ -66,7 +66,7 @@ Validate that each skill has valid frontmatter, a meaningful description, and a 
 
 ### 4. Migrate User Data
 
-Explain that Agent Host doesn't read the VS Code profile user data folder. It only reads the  harness's user folders. Copy selected agents, instructions, and skills to a compatible listed destination without silently changing their contents.
+Explain that Agent Host doesn't read the VS Code profile user data folder. It only reads the harness's user folders. Copy selected agents, instructions, and skills to a compatible listed destination without silently changing their contents.
 
 ### 5. Migrate MCP Servers
 

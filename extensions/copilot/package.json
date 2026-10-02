@@ -6870,10 +6870,9 @@
       {
         "path": "./assets/prompts/skills/migrate-customizations/SKILL.md",
         "sessionTypes": [
-          "local",
-          "agent-host-copilotcli",
-          "agent-host-claude",
-          "agent-host-codex"
+          "copilotcli",
+          "claude",
+          "codex"
         ]
       },
       {

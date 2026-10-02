@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { dirname } from '../../../../../../base/common/resources.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { IChatService } from '../../chatService/chatService.js';
 import { CustomizationMigrationFailureReason, CustomizationMigrationType, ICustomizationMigrationHint } from './customizationMigrationService.js';
 
 export const ICustomizationMigrationTelemetryService = createDecorator<ICustomizationMigrationTelemetryService>('customizationMigrationTelemetryService');
 
-const AGENT_MIGRATION_RESULT_WATCH_TIMEOUT = 5 * 60 * 1000;
+const AGENT_MIGRATION_BACKGROUND_TIMEOUT = 10 * 60 * 1000;
 
 type CustomizationMigrationAction =
 	| 'hintShown'
@@ -46,6 +48,7 @@ type CustomizationMigrationEvent = {
 	migratedCount?: number;
 	failedCount?: number;
 	cancelled?: boolean;
+	timedOut?: boolean;
 	migrationFailedReasons?: string;
 };
 
@@ -58,6 +61,7 @@ type CustomizationMigrationClassification = {
 	migratedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations successfully migrated.' };
 	failedCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of customizations that failed to migrate.' };
 	cancelled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the customization migration flow was cancelled before completion.' };
+	timedOut?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the customization migration result was not produced within ten minutes after its session entered the background.' };
 	migrationFailedReasons?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A semicolon-separated list of bounded failure reason identifiers. Does not contain customization names, paths, content, or error messages.' };
 	owner: 'digitarald';
 	comment: 'Tracks aggregate customization migration impressions, actions, and outcomes without collecting customization names, paths, or content.';
@@ -86,8 +90,13 @@ export interface ICustomizationMigrationTelemetryService {
 	pageShown(category?: CustomizationMigrationType): void;
 	actionClicked(action: 'migrationOverviewClicked' | 'migrationCategoryClicked' | 'agentMigrationClicked' | 'backClicked' | 'destinationsClicked' | 'workspaceSkipped' | 'workspaceIncluded' | 'retryClicked' | 'viewChangesClicked' | 'resultDismissed' | 'activityDismissed', category?: CustomizationMigrationType): void;
 	migrationClicked(category: CustomizationMigrationType, requestedCount: number, migrationFlowId?: string): void;
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string, cancelled?: boolean): void;
-	watchAgentMigrationResult(resultResource: URI, migrationFlowId: string, inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>): void;
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string, cancelled?: boolean, timedOut?: boolean): void;
+	watchAgentMigrationResult(resultResource: URI, migrationFlowId: string, inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>, sessionResource: URI, lifecycle: ICustomizationMigrationSessionLifecycle): void;
+}
+
+export interface ICustomizationMigrationSessionLifecycle {
+	readonly onDidBackground: Event<void>;
+	readonly onDidForeground: Event<void>;
 }
 
 interface ICustomizationMigrationAgentResultFile {
@@ -126,6 +135,7 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 	}
@@ -161,7 +171,7 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 		});
 	}
 
-	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string, cancelled?: boolean): void {
+	migrationCompleted(category: CustomizationMigrationType, requestedCount: number, migratedCount: number, failedCount: number, failureReasons: readonly CustomizationMigrationFailureReason[], migrationFlowId?: string, cancelled?: boolean, timedOut?: boolean): void {
 		const migrationFailedReasons = Array.from(new Set(failureReasons)).sort().join(';');
 		this.send({
 			action: 'migrationCompleted',
@@ -171,14 +181,32 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 			failedCount,
 			...(migrationFlowId ? { migrationFlowId } : {}),
 			...(cancelled ? { cancelled: true } : {}),
+			...(timedOut ? { timedOut: true } : {}),
 			...(migrationFailedReasons ? { migrationFailedReasons } : {}),
 		});
 	}
 
-	watchAgentMigrationResult(resultResource: URI, migrationFlowId: string, inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>): void {
+	watchAgentMigrationResult(resultResource: URI, migrationFlowId: string, inventoryCounts: ReadonlyMap<CustomizationMigrationType, number>, sessionResource: URI, lifecycle: ICustomizationMigrationSessionLifecycle): void {
 		const disposables = new DisposableStore();
 		let active = true;
 		disposables.add(toDisposable(() => active = false));
+		const finishIncompleteMigration = (cancelled: boolean, timedOut: boolean) => {
+			if (!active) {
+				return;
+			}
+			this.agentMigrationResultWatches.deleteAndDispose(migrationFlowId);
+			for (const [category] of inventoryCounts) {
+				this.migrationCompleted(category, 0, 0, 0, [], migrationFlowId, cancelled, timedOut);
+			}
+		};
+		const backgroundTimeout = disposables.add(new MutableDisposable());
+		disposables.add(lifecycle.onDidBackground(() => {
+			backgroundTimeout.value = disposableTimeout(
+				() => finishIncompleteMigration(false, true),
+				AGENT_MIGRATION_BACKGROUND_TIMEOUT,
+			);
+		}));
+		disposables.add(lifecycle.onDidForeground(() => backgroundTimeout.clear()));
 		const reportResult = disposables.add(new RunOnceScheduler(async () => {
 			try {
 				const content = await this.fileService.readFile(resultResource, { limits: { size: 64 * 1024 } });
@@ -210,10 +238,24 @@ export class CustomizationMigrationTelemetryService extends Disposable implement
 				reportResult.schedule();
 			}
 		}));
-		disposables.add(disposableTimeout(() => {
-			this.agentMigrationResultWatches.deleteAndDispose(migrationFlowId);
-		}, AGENT_MIGRATION_RESULT_WATCH_TIMEOUT));
+		let cancelWhenStopped: (() => void) | undefined;
+		const model = this.chatService.getSession(sessionResource);
+		if (model) {
+			cancelWhenStopped = () => {
+				const response = model.lastRequest?.response;
+				if (response?.isCanceled || response?.result?.errorDetails?.code === 'canceled') {
+					finishIncompleteMigration(true, false);
+				}
+			};
+			disposables.add(model.onDidChange(cancelWhenStopped));
+		}
+		disposables.add(this.chatService.onDidDisposeSession(event => {
+			if (event.reason === 'cleared' && event.sessionResources.some(resource => isEqual(resource, sessionResource))) {
+				finishIncompleteMigration(true, false);
+			}
+		}));
 		this.agentMigrationResultWatches.set(migrationFlowId, disposables);
+		cancelWhenStopped?.();
 	}
 
 	private send(event: CustomizationMigrationEvent): void {

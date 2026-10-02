@@ -111,6 +111,13 @@ suite('CustomizationMigrationDashboard', () => {
 			migrateWithAgent: () => actions.push('agent'),
 			migrateCategory: (id, storage) => actions.push(`migrate:${id}:${storage}`),
 		});
+
+		test('hides agent migration for unsupported harnesses', () => {
+			const { parent, dashboard } = createDashboard();
+			dashboard.showOverview({ ...overview(), supportsAgentMigration: false });
+
+			assert.strictEqual(parent.querySelector('[aria-label="Start an agent-guided customization migration"]'), null);
+		});
 		dashboard.showOverview(overview());
 		dashboard.focus();
 		const initialFocus = document.activeElement?.getAttribute('aria-label');
