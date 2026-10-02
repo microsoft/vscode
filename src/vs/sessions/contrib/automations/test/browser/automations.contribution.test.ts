@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 
 import '../../browser/automations.contribution.js';
 
@@ -27,5 +27,12 @@ suite('Automations Contribution', () => {
 			included: undefined,
 			experiment: { mode: 'auto' },
 		});
+
+	});
+
+	test('cloud gate defaults off with machine scope and automatic config treatment', () => {
+		const property = configurationRegistry.getConfigurationProperties()[CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING];
+		assert.deepStrictEqual({ id: CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, default: property.default, scope: property.scope, tags: property.tags, experiment: property.experiment },
+			{ id: 'chat.automations.cloud.enabled', default: false, scope: ConfigurationScope.MACHINE, tags: ['experimental', 'advanced', 'onExP'], experiment: { mode: 'auto' } });
 	});
 });

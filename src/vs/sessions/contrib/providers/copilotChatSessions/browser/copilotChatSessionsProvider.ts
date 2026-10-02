@@ -65,6 +65,7 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { ReadOnlyChatSession } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
+import { CloudAutomationStore } from './cloudAutomationStore.js';
 
 /** Copilot Cloud session type - cloud-hosted agent. */
 export const CopilotCloudSessionType: ISessionType = {
@@ -1082,6 +1083,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	private readonly _localGitRepositoryResolutionStarted = new Set<string>();
 
 	get supportsLocalWorkspaces(): boolean { return this.providerMode !== 'sandbox'; }
+	readonly automations: CloudAutomationStore | undefined;
 
 	constructor(
 		private readonly providerMode: 'default' | 'sandbox',
@@ -1105,6 +1107,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		super();
 
 		this._loadCreatedBySessions();
+		if (providerMode === 'default') {
+			this.automations = this._register(this.instantiationService.createInstance(CloudAutomationStore, this.id, CopilotCloudSessionType.id, async uri => {
+				if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+					return uri;
+				}
+				if (uri.scheme !== Schemas.file) {
+					return undefined;
+				}
+				const repository = await resolveGitRepositoryFromGitConfig(this.fileService, uri, ['github.com']);
+				return repository?.gitHub
+					? URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.gitHub.owner}/${repository.gitHub.repo}/HEAD` })
+					: undefined;
+			}));
+		}
 		if (providerMode === 'sandbox') {
 			this._register(this.chatSessionsService.registerChatSessionContentProvider(CopilotSandboxSessionType.id, {
 				provideChatSessionContent: async resource => {

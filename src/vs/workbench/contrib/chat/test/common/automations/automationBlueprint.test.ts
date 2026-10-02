@@ -12,6 +12,15 @@ import { AutomationBlueprintParseError, automationToBlueprint, createAutomationB
 suite('Automation blueprints', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not silently export custom or UTC wall-clock schedules as local schedules', () => {
+		for (const interval of ['custom', 'daily', 'weekly'] as const) {
+			assert.throws(() => serializeAutomationBlueprint({
+				version: 1, id: 'cloud', name: 'Cloud', prompt: 'Review',
+				schedule: { interval, timeZone: 'UTC', scheduleHour: 7, scheduleMinute: 15, scheduleDay: 1 },
+			}), AutomationBlueprintParseError);
+		}
+	});
+
 	test('parses a portable automation blueprint', () => {
 		const blueprint = parseAutomationBlueprint([
 			'---',

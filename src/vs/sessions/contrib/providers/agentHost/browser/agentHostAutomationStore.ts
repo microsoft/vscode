@@ -854,6 +854,9 @@ function parseCronValue(value: string | undefined, minimum: number, maximum: num
 }
 
 function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['triggers'] {
+	if (schedule.interval === 'custom' || schedule.timeZone === 'UTC') {
+		throw new Error(localize('automationUnsupportedSchedule', "Choose a local-time schedule for this Agent Host automation."));
+	}
 	if (schedule.interval === 'manual') {
 		return [];
 	}

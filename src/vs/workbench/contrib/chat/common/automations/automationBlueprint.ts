@@ -81,6 +81,7 @@ export function parseAutomationBlueprint(content: string): IAutomationBlueprint 
 }
 
 export function serializeAutomationBlueprint(blueprint: IAutomationBlueprint): string {
+	assertPortableSchedule(blueprint.schedule);
 	const lines = [
 		'---',
 		`version: ${AUTOMATION_BLUEPRINT_VERSION}`,
@@ -139,6 +140,7 @@ function createAutomationBlueprintId(name: string): string {
 }
 
 function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
+	assertPortableSchedule(schedule);
 	switch (schedule.interval) {
 		case 'manual':
 			return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
@@ -148,6 +150,14 @@ function normalizeSchedule(schedule: IAutomationSchedule): IAutomationSchedule {
 			return { interval: 'daily', scheduleHour: schedule.scheduleHour, scheduleMinute: schedule.scheduleMinute, scheduleDay: 0 };
 		case 'weekly':
 			return schedule;
+		case 'custom':
+			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
+	}
+}
+
+function assertPortableSchedule(schedule: IAutomationSchedule): void {
+	if (schedule.interval === 'custom' || (schedule.timeZone === 'UTC' && (schedule.interval === 'daily' || schedule.interval === 'weekly'))) {
+		throw new AutomationBlueprintParseError('unsupportedSchedule', schedule.interval);
 	}
 }
 
@@ -181,6 +191,8 @@ function readSchedule(root: YamlMapNode): IAutomationSchedule {
 
 function toCronExpression(schedule: IAutomationSchedule): string {
 	switch (schedule.interval) {
+		case 'custom':
+			throw new AutomationBlueprintParseError('unsupportedSchedule', 'custom');
 		case 'manual':
 			throw new Error('Manual Automation schedules do not have cron expressions.');
 		case 'hourly':

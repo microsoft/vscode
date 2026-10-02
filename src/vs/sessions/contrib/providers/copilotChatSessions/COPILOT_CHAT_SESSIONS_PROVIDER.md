@@ -36,11 +36,15 @@ The cloud provider reports verified PR-closing issues through `linkedIssues` met
 
 The Task API does not report which client started a task, so the Copilot extension records the tasks VS Code creates or sends a message to. Every other task carries `external: true` metadata, which the adapter exposes as `ISession.isExternal`. The extension lists external tasks according to `chat.agentSessions.showExternal`, and a sent message adopts a task by clearing the flag.
 
-## Cloud automation read cache
+## Cloud automation coordination
 
 `GitHubCloudAutomationStore` owns a provider-local, explicitly refreshed cache of user-owned GitHub cloud automation definitions. Discovery is limited to Agents Window recent workspaces and explicitly registered GitHub.com repositories, with private/internal visibility verified before listing. Only account-scoped repository references persist in profile-local machine storage; definitions stay in memory, and account changes or disposal cancel pending reads and clear the cache.
 
-Refresh failures retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The cache does not implement the shared Automation mutation/run contract or initiate requests on construction, observation, or account changes.
+Refresh failures retain the affected repository's last successful definitions while reporting an error; successful repositories still update. The store serializes definition refreshes and mutations within an account lifetime, rechecks repository eligibility before writes, and discards responses after account changes or disposal. Updates support an authoritative preflight comparison, not server-side compare-and-swap. An uncertain mutation blocks further writes until an explicit successful catalogue refresh.
+
+History is an explicitly refreshed, bounded server-owned window. Active task details are fetched with bounded concurrency and cancellation. Manual dispatch acknowledges acceptance only; it does not create a local run or correlate an arbitrary history entry with that request. The store does not implement the shared Automation contract or initiate requests on construction, observation, or account changes.
+
+Only the default provider exposes `CloudAutomationStore`, which adapts the GitHub store to the shared Automation contract. The sandbox-only provider is not an Automation authority. The adapter creates a store and refreshes it only while the cloud gate, parent Automations setting, AI visibility, and a GitHub.com account permit access. Each account or gate transition disposes the old store. Definition and history identities include provider, account, repository, and remote definition identity; native Cloud session adoption is a separate concern.
 
 ## Request lifecycle
 

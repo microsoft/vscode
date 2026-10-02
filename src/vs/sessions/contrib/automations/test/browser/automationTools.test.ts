@@ -264,6 +264,7 @@ function createConfigurationService(enabled = true): TestConfigurationService {
 }
 
 interface IListProviderOptions {
+	readonly enabled?: boolean;
 	readonly id: string;
 	readonly label?: string;
 	readonly state?: AutomationCatalogueState;
@@ -285,6 +286,7 @@ function createListAutomationsTool(
 ): ListAutomationsTool {
 	const providers = providerOptions.map(options => {
 		const store = upcastPartial<ISessionsProviderAutomations>({
+			enabled: constObservable(options.enabled ?? true),
 			catalogueState: constObservable(options.state ?? 'ready'),
 			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
 			unavailableReason: constObservable(options.unavailableReason),
@@ -481,6 +483,14 @@ suite('AutomationTools', () => {
 			warnsAboutFalseEmpty: true,
 			describesCapabilities: true,
 		});
+
+	});
+
+	test('listAutomations excludes disabled providers', async () => {
+		const service = new FakeAutomationService();
+		const tool = createListAutomationsTool(service, createConfigurationService(), [{ id: 'cloud', enabled: false }]);
+		const result = await invoke(tool, {});
+		assert.deepStrictEqual(JSON.parse(getText(result)), []);
 	});
 
 	test('listAutomations keeps ready provider results independent from an unavailable provider', async () => {
@@ -631,6 +641,18 @@ suite('AutomationTools', () => {
 				},
 			},
 		});
+	});
+
+	test('runAutomation reports acceptance without a fabricated run or session', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		const runner = new class extends mock<IAutomationRunner>() {
+			override runOnce(): IAutomationRunOperation {
+				return { whenDispatched: Promise.resolve({ kind: 'accepted' }), whenCompleted: Promise.resolve() };
+			}
+		}();
+		const result = await invoke(new RunAutomationTool(service, runner, createConfigurationService()), { automationId: automation.id }, SESSION_RESOURCE);
+		assert.deepStrictEqual(JSON.parse(getText(result)), { status: 'accepted', automation: { id: automation.id, name: automation.name } });
 	});
 
 	test('runAutomation reports the active run when the runner declines to claim it', async () => {
