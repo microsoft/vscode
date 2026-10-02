@@ -16,6 +16,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
 import { CommandExecutor } from '../../../common/cursor/cursor.js';
+import { TypeAutoClosingCounterpartCommand } from '../../../common/cursor/cursorTypeEditOperations.js';
 import { TypeOperations } from '../../../common/cursor/cursorTypeOperations.js';
 import { EditOperationType } from '../../../common/cursorCommon.js';
 import { ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
@@ -5474,7 +5475,17 @@ suite('Editor Controller', () => {
 				viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)]);
 				const operations = TypeOperations.typeWithInterceptors(false, EditOperationType.Other, viewModel.cursorConfig, model, viewModel.getSelections(), [], 'n');
 				const states = [{ text: model.getValue(), selections: viewModel.getSelections() }];
-				for (const operation of operations) {
+				for (let i = 0; i < operations.length; i++) {
+					const operation = operations[i];
+					if (i === 1) {
+						const selections = viewModel.getSelections();
+						for (let j = 0; j < operation.commands.length; j++) {
+							const command = operation.commands[j];
+							if (command instanceof TypeAutoClosingCounterpartCommand) {
+								command.setSelection(selections[j]);
+							}
+						}
+					}
 					const selections = CommandExecutor.executeCommands(model, viewModel.getSelections(), operation.commands);
 					assert.ok(selections);
 					viewModel.setSelections('test', selections);
@@ -5489,13 +5500,16 @@ suite('Editor Controller', () => {
 			});
 		});
 
-		test('single-cursor closing command uses the offset after the typed character', () => {
+		test('closing commands can be updated with their selections before execution', () => {
 			usingCursor({
 				text: ['begi '],
 				languageId: autoClosingLanguageId
 			}, (editor, model, viewModel) => {
 				viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 				const operations = TypeOperations.typeWithInterceptors(false, EditOperationType.Other, viewModel.cursorConfig, model, viewModel.getSelections(), [], 'n');
+				const closingCommand = operations[1].commands[0];
+				assert.ok(closingCommand instanceof TypeAutoClosingCounterpartCommand);
+				closingCommand.setSelection(new Selection(1, 6, 1, 6));
 
 				assert.deepStrictEqual({
 					text: model.getValue(),

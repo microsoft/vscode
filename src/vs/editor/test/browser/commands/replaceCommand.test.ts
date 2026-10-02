@@ -8,20 +8,24 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ReplaceCommand, ReplaceCommandWithOffsetCursorState } from '../../../common/commands/replaceCommand.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
+import { TypeAutoClosingCounterpartCommand } from '../../../common/cursor/cursorTypeEditOperations.js';
 import { CommandExecutor } from '../../../common/cursor/cursor.js';
 import { createTextModel } from '../../common/testTextModel.js';
 
-suite('Editor Commands - Replace Command With Offset Cursor State', () => {
+suite('Editor Commands - Auto Closing Counterpart Command', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('null ranges resolve against current selections after earlier commands shift cursors', () => {
+	test('uses updated selections after earlier commands shift cursors', () => {
 		const model = store.add(createTextModel('ab cd'));
 		const selections = [new Selection(1, 3, 1, 3), new Selection(1, 6, 1, 6)];
 		const typingCommands = selections.map(selection => new ReplaceCommand(selection, 'x'));
-		const closingCommands = selections.map(() => new ReplaceCommandWithOffsetCursorState(null, ')', 0, -1));
+		const closingCommands = selections.map(selection => new TypeAutoClosingCounterpartCommand(selection, '(', ')'));
 
 		const afterTyping = CommandExecutor.executeCommands(model, selections, typingCommands);
 		assert.ok(afterTyping);
+		for (let i = 0; i < afterTyping.length; i++) {
+			closingCommands[i].setSelection(afterTyping[i]);
+		}
 		const afterClosing = CommandExecutor.executeCommands(model, afterTyping, closingCommands);
 
 		assert.deepStrictEqual({ text: model.getValue(), selections: afterClosing }, {
@@ -41,17 +45,4 @@ suite('Editor Commands - Replace Command With Offset Cursor State', () => {
 		});
 	});
 
-	test('null ranges skip commands without a surviving cursor', () => {
-		const model = store.add(createTextModel('ab'));
-		const commands = [
-			new ReplaceCommandWithOffsetCursorState(null, ')', 0, -1),
-			new ReplaceCommandWithOffsetCursorState(null, ')', 0, -1)
-		];
-		const selections = CommandExecutor.executeCommands(model, [new Selection(1, 3, 1, 3)], commands);
-
-		assert.deepStrictEqual({ text: model.getValue(), selections }, {
-			text: 'ab)',
-			selections: [new Selection(1, 3, 1, 3)]
-		});
-	});
 });

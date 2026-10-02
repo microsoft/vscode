@@ -91,7 +91,7 @@ export class AutoIndentOperation {
 			}
 		});
 		if (shouldSplitAutoClosing) {
-			const closingCommands = indentationForSelections.map(() => new TypeWithAutoClosingCommand(null, ch, false, autoClosingPair.close));
+			const closingCommands = indentationForSelections.map(({ selection }) => new TypeAutoClosingCounterpartCommand(selection, ch, autoClosingPair.close));
 			return AutoClosingOpenCharTypeOperation.getEditsWithSeparateAutoClosing(commands, closingCommands);
 		}
 		return [new EditOperationResult(EditOperationType.TypingOther, commands, {
@@ -174,10 +174,7 @@ export class AutoClosingOpenCharTypeOperation {
 			if (autoClosingPair !== null) {
 				if (!chIsAlreadyTyped && autoClosingPair.open.length > 1 && autoClosingPair.close.length > 0) {
 					const typingCommands = selections.map(selection => new ReplaceCommand(selection, ch));
-					const closingCommands = selections.map(selection => {
-						const closingSelection = selections.length === 1 ? Selection.fromPositions(selection.getPosition().delta(0, ch.length)) : null;
-						return new TypeWithAutoClosingCommand(closingSelection, ch, false, autoClosingPair.close);
-					});
+					const closingCommands = selections.map(selection => new TypeAutoClosingCounterpartCommand(selection, ch, autoClosingPair.close));
 					return this.getEditsWithSeparateAutoClosing(typingCommands, closingCommands);
 				}
 				return [this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPair.close)];
@@ -939,6 +936,32 @@ class TypeWithAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
 		const lineNumberDeltaOffset = 0;
 		const columnDeltaOffset = -closeCharacter.length;
 		super(selection, text, lineNumberDeltaOffset, columnDeltaOffset, openCharacter, closeCharacter);
+	}
+
+	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const range = inverseEditOperations[0].range;
+		return this._computeCursorStateWithRange(model, range, helper);
+	}
+}
+
+export class TypeAutoClosingCounterpartCommand extends BaseTypeWithAutoClosingCommand {
+
+	private _selection: Selection;
+	private readonly _text: string;
+
+	constructor(selection: Selection, openCharacter: string, closeCharacter: string) {
+		super(selection, closeCharacter, 0, -closeCharacter.length, openCharacter, closeCharacter);
+		this._selection = selection;
+		this._text = closeCharacter;
+	}
+
+	public setSelection(selection: Selection): void {
+		this._selection = selection;
+	}
+
+	public override getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(this._selection, this._text);
 	}
 
 	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {

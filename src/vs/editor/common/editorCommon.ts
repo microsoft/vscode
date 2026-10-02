@@ -22,12 +22,6 @@ import { ICommandMetadata } from '../../platform/commands/common/commands.js';
  */
 export interface IEditOperationBuilder {
 	/**
-	 * The command's current selection at execution time, if its cursor still exists.
-	 * @internal
-	 */
-	readonly currentSelection?: Selection;
-
-	/**
 	 * Add a new edit operation (a replace operation).
 	 * @param range The range to replace (delete). May be empty to represent a simple insert.
 	 * @param text The text to replace with. May be null to represent a simple delete.

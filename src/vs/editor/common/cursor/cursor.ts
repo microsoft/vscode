@@ -11,7 +11,7 @@ import { CursorContext } from './cursorContext.js';
 import { DeleteOperations } from './cursorDeleteOperations.js';
 import { CursorChangeReason } from '../cursorEvents.js';
 import { CompositionOutcome, TypeOperations } from './cursorTypeOperations.js';
-import { BaseTypeWithAutoClosingCommand } from './cursorTypeEditOperations.js';
+import { BaseTypeWithAutoClosingCommand, TypeAutoClosingCounterpartCommand } from './cursorTypeEditOperations.js';
 import { Position } from '../core/position.js';
 import { Range, IRange } from '../core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../core/selection.js';
@@ -574,6 +574,22 @@ export class CursorsController extends Disposable {
 					// Here we must interpret each typed character individually
 					const operations = TypeOperations.typeWithInterceptors(!!this._compositionState, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), this.getAutoClosedCharacters(), chr);
 					for (const operation of operations) {
+						const closingCommands = operation.commands.filter((command): command is TypeAutoClosingCounterpartCommand => command instanceof TypeAutoClosingCounterpartCommand);
+						if (closingCommands.length > 0) {
+							const selections = this.getSelections();
+							const commands = selections.flatMap((selection, index) => {
+								const command = closingCommands[index];
+								if (!command) {
+									return [];
+								}
+								command.setSelection(selection);
+								return [command];
+							});
+							if (commands.length === 0) {
+								break;
+							}
+							operation.commands = commands;
+						}
 						if (!this._executeEditOperation(operation, reason)) {
 							break;
 						}
@@ -970,7 +986,6 @@ export class CommandExecutor {
 		};
 
 		const editOperationBuilder: editorCommon.IEditOperationBuilder = {
-			currentSelection: ctx.selectionsBefore[majorIdentifier],
 			addEditOperation: addEditOperation,
 			addTrackedEditOperation: addTrackedEditOperation,
 			trackSelection: trackSelection
