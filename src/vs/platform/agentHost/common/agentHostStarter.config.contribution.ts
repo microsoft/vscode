@@ -277,27 +277,24 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.copilotAgent.multiRootEnabled', "When enabled, Copilot agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
-			// Hidden from the Settings UI while the feature is dogfooded internally.
-			// Still settable via `settings.json`; flip `default` (e.g. to
-			// `product.quality !== 'stable'`) to enable it for a build channel.
-			included: false,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCopilotMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeMultiRootEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.claudeAgent.multiRootEnabled', "When enabled, Claude agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
-			// Hidden from the Settings UI while the feature is dogfooded internally.
-			// Still settable via `settings.json`; flip `default` (e.g. to
-			// `product.quality !== 'stable'`) to enable it for a build channel.
-			included: false,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
 		},
 		[AgentHostCodexMultiRootEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
-			included: false,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCodexMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {
