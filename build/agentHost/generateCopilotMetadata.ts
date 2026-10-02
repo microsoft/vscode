@@ -51,6 +51,14 @@ async function generate(sourceRoot: string): Promise<string> {
 	if (!/^[a-f\d]{40}$/.test(pin.sourceCommit)) {
 		throw new Error('Copilot metadata sourceCommit must be a full Git commit SHA.');
 	}
+
+	// Pre-flight check: Verify git repository and commit reachability early
+	try {
+		execFileSync('git', ['-C', sourceRoot, 'rev-parse', '--verify', `${pin.sourceCommit}^{commit}`], { encoding: 'utf8' });
+	} catch {
+		throw new Error(`Invalid Git repository path or commit SHA ${pin.sourceCommit} not found in ${sourceRoot}.`);
+	}
+
 	const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
 	const require = createRequire(import.meta.url);
 	const generatorPackage = JSON.parse(readFileSync(require.resolve('json-schema-to-typescript/package.json'), 'utf8'));
@@ -68,7 +76,7 @@ async function generate(sourceRoot: string): Promise<string> {
 		typeNames.add(contract.typeName);
 		const schemaPath = `${pin.sourcePath}/schemas/${contract.schema}`;
 		const schema: PortableSchema = JSON.parse(execFileSync('git', ['-C', sourceRoot, 'show', `${pin.sourceCommit}:${schemaPath}`], { encoding: 'utf8' }));
-		if (typeof schema.$id !== 'string' || localReferences.has(schema.$id)) {
+		if (typeof schema.$id !== 'string' \vert{}\vert{} localReferences.has(schema.$id)) {
 			throw new Error(`Copilot schema has a missing or duplicate $id: ${contract.schema}.`);
 		}
 		schema.title = contract.typeName;
