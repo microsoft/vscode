@@ -96,11 +96,11 @@ suite('ChatRequestTelemetry request context', () => {
 			context.complete(result);
 			assert.deepStrictEqual(context.events.map(event => ({
 				eventName: event.eventName, result: event.result, requestId: event.requestId,
-				requestContextVersion: event.requestContextVersion, requestStartCopilotSku: event.requestStartCopilotSku,
+				requestStartCopilotSku: event.requestStartCopilotSku,
 				selectedModelSource: event.selectedModelSource, model: event.model,
 			})), [{
 				eventName: 'interactiveSessionProviderInvoked', result, requestId: 'request',
-				requestContextVersion: 1, requestStartCopilotSku: 'free_limited_copilot', selectedModelSource: 'copilot',
+				requestStartCopilotSku: 'free_limited_copilot', selectedModelSource: 'copilot',
 				model: undefined,
 			}]);
 		});
@@ -135,7 +135,7 @@ suite('ChatRequestTelemetry request context', () => {
 		context.changeContext();
 		context.complete('error');
 		assert.deepStrictEqual(context.events.map(event => ({
-			requestStartCopilotSku: event.requestStartCopilotSku, selectedModelSource: event.selectedModelSource, requestContextVersion: event.requestContextVersion,
-		})), [{ requestStartCopilotSku: undefined, selectedModelSource: 'unknown', requestContextVersion: 1 }]);
+			requestStartCopilotSku: event.requestStartCopilotSku, selectedModelSource: event.selectedModelSource,
+		})), [{ requestStartCopilotSku: undefined, selectedModelSource: 'unknown' }]);
 	});
 });

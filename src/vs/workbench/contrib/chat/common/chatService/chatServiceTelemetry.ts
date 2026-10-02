@@ -188,7 +188,6 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	enableCommandDetection: boolean;
 	attachmentKinds: string[];
 	model: string | undefined;
-	requestContextVersion: number;
 	requestStartCopilotSku: string | undefined;
 	selectedModelSource: 'copilot' | 'byok' | 'other' | 'unknown';
 	permissionLevel: ChatPermissionLevel | undefined;
@@ -222,7 +221,6 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
-	requestContextVersion: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Version of the additive request-start context on the outcome event.' };
 	requestStartCopilotSku: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The workbench Copilot entitlement SKU when the request started, if known. Not the credential used by a remote host.' };
 	selectedModelSource: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Source of the selected model at request start: copilot catalog, explicitly marked byok, other catalog, or unknown. Not the actual routed model or billing provider.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, assisted, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
@@ -421,7 +419,6 @@ export class ChatRequestTelemetry {
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
-			requestContextVersion: 1,
 			requestStartCopilotSku: this.requestStartCopilotSku,
 			selectedModelSource: this.selectedModelSource,
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
