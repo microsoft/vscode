@@ -1486,7 +1486,7 @@ suite('ActionListWidget', () => {
 	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
-				action('plain'),
+				{ ...action('plain'), toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
 				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
 				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
 			],
@@ -1498,6 +1498,8 @@ suite('ActionListWidget', () => {
 		disposables.add({ dispose: () => wrapper.remove() });
 
 		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const plainRow = rows[0];
+		const plainToolbar = plainRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
 		const detailRow = rows[1];
 		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
 		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
@@ -1510,6 +1512,7 @@ suite('ActionListWidget', () => {
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
 		};
 		detailRow.classList.add('focused');
+		plainRow.classList.add('focused');
 		const focused = {
 			rowHeight: detailRow.getBoundingClientRect().height,
 			detailTop: detail.getBoundingClientRect().top,
@@ -1517,6 +1520,7 @@ suite('ActionListWidget', () => {
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
 			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
+			alignsWithPlainRowToolbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right === plainRow.getBoundingClientRect().right - plainToolbar.getBoundingClientRect().right,
 		};
 
 		assert.deepStrictEqual({
@@ -1528,7 +1532,7 @@ suite('ActionListWidget', () => {
 			focused,
 		}, {
 			rows: [
-				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: false, hasToolbar: true },
 				{ hasDetail: true, hasToolbar: true },
 			],
 			initial: {
@@ -1536,15 +1540,16 @@ suite('ActionListWidget', () => {
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'hidden',
-				toolbarMarginRight: '10px',
+				toolbarMarginRight: '6px',
 			},
 			focused: {
 				rowHeight: 48,
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'visible',
-				toolbarMarginRight: '10px',
+				toolbarMarginRight: '6px',
 				clearsScrollbar: true,
+				alignsWithPlainRowToolbar: true,
 			},
 		});
 	});
@@ -1737,6 +1742,44 @@ suite('ActionListWidget', () => {
 			{ useFullHeight: false, height: 336, contentHeight: 408, contentTop: '-72px' },
 			{ useFullHeight: true, height: 408, contentHeight: 408, contentTop: '0px' },
 		]);
+	}));
+
+	test('max visible items caps the height at the rows through that many actions, recomputed after filtering', () => withWindowInnerHeight(600, () => {
+		const list = createActionList(disposables, [
+			action('first'),
+			separator(),
+			{ ...action('detailed'), detail: 'Second line' },
+			separator('Group'),
+			...Array.from({ length: 20 }, (_, i) => action(`item-${i}`)),
+		], {
+			listOptions: { anchorPosition: AnchorPosition.BELOW, maxVisibleItems: 3 },
+			anchor: { x: 10, y: 20, width: 20, height: 20 },
+		});
+		list.layout(200);
+		const initial = list.domNode.clientHeight;
+		list.filterInput!.value = 'item-1';
+		list.filterInput!.dispatchEvent(new Event('input'));
+
+		// 24px action + 8px separator + 48px detail action + 24px labeled separator + 24px action,
+		// then the labeled separator kept as a section header above three 24px matches.
+		assert.deepStrictEqual({ initial, filtered: list.domNode.clientHeight }, { initial: 128, filtered: 96 });
+	}));
+
+	test('max visible items placement accounts for rows hidden by the initial filter', () => withWindowInnerHeight(600, () => {
+		const list = createActionList(disposables, [action('first'), action('second'), action('third')], {
+			listOptions: {
+				initialFilterValue: 'first',
+				maxVisibleItems: 3,
+				preferredAnchorPosition: AnchorPosition.BELOW,
+			},
+			anchor: { x: 10, y: 460, width: 20, height: 20 },
+		});
+		list.layout(200);
+
+		assert.deepStrictEqual(
+			{ position: list.anchorPosition, height: list.domNode.clientHeight },
+			{ position: AnchorPosition.ABOVE, height: 24 },
+		);
 	}));
 
 	test('header dismiss removes the banner and requests a re-layout', () => {
@@ -3151,6 +3194,16 @@ suite('ActionListWidget', () => {
 			{ text: link!.textContent, href: link!.getAttribute('href') },
 			{ text: 'Learn more', href: 'https://aka.ms/test' },
 		);
+	});
+
+	test('updates an open search and focuses the exact duplicate-label row without selecting', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('source'), label: 'GPT' }, { ...action('target'), label: 'GPT' }, action('different')],
+			listOptions: { showFilter: true, filterAsCombobox: true },
+		});
+		widget.setFilter('GPT', 'target');
+		widget.setFilter('GPT', 'target');
+		assert.deepStrictEqual({ query: widget.filterInput?.value, focused: widget.getFocusedElement()?.item?.id }, { query: 'GPT', focused: 'target' });
 	});
 
 	test('focuses the configured initial item when opened', () => {

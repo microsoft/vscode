@@ -19,6 +19,9 @@ export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, tok
  * host-agnostic remote-agent-host contribution. Connections with no customization are unaffected.
  */
 export interface IRemoteAgentHostConnectionCustomization {
+	/** Whether this managed connection requires workspace trust. Defaults to true. */
+	readonly requiresWorkspaceTrust?: boolean;
+
 	/**
 	 * Transform the outgoing `authenticate` request before it is sent. Must fail closed: throw rather
 	 * than forward a value that does not meet the host's contract. An expired challenge requires renewal.

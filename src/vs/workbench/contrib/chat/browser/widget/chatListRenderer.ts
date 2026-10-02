@@ -2128,8 +2128,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
-		if (this.rendererOptions.renderStyle === 'minimal' || element.isComplete) {
+		if (this.rendererOptions.renderStyle === 'minimal') {
 			return undefined;
+		}
+
+		if (element.isComplete) {
+			return moreContentAvailable && this.isPersistentProgressEnabled()
+				? templateData.renderedContent?.findLast(part => part.kind === 'working')
+				: undefined;
 		}
 
 		if (this.isPersistentProgressEnabled()) {
@@ -3112,6 +3118,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		if (element.isComplete && !contentForThisTurn.moreContentAvailable) {
+			this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
+			element.renderData = undefined;
+			this.renderChatResponseBasic(element, index, templateData);
+			return true;
+		}
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -3123,12 +3135,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
 				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
 				return false;
-			} else if (element.isComplete) {
-				// All content is rendered, and response is done, so do a normal render
-				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
-				element.renderData = undefined;
-				this.renderChatResponseBasic(element, index, templateData);
-				return true;
 			} else if (this.isWorkingProgressDebouncePending(element, contentForThisTurn.content)) {
 				// Caught up to the streamed markdown, but still within the working
 				// indicator debounce window. Keep the render loop alive so the
@@ -3313,6 +3319,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.isPersistentProgressEnabled() && partToRender.kind === 'working') {
 				const workingPart = displacedWorkingPart ?? (alreadyRenderedPart instanceof ChatWorkingProgressContentPart ? alreadyRenderedPart : undefined);
 				if (workingPart) {
+					if (alreadyRenderedPart && alreadyRenderedPart !== workingPart) {
+						alreadyRenderedPart.dispose();
+						alreadyRenderedPart.domNode?.remove();
+					}
 					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage);
 					renderedParts[contentIndex] = workingPart;
 					displacedWorkingPart = undefined;
@@ -3611,6 +3621,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.removeCompletedResponseDisclosure(templateData);
 			return;
 		}
+		// Warnings that opt in stay visible above the disclosure instead of being folded into the steps.
+		const warningIndexes = new Set<number>();
+		const warningNodes = new Set<Node>();
+		for (let index = collapseStartIndex; index < collapseEndIndex; index++) {
+			const part = content[index];
+			const warningNode = part?.kind === 'warning' && part.keepVisibleWhenCollapsed ? templateData.renderedParts?.[index]?.domNode : undefined;
+			if (warningNode && (warningNode.parentElement === templateData.value || warningNode.parentElement === templateData.completedResponseDisclosure)) {
+				warningIndexes.add(index);
+				warningNodes.add(warningNode);
+			}
+		}
 
 		let existingDisclosure = templateData.completedResponseDisclosure;
 		if (existingDisclosure?.contains(collapseEndNode)) {
@@ -3631,7 +3652,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			&& templateData.completedResponseCollapseStartIndex === collapseStartIndex
 			&& templateData.completedResponseCollapseEndIndex === collapseEndIndex
 			&& existingDisclosure.nextSibling === collapseEndRoot
-			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every(part => !part?.domNode || existingDisclosure.contains(part.domNode))
+			&& templateData.renderedParts?.slice(collapseStartIndex, collapseEndIndex).every((part, offset) => !part?.domNode || existingDisclosure.contains(part.domNode) !== warningIndexes.has(collapseStartIndex + offset))
 			// Chain rows can be removed after completion (hidden tools flush on the next frame), so the
 			// label must follow the rows that are actually left.
 			&& getVisibleCompletedResponseItemCount(Array.from(existingDisclosure.children).filter(child => child.tagName !== 'SUMMARY')) === templateData.completedResponseStepCount
@@ -3654,7 +3675,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				collapseStartChildIndex = workspaceTransitionChildIndex + 1;
 			}
 		}
-		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex);
+		const nodesToCollapse = valueChildren.slice(collapseStartChildIndex, collapseEndChildIndex).filter(node => !warningNodes.has(node));
 		const stepCount = getVisibleCompletedResponseItemCount(nodesToCollapse);
 		if (stepCount < 2) {
 			const nextPart = templateData.renderedParts?.[collapseEndIndex];

@@ -728,6 +728,13 @@ export interface IActionListOptions {
 	readonly maxWidth?: number;
 
 	/**
+	 * Maximum number of action rows shown before the list scrolls. Headers and
+	 * separators between them still count toward the height. Ignored when the
+	 * list is laid out with a fixed content height.
+	 */
+	readonly maxVisibleItems?: number;
+
+	/**
 	 * Optional handler for markdown links activated in item descriptions or hovers.
 	 * When unset, links open via the opener service with command links allowed.
 	 */
@@ -2007,6 +2014,16 @@ export class ActionListWidget<T> extends Disposable {
 		this._hideSubmenu();
 	}
 
+	/** Update an open searchable list without closing its owning picker. */
+	setFilter(value: string, focusItemId?: string): void {
+		if (!this._filterInput) { return; }
+		this._filterInput.value = value;
+		this._filterText = value;
+		this._applyOrUpdateFilter();
+		if (focusItemId) { this.focusItemById(focusItemId); }
+		this._filterInput.focus();
+	}
+
 	clearFilter(): boolean {
 		if (this._filterInput && this._filterText) {
 			this._filterInput.value = '';
@@ -2088,6 +2105,42 @@ export class ActionListWidget<T> extends Disposable {
 			listHeight += this._getItemHeight(element);
 		}
 		return listHeight;
+	}
+
+	private computeMaxVisibleItemsHeightFor(items: readonly IActionListItem<T>[]): number {
+		const maxVisibleItems = this._options?.maxVisibleItems;
+		if (maxVisibleItems === undefined) {
+			return Number.POSITIVE_INFINITY;
+		}
+		let height = 0;
+		let actionCount = 0;
+		for (const item of items) {
+			if (actionCount >= maxVisibleItems) {
+				break;
+			}
+			height += this._itemHeightWith(item, this._options);
+			if (item.kind === ActionListItemKind.Action) {
+				actionCount++;
+			}
+		}
+		return height;
+	}
+
+	/**
+	 * Computes the height of the visible rows through the
+	 * {@link IActionListOptions.maxVisibleItems}th action row, or
+	 * `Number.POSITIVE_INFINITY` when the list is not capped.
+	 */
+	computeMaxVisibleItemsHeight(): number {
+		return this.computeMaxVisibleItemsHeightFor(this._visibleMenuItems);
+	}
+
+	/**
+	 * Computes the full list height capped through the configured maximum
+	 * number of visible action rows.
+	 */
+	computeMaxFullHeight(): number {
+		return Math.min(this.computeFullHeight(), this.computeMaxVisibleItemsHeightFor(this._allMenuItems));
 	}
 
 	/**
@@ -3381,6 +3434,10 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
+	setFilter(value: string, focusItemId?: string): void {
+		this._widget.setFilter(value, focusItemId);
+	}
+
 	clearFilter(): boolean {
 		return this._widget.clearFilter();
 	}
@@ -3446,7 +3503,8 @@ export class ActionList<T> extends Disposable {
 	}
 
 	private computeHeight(): number {
-		const listHeight = this._fixedContentHeight ?? this._widget.computeListHeight();
+		const maxVisibleItemsHeight = this._widget.computeMaxVisibleItemsHeight();
+		const listHeight = this._fixedContentHeight ?? Math.min(this._widget.computeListHeight(), maxVisibleItemsHeight);
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
@@ -3466,7 +3524,7 @@ export class ActionList<T> extends Disposable {
 			// Keep the resolved direction stable when filtering changes the visible item count.
 			if (this._showAbove === undefined) {
 				// A pinned height decides the direction too, so a later tab cannot flip it.
-				const fullHeight = this._fixedContentHeight ?? this._widget.computeFullHeight();
+				const fullHeight = this._fixedContentHeight ?? this._widget.computeMaxFullHeight();
 				if (this._anchorPosition !== undefined) {
 					this._showAbove = this._anchorPosition === AnchorPosition.ABOVE;
 				} else if (this._preferredAnchorPosition !== undefined) {

@@ -265,6 +265,8 @@ export class CapiReplayProxy {
 	private _modelTurnCount = 0;
 	private _workingDirectory: string | undefined;
 	private _recordingModelResponse: { readonly response: ICapiReplayResponse; readonly path?: string } | undefined;
+	private _managedSettingsBody = '{}';
+	private _managedSettingsRequestCount = 0;
 
 	/**
 	 * Fixture currently being replayed. Mutable so a single long-lived proxy can
@@ -383,7 +385,17 @@ export class CapiReplayProxy {
 		this._replayPlaceholderValues.clear();
 		this._replayPluginDirectories.clear();
 		this._modelTurnCount = 0;
+		this._managedSettingsBody = '{}';
+		this._managedSettingsRequestCount = 0;
 		this._loadFixture();
+	}
+
+	setManagedSettings(settings: Readonly<Record<string, unknown>>): void {
+		this._managedSettingsBody = JSON.stringify(settings);
+	}
+
+	get managedSettingsRequestCount(): number {
+		return this._managedSettingsRequestCount;
 	}
 
 	setWorkingDirectory(workingDirectory: string): void {
@@ -475,6 +487,12 @@ export class CapiReplayProxy {
 		req.on('data', chunk => chunks.push(chunk));
 		req.on('end', () => {
 			const body = Buffer.concat(chunks).toString('utf8');
+			if (req.method === 'GET' && new URL(req.url ?? '/', 'http://localhost').pathname === '/copilot_internal/managed_settings') {
+				this._managedSettingsRequestCount++;
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end(this._managedSettingsBody);
+				return;
+			}
 			if (this._isReplaying) {
 				this._replay(req, body, res);
 			} else {

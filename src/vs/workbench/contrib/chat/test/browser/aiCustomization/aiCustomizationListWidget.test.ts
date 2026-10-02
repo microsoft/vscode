@@ -13,16 +13,18 @@ import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
@@ -191,7 +193,7 @@ suite('aiCustomizationListWidget', () => {
 			uri: URI.file('Q:\\workspace\\.github\\prompts\\review.prompt.md'),
 			name: 'review',
 			displayName: 'Review',
-			filename: 'review.prompt.md',
+			filename: '.github\\prompts\\review.prompt.md',
 			description: 'Review the current changes',
 			source: PromptsStorage.local,
 			promptType: PromptsType.prompt,
@@ -199,7 +201,7 @@ suite('aiCustomizationListWidget', () => {
 			status: 'degraded',
 		};
 
-		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. Review the current changes. Needs attention');
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. .github\\prompts\\review.prompt.md. Needs attention');
 	});
 
 	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
@@ -473,10 +475,36 @@ suite('aiCustomizationListWidget', () => {
 			);
 		});
 
-		test('truncates non-hook descriptions to the first line', () => {
+		suite('splitPathLabel', () => {
+			test('keeps the filename visible after a path separator', () => {
+				assert.deepStrictEqual({
+					posix: splitPathLabel('.github/prompts/deeply/nested/review.prompt.md'),
+					windows: splitPathLabel('.github\\prompts\\deeply\\nested\\review.prompt.md'),
+					filename: splitPathLabel('review.prompt.md'),
+				}, {
+					posix: {
+						prefix: '.github/prompts/deeply/nested',
+						suffix: '/review.prompt.md',
+						suffixOffset: 29,
+					},
+					windows: {
+						prefix: '.github\\prompts\\deeply\\nested',
+						suffix: '\\review.prompt.md',
+						suffixOffset: 29,
+					},
+					filename: {
+						prefix: '',
+						suffix: 'review.prompt.md',
+						suffixOffset: 0,
+					},
+				});
+			});
+		});
+
+		test('shows the file location for non-hook customizations', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first line.'
+				getCustomizationSecondaryText('Prompt description', '.github/prompts/review.prompt.md', PromptsType.prompt),
+				'.github/prompts/review.prompt.md'
 			);
 		});
 
@@ -486,6 +514,25 @@ suite('aiCustomizationListWidget', () => {
 				'prompt.md'
 			);
 		});
+	});
+
+	test('normalizes remote workspace customization locations through the label service', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				return `${options?.relative ? 'relative' : 'absolute'}:${resource.path}`;
+			}
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, new class extends mock<IProductService>() { }());
+		const item = normalizer.normalizeItem({
+			uri: URI.parse('vscode-remote://ssh-remote+host/workspace/.github/prompts/review.prompt.md'),
+			type: PromptsType.prompt,
+			name: 'Review',
+			source: PromptsStorage.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+		}, PromptsType.prompt);
+
+		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
 	});
 
 	suite('extractExtensionIdFromPath', () => {
@@ -655,6 +702,9 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+			instaService.stub(ICustomizationMarketplaceService, {
+				sources: [],
+			});
 
 			// The widget reads items from the items model; stub it with empty
 			// per-section observables. This avoids needing to wire up the full
@@ -705,7 +755,7 @@ suite('aiCustomizationListWidget', () => {
 				id: 'instruction',
 				uri: URI.file('Q:\\workspace\\.github\\instructions\\typescript.instructions.md'),
 				name: 'TypeScript',
-				filename: 'typescript.instructions.md',
+				filename: '.github\\instructions\\typescript.instructions.md',
 				description: 'TypeScript instructions',
 				source: PromptsStorage.local,
 				promptType: PromptsType.instructions,
@@ -734,11 +784,63 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
 				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
 				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
+				secondaryText: row?.querySelector<HTMLElement>('.item-description')?.textContent,
+				usesHookSecondaryTextStyling: !row?.querySelector<HTMLElement>('.item-description')?.classList.contains('is-filename'),
 			}, {
 				badgeDisplay: 'none',
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
+				secondaryText: '.github\\instructions\\typescript.instructions.md',
+				usesHookSecondaryTextStyling: true,
+			});
+		});
+
+		test('hook rows keep commands separate from recycled path labels', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'prompt',
+				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+				name: 'Review',
+				filename: '.github/prompts/review.prompt.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.prompt,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Prompts);
+			items.set([{
+				id: 'hook',
+				uri: URI.file('/workspace/.github/hooks/hooks.json'),
+				name: 'Pre Tool Use',
+				filename: '.github/hooks/hooks.json',
+				description: 'npm run lint',
+				source: PromptsStorage.local,
+				promptType: PromptsType.hook,
+				disabled: false,
+			}], undefined);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				command: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.textContent,
+				commandDisplay: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.style.display,
+				pathDisplay: row?.querySelector<HTMLElement>('.item-path')?.style.display,
+			}, {
+				command: 'npm run lint',
+				commandDisplay: '',
+				pathDisplay: 'none',
 			});
 		});
 

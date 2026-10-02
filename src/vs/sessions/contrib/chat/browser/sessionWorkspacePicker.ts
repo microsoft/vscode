@@ -155,6 +155,7 @@ export interface IWorkspacePickerContextAction {
 	readonly label: string;
 	readonly description?: string;
 	readonly icon: ThemeIcon;
+	readonly placement?: 'top';
 	readonly run: () => Promise<void>;
 }
 
@@ -621,6 +622,7 @@ export class WorkspacePicker extends Disposable {
 
 	getContextPickerActions(): readonly IWorkspacePickerContextAction[] {
 		return this.sessionsProvidersService.getProviders()
+			.filter(provider => this._isWorkspaceProviderVisible(provider.id))
 			.flatMap(provider => provider.browseActions)
 			.filter(action => action.attachesContext === true)
 			.map(action => ({
@@ -838,6 +840,9 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!this._isWorkspaceProviderVisible(provider.id)) {
+				continue;
+			}
 			if (provider.supportsLocalWorkspaces && !byLabel.has(SESSION_WORKSPACE_GROUP_LOCAL)) {
 				byLabel.set(SESSION_WORKSPACE_GROUP_LOCAL, { id: SESSION_WORKSPACE_GROUP_LOCAL });
 			}
@@ -1458,8 +1463,9 @@ export class WorkspacePicker extends Disposable {
 	 * currently active tab when tabs are shown.
 	 */
 	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
-		const all = this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
-		const hasLocalSupport = this.sessionsProvidersService.getProviders().some(p => p.supportsLocalWorkspaces);
+		const providers = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id));
+		const all = providers.flatMap(p => p.browseActions);
+		const hasLocalSupport = providers.some(p => p.supportsLocalWorkspaces);
 		if (hasLocalSupport) {
 			all.unshift(this._localBrowseAction);
 		}
@@ -1467,6 +1473,10 @@ export class WorkspacePicker extends Disposable {
 			(!this._isTabFiltered() || this._isGroupInActiveTab(a.group))
 			&& (this._directPickerAttachesContext === undefined || Boolean(a.attachesContext) === this._directPickerAttachesContext)
 		);
+	}
+
+	private _isWorkspaceProviderVisible(providerId: string): boolean {
+		return this.sessionsProvidersService.getProvider(providerId)?.supportsWorkspaceSelection !== false;
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
@@ -1553,7 +1563,7 @@ export class WorkspacePicker extends Disposable {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		// Collect recent workspaces from picker storage across all providers
-		const allProviders = this.sessionsProvidersService.getProviders();
+		const allProviders = this.sessionsProvidersService.getProviders().filter(provider => this._isWorkspaceProviderVisible(provider.id));
 		const providerIds = new Set(allProviders.map(p => p.id));
 		const availableTabs = this._getAvailableTabs();
 		const activeGroup = this._activeTab ?? (availableTabs.length === 1 ? availableTabs[0].id : undefined);
@@ -2372,7 +2382,8 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _canRestoreProviderWorkspace(providerId: string): boolean {
-		return !this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId);
+		return this._isWorkspaceProviderVisible(providerId)
+			&& (!this.options.sessionWorkspaceProviderFilter || this.options.sessionWorkspaceProviderFilter(providerId));
 	}
 
 	private _canRestoreWorkspace(): boolean {
@@ -2470,7 +2481,8 @@ export class WorkspacePicker extends Disposable {
 	// -- Recent workspaces (sessions' own history) --
 
 	protected _getRecentWorkspaces(): IResolvedFolderWorkspace[] {
-		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces());
+		const recentWorkspaces = this.recentWorkspacesService.getRecentWorkspaces(true, this._useConsolidatedRemoteWorkspaces())
+			.filter(workspace => this._isWorkspaceProviderVisible(workspace.providerId));
 		const seen = new Set(recentWorkspaces.map(({ workspace }) =>
 			this.uriIdentityService.extUri.getComparisonKey(workspace.folders[0]?.root ?? workspace.uri)));
 		const sessionWorkspaces = (this._sessionWorkspaceFallback?.getWorkspaces() ?? []).filter(({ workspace }) => {

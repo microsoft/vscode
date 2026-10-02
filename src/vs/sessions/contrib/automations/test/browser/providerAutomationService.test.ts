@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { autorun, derived, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -121,6 +122,32 @@ suite('ProviderAutomationService', () => {
 		disposables.add(autorun(reader => states.push(service.catalogueState.read(reader))));
 		initialProvidersSettled.set(true, undefined);
 		assert.deepStrictEqual(states, ['loading', 'unavailable']);
+	});
+
+	test('routes customization choices to the target owner, not the saved automation owner', async () => {
+		const local = new TestAuthority('local');
+		const remote = new TestAuthority('remote');
+		const choices = [{ id: 'plugin', label: 'Plugin', selected: true, outdated: false }];
+		const requests: { providerId: string | undefined; existingId: string | undefined; token: CancellationToken }[] = [];
+		const remoteProvider = upcastPartial<ISessionsProvider>({
+			id: remote.providerId, label: remote.providerId,
+			automations: upcastPartial<ISessionsProviderAutomations>({
+				getCustomizationChoices: async (target, existingId, token) => {
+					requests.push({ providerId: target.providerId, existingId, token });
+					return choices;
+				},
+			}),
+		});
+		const { service } = setup([provider(local), remoteProvider]);
+		assert.deepStrictEqual({
+			remote: await service.getCustomizationChoices(automation('remote').target, 'local-automation', CancellationToken.None),
+			unsupported: await service.getCustomizationChoices(automation('local').target, undefined, CancellationToken.None),
+			missing: await service.getCustomizationChoices(automation('missing').target, undefined, CancellationToken.None),
+			requests,
+		}, {
+			remote: choices, unsupported: undefined, missing: undefined,
+			requests: [{ providerId: 'remote', existingId: 'local-automation', token: CancellationToken.None }],
+		});
 	});
 
 	test('aggregates availability while retaining independent multi-host operations', async () => {

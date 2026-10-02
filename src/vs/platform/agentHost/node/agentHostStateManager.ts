@@ -506,6 +506,7 @@ export class AgentHostStateManager extends Disposable {
 					title: chat.title,
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				}));
 			this._sessionSummaryChats.set(chats, result);
 		}
@@ -535,7 +536,8 @@ export class AgentHostStateManager extends Disposable {
 			return chat.resource === other.resource
 				&& chat.title === other.title
 				&& equals(chat.origin, other.origin)
-				&& chat.interactivity === other.interactivity;
+				&& chat.interactivity === other.interactivity
+				&& structuralEquals(chat.changes, other.changes);
 		});
 	}
 
@@ -1155,6 +1157,7 @@ export class AgentHostStateManager extends Disposable {
 				title: chat.title,
 				origin: chat.origin,
 				interactivity: chat.interactivity,
+				changes: chat.changes,
 			});
 		}
 		// A session that was previously surfaced (e.g. announced as an
@@ -1188,6 +1191,7 @@ export class AgentHostStateManager extends Disposable {
 	 */
 	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[]): void {
 		const chatUri = buildDefaultChatUri(sessionKey);
+		const changes = summary.chats?.find(chat => chat.resource === chatUri)?.changes;
 		// Empty title means "inherit the session title"; a persisted independent
 		// rename (`defaultChatTitle`) is seeded back here so it survives restore.
 		const chatSummary: ChatSummary = {
@@ -1195,6 +1199,7 @@ export class AgentHostStateManager extends Disposable {
 			title: defaultChatTitle ?? '',
 			...(modifiedAt !== undefined ? { modifiedAt } : {}),
 			...(workingDirectories !== undefined ? { workingDirectories: [...workingDirectories] } : {}),
+			...(changes !== undefined ? { changes } : {}),
 		};
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
@@ -1277,7 +1282,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1295,6 +1300,7 @@ export class AgentHostStateManager extends Disposable {
 					interactivity: options.interactivity ?? existing.interactivity,
 					...(options.archived !== undefined ? { status: withSessionStatusFlag(existing.status ?? SessionStatus.Idle, SessionStatus.IsArchived, options.archived) } : {}),
 					...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
+					...(existing.changes === undefined && options.changes !== undefined ? { changes: options.changes } : {}),
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);
 				existingEntry.summary = summary;
@@ -1318,6 +1324,7 @@ export class AgentHostStateManager extends Disposable {
 			...(options.origin ? { origin: options.origin } : {}),
 			interactivity: options.interactivity,
 			...(options.workingDirectories !== undefined ? { workingDirectories: [...options.workingDirectories] } : {}),
+			...(options.changes !== undefined ? { changes: options.changes } : {}),
 		};
 		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
@@ -1611,6 +1618,28 @@ export class AgentHostStateManager extends Disposable {
 		entry.changes = changes;
 
 		this._summaryNotifier.markDirty(session);
+	}
+
+	/**
+	 * Updates a chat's aggregate `changes` through the owning session's chat
+	 * catalog, so session lists receive it with `root/sessionSummaryChanged`
+	 * and session or chat subscribers receive it with `session/chatUpdated`.
+	 * Returns whether the catalog changed.
+	 */
+	setChatSummaryChanges(chat: URI, changes: ChangesSummary): boolean {
+		const session = this._chatEntries.get(chat)?.session;
+		const current = session !== undefined
+			? this._sessionStates.get(session)?.state.chats.find(summary => summary.resource === chat)
+			: undefined;
+		if (session === undefined || !current) {
+			this._logService.warn(`[AgentHostStateManager] setChatSummaryChanges: unknown chat ${chat}`);
+			return false;
+		}
+		if (structuralEquals(current.changes, changes)) {
+			return false;
+		}
+		this.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat, changes: { changes } });
+		return true;
 	}
 
 	/**

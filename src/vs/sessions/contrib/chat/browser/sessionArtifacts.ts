@@ -37,10 +37,11 @@ import type { IImageCarouselCollection } from '../../../../workbench/contrib/ima
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
 import { getLazyGitHubResourcePresentation, LazyGitHubResourceResolver, parseGitHubReferenceTarget } from '../../../../workbench/contrib/github/browser/lazyGitHubResourceHover.js';
 import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
+import { linkKey } from '../../../common/sessionLinks.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
-import { ISessionGitHubReferences } from '../../github/common/sessionGitHubReferences.js';
+import { ISessionGitHubReferences, parseGitHubArtifactLink } from '../../github/common/sessionGitHubReferences.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { IGitHubService as ISessionsGitHubService } from '../../github/browser/githubService.js';
@@ -559,7 +560,15 @@ export class SessionArtifacts extends Disposable {
 				...gitHubReferences?.pullRequests ?? [],
 				...gitHubReferences?.issues ?? [],
 			].map(ref => ref.recordedReferenceId));
-			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact => artifact.isArtifact === isArtifact && !surfacedIds.has(artifact.id));
+			const surfacedLinks = new Set([
+				...gitHubReferences?.pullRequests ?? [],
+				...gitHubReferences?.issues ?? [],
+			].map(ref => linkKey(ref.uri.toString())));
+			const artifacts = (current.artifacts?.read(reader) ?? []).filter(artifact =>
+				artifact.isArtifact === isArtifact
+				&& !surfacedIds.has(artifact.id)
+				&& !(artifact.link && parseGitHubArtifactLink(artifact) && surfacedLinks.has(linkKey(artifact.link.toString())))
+			);
 			const commits = new Map(artifacts.flatMap(artifact => {
 				const target = artifact.kind === SessionArtifactKind.Commit && artifact.link ? parseGitHubCommitTarget(artifact.link) : undefined;
 				const commit = target ? commitResolver.get(target).read(reader) : undefined;

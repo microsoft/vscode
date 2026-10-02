@@ -175,6 +175,9 @@ sourceMapSupport.install({
  */
 class NullStorageService implements IStorageService {
 
+	async readApplicationSharedValue(): Promise<string | undefined> { return undefined; }
+	async compareAndSwapApplicationSharedValue(): Promise<{ swapped: boolean; currentValue: string | undefined }> { return { swapped: false, currentValue: undefined }; }
+
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _onDidChangeValue = new Emitter<IStorageValueChangeEvent>();

@@ -22,12 +22,13 @@ interface ICopilotPackage {
 suite('built-in skills', () => {
 	const copilotRoot = path.resolve(__dirname, '..', '..', '..', '..', '..');
 
-	test('contributes create-canvas only to enabled Copilot CLI sessions', () => {
+	test('contributes create-canvas only to Copilot CLI sessions when Canvases are enabled', () => {
 		const manifest = JSON.parse(fs.readFileSync(path.join(copilotRoot, 'package.json'), 'utf-8')) as ICopilotPackage;
 		const contributions = manifest.contributes?.chatSkills?.filter(skill => skill.path.endsWith('/create-canvas/SKILL.md'));
 
 		expect(contributions).toEqual([{
 			path: './assets/prompts/skills/create-canvas/SKILL.md',
+			when: 'config.chat.canvases.enabled',
 			sessionTypes: ['copilotcli'],
 		}]);
 	});

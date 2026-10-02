@@ -43,7 +43,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { IAgentHostAutoConnect, IAgentHostConnectProgress, IAgentHostConnectionLabels, IAgentHostGroup } from '../../../../common/agentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace, readBranchProtectionPatterns } from '../../../../common/agentHostSessionWorkspace.js';
 import { DevContainerIdleTimeoutSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
+import { IGitHubInfo, IChat, isActiveSessionStatus, ISession, ISessionEnvironment, SessionStatus, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
@@ -162,6 +162,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	get defaultLabel(): string { return this._defaultLabel; }
 	private _label: string;
 	get label(): string { return this._label; }
+	get environment(): ISessionEnvironment {
+		return { id: this.id, label: this.label, isConnected: this._environmentIsConnected };
+	}
 	readonly icon: ThemeIcon = Codicon.remote;
 	readonly remoteAddress: string;
 	get devContainerSourceWorkspace(): URI | undefined { return this._devContainerSourceWorkspaceUri; }
@@ -174,7 +177,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly showConnectionLog?: () => Promise<void>;
 	readonly autoConnect?: IAgentHostAutoConnect;
 	readonly connectionLabels?: IAgentHostConnectionLabels;
-	readonly automations: ISessionsProviderAutomations;
+	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
 	readonly supportsQuickChats = true;
 	private readonly _automationStore: ReconnectableAgentHostAutomationStore;
 
@@ -182,6 +185,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.disconnected);
 	private readonly _readOnly: IObservable<boolean>;
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
+	private readonly _environmentIsConnected = derived(this, reader => RemoteAgentHostConnectionStatus.isConnected(this._connectionStatus.read(reader)));
 
 	protected override get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> {
 		return this.connectionStatus;
@@ -345,8 +349,6 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				return scheme.startsWith(prefix) ? scheme.slice(prefix.length) : undefined;
 			},
 		}));
-		this.automations = this._automationStore;
-
 		this._browseActions = [{
 			label: localize('folders', "Folders"),
 			description: displayName,
