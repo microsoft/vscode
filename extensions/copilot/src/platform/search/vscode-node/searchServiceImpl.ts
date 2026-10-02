@@ -25,8 +25,17 @@ export class SearchServiceImpl extends BaseSearchServiceImpl {
 		// Exclude patterns are combined with a logical AND, so appending an entry only narrows the
 		// results. Appending also keeps any RelativePattern the caller passed scoped to its baseUri.
 		const exclude = copilotIgnoreExclude ? [...options?.exclude ?? [], copilotIgnoreExclude] : options?.exclude;
-		const results = await super.findFiles(filePattern, { ...options, exclude }, token);
-		return await filterIngoredResources(this._ignoreService, results);
+		const searchOptions = { ...options, exclude };
+		const results = await super.findFiles(filePattern, searchOptions, token);
+		const allowed = await filterIngoredResources(this._ignoreService, results);
+		// Like the search itself, a missing or zero limit means no limit.
+		const maxResults = options?.maxResults;
+		if (maxResults === undefined || maxResults <= 0 || results.length < maxResults || allowed.length === results.length) {
+			return allowed;
+		}
+		// Excluded files used up part of a full page, so search again without a limit to fill the caller's quota.
+		const unlimited = await super.findFiles(filePattern, { ...searchOptions, maxResults: undefined }, token);
+		return (await filterIngoredResources(this._ignoreService, unlimited)).slice(0, maxResults);
 	}
 
 	override findTextInFiles2(query: vscode.TextSearchQuery2, options?: vscode.FindTextInFilesOptions2, token?: vscode.CancellationToken): vscode.FindTextInFilesResponse {

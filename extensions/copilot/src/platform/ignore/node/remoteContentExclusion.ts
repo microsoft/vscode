@@ -98,8 +98,8 @@ export class RemoteContentExclusion implements IDisposable {
 	private readonly _batchLimiter: Limiter<void>;
 	private _scheduledDrain: Promise<void> | undefined;
 	private _disposed = false;
-	// Flattened, precompiled view of every glob rule so isIgnored does not recompile per call.
-	private _compiledGlobs: Minimatch[] = [];
+	// Precompiled glob rules keyed by fetch url so isIgnored does not recompile per call.
+	private _compiledGlobs: Map<string, Minimatch[]> = new Map();
 	private _regexRuleCount = 0;
 	// Bumped whenever the rules change, which retires every verdict memoised against them.
 	private _rulesGeneration = 0;
@@ -213,24 +213,27 @@ export class RemoteContentExclusion implements IDisposable {
 		// it, rather than it being stored as if it reflected the newer rules.
 		const generation = this._rulesGeneration;
 
-		for (const glob of this._compiledGlobs) {
-			if (glob.match(fileName) || glob.match(file.path)) {
-				this._logService.debug(`File ${file.path} is ignored by content exclusion rule ${glob.pattern}`);
-				this._ignoreGlobResultCache.set(file, { verdict: true, generation });
-				return true;
+		// Unscoped organization rules are keyed under the non-git pseudo repo and apply to any file,
+		// while repository rules only apply to files in that repository.
+		const ruleSources = repoMetadata.fetchUrls.includes(NON_GIT_FILE_KEY)
+			? repoMetadata.fetchUrls
+			: [...repoMetadata.fetchUrls, NON_GIT_FILE_KEY];
+
+		for (const fetchUrl of ruleSources) {
+			for (const glob of this._compiledGlobs.get(fetchUrl) ?? []) {
+				if (glob.match(fileName) || glob.match(file.path)) {
+					this._logService.debug(`File ${file.path} is ignored by content exclusion rule ${glob.pattern}`);
+					this._ignoreGlobResultCache.set(file, { verdict: true, generation });
+					return true;
+				}
 			}
 		}
 		let fileContents = contents?.slice(0, 1024);
-		// Unscoped organization rules are keyed under the non-git pseudo repo and apply to any file.
-		// Their globs already reach every file, so content rules must be evaluated against them too.
-		const regexRuleSources = repoMetadata.fetchUrls.includes(NON_GIT_FILE_KEY)
-			? repoMetadata.fetchUrls
-			: [...repoMetadata.fetchUrls, NON_GIT_FILE_KEY];
 		// Regex rules are per repository, so the rule set is part of the key. Otherwise a permitted
 		// file would hand its verdict to a same-content file whose own repository excludes it.
-		const regexScope = regexRuleSources.join(' ');
+		const regexScope = ruleSources.join(' ');
 		let regexCacheKey: string = '';
-		for (const fetchUrl of regexRuleSources) {
+		for (const fetchUrl of ruleSources) {
 			const { ifAnyMatch, ifNoneMatch } = this._contentExclusionCache.get(fetchUrl) ?? { ifAnyMatch: [], ifNoneMatch: [] };
 			// We only want to read the file if we absolutely must as it can be expensive
 			if (ifAnyMatch.length > 0 || ifNoneMatch.length > 0) {
@@ -334,10 +337,15 @@ export class RemoteContentExclusion implements IDisposable {
 		this._repoRootCache.set(repoRootCacheKey(metadata.rootUri), metadata);
 	}
 
-	public async asMinimatchPatterns() {
+	/**
+	 * Returns the remote glob rules that apply to every file, i.e. the unscoped organization rules.
+	 * Repository rules are left out: a workspace-wide glob cannot be confined to the repository that
+	 * owns it, so they are enforced per file by {@link isIgnored} instead.
+	 */
+	public async asMinimatchPatterns(): Promise<string[]> {
 		// Anything already queued must land first so callers see a complete pattern set.
 		await Promise.all([...this._pendingRepos.values()].map(pending => pending.deferred.p));
-		return Array.from(this._contentExclusionCache.values()).flatMap(({ patterns }) => patterns);
+		return [...this._contentExclusionCache.get(NON_GIT_FILE_KEY)?.patterns ?? []];
 	}
 
 	public dispose() {
@@ -349,7 +357,7 @@ export class RemoteContentExclusion implements IDisposable {
 		this._disposables.forEach(d => d.dispose());
 		this._disposables = [];
 		this._contentExclusionCache.clear();
-		this._compiledGlobs = [];
+		this._compiledGlobs.clear();
 		this._regexRuleCount = 0;
 		this._earliestRuleExpiry = 0;
 	}
@@ -530,12 +538,13 @@ export class RemoteContentExclusion implements IDisposable {
 		this._ignoreRegexResultCache.clear();
 	}
 
-	/** Rebuilds the flattened matcher list that {@link isIgnored} walks. */
+	/** Rebuilds the per repository matcher lists that {@link isIgnored} walks. */
 	private rebuildCompiledRules(): void {
-		const globs: Minimatch[] = [];
+		const compiledGlobs = new Map<string, Minimatch[]>();
 		let regexRuleCount = 0;
 		let earliestExpiry = Number.POSITIVE_INFINITY;
-		for (const { patterns, ifAnyMatch, ifNoneMatch, fetchedAt } of this._contentExclusionCache.values()) {
+		for (const [fetchUrl, { patterns, ifAnyMatch, ifNoneMatch, fetchedAt }] of this._contentExclusionCache) {
+			const globs: Minimatch[] = [];
 			for (const pattern of patterns) {
 				try {
 					globs.push(new Minimatch(pattern, MINIMATCH_OPTIONS));
@@ -543,10 +552,13 @@ export class RemoteContentExclusion implements IDisposable {
 					this._logService.warn(`Skipping malformed content exclusion pattern '${pattern}': ${err}`);
 				}
 			}
+			if (globs.length > 0) {
+				compiledGlobs.set(fetchUrl, globs);
+			}
 			regexRuleCount += ifAnyMatch.length + ifNoneMatch.length;
 			earliestExpiry = Math.min(earliestExpiry, fetchedAt + RULE_TTL_MS);
 		}
-		this._compiledGlobs = globs;
+		this._compiledGlobs = compiledGlobs;
 		this._regexRuleCount = regexRuleCount;
 		// Zero while nothing is cached, which keeps memoised verdicts from being trusted before any
 		// rules have been loaded.
