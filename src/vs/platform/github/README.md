@@ -25,6 +25,8 @@ The [client inventory](client-inventory.md) maps runtime callers, migration boun
 
 GitHub and Copilot API services are colocated here, with separate domain contracts and quota owners. Shared [types](common/types.ts), [queue](common/requestQueue.ts), [scheduler](common/scheduler.ts), [backoff](common/backoff.ts), [cooldown state](common/cooldownState.ts), [body reader](common/responseReader.ts), [operation waiters](common/operationWaiters.ts) and [control transport](common/controlTransport.ts) have neutral names and do not interpret service-specific payloads. GitHub header/GraphQL policy stays in [GitHubRateLimitCoordinator](common/githubRateLimitCoordinator.ts); Copilot discovery, model policy and inference semantics stay in [CopilotApiService](common/copilotApiService.ts).
 
+Copilot is an application service, not a standalone Monaco editor entry point. Its SDK type dependencies stay outside Monaco's root compilation; the shared request mechanisms remain included.
+
 An in-flight operation owns its controller and shared deadline. `OperationWaiters` owns individual callers' waiting, cancellation and result delivery, not network execution. One caller can detach without cancelling peers; the operation owner decides what happens when its last waiter leaves. This also supports service-wide metadata initialization, which is not an HTTP request.
 
 ### Authorization clients

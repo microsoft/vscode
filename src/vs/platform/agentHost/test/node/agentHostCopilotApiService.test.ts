@@ -103,7 +103,7 @@ suite('Agent Host Copilot API binding', () => {
 		assert.deepStrictEqual({ aborted: active?.aborted, sku: readSku() }, { aborted: true, sku: undefined });
 	});
 
-	test('renewed credentials retain the account model cooldown without rediscovering accepted work', () => runWithFakedTimers({}, async () => {
+	test('renewed credentials retain the account model cooldown without rediscovering accepted work', async () => {
 		const requests: { path: string; token: string | null }[] = [];
 		const { authentication, service } = create(async (input, init) => {
 			const path = new URL(String(input)).pathname;
@@ -120,16 +120,19 @@ suite('Agent Host Copilot API binding', () => {
 				return true;
 			}
 		}();
-		await authentication.authenticate({ ...authRequest, token: 'old', ...metadata }, [provider]);
-		await assert.rejects(service.models('old'), { status: 429 });
-		await authentication.authenticate({ ...authRequest, token: 'renewed', ...metadata }, [provider]);
-		const pending = assert.rejects(service.models('renewed', { deadline: Date.now() + 100 }), { status: 429, code: 'rate_limited' });
-		await timeout(100);
-		await pending;
-		assert.deepStrictEqual(requests, [
-			{ path: '/copilot_internal/user', token: 'Bearer old' },
-			{ path: '/models', token: 'Bearer old' },
-			{ path: '/copilot_internal/user', token: 'Bearer renewed' },
-		]);
-	}));
+		// Host device metadata uses real OS I/O, which must finish before virtual deadlines advance.
+		assert.deepStrictEqual(await authentication.authenticate({ ...authRequest, token: 'old', ...metadata }, [provider]), { authenticated: true });
+		await runWithFakedTimers({ startTime: Date.now() }, async () => {
+			await assert.rejects(service.models('old'), { status: 429 });
+			assert.deepStrictEqual(await authentication.authenticate({ ...authRequest, token: 'renewed', ...metadata }, [provider]), { authenticated: true });
+			const pending = assert.rejects(service.models('renewed', { deadline: Date.now() + 100 }), { status: 429, code: 'rate_limited' });
+			await timeout(100);
+			await pending;
+			assert.deepStrictEqual(requests, [
+				{ path: '/copilot_internal/user', token: 'Bearer old' },
+				{ path: '/models', token: 'Bearer old' },
+				{ path: '/copilot_internal/user', token: 'Bearer renewed' },
+			]);
+		});
+	});
 });
