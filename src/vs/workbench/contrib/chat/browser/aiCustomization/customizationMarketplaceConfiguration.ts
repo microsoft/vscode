@@ -12,12 +12,12 @@ export const customizationMarketplaceConfigurationProperties = {
 		type: 'boolean',
 		tags: ['experimental'],
 		description: localize('chat.customizations.marketplace.enabled', "Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages."),
-		default: false,
+		default: true,
 	},
 	[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: {
 		type: 'boolean',
 		tags: ['experimental'],
 		description: localize('chat.customizations.marketplace.sources.publicFeed.enabled', "Enables the GitHub Feed as a source of skills, MCP servers, and plugins when Marketplace is shown. If Marketplace or this setting is disabled, the GitHub Feed is not queried."),
-		default: true,
+		default: false,
 	},
 } satisfies Record<string, IConfigurationPropertySchema>;
