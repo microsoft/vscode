@@ -11,7 +11,7 @@ import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindo
 import { IHostService } from '../../../services/host/browser/host.js';
 import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService, UNTITLED_WORKSPACE_NAME } from '../../../../platform/workspace/common/workspace.js';
-import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext, VIEW_ID } from '../common/files.js';
+import { ExplorerFocusCondition, TextFileContentProvider, VIEWLET_ID, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, FilesExplorerFocusCondition, ExplorerFolderContext } from '../common/files.js';
 import { ExplorerViewPaneContainer } from './explorerViewlet.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -324,16 +324,19 @@ CommandsRegistry.registerCommand({
 		const uri = getResourceForCommand(resource, editorService, listService);
 
 		if (uri && contextService.isInsideWorkspace(uri)) {
-			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
+			const explorerView = await viewService.openView<ExplorerView>(explorerService.getViewId(), false);
 			if (explorerView) {
 				const oldAutoReveal = explorerView.autoReveal;
 				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
 				// Fixes #197268
 				explorerView.autoReveal = false;
-				explorerView.setExpanded(true);
-				await explorerService.select(uri, 'force');
-				explorerView.focus();
-				explorerView.autoReveal = oldAutoReveal;
+				try {
+					explorerView.setExpanded(true);
+					await explorerService.select(uri, 'force');
+					explorerView.focus();
+				} finally {
+					explorerView.autoReveal = oldAutoReveal;
+				}
 			}
 		} else {
 			// Do not reveal the open editors view if it's hidden explicitly
