@@ -35,6 +35,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import { AgentHostChatIsolationStateMetaKey, type ChatIsolationState } from '../../../../../../platform/agentHost/common/meta/agentHostChatIsolationMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -7744,6 +7745,88 @@ suite('AgentHostChatContribution', () => {
 	// ---- Error events -------------------------------------------------------
 
 	suite('error events', () => {
+		for (const { target, operation } of (['main', 'peer', 'opaque-main'] as const).flatMap(target => (['isolating', 'changingWorkspace'] as const).map(operation => ({ target, operation })))) {
+			test(`${operation} blocks sending but not draft editing in the exact advertised ${target} chat`, async () => {
+				const activity = operation === 'isolating' ? 'Changing workspace to a new worktree...' : 'Changing workspace to destination...';
+				const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables);
+				const notifications = new Map<string, IChatInputNotification>();
+				const notificationService = instantiationService.get(IChatInputNotificationService);
+				notificationService.setNotification = notice => notifications.set(notice.id, notice);
+				notificationService.deleteNotification = id => { notifications.delete(id); };
+				const backend = 'copilot:/isolation-progress';
+				const chat = target === 'opaque-main' ? 'ahp-chat:/host-selected-isolation-chat' : buildDefaultChatUri(backend);
+				const peer = buildChatUri(backend, 'peer');
+				const summary: SessionSummary = {
+					resource: backend, provider: 'copilot', title: 'Isolation', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				};
+				agentHostService.sessionStates.set(backend, {
+					...createSessionState(summary), lifecycle: SessionLifecycle.Ready, defaultChat: chat,
+					chats: [createDefaultChatSummary(summary, chat), createDefaultChatSummary(summary, peer)],
+				});
+				const mainResource = URI.parse('agent-host-copilot:/isolation-progress');
+				const peerResource = mainResource.with({ fragment: 'peer' });
+				const resource = target === 'peer' ? peerResource : mainResource;
+				const session = disposables.add(await sessionHandler.provideChatSessionContent(resource, CancellationToken.None));
+				const sibling = disposables.add(await sessionHandler.provideChatSessionContent(target === 'peer' ? mainResource : peerResource, CancellationToken.None));
+				const requests: IChatSessionServerRequest[] = [];
+				disposables.add(session.onDidStartServerRequest!(request => requests.push(request)));
+				const snapshot = () => ({
+					blocked: session.isInputBlocked?.get(), readOnly: session.isReadOnly?.get(),
+					siblingBlocked: sibling.isInputBlocked?.get(), notices: notifications.size,
+					complete: session.isCompleteObs?.get(),
+				});
+				const observed = [snapshot()];
+				let serverSeq = 100;
+				let progress: string[] = [];
+				let interrupted: boolean | undefined;
+				const channel = target === 'peer' ? peer : chat;
+				for (const state of [operation, undefined, 'blocked'] satisfies (ChatIsolationState | undefined)[]) {
+					agentHostService.fireAction({
+						channel: backend, serverSeq: serverSeq++, origin: undefined,
+						action: { type: ActionType.SessionMetaChanged, _meta: { [AgentHostChatIsolationStateMetaKey]: state ? { [target === 'peer' ? peer : chat]: state } : {} } },
+					});
+					if (state === operation) {
+						agentHostService.fireAction({
+							channel, serverSeq: serverSeq++, origin: undefined,
+							action: {
+								type: ActionType.ChatTurnStarted, turnId: 'isolation-notice', startedAt: new Date().toISOString(),
+								message: withMessageRequestHiddenFromTranscript({ text: activity, origin: { kind: MessageKind.SystemNotification } }, true),
+							},
+						});
+						agentHostService.fireAction({
+							channel, serverSeq: serverSeq++, origin: undefined,
+							action: { type: ActionType.ChatActivityChanged, activity },
+						});
+						interrupted = await session.interruptActiveResponseCallback?.();
+						progress = (session.progressObs?.get() ?? []).filter(part => part.kind === 'progressMessage').map(part => part.content.value);
+					} else if (state === undefined) {
+						agentHostService.fireAction({
+							channel, serverSeq: serverSeq++, origin: undefined,
+							action: { type: ActionType.ChatTurnComplete, turnId: 'isolation-notice', duration: 10 },
+						});
+					}
+					await Promise.resolve();
+					observed.push(snapshot());
+				}
+				assert.deepStrictEqual({
+					observed, progress, interrupted,
+					requests: requests.map(request => ({ hidden: request.isRequestHidden, system: request.isSystemInitiated })),
+					targets: [...notifications.values()].map(notice => notice.sessionResources?.map(uri => uri.toString())),
+					turns: agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatTurnStarted || entry.action.type === ActionType.ChatTurnCancelled),
+				}, {
+					observed: [
+						{ blocked: false, readOnly: false, siblingBlocked: false, notices: 0, complete: true },
+						{ blocked: true, readOnly: false, siblingBlocked: false, notices: 0, complete: false },
+						{ blocked: false, readOnly: false, siblingBlocked: false, notices: 0, complete: true },
+						{ blocked: true, readOnly: false, siblingBlocked: false, notices: 1, complete: true },
+					],
+					progress: [operation === 'isolating' ? 'Changing&nbsp;workspace&nbsp;to&nbsp;a&nbsp;new&nbsp;worktree...' : 'Changing&nbsp;workspace&nbsp;to&nbsp;destination...'], interrupted: false,
+					requests: [{ hidden: true, system: true }], targets: [[resource.toString()]], turns: [],
+				});
+			});
+		}
+
 		test('opening a locked conversation blocks input and Retry clears the banner without a turn', async () => {
 			const { sessionHandler, agentHostService, instantiationService } = createContribution(disposables, { provider: 'codex' });
 			const notifications = new Map<string, IChatInputNotification>();

@@ -25,7 +25,7 @@ import { IChatRequestTranscriptContextVariableEntry } from '../../../../../workb
 import { ChatInputNoticeHost, ChatInputNoticeLane } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputNoticeHost.js';
 import { isChatInputStackSlotShowing } from '../../../../../workbench/contrib/chat/browser/widget/input/chatInputStack.js';
 import { ResponseModelState } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatModel, IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
@@ -2230,6 +2230,35 @@ suite('Sessions - Chat View', () => {
 			hiddenComplete: false,
 			visiblePending: false,
 		});
+	});
+
+	test('isolation uses its visible response rather than an extra preparation progress surface', () => {
+		const request = new class extends mock<IChatRequestModel>() {
+			override readonly isRequestHiddenFromTranscript = true;
+			override readonly isHiddenFromTranscript = false;
+			override readonly response = new class extends mock<IChatResponseModel>() {
+				override readonly isIncomplete = constObservable(true);
+				override readonly state = ResponseModelState.Pending;
+			}();
+		}();
+		const model = new class extends mock<IChatModel>() {
+			override readonly lastRequestObs = constObservable(request);
+			override getRequests() { return [request]; }
+		}();
+		const session = new class extends mock<ISession>() {
+			override readonly status = constObservable(SessionStatus.InProgress);
+			override readonly description = constObservable(new MarkdownString('Changing workspace to a new worktree...'));
+		}();
+		const calls: Parameters<ChatWidget['setTranscriptProgress']>[] = [];
+		const view: { _setupTranscriptPreparationProgress(model: IObservable<IChatModel | undefined>): void } = Object.assign(Object.create(ChatView.prototype), {
+			_store: disposables,
+			_currentChatResourceObs: constObservable(URI.parse('test:///isolation')),
+			_currentSessionObs: constObservable(session),
+			_preparationModel: { value: undefined },
+			_widget: { setTranscriptProgress: (...args: Parameters<ChatWidget['setTranscriptProgress']>) => calls.push(args) },
+		});
+		view._setupTranscriptPreparationProgress(constObservable(model));
+		assert.deepStrictEqual(calls, [[undefined, undefined, undefined]]);
 	});
 
 	test('shows transcript preparation completion until visible content appears', () => {

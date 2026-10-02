@@ -150,7 +150,9 @@ async function dispatchCanUseTool(
 	const permissionKind = getClaudePermissionKind(toolName);
 	const displayName = getClaudeToolDisplayName(toolName);
 	const permissionPath = options.blockedPath ?? getClaudeToolPath(toolName, input);
-	const serverDisplay = serverToolName ? getServerToolDisplay(serverToolName, input) : undefined;
+	const serverDisplay = serverToolName
+		? serverToolHost?.getDisplay?.(session.chatChannelUri.toString(), serverToolName, input) ?? getServerToolDisplay(serverToolName, input)
+		: undefined;
 	const toolInputString = serverDisplay?.hideConfirmationInput ? undefined : getClaudeToolInputString(toolName, input);
 	const meta = buildClaudeToolMeta(toolName);
 	const state: ToolCallPendingConfirmationState = {

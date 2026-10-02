@@ -11,6 +11,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import type { IServerToolDisplay } from '../../common/agentServerTools.js';
 import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
@@ -1149,7 +1150,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
  * `additionalDirectories` carries the peer roots of a multi-root session, so a
  * read under any root is recognized as inside the workspace.
  */
-export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[]): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], serverToolDisplay?: IServerToolDisplay): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1206,7 +1207,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 					permissionPath: path,
 				};
 			}
-			const serverDisplay = sdkToolName ? getServerToolDisplay(sdkToolName, args) : undefined;
+			const serverDisplay = serverToolDisplay ?? (sdkToolName ? getServerToolDisplay(sdkToolName, args) : undefined);
 			return {
 				confirmationTitle: serverDisplay?.confirmationTitle ?? localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: serverDisplay?.confirmationMessage ?? md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),

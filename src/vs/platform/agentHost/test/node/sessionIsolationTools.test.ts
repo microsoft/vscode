@@ -31,7 +31,7 @@ suite('Session isolation tool', () => {
 		const calls: { chat: string; turnId: string }[] = [];
 		let enabled = true;
 		const group = createSessionIsolationToolGroup({
-			canIsolateChatInSession: () => enabled,
+			supportsChatIsolation: () => enabled,
 			requestChatIsolation: (chat, turnId) => calls.push({ chat: chat.toString(), turnId }),
 		});
 		const host = new AgentServerToolHost(stateManager, [group]);
@@ -92,11 +92,32 @@ suite('Session isolation tool', () => {
 			parameters: tool.inputSchema,
 			display: getServerToolDisplay(tool.name, {})?.displayName,
 		}, {
-			canConfirm: true, confirms: true, parameters: { type: 'object', properties: {} }, display: 'Isolate Chat',
+			canConfirm: true, confirms: true, parameters: { type: 'object', properties: {} }, display: 'Change Workspace to a New Worktree',
 		});
+		assert.deepStrictEqual(Object.values(getServerToolDisplay(tool.name, {})!).filter(value => typeof value === 'string' && /isolat/i.test(value)), []);
 		assert.match(tool.description!, /only the current chat/);
 		assert.match(tool.description!, /original folder is unchanged/);
 		assert.match(tool.description!, /does not.*move other chats/);
 		assert.match(tool.description!, /final tool call.*end the turn/);
+	});
+
+	test('confirmation follows the owning session chat count and stays neutral without live state', () => {
+		const { stateManager, host, session, main, peer } = createHarness();
+		const multiChatMessage = 'Change only this chat\'s workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.';
+		const singleChatMessage = 'Change this chat\'s workspace to a new worktree? The original folder is left unchanged. Uncommitted edits are not copied, except configured worktree include-files.';
+		const multi = [main, peer].map(chat => host.getDisplay(chat, SessionServerToolName.IsolateSession, {})?.confirmationMessage);
+		stateManager.removeChat(session, peer);
+		const single = host.getDisplay(main, SessionServerToolName.IsolateSession, {})?.confirmationMessage;
+		stateManager.addChat(session, peer);
+		assert.deepStrictEqual({
+			multi, single,
+			afterAddingChat: host.getDisplay(main, SessionServerToolName.IsolateSession, {})?.confirmationMessage,
+			withoutState: getServerToolDisplay(SessionServerToolName.IsolateSession, {})?.confirmationMessage,
+		}, {
+			multi: [multiChatMessage, multiChatMessage],
+			single: singleChatMessage,
+			afterAddingChat: multiChatMessage,
+			withoutState: singleChatMessage,
+		});
 	});
 });

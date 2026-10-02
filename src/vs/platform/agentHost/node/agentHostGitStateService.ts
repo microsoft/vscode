@@ -835,8 +835,13 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	async resolveSessionBaseBranchName(sessionKey: string): Promise<string | undefined> {
 		const state = this._getStateForGitScope(sessionKey);
+		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
+		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, sessionKey).isSessionFolder;
+		if (!isSessionFolder && isDefaultChatUri(sessionKey)) {
+			return gitStateBaseBranch;
+		}
 		const configValues = state?.config?.values;
-		const configuredBranch = configValues?.[SessionConfigKey.Isolation] === 'worktree'
+		const configuredBranch = isSessionFolder && configValues?.[SessionConfigKey.Isolation] === 'worktree'
 			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
 			? configValues[SessionConfigKey.Branch]
 			: undefined;
@@ -844,7 +849,6 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);
 		}
 
-		const gitStateBaseBranch = this.getSessionGitState(sessionKey)?.baseBranchName;
 		const workingDirectory = state?.workingDirectories?.[0];
 		const project = state?.project?.uri;
 		if (!workingDirectory || !project || isEqual(URI.parse(workingDirectory), URI.parse(project))) {

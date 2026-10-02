@@ -4821,7 +4821,10 @@ export class CopilotAgentSession extends Disposable {
 			this._surfaceProvisionalFusionToolCall(toolCallId);
 
 			const isNewFile = edits?.items.some(edit => !edit.before && !!edit.after);
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories);
+			const serverDisplay = serverToolName && request.kind === 'custom-tool'
+				? serverToolHost?.getDisplay?.(this._chatChannelUri.toString(), serverToolName, request.args)
+				: undefined;
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory, isNewFile, this._appliedAdditionalDirectories, serverDisplay);
 
 			// Fire a pending_confirmation signal to transition the tool to PendingConfirmation
 			const toolName = request.kind === 'mcp' || request.kind === 'custom-tool' || request.kind === 'hook'

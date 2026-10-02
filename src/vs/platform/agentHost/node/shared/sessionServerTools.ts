@@ -120,7 +120,7 @@ const setWorkspaceInputSchema: ToolDefinition['inputSchema'] = {
 	properties: {
 		workspaceFolder: {
 			type: 'string',
-			description: 'Absolute local folder path or file URI to set as the current session\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
+			description: 'Absolute local folder path or file URI to set as the current chat\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
 		},
 		isolation: {
 			type: 'boolean',
@@ -195,7 +195,7 @@ export const sessionServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: SessionServerToolName.SetWorkspace,
 		title: 'Set Workspace',
-		description: 'Attach a real workspace only to modify its files or run commands requiring its project environment. Do not use for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. The session, chat, and history are preserved. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Set `isolation` to true for a managed Git worktree or false for the folder directly. After this turn, the host attaches the workspace and continues the original task. Make this the turn\'s final tool call.',
+		description: 'Set the current chat\'s workspace while preserving its identity and history. If a workspace is already attached, use this tool only when the user explicitly asks to change this chat\'s workspace. Do not infer a workspace change from a file path, a request to inspect another repository, or ordinary work in the current workspace. If `isolation` is false and the requested folder is already this chat\'s effective working directory, skip this tool and the confirmation question; tell the user the chat already uses that workspace and continue normally. Compare against this chat\'s working directory, not its session\'s project root. Creating a new worktree from the same folder is a real change, not a no-op. For a workspace-less quick chat, attach a workspace only to modify its files or run commands requiring its project environment; not for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. Other chats keep their workspaces. Set `isolation` to true for a new managed Git worktree or false to use the selected folder directly; files are not moved or copied to the selected folder. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Make this the turn\'s final tool call and end the turn; the host changes the workspace and continues the original task automatically. Do not repeat the request.',
 		inputSchema: setWorkspaceInputSchema,
 		annotations: { readOnlyHint: false },
 		deferLoading: true,
@@ -329,7 +329,8 @@ export interface IAgentServiceSessionServerToolAccessor {
 
 /** Complete dependency surface needed by the session server-tool group. */
 export interface ISessionServerToolAccessor extends IAgentServiceSessionServerToolAccessor {
-	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => void;
+	/** Returns whether a workspace change was scheduled. */
+	readonly requestSessionWorkspaceUpdate: (chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean) => boolean;
 }
 
 export interface IRenameTitleResult {
@@ -1519,19 +1520,23 @@ export async function applyDeleteSessionTool(accessor: ISessionServerToolAccesso
 	return `Deleted session ${session.toString()}. Reply with one short sentence confirming the session was deleted.`;
 }
 
-/** Requests setting the workspace in place after the tool's active turn completes. */
+const workspaceUnchangedResultPrefix = 'This chat already uses';
+
+/** Requests setting the workspace after the active turn, or reports that it is already selected. */
 export function applySetWorkspaceTool(accessor: ISessionServerToolAccessor, rawArgs: unknown, chat: URI, turnId: string | undefined): string {
 	if (!turnId) {
 		throw new Error(`${SessionServerToolName.SetWorkspace} must run from an active chat turn.`);
 	}
 	const { workspaceFolder, isolation } = getSetWorkspaceArgs(rawArgs);
-	accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation);
+	if (!accessor.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation)) {
+		return `${workspaceUnchangedResultPrefix} ${workspaceFolder.toString()}. No workspace change was scheduled. Continue the current turn normally; no automatic continuation will be started. Do not call set_workspace again for this unchanged workspace.`;
+	}
 	return isolation
 		? `An isolated worktree will be created from ${workspaceFolder.toString()} and set as the workspace after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the isolated workspace.`
 		: `Workspace will be set to ${workspaceFolder.toString()} after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the selected workspace.`;
 }
 
-function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
+function getSessionToolDisplay(toolName: string, args: unknown, result?: IServerToolDisplayResult): IServerToolDisplay | undefined {
 	switch (toolName) {
 		case SessionServerToolName.ListSessions:
 			return {
@@ -1597,15 +1602,17 @@ function getSessionToolDisplay(toolName: string, args: unknown, _result?: IServe
 					? basename(parseWorkspaceUri(input.workspaceFolder) ?? URI.file(input.workspaceFolder)) || workspaceFolder
 					: workspaceFolder;
 				const confirmationMessage = input?.isolation === true
-					? localize('toolConfirm.setWorkspace.isolated', "Continue this session in {0} with changes isolated from the existing folder?", workspaceFolder)
+					? localize('toolConfirm.setWorkspace.isolated', "Change this chat's workspace to a new worktree of {0}? Other chats keep their workspaces.", workspaceFolder)
 					: input?.isolation === false
-						? localize('toolConfirm.setWorkspace.direct', "Continue this session in {0} and make changes directly in that folder?", workspaceFolder)
-						: localize('toolConfirm.setWorkspace.generic', "Continue this session in {0}?", workspaceFolder);
+						? localize('toolConfirm.setWorkspace.direct', "Change this chat's workspace to {0} and make changes directly in that folder? Other chats keep their workspaces.", workspaceFolder)
+						: localize('toolConfirm.setWorkspace.generic', "Change this chat's workspace to {0}?", workspaceFolder);
 				return {
-					displayName: localize('toolName.setWorkspace', "Set Workspace"),
-					invocationMessage: localize('toolInvoke.setWorkspace', "Setting workspace"),
-					pastTenseMessage: localize('toolComplete.setWorkspace', "Scheduled workspace change"),
-					confirmationTitle: localize('toolConfirm.setWorkspace.title', "Continue in {0}?", workspaceName),
+					displayName: localize('toolName.setWorkspace', "Change Workspace"),
+					invocationMessage: localize('toolInvoke.setWorkspace', "Requesting a workspace change"),
+					pastTenseMessage: result?.success && result.text?.startsWith(workspaceUnchangedResultPrefix)
+						? localize('toolComplete.setWorkspace.unchanged', "Workspace unchanged")
+						: localize('toolComplete.setWorkspace', "Scheduled workspace change"),
+					confirmationTitle: localize('toolConfirm.setWorkspace.title', "Change Workspace to {0}?", workspaceName),
 					confirmationMessage,
 					hideConfirmationInput: true,
 				};

@@ -17,7 +17,7 @@ import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/s
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
 import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, encodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostCatalogSourceResolver, CHAT_BACKING_METADATA_KEY, ICatalogSourceState } from '../../node/agentHostCatalogSourceResolver.js';
-import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
+import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from '../../node/shared/worktreeIsolation.js';
 
 const session = URI.parse('agenthost:catalog-source');
@@ -112,6 +112,22 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restores aggregate roots independently of the main chat and honors exclusive replacement', async () => {
+		const aggregate = ['file:///original', 'file:///replacement'];
+		const warm = await createResolver({}).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: aggregate }, {
+			[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(aggregate),
+		}, false);
+		const cold = await createResolver(warm.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: ['file:///replacement'] }, {}, true);
+		const replacement = await createResolver(warm.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: ['file:///replacement'] }, {}, false);
+		const reopened = await createResolver(replacement.legacyMetadata).buildCatalogSyncRequest(session, { ...sourceState(), workingDirectories: aggregate }, {}, true);
+		const legacy = await createResolver({}).buildCatalogSyncRequest(session, sourceState(), {}, true);
+		assert.deepStrictEqual({
+			cold: cold.data.workingDirectories,
+			reopened: reopened.data.workingDirectories,
+			legacy: legacy.data.workingDirectories,
+		}, { cold: aggregate, reopened: ['file:///replacement'], legacy: ['file:///live'] });
+	});
 
 	test('restores artifacts for multiple chats from the shared session metadata key', async () => {
 		const peer = 'agenthost-chat:catalog-source/peer';

@@ -10,8 +10,9 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import type { AgentChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
-import { AgentHostChatInputState } from '../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
-import { type IChatInputNotification, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
+import type { ChatIsolationState } from '../../../../../../platform/agentHost/common/meta/agentHostChatIsolationMeta.js';
+import { AgentHostChatInputState, AgentHostChatIsolationState } from '../../../browser/agentSessions/agentHost/agentHostChatInputState.js';
+import { ChatInputNotificationSeverity, type IChatInputNotification, type IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 
 suite('AgentHostChatInputState', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -23,6 +24,39 @@ suite('AgentHostChatInputState', () => {
 		override setNotification(notice: IChatInputNotification): void { this.notices.set(notice.id, notice); }
 		override deleteNotification(id: string): void { this.notices.delete(id); }
 	}
+
+	test('isolation blocks sending without an input progress banner and clears on completion or safe failure', () => {
+		const notices = new Notifications();
+		const isolation = observableValue<ChatIsolationState | undefined>('isolation', undefined);
+		const state = store.add(new AgentHostChatIsolationState(resource, isolation, notices));
+		isolation.set('isolating', undefined);
+		const running = {
+			blocked: state.isInputBlocked.get(), notices: notices.notices.size,
+		};
+		isolation.set(undefined, undefined);
+		assert.deepStrictEqual({ running, blocked: state.isInputBlocked.get(), notices: notices.notices.size }, {
+			running: { blocked: true, notices: 0 },
+			blocked: false, notices: 0,
+		});
+	});
+
+	test('unsafe isolation failure keeps sending blocked and explains why without a retry action', () => {
+		const notices = new Notifications();
+		const isolation = observableValue<ChatIsolationState | undefined>('isolation', 'isolating');
+		const state = store.add(new AgentHostChatIsolationState(resource, isolation, notices));
+		isolation.set('blocked', undefined);
+		const notice = [...notices.notices.values()][0];
+		assert.deepStrictEqual({
+			blocked: state.isInputBlocked.get(), notices: notices.notices.size, message: notice.message,
+			severity: notice.severity, actions: notice.actions, dismissible: notice.dismissible,
+		}, {
+			blocked: true, notices: 1, message: 'Could not change the chat\'s workspace safely',
+			severity: ChatInputNotificationSeverity.Error, actions: [], dismissible: false,
+		});
+		state.dispose();
+		isolation.set('isolating', undefined);
+		assert.strictEqual(notices.notices.size, 0);
+	});
 
 	test('renders host state and refreshes without accumulating banners', async () => {
 		const notices = new Notifications();

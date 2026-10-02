@@ -41,11 +41,6 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
 	) {
 		super();
-		this._register(this._conversionService.onDidChangePendingSession(session => {
-			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
-				this._tryConsumeNextQueuedMessage(chat.resource);
-			}
-		}));
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {

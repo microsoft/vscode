@@ -133,6 +133,22 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public onDisposeSession: ((session: URI) => void) | undefined;
 	public failDisposeSessionFor: string | undefined;
 	public dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction; clientId: string; clientSeq: number }[] = [];
+	/** When set, archive actions are rejected with this reason instead of applied. */
+	public archiveRejectionReason: string | undefined;
+	/** When false, archive actions are neither applied nor answered, as if the host never replied. */
+	public answerArchives = true;
+	/**
+	 * Channels whose archive subscription has not received its initial snapshot yet: its value
+	 * stays `undefined` and, like the real host, archive verdicts for the channel are dropped
+	 * until {@link activateArchiveChannel}.
+	 */
+	public readonly inactiveArchiveChannels = new Set<string>();
+	private readonly _onDidActivateArchiveChannel = new Emitter<string>();
+
+	activateArchiveChannel(channel: string): void {
+		this.inactiveArchiveChannels.delete(channel);
+		this._onDidActivateArchiveChannel.fire(channel);
+	}
 	public failResolveSessionConfig = false;
 	public resolveSessionConfigResult: ResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 	public resolveSessionConfigRequests: { config?: Record<string, unknown> }[] = [];
@@ -307,8 +323,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
-		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq: this._nextSeq++ });
-		if (action.type === ActionType.ChatIsArchivedChanged) {
+		const clientSeq = this._nextSeq++;
+		this.dispatchedActions.push({ channel, action, clientId: this.clientId, clientSeq });
+		const isArchive = (action.type === ActionType.SessionIsArchivedChanged || action.type === ActionType.ChatIsArchivedChanged) && action.isArchived;
+		if (isArchive && !this.answerArchives) {
+			return;
+		}
+		if (action.type === ActionType.ChatIsArchivedChanged && !(isArchive && this.archiveRejectionReason)) {
 			const session = URI.parse(parseRequiredSessionUriFromChatUri(channel));
 			const existing = this._sessionStateValues.get(session.toString()) as SessionState | undefined;
 			if (existing) {
@@ -324,6 +345,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 						: summary),
 				});
 			}
+		}
+		if (isArchive && !this.inactiveArchiveChannels.has(channel)) {
+			this.fireAction({
+				channel,
+				action,
+				serverSeq: this._nextSeq++,
+				origin: { clientId: this.clientId, clientSeq },
+				...(this.archiveRejectionReason ? { rejectionReason: this.archiveRejectionReason } : {}),
+			} as ActionEnvelope);
 		}
 	}
 
@@ -352,15 +382,15 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public sessionSubscribeCounts = new Map<string, number>();
 	public sessionUnsubscribeCounts = new Map<string, number>();
 
-	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+	override getSubscription<T>(_kind: StateComponents, resource: URI, owner: string): IReference<IAgentSubscription<T>> {
 		const key = resource.toString();
 		if (isAhpAutomationCatalogChannel(key) && !this._sessionStateValues.has(key)) {
 			this._sessionStateValues.set(key, this.automationCatalog);
 		}
-		return this._getSubscription<T>(key);
+		return this._getSubscription<T>(key, /\.archive(Chat)?$/.test(owner));
 	}
 
-	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
+	private _getSubscription<T>(key: string, isArchiveSubscription = false): IReference<IAgentSubscription<T>> {
 		this.wireOps.push(`subscribe:${key}`);
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
 		let emitter = this._sessionStateEmitters.get(key);
@@ -374,10 +404,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			this._sessionStateErrorEmitters.set(key, errorEmitter);
 		}
 		const self = this;
+		// An archive subscription models a session the host has loaded unless the test holds its snapshot back.
+		const archiveSnapshot = isArchiveSubscription ? Object.freeze({}) as unknown as SubscriptionState : undefined;
 		const sub: IAgentSubscription<T> = {
-			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get value() { return (self._sessionStateValues.get(key) ?? (archiveSnapshot && !self.inactiveArchiveChannels.has(key) ? archiveSnapshot : undefined)) as unknown as T | undefined; },
 			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
-			onDidChange: emitter.event as unknown as Event<T>,
+			onDidChange: (archiveSnapshot
+				? Event.any(emitter.event, Event.map(Event.filter(self._onDidActivateArchiveChannel.event, channel => channel === key), () => archiveSnapshot))
+				: emitter.event) as unknown as Event<T>,
 			onDidError: errorEmitter.event,
 			onWillApplyAction: Event.None,
 			onDidApplyAction: Event.None,
@@ -503,6 +537,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
+		this._onDidActivateArchiveChannel.dispose();
 		this._onDidRootStateChange.dispose();
 		this._onDidRootStateError.dispose();
 		this._onAgentHostStart.dispose();
@@ -3874,6 +3909,57 @@ suite('LocalAgentHostSessionsProvider', () => {
 			workingDirectories: [workspaceDirectory.toString()],
 			announced: true,
 			sameAdapter: true,
+		});
+	}));
+
+	test('workspace change project survives subsequent state updates with an unchanged old project', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const previous = URI.file('/home/user/previous');
+		const next = URI.file('/home/user/next');
+		const previousProject = { uri: previous.toString(), displayName: 'previous' };
+		agentHost.addSession(createSession('workspace-change', {
+			project: { uri: previous, displayName: previousProject.displayName },
+			workingDirectory: previous,
+		}));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId);
+		const defaultChat = buildDefaultChatUri(AgentSession.uri('copilotcli', 'workspace-change'));
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Chat', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat,
+			project: previousProject, workingDirectories: [previous.toString()],
+			chats: [{ resource: defaultChat, title: 'Chat', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() }],
+		};
+		agentHost.setSessionState('workspace-change', 'copilotcli', state);
+		agentHost.setSessionState('workspace-change', 'copilotcli', {
+			...state,
+			workingDirectories: [next.toString()],
+			chats: [{ ...state.chats[0], workingDirectories: [next.toString()] }],
+		});
+		fireSessionSummaryChanged(agentHost, 'workspace-change', {
+			project: { uri: next.toString(), displayName: 'next' },
+			workingDirectories: [next.toString()],
+		});
+		await timeout(0);
+		agentHost.setSessionState('workspace-change', 'copilotcli', {
+			...state,
+			workingDirectories: [next.toString()],
+			chats: [{ ...state.chats[0], workingDirectories: [next.toString()] }],
+			activity: 'Continuing the task',
+		});
+
+		assert.deepStrictEqual({
+			sessionLabel: session.workspace.get()?.label,
+			sessionRoot: session.workspace.get()?.folders[0]?.root.toString(),
+			chatRoot: session.chats.get()[0].workspace.get()?.folders[0]?.root.toString(),
+			chatDirectory: session.chats.get()[0].workspace.get()?.folders[0]?.workingDirectory.toString(),
+		}, {
+			sessionLabel: 'next',
+			sessionRoot: next.toString(),
+			chatRoot: next.toString(),
+			chatDirectory: next.toString(),
 		});
 	}));
 
@@ -7524,6 +7610,51 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}, { session: expected, chat: expected, sameChat: true });
 		});
 
+		test('authoritative isolation config clears worktree pending after moving back to a folder', () => {
+			const provider = createProvider(disposables, agentHost);
+			const repository = URI.file('/work/repo');
+			const destination = URI.file('/work/destination');
+			const worktree = URI.file('/work/repo.worktrees/isolated');
+			const id = 'isolation-pending-roundtrip';
+			const session = setupMultiChatSession(provider, id, [repository]);
+			const main = buildDefaultChatUri(AgentSession.uri('copilotcli', id));
+			const publish = (isolation: string, directory: URI, project: URI) => {
+				const state = makeState([
+					makeChatSummary(main, '', ProtocolSessionStatus.Idle, [directory.toString()]),
+				], { defaultChat: main, workingDirectories: [directory.toString()] });
+				agentHost.setSessionState(id, 'copilotcli', {
+					...state,
+					project: { uri: project.toString(), displayName: 'repo' },
+					config: {
+						schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } },
+						values: { isolation },
+					},
+				});
+			};
+			const snapshots: { pending: boolean | undefined; directory: string | undefined }[] = [];
+			const snapshot = () => snapshots.push({
+				pending: session.worktreePending?.get(),
+				directory: session.mainChat.get().workspace.get()?.folders[0].workingDirectory.toString(),
+			});
+			publish('worktree', repository, repository);
+			snapshot();
+			publish('worktree', worktree, repository);
+			snapshot();
+			publish('folder', destination, destination);
+			snapshot();
+			publish('worktree', destination, destination);
+			snapshot();
+			publish('folder', destination, destination);
+			snapshot();
+			assert.deepStrictEqual(snapshots, [
+				{ pending: true, directory: repository.toString() },
+				{ pending: false, directory: worktree.toString() },
+				{ pending: false, directory: destination.toString() },
+				{ pending: true, directory: destination.toString() },
+				{ pending: false, directory: destination.toString() },
+			]);
+		});
+
 		test('Agent Merge observable updates when a peer chat folder hydrates', () => {
 			const provider = createProvider(disposables, agentHost);
 			const primaryDirectory = URI.file('/workspace-primary');
@@ -7786,6 +7917,39 @@ suite('LocalAgentHostSessionsProvider', () => {
 				],
 			});
 		});
+
+		test('peer chat archive rejects with the host reason and stays unarchived when the host rejects it', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive-rejected');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-archive-rejected').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive-rejected', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			const peer = session.chats.get()[1];
+			agentHost.archiveRejectionReason = 'Cannot archive a chat while its workspace is changing.';
+
+			await assert.rejects(provider.archiveChat(session.sessionId, peer.resource), /Unable to archive this chat: Cannot archive a chat while its workspace is changing\./);
+
+			assert.strictEqual(peer.isArchived.get(), false);
+		});
+
+		test('peer chat archive rejects when the host never answers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-archive-timeout');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-archive-timeout').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			const peerChat = buildChatUri(sessionUri, 'peer-1');
+			agentHost.setSessionState('chat-archive-timeout', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
+			], { defaultChat }));
+			agentHost.answerArchives = false;
+
+			await assert.rejects(provider.archiveChat(session.sessionId, session.chats.get()[1].resource), /Timed out waiting for the chat to be archived/);
+		}));
 
 		test('peer chat archive dispatches to the host-supplied chat resource', async () => {
 			const provider = createProvider(disposables, agentHost);
@@ -8800,6 +8964,158 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(target!.title.get(), 'Server Title');
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].changed.length, 1);
+	});
+
+	test('archiveSession rolls back and rejects with the host reason when the host rejects the archive', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-rejected', { summary: 'Converting' }));
+		fireSessionAdded(agentHost, 'archive-rejected', { title: 'Converting' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Converting');
+		assert.ok(target);
+		agentHost.archiveRejectionReason = 'Cannot archive a session while a workspace is changing.';
+
+		const observed: boolean[] = [];
+		disposables.add(provider.onDidChangeSessions(() => observed.push(target!.isArchived.get())));
+		await assert.rejects(provider.archiveSession(target!.sessionId), /Unable to archive this session: Cannot archive a session while a workspace is changing\./);
+
+		assert.deepStrictEqual({
+			isArchived: target!.isArchived.get(),
+			wasArchivedOptimistically: observed.includes(true),
+		}, {
+			isArchived: false,
+			wasArchivedOptimistically: true,
+		});
+	});
+
+	test('archiveSession keeps the session archived once the host accepts it', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-accepted', { summary: 'Accepted' }));
+		fireSessionAdded(agentHost, 'archive-accepted', { title: 'Accepted' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Accepted');
+		assert.ok(target);
+
+		await provider.archiveSession(target!.sessionId);
+
+		assert.strictEqual(target!.isArchived.get(), true);
+	});
+
+	test('archiveSession rolls back and rejects when the host never answers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-timeout', { summary: 'Unanswered' }));
+		fireSessionAdded(agentHost, 'archive-timeout', { title: 'Unanswered' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Unanswered');
+		assert.ok(target);
+		agentHost.answerArchives = false;
+
+		await assert.rejects(provider.archiveSession(target!.sessionId), /Timed out waiting for the session to be archived/);
+
+		assert.strictEqual(target!.isArchived.get(), false);
+	}));
+
+	test('archiveSession waits for the session subscription to activate so the verdict is not dropped', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-unloaded', { summary: 'Unloaded' }));
+		fireSessionAdded(agentHost, 'archive-unloaded', { title: 'Unloaded' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Unloaded');
+		assert.ok(target);
+		agentHost.inactiveArchiveChannels.add(AgentSession.uri('copilotcli', 'archive-unloaded').toString());
+
+		const archive = provider.archiveSession(target!.sessionId);
+		// Longer than the confirmation timeout: restoring a session on the host can take that long.
+		await timeout(6000);
+		const dispatchedWhileInactive = agentHost.dispatchedActions.length;
+		agentHost.activateArchiveChannel(AgentSession.uri('copilotcli', 'archive-unloaded').toString());
+		await archive;
+
+		assert.deepStrictEqual({
+			dispatchedWhileInactive,
+			dispatchedAfterActivation: agentHost.dispatchedActions.map(({ action }) => action),
+			isArchived: target!.isArchived.get(),
+		}, {
+			dispatchedWhileInactive: 0,
+			dispatchedAfterActivation: [{ type: ActionType.SessionIsArchivedChanged, isArchived: true }],
+			isArchived: true,
+		});
+	}));
+
+	test('archiveSession is not confirmed by an archive from another client', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-foreign-accept', { summary: 'Foreign Accept' }));
+		fireSessionAdded(agentHost, 'archive-foreign-accept', { title: 'Foreign Accept' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Foreign Accept');
+		assert.ok(target);
+		agentHost.answerArchives = false;
+
+		const outcome = provider.archiveSession(target!.sessionId).then(() => 'archived', (error: Error) => error.message);
+		await timeout(0);
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'archive-foreign-accept').toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1,
+			origin: { clientId: 'another-window', clientSeq: 1 },
+		} as ActionEnvelope);
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'archive-foreign-accept').toString(),
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 2,
+			origin: undefined,
+		} as ActionEnvelope);
+
+		assert.deepStrictEqual({ outcome: await outcome, isArchived: target!.isArchived.get() }, {
+			outcome: 'Timed out waiting for the session to be archived.',
+			isArchived: false,
+		});
+	}));
+
+	test('archiveSession is not failed by a rejection from another client', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('archive-foreign-reject', { summary: 'Foreign Reject' }));
+		fireSessionAdded(agentHost, 'archive-foreign-reject', { title: 'Foreign Reject' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Foreign Reject');
+		assert.ok(target);
+		const channel = AgentSession.uri('copilotcli', 'archive-foreign-reject').toString();
+		agentHost.answerArchives = false;
+
+		const outcome = provider.archiveSession(target!.sessionId).then(() => 'archived', (error: Error) => error.message);
+		await timeout(0);
+		agentHost.fireAction({
+			channel,
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 1,
+			origin: { clientId: 'another-window', clientSeq: 1 },
+			rejectionReason: 'Another window is converting this session.',
+		} as ActionEnvelope);
+		agentHost.fireAction({
+			channel,
+			action: { type: ActionType.SessionIsArchivedChanged, isArchived: true },
+			serverSeq: 2,
+			origin: { clientId: agentHost.clientId, clientSeq: 2 },
+		} as ActionEnvelope);
+
+		assert.deepStrictEqual({ outcome: await outcome, isArchived: target!.isArchived.get() }, {
+			outcome: 'archived',
+			isArchived: true,
+		});
+	}));
+
+	test('archiveSession rejects when the session or connection is unavailable', async () => {
+		const provider = createProvider(disposables, agentHost);
+
+		await assert.rejects(provider.archiveSession('missing-session'), /Archiving this session is unavailable/);
+	});
+
+	test('unarchiveSession does not wait for the host', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('unarchive-session', { summary: 'Restore' }));
+		fireSessionAdded(agentHost, 'unarchive-session', { title: 'Restore' });
+		const target = provider.getSessions().find(s => s.title.get() === 'Restore');
+		assert.ok(target);
+		await provider.archiveSession(target!.sessionId);
+		agentHost.answerArchives = false;
+
+		await provider.unarchiveSession(target!.sessionId);
+
+		assert.strictEqual(target!.isArchived.get(), false);
 	});
 
 	test('a rejected SessionIsArchivedChanged leaves the session unarchived', () => {
@@ -10958,9 +11274,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 						autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
 						mode: { type: 'string', title: 'Mode', enum: ['a', 'b'], sessionMutable: true },
 						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+						branch: { type: 'string', title: 'Branch' },
 					},
 				},
-				values: { autoApprove: 'default', mode: 'a', isolation: 'worktree' },
+				values: { autoApprove: 'default', mode: 'a', isolation: 'worktree', branch: 'old-worktree-branch' },
 			},
 		};
 		agentHost.setSessionState('cfg-replace', 'copilotcli', fakeState);
@@ -10970,16 +11287,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			channel: AgentSession.uri('copilotcli', 'cfg-replace').toString(),
 			action: {
 				type: ActionType.SessionConfigChanged,
-				config: { autoApprove: 'autoApprove', isolation: 'worktree' },
+				config: { autoApprove: 'autoApprove', isolation: 'folder' },
 				replace: true,
 			},
 			serverSeq: 1,
 			origin: undefined,
 		} as ActionEnvelope);
 
-		// `mode` is dropped because it wasn't re-asserted in the replace payload.
 		const updated = provider.getSessionConfig(session!.sessionId);
-		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
+		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'folder' });
 	}));
 
 	test('keeps a visible session subscribed so host-spawned subagent chats keep reaching the catalog', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

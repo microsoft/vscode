@@ -14,6 +14,7 @@ import { IObjectTreeElement, ITreeNode, ITreeRenderer, ITreeContextMenuEvent, Ob
 import { RenderIndentGuides, TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { createMatches, FuzzyScore, IMatch } from '../../../../../base/common/filters.js';
@@ -339,6 +340,38 @@ function getComparisonSessions(comparison: ISessionComparison, sessionsManagemen
 		const session = sessionsManagementService.getSession(participant.sessionResource);
 		return session ? [session] : [];
 	});
+}
+
+/**
+ * Archives the sessions in order and keeps going when one fails, so a single
+ * host rejection does not abandon the rest of a multi-selection. Returns the
+ * sessions that were archived and, when any archive failed, one error that
+ * describes all failures.
+ */
+export async function archiveSessionsContinuingOnError(
+	sessionsManagementService: ISessionsManagementService,
+	sessions: readonly ISession[],
+): Promise<{ readonly archived: readonly ISession[]; readonly error: Error | undefined }> {
+	const archived: ISession[] = [];
+	const failures: unknown[] = [];
+	for (const session of sessions) {
+		try {
+			await sessionsManagementService.archiveSession(session);
+			archived.push(session);
+		} catch (error) {
+			failures.push(error);
+		}
+	}
+	if (failures.length === 0) {
+		return { archived, error: undefined };
+	}
+	if (failures.length === 1) {
+		return { archived, error: failures[0] instanceof Error ? failures[0] : new Error(toErrorMessage(failures[0])) };
+	}
+	return {
+		archived,
+		error: new Error(localize('sessionsArchiveFailures', "Unable to archive {0} sessions: {1}", failures.length, failures.map(failure => toErrorMessage(failure)).join(' '))),
+	};
 }
 
 /** Whether every participant session is archived. An unloaded participant blocks this unless its deletion was confirmed. */
@@ -2610,8 +2643,9 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 				}
 				template.comparisonArchive.enabled = false;
 				try {
-					for (const session of comparisonSessions) {
-						await this.sessionsManagementService.archiveSession(session);
+					const { error: archiveError } = await archiveSessionsContinuingOnError(this.sessionsManagementService, comparisonSessions);
+					if (archiveError) {
+						onUnexpectedError(archiveError);
 					}
 					// Participants that are not loaded, or whose provider could not record the archive, stay in the comparison.
 					const comparisonRecord = this.sessionComparisonService.getComparison(comparison.id);

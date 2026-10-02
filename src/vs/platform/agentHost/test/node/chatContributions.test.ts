@@ -907,11 +907,13 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: Event.None,
+		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionWorkspaceUpdate: () => { },
+		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
+		isConversionTurn: () => false,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { observed?.push('sessionWorkspaceConversion'); },
 	});
@@ -984,12 +986,19 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: conversionChanges.event,
+		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionWorkspaceUpdate: () => { },
+		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => conversionPending,
-		cancel: () => { },
+		isConversionTurn: () => false,
+		cancel: () => {
+			if (conversionPending) {
+				conversionPending = false;
+				conversionChanges.fire(session);
+			}
+		},
 		updateSessionWorkspace: async () => { },
 	});
 	const mockAgent = new MockAgent();
@@ -1293,7 +1302,7 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
-	test('session isolation blocks peer requests and resumes each chat own queue on release', () => {
+	test('workspace conversion release waits for the affected chat to complete before draining its queue', () => {
 		const queue = createQueueDrainContributions(disposables);
 		const peer = buildChatUri(queue.session, 'peer');
 		queue.stateManager.addChat(queue.session, peer);
@@ -1309,11 +1318,43 @@ suite('AgentHostChatContributions', () => {
 			queued: [queue.chat, peer].map(chat => queue.stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text)),
 		}, { admitted: 0, peerAdmission: 'reject', queued: [['main queued'], ['peer queued']] });
 		queue.setConversionPending(false);
-		assert.deepStrictEqual(queue.admitted.map(turn => ({ chat: turn.channel, message: turn.message.text })), [
-			{ chat: queue.chat, message: 'main queued' },
-			{ chat: peer, message: 'peer queued' },
-		]);
+		const admittedOnRelease = queue.admitted.length;
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'continuation', reason: { kind: 'success' } });
+		assert.deepStrictEqual({
+			admittedOnRelease,
+			admitted: queue.admitted.map(turn => ({ chat: turn.channel, message: turn.message.text })),
+			peerQueue: queue.stateManager.getChatState(peer)?.queuedMessages?.map(message => message.message.text),
+		}, {
+			admittedOnRelease: 0,
+			admitted: [{ chat: queue.chat, message: 'main queued' }],
+			peerQueue: ['peer queued'],
+		});
 	});
+
+	for (const kind of ['cancelled', 'error'] as const) {
+		test(`a ${kind} workspace-change turn retains queued work in every chat`, () => {
+			const queue = createQueueDrainContributions(disposables);
+			const peer = buildChatUri(queue.session, 'peer');
+			queue.stateManager.addChat(queue.session, peer);
+			queue.setConversionPending(true);
+			for (const chat of [queue.chat, peer]) {
+				const action = queuedMessage(chat, 'queued task');
+				queue.stateManager.dispatchServerAction(chat, action);
+				queue.service.didApplyClientAction(appliedClientAction(chat, queue.session, action));
+			}
+			queue.service.turnEnd({
+				session: queue.session,
+				channel: queue.chat,
+				turnId: 'workspace-change',
+				reason: kind === 'error' ? { kind, error: { errorType: 'test', message: 'failed' }, resumable: false } : { kind },
+			});
+			assert.deepStrictEqual({
+				admitted: queue.admitted,
+				admission: queue.service.incomingRequest(incomingRequest(queue.session, queue.chat)).kind,
+				queued: [queue.chat, peer].map(chat => queue.stateManager.getChatState(chat)?.queuedMessages?.map(message => message.message.text)),
+			}, { admitted: [], admission: 'accept', queued: [['queued task'], ['queued task']] });
+		});
+	}
 
 	test('queue drain captures senders, handles pending actions, and honors reordering', () => {
 		const queue = createQueueDrainContributions(disposables);

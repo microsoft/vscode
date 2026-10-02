@@ -395,11 +395,30 @@ suite('AgentHostStateManager', () => {
 			addedWorkingDirectories: added?.type === NotificationType.SessionAdded ? added.summary.workingDirectories : undefined,
 		}, {
 			status: SessionStatus.InProgress,
-			project: provisional.project,
+			project: persisted.project,
 			workingDirectories: persisted.workingDirectories,
 			addedStatus: SessionStatus.InProgress,
 			addedProject: persisted.project,
 			addedWorkingDirectories: persisted.workingDirectories,
+		});
+	});
+
+	test('project changes keep catalogue and session snapshots consistent', () => {
+		manager.createSession(makeSessionSummary());
+		const previous = manager.getSessionState(sessionUri);
+		const project = { uri: 'file:///new-project', displayName: 'New Project' };
+		manager.setSessionProject(sessionUri, project);
+		const snapshot = manager.getSnapshot(sessionUri)?.state as SessionState;
+		assert.deepStrictEqual({
+			previous: previous?.project,
+			state: manager.getSessionState(sessionUri)?.project,
+			snapshot: snapshot.project,
+			summary: manager.getSessionSummary(sessionUri)?.project,
+		}, {
+			previous: makeSessionSummary().project,
+			state: project,
+			snapshot: project,
+			summary: project,
 		});
 	});
 

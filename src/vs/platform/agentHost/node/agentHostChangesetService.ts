@@ -66,7 +66,7 @@ import { AgentSession } from '../common/agent.js';
 import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from './shared/worktreeIsolation.js';
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -1968,10 +1968,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * and the review-status lookup so both are keyed on the same baseline.
 	 */
 	private async _resolveBranchBaseBranch(session: ProtocolURI, db: ISessionDatabase): Promise<string | undefined> {
-		const persistedBaseBranch = await db.getMetadata(META_DIFF_BASE_BRANCH);
 		const source = resolveBranchChangesetScopeForOwner(this._stateManager, session)?.sourceUri ?? session;
+		const isSessionFolder = resolveGitHubStateFolder(this._stateManager, source).isSessionFolder;
+		const persistedBaseBranch = !isDefaultChatUri(source) || isSessionFolder
+			? await db.getMetadata(META_DIFF_BASE_BRANCH)
+			: undefined;
 		const gitStateBaseBranch = this._gitStateService.getSessionGitState?.(source)?.baseBranchName
-			?? (!isAhpChatChannel(source) || isDefaultChatUri(source)
+			?? (isSessionFolder && (!isAhpChatChannel(source) || isDefaultChatUri(source))
 				? readSessionGitState(this._stateManager.getSessionState(containingSessionUri(source))?._meta)?.baseBranchName
 				: undefined);
 		if (!persistedBaseBranch && gitStateBaseBranch) {

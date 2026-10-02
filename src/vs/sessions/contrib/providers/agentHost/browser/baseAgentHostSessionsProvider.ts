@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { disposableTimeout, raceCancellation, raceCancellationError, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
@@ -47,7 +47,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import { ResolveSessionConfigResult, type SessionConfigPropertySchema, type SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, ChangesSummary, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, type ChatOrigin, type ClientPluginCustomization, Customization, CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, McpServerStatus, MessageKind, ModelSelection, SessionStatus as ProtocolSessionStatus, RootConfigState, RootState, type SessionActiveClient, SessionState, SessionSummary, type Changeset } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { isActionKnownToVersion } from '../../../../../platform/agentHost/common/state/protocol/version/registry.js';
-import { ActionType, isChatAction, isSessionAction, NotificationType, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { ActionType, isChatAction, isSessionAction, NotificationType, type ActionEnvelope, type SessionSummaryChanges } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AgentCapabilities, AgentInfo, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, DEFAULT_CHAT_ID, getSessionChatResource, getSessionRelatedPullRequestUrls, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, readSessionCreationReference, readSessionEhcliAdoptable, readFolderGitHubState, readFolderScopeGitState, readSessionExternal, parseSessionGitHubData, readSessionGitHubData, readSessionGitState, readWorkingDirectoryKey, readWorkingDirectoryKeys, readWorkingDirectoryScopeId, readWorkingDirectoryScopeIds, withMigratedSessionGitHubState, withSessionGitHubData, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, ROOT_STATE_URI, SESSION_META_MULTI_ROOT_KEY, SessionMeta, SessionSourceControlOutcome, StateComponents, withSessionCreationReference, withSessionExternal, withSessionMultiRootMetadata, withSessionStatusFlag, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChatState, type ChatSummary, type ISessionCreationReference as IProtocolSessionCreationReference, type ISessionGitHubState, type ISessionGitState, type ISessionMultiRootMetadata } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -92,6 +92,10 @@ const STORAGE_KEY_REMEMBERED_SESSION_CONFIG_VALUES = 'sessions.agentHost.session
 const STORAGE_KEY_REMEMBERED_WORKSPACE_ISOLATIONS = 'sessions.agentHost.sessionConfigPicker.workspaceIsolations';
 const UNSAFE_SESSION_CONFIG_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const SESSION_CHANGE_NOTIFICATION_DEBOUNCE_MS = 50;
+/** How long to wait for the host to accept or reject an archive before giving up. */
+const ARCHIVE_CONFIRMATION_TIMEOUT_MS = 5000;
+/** How long to wait for an archive target's subscription to receive its initial snapshot before dispatching anyway. */
+const ARCHIVE_SUBSCRIPTION_READY_TIMEOUT_MS = 10000;
 const AGENT_HOST_CANVAS_SCHEME = 'agent-host-canvas';
 
 /**
@@ -2208,7 +2212,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	applySessionStateMetadata(metadata: AgentHostSessionStateMetadata, previous: SessionState | undefined): boolean {
 		let didChange = false;
 		transaction(tx => {
-			if (metadata.project !== undefined || previous?.project !== undefined) {
+			if (Object.prototype.hasOwnProperty.call(metadata, 'project')) {
 				this._project = metadata.project;
 			}
 			if (metadata.workingDirectories !== undefined || previous?.workingDirectories !== undefined) {
@@ -5714,8 +5718,101 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	// -- Session actions ------------------------------------------------------
 
+	/**
+	 * Archives a session optimistically, then waits for the host to accept it.
+	 * The host can reject an archive (for example while a workspace conversion
+	 * is running); in that case, and when no answer arrives in time, the local
+	 * flag is rolled back and the returned promise rejects so callers do not
+	 * treat the session as archived.
+	 */
 	async archiveSession(sessionId: string): Promise<void> {
-		this._setSessionArchived(sessionId, true);
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		const connection = this.connection;
+		if (!cached || !connection) {
+			throw new Error(localize('sessionArchiveUnavailable', "Archiving this session is unavailable."));
+		}
+		const channel = cached.backendUri.toString();
+		const subscription = connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.archive');
+		let archived = false;
+		try {
+			this._setSessionArchivedLocally(sessionId, true);
+			const outcome = await this._dispatchArchive(
+				connection,
+				subscription.object,
+				envelope => envelope.channel === channel && envelope.action.type === ActionType.SessionIsArchivedChanged && envelope.action.isArchived,
+				() => connection.dispatch(channel, { type: ActionType.SessionIsArchivedChanged as const, isArchived: true }),
+			);
+			archived = outcome.status === 'accepted';
+			if (outcome.status !== 'accepted') {
+				throw new Error(outcome.status === 'rejected'
+					? localize('sessionArchiveRejected', "Unable to archive this session: {0}", outcome.reason)
+					: localize('sessionArchiveTimeout', "Timed out waiting for the session to be archived."));
+			}
+		} finally {
+			if (!archived) {
+				this._setSessionArchivedLocally(sessionId, false);
+			}
+			subscription.dispose();
+		}
+	}
+
+	/**
+	 * Waits until `subscription` has settled (its initial snapshot arrived or it
+	 * failed), bounded by {@link ARCHIVE_SUBSCRIPTION_READY_TIMEOUT_MS}.
+	 *
+	 * The host only sends action envelopes, including accept/reject verdicts, to
+	 * a subscription that is already active, and a subscription turns active
+	 * when its snapshot is returned. For a session the host has not loaded that
+	 * snapshot is produced after the session is restored, so an action
+	 * dispatched earlier can be answered before the subscription is active and
+	 * the verdict is silently dropped.
+	 */
+	private async _whenSubscriptionSettled(subscription: IAgentSubscription<unknown>): Promise<void> {
+		if (subscription.value !== undefined) {
+			return;
+		}
+		const settled = Event.toPromise(Event.filter(
+			Event.any<unknown>(subscription.onDidChange, subscription.onDidError ?? Event.None),
+			() => subscription.value !== undefined,
+		));
+		try {
+			await raceTimeout(settled, ARCHIVE_SUBSCRIPTION_READY_TIMEOUT_MS);
+		} finally {
+			settled.cancel();
+		}
+	}
+
+	/**
+	 * Waits for `subscription` to settle, then runs `dispatch` and waits for the
+	 * host's verdict on the archive action it sends. The verdict must originate
+	 * from this connection, so another window's archive (or a host-initiated
+	 * one) can neither confirm nor fail ours. The listener is registered before
+	 * dispatching so a synchronous echo is not missed, and is always released,
+	 * so a dropped connection or a host that never answers is bounded by
+	 * {@link ARCHIVE_CONFIRMATION_TIMEOUT_MS}. If the subscription does not
+	 * settle in time the action is dispatched anyway and the confirmation
+	 * timeout decides the outcome.
+	 */
+	protected async _dispatchArchive(
+		connection: IAgentConnection,
+		subscription: IAgentSubscription<unknown>,
+		isArchiveEnvelope: (envelope: ActionEnvelope) => boolean,
+		dispatch: () => void,
+	): Promise<{ status: 'accepted' } | { status: 'rejected'; reason: string } | { status: 'timedOut' }> {
+		await this._whenSubscriptionSettled(subscription);
+		const confirmationAction = Event.toPromise(Event.filter(connection.onDidAction, envelope => envelope.origin?.clientId === connection.clientId && isArchiveEnvelope(envelope)));
+		try {
+			const confirmation = raceTimeout(confirmationAction, ARCHIVE_CONFIRMATION_TIMEOUT_MS);
+			dispatch();
+			const envelope = await confirmation;
+			if (!envelope) {
+				return { status: 'timedOut' };
+			}
+			return envelope.rejectionReason ? { status: 'rejected', reason: envelope.rejectionReason } : { status: 'accepted' };
+		} finally {
+			confirmationAction.cancel();
+		}
 	}
 
 	async importSession(sessionId: string): Promise<void> {
@@ -5783,7 +5880,29 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error(localize('chatNotFound', "The chat could not be found."));
 		}
 		this._keepSessionStateAlive(cached.sessionId);
-		connection.dispatch(backendChatResource.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: archived });
+		if (!archived) {
+			connection.dispatch(backendChatResource.toString(), { type: ActionType.ChatIsArchivedChanged, isArchived: false });
+			return;
+		}
+		// The chat's archived state is host-derived, so a rejection needs no local rollback;
+		// it only has to reach the caller. The subscription keeps the chat channel's verdict flowing.
+		const channel = backendChatResource.toString();
+		const subscription = connection.getSubscription(StateComponents.Chat, backendChatResource, 'BaseAgentHostSessionsProvider.archiveChat');
+		try {
+			const outcome = await this._dispatchArchive(
+				connection,
+				subscription.object,
+				envelope => envelope.channel === channel && envelope.action.type === ActionType.ChatIsArchivedChanged && envelope.action.isArchived,
+				() => connection.dispatch(channel, { type: ActionType.ChatIsArchivedChanged, isArchived: true }),
+			);
+			if (outcome.status !== 'accepted') {
+				throw new Error(outcome.status === 'rejected'
+					? localize('chatArchiveRejected', "Unable to archive this chat: {0}", outcome.reason)
+					: localize('chatArchiveTimeout', "Timed out waiting for the chat to be archived."));
+			}
+		} finally {
+			subscription.dispose();
+		}
 	}
 
 	/**
@@ -6937,10 +7056,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 
 		const metadata: AgentHostSessionStateMetadata = {
-			project: state.project ? {
-				displayName: state.project.displayName,
-				uri: this.mapProjectUri(URI.parse(state.project.uri)),
-			} : undefined,
+			// Unchanged snapshot fields must not overwrite newer catalogue deltas.
+			...(!equals(state.project, previous?.project) ? {
+				project: state.project ? {
+					displayName: state.project.displayName,
+					uri: this.mapProjectUri(URI.parse(state.project.uri)),
+				} : undefined,
+			} : {}),
 			workingDirectories: state.workingDirectories?.map(directory => this.mapWorkingDirectoryUri(URI.parse(directory))),
 			_meta: state._meta,
 		};
@@ -7002,12 +7124,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Mirrors a session's `isolation` pick onto its adapter. See {@link ISession.worktreePending}. */
 	private _applyWorktreeIsolation(sessionId: string, values: Record<string, unknown> | undefined): void {
-		if (!isWorktreeIsolation(values)) {
-			return;
-		}
 		const rawId = this._rawIdFromChatId(sessionId);
 		const adapter = rawId ? this._sessionCache.get(rawId) : undefined;
-		adapter?.setWorktreeIsolation(true);
+		adapter?.setWorktreeIsolation(isWorktreeIsolation(values));
 	}
 
 	// -- Session cache management --------------------------------------------

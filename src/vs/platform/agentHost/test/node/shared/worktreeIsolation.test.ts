@@ -18,7 +18,8 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, MessageKind, ResponsePartKind, TurnState, type ISessionGitState, type Turn } from '../../../common/state/sessionState.js';
 import { AgentBranchNameGenerator, IAgentBranchNameGenerator } from '../../../node/shared/agentBranchNameGenerator.js';
 import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
-import { buildWorktreeFailureNotification, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { buildWorktreeFailureNotification, detachedWorktreeRecordUri, normalizeWorktreeFailureDiagnostic, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation, getWorktreeName, getWorktreesRoot } from '../../../node/shared/worktreeIsolation.js';
+import { ADDITIONAL_WORKTREES_METADATA_KEY, readSessionAdditionalWorktrees } from '../../../node/shared/sessionAdditionalWorktrees.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../../common/sessionTestHelpers.js';
 import type { ISessionDataService } from '../../../common/sessionDataService.js';
 
@@ -225,6 +226,206 @@ suite('WorktreeIsolation', () => {
 			namedWithBranchPrefix: 'add-config',
 		});
 	});
+
+	for (const fail of [false, true]) {
+		test(`retains the previous owned worktree when changing workspace (persistence failure: ${fail})`, async () => {
+			db = new class extends TestSessionDatabase {
+				override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+					if (fail && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+						throw new Error('Retention persistence failed');
+					}
+					await super.setMetadataValues(values);
+				}
+			}();
+			const detached = new TestSessionDatabase();
+			const service: ISessionDataService = {
+				...createSessionDataService(db),
+				openDatabase: resource => createSessionDataService(resource.toString() === sessionUri.toString() ? db : detached).openDatabase(resource),
+				tryOpenDatabase: async resource => createSessionDataService(resource.toString() === sessionUri.toString() ? db : detached).openDatabase(resource),
+			};
+			const isolation = createIsolation(disposables, { sessionDataService: service });
+			const request = { sessionUri, sessionId, workingDirectory: repoRoot, config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' } };
+			const original = await isolation.resolveForWorkspaceConversion(request);
+			assert.ok(original);
+			await db.setMetadata(META_DIFF_BASE_BRANCH, 'origin/custom-base');
+			if (fail) {
+				await assert.rejects(isolation.retainSessionWorktree(sessionUri, sessionId), /Retention persistence failed/);
+				assert.deepStrictEqual({
+					owned: (await isolation.prepareSessionDeletion(sessionUri, sessionId))?.worktree.toString(),
+					retained: await readSessionAdditionalWorktrees(service, sessionUri), removed: removeCalls,
+				}, { owned: original.toString(), retained: [], removed: [] });
+				return;
+			}
+			await isolation.retainSessionWorktree(sessionUri, sessionId);
+			const retained = await readSessionAdditionalWorktrees(service, sessionUri);
+			const restored = createIsolation(disposables, { sessionDataService: service });
+			assert.deepStrictEqual({
+				retained: retained.map(record => ({ directory: record.workingDirectory, repository: record.repositoryRoot })),
+				primary: await restored.prepareSessionDeletion(sessionUri, sessionId),
+				detached: (await restored.readWorktreeMetadata(detachedWorktreeRecordUri(retained[0].handle)))?.worktreePath?.toString(),
+				diffBase: await detached.getMetadata(META_DIFF_BASE_BRANCH),
+				exists: existsSync(original.fsPath), removed: removeCalls,
+			}, {
+				retained: [{ directory: original.toString(), repository: repoRoot.toString() }],
+				primary: undefined, detached: original.toString(), diffBase: 'origin/custom-base', exists: true, removed: [],
+			});
+			branchName = 'agents/next-worktree';
+			const next = await isolation.resolveForWorkspaceConversion(request);
+			assert.notStrictEqual(next?.toString(), original.toString(), 'A later conversion must not reuse the previous checkout');
+			await restored.deleteDetachedWorktree(retained[0].handle);
+			assert.deepStrictEqual(removeCalls.map(call => call.worktree.toString()), [original.toString()]);
+		});
+	}
+
+	test('retention refuses to drop live ownership after creation metadata persistence fails', async () => {
+		db = new class extends TestSessionDatabase {
+			override async setMetadata(key: string, value: string): Promise<void> {
+				if (key === 'copilot.worktree.branchName') {
+					throw new Error('Creation metadata persistence failed');
+				}
+				await super.setMetadata(key, value);
+			}
+		}();
+		const isolation = createIsolation(disposables);
+		const worktree = await isolation.resolveForWorkspaceConversion({
+			sessionUri, sessionId, workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+		});
+		assert.ok(worktree);
+		await assert.rejects(isolation.retainSessionWorktree(sessionUri, sessionId), /without its persisted ownership metadata/);
+		const owned = await isolation.prepareSessionDeletion(sessionUri, sessionId);
+		assert.deepStrictEqual({
+			live: isolation.getResolvedWorktree(sessionId)?.toString(),
+			deletion: owned?.worktree.toString(),
+			additional: await readSessionAdditionalWorktrees(createSessionDataService(db), sessionUri),
+			exists: existsSync(worktree.fsPath),
+		}, { live: worktree.toString(), deletion: worktree.toString(), additional: [], exists: true });
+		await isolation.removeSessionWorktree(sessionId, owned);
+		assert.strictEqual(existsSync(worktree.fsPath), false);
+	});
+
+	for (const interruption of ['registration', 'claim'] as const) {
+		for (const retryBeforeRestart of [false, true, 'delete owner'] as const) {
+			test(`retention recovers interrupted ${interruption} (retry before restart: ${retryBeforeRestart})`, async () => {
+				let interrupt = true;
+				db = new class extends TestSessionDatabase {
+					override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+						if (interrupt && interruption === 'registration' && values[ADDITIONAL_WORKTREES_METADATA_KEY]) {
+							throw new Error('Interrupted before owner registration');
+						}
+						await super.setMetadataValues(values);
+					}
+				}();
+				const databases = new Map<string, TestSessionDatabase>([[sessionUri.toString(), db]]);
+				const service: ISessionDataService = {
+					...createSessionDataService(db),
+					openDatabase: resource => {
+						let database = databases.get(resource.toString());
+						if (!database) {
+							database = new class extends TestSessionDatabase {
+								override async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+									if (interrupt && interruption === 'claim' && values['vscode.devContainerWorktree.claimed'] === 'true') {
+										throw new Error('Interrupted before claim finalization');
+									}
+									await super.setMetadataValues(values);
+								}
+							}();
+							databases.set(resource.toString(), database);
+						}
+						return createSessionDataService(database).openDatabase(resource);
+					},
+					tryOpenDatabase: async resource => {
+						const database = databases.get(resource.toString());
+						return database ? createSessionDataService(database).openDatabase(resource) : undefined;
+					},
+					listSessionDataIds: async prefix => [...databases.keys()].map(key => URI.parse(key).path.substring(1)).filter(id => id.startsWith(prefix)),
+					deleteSessionData: async resource => { databases.delete(resource.toString()); },
+				};
+				const logService = new TestLogService();
+				const first = createIsolation(disposables, { sessionDataService: service, logService });
+				const worktree = await first.resolveForWorkspaceConversion({
+					sessionUri, sessionId, workingDirectory: repoRoot,
+					config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+				});
+				assert.ok(worktree);
+				if (interruption === 'registration') {
+					await assert.rejects(first.retainSessionWorktree(sessionUri, sessionId), /Interrupted before owner registration/);
+				} else {
+					await first.retainSessionWorktree(sessionUri, sessionId);
+					assert.ok(logService.warnings.some(warning => warning.includes('reconciliation will retry')));
+				}
+				const provisional = [...databases.entries()].find(([key]) => key !== sessionUri.toString());
+				assert.ok(provisional);
+				assert.deepStrictEqual({
+					claimed: await provisional[1].getMetadata('vscode.devContainerWorktree.claimed'),
+					owned: (await first.prepareSessionDeletion(sessionUri, sessionId))?.worktree.toString(),
+					retained: (await readSessionAdditionalWorktrees(service, sessionUri)).length,
+					exists: existsSync(worktree.fsPath), removed: removeCalls,
+				}, {
+					claimed: 'false',
+					owned: interruption === 'registration' ? worktree.toString() : undefined,
+					retained: interruption === 'registration' ? 0 : 1,
+					exists: true, removed: [],
+				});
+
+				interrupt = false;
+				if (retryBeforeRestart === 'delete owner') {
+					await provisional[1].setMetadata('vscode.devContainerWorktree.createdAt', '0');
+					await service.deleteSessionData(sessionUri);
+					const restored = createIsolation(disposables, { sessionDataService: service });
+					await timeout(20);
+					await restored.reconcileDetachedWorktrees('unrelated-scope', []);
+					assert.deepStrictEqual({
+						exists: existsSync(worktree.fsPath), records: databases.size,
+						removed: removeCalls.map(call => ({ path: call.worktree.toString(), force: call.force })),
+					}, { exists: false, records: 0, removed: [{ path: worktree.toString(), force: false }] });
+					return;
+				}
+				if (retryBeforeRestart) {
+					await first.retainSessionWorktree(sessionUri, sessionId);
+				}
+				const restored = createIsolation(disposables, { sessionDataService: service });
+				await timeout(20);
+				await restored.reconcileDetachedWorktrees('unrelated-scope', []);
+				assert.deepStrictEqual({
+					exists: existsSync(worktree.fsPath), removed: removeCalls,
+					records: databases.size - 1,
+					original: (await restored.prepareSessionDeletion(sessionUri, sessionId))?.worktree.toString(),
+				}, {
+					exists: true, removed: [],
+					records: interruption === 'registration' && !retryBeforeRestart ? 0 : 1,
+					original: interruption === 'registration' && !retryBeforeRestart ? worktree.toString() : undefined,
+				});
+
+				await restored.retainSessionWorktree(sessionUri, sessionId);
+				const retained = await readSessionAdditionalWorktrees(service, sessionUri);
+				assert.strictEqual(retained.length, 1);
+				const handle = retained[0].handle;
+				await restored.recordAdoptedWorktreeMetadata(sessionUri, {
+					branchName, baseBranch: 'main', worktreePath: worktree, repositoryRoot: repoRoot,
+				});
+				await restored.retainSessionWorktree(sessionUri, sessionId);
+				assert.deepStrictEqual((await readSessionAdditionalWorktrees(service, sessionUri)).map(record => record.handle), [handle]);
+				const record = databases.get(detachedWorktreeRecordUri(handle).toString());
+				assert.ok(record);
+				await record.setMetadata('vscode.devContainerWorktree.createdAt', '0');
+				await service.deleteSessionData(sessionUri);
+				hasUncommittedChanges = true;
+				createIsolation(disposables, { sessionDataService: service });
+				await timeout(20);
+				assert.deepStrictEqual({ exists: existsSync(worktree.fsPath), records: databases.size, removed: removeCalls }, {
+					exists: true, records: 1, removed: [],
+				});
+				hasUncommittedChanges = false;
+				await restored.reconcileDetachedWorktrees('unrelated-scope', []);
+				await restored.reconcileDetachedWorktrees('unrelated-scope', []);
+				assert.deepStrictEqual({
+					exists: existsSync(worktree.fsPath), records: databases.size,
+					removed: removeCalls.map(call => ({ path: call.worktree.toString(), force: call.force })),
+				}, { exists: false, records: 0, removed: [{ path: worktree.toString(), force: false }] });
+			});
+		}
+	}
 
 	test('concurrent config resolutions share Git reads but later calls see changed branches', async () => {
 		let rootReads = 0;
@@ -815,6 +1016,88 @@ suite('WorktreeIsolation', () => {
 		assert.deepStrictEqual({ dataIds: [...dataIds], removeCalls }, { dataIds: [], removeCalls: [] });
 	});
 
+	function createOwnedRecordsHarness(unopenable: Set<string> = new Set()) {
+		const databases = new Map<string, TestSessionDatabase>();
+		const base = createSessionDataService(db);
+		const service: ISessionDataService = {
+			...base,
+			openDatabase: resource => {
+				let database = databases.get(resource.toString());
+				if (!database) {
+					database = new TestSessionDatabase();
+					databases.set(resource.toString(), database);
+				}
+				return createSessionDataService(database).openDatabase(resource);
+			},
+			tryOpenDatabase: async resource => {
+				if (unopenable.has(resource.toString())) {
+					throw new Error('database disk image is malformed');
+				}
+				const database = databases.get(resource.toString());
+				return database ? createSessionDataService(database).openDatabase(resource) : undefined;
+			},
+			listSessionDataIds: async prefix => [...databases.keys()].map(key => URI.parse(key).path.substring(1)).filter(id => id.startsWith(prefix)),
+			deleteSessionData: async resource => { databases.delete(resource.toString()); },
+		};
+		const isolation = createIsolation(disposables, { sessionDataService: service });
+		const create = async (prompt: string) => {
+			branchName = `agents/${prompt}`;
+			const created = await isolation.createDetachedWorktree({
+				workingDirectory: repoRoot,
+				config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+				prompt,
+			});
+			await isolation.claimDetachedWorktree(created.handle);
+			await databases.get(detachedWorktreeRecordUri(created.handle).toString())!.setMetadata('vscode.devContainerWorktree.lastSeenAt', '0');
+			return created;
+		};
+		const setOwner = (handle: string, ownerUri: URI) => databases.get(detachedWorktreeRecordUri(handle).toString())!.setMetadata('vscode.devContainerWorktree.owner', ownerUri.toString());
+		return { databases, service, isolation, create, setOwner };
+	}
+
+	test('reconcileDetachedWorktrees retains records whose owner metadata is unreadable and still prunes the others', async () => {
+		const { databases, service, isolation, create, setOwner } = createOwnedRecordsHarness();
+		const corruptOwner = await create('corrupt-owner');
+		const gone = await create('gone');
+		const ownerUri = URI.parse('agent-session://test/corrupt-owner');
+		await service.openDatabase(ownerUri).object.setMetadata(ADDITIONAL_WORKTREES_METADATA_KEY, '{bad');
+		await setOwner(corruptOwner.handle, ownerUri);
+		rmSync(gone.worktree.fsPath, { recursive: true, force: true });
+
+		await isolation.reconcileDetachedWorktrees(getComparisonKey(gone.worktree), []);
+
+		assert.deepStrictEqual({
+			records: [...databases.keys()].filter(key => key.includes('worktree')).sort(),
+			exists: existsSync(corruptOwner.worktree.fsPath),
+			removed: removeCalls,
+		}, {
+			records: [detachedWorktreeRecordUri(corruptOwner.handle).toString()],
+			exists: true,
+			removed: [],
+		});
+	});
+
+	test('reconcileDetachedWorktrees retains records whose owner database cannot be opened and still prunes the others', async () => {
+		const ownerUri = URI.parse('agent-session://test/malformed-owner');
+		const { databases, isolation, create, setOwner } = createOwnedRecordsHarness(new Set([ownerUri.toString()]));
+		const malformedOwner = await create('malformed-owner');
+		const gone = await create('gone');
+		await setOwner(malformedOwner.handle, ownerUri);
+		rmSync(gone.worktree.fsPath, { recursive: true, force: true });
+
+		await isolation.reconcileDetachedWorktrees(getComparisonKey(gone.worktree), []);
+
+		assert.deepStrictEqual({
+			records: [...databases.keys()].filter(key => key.includes('worktree')).sort(),
+			exists: existsSync(malformedOwner.worktree.fsPath),
+			removed: removeCalls,
+		}, {
+			records: [detachedWorktreeRecordUri(malformedOwner.handle).toString()],
+			exists: true,
+			removed: [],
+		});
+	});
+
 	test('resolveWorkingDirectory creates from the primary worktree while setting up files from the selected checkout', async () => {
 		const checkoutRoot = URI.joinPath(repoRoot, 'linked-checkout');
 		const gitService = createGitService();
@@ -1262,6 +1545,40 @@ suite('WorktreeIsolation', () => {
 			(error: Error) => error instanceof SessionWorkingDirectoryMissingError,
 		);
 	});
+
+	test('resolveWorkingDirectoryForResume reports a missing directory when worktree metadata is unreadable', async () => {
+		const isolation = createIsolation(disposables);
+		const missingDirectory = URI.joinPath(repoRoot, 'missing-directory');
+		const getMetadata = db.getMetadata.bind(db);
+		db.getMetadata = async key => {
+			if (key === 'copilot.worktree.branchName') {
+				throw new Error('unreadable worktree metadata');
+			}
+			return getMetadata(key);
+		};
+
+		await assert.rejects(
+			() => isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, missingDirectory),
+			(error: Error) => error instanceof SessionWorkingDirectoryMissingError,
+		);
+	});
+
+	for (const archived of [false, true]) {
+		test(`resume never substitutes a different owned worktree (archived: ${archived})`, async () => {
+			const isolation = createIsolation(disposables);
+			await db.setMetadataValues({
+				'copilot.worktree.branchName': 'feature/owner',
+				'copilot.worktree.path': URI.joinPath(worktreesRoot, 'owner').toString(),
+				'copilot.worktree.repositoryRoot': repoRoot.toString(),
+				[AH_META_IS_ARCHIVED_DB_KEY]: String(archived),
+			});
+			await assert.rejects(
+				isolation.resolveWorkingDirectoryForResume(sessionUri, sessionId, URI.joinPath(worktreesRoot, 'peer')),
+				SessionWorkingDirectoryMissingError,
+			);
+			assert.deepStrictEqual(addExistingCalls, []);
+		});
+	}
 
 	test('resolveWorkingDirectoryForResume reports an archived session when its repository root is also missing', async () => {
 		const isolation = createIsolation(disposables);

@@ -89,7 +89,7 @@ suite('SessionServerTools', () => {
 			getChatContext: overrides?.getChatContext ?? (async () => undefined),
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
-			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => { }),
+			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => true),
 		};
 	}
 
@@ -142,17 +142,15 @@ suite('SessionServerTools', () => {
 		const setWorkspaceDefinition = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.SetWorkspace);
 		assert.deepStrictEqual({
 			title: setWorkspaceDefinition?.title,
-			description: setWorkspaceDefinition?.description,
 			inputSchema: setWorkspaceDefinition?.inputSchema,
 		}, {
 			title: 'Set Workspace',
-			description: 'Attach a real workspace only to modify its files or run commands requiring its project environment. Do not use for self-contained scratch work on attachments, pasted/generated content, or throwaway/exportable artifacts. The session, chat, and history are preserved. Immediately before every call, use the available user-input tool to ask one question confirming both workspace and isolation, even if already specified; tool approval is not confirmation. Set `isolation` to true for a managed Git worktree or false for the folder directly. After this turn, the host attaches the workspace and continues the original task. Make this the turn\'s final tool call.',
 			inputSchema: {
 				type: 'object',
 				properties: {
 					workspaceFolder: {
 						type: 'string',
-						description: 'Absolute local folder path or file URI to set as the current session\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
+						description: 'Absolute local folder path or file URI to set as the current chat\'s workspace. Use an exact path from the user or `list_sessions`; do not guess.',
 					},
 					isolation: {
 						type: 'boolean',
@@ -175,6 +173,24 @@ suite('SessionServerTools', () => {
 		assert.ok(renameDescription?.includes('peer-chat titles remain independent'));
 	});
 
+	test('set_workspace requires explicit intent for existing workspaces and preserves quick-chat setup guidance', () => {
+		const description = sessionServerToolDefinitions.find(def => def.name === SessionServerToolName.SetWorkspace)!.description;
+		for (const clause of [
+			'only when the user explicitly asks to change this chat\'s workspace',
+			'Do not infer a workspace change from a file path',
+			'skip this tool and the confirmation question',
+			'Compare against this chat\'s working directory, not its session\'s project root',
+			'Creating a new worktree from the same folder is a real change, not a no-op',
+			'For a workspace-less quick chat, attach a workspace only to modify its files or run commands requiring its project environment',
+			'Other chats keep their workspaces',
+			'ask one question confirming both workspace and isolation',
+			'tool approval is not confirmation',
+			'the turn\'s final tool call',
+		]) {
+			assert.ok(description?.includes(clause), clause);
+		}
+	});
+
 	test('set_workspace accepts only exact local workspace folders', () => {
 		assert.deepStrictEqual({
 			absolutePath: getSetWorkspaceArgs({ workspaceFolder: '/workspace/app', isolation: false }),
@@ -192,12 +208,15 @@ suite('SessionServerTools', () => {
 		const requests: { chat: string; turnId: string; workspaceFolder: string; isolation: boolean }[] = [];
 		const chat = URI.parse(buildDefaultChatUri('copilot:/s1'));
 		const accessor = createAccessor({
-			requestSessionWorkspaceUpdate: (targetChat, turnId, workspaceFolder, isolation) => requests.push({
-				chat: targetChat.toString(),
-				turnId,
-				workspaceFolder: workspaceFolder.toString(),
-				isolation,
-			}),
+			requestSessionWorkspaceUpdate: (targetChat, turnId, workspaceFolder, isolation) => {
+				requests.push({
+					chat: targetChat.toString(),
+					turnId,
+					workspaceFolder: workspaceFolder.toString(),
+					isolation,
+				});
+				return true;
+			},
 		});
 
 		const result = applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: true }, chat, 'turn-1');
@@ -215,6 +234,18 @@ suite('SessionServerTools', () => {
 			result: 'An isolated worktree will be created from file:///workspace/app and set as the workspace after this turn ends. End this turn now without calling more tools or replying; the host will continue the original task automatically in the isolated workspace.',
 		});
 		assert.throws(() => applySetWorkspaceTool(accessor, { workspaceFolder: '/workspace/app', isolation: false }, chat, undefined), /must run from an active chat turn/);
+	});
+
+	test('set_workspace reports an unchanged folder without instructing the agent to end its turn', () => {
+		const chat = URI.parse(buildDefaultChatUri('copilot:/s1'));
+		const accessor = createAccessor({ requestSessionWorkspaceUpdate: () => false });
+		const args = { workspaceFolder: '/workspace/app', isolation: false };
+		const text = applySetWorkspaceTool(accessor, args, chat, 'turn-1');
+		const display = createSessionServerToolGroup(accessor).getDisplay?.(SessionServerToolName.SetWorkspace, args, { text, success: true });
+		assert.deepStrictEqual({ text, pastTenseMessage: display?.pastTenseMessage }, {
+			text: 'This chat already uses file:///workspace/app. No workspace change was scheduled. Continue the current turn normally; no automatic continuation will be started. Do not call set_workspace again for this unchanged workspace.',
+			pastTenseMessage: 'Workspace unchanged',
+		});
 	});
 
 	test('ephemeral sessions advertise no default session-management tools', () => {

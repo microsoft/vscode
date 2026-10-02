@@ -207,11 +207,13 @@ function createTestSideEffects(
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
 		onDidChangePendingSession: Event.None,
+		supportsChatIsolation: () => false,
 		canIsolateChat: () => false,
 		requestChatIsolation: () => { },
 		restoreChatIsolation: async () => { },
-		requestSessionWorkspaceUpdate: () => { },
+		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
+		isConversionTurn: () => false,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});

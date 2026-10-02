@@ -6,7 +6,7 @@
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { URI } from '../../../base/common/uri.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -163,7 +163,7 @@ export function createAgentServiceComposition(
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
-				workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(
@@ -174,11 +174,11 @@ export function createAgentServiceComposition(
 				callbackAdapter.artifactServerToolAccessor,
 				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
 				{
-					canIsolateChatInSession: session => stateManager.getSessionState(session.toString())?.chats.some(chat => workspaceConversionService.value?.canIsolateChat(URI.parse(chat.resource))) === true,
+					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
 					requestChatIsolation: (chat, turnId) => {
 						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 						if (!initiatingClientId || !workspaceConversionService.value) {
-							throw new Error('Session isolation requires a turn initiated by a connected client.');
+							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
 						}
 						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
 					},
@@ -189,7 +189,7 @@ export function createAgentServiceComposition(
 		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
 			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
 			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
-			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace),
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
 		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 

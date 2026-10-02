@@ -7,12 +7,13 @@ import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, derived, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import type { AgentChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
+import type { ChatIsolationState } from '../../../../../../platform/agentHost/common/meta/agentHostChatIsolationMeta.js';
 import type { ErrorInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ChatInputNotificationActionKind, ChatInputNotificationSeverity, IChatInputNotificationService } from '../../widget/input/chatInputNotificationService.js';
@@ -26,6 +27,40 @@ CommandsRegistry.registerCommand(RETRY_CHAT_PREPARATION_COMMAND, async (accessor
 
 export function codexWriterLockMessage(): string {
 	return localize('agentHost.codexWriterLock', "This conversation is in use by another Codex app. Let any running task finish, then quit the app holding it open, such as ChatGPT, or exit the Codex CLI session.");
+}
+
+/** Blocks sending during workspace changes without disabling draft editing. */
+export class AgentHostChatIsolationState extends Disposable {
+	private static _nextId = 0;
+	readonly isInputBlocked: IObservable<boolean>;
+
+	constructor(
+		sessionResource: URI,
+		state: IObservable<ChatIsolationState | undefined>,
+		@IChatInputNotificationService notifications: IChatInputNotificationService,
+	) {
+		super();
+		const notificationId = `agentHost.chatIsolation.${AgentHostChatIsolationState._nextId++}`;
+		this.isInputBlocked = derived(this, reader => state.read(reader) !== undefined);
+		this._register(autorun(reader => {
+			const isolation = state.read(reader);
+			if (isolation !== 'blocked') {
+				notifications.deleteNotification(notificationId);
+				return;
+			}
+			notifications.setNotification({
+				id: notificationId,
+				severity: ChatInputNotificationSeverity.Error,
+				message: localize('agentHost.chatWorkspaceBlocked', "Could not change the chat's workspace safely"),
+				description: localize('agentHost.chatIsolationBlockedDetail', "The chat's working folder could not be verified. Sending remains disabled to avoid running in the wrong folder. Start a new chat to continue."),
+				actions: [],
+				dismissible: false,
+				autoDismissOnMessage: false,
+				sessionResources: [sessionResource],
+			});
+		}));
+		this._register(toDisposable(() => notifications.deleteNotification(notificationId)));
+	}
 }
 
 /** Keeps chat preparation failures out of the transcript and preserves the unsent draft. */

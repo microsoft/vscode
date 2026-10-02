@@ -14,6 +14,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession } from '../../common/agent.js';
 import { NULL_CHECKPOINT_SERVICE, type IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
+import { META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { type IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
 import { type ChangesetDiffStrategy } from '../../common/agentHostChangesetService.js';
 import { type IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
@@ -23,7 +24,7 @@ import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirecto
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, ChangesetStatus, FileEditKind, MessageKind, SessionStatus, withSessionGitState, type ISessionFileDiff, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -95,6 +96,7 @@ suite('AgentHostChangesetStrategy', () => {
 		const repositoryCalls: string[] = [];
 		const checkpointCalls: string[] = [];
 		const databaseCalls: string[] = [];
+		const gitStates = new Map<string, ISessionGitState>();
 		const results: {
 			git: readonly ISessionFileDiff[] | undefined;
 			pair: { parent: string; current: string } | undefined;
@@ -161,7 +163,7 @@ suite('AgentHostChangesetStrategy', () => {
 			onDidRefreshSessionGitState: Event.None,
 			onDidChangeSessionGitHubState: Event.None,
 			refreshSessionGitState: async () => { },
-			getSessionGitState: () => undefined,
+			getSessionGitState: resource => gitStates.get(resource),
 			getMaterializedWorktreeMeta: () => undefined,
 			setFolderGitState: async () => { },
 			resolveSessionBaseBranchName: async () => undefined,
@@ -187,7 +189,7 @@ suite('AgentHostChangesetStrategy', () => {
 			state.addChat(session, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
-		return { service, state, db, diff, git, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls };
+		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls };
 	}
 
 	function nextPublication(state: AgentHostStateManager, uri: string): Promise<void> {
@@ -905,6 +907,112 @@ suite('AgentHostChangesetStrategy', () => {
 			reads: [fixture.db.getAllFileEditsCalls, fixture.db.getFileEditsByTurnCalls],
 		}, { session: ready([trackedDiff()]), turn: ready([trackedDiff()]), gitCalls: 2, reads: [1, 1] });
 	});
+
+	test('main branch changes retain the persisted baseline while using the session folder', async () => {
+		const fixture = createFixture();
+		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
+		fixture.gitStates.set(buildDefaultChatUri(session), { baseBranchName: 'main' });
+		const calls: (string | undefined)[] = [];
+		fixture.git.computeSessionFileDiffs = async (_directory, options) => {
+			calls.push(options?.baseBranch);
+			return [];
+		};
+		const branch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId(['file:///repo'])));
+		const published = nextPublication(fixture.state, branch);
+		fixture.service.refreshBranchChangeset(session);
+		await published;
+		assert.deepStrictEqual(calls, ['release-A']);
+	});
+
+	test('single-chat folder replacement uses the destination baseline after clearing worktree metadata', async () => {
+		const fixture = createFixture();
+		const destination = 'file:///destination';
+		const main = buildDefaultChatUri(session);
+		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, '');
+		fixture.state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryReplaced, directory: 'file:///repo', replacement: destination });
+		fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
+		fixture.gitStates.set(main, { baseBranchName: 'main' });
+		const calls: { directory: string; baseBranch: string | undefined }[] = [];
+		fixture.git.computeSessionFileDiffs = async (directory, options) => {
+			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
+			return [];
+		};
+		const branch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([destination])));
+		const published = nextPublication(fixture.state, branch);
+		fixture.service.refreshBranchChangeset(main);
+		await published;
+		assert.deepStrictEqual(calls, [{ directory: destination, baseBranch: 'main' }]);
+	});
+
+	test('moved peer branch changes use the destination baseline after clearing inherited fork metadata', async () => {
+		const original = 'file:///repo';
+		const destination = 'file:///destination';
+		const main = buildDefaultChatUri(session);
+		const peer = buildChatUri(session, 'peer');
+		const peerDb = new TestSessionDatabase();
+		const fixture = createFixture({
+			workingDirectories: [original, destination],
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: [destination] },
+		});
+		fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: original });
+		fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [original] } });
+		await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
+		await peerDb.setMetadata(META_DIFF_BASE_BRANCH, '');
+		fixture.gitStates.set(peer, { baseBranchName: 'main' });
+		const calls: { directory: string; baseBranch: string | undefined }[] = [];
+		fixture.git.computeSessionFileDiffs = async (directory, options) => {
+			calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
+			return [];
+		};
+		for (const [chat, directory] of [[main, original], [peer, destination]]) {
+			const branch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([directory])));
+			const published = nextPublication(fixture.state, branch);
+			fixture.service.refreshBranchChangeset(chat);
+			await published;
+		}
+		assert.deepStrictEqual(calls, [
+			{ directory: original, baseBranch: 'release-A' },
+			{ directory: destination, baseBranch: 'main' },
+		]);
+	});
+
+	for (const destinationBase of ['main', undefined]) {
+		test(`relocated main branch changes ignore the session baseline with destination base ${destinationBase}`, async () => {
+			const original = 'file:///repo';
+			const destination = 'file:///destination';
+			const main = buildDefaultChatUri(session);
+			const peer = buildChatUri(session, 'peer');
+			const peerDb = new TestSessionDatabase();
+			const fixture = createFixture({
+				workingDirectories: [original, destination],
+				peer: { resource: peer, db: peerDb, turnId: 'peer-turn', workingDirectories: [original] },
+			});
+			await fixture.db.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
+			await peerDb.setMetadata(META_DIFF_BASE_BRANCH, 'release-A');
+			fixture.state.setSessionMeta(session, withSessionGitState(undefined, { baseBranchName: 'release-A' }));
+			fixture.state.dispatchServerAction(main, { type: ActionType.ChatWorkingDirectorySet, directory: destination });
+			fixture.state.dispatchServerAction(session, { type: ActionType.SessionChatUpdated, chat: main, changes: { workingDirectories: [destination] } });
+			if (destinationBase) {
+				fixture.gitStates.set(main, { baseBranchName: destinationBase });
+			}
+			fixture.gitStates.set(peer, { baseBranchName: 'release-A' });
+			const calls: { directory: string; baseBranch: string | undefined }[] = [];
+			fixture.git.computeSessionFileDiffs = async (directory, options) => {
+				calls.push({ directory: directory.toString(), baseBranch: options?.baseBranch });
+				return [];
+			};
+			for (const [chat, directory] of [[main, destination], [peer, original]]) {
+				const branch = buildBranchChangesetUri(buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([directory])));
+				const published = nextPublication(fixture.state, branch);
+				fixture.service.refreshBranchChangeset(chat);
+				await published;
+			}
+			assert.deepStrictEqual(calls, [
+				{ directory: destination, baseBranch: destinationBase },
+				{ directory: original, baseBranch: 'release-A' },
+			]);
+		});
+	}
 
 	test('branch, uncommitted, and compare-turns computations remain Git-backed', async () => {
 		const fixture = createFixture();

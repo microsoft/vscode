@@ -3,7 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ToolDefinition, URI } from './state/sessionState.js';
+import type { StringOrMarkdown, ToolDefinition, URI } from './state/sessionState.js';
+
+/** Provider-neutral display strings for a server tool. */
+export interface IServerToolDisplay {
+	readonly displayName?: string;
+	readonly invocationMessage?: StringOrMarkdown;
+	/** When omitted, providers reuse the invocation message. */
+	readonly pastTenseMessage?: StringOrMarkdown;
+	readonly confirmationTitle?: string;
+	readonly confirmationMessage?: StringOrMarkdown;
+	readonly hideConfirmationInput?: boolean;
+}
 
 /**
  * A server tool definition plus agent-host-local metadata that is not part of
@@ -45,8 +56,8 @@ export interface IAgentServerToolHost {
 	getDefinitionsForSession(sessionUri: URI, chatUri?: URI): readonly IAgentServerToolDefinition[];
 	/** Routable server-tool names, including materialized tools retained by sessions after root settings change. */
 	readonly toolNames: readonly string[];
-	/** Advertises all server tools on the session's `serverTools`. */
-	advertise(sessionUri: URI): void;
+	/** Advertises all server tools on the owning session, accepting a session or chat URI. */
+	advertise(sessionOrChatUri: URI): void;
 	/**
 	 * Whether {@link toolName} can ever prompt for confirmation, independent of
 	 * any session's current state. Providers use this to decide up front which
@@ -68,6 +79,8 @@ export interface IAgentServerToolHost {
 	 * Providers must consult this before prompting or executing the tool.
 	 */
 	requiresConfirmation(chatUri: URI, toolName: string): boolean;
+	/** Resolves live display strings against the invoking chat's owning session. */
+	getDisplay?(chatUri: URI, toolName: string, args: unknown): IServerToolDisplay | undefined;
 	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.

@@ -87,6 +87,7 @@ interface ITestPeer {
 	/** Extra disposables (e.g. request-handler registrations from `connectPeer`) released alongside the peer. */
 	readonly disposables: DisposableStore;
 	push(message: object): void;
+	exit(): void;
 	dispose(): void;
 }
 
@@ -116,6 +117,7 @@ function createTestPeer(): ITestPeer {
 		outbound,
 		disposables,
 		push: message => stdout.write(JSON.stringify(message) + '\n'),
+		exit: () => onExit.fire({ code: 1, signal: null }),
 		dispose: () => {
 			disposables.dispose();
 			onExit.dispose();
@@ -2286,6 +2288,27 @@ suite('CodexAgent workspace conversion', () => {
 			});
 		});
 	}
+
+	test('chat isolation rethrows a definitive Codex rejection instead of signaling quarantine', async () => {
+		const harness = await createWorkspaceHarness();
+		const { agent, peer, session, chat, folder, scratch, entry } = harness;
+		const changing = agent.setChatWorkingDirectory(chat, { configurationResource: session, resource: session }, folder);
+		const rejected = assert.rejects(changing, error => !(error instanceof AgentWorkingDirectoryChangedError) && /update rejected/.test(String(error)));
+		const request = await readNextRequest(peer.outbound);
+		peer.push({ id: request.id, error: { code: -32602, message: 'update rejected' } });
+		await rejected;
+		assert.strictEqual(entry.workingDirectory?.fsPath, scratch.fsPath);
+	});
+
+	test('chat isolation signals quarantine when the Codex process exits before answering the update', async () => {
+		const harness = await createWorkspaceHarness();
+		const { agent, peer, session, chat, folder } = harness;
+		const changing = agent.setChatWorkingDirectory(chat, { configurationResource: session, resource: session }, folder);
+		const rejected = assert.rejects(changing, error => error instanceof AgentWorkingDirectoryChangedError && error.workingDirectory.toString() === folder.toString());
+		await readNextRequest(peer.outbound);
+		peer.exit();
+		await rejected;
+	});
 
 	test('chat isolation signals quarantine when durable metadata cannot be committed', async () => {
 		const harness = await createWorkspaceHarness();

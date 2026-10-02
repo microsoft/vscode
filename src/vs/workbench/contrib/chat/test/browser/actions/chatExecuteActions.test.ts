@@ -606,6 +606,13 @@ suite('ChatSubmitAction', () => {
 			assert.deepStrictEqual(calls, ['request']);
 		});
 
+		test('Stop is disabled while isolation blocks input', () => {
+			const stop = new CancelAction();
+			assert.deepStrictEqual([false, true].map(blocked => stop.desc.precondition!.evaluate({
+				getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => (key === ChatContextKeys.inputBlocked.key ? blocked : undefined) as T,
+			})), [true, false]);
+		});
+
 		test('preparation suppresses Send, queue and steer while showing the normal Stop action', () => {
 			const stop = new CancelAction();
 			assert.ok(Array.isArray(stop.desc.menu));

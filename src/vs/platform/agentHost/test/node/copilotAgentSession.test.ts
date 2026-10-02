@@ -93,6 +93,7 @@ import { ArtifactServerToolName, SessionServerToolName } from '../../common/serv
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { artifactServerToolDefinitions, createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { createSessionIsolationToolGroup } from '../../node/shared/sessionIsolationTools.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -17480,6 +17481,47 @@ Use the attached image as context.
 				pendingConfirmations: 0,
 			});
 		});
+
+		for (const target of ['single', 'main', 'peer'] as const) {
+			test(`isolation confirmation uses live session context for the ${target} chat`, async () => {
+				const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+				const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+				stateManager.createSession({
+					resource: sessionUri.toString(), provider: 'copilot', title: 'Isolation', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				});
+				const peer = buildChatUri(sessionUri, 'peer');
+				if (target !== 'single') {
+					stateManager.addChat(sessionUri.toString(), peer);
+				}
+				const chatChannelUri = URI.parse(target === 'peer' ? peer : buildDefaultChatUri(sessionUri));
+				const serverToolHost = new AgentServerToolHost(stateManager, [createSessionIsolationToolGroup({
+					supportsChatIsolation: () => true,
+					requestChatIsolation: () => { },
+				})]);
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables, { serverToolHost, sessionUri, chatChannelUri });
+				const permission = runtime.handlePermissionRequest({
+					kind: 'custom-tool', toolCallId: 'tc-isolate', toolName: SessionServerToolName.IsolateSession, args: {},
+				});
+				const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === 'tc-isolate');
+				assert.ok(signal.kind === 'pending_confirmation');
+				session.respondToPermissionRequest('tc-isolate', false);
+				await permission;
+				assert.deepStrictEqual({
+					chat: signal.chat.toString(),
+					message: signal.state.invocationMessage,
+					title: signal.state.confirmationTitle,
+					input: signal.state.toolInput,
+				}, {
+					chat: chatChannelUri.toString(),
+					message: target === 'single'
+						? 'Change this chat\'s workspace to a new worktree? The original folder is left unchanged. Uncommitted edits are not copied, except configured worktree include-files.'
+						: 'Change only this chat\'s workspace to a new worktree? Other chats and the original folder are left unchanged. Uncommitted edits are not copied, except configured worktree include-files.',
+					title: 'Change Workspace?',
+					input: undefined,
+				});
+			});
+		}
 
 		test('requests confirmation when a server tool has content to confirm', async () => {
 			const serverToolHost = new FakeServerToolHost();

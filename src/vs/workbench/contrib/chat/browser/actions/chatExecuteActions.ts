@@ -925,6 +925,7 @@ export class CancelAction extends Action2 {
 		super({
 			id: CancelAction.ID,
 			title: localize2('interactive.cancel.label', "Cancel"),
+			precondition: ChatContextKeys.inputBlocked.negate(),
 			f1: false,
 			category: CHAT_CATEGORY,
 			icon: Codicon.stopCircle,

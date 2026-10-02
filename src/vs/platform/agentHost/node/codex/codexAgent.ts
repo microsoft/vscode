@@ -84,7 +84,7 @@ import { IAgentSdkDownloader, IAgentSdkPackage } from '../agentSdkDownloader.js'
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
-import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
+import { CodexAppServerClient, JsonRpcError, JsonRpcErrorCode, JsonRpcResponseError, transportFromChildProcess, type ICodexAppServerClient, type ServerRequestHandlerResult } from './codexAppServerClient.js';
 import { CODEX_PORTABLE_HISTORY_HEADER, ICodexProxyService, type ICodexProxyHandle } from './codexProxyService.js';
 import { GITHUB_MCP_SERVER_NAME, resolveGitHubMcpServerConfiguration } from '../shared/githubMcpServer.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
@@ -2970,7 +2970,7 @@ export class CodexAgent extends Disposable implements IAgent {
 					if (!entry) {
 						return { result: this._toolFailure(`No pending server tool call for ${params.tool} (callId ${params.callId})`) };
 					}
-					const display = getServerToolDisplay(params.tool, params.arguments);
+					const display = host.getDisplay?.(chatChannel, params.tool, params.arguments) ?? getServerToolDisplay(params.tool, params.arguments);
 					const invocationMessage = display?.confirmationMessage ?? display?.invocationMessage ?? `Calling ${params.tool}`;
 					const decision = await session.pendingCommandApprovals.registerAndFire(entry.toolCallId, () => {
 						this._fire(session.sessionUri, {
@@ -4414,7 +4414,8 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (change.requested && !change.updated.value && !session.disposed) {
 				this._markSessionForReload(session);
 			}
-			if (chatOnly && change.requested) {
+			if (chatOnly && change.requested && !(error instanceof JsonRpcResponseError && !change.updated.value)) {
+				// Only an answered rejection proves Codex stayed in the old directory; timeouts and transport loss leave the outcome unknown.
 				throw new AgentWorkingDirectoryChangedError(workingDirectory, `The Codex working directory update could not be confirmed: ${error instanceof Error ? error.message : String(error)}`);
 			}
 			throw error;

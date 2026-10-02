@@ -29,7 +29,7 @@ import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSe
 import { SessionsCategories } from '../../../../common/categories.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext } from './sessionsList.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, archiveSessionsContinuingOnError } from './sessionsList.js';
 import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -68,37 +68,34 @@ async function archiveSessionsWithUndo(
 	groupsService: ISessionGroupsService,
 	viewsService: IViewsService,
 ): Promise<void> {
-	const archived: { session: ISession; groupId: string | undefined }[] = [];
 	const candidates = sessions.filter(session => !session.isArchived.get()).map(session => ({
 		session,
 		groupId: groupsService.getGroupOfSession(session.sessionId),
 	}));
-	try {
-		for (const entry of candidates) {
-			await sessionsManagementService.archiveSession(entry.session);
-			archived.push(entry);
-		}
-	} finally {
-		// A partially completed batch must remain undoable even when a later archive fails.
-		if (archived.length > 0) {
-			const message = wording === ChatSessionArchiveActionWording.MarkAsDone
-				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
-				: localize('sessionsArchived', "{0} archived", archived.length);
-			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.show(message, async () => {
-				while (archived.length > 0) {
-					const { session, groupId } = archived[0];
-					const current = sessionsManagementService.getSession(session.resource);
-					if (current?.isArchived.get()) {
-						await sessionsManagementService.unarchiveSession(current);
-						if (groupId && groupsService.getGroup(groupId) && !groupsService.getGroupOfSession(current.sessionId)) {
-							groupsService.addToGroup(current.sessionId, groupId);
-						}
+	const { archived: archivedSessions, error } = await archiveSessionsContinuingOnError(sessionsManagementService, candidates.map(entry => entry.session));
+	// A partially completed batch must remain undoable even when some archives fail.
+	const archived = candidates.filter(entry => archivedSessions.includes(entry.session));
+	if (archived.length > 0) {
+		const message = wording === ChatSessionArchiveActionWording.MarkAsDone
+			? localize('sessionsMarkedDone', "{0} marked done", archived.length)
+			: localize('sessionsArchived', "{0} archived", archived.length);
+		viewsService.getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.show(message, async () => {
+			while (archived.length > 0) {
+				const { session, groupId } = archived[0];
+				const current = sessionsManagementService.getSession(session.resource);
+				if (current?.isArchived.get()) {
+					await sessionsManagementService.unarchiveSession(current);
+					if (groupId && groupsService.getGroup(groupId) && !groupsService.getGroupOfSession(current.sessionId)) {
+						groupsService.addToGroup(current.sessionId, groupId);
 					}
-					archived.shift();
 				}
-				status(localize('sessionsRestored', "Sessions restored."));
-			});
-		}
+				archived.shift();
+			}
+			status(localize('sessionsRestored', "Sessions restored."));
+		});
+	}
+	if (error) {
+		throw error;
 	}
 }
 
@@ -1063,8 +1060,9 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			: getFocusedSessionListTargets(accessor) ?? [];
 		const sessions = targets.filter(session => !session.isArchived.get());
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		for (const session of sessions) {
-			await sessionsManagementService.archiveSession(session);
+		const { error } = await archiveSessionsContinuingOnError(sessionsManagementService, sessions);
+		if (error) {
+			throw error;
 		}
 	}
 }

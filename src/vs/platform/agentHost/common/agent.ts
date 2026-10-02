@@ -1318,8 +1318,8 @@ export interface IAgent {
 	 */
 	setWorkingDirectory(chat: URI, context: URI | IAgentChatContext, workingDirectory: URI): Promise<void>;
 
-	/** Changes only the addressed chat's backing, leaving other chats and shared configuration unchanged. */
-	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI): Promise<void>;
+	/** Changes the addressed chat's backing. Shared roots may change only under the host's single-chat catalog lock. */
+	setChatWorkingDirectory?(chat: URI, context: IAgentChatContext, workingDirectory: URI, options?: { readonly replaceSessionWorkspace: boolean }): Promise<void>;
 
 	/** Return bounded diagnostics for an in-flight turn when supported. */
 	getTurnDiagnosticSnapshot?(chat: URI, turnId: string): IAgentTurnDiagnosticSnapshot | undefined;

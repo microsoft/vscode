@@ -240,6 +240,28 @@ suite('Sessions - Session management actions', () => {
 		});
 	});
 
+	test('archives the remaining selected sessions after one archive is rejected and reports the failure', async () => {
+		const first = createTestSession('First').session;
+		const rejected = createTestSession('Rejected').session;
+		const last = createTestSession('Last').session;
+		const harness = createActionHarness([first, rejected, last], undefined);
+		harness.managementService.onDidArchive = session => {
+			if (session === rejected) {
+				throw new Error('Unable to archive this session: converting');
+			}
+		};
+
+		const result = await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor)).then(() => undefined, (error: Error) => error.message);
+
+		assert.deepStrictEqual({
+			attempted: harness.managementService.archived.map(session => session.sessionId),
+			result,
+		}, {
+			attempted: [first.sessionId, rejected.sessionId, last.sessionId],
+			result: 'Unable to archive this session: converting',
+		});
+	});
+
 	test('routes session and chat rename commands to their focused targets', async () => {
 		const listSession = createTestSession('List').session;
 		const listActiveSession = upcastPartial<IActiveSession>(createTestSession('Other active').session);

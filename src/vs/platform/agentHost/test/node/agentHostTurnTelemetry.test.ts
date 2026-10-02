@@ -288,11 +288,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			}],
 			[ISessionWorkspaceConversionService, {
 				_serviceBrand: undefined,
-				requestSessionWorkspaceUpdate: () => { },
+				onDidChangePendingSession: Event.None,
+				supportsChatIsolation: () => false,
+				canIsolateChat: () => false,
+				requestChatIsolation: () => { },
+				restoreChatIsolation: async () => { },
+				requestSessionWorkspaceUpdate: () => true,
 				isPending: () => false,
+				isConversionTurn: () => false,
 				cancel: () => { },
 				updateSessionWorkspace: async () => { },
-			}],
+			} satisfies ISessionWorkspaceConversionService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
