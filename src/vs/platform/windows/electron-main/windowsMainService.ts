@@ -59,6 +59,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { resolveAgentsWindowFolder } from './agentsWindow.js';
 
 //#region Helper Interfaces
 
@@ -295,10 +296,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
 
-		if (!folderUri && !sessionResource && openConfig.cli.agents && (source === undefined || source === AgentsWindowOpenSource.CommandLine)) {
-			const paths = await this.doExtractPathsFromCLI(openConfig.cli);
-			folderUri = paths.find(isSingleFolderWorkspacePathToOpen)?.workspace.uri;
-		}
+		folderUri = await resolveAgentsWindowFolder(openConfig, folderUri, sessionResource, source, cli => this.doExtractPathsFromCLI(cli));
 
 		// Open in a new browser window with the agent sessions workspace
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
@@ -934,7 +932,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return coalesce(pathsToOpen);
 	}
 
-	private async doExtractPathsFromCLI(cli: NativeParsedArgs): Promise<IPath[]> {
+	private async doExtractPathsFromCLI(cli: NativeParsedArgs): Promise<IPathToOpen[]> {
 		const pathsToOpen: IPathToOpen[] = [];
 		const pathResolveOptions: IPathResolveOptions = {
 			ignoreFileNotFound: true,
