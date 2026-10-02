@@ -14,7 +14,7 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
-import { createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -133,6 +133,60 @@ suite('BaseLayoutController', () => {
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
 			'returning to session 1 should not restore a per-session panel state'
 		);
+	});
+
+	test('[R13] a phone transition leaves per-chat panel visibility untouched, then resumes the focused chat\'s own preference', () => {
+		createController({ chatLayoutEnabled: true, desktopLayout: true });
+		const session = makeSession(URI.parse('session:1'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+
+		// Main: panel hidden. Peer: panel shown.
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
+		setActiveChat(session, peer);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+
+		harness.setPartHiddenCalls = [];
+
+		// Entering a phone layout while the peer (panel shown) is focused must
+		// not sync the panel purely from the active-flag flip.
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'suspending must not sync panel visibility'
+		);
+
+		// A manual toggle while suspended is dormant/transient — it must not be
+		// recorded against the peer's own remembered preference.
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
+
+		// Switching chats while suspended must not sync the panel either — the
+		// owner is dormant until the layout resumes.
+		setActiveChat(session, main);
+		assert.ok(
+			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
+			'a chat switch while suspended must not sync panel visibility'
+		);
+
+		harness.setPartHiddenCalls = [];
+
+		// Leaving the phone layout resumes the currently-focused chat's (main's)
+		// own remembered panel visibility (hidden), not the transient state left
+		// on screen during suspension (hidden too, here, but for the wrong reason
+		// — confirmed below via the peer's untouched record).
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		const mainPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
+		assert.ok(mainPanelCall);
+		assert.strictEqual(mainPanelCall!.hidden, true, 'resuming restores the currently-focused chat\'s own panel visibility');
+
+		// The peer's own remembered visibility (shown) must be unaffected by the
+		// toggle made while suspended.
+		harness.setPartHiddenCalls = [];
+		setActiveChat(session, peer);
+		const peerPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
+		assert.ok(peerPanelCall);
+		assert.strictEqual(peerPanelCall!.hidden, false, 'the peer chat\'s own panel visibility must be unaffected by a toggle made while suspended');
 	});
 
 	// --- [B6] Panel view (which view the panel shows) ---
@@ -521,6 +575,103 @@ suite('BaseLayoutController', () => {
 			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART),
 			[],
 			'the superseded (A) apply must not hide the editor part once stale — the still-current (B) owner wants it left visible'
+		);
+	});
+
+	test('[R13] a working-set apply superseded by a phone transition does not publish stale reveal/hide', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		const layoutState = [{ sessionResource: 'session:a', editorPartHidden: true }];
+		createRevealEmptyWorkingSetController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders, layoutState });
+
+		const sessionC = makeSession(URI.parse('session:c'));
+		const sessionA = makeSession(URI.parse('session:a'));
+
+		// Get past the initial-restore branch, as in the [R4] test above.
+		harness.activeSessionObs.set(sessionC, undefined);
+		await timeout(0);
+		harness.setPartHiddenCalls = [];
+		harness.applyWorkingSetCalls = [];
+
+		// A has no saved editor working set, so switching to it goes through the
+		// empty-working-set branch, whose reveal/hide decision is made only
+		// after the `await`. While A's apply is in flight, a phone transition
+		// lands — the owner is the same (A is still focused), but the chat
+		// layout's active flag flips, which still produces a new presentation
+		// snapshot and must stale-guard the in-flight apply exactly like a
+		// superseding owner switch would.
+		let raced = false;
+		harness.onApplyWorkingSet = () => {
+			if (!raced) {
+				raced = true;
+				harness.chatLayoutIsPhoneObs.set(true, undefined);
+			}
+		};
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			['empty'],
+			'the in-flight apply for A must still run to completion despite the phone transition'
+		);
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls.filter(c => c.part === Parts.EDITOR_PART),
+			[],
+			'a phone transition landing mid-apply must suppress the stale reveal/hide, the same as a superseding session switch'
+		);
+	});
+
+	test('[R13] entering and leaving a phone layout freezes the working-set derive, resuming with whichever chat is focused on exit', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders });
+
+		const session = makeSession(URI.parse('session:a'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+		assert.ok(session.activeChat.get() === main);
+
+		// Give the main chat a working set to restore (captured via an explicit
+		// save, since a same-session chat switch doesn't eagerly save the
+		// outgoing chat's working set — only `_saveState` does), then switch to
+		// the peer chat and give it a distinct one of its own.
+		harness.visibleEditorsList = [{}];
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const [mainWorkingSetName] = harness.saveWorkingSetCalls;
+
+		setActiveChat(session, peer);
+		await timeout(0);
+		harness.visibleEditorsList = [{}, {}];
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		assert.strictEqual(harness.saveWorkingSetCalls.length, 2, 'the peer chat\'s working set must be captured under its own owner key');
+		const peerWorkingSetName = harness.saveWorkingSetCalls[1];
+		assert.notStrictEqual(peerWorkingSetName, mainWorkingSetName, 'each chat must capture its working set under a distinct owner key');
+
+		harness.applyWorkingSetCalls = [];
+
+		// Enter a phone layout while the peer chat is focused. No apply must
+		// fire purely from the active-flag flip.
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'suspending must not itself trigger a working-set apply');
+
+		// Switching chats while suspended must likewise not apply anything —
+		// the owner is dormant until the layout resumes.
+		setActiveChat(session, main);
+		await timeout(0);
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'a chat switch while suspended must not trigger a working-set apply');
+
+		// Leaving the phone layout resumes with whichever chat is CURRENTLY
+		// focused (main, switched to while suspended), not whichever chat was
+		// focused when suspension began (the peer).
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		await timeout(0);
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: mainWorkingSetName, name: mainWorkingSetName }],
+			'resuming must apply the currently-focused chat\'s own working set, not the one focused when suspension began'
 		);
 	});
 

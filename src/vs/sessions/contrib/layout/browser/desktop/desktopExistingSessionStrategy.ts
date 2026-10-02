@@ -175,10 +175,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const isCreated = activeSession.isCreated.read(reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
-			// Covers both a different owner taking over and an owner entering or
-			// leaving phone suspension (ownerKey flipping to/from undefined),
-			// so the shared or resumed composition is reapplied on either edge.
-			const ownerChanged = !sessionChanged && !isEqual(previousOwnerKey, ownerKey);
+			// Covers a different owner taking over or resuming from phone
+			// suspension, but not entering suspension (which must leave the
+			// on-screen composition undisturbed).
+			const ownerChanged = !sessionChanged && ownerKey !== undefined && !isEqual(previousOwnerKey, ownerKey);
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
 			if (isSubmit) {
@@ -268,8 +268,9 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		// rather than whichever owner happened to be on screen when it suspended.
 		if (this._ctx.chatLayoutActive()) {
 			const activeSession = this._sessionsService.activeSession.get();
-			if (activeSession) {
-				this._ctx.compositionStore.set(this._ctx.ownerKeyFor(activeSession), { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
+			const ownerKey = activeSession && this._ctx.ownerKeyFor(activeSession);
+			if (ownerKey) {
+				this._ctx.compositionStore.set(ownerKey, { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible });
 			}
 			return;
 		}

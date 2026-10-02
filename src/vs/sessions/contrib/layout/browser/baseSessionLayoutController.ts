@@ -203,22 +203,15 @@ export abstract class BaseLayoutController extends Disposable {
 		return this._layoutService.chatLayoutPresentation.enabled;
 	}
 
-	/**
-	 * [R13] Whether chat-owned layout is in effect *right now* — unlike the
-	 * frozen {@link _chatLayoutEnabled} (fixed for the window's whole lifetime),
-	 * this also suspends while the window is in a phone-sized layout: owner-key
-	 * resolution collapses to the plain session resource (identical to the
-	 * disabled baseline) so no per-chat state is read or written there, while
-	 * anything already stored for a chat owner is left untouched and resumes
-	 * once the phone layout ends. Pass `reader` from inside a derive/autorun so
-	 * it reactively re-evaluates on a phone transition, not only on a session or
-	 * chat switch.
-	 */
 	protected _chatLayoutActive(reader?: IReader): boolean {
 		if (!this._chatLayoutContext) {
 			return false;
 		}
 		return (reader ? this._chatLayoutContext.state.read(reader) : this._chatLayoutContext.state.get()).presentation.active;
+	}
+
+	protected _chatLayoutSuspended(reader?: IReader): boolean {
+		return this._chatLayoutEnabled && !this._chatLayoutActive(reader);
 	}
 
 	constructor(
@@ -276,11 +269,15 @@ export abstract class BaseLayoutController extends Disposable {
 				if (!session) {
 					continue;
 				}
+				const ownerKey = this._ownerKeyFor(session);
+				if (!ownerKey) {
+					continue;
+				}
 				if (this._isViewStatePerSession) {
-					this._viewStateBySession.delete(this._ownerKeyFor(session));
+					this._viewStateBySession.delete(ownerKey);
 				}
 				if (this._isPanelVisibilityPerSession) {
-					this._panelVisibilityBySession.delete(this._ownerKeyFor(session));
+					this._panelVisibilityBySession.delete(ownerKey);
 				}
 			}
 		}));
@@ -297,6 +294,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this.multipleSessionsVisibleObs.read(reader)) {
 				return;
 			}
+			if (activeSession && this._chatLayoutSuspended(reader)) {
+				return;
+			}
 			this._syncPanelVisibility(activeSession ? this._ownerKeyFor(activeSession, reader) : undefined);
 		}));
 
@@ -309,8 +309,9 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
-			if (activeSession) {
-				this._panelVisibilityBySession.set(this._ownerKeyFor(activeSession), e.visible);
+			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
+			if (ownerKey) {
+				this._panelVisibilityBySession.set(ownerKey, e.visible);
 			}
 		}));
 
@@ -324,8 +325,9 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
-			if (activeSession) {
-				this._panelViewBySession.set(this._ownerKeyFor(activeSession), e.composite.getId());
+			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
+			if (ownerKey) {
+				this._panelViewBySession.set(ownerKey, e.composite.getId());
 			}
 		}));
 
@@ -342,6 +344,9 @@ export abstract class BaseLayoutController extends Disposable {
 			if (this.multipleSessionsVisibleObs.read(reader)) {
 				return;
 			}
+			if (activeSession && this._chatLayoutSuspended(reader)) {
+				return;
+			}
 			this._syncPanelView(activeSession ? this._ownerKeyFor(activeSession, reader) : undefined);
 		}));
 		this._register(this._layoutService.onDidChangePartVisibility(e => {
@@ -352,6 +357,9 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
+			if (activeSession && this._chatLayoutSuspended()) {
+				return;
+			}
 			this._syncPanelView(activeSession ? this._ownerKeyFor(activeSession) : undefined);
 		}));
 
@@ -372,8 +380,9 @@ export abstract class BaseLayoutController extends Disposable {
 				return;
 			}
 			const activeSession = this._sessionsService.activeSession.get();
-			if (activeSession) {
-				this._editorPartHiddenBySession.set(this._ownerKeyFor(activeSession), !e.visible);
+			const ownerKey = activeSession && this._ownerKeyFor(activeSession);
+			if (ownerKey) {
+				this._editorPartHiddenBySession.set(ownerKey, !e.visible);
 			}
 		}));
 
@@ -400,6 +409,10 @@ export abstract class BaseLayoutController extends Disposable {
 				activeSessionWorkspaceUri &&
 				!workspaceFolders.some(folder => isEqual(folder.uri, activeSessionWorkspaceUri))
 			) {
+				return lastValue ?? { session: undefined, key: undefined };
+			}
+
+			if (this._chatLayoutSuspended(reader)) {
 				return lastValue ?? { session: undefined, key: undefined };
 			}
 
@@ -431,7 +444,10 @@ export abstract class BaseLayoutController extends Disposable {
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
 				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout) {
-					this._saveWorkingSet(this._ownerKeyFor(previousSession));
+					const ownerKey = this._ownerKeyFor(previousSession);
+					if (ownerKey) {
+						this._saveWorkingSet(ownerKey);
+					}
 				}
 			}
 		}));
@@ -510,14 +526,17 @@ export abstract class BaseLayoutController extends Disposable {
 		this._registerAuxiliaryControllers();
 	}
 
-	protected _ownerKeyForChat(sessionResource: URI, chatResource: URI, mainChatResource: URI, reader?: IReader): URI {
-		if (!this._chatLayoutActive(reader)) {
+	protected _ownerKeyForChat(sessionResource: URI, chatResource: URI, mainChatResource: URI, reader?: IReader): URI | undefined {
+		if (!this._chatLayoutEnabled) {
 			return sessionResource;
+		}
+		if (!this._chatLayoutActive(reader)) {
+			return undefined;
 		}
 		return this._chatLayoutOwnerKeys.resolveKey({ sessionResource, chatResource }, mainChatResource);
 	}
 
-	protected _ownerKeyFor(session: IActiveSession, reader?: IReader): URI {
+	protected _ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined {
 		const activeChat = reader ? session.activeChat.read(reader) : session.activeChat.get();
 		const mainChat = reader ? session.mainChat.read(reader) : session.mainChat.get();
 		return this._ownerKeyForChat(session.resource, activeChat.resource, mainChat.resource, reader);
@@ -883,15 +902,16 @@ export abstract class BaseLayoutController extends Disposable {
 	private _saveState(): void {
 		const activeSession = this._sessionsService.activeSession.get();
 		const multipleVisible = this._sessionsService.visibleSessions.get().length > 1;
+		const ownerKey = activeSession && this._ownerKeyFor(activeSession);
 
 		// [B4] Capture current state for the active session (skip multiple-visible and untitled).
-		if (activeSession && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
-			this._captureActiveSessionViewState(this._ownerKeyFor(activeSession));
+		if (activeSession && ownerKey && !multipleVisible && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
+			this._captureActiveSessionViewState(ownerKey);
 		}
 
 		// [B4] Capture working set for the active session (skip untitled)
-		if (activeSession && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
-			this._saveWorkingSet(this._ownerKeyFor(activeSession));
+		if (activeSession && ownerKey && activeSession.status.read(undefined) !== SessionStatus.Untitled) {
+			this._saveWorkingSet(ownerKey);
 		}
 
 		// Collect all session resources across all maps

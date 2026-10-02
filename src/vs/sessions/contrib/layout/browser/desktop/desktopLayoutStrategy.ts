@@ -30,8 +30,8 @@ export interface IDesktopLayoutContext {
 	completeChangesEditorTransition(): void;
 	/** [R1/R13] Whether `sessions.experimental.chatSpecificLayout` is in effect for the current (desktop, non-suspended) presentation. Pass `reader` from inside a derive/autorun so a phone transition reactively re-evaluates it. */
 	chatLayoutActive(reader?: IReader): boolean;
-	/** [R2/R5] Resolves the chat-layout owner key (main chat maps to the session resource unchanged) for a session's currently active chat. Collapses to the plain session resource while {@link chatLayoutActive} is `false`. */
-	ownerKeyFor(session: IActiveSession, reader?: IReader): URI;
+	/** [R2/R5/R13] Resolves the chat-layout owner key (main chat maps to the session resource unchanged) for a session's currently active chat. Returns `undefined` while {@link chatLayoutActive} is `false`. */
+	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
 	/** [R5] Each owner's remembered last-open side-pane (Editor/Details) composition. Only consulted while {@link chatLayoutActive}. */
 	readonly compositionStore: DesktopOwnerCompositionStore;
 }
