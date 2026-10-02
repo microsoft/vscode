@@ -26,6 +26,7 @@ import { agentHostAuthority, toAgentHostUri } from '../../common/agentHostUri.js
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 import { AgentHostPermissionMode, AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
+import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
 import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
@@ -43,7 +44,6 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../common/agentHostManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -810,6 +810,38 @@ suite('AgentHostProtocolClient', () => {
 
 		const sessions = await resultPromise;
 		assert.deepStrictEqual(sessions.map(s => readSessionExternal(s._meta)), [true]);
+	});
+
+	test('listSessions reads only valid provider-qualified Codex models from namespaced metadata', async () => {
+		const { client, transport } = createClient();
+		const resultPromise = client.listSessions();
+		const sent = transport.sentMessages[0] as JsonRpcRequest;
+		const summary = (id: string, _meta?: Record<string, unknown>) => ({
+			resource: `agent-session://codex/${id}`,
+			provider: 'codex',
+			title: id,
+			status: SessionStatus.Idle,
+			createdAt: new Date(1000).toISOString(),
+			modifiedAt: new Date(2000).toISOString(),
+			...(_meta ? { _meta } : {}),
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: {
+				items: [
+					summary('valid', withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					summary('malformed', { [CODEX_SESSION_MODEL_META_KEY]: { id: 'gpt-5.6-sol' } }),
+					summary('absent'),
+				],
+			},
+		});
+
+		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
+			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
+			{ provider: 'codex', model: undefined },
+			{ provider: 'codex', model: undefined },
+		]);
 	});
 
 	test('listSessions preserves client-addressed remote working directories across reload', async () => {
@@ -1759,7 +1791,6 @@ suite('AgentHostProtocolClient', () => {
 
 	test('forwards and clears legacy managed permissions for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
 		const { client, transport } = createClientForIdentity(
@@ -1807,7 +1838,7 @@ suite('AgentHostProtocolClient', () => {
 					const inspected = super.inspect<T>(key);
 					return { ...inspected, policyValue: key === setting && this.policyActive ? inspected.value : undefined };
 				}
-			}({ [setting]: 'on', [AgentHostMapLegacySettingsToManagedSettingsSettingId]: false });
+			}({ [setting]: 'on' });
 			const { client, transport } = createClientForIdentity(identity, undefined, undefined, undefined, undefined, configurationService);
 			const contributions = () => transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'setClientSandboxRequired');
 			const expected = (required: boolean) => ({ jsonrpc: '2.0', method: 'setClientSandboxRequired', params: { required } });
@@ -1831,9 +1862,7 @@ suite('AgentHostProtocolClient', () => {
 	}
 
 	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
-		const configurationService = new ManagedPermissionsConfigurationService({
-			[AgentHostMapLegacySettingsToManagedSettingsSettingId]: true,
-		});
+		const configurationService = new ManagedPermissionsConfigurationService({});
 		// Isolate this setting's notification path from the global auto-approve mapping.
 		configurationService.clearGlobalAutoApprovePolicy();
 		configurationService.setEligibleForAutoApprovalPolicy({ runTask: false });
@@ -3904,6 +3933,28 @@ suite('AgentHostProtocolClient', () => {
 			}, {
 				state: AgentHostClientState.Connected,
 				transportCount: 2,
+			});
+		});
+
+		test('includes the required root channel in reconnect requests', async () => {
+			const { client, transports } = createFactoryClient();
+			await runWithFakedTimers({}, async () => {
+				await completeHandshake(transports[0], client.connect());
+
+				const { transport, request } = await beginRecovery(client, transports);
+				assert.deepStrictEqual(request.params, {
+					channel: ROOT_STATE_URI,
+					clientId: client.clientId,
+					lastSeenServerSeq: 5,
+					subscriptions: [ROOT_STATE_URI],
+					_meta: { 'vscode.telemetryLevel': 'off' },
+				});
+				transport.fireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: { type: ReconnectResultType.Replay, actions: [], missing: [] },
+				});
+				await waitForConnectedWithin(client);
+				client.dispose();
 			});
 		});
 

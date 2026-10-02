@@ -711,6 +711,8 @@ export function createNoopChangesetService(): import('../../common/agentHostChan
 		onToolCallEditsApplied: () => { },
 		onTurnComplete: () => { },
 		onSessionTruncated: () => { },
+		ensureChatChangesSummary: () => { },
+		refreshChatChangesSummary: () => { },
 	};
 }
 

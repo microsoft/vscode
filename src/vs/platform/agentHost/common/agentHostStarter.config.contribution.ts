@@ -14,6 +14,7 @@ import {
 	AgentHostAgentOrchestrationLimitsSettingId,
 	AgentHostAutoAttachPullRequestsSettingId,
 	AgentHostByokModelsEnabledSettingId,
+	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
@@ -43,6 +44,7 @@ import {
 	AgentHostAgentOrchestrationLimitsConfigKey,
 	AgentHostAutoAttachPullRequestsConfigKey,
 	AgentHostByokModelsEnabledConfigKey,
+	AgentHostCanvasesEnabledConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
@@ -190,6 +192,15 @@ configurationRegistry.registerConfiguration({
 			agentHost: { key: AgentMergeConfigKey.ReplyAttribution },
 		},
 		...artifactToolsConfigurationProperties,
+		[CanvasesEnabledSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.canvases.enabled', "Controls whether agents can open Canvases with interactive content in the Agents Window. Newly created sessions pick up changes to this setting."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostCanvasesEnabledConfigKey },
+		},
 		[AgentHostAutoAttachPullRequestsSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.autoAttachPullRequests', "Controls whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded by the agent as artifacts or explicitly selected or created through session actions are considered."),
@@ -270,6 +281,7 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCopilotMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeMultiRootEnabledSettingId]: {
@@ -280,6 +292,7 @@ configurationRegistry.registerConfiguration({
 			// Still settable via `settings.json`; flip `default` (e.g. to
 			// `product.quality !== 'stable'`) to enable it for a build channel.
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostClaudeMultiRootEnabledConfigKey },
 		},
 		[AgentHostCodexMultiRootEnabledSettingId]: {
@@ -287,6 +300,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.codexAgent.multiRootEnabled', "When enabled, Codex agent-host sessions advertise support for multiple working directories, so a session created in a multi-root workspace can span every workspace folder. Experimental; newly created sessions pick up a change without restarting the agent host."),
 			default: false,
 			included: false,
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostCodexMultiRootEnabledConfigKey },
 		},
 		[AgentHostClaudeAgentEnabledSettingId]: {

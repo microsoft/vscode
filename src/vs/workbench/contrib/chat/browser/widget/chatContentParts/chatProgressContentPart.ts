@@ -492,13 +492,19 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		this.updateDelayedProgressMessageScheduler();
 		this.updateImageGenerationMessageScheduler();
 
-		// Keep the replacement anchor, but never leave completed or disposed progress visible.
+		// Keep the replacement anchor, but never leave disposed progress visible.
 		this._register(toDisposable(() => hide(this.domNode)));
 		const response = context.element;
 		if (isResponseVM(response)) {
 			this._register(autorun(reader => {
 				this.responseComplete = !response.model.isIncomplete.read(reader);
-				setVisibility(!this.responseComplete, this.domNode);
+				if (this.workingLogo) {
+					// Preserve the footer's footprint until the renderer swaps in the response toolbar.
+					this.domNode.style.visibility = this.responseComplete ? 'hidden' : '';
+					this.domNode.ariaHidden = this.responseComplete ? 'true' : null;
+				} else {
+					setVisibility(!this.responseComplete, this.domNode);
+				}
 				this.updateActiveState();
 				this.updateImageGenerationMessageScheduler();
 				this.onResponseActivity();

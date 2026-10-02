@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -48,6 +49,7 @@ import { ISessionsProvidersService } from '../../../../../services/sessions/brow
 import { ChatInteractivity, ChatModelSource, SessionRemoteConnectionFailureReason, SessionStatus, type ISession, type ISessionFileChange } from '../../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessionsProvider.js';
+import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -2724,6 +2726,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		);
 	}));
 
+	test('retains application and stable environment identity in disconnected caches after renaming a host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		connection.addSession({
+			...createSession('from-cli', { _meta: withSessionInitiator(undefined, { name: 'github/cli' }) }),
+			provider: 'claude',
+		});
+		const provider = createProvider(disposables, connection, { storageService, connectionName: 'Before' });
+		await timeout(0);
+		await storageService.flush();
+		const restored = createProvider(disposables, new MockAgentConnection(), { storageService, noConnection: true, connectionName: 'After' });
+		const session = restored.getSessions()[0];
+		assert.deepStrictEqual({
+			harness: session.harness,
+			application: session.application.get(),
+			environment: session.environment,
+			stableId: restored.environment.id,
+			renamed: restored.environment.label !== provider.environment.label,
+			connected: restored.environment.isConnected?.get(),
+		}, {
+			harness: 'claude',
+			application: { id: 'github/cli', label: 'Copilot CLI' },
+			environment: provider.environment.id,
+			stableId: provider.environment.id,
+			renamed: true,
+			connected: false,
+		});
+	}));
+
 	test('authoritative session update persists materialized workspace metadata', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const provider = createProvider(disposables, connection, { storageService });
@@ -3509,6 +3539,49 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		}) as CloudSandboxSessionsProvider;
 	}
 
+	test('opts out of workspace selection while retaining workspace resolution', () => {
+		const provider = createSandboxProvider();
+		const uri = toAgentHostUri(URI.file('/workspace'), agentHostAuthority(provider.remoteAddress));
+
+		assert.deepStrictEqual({
+			supportsWorkspaceSelection: provider.supportsWorkspaceSelection,
+			resolvedWorkspace: provider.resolveWorkspace(uri)?.uri.toString(),
+		}, {
+			supportsWorkspaceSelection: false,
+			resolvedWorkspace: uri.toString(),
+		});
+	});
+
+	for (const connected of [false, true]) {
+		test(`excludes ${connected ? 'connected' : 'disconnected'} sandboxes from the Automation catalogue and unavailable hosts`, () => {
+			const sandbox = createSandboxProvider();
+			if (connected) {
+				sandbox.setConnection(connection);
+			}
+			const remote = createProvider(disposables, connection, { noConnection: true });
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({
+				onDidChangeProviders: Event.None,
+				getProviders: () => [remote, sandbox],
+			}));
+			const automationService = disposables.add(instantiationService.createInstance(ProviderAutomationService, constObservable(true)));
+
+			assert.deepStrictEqual({
+				hasSandboxAutomations: sandbox.automations !== undefined,
+				availableHosts: automationService.availableProviders.get().map(provider => provider.id),
+				unavailableHosts: automationService.unavailableProviders.get().map(provider => provider.id),
+				automations: automationService.automations.get(),
+				catalogueState: automationService.catalogueState.get(),
+			}, {
+				hasSandboxAutomations: false,
+				availableHosts: [],
+				unavailableHosts: [remote.id],
+				automations: [],
+				catalogueState: 'unavailable',
+			});
+		});
+	}
+
 	function seed(provider: RemoteAgentHostSessionsProvider, changes?: Partial<IAgentSessionMetadata>): void {
 		provider.seedSessions([{ ...metadata, ...changes }], { updateExisting: true });
 	}
@@ -3593,6 +3666,47 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 			actions: [{ channel: backendResource.toString(), action: { type: ActionType.SessionTitleChanged, title: 'Renamed task' } }],
 		});
 	});
+
+	for (const discoveredFirst of [true, false]) {
+		test(`preserves the discovery application through host hydration and reload (discovery first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const provider = createSandboxProvider(storageService);
+			const discoveryMeta = withSessionInitiator(undefined, { name: 'slack' });
+			if (discoveredFirst) {
+				seed(provider, { _meta: discoveryMeta });
+			}
+			connection.addSession({
+				...metadata,
+				session: backendResource,
+				_meta: withSessionInitiator(undefined, { name: 'vscode-agents-window' }),
+			});
+			provider.setConnection(connection);
+			await timeout(0);
+			if (!discoveredFirst) {
+				seed(provider, { _meta: discoveryMeta });
+			}
+			const applications = [provider.getSessions()[0].application.get()];
+			provider.clearConnection();
+			await storageService.flush();
+			provider.dispose();
+
+			const restored = createSandboxProvider(storageService);
+			applications.push(restored.getSessions()[0].application.get());
+			restored.setConnection(connection);
+			await timeout(0);
+			seed(restored);
+			applications.push(restored.getSessions()[0].application.get());
+			seed(restored, { _meta: withSessionInitiator(undefined, { name: 'teams' }) });
+			applications.push(restored.getSessions()[0].application.get());
+
+			assert.deepStrictEqual(applications, [
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'slack', label: 'Slack' },
+				{ id: 'teams', label: 'Teams' },
+			]);
+		}));
+	}
 
 	test('discovery refreshes a provisional session without publishing or replacing it', () => {
 		const provider = createSandboxProvider();

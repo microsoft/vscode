@@ -1530,6 +1530,87 @@ suite('ChatListWidget', () => {
 		});
 	});
 
+	suite('persistent progress completion', () => {
+		for (const incrementalRendering of [false, true]) {
+			for (const atBottom of [false, true]) {
+				test(`replaces progress without moving the list (incremental: ${incrementalRendering}, at bottom: ${atBottom})`, async () => {
+					const { model, container, widget } = createWidget({ paddingBottom: 32 }, configurationService => {
+						configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+						configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incrementalRendering);
+					}, true);
+					container.classList.add('interactive-list');
+					container.style.fontSize = '13px';
+					container.style.setProperty('--vscode-chat-font-size-body-m', '13px');
+					container.style.setProperty('--vscode-chat-font-size-body-s', '12px');
+					container.style.setProperty('--vscode-spacing-size160', '16px');
+					container.style.setProperty('--vscode-spacing-size60', '6px');
+					const addRequest = () => model.addRequest({
+						text: 'test',
+						parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+					}, { variables: [] }, 0);
+					const previousRequest = addRequest();
+					model.acceptResponseProgress(previousRequest, {
+						kind: 'markdownContent',
+						content: new MarkdownString(Array.from({ length: 30 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n')),
+					});
+					previousRequest.response?.complete();
+					const request = addRequest();
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('**Task completed:**\n\nMessage received.'),
+					});
+					widget.refresh();
+					widget.layout(300, 500);
+					await retry(async () => {
+						assert.strictEqual(container.querySelectorAll('.interactive-response .chat-markdown-part p:last-child').item(1)?.textContent, 'Message received.');
+					}, 10, 100);
+					await waitForStableLayout(widget);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					if (!atBottom) {
+						widget.setScrollLock(false);
+						widget.scrollTop -= 32;
+						await waitForStableLayout(widget);
+					}
+					const response = container.querySelectorAll<HTMLElement>('.interactive-response').item(1);
+					const paragraph = response?.querySelector<HTMLElement>('.chat-markdown-part p:last-child');
+					assert.ok(response && paragraph && response.querySelector('.chat-working-progress'));
+					assert.ok(widget.scrollTop > 0);
+					const measure = () => ({
+						scrollTop: widget.scrollTop,
+						height: widget.contentHeight,
+						paragraphTop: paragraph.getBoundingClientRect().top,
+					});
+					const before = measure();
+					const samples = [before];
+					request.response?.complete();
+					samples.push(measure());
+					widget.refresh();
+					for (let frame = 0; frame < 8; frame++) {
+						await nextFrame();
+						samples.push(measure());
+					}
+					await waitForStableLayout(widget);
+					samples.push(measure());
+
+					assert.deepStrictEqual({
+						scrollPositions: [...new Set(samples.map(sample => sample.scrollTop))],
+						heights: [...new Set(samples.map(sample => sample.height))],
+						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
+						progressRows: response.querySelectorAll('.chat-working-progress').length,
+						toolbarVisible: response.querySelector<HTMLElement>('.chat-footer-toolbar')!.getBoundingClientRect().height > 0,
+					}, {
+						scrollPositions: [before.scrollTop],
+						heights: [before.height],
+						paragraphPositions: [before.paragraphTop],
+						progressRows: 0,
+						toolbarVisible: true,
+					});
+				});
+			}
+		}
+	});
+
 	suite('persistent progress collapse anchoring', () => {
 		async function createPreview(kind: 'thinking' | 'tools', incrementalRendering = false, paddingBottom = 0, toolCount = 3, stickyScroll = false) {
 			const context = createWidget({ paddingBottom }, configurationService => {

@@ -30,6 +30,7 @@ import { ChatModel, IChatModel } from '../../../../../workbench/contrib/chat/com
 import { IChatAgentService } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { ISendRequestOptions } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ChatWidget } from '../../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
+import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/chat/browser/widget/chatListRenderer.js';
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -37,7 +38,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -51,6 +52,13 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('does not render the running-session secondary toolbar for the experimental composer', () => {
+		assert.deepStrictEqual([
+			shouldRenderRunningSessionSecondaryToolbar(false),
+			shouldRenderRunningSessionSecondaryToolbar(true),
+		], [true, false]);
+	});
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {
 		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];
@@ -1298,6 +1306,60 @@ suite('Sessions - Chat View', () => {
 			plainInlineBackgroundImage: 'none',
 		});
 	});
+
+	for (const width of [320, 950]) {
+		test(`keeps inline-edit timestamps below the single-row session composer (width: ${width})`, () => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			workbench.style.width = `${width}px`;
+			workbench.style.setProperty('--vscode-spacing-size40', '4px');
+			workbench.style.setProperty('--vscode-spacing-size80', '8px');
+			workbench.style.setProperty('--vscode-fontSize-label3', '10px');
+			const part = dom.append(workbench, dom.$('.part.sessionspart'));
+			const chatView = dom.append(part, dom.$('.chat-view-chat'));
+			const session = dom.append(chatView, dom.$('.interactive-session'));
+			const request = dom.append(session, dom.$('.interactive-item-container.interactive-request.editing'));
+			const editContainer = dom.append(request, dom.$('.chat-edit-input-container'));
+			const inputPart = dom.append(editContainer, dom.$('.interactive-input-part'));
+			const input = dom.append(inputPart, dom.$('.chat-input-container'));
+			input.style.height = '96px';
+			const timestampContainer = dom.append(request, dom.$('.chat-request-timestamp-container'));
+			const timestamp = renderChatRequestTimestamp(timestampContainer, Date.now())?.element;
+			assert.ok(timestamp);
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+
+			const timestampMargin = () => dom.getWindow(timestampContainer).getComputedStyle(timestampContainer).marginTop;
+			const legacyMargin = timestampMargin();
+			chatView.classList.add('experimental-session-composer');
+			timestamp.focus();
+			const inputBounds = input.getBoundingClientRect();
+			const timestampBounds = timestamp.getBoundingClientRect();
+			const experimental = {
+				margin: timestampMargin(),
+				belowComposer: timestampBounds.top >= inputBounds.bottom,
+				rightAligned: Math.abs(timestampBounds.right - inputBounds.right) <= 1,
+				visible: timestampBounds.height > 0,
+				focused: dom.getActiveElement() === timestamp,
+				hasAccessibleLabel: !!timestamp.ariaLabel,
+			};
+			workbench.classList.add('phone-layout');
+			const phoneMargin = timestampMargin();
+			workbench.classList.remove('phone-layout');
+			chatView.classList.remove('experimental-session-composer');
+
+			assert.deepStrictEqual({
+				legacyMargin,
+				experimental,
+				phoneMargin,
+				restoredMargin: timestampMargin(),
+			}, {
+				legacyMargin: '-22px',
+				experimental: { margin: '0px', belowComposer: true, rightAligned: true, visible: true, focused: true, hasAccessibleLabel: true },
+				phoneMargin: '-22px',
+				restoredMargin: '-22px',
+			});
+		});
+	}
 
 	test('keeps checkpoint and fork row containers transparent over the chat background', () => {
 		const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');

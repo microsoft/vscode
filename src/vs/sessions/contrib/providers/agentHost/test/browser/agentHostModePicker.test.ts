@@ -16,7 +16,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListOp
 import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { getAgentHostCopilotSandboxSettingId, IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
@@ -201,8 +202,13 @@ suite('AgentHostModePicker', () => {
 
 	test('updates the sandbox toggle, icon, and accessible label while Dev Container availability is pending', async () => {
 		const { trigger, configuration, actionWidget, devContainer, config, writes } = setup(true, true, false, true, 'win32');
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(true), 'off');
+		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
+		configuration.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: key => key === AgentSandboxSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+			source: ConfigurationTarget.USER,
+			change: { keys: [AgentSandboxSettingId.AgentSandboxEnabled], overrides: [] },
+		});
 		await timeout(0);
 		const read = () => {
 			trigger.click();
@@ -219,9 +225,9 @@ suite('AgentHostModePicker', () => {
 		const container = read();
 		devContainer.set(false, undefined);
 		assert.deepStrictEqual({ source, container, restored: read(), selection: config.values[SessionConfigKey.SandboxEnabled], writes }, {
-			source: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			source: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
 			container: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
-			restored: { checked: false, icon: false, ariaLabel: 'Pick Permissions, Manual permissions' },
+			restored: { checked: true, icon: true, ariaLabel: 'Pick Permissions, Manual permissions, terminal sandboxed' },
 			selection: undefined,
 			writes: [],
 		});
@@ -630,7 +636,7 @@ suite('AgentHostModePicker', () => {
 		await timeout(0);
 		const states = [];
 		for (const enabled of [false, true]) {
-			await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), enabled ? 'on' : 'off');
+			await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, enabled ? 'on' : 'off');
 			trigger.click();
 			const sandboxRow = actionWidget.items.find(item => item.standaloneToggle);
 			states.push({ checked: sandboxRow?.standaloneToggle?.checked, icon: sandboxRow?.group?.icon?.id });
@@ -642,7 +648,7 @@ suite('AgentHostModePicker', () => {
 	test('refreshes inherited sandbox defaults without overriding an explicit session choice', async () => {
 		const { trigger, actionWidget, configuration, config, configChanged, writes } = setup();
 		await timeout(0);
-		const settingId = getAgentHostCopilotSandboxSettingId(false);
+		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		const states = [];
 		trigger.click();
 		for (const enabled of [true, false, true]) {
@@ -718,7 +724,7 @@ suite('AgentHostModePicker', () => {
 	test('announces sandboxing and disables activation while configuration resolves', async () => {
 		const { trigger, configuration, managedSandboxEnforced, resolving, actionWidget } = setup();
 		await timeout(0);
-		await configuration.setUserConfiguration(getAgentHostCopilotSandboxSettingId(false), 'on');
+		await configuration.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, 'on');
 		managedSandboxEnforced.set(true, undefined);
 		resolving.set(true, undefined);
 		trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));

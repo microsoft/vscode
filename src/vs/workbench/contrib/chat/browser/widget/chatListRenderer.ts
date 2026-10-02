@@ -2118,8 +2118,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
-		if (this.rendererOptions.renderStyle === 'minimal' || element.isComplete) {
+		if (this.rendererOptions.renderStyle === 'minimal') {
 			return undefined;
+		}
+
+		if (element.isComplete) {
+			return moreContentAvailable && this.isPersistentProgressEnabled()
+				? templateData.renderedContent?.findLast(part => part.kind === 'working')
+				: undefined;
 		}
 
 		if (this.isPersistentProgressEnabled()) {
@@ -3110,6 +3116,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		if (element.isComplete && !contentForThisTurn.moreContentAvailable) {
+			this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
+			element.renderData = undefined;
+			this.renderChatResponseBasic(element, index, templateData);
+			return true;
+		}
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -3121,12 +3133,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
 				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
 				return false;
-			} else if (element.isComplete) {
-				// All content is rendered, and response is done, so do a normal render
-				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
-				element.renderData = undefined;
-				this.renderChatResponseBasic(element, index, templateData);
-				return true;
 			} else if (this.isWorkingProgressDebouncePending(element, contentForThisTurn.content)) {
 				// Caught up to the streamed markdown, but still within the working
 				// indicator debounce window. Keep the render loop alive so the
@@ -3311,6 +3317,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.isPersistentProgressEnabled() && partToRender.kind === 'working') {
 				const workingPart = displacedWorkingPart ?? (alreadyRenderedPart instanceof ChatWorkingProgressContentPart ? alreadyRenderedPart : undefined);
 				if (workingPart) {
+					if (alreadyRenderedPart && alreadyRenderedPart !== workingPart) {
+						alreadyRenderedPart.dispose();
+						alreadyRenderedPart.domNode?.remove();
+					}
 					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage, partToRender.imageGeneration);
 					renderedParts[contentIndex] = workingPart;
 					displacedWorkingPart = undefined;

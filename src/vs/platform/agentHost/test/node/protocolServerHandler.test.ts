@@ -8,6 +8,8 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
+import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -2443,6 +2445,26 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
 	});
 
+	test('listSessions carries the provider-qualified Codex model on namespaced _meta', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Codex Session',
+			model: { id: '@provider=openai:gpt-5.6-sol' },
+			_meta: withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' }),
+		});
+
+		const transport = connectClient('client-list-codex-model');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+		transport.simulateMessage(request(2, 'listSessions'));
+		const response = await responsePromise;
+		const result = (response as unknown as { result: ListSessionsResult }).result;
+
+		assert.deepStrictEqual(result.items.map(item => readCodexSessionModel(item)), [{ id: '@provider=openai:gpt-5.6-sol' }]);
+	});
+
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {
 		const defaultChat = URI.parse(`${sessionUri}/chat/default`);
 		const peerChat = URI.parse(`${sessionUri}/chat/peer`);
@@ -2519,6 +2541,22 @@ suite('ProtocolServerHandler', () => {
 			project: { uri: 'file:///created-project', displayName: 'Created Project' },
 			_meta,
 		});
+	});
+
+	test('createSession captures the initiating Editor or Agents Window client', async () => {
+		const actual = [];
+		for (const clientInfo of [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo]) {
+			const transport = connectClient(clientInfo.name, undefined, clientInfo);
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				channel: `copilot:///${clientInfo.name}`,
+				_meta: withSessionInitiator({ preserved: true }, { name: 'request-supplied-client' }),
+			}));
+			await response;
+			const config = agentService.createSessionConfigs.at(-1);
+			actual.push({ initiator: readSessionInitiator(config), preserved: config?._meta?.preserved });
+		}
+		assert.deepStrictEqual(actual, [editorWindowAgentHostClientInfo, agentsWindowAgentHostClientInfo].map(initiator => ({ initiator, preserved: true })));
 	});
 
 	test('whenIdle waits for in-flight protocol requests after disposal', async () => {

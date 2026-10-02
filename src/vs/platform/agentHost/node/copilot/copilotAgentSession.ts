@@ -89,7 +89,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -1954,8 +1954,14 @@ export class CopilotAgentSession extends Disposable {
 				this._refreshDetachedBackgroundShells = false;
 				await this._wrapper.session.rpc.tasks.refresh();
 			}
+			const read = this._nonPtyShellTerminals.beginShellTaskRead();
 			const tasks = await this._wrapper.session.rpc.tasks.list();
-			if (this._store.isDisposed || revision !== this._backgroundTaskStatusRevision) {
+			if (this._store.isDisposed) {
+				return false;
+			}
+			// Settling shells uses every read, because even a superseded one shows which shells had exited by then.
+			this._nonPtyShellTerminals.reconcileBackgroundShells(new Set(tasks.tasks.flatMap(task => task.type === 'shell' && (task.status === 'running' || task.status === 'idle') ? [task.id] : [])), read);
+			if (revision !== this._backgroundTaskStatusRevision) {
 				return false;
 			}
 			this._publishBackgroundWork(tasks.tasks);
@@ -2045,12 +2051,14 @@ export class CopilotAgentSession extends Disposable {
 
 	private _toBackgroundWork(task: Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'][number]): BackgroundWork | undefined {
 		if (task.type === 'shell' && task.executionMode !== 'sync' && (task.status === 'running' || task.status === 'idle')) {
+			const terminal = this._nonPtyShellTerminals.getBackgroundShellTerminal(task.id);
 			return {
 				kind: BackgroundWorkKind.Shell,
 				id: `shell:${task.id}`,
 				label: task.description,
 				command: task.command,
 				startedAt: task.startedAt,
+				...(terminal ? { terminal } : {}),
 				_meta: toCopilotBackgroundShellMeta(task.id, task.attachmentMode === 'detached' ? 'detached' : 'attached'),
 			};
 		}
@@ -3568,6 +3576,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		const sendingTurn = this._currentTurn.value;
 
+		let displayPrompt: string | undefined;
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
@@ -3729,6 +3738,7 @@ export class CopilotAgentSession extends Disposable {
 							mode = runtimeMode;
 						}
 						prompt = result.prompt;
+						displayPrompt = result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':
@@ -3774,7 +3784,7 @@ export class CopilotAgentSession extends Disposable {
 					requestHeaders: { Authorization: '******' },
 				});
 			} else {
-				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}) });
 			}
 		}), sendingTurn, abortToken, sendingTurn);
 		if (execution.kind === 'skipped') {
@@ -6109,6 +6119,9 @@ export class CopilotAgentSession extends Disposable {
 		const sessionId = this.sessionId;
 
 		this._register(wrapper.onSystemNotification(e => {
+			if (e.data.kind.type === 'shell_completed') {
+				this._nonPtyShellTerminals.completeBackgroundShell(e.data.kind.shellId, e.data.kind.exitCode);
+			}
 			this._seedSubagentDisplayNames([e]);
 			const notification = buildCopilotSystemNotification(e, this._resolveAgentName);
 			if (!notification) {
@@ -6687,6 +6700,9 @@ export class CopilotAgentSession extends Disposable {
 			// the terminal block (skip if any terminal block was already added
 			// while the tool was running).
 			const isShellCommandTool = isShellTool(tracked.toolName);
+			if (isShellHelperTool(tracked.toolName)) {
+				this._nonPtyShellTerminals.completeBackgroundShellFromHelperResult(toolOutput);
+			}
 			const ptyTerminalUri = isShellCommandTool ? this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId) : undefined;
 			let retireNonPtyShellTracking = !!ptyTerminalUri;
 			if (ptyTerminalUri && !content.some(c => c.type === ToolResultContentType.Terminal)) {
@@ -6711,6 +6727,10 @@ export class CopilotAgentSession extends Disposable {
 			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {
 				nonPtyCompletion = this._nonPtyShellTerminals.completeToolCall(e.data.toolCallId, toolOutput, shellExit);
+				if (nonPtyCompletion?.backgroundShellId !== undefined) {
+					// Republish background work so the shell's entry points at this call's live terminal.
+					this._refreshBackgroundTasks();
+				}
 				if (nonPtyCompletion) {
 					retireNonPtyShellTracking = nonPtyCompletion.shouldRetire;
 					const terminalIndex = content.findIndex(c => c.type === ToolResultContentType.Terminal);
@@ -8668,7 +8688,14 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onToolPartialResult(e => {
 			this._logService.trace(`[Copilot:${sessionId}] Tool partial result: ${e.data.toolCallId} (${e.data.partialOutput.length} chars)`);
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
-			if (!tracked || !isShellTool(tracked.toolName)) {
+			if (!tracked) {
+				// A command that keeps running after its tool call returned still streams into that call's terminal.
+				if (this._nonPtyShellTerminals.isStreamingInBackground(e.data.toolCallId)) {
+					this._nonPtyShellTerminals.append(e.data.toolCallId, e.data.partialOutput);
+				}
+				return;
+			}
+			if (!isShellTool(tracked.toolName)) {
 				return;
 			}
 			if (this._shellManager?.getTerminalUriForToolCall(e.data.toolCallId)) {
