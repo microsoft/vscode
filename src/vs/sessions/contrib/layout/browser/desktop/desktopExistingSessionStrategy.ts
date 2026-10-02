@@ -165,7 +165,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
 				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
-					this._ctx.withSessionLayoutRestore(() => this._reveal(this._resolveComposition(activeSession, ownerKey)));
+					const resolved = this._resolveComposition(activeSession, ownerKey);
+					this._ctx.withSessionLayoutRestore(() => ownerKey ? this._apply(resolved) : this._reveal(resolved));
 				}
 				wasExistingActive = false;
 				previousOwnerKey = ownerKey;

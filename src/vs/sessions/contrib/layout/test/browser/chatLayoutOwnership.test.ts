@@ -11,10 +11,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopLayoutController } from '../../browser/desktopLayoutController.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
 
 suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
@@ -227,6 +228,110 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		}
 	});
 
+	test('[R5] enabled: focused owner composition round-trips while two sessions are simultaneously visible', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		const keyA = controller.ownerKeyFor(sessionA);
+		assert.deepStrictEqual(controller.composition(keyA), { editor: true, auxiliaryBar: true });
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		setVisible(false, false);
+		await settle();
+		const keyB = controller.ownerKeyFor(sessionB);
+		assert.deepStrictEqual(controller.composition(keyB), { editor: false, auxiliaryBar: false });
+
+		harness.visibleSessionsObs.set([sessionA, sessionB], undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'becoming multi-visible while B is focused must keep B\'s own composition on screen');
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'focusing A while both remain visible must show A\'s own composition');
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'focusing B again while both remain visible must hide what A showed and restore B\'s own composition, not merely reveal a superset');
+	});
+
+	test('[R5] enabled: focused owner editor working set round-trips while two sessions are simultaneously visible', async () => {
+		createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, ['empty'], 'B\'s first visit starts with an empty working set');
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, ['session-working-set:session:a'], 'switching away from A must save A\'s working set');
+		harness.visibleEditorsList = [{} as never];
+
+		harness.visibleSessionsObs.set([sessionA, sessionB], undefined);
+		await settle();
+		harness.applyWorkingSetCalls = [];
+		harness.saveWorkingSetCalls = [];
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, ['session-working-set:session:b'], 'switching focus to A while both remain visible must still save B\'s outgoing working set');
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: 'session-working-set:session:a', name: 'session-working-set:session:a' }], 'switching focus to A while both remain visible must apply A\'s own saved working set');
+		harness.visibleEditorsList = [{} as never];
+		harness.applyWorkingSetCalls = [];
+		harness.saveWorkingSetCalls = [];
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		assert.deepStrictEqual(harness.saveWorkingSetCalls, ['session-working-set:session:a'], 'switching focus back to B while both remain visible must still save A\'s outgoing working set');
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: 'session-working-set:session:b', name: 'session-working-set:session:b' }], 'switching focus back to B while both remain visible must apply B\'s own saved working set, not A\'s');
+	});
+
+	test('[R5] enabled: focused owner panel visibility and view round-trip while two sessions are simultaneously visible', async () => {
+		createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.a'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
+		await settle();
+
+		harness.visibleSessionsObs.set([sessionA, sessionB], undefined);
+		await settle();
+		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'becoming multi-visible while B is focused must keep B\'s own (hidden) panel state');
+
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), true, 'focusing A while both remain visible must show A\'s own panel');
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }], 'focusing A while both remain visible must restore A\'s own panel view');
+
+		harness.openPaneCompositeCalls = [];
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'focusing B again while both remain visible must hide the panel A showed and restore B\'s own (hidden) state');
+	});
+
 	test('[R8] a confirmed peer-chat deletion clears only that owner\'s composition', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
@@ -390,6 +495,33 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.chatLayoutIsPhoneObs.set(false, undefined);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming applies the now-focused session A\'s own composition, not the transient suspended on-screen state');
+	});
+
+	test('[R13] resuming re-applies the focused owner\'s own composition even when the owner key is unchanged across the suspension', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		setVisible(true, false);
+		await settle();
+		const ownerKey = controller.ownerKeyFor(session);
+		assert.deepStrictEqual(controller.composition(ownerKey), { editor: true, auxiliaryBar: false });
+
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		await settle();
+
+		setVisible(false, true);
+		await settle();
+		assert.deepStrictEqual(controller.composition(ownerKey), { editor: true, auxiliaryBar: false }, 'suspension must not overwrite the stored composition');
+
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		await settle();
+
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming with the same owner still focused must re-apply its own composition, not leave the stale phone-era on-screen state');
 	});
 });
 
