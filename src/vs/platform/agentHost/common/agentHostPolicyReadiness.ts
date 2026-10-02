@@ -42,7 +42,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'ChatToolsTerminalEnableAutoApprove':
 			return localize('policyGap.terminalApproval', "Native shell commands require approval through the bridge. Custom terminal tools do not have equivalent managed-ask coverage in every approval mode.");
 		case 'ChatAgentSandboxEnabled':
-			return localize('policyGap.sandbox', "A VS Code sandbox policy does not lock the session sandbox toggle. Only a runtime-managed sandbox requirement provides that floor.");
+			return localize('policyGap.sandbox', "Policy-required sandboxing blocks direct session Off overrides on macOS/Linux. Verify delayed policy loading and loss/reapplication of the last client's requirement across disconnect-grace expiry.");
 		case 'ChatAgentSandboxAllowAutoApprove':
 			return localize('policyGap.sandboxApproval', "Sandboxed commands can be approved automatically even when this policy requires confirmation.");
 		case 'ChatAgentNetworkFilter':
@@ -76,7 +76,7 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 		case 'CopilotOtelProtocol':
 			return localize('policyGap.otelProtocol', "Inherited OTLP protocol configuration can override the policy-selected exporter type.");
 		case 'CopilotOtelCaptureIdentity':
-			return localize('policyGap.otelIdentity', "The VS Code-only identity-capture choice is not forwarded to host telemetry configuration. Both required capture and required suppression need separate verification.");
+			return localize('policyGap.otelIdentity', "The Agent Host pipeline honors identity capture and suppression. Authenticated runtime account attribution still requires a runtime update and end-to-end verification; direct runtime exports use their own identity controls.");
 		case 'CopilotOtelHeaders':
 			return localize('policyGap.otelHeaders', "VS Code-only exporter headers do not reach Agent Host. Export requiring those headers may fail; runtime-managed telemetry does not establish coverage of the host's own exporter.");
 		default:

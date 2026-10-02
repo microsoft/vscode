@@ -51,8 +51,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// The bridge requires managed approval for native shell requests. Custom terminal tools report
 	// custom-tool requests instead, so their host-side approval paths still need a parity audit.
 	ChatToolsTerminalEnableAutoApprove: { status: 'partial' },
-	// Forwarded to every host, but a per-session sandbox toggle can turn it off; the toggle only locks
-	// for the runtime-managed `sandbox.enabled` floor. Copilot only. Not yet tracked.
+	// Connection-owned legacy requirements block direct session Off on macOS/Linux (#339144).
+	// Policy loading versus withdrawal and last-client disconnect-grace transitions still need
+	// end-to-end verification. Windows uses its separate enablement setting. Copilot only.
 	ChatAgentSandboxEnabled: { status: 'partial' },
 	// Forwarded as the SDK sandbox `allowOutbound`. Copilot only.
 	ChatAgentSandboxAllowNetwork: { status: 'enforced' },
@@ -152,9 +153,12 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	CopilotOtelResourceAttributes: { status: 'enforced' },
 	CopilotOtelServiceName: { status: 'enforced' },
 	CopilotOtelCaptureContent: { status: 'enforced' },
+	// Policy-priority forwarding and host identity capture/suppression are implemented (#339045).
+	// Authenticated runtime account attribution still needs runtime adoption and verification;
+	// direct runtime exports use their own identity controls rather than the host's filter.
+	CopilotOtelCaptureIdentity: { status: 'partial' },
 	// Missing from VS Code policy forwarding. Runtime-native telemetry policy does not establish
 	// enforcement for the host's own telemetry pipeline; that coverage remains unverified here.
-	CopilotOtelCaptureIdentity: { status: 'partial' },
 	CopilotOtelHeaders: { status: 'partial' },
 	// Mirrored into the root config of every host.
 	TelemetryLevel: { status: 'enforced' },

@@ -12,7 +12,7 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { AgentNetworkDomainSettingId } from '../../../networkFilter/common/settings.js';
 import { Registry } from '../../../registry/common/platform.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
-import { getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
+import { getAgentHostPolicyGapImpact, getAgentHostPolicyGaps } from '../../common/agentHostPolicyReadiness.js';
 import { agentHostPolicySupport } from '../../common/agentHostPolicySupport.js';
 
 suite('AgentHostPolicyReadiness', () => {
@@ -140,7 +140,27 @@ suite('AgentHostPolicyReadiness', () => {
 		})), []);
 	});
 
-	test('both identity capture and suppression are explicit requirements', () => {
+	test('merged sandbox and identity fixes retain only lifecycle and runtime verification concerns', () => {
+		const service = configuration({ ChatAgentSandboxEnabled: 'on', CopilotOtelCaptureIdentity: true });
+		assert.deepStrictEqual(getAgentHostPolicyGaps(service).map(gap => ({
+			policyName: gap.policyName,
+			status: gap.status,
+			impact: getAgentHostPolicyGapImpact(gap.policyName),
+		})), [
+			{
+				policyName: 'ChatAgentSandboxEnabled',
+				status: 'partial',
+				impact: 'Policy-required sandboxing blocks direct session Off overrides on macOS/Linux. Verify delayed policy loading and loss/reapplication of the last client\'s requirement across disconnect-grace expiry.',
+			},
+			{
+				policyName: 'CopilotOtelCaptureIdentity',
+				status: 'partial',
+				impact: 'The Agent Host pipeline honors identity capture and suppression. Authenticated runtime account attribution still requires a runtime update and end-to-end verification; direct runtime exports use their own identity controls.',
+			},
+		]);
+	});
+
+	test('both identity capture and suppression retain runtime-path verification', () => {
 		for (const value of [true, false]) {
 			assert.deepStrictEqual(getAgentHostPolicyGaps(configuration({ CopilotOtelCaptureIdentity: value })), [
 				{ policyName: 'CopilotOtelCaptureIdentity', settingId: 'CopilotOtelCaptureIdentity', status: 'partial' },
