@@ -14,7 +14,7 @@ import { IWebWorkerService } from '../../../../../platform/webWorker/browser/web
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IDefaultLogLevelsService } from '../../../../services/log/common/defaultLogLevels.js';
-import { Extensions, IOutputChannel, IOutputChannelRegistry } from '../../../../services/output/common/output.js';
+import { Extensions, IOutputChannel, IOutputChannelDescriptor, IOutputChannelRegistry } from '../../../../services/output/common/output.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';
@@ -23,10 +23,17 @@ import { OutputService } from '../../browser/outputServices.js';
 suite('OutputService channel disposal', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
+	let originalChannels: IOutputChannelDescriptor[];
 	let service: OutputService;
 	let nextId = 0;
 
 	setup(() => {
+		// Earlier suites can leave source-less channels with asynchronous model initialization.
+		originalChannels = registry.getChannels();
+		for (const channel of originalChannels) {
+			registry.removeChannel(channel.id);
+		}
+
 		const instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IViewsService, new TestViewsService());
 		instantiationService.stub(IWorkspaceContextService, new TestContextService(new Workspace('output-test', [])));
@@ -35,6 +42,16 @@ suite('OutputService channel disposal', () => {
 			override readonly onDidChangeDefaultLogLevels = Event.None;
 		});
 		service = disposables.add(instantiationService.createInstance(OutputService));
+	});
+
+	teardown(() => {
+		// The disposable tracker tears down the service before restoring the shared registry.
+		for (const channel of registry.getChannels()) {
+			registry.removeChannel(channel.id);
+		}
+		for (const channel of originalChannels) {
+			registry.registerChannel(channel);
+		}
 	});
 
 	function registerChannel() {
