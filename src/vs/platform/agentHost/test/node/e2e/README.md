@@ -31,6 +31,8 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platfor
 - **Update all** (`AGENT_HOST_UPDATE_SNAPSHOTS=1`) — rewrites AHP snapshots and forwards to real CAPI to re-record LLM fixtures. Needs `GITHUB_TOKEN` or `gh auth token`.
 - **Record LLM only** (`AGENT_HOST_REPLAY_RECORD=1`) — the legacy focused mode for re-recording only normalized LLM fixtures against real CAPI.
 
+Plugin hook fixtures run their `.cjs` helper scripts with the Node executable supplied by npm (`npm_node_execpath`), or `node` from the pinned development toolchain's `PATH` when invoking the shell scripts directly. The Electron test process's `process.execPath` is not used for these shell commands: it would start Chromium, require a GUI sandbox, and generate unnecessary background network traffic.
+
 ---
 
 ## Mental model
