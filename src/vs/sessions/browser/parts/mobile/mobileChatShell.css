@@ -563,6 +563,10 @@
 	min-width: max-content;
 }
 
+.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item.repository-config-separator {
+	display: none;
+}
+
 /* Keep phone chips unconstrained so long labels scroll horizontally instead of clipping. */
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .sessions-chat-session-type-picker,
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-session-type-picker-host {

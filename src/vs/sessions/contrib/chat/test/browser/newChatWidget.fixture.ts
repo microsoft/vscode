@@ -11,7 +11,7 @@ import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -879,9 +879,11 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			if (phoneLayout) {
 				const containerBounds = container.getBoundingClientRect();
 				const bottomBounds = bottomContainer.getBoundingClientRect();
+				const separator = bottomContainer.querySelector<HTMLElement>('.repository-config-separator');
 				assert(bottomBounds.left >= containerBounds.left && bottomBounds.right <= containerBounds.right
-					&& targetWindow.getComputedStyle(bottomContainer).overflowX === 'auto',
-					'Phone controls must remain in a viewport-bounded scrollable row.');
+					&& targetWindow.getComputedStyle(bottomContainer).overflowX === 'auto'
+					&& (!separator || targetWindow.getComputedStyle(separator).display === 'none'),
+					'Phone controls must remain in a viewport-bounded scrollable row without a repository separator.');
 			} else {
 				assert(promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
 					&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'space-between'
@@ -932,6 +934,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		await nextFrame();
 		await nextFrame();
 		view.element.querySelector<HTMLElement>('.sessions-workspace-picker-trigger .action-label')?.click();
+		context.disposableStackStore.add(toDisposable(() =>
+			container.querySelector<HTMLElement>('.mobile-picker-sheet-backdrop')?.click()));
 	} else if (openGitHubContextPicker) {
 		await nextFrame();
 		await nextFrame();
@@ -1108,13 +1112,13 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneLegacyComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With both experimental settings disabled, the phone composer keeps workspace and harness controls centered below the Sessions logo. Mode, worktree, and branch controls remain in the scrollable row above the bottom-pinned input, while Agent and Model stay aligned inside the input.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
+		expectedVisualDescriptions: ['With both experimental settings disabled, the phone shows the legacy tabbed workspace picker open above a bottom-pinned composer. Worktree and branch controls remain available in the scrollable phone row without a separator block.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, unifiedWorkspacePicker: false, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With the unified workspace picker enabled and experimental composer disabled, the phone composer keeps workspace and harness controls centered below the Sessions logo. Mode, worktree, and branch controls remain in the scrollable row above the bottom-pinned input, while Agent and Model stay aligned inside the input.'],
-		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
+		expectedVisualDescriptions: ['With the unified workspace picker enabled and experimental composer disabled, the phone shows the consolidated workspace picker open above a bottom-pinned composer. Worktree and branch controls remain available in the scrollable phone row without a separator block.'],
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, openWorkspacePicker: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneExperimentalComposer: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
