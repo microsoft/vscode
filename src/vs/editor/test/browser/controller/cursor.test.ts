@@ -5446,6 +5446,48 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338697: tab in opening counterpart of auto-closing pair', () => {
+		const languageId = 'autoClosingModeTab';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin\t', close: 'end' },
+			],
+		}));
+
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+		});
+
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId,
+			editorOpts: {
+				insertSpaces: true
+			}
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+		});
+	});
+
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = 'myElectricMode';
 

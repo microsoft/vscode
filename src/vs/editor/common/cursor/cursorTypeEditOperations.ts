@@ -865,7 +865,7 @@ export class TabOperation {
 		return indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ITextModel, selection: Selection, insertsAutoWhitespace: boolean): ICommand {
 		let typeText = '';
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {
@@ -877,6 +877,22 @@ export class TabOperation {
 			}
 		} else {
 			typeText = '\t';
+		}
+		if (insertsAutoWhitespace && selection.isEmpty()) {
+			let autoClosingPairClose: string | null = null;
+			let autoCloseOpenText = typeText;
+			if (typeText.length === 1) {
+				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], typeText, false);
+			}
+			if (autoClosingPairClose === null && typeText !== '\t') {
+				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, [selection], '\t', false);
+				if (autoClosingPairClose !== null) {
+					autoCloseOpenText = '\t';
+				}
+			}
+			if (autoClosingPairClose !== null) {
+				return new TypeWithAutoClosingCommand(selection, autoCloseOpenText, true, autoClosingPairClose);
+			}
 		}
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
 	}
