@@ -400,7 +400,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.ensureRepository(plugin.marketplaceReference, options);
 		}
-		return repo.ensure(this._cacheRoot, plugin, options);
+		const repoDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor) ?? repo.getInstallUri(this._cacheRoot, plugin.sourceDescriptor);
+		return this._cloneSequencer.queue(repoDir.fsPath, () => repo.ensure(this._cacheRoot, plugin, options));
 	}
 
 	async updatePluginSource(plugin: IMarketplacePlugin, options?: IPullRepositoryOptions): Promise<boolean> {
@@ -408,7 +409,8 @@ export class AgentPluginRepositoryService implements IAgentPluginRepositoryServi
 		if (plugin.sourceDescriptor.kind === PluginSourceKind.RelativePath) {
 			return this.pullRepository(plugin.marketplaceReference, options);
 		}
-		return repo.update(this._cacheRoot, plugin, options);
+		const repoDir = repo.getCleanupTarget(this._cacheRoot, plugin.sourceDescriptor) ?? repo.getInstallUri(this._cacheRoot, plugin.sourceDescriptor);
+		return this._cloneSequencer.queue(repoDir.fsPath, () => repo.update(this._cacheRoot, plugin, options));
 	}
 
 	async fetchRepository(marketplace: IMarketplaceReference): Promise<boolean> {

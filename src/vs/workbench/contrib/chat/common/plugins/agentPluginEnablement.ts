@@ -3,11 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservable, IReader, ITransaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction, transaction } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
-import { CollisionEnablementModel, ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
+import { CollisionEnablementModel, ContributionEnablementState, EnablementModel, IEnablementModel, isContributionEnabled } from '../enablement.js';
+
+export const IAgentPluginEnablementService = createDecorator<IAgentPluginEnablementService>('agentPluginEnablementService');
+
+export interface IAgentPluginEnablementService extends IEnablementModel {
+	readonly _serviceBrand: undefined;
+	/** Copies user enablement decisions when an update changes a plugin's install location. */
+	copyEnablement(source: URI, target: URI): void;
+}
+
+export class AgentPluginEnablementService extends EnablementModel implements IAgentPluginEnablementService {
+	declare readonly _serviceBrand: undefined;
+
+	constructor(@IStorageService storageService: IStorageService) {
+		super('agentPlugins.enablement', storageService);
+	}
+
+	copyEnablement(source: URI, target: URI): void {
+		const sourceKey = source.toString();
+		const targetKey = target.toString();
+		const profileEnabled = this.readProfileEnabled(sourceKey);
+		const state = this.readEnabled(sourceKey);
+		transaction(tx => {
+			this.setEnabled(targetKey, profileEnabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile, tx);
+			if (state === ContributionEnablementState.EnabledWorkspace || state === ContributionEnablementState.DisabledWorkspace) {
+				this.setEnabled(targetKey, state, tx);
+			}
+		});
+	}
+}
 
 export interface IDiscoveredAgentPlugins {
 	readonly plugins: readonly IAgentPlugin[];

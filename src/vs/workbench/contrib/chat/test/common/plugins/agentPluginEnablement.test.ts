@@ -8,13 +8,41 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PluginFormat } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
+import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../../../common/enablement.js';
-import { AgentPluginCollisionEnablementModel, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
+import { AgentPluginCollisionEnablementModel, AgentPluginEnablementService, getCanonicalAgentPluginCollisionGroups, getSortedAgentPlugins, IDiscoveredAgentPlugins, isAgentPluginBlockedByPolicy, isAgentPluginForceEnabledByPolicy } from '../../../common/plugins/agentPluginEnablement.js';
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
 import { IMarketplacePlugin, MarketplaceType, parseMarketplaceReference, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('AgentPlugin enablement', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const state of [
+		ContributionEnablementState.EnabledProfile,
+		ContributionEnablementState.DisabledProfile,
+		ContributionEnablementState.EnabledWorkspace,
+		ContributionEnablementState.DisabledWorkspace,
+	]) {
+		test(`persists enablement across install location changes (${state})`, () => {
+			const storage = store.add(new InMemoryStorageService());
+			const service = store.add(new AgentPluginEnablementService(storage));
+			const oldUri = URI.file('/plugins/old-revision');
+			const newUri = URI.file('/plugins/new-revision');
+			service.setEnabled(oldUri.toString(), ContributionEnablementState.DisabledProfile);
+			service.setEnabled(oldUri.toString(), state);
+
+			service.copyEnablement(oldUri, newUri);
+			const restored = store.add(new AgentPluginEnablementService(storage));
+
+			assert.deepStrictEqual({
+				profileEnabled: restored.readProfileEnabled(newUri.toString()),
+				effective: restored.readEnabled(newUri.toString()),
+			}, {
+				profileEnabled: state === ContributionEnablementState.EnabledProfile,
+				effective: state,
+			});
+		});
+	}
 
 	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
 		return {

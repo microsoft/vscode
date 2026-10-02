@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDispos
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun, derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
-import { dirname } from '../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -89,18 +89,14 @@ class UpdatePluginAction extends Action {
 	static readonly ID = 'agentPlugin.update';
 
 	constructor(
-		private readonly plugin: IAgentPlugin,
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 	) {
 		super(UpdatePluginAction.ID, localize('update', "Update"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
-			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
-		}
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
 	}
 }
 
@@ -229,7 +225,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 				const actions: Action[] = [];
 				const livePlugin = element.outdated?.read(reader);
 				if (livePlugin) {
-					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, livePlugin);
+					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, livePlugin);
 					reader.store.add(updateAction);
 					actions.push(updateAction);
 				}
@@ -463,7 +459,11 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 			// Filter out marketplace items that are already installed
 			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
+			const installedPlugins = this.pluginMarketplaceService.installedPlugins.get();
 			const filteredMarketplace = marketplace.filter(m => {
+				if (installedPlugins.some(entry => entry.plugin.name === m.name && entry.plugin.marketplaceReference.canonicalId === m.marketplaceReference.canonicalId)) {
+					return false;
+				}
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: m.name,
 					description: m.description,
@@ -522,7 +522,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				if (storedPlugin) {
 					const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
 					const live = marketplaceByKey.get(key);
-					if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
+					if (live && (hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor) || !isEqual(p.uri, this.pluginInstallService.getPluginInstallUri(live)))) {
 						return live;
 					}
 				}
