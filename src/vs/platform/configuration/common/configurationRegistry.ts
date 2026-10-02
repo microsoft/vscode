@@ -540,7 +540,8 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					}
 
 					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = newDefaultOverride;
-					const property = this.configurationProperties[key] ?? this.excludedConfigurationProperties[key];
+					const excludedProperty = this.excludedConfigurationProperties[key];
+					const property = this.configurationProperties[key] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						if (property.included !== false) {
@@ -607,7 +608,8 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						configurationDefaultOverrideValue = this.mergeDefaultConfigurationsForConfigurationProperty(key, configurationDefaultOverride.value, configurationDefaultOverride.source, configurationDefaultOverrideValue);
 					}
 					configurationDefaultOverridesForKey.configurationDefaultOverrideValue = configurationDefaultOverrideValue;
-					const property = this.configurationProperties[key] ?? this.excludedConfigurationProperties[key];
+					const excludedProperty = this.excludedConfigurationProperties[key];
+					const property = this.configurationProperties[key] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);
 						if (property.included !== false) {
@@ -683,7 +685,8 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 	}
 
 	private mergeDefaultConfigurationsForConfigurationProperty(propertyKey: string, value: unknown, valuesSource: ConfigurationDefaultSource | undefined, existingDefaultOverride: IConfigurationDefaultOverrideValue | undefined): IConfigurationDefaultOverrideValue | undefined {
-		const property = this.configurationProperties[propertyKey] ?? this.excludedConfigurationProperties[propertyKey];
+		const excludedProperty = this.excludedConfigurationProperties[propertyKey];
+		const property = this.configurationProperties[propertyKey] ?? (excludedProperty?.experiment ? excludedProperty : undefined);
 		const existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 		let source: ConfigurationDefaultValueSource | undefined = valuesSource;
 

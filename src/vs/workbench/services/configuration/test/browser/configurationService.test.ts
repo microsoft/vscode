@@ -479,6 +479,36 @@ suite('ConfigurationDefaultOverridesContribution', () => {
 		}
 	});
 
+	test('ignores a pending treatment after a hidden setting is deregistered', async () => {
+		const key = 'test.removedHiddenExperiment';
+		const hiddenConfiguration: IConfigurationNode = {
+			properties: { [key]: { type: 'boolean', default: false, included: false, experiment: { mode: 'auto' } } },
+		};
+		const contribution = createTestContribution({});
+		const gate = new DeferredPromise<void>();
+		contribution.workbenchAssignmentService.getTreatmentWithAssignment = async <T extends string | number | boolean>() => {
+			await gate.p;
+			return { value: true as T, hasAssignment: Promise.resolve(true) };
+		};
+		configurationRegistry.registerConfiguration(hiddenConfiguration);
+		try {
+			const pending = contribution.processExperimentalSettings([key], false);
+			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
+			await contribution.processExperimentalSettings([key], false);
+			await gate.complete();
+			await pending;
+			assert.deepStrictEqual({
+				registeredDefault: contribution.registeredExperimentalDefaults.has(key),
+				override: configurationRegistry.getConfigurationDefaultsOverrides().get(key),
+				assigned: contribution.experimentalSettingsService.hasAssignment(key),
+			}, { registeredDefault: false, override: undefined, assigned: false });
+		} finally {
+			await gate.complete();
+			configurationRegistry.deregisterDefaultConfigurations([...contribution.registeredExperimentalDefaults.values()]);
+			configurationRegistry.deregisterConfigurations([hiddenConfiguration]);
+		}
+	});
+
 	test('ignores assignment metadata from a superseded resolution', async () => {
 		const contribution = createTestContribution({ testFirstAutoExperimentalSetting: 'control' });
 		const assignment = new DeferredPromise<boolean>();

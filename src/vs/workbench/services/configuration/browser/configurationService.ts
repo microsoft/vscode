@@ -1452,6 +1452,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 						this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, error);
 					}
 				}));
+				// The setting may have been removed or replaced while its treatment resolved.
+				if (this._store.isDisposed || this.assignmentRequests.get(property) !== request || (allProperties[property] ?? excludedProperties[property]) !== schema) {
+					continue;
+				}
 				// Latch a `startup` value once it first resolves; keep it pending until then so a
 				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {
