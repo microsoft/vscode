@@ -20,7 +20,7 @@ import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../..
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { CloudAutomationApiClient, ICloudAutomationDefinition, ICloudAutomationRepository } from '../../browser/cloudAutomationApiClient.js';
-import { CloudAutomationStore } from '../../browser/cloudAutomationStore.js';
+import { GitHubCloudAutomationStore } from '../../browser/githubCloudAutomationStore.js';
 
 const account: IDefaultAccount = { accountName: 'octocat', sessionId: 'auth-1', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
 const repository = { owner: 'microsoft', name: 'vscode-internalbacklog' };
@@ -68,7 +68,7 @@ function recentWorkspace(root: URI): IRecentWorkspace {
 	return upcastDeepPartial<IRecentWorkspace>({ workspace: { folders: [{ root }] } });
 }
 
-suite('CloudAutomationStore', () => {
+suite('GitHubCloudAutomationStore', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup(resolveRepositoryUri: (uri: URI) => URI | undefined = () => undefined) {
@@ -86,7 +86,7 @@ suite('CloudAutomationStore', () => {
 		}();
 		const api = new TestApi();
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new CloudAutomationStore(resolveRepositoryUri, api, accounts, storage, new NullLogService(), recents));
+		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, api, accounts, storage, new NullLogService(), recents));
 		const changeAccount = (value: IDefaultAccount | null) => {
 			accounts.currentDefaultAccount = value;
 			accountChanged.fire(value);
