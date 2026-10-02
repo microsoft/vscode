@@ -275,6 +275,65 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		);
 	});
 
+	test('[R7] a fresh controller keeps a saved peer\'s hidden bottom hidden without opening its remembered view, then restores that exact view once the bottom is shown', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		const firstRunStore = new DisposableStore();
+		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		setActiveChat(session, peer);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.custom'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
+		await settle();
+		const peerKey = controllerA.ownerKeyFor(session);
+		assert.strictEqual(controllerA.capturedPanelView(peerKey), 'view.custom', 'the peer\'s own remembered view must survive re-hiding the panel');
+
+		setActiveChat(session, session.mainChat.get());
+		await settle();
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const chatLayoutStateRaw = harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		assert.ok(JSON.parse(chatLayoutStateRaw!).some((entry: { panelVisible?: boolean; panelViewContainerId?: string }) => entry.panelVisible === false && entry.panelViewContainerId === 'view.custom'), 'the serialized per-chat entry must keep bottomVisible false alongside its remembered view, not discard either');
+		firstRunStore.dispose();
+
+		const reconstructedStorageService = store.add(new TestStorageService());
+		reconstructedStorageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, chatLayoutStateRaw!, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		harness.instaService.set(IStorageService, reconstructedStorageService);
+		harness.storageService = reconstructedStorageService;
+
+		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.partVisibility.set(Parts.PANEL_PART, false);
+		harness.setPartHiddenCalls = [];
+		harness.openPaneCompositeCalls = [];
+
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setActiveChat(session, peer);
+		await settle();
+
+		assert.strictEqual(harness.partVisibility.get(Parts.PANEL_PART), false, 'a fresh controller restoring a peer whose bottom was saved hidden must keep it hidden, not open it to restore the view');
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [], 'the remembered view must not be opened while the bottom stays hidden');
+		assert.strictEqual(controllerB.capturedPanelView(peerKey), 'view.custom', 'the peer\'s remembered view must still be loaded from storage even while the bottom is hidden');
+
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		await settle();
+
+		assert.deepStrictEqual(
+			harness.openPaneCompositeCalls,
+			[{ id: 'view.custom', location: ViewContainerLocation.Panel }],
+			'showing the bottom after a fresh restart must restore the peer\'s exact remembered view that survived reconstruction'
+		);
+	});
+
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();

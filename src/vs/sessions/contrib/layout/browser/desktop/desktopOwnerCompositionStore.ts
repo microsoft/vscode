@@ -6,18 +6,28 @@
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { StorageScope, StorageTarget, IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ISidePaneState } from '../../../../browser/workbench.js';
 
 const DESKTOP_OWNER_COMPOSITION_STATE_KEY = 'sessions.chatLayout.sidePaneComposition';
 const DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY = 'sessions.chatLayout.sidePanePreHideComposition';
+const DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION = 1;
+
+interface IDesktopOwnerCompositionSchema {
+	version: number;
+	entries: [string, ISidePaneState][];
+}
 
 export class DesktopOwnerCompositionStore {
 
 	private readonly _byOwner = new ResourceMap<ISidePaneState>();
 	private readonly _preHideByOwner = new ResourceMap<ISidePaneState>();
 
-	constructor(@IStorageService private readonly _storageService: IStorageService) {
+	constructor(
+		@IStorageService private readonly _storageService: IStorageService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		this._load(DESKTOP_OWNER_COMPOSITION_STATE_KEY, this._byOwner);
 		this._load(DESKTOP_OWNER_PRE_HIDE_COMPOSITION_STATE_KEY, this._preHideByOwner);
 	}
@@ -83,17 +93,18 @@ export class DesktopOwnerCompositionStore {
 			return;
 		}
 		try {
-			const parsed = JSON.parse(raw);
-			if (!Array.isArray(parsed)) {
-				throw new Error('Expected an array of [owner, composition] entries');
+			const parsed = JSON.parse(raw) as Partial<IDesktopOwnerCompositionSchema>;
+			if (parsed.version !== DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION || !Array.isArray(parsed.entries)) {
+				throw new Error(`Unsupported ${storageKey} schema: expected version ${DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION} with an entries array, got ${JSON.stringify(parsed)}`);
 			}
-			for (const entry of parsed) {
+			for (const entry of parsed.entries) {
 				const [ownerKeyRaw, state] = entry as [string, { editor?: unknown; auxiliaryBar?: unknown }];
 				if (typeof ownerKeyRaw === 'string' && typeof state?.editor === 'boolean' && typeof state?.auxiliaryBar === 'boolean') {
 					target.set(URI.parse(ownerKeyRaw), { editor: state.editor, auxiliaryBar: state.auxiliaryBar });
 				}
 			}
-		} catch {
+		} catch (error) {
+			this._logService.error(error);
 			this._storageService.remove(storageKey, StorageScope.WORKSPACE);
 		}
 	}
@@ -103,6 +114,7 @@ export class DesktopOwnerCompositionStore {
 		for (const [ownerKey, state] of source) {
 			entries.push([ownerKey.toString(), state]);
 		}
-		this._storageService.store(storageKey, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const schema: IDesktopOwnerCompositionSchema = { version: DESKTOP_OWNER_COMPOSITION_SCHEMA_VERSION, entries };
+		this._storageService.store(storageKey, JSON.stringify(schema), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }

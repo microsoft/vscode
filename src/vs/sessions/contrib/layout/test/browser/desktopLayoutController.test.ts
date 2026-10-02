@@ -1485,7 +1485,7 @@ suite('DesktopLayoutController', () => {
 		});
 		harness.storageService.store(
 			'sessions.chatLayout.sidePaneComposition',
-			JSON.stringify([[sessionResource.toString(), { editor: false, auxiliaryBar: true }]]),
+			JSON.stringify({ version: 1, entries: [[sessionResource.toString(), { editor: false, auxiliaryBar: true }]] }),
 			StorageScope.WORKSPACE,
 			0
 		);

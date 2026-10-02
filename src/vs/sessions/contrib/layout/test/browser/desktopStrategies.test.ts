@@ -349,7 +349,7 @@ suite('Desktop layout strategies', () => {
 		harness = createTestHarness(store);
 		harness.storageService.store(
 			'sessions.chatLayout.sidePaneComposition',
-			JSON.stringify([[session.resource.toString(), { editor: true, auxiliaryBar: true }]]),
+			JSON.stringify({ version: 1, entries: [[session.resource.toString(), { editor: true, auxiliaryBar: true }]] }),
 			StorageScope.WORKSPACE,
 			StorageTarget.MACHINE,
 		);
