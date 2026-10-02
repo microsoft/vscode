@@ -535,6 +535,26 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
+	async renameTask(taskId: string, title: string, token: CancellationToken): Promise<void> {
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.update', 'renameTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, { name: title }, 'PATCH');
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task rename', context);
+		}
+		const cached = this._discoveredTasks.get(taskId);
+		if (cached) {
+			this._discoveredTasks.set(taskId, {
+				...cached,
+				summary: { ...cached.summary, name: title },
+				session: cached.session ? { ...cached.session, name: title } : undefined,
+				needsRefresh: true,
+			});
+		}
+		this._discoveryGeneration++;
+	}
+
 	/**
 	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
 	 * failed cleanup must not replace the error that explains why.
@@ -702,7 +722,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
 		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.

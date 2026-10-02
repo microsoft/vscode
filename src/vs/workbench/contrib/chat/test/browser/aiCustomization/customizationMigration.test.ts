@@ -211,7 +211,7 @@ suite('customizationMigration', () => {
 		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
 	});
 
-	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
+	test('explains MCP target conflicts and prioritizes rollback guidance', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const failure = {
 			storage: PromptsStorage.local as const,
@@ -219,17 +219,14 @@ suite('customizationMigration', () => {
 			name: 'demo',
 			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
 			targetUri: URI.file('/secondary/.mcp.json'),
-			conflictingUri: URI.file('/primary/.mcp.json'),
-			reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict,
+			reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
 		};
 
 		assert.deepStrictEqual({
 			single: category.getMcpServerFailureMessage?.([failure]),
-			multiple: category.getMcpServerFailureMessage?.([failure, { ...failure, name: 'other' }]),
 			rollback: category.getMcpServerFailureMessage?.([failure, { ...failure, reason: McpServerCustomizationMigrationFailureReason.RollbackFailed }]),
 		}, {
-			single: 'Could not migrate \'demo\' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.',
-			multiple: 'Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.',
+			single: 'Could not migrate \'demo\' because the destination already contains a different server with that name.',
 			rollback: 'Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.',
 		});
 	});

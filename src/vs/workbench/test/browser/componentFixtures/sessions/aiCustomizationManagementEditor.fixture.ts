@@ -1388,6 +1388,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IMcpCopilotGlobalConfigurationService>() {
 					override async getConfigurationResource() { return undefined; }
 				}(),
+				new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
