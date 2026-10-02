@@ -24,11 +24,13 @@ import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import type { ChatBackgroundShellOutput } from '../common/sessionChatPills.js';
 import { getChatMarkdownRenderOptions } from './widget/chatContentMarkdownRenderer.js';
 import './widget/chatContentParts/media/chatTerminalToolProgressPart.css';
-import './media/sessionBackgroundShellOutput.css';
 
 const enum BackgroundShellOutputViewConstants {
-	/** Rows grow with the output up to the same limit as a chat terminal tool call's output. */
-	MaxRows = 10,
+	/**
+	 * The terminal keeps the height of a chat terminal tool call's largest output, so the
+	 * details don't move as lines arrive. Lines fill it from the top, then scroll.
+	 */
+	Rows = 10,
 	FallbackCols = 80,
 }
 
@@ -43,22 +45,6 @@ const clearTerminal = '\x1b[2J\x1b[3J\x1b[H';
 
 function toTerminalText(text: string): string {
 	return text.replace(/\r?\n/g, '\r\n');
-}
-
-/** Counts the terminal rows the end of the output fills at the given width, up to the limit. */
-function countTrailingRows(text: string, cols: number, limit: number): number {
-	let rows = 0;
-	let end = text.length;
-	while (rows < limit) {
-		const start = end === 0 ? 0 : text.lastIndexOf('\n', end - 1) + 1;
-		const visible = removeAnsiEscapeCodes(text.slice(start, end)).replaceAll('\r', '');
-		rows += Math.max(1, Math.ceil(visible.length / cols));
-		if (start === 0) {
-			break;
-		}
-		end = start - 1;
-	}
-	return Math.min(rows, limit);
 }
 
 function getStatusLabel(output: ChatBackgroundShellOutput): string {
@@ -104,7 +90,8 @@ export class BackgroundShellOutputView extends Disposable {
 	/** The output written to the terminal, which withholds a trailing line break so no empty row follows the output. */
 	private _displayed = '';
 	private _cols: number = BackgroundShellOutputViewConstants.FallbackCols;
-	private _size: { readonly cols: number; readonly rows: number } | undefined;
+	/** The column count the terminal was last resized to. */
+	private _resizedCols: number | undefined;
 
 	constructor(
 		private readonly _command: string,
@@ -154,7 +141,7 @@ export class BackgroundShellOutputView extends Disposable {
 		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
 		void terminalService.createDetachedTerminal({
 			cols: BackgroundShellOutputViewConstants.FallbackCols,
-			rows: 1,
+			rows: BackgroundShellOutputViewConstants.Rows,
 			readonly: true,
 			processInfo,
 			disableOverviewRuler: true,
@@ -231,10 +218,9 @@ export class BackgroundShellOutputView extends Disposable {
 			this._cols = computeChatTerminalMirrorCols(width, terminal.xterm.getFont(), getWindow(this._terminalContainer).devicePixelRatio);
 		}
 		const cols = this._cols;
-		const rows = this._displayed ? countTrailingRows(this._displayed, cols, BackgroundShellOutputViewConstants.MaxRows) : 1;
-		if (this._size?.cols !== cols || this._size.rows !== rows) {
-			this._size = { cols, rows };
-			terminal.xterm.resize(cols, rows);
+		if (this._resizedCols !== cols) {
+			this._resizedCols = cols;
+			terminal.xterm.resize(cols, BackgroundShellOutputViewConstants.Rows);
 		}
 	}
 

@@ -126,10 +126,12 @@ export class SessionBackgroundShellsControl extends Disposable {
 				element.textContent = text;
 			}
 		}
-		content.shellId.hidden = shell.shellId === undefined;
 		const output = shell.output;
-		// The live output view shows the command above its output.
+		// The live output view shows the command and its status, so it replaces the other details.
+		content.summary.hidden = !!output;
 		content.command.hidden = !!output;
+		content.shellId.hidden = !!output || shell.shellId === undefined;
+		content.startedAt.hidden = !!output;
 		if (content.outputSource !== output) {
 			// A different output source means a different execution; never show stale output.
 			content.output.clear();

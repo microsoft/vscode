@@ -150,7 +150,7 @@ suite('SessionBackgroundShellsControl', () => {
 		});
 	});
 
-	test('presents the command above a terminal that streams its output while details are shown', async () => {
+	test('shows only the command above a fixed-height terminal that streams its output while details are shown', async () => {
 		const writes: string[] = [];
 		const sizes: string[] = [];
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -197,17 +197,18 @@ suite('SessionBackgroundShellsControl', () => {
 		const exited = status();
 		const reused = content() === details && details.querySelectorAll('.chat-background-shell-output').length === 1;
 		const command = details.querySelector('.chat-terminal-command-block')?.textContent?.includes('stream.sh');
-		const commandLineHidden = Array.from(details.children).some(child => isHTMLElement(child) && child.hidden && child.textContent === 'Command: stream.sh');
+		// The badge, shell ID, and start time stay in the row's description, not the details.
+		const onlyOutputShown = Array.from(details.children).every(child => child.classList.contains('chat-background-shell-output') || (isHTMLElement(child) && child.hidden));
 		hover?.disposable?.dispose();
 
-		assert.deepStrictEqual({ loading, running, exited, command, commandLineHidden, writes, sizes, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
+		assert.deepStrictEqual({ loading, running, exited, command, onlyOutputShown, writes, sizes, reused, released: details.querySelector('.chat-background-shell-output') === null }, {
 			loading: { status: 'Running', empty: 'Waiting for output...' },
 			running: 'Running',
 			exited: 'Exited with code 0',
 			command: true,
-			commandLineHidden: true,
+			onlyOutputShown: true,
 			writes: ['\x1b[?25l', 'step 1', '\r\nstep 2', '\x1b[2J\x1b[3J\x1b[Hstep 2'],
-			sizes: ['80x1', '80x2', '80x1'],
+			sizes: ['80x10'],
 			reused: true,
 			released: true,
 		});
