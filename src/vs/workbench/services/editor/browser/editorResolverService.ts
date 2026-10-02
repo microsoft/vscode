@@ -1398,8 +1398,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			for (const c of contribPoint) {
 				if (
 					c.options?.language &&
-					c.editorInfo.priority.editor !== RegisteredEditorPriority.option &&
-					c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id
+					c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id &&
+					(priorityToRank(c.editorInfo.priority.editor) >= priorityToRank(RegisteredEditorPriority.builtin) ||
+						(!!c.editorFactoryObject.createDiffEditorInput && priorityToRank(c.editorInfo.priority.diff) >= priorityToRank(RegisteredEditorPriority.builtin)))
 				) {
 					cacheStorage.add(`lang:${c.options.language}`);
 				}
