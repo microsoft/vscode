@@ -1462,7 +1462,7 @@ suite('ActionListWidget', () => {
 	test('keeps detail row geometry stable when its toolbar becomes visible', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [
-				action('plain'),
+				{ ...action('plain'), toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
 				{ ...action('detail'), detail: 'Description', toolbarActions: [toAction({ id: 'toolbar', label: 'Toolbar', run: () => { } })] },
 				...Array.from({ length: 20 }, (_, index) => action(`filler-${index}`)),
 			],
@@ -1474,6 +1474,8 @@ suite('ActionListWidget', () => {
 		disposables.add({ dispose: () => wrapper.remove() });
 
 		const rows = Array.from(widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row'));
+		const plainRow = rows[0];
+		const plainToolbar = plainRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
 		const detailRow = rows[1];
 		const detail = detailRow.querySelector<HTMLElement>('.detail')!;
 		const toolbar = detailRow.querySelector<HTMLElement>('.action-list-item-toolbar')!;
@@ -1486,6 +1488,7 @@ suite('ActionListWidget', () => {
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
 		};
 		detailRow.classList.add('focused');
+		plainRow.classList.add('focused');
 		const focused = {
 			rowHeight: detailRow.getBoundingClientRect().height,
 			detailTop: detail.getBoundingClientRect().top,
@@ -1493,6 +1496,7 @@ suite('ActionListWidget', () => {
 			toolbarVisibility: mainWindow.getComputedStyle(toolbar).visibility,
 			toolbarMarginRight: mainWindow.getComputedStyle(toolbar).marginRight,
 			clearsScrollbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right >= verticalScrollbar.getBoundingClientRect().width,
+			alignsWithPlainRowToolbar: detailRow.getBoundingClientRect().right - toolbar.getBoundingClientRect().right === plainRow.getBoundingClientRect().right - plainToolbar.getBoundingClientRect().right,
 		};
 
 		assert.deepStrictEqual({
@@ -1504,7 +1508,7 @@ suite('ActionListWidget', () => {
 			focused,
 		}, {
 			rows: [
-				{ hasDetail: false, hasToolbar: false },
+				{ hasDetail: false, hasToolbar: true },
 				{ hasDetail: true, hasToolbar: true },
 			],
 			initial: {
@@ -1512,15 +1516,16 @@ suite('ActionListWidget', () => {
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'hidden',
-				toolbarMarginRight: '10px',
+				toolbarMarginRight: '6px',
 			},
 			focused: {
 				rowHeight: 48,
 				detailTop: initial.detailTop,
 				toolbarDisplay: 'flex',
 				toolbarVisibility: 'visible',
-				toolbarMarginRight: '10px',
+				toolbarMarginRight: '6px',
 				clearsScrollbar: true,
+				alignsWithPlainRowToolbar: true,
 			},
 		});
 	});

@@ -56,7 +56,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
+import { BRANCH_CHANGES_CHANGESET_ID, ChatInteractivity, ChatOriginKind, getChatCapabilities, getGitHubPullRequestRefs, getHighestPriorityPullRequestIcon, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, GITHUB_REMOTE_FILE_SCHEME, IChat, isActiveSessionStatus, ISession, ISessionWorkspace, SessionStatus, SessionWorkspaceKind } from '../../../../services/sessions/common/session.js';
 import { readChatChangesStats } from '../../../../services/sessions/common/sessionChangesStatsCache.js';
 import { AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
@@ -242,6 +242,9 @@ function isSessionChatItem(item: SessionListItem): item is ISessionChatItem {
 }
 
 function getChatTitle(chat: IChat, reader?: IReader): string {
+	if (chat.status.read(reader) === SessionStatus.Untitled) {
+		return getUntitledSessionTitle(false);
+	}
 	return chat.title.read(reader).trim() || localize('untitledChat', "Untitled Chat");
 }
 
@@ -582,6 +585,8 @@ interface ISessionChatItemTemplate {
 	readonly approvalLabel: HTMLElement;
 	readonly approvalButtonContainer: HTMLElement;
 	readonly canArchiveContext: IContextKey<boolean>;
+	readonly canDeleteContext: IContextKey<boolean>;
+	readonly isUntitledContext: IContextKey<boolean>;
 	readonly isArchivedContext: IContextKey<boolean>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -689,6 +694,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
 		const canArchiveContext = SessionChatItemCanArchiveContext.bindTo(contextKeyService);
+		const canDeleteContext = SessionChatItemCanDeleteContext.bindTo(contextKeyService);
+		const isUntitledContext = SessionChatItemIsUntitledContext.bindTo(contextKeyService);
 		const isArchivedContext = SessionChatItemIsArchivedContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, Menus.SessionChatItemToolbar, {
@@ -706,7 +713,7 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 		}
 		disposables.add(Gesture.ignoreTarget(approvalRow));
 
-		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, isArchivedContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleContainer, titleInputContainer, compactHoverDescription, folderRow, titleToolbar, approvalRow, approvalLabel, approvalButtonContainer, canArchiveContext, canDeleteContext, isUntitledContext, isArchivedContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionChatItemTemplate): void {
@@ -733,6 +740,8 @@ class SessionChatItemRenderer implements ITreeRenderer<SessionListItem, FuzzySco
 				: undefined;
 			const capabilities = getChatCapabilities(element.chat, element.session, reader);
 			template.canArchiveContext.set(capabilities.canArchive);
+			template.canDeleteContext.set(capabilities.canDelete);
+			template.isUntitledContext.set(status === SessionStatus.Untitled);
 			template.isArchivedContext.set(isArchived);
 			template.statusIcon.setStatus(
 				status,

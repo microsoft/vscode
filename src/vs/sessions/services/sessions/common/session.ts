@@ -49,7 +49,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }

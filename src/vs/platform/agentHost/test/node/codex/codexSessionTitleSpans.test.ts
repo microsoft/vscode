@@ -95,8 +95,7 @@ function createTestContext(disposables: Pick<DisposableStore, 'add'>): { stateMa
 	instantiationService.stub(INativeEnvironmentService, { userHome: URI.file('/tmp') });
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
-	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
+	disposables.add(instantiationService.createInstance(CodexAgent));
 	return { stateManager, otelService };
 }
 

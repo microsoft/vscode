@@ -41,6 +41,15 @@ const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'archived', title: 'Previous persistence approach', isArchived: true, canArchive: true },
 	],
 };
+const NEW_NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-new',
+	title: 'Investigate session persistence',
+	workspace: 'vscode',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'new', title: 'New Chat', status: SessionStatus.Untitled, canArchive: true },
+	],
+};
 const NESTED_CHAT_APPROVAL_SESSION: ISessionsListFixtureSession = {
 	id: 'a',
 	title: 'HTTP Client Retry Plan',
@@ -611,22 +620,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	//#region Archived chats
 
 	SessionsList_NestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { showArchived: true, width: 400 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The hovered active child shows Mark as Done, while its done sibling keeps its completed archive icon. The parent and done sibling do not show their row actions.'],
+		expectedVisualDescriptions: ['The hovered untitled child is labeled New Session and shows Delete instead of Mark as Done. The parent does not show its row actions.'],
 	}),
 	SessionsList_CompactNestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 260 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['In a narrow compact list, the hovered active child keeps its title clear of its Mark as Done action. Its done sibling remains an indented leaf, and neither child action nor hierarchy guide overlaps the title.'],
+		expectedVisualDescriptions: ['In a narrow compact list, the hovered untitled child is labeled New Session and keeps its title clear of its Delete action. The hierarchy guide does not overlap the title.'],
 	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
@@ -678,7 +687,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
-		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
+		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a committed nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
 	//#endregion
 
