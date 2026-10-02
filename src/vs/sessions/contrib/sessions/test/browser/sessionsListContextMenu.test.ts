@@ -38,8 +38,9 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
+import { createListHarness, createSession, createTestSession, TestCommandService } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
+import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -132,21 +133,21 @@ suite('Sessions list context menus', () => {
 			}
 		});
 		const container = harness.createContainer();
-		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+		const navigationContainer = showNavigationShortcuts ? mainWindow.document.createElement('div') : undefined;
+		const sessionsHeader = mainWindow.document.createElement('div');
+		sessionsHeader.className = 'sessions-list-header';
+		sessionsHeader.textContent = 'Sessions';
+		const treeContainer = mainWindow.document.createElement('div');
+		container.append(...[navigationContainer, sessionsHeader, treeContainer].filter(element => element !== undefined));
+		const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, treeContainer, {
 			grouping: () => grouping,
 			sorting: () => SessionsSorting.Created,
 			showNavigationShortcuts: () => showNavigationShortcuts,
-			createSessionsHeader: (parent, disposables) => {
-				const sessionsHeader = mainWindow.document.createElement('div');
-				sessionsHeader.textContent = 'Sessions';
-				parent.append(sessionsHeader);
-				disposables.add(toDisposable(() => sessionsHeader.remove()));
-				return sessionsHeader;
-			},
+			navigationContainer,
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -229,18 +230,28 @@ suite('Sessions list context menus', () => {
 		contextMenuService.delegate!.onHide?.(false);
 	});
 
-	test('navigation rows and Sessions header have no context menus', () => {
-		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
+		const { container, contextMenuService, commandService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
 		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
+		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New');
+		const customizationsRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
-		assert.ok(shortcutRows.length && sessionsHeader);
+		assert.ok(newRow);
+		assert.ok(customizationsRow);
+		assert.ok(sessionsHeader);
 
-		for (const shortcutRow of shortcutRows) {
-			dispatchContextMenu(shortcutRow);
-		}
+		selectRow(newRow);
+		await timeout(0);
+		dispatchContextMenu(customizationsRow);
 		dispatchContextMenu(sessionsHeader);
 
-		assert.strictEqual(contextMenuService.delegate, undefined);
+		assert.deepStrictEqual({
+			commands: (commandService as TestCommandService).calls,
+			contextMenu: contextMenuService.delegate,
+		}, {
+			commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
+			contextMenu: undefined,
+		});
 	});
 
 	test('session and chat rename context menu actions start inline editing', async () => {

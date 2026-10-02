@@ -1074,18 +1074,6 @@
 	box-sizing: border-box;
 }
 
-.sessions-list-header-row {
-	--vscode-list-hoverBackground: transparent;
-}
-
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:is(:hover, .hovered),
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
-	background-color: transparent;
-	cursor: default;
-}
-
 .session-section {
 	display: flex;
 	align-items: center;
@@ -1144,6 +1132,20 @@
 		text-transform: uppercase;
 		white-space: nowrap;
 		pointer-events: none;
+	}
+
+	.session-section-keybinding {
+		display: none;
+		flex-shrink: 0;
+		margin-left: var(--vscode-spacing-size40);
+
+		&.visible {
+			display: inline-flex;
+		}
+	}
+
+	&.session-section-new-session {
+		color: var(--vscode-foreground);
 	}
 
 	.session-section-new-badge-accent {
@@ -1243,6 +1245,17 @@
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
+	}
+
+	.agent-sessions-navigation-container {
+		.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label {
+			color: var(--vscode-strongForeground);
+		}
+
+		.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
+		.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
+			color: var(--vscode-descriptionForeground);
+		}
 	}
 
 	/* Shortcut sections only change label and icon color on hover, unless active. */
