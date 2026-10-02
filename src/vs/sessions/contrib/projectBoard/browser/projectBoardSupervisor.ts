@@ -175,8 +175,11 @@ export class ProjectBoardSupervisor extends Disposable {
 				(async () => {
 					for await (const part of response.stream) {
 						for (const fragment of Array.isArray(part) ? part : [part]) {
+							if (fragment.type === 'tool_use') {
+								throw new Error(localize('projectBoard.supervisor.toolOutput', "The summary model requested a tool. Topic analysis does not allow tools."));
+							}
 							if (fragment.type !== 'text') {
-								throw new Error('The supervisor returned non-text output');
+								continue;
 							}
 							text += fragment.value;
 							if (text.length > 16_000) {
@@ -187,6 +190,9 @@ export class ProjectBoardSupervisor extends Disposable {
 				})(),
 				response.result,
 			]), request.token);
+			if (!text.trim()) {
+				throw new Error(localize('projectBoard.supervisor.emptyOutput', "The summary model returned no text answer. Try Refresh Topics."));
+			}
 			const topics = parseProjectBoardTopics(text, sources);
 			if (request !== this.request || request.token.isCancellationRequested || this._store.isDisposed) {
 				return;

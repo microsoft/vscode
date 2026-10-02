@@ -46,8 +46,11 @@ import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatOpen, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
+import { renderChatLoadingProgress } from '../../chatLoadingProgress.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
+	/** Show the loading overlay for local sessions as well as contributed sessions. */
+	showLoading?: boolean;
 	/**
 	 * Input state of the model when the editor is opened. Currently needed since
 	 * new sessions are not persisted but may go away with
@@ -340,9 +343,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			: undefined;
 
 		try {
-			// Show loading indicator early for non-local sessions to prevent layout shifts
+			// Reveal loading before provider/model resolution, including opted-in local restores.
 			const chatSessionType = input.getSessionType();
-			if (chatSessionType !== localChatSessionType) {
+			if (chatSessionType !== localChatSessionType || options?.showLoading) {
 				const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
 				this.showLoadingInChatWidget(loadingMessage);
 			}
@@ -353,6 +356,9 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 				return;
 			}
 			open?.mark('selectionHandled');
+			if (options?.showLoading && this._editorContainer) {
+				await renderChatLoadingProgress(this._editorContainer, token);
+			}
 			if (!this.widget) {
 				throw new Error('ChatEditor lifecycle issue: no editor widget');
 			}
@@ -379,7 +385,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 
 			// Hide loading state before updating model
-			if (chatSessionType !== localChatSessionType) {
+			if (chatSessionType !== localChatSessionType || options?.showLoading) {
 				this.hideLoadingInChatWidget();
 			}
 

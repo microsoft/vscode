@@ -5,8 +5,8 @@
 
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { autorun, IObservable, ISettableObservable, ITransaction, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { ProjectBoardMetadata, projectBoardMetadataLimits } from './projectBoardMetadata.js';
@@ -26,6 +26,7 @@ interface IMetadataFeatures {
 interface IMetadataEntry extends IMetadataFeatures {
 	readonly key: string;
 	readonly helper: ProjectBoardMetadata;
+	readonly store: DisposableStore;
 	readonly leases: Set<IMetadataFeatures>;
 	readonly revoked: ISettableObservable<boolean>;
 }
@@ -53,13 +54,18 @@ export class ProjectBoardPreviewPool extends Disposable {
 		super();
 	}
 
-	acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize = false): IProjectBoardMetadataLease | undefined {
+	acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize: boolean | 'background' = false): IProjectBoardMetadataLease | undefined {
 		let lease: IProjectBoardMetadataLease | undefined;
 		transaction(tx => { lease = this._acquireMetadata(chat, prioritize, tx); });
 		return lease;
 	}
 
-	private _acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize: boolean, tx: ITransaction): IProjectBoardMetadataLease | undefined {
+	acquireExistingMetadata(chat: Pick<IChat, 'resource'>): IProjectBoardMetadataLease | undefined {
+		const entry = this._metadata.get(chat.resource.toString());
+		return entry && (entry.leases.size || entry.helper.metadata.get().kind === 'ready') ? this.acquireMetadata(chat) : undefined;
+	}
+
+	private _acquireMetadata(chat: Pick<IChat, 'resource'>, prioritize: boolean | 'background', tx: ITransaction): IProjectBoardMetadataLease | undefined {
 		if (this._isDisposed) {
 			return undefined;
 		}
@@ -67,29 +73,39 @@ export class ProjectBoardPreviewPool extends Disposable {
 		let entry = this._metadata.get(key);
 		if (entry && !entry.leases.size && entry.helper.metadata.get().kind !== 'ready') {
 			this._metadata.delete(key);
-			entry.helper.dispose();
+			entry.store.dispose();
 			entry = undefined;
 		}
 		if (!entry) {
 			if (this._metadata.size >= projectBoardMetadataLimits.activeHelpers) {
 				const candidates = [...this._metadata.values()];
 				const evicted = candidates.find(candidate => !candidate.leases.size)
-					?? (prioritize ? candidates.find(candidate => !this._questions.has(candidate.key) && !candidate.helper.actions.get()) : undefined);
+					?? (prioritize ? candidates.find(candidate => !this._questions.has(candidate.key) && !candidate.helper.actions.get()
+						&& (prioritize !== 'background' || candidate.helper.metadata.get().kind !== 'loading')) : undefined);
 				if (!evicted) {
 					return undefined;
 				}
 				this._metadata.delete(evicted.key);
 				evicted.leases.clear();
 				evicted.revoked.set(true, tx);
-				evicted.helper.dispose();
+				evicted.store.dispose();
 			}
+			const store = new DisposableStore();
+			const helper = store.add(this._instantiationService.createInstance(ProjectBoardMetadata, chat));
 			entry = {
-				key,
-				helper: this._instantiationService.createInstance(ProjectBoardMetadata, chat),
+				key, helper, store,
 				leases: new Set(), includeCredits: false, includeConfiguration: false,
 				revoked: observableValue('projectBoardMetadataRevoked', false),
 			};
 			this._metadata.set(key, entry);
+			let canYield = helper.metadata.get().kind !== 'loading' && !helper.actions.get();
+			store.add(autorun(reader => {
+				const available = helper.metadata.read(reader).kind !== 'loading' && !helper.actions.read(reader);
+				if (available && !canYield) {
+					this._availability.schedule();
+				}
+				canYield = available;
+			}));
 		} else {
 			this._metadata.delete(key);
 			this._metadata.set(key, entry);
@@ -132,7 +148,7 @@ export class ProjectBoardPreviewPool extends Disposable {
 						this._updateMetadataFeatures(retained);
 					} else {
 						this._metadata.delete(key);
-						retained.helper.dispose();
+						retained.store.dispose();
 					}
 					if (!this._isDisposed) {
 						this._availability.schedule();
@@ -164,7 +180,7 @@ export class ProjectBoardPreviewPool extends Disposable {
 		for (const [key, entry] of [...this._metadata]) {
 			if (!entry.leases.size) {
 				this._metadata.delete(key);
-				entry.helper.dispose();
+				entry.store.dispose();
 			}
 		}
 	}
@@ -217,7 +233,7 @@ export class ProjectBoardPreviewPool extends Disposable {
 		super.dispose();
 		for (const entry of this._metadata.values()) {
 			entry.leases.clear();
-			entry.helper.dispose();
+			entry.store.dispose();
 		}
 		this._metadata.clear();
 		for (const entry of this._questions.values()) {
