@@ -10,7 +10,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { createStringDataTransferItem, IReadonlyVSDataTransfer, matchesMimeType, UriList, VSDataTransfer } from '../../../../base/common/dataTransfer.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { upcast } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -38,6 +38,7 @@ import { MessageController } from '../../message/browser/messageController.js';
 import { PreferredPasteConfiguration } from './copyPasteContribution.js';
 import { DefaultTextPasteOrDropEditProvider } from './defaultProviders.js';
 import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from './edit.js';
+import { PasteEditSession } from './pasteEditSession.js';
 import { PostEditWidgetManager } from './postEditWidget.js';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
@@ -359,8 +360,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				};
 
 				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
-				const editSessionOwner = disposables.add(new MutableDisposable<IDisposable>());
-				editSessionOwner.value = editSession;
+				const editSessionOwner = disposables.add(new PasteEditSession(editSession));
 				if (token.isCancellationRequested) {
 					return;
 				}

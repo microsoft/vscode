@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -28,6 +28,7 @@ import { DocumentDropEdit, DocumentPasteEdit } from '../../../common/languages.j
 import { TrackedRangeStickiness } from '../../../common/model.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { createCombinedWorkspaceEdit } from './edit.js';
+import { PasteEditSession } from './pasteEditSession.js';
 import './postEditWidget.css';
 
 
@@ -47,7 +48,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 	readonly allowEditorOverflow = true;
 	readonly suppressMouseDown = true;
 
-	private readonly _editSession = this._register(new MutableDisposable<IDisposable>());
+	private readonly _editSession: PasteEditSession | undefined;
 
 	private domNode!: HTMLElement;
 	private button!: Button;
@@ -61,16 +62,16 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 		private readonly showCommand: ShowCommand,
 		private readonly range: Range,
 		private readonly edits: EditSet<T>,
-		private readonly onSelectNewEdit: (editIndex: number, editSession: IDisposable | undefined) => void,
+		private readonly onSelectNewEdit: (editIndex: number, editSession: PasteEditSession | undefined) => void,
 		private readonly additionalActions: readonly IAction[],
-		editSessionOwner: MutableDisposable<IDisposable> | undefined,
+		editSessionOwner: PasteEditSession | undefined,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 	) {
 		super();
 
-		this._editSession.value = editSessionOwner?.clearAndLeak();
+		this._editSession = editSessionOwner ? this._register(editSessionOwner.take()) : undefined;
 		this.create();
 
 		this.visibleContext = visibleContext.bindTo(contextKeyService);
@@ -145,7 +146,7 @@ class PostEditWidget<T extends DocumentPasteEdit | DocumentDropEdit> extends Dis
 				const i = this.edits.allEdits.findIndex(edit => edit === item);
 				if (i !== this.edits.activeEditIndex) {
 					// Transfer the edits before undo disposes this widget.
-					return this.onSelectNewEdit(i, this._editSession.clearAndLeak());
+					return this.onSelectNewEdit(i, this._editSession?.take());
 				}
 			},
 		}, anchor, this.editor.getDomNode() ?? undefined, this.additionalActions);
@@ -174,7 +175,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken, editSessionOwner?: MutableDisposable<IDisposable>) {
+	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken, editSessionOwner?: PasteEditSession) {
 		if (!ranges.length || !this._editor.hasModel()) {
 			return;
 		}
@@ -185,9 +186,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 			return;
 		}
 
-		const onDidSelectEdit = async (newEditIndex: number, editSession: IDisposable | undefined) => {
-			const nextSessionOwner = new MutableDisposable<IDisposable>();
-			nextSessionOwner.value = editSession;
+		const onDidSelectEdit = async (newEditIndex: number, editSession: PasteEditSession | undefined) => {
 			try {
 				this.clear();
 				const model = this._editor.getModel();
@@ -196,9 +195,9 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 				}
 
 				await model.undo();
-				await this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token, nextSessionOwner);
+				await this.applyEditAndShowIfNeeded(ranges, { activeEditIndex: newEditIndex, allEdits: edits.allEdits }, canShowWidget, resolve, token, editSession);
 			} finally {
-				nextSessionOwner.dispose();
+				editSession?.dispose();
 			}
 		};
 
@@ -257,7 +256,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		}
 	}
 
-	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number, editSession: IDisposable | undefined) => void, editSessionOwner?: MutableDisposable<IDisposable>) {
+	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number, editSession: PasteEditSession | undefined) => void, editSessionOwner?: PasteEditSession) {
 		this.clear();
 
 		if (this._editor.hasModel()) {
