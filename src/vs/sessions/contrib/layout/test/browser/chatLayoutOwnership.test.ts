@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -36,6 +36,9 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		}
 		capturedPanelView(ownerKey: URI): string | undefined {
 			return this._panelViewBySession.get(ownerKey);
+		}
+		preHideComposition(ownerKey: URI) {
+			return super.preHideComposition(ownerKey);
 		}
 	}
 
@@ -132,6 +135,78 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			['empty'],
 			'a peer chat\'s first visit must not inherit the legacy session-keyed working set'
 		);
+	});
+
+	test('[R-seed] a fresh controller restores a saved peer chat\'s own composition, working set and panel view, without pruning its entry or touching the main chat\'s legacy state', async () => {
+		const layoutState = [{
+			sessionResource: 'session:a',
+			editorWorkingSet: { id: 'ws-legacy', name: 'ws-legacy' },
+		}];
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true, layoutState });
+		const firstRunStore = new DisposableStore();
+		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: 'ws-legacy', name: 'ws-legacy' }], 'the main chat must still inherit the legacy session-keyed working set exactly once');
+
+		setActiveChat(session, peer);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+		const peerKey = controllerA.ownerKeyFor(session);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
+		assert.notStrictEqual(peerWorkingSetName, undefined, 'the peer chat\'s own editor working set must be captured while it is the active chat');
+
+		setActiveChat(session, session.mainChat.get());
+		await settle();
+
+		const legacyRawBefore = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
+		assert.notStrictEqual(legacyRawBefore, undefined, 'the legacy session-keyed key must still exist after a peer chat is visited and switched away from');
+		firstRunStore.dispose();
+
+		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
+		harness.openPaneCompositeCalls = [];
+		harness.applyWorkingSetCalls = [];
+		harness.partVisibility.set(Parts.PANEL_PART, false);
+
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		harness.applyWorkingSetCalls = [];
+		setActiveChat(session, peer);
+		await settle();
+
+		assert.deepStrictEqual(
+			{ editor: harness.layoutService.isVisible(Parts.EDITOR_PART, mainWindow), auxiliaryBar: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART) },
+			{ editor: true, auxiliaryBar: true },
+			'a fresh controller must restore the saved peer chat\'s own composition, independent of the main chat'
+		);
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: peerWorkingSetName, name: peerWorkingSetName }],
+			'a fresh controller must restore the saved peer chat\'s own distinct editor working set'
+		);
+		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'the panel must remain hidden immediately after a fresh restart, even though the peer\'s panel view is restorable');
+
+		harness.openPaneCompositeCalls = [];
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+		assert.deepStrictEqual(
+			harness.openPaneCompositeCalls,
+			[{ id: 'view.peer', location: ViewContainerLocation.Panel }],
+			'the peer\'s own panel view must be restored once the panel is shown, not forced open merely to restore it'
+		);
+		assert.notStrictEqual(controllerB.composition(peerKey), undefined, 'the peer\'s composition catalog entry must not be pruned by a fresh controller restoring the main chat first');
+
+		const legacyRawAfter = harness.storageService.get('sessions.singlePane.layoutState', StorageScope.WORKSPACE);
+		assert.deepStrictEqual(legacyRawAfter, legacyRawBefore, 'restoring a saved peer chat on a fresh controller must not touch the legacy session-keyed key');
 	});
 
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
@@ -405,6 +480,63 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.notStrictEqual(controller.composition(mainKey), undefined, 'the main chat\'s composition is unaffected by a peer deletion');
 	});
 
+	test('[R8] a confirmed peer-chat deletion also forgets its normal-toggle last-open composition cache', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+
+		setActiveChat(session, peer);
+		await settle();
+		setVisible(true, false);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		const peerKey = controller.ownerKeyFor(session);
+		assert.deepStrictEqual(controller.preHideComposition(peerKey), { editor: true, auxiliaryBar: false }, 'closing the side pane on the peer chat must capture its last-open composition');
+
+		const event: IChatDeletedEvent = { session, sessionResource: session.resource, chatResource: peer.resource };
+		harness.onDidDeleteChat.fire(event);
+		await settle();
+
+		assert.strictEqual(controller.preHideComposition(peerKey), undefined, 'a confirmed chat deletion must also forget its last-open toggle cache, not only its composition catalog entry');
+	});
+
+	test('[R8] a draft promotion carries a peer chat\'s normal-toggle last-open composition to its new owner key', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const draft = makeSession(URI.parse('session:draft'), { status: SessionStatus.Completed });
+		const draftPeer = addPeerChat(draft, URI.parse('chat:draftPeer'));
+		harness.activeSessionObs.set(draft, undefined);
+		await settle();
+		setActiveChat(draft, draftPeer);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		const oldKey = controller.ownerKeyFor(draft);
+		assert.deepStrictEqual(controller.preHideComposition(oldKey), { editor: false, auxiliaryBar: true }, 'closing the side pane on the draft peer chat must capture its last-open composition');
+
+		const committed = makeSession(URI.parse('session:committed'));
+		const committedPeer = addPeerChat(committed, draftPeer.resource);
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		harness.activeSessionObs.set(committed, undefined);
+		await settle();
+		setActiveChat(committed, committedPeer);
+		await settle();
+
+		const newKey = controller.ownerKeyFor(committed);
+		assert.deepStrictEqual(controller.preHideComposition(newKey), { editor: false, auxiliaryBar: true }, 'the promoted peer chat keeps its last-open toggle cache under its new owner key');
+		assert.strictEqual(controller.preHideComposition(oldKey), undefined, 'the stale draft owner key\'s toggle cache is forgotten');
+	});
+
 	test('[R8] a draft promotion carries a peer chat\'s composition to its new owner key', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
@@ -473,6 +605,40 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.chatLayoutIsPhoneObs.set(false, undefined);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming applies the focused owner\'s own composition, not the transient suspended state');
+	});
+
+	test('[R13] a normal toggle while suspended neither writes a stale last-open cache entry nor loses the one captured before suspension', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		const main = session.mainChat.get();
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		setVisible(true, false);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		const mainKey = controller.ownerKeyFor(session);
+		assert.deepStrictEqual(controller.preHideComposition(mainKey), { editor: true, auxiliaryBar: false }, 'closing the side pane before suspension must capture the focused owner\'s last-open composition');
+
+		harness.chatLayoutIsPhoneObs.set(true, undefined);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		setVisible(true, true);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(controller.preHideComposition(mainKey), { editor: true, auxiliaryBar: false }, 'toggles made while suspended must not overwrite the pre-suspension last-open cache, even when the on-screen composition differs while suspended');
+
+		harness.chatLayoutIsPhoneObs.set(false, undefined);
+		await settle();
+		setActiveChat(session, main);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming and reopening must still restore the pre-suspension last-open composition, not a stale state leaked from the suspension');
 	});
 
 	test('[R13] a phone transition while B is focused never reads or writes under A\'s (the main chat\'s) owner key', async () => {

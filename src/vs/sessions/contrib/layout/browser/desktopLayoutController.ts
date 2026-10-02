@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IEditorWorkingSet } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { LifecyclePhase } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { DesktopChangesEditorTransitionContext } from '../../../common/contextkeys.js';
+import { ISidePaneState } from '../../../browser/workbench.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { BaseLayoutController } from './baseSessionLayoutController.js';
 import { IDesktopLayoutContext } from './desktop/desktopLayoutStrategy.js';
@@ -140,6 +141,10 @@ export class DesktopLayoutController extends BaseLayoutController {
 	/** Toggle the detail panel and return whether it is now visible. */
 	toggleDetails(): boolean {
 		return this._existingSession?.toggleDetails() ?? false;
+	}
+
+	protected preHideComposition(ownerKey: URI): ISidePaneState | undefined {
+		return this._existingSession?.preHideComposition(ownerKey);
 	}
 
 	// --- Base hooks ---

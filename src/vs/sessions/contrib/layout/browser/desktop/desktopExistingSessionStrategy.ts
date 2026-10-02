@@ -281,6 +281,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 	}
 
+	preHideComposition(ownerKey: URI): ISidePaneState | undefined {
+		return this._preHideComposition.get(ownerKey);
+	}
+
 	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
 		if (!ownerKey) {
 			return this._visibilityStore.get(SessionVisibilityProfile.Existing);

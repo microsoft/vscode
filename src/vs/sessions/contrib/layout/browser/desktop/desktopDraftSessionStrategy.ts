@@ -75,8 +75,6 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._registerOwnerComposition();
 	}
 
-	// --- Owner composition -----------------------------------------------------------------
-
 	private _activeOwnerKey(): URI | undefined {
 		if (!this._ctx.chatLayoutActive()) {
 			return undefined;

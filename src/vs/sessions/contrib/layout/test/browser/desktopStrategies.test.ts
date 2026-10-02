@@ -16,6 +16,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { GroupModelChangeKind } from '../../../../../workbench/common/editor.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionCanvasAvailability, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -341,6 +342,37 @@ suite('Desktop layout strategies', () => {
 			visibility: { editor: true, auxiliaryBar: true },
 			visibilityChanges: [],
 		});
+	});
+
+	test('New Session composition recorded before the strategy is ever constructed wins over the entry default on first-ever activation', () => {
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		harness = createTestHarness(store);
+		harness.storageService.store(
+			'sessions.chatLayout.sidePaneComposition',
+			JSON.stringify([[session.resource.toString(), { editor: true, auxiliaryBar: true }]]),
+			StorageScope.WORKSPACE,
+			StorageTarget.MACHINE,
+		);
+		const { ctx } = createStrategyTestContext(store, harness);
+		ctx.chatLayoutActive = () => true;
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(session);
+
+		assert.deepStrictEqual(
+			harness.setPartHiddenCalls,
+			[{ hidden: false, part: Parts.AUXILIARYBAR_PART }],
+			'a composition recorded before the strategy ever existed must be applied directly, and the entry-hide-on-Empty-Files default must not fire'
+		);
+		assert.deepStrictEqual({
+			editor: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, { editor: true, auxiliaryBar: true });
 	});
 
 	test('New Session composition changes are captured to the focused draft owner while another session is simultaneously visible', async () => {
@@ -830,6 +862,29 @@ suite('Desktop layout strategies', () => {
 				{ hidden: true, part: Parts.AUXILIARYBAR_PART },
 			],
 		});
+	});
+
+	test('Quick Chat with a saved working set keeps the shared side pane profile instead of the reload editorless-hide default', () => {
+		harness = createTestHarness(store);
+		const { ctx, state } = createStrategyTestContext(store, harness);
+		const quickChat = makeSession(URI.parse('session:/quick'), { isQuickChat: true });
+		state.setHasSavedWorkingSet(quickChat.resource, true);
+		const visibilityStore = createVisibilityStore();
+		visibilityStore.set(SessionVisibilityProfile.Existing, { editorVisible: true, auxiliaryBarVisible: false });
+		harness.editorGroupsHaveContent = false;
+		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, true);
+		createDraftStrategy(ctx, visibilityStore);
+
+		activate(quickChat);
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+		}, 'a Quick Chat with a saved working set must keep its recorded shared profile instead of being forced through the editorless-hide default');
 	});
 
 	test('Quick Chat preserves the side pane when a pending restore crosses a multi-session layout', () => {
