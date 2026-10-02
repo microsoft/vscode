@@ -6,11 +6,11 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubRequestContext, GitHubRequestError } from '../../common/githubTypes.js';
-import { GitHubRequestQueue } from '../../common/githubRequestQueue.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { RequestError, RequestContext } from '../../common/types.js';
+import { RequestQueue } from '../../common/requestQueue.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
-function context(overrides: Partial<GitHubRequestContext> = {}): GitHubRequestContext {
+function context(overrides: Partial<RequestContext> = {}): RequestContext {
 	return {
 		kind: 'rest',
 		account: { host: 'github.example.test', accountId: '1' },
@@ -23,12 +23,12 @@ function context(overrides: Partial<GitHubRequestContext> = {}): GitHubRequestCo
 	};
 }
 
-suite('GitHubRequestQueue', () => {
+suite('RequestQueue', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('prioritizes interactive work and fairly serves callers at the same priority', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const release = new DeferredPromise<void>();
 		const order: string[] = [];
 		const first = queue.enqueue(context(), async () => {
@@ -48,8 +48,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('counts parked requests and reserves admission for interactive work', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler,
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler,
 			request => request.account.kind !== 'anonymous' && request.account.accountId === '1' ? Math.max(0, 1_000 - scheduler.now()) : 0,
 			{ maximumRequests: 4, maximumAccountRequests: 4, maximumCallerRequests: 4, reservedInteractiveRequests: 1 }));
 		let dispatched = 0;
@@ -66,9 +66,9 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('wakes parked work when its cooldown expires between drain scans', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let samples = 0;
-		const queue = store.add(new GitHubRequestQueue(scheduler, () => {
+		const queue = store.add(new RequestQueue(scheduler, () => {
 			const remaining = Math.max(0, 1 - scheduler.now());
 			if (samples++ === 0) {
 				scheduler.advanceWallClockBy(1);
@@ -79,7 +79,7 @@ suite('GitHubRequestQueue', () => {
 		const result = queue.enqueue(context({ deadline: 100 }), async () => {
 			dispatched = true;
 			return 'completed';
-		}).catch(error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+		}).catch(error => error instanceof RequestError ? error.kind : 'unexpected');
 		const wakeDelay = scheduler.nextDueTime! - scheduler.now();
 		scheduler.advanceBy(1);
 		await new Promise(resolve => setTimeout(resolve, 0));
@@ -91,8 +91,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('bounds retained requests independently by account and caller', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler, () => 1_000, {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, () => 1_000, {
 			maximumAccountRequests: 2, maximumCallerRequests: 2, reservedInteractiveRequests: 0,
 		}));
 		const first = queue.enqueue(context(), async () => { });
@@ -105,7 +105,7 @@ suite('GitHubRequestQueue', () => {
 			context({ account: { host: 'third.example.test', accountId: '3' } }),
 		]) {
 			await assert.rejects(queue.enqueue(request, async () => { }), error => {
-				if (!(error instanceof GitHubRequestError)) {
+				if (!(error instanceof RequestError)) {
 					return false;
 				}
 				errors.push(error.kind);
@@ -118,8 +118,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('limits active requests per caller without blocking other callers', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler, undefined, {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, undefined, {
 			maximumConcurrency: 3, maximumHostConcurrency: 3, maximumCallerConcurrency: 1,
 		}));
 		const release = new DeferredPromise<void>();
@@ -136,8 +136,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('enforces global and case-insensitive host concurrency limits', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler, undefined, {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, undefined, {
 			maximumConcurrency: 2, maximumHostConcurrency: 1,
 		}));
 		const release = new DeferredPromise<void>();
@@ -176,8 +176,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('expires queued requests without running them', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), () => release.p);
 		let dispatched = false;
@@ -191,8 +191,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('rejects expired queued work after a wall-clock jump without waiting for timers', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context(), async () => {
@@ -205,7 +205,7 @@ suite('GitHubRequestQueue', () => {
 		const expired = queue.enqueue(context({ deadline: 100 }), async () => { ran = true; });
 		const settled = expired.then(
 			() => { outcome = 'success'; },
-			error => { outcome = error instanceof GitHubRequestError ? error.kind : 'unexpected'; },
+			error => { outcome = error instanceof RequestError ? error.kind : 'unexpected'; },
 		);
 		scheduler.advanceWallClockBy(1_000);
 		await release.complete();
@@ -218,13 +218,13 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('reclaims expired parked admission before rejecting a fresh request', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler, () => Math.max(0, 500 - scheduler.now()), {
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, () => Math.max(0, 500 - scheduler.now()), {
 			maximumRequests: 1, reservedInteractiveRequests: 0,
 		}));
 		const dispatched: string[] = [];
 		const expired = queue.enqueue(context({ deadline: 100 }), async () => { dispatched.push('expired'); });
-		const outcome = expired.then(() => 'success', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+		const outcome = expired.then(() => 'success', error => error instanceof RequestError ? error.kind : 'unexpected');
 		scheduler.advanceWallClockBy(1_000);
 		await queue.enqueue(context({ deadline: 2_000 }), async () => { dispatched.push('fresh'); });
 		assert.deepStrictEqual({ outcome: await outcome, dispatched, timers: scheduler.pendingCount }, {
@@ -234,8 +234,8 @@ suite('GitHubRequestQueue', () => {
 
 	for (const dispatched of [false, true]) {
 		test(`reclaims expired active work after a wall-clock jump (dispatched: ${dispatched})`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
-			const queue = store.add(new GitHubRequestQueue(scheduler, undefined, { maximumRequests: 1 }));
+			const scheduler = store.add(new FakeScheduler());
+			const queue = store.add(new RequestQueue(scheduler, undefined, { maximumRequests: 1 }));
 			const started = new DeferredPromise<AbortSignal>();
 			const release = new DeferredPromise<void>();
 			const active = queue.enqueue(context({ deadline: 100 }), async (signal, onDispatch) => {
@@ -250,7 +250,7 @@ suite('GitHubRequestQueue', () => {
 			scheduler.advanceWallClockBy(1_000);
 			let freshDispatched = false;
 			const fresh = queue.enqueue(context({ deadline: 2_000 }), async () => { freshDispatched = true; })
-				.then(() => 'completed', error => error instanceof GitHubRequestError ? error.kind : 'unexpected');
+				.then(() => 'completed', error => error instanceof RequestError ? error.kind : 'unexpected');
 			await new Promise(resolve => setTimeout(resolve, 0));
 			const dispatchedBeforeTimer = freshDispatched;
 			scheduler.advanceBy(100);
@@ -263,8 +263,8 @@ suite('GitHubRequestQueue', () => {
 	}
 
 	test('aborts active requests at their deadline and releases capacity', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const started = new DeferredPromise<AbortSignal>();
 		const release = new DeferredPromise<void>();
 		const active = queue.enqueue(context({ deadline: 10 }), async signal => {
@@ -283,8 +283,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('rejects an overdue active result before its delayed deadline timer fires', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const started = new DeferredPromise<AbortSignal>();
 		const release = new DeferredPromise<string>();
 		const pending = queue.enqueue(context({ deadline: 20 }), async (signal, onDispatch) => {
@@ -301,8 +301,8 @@ suite('GitHubRequestQueue', () => {
 	});
 
 	test('rejects an overdue active failure as a timeout before its delayed timer fires', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler));
 		const started = new DeferredPromise<void>();
 		const result = new DeferredPromise<void>();
 		const pending = queue.enqueue(context({ deadline: 20 }), async (_signal, onDispatch) => {
@@ -313,14 +313,14 @@ suite('GitHubRequestQueue', () => {
 		const rejected = assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
 		await started.p;
 		scheduler.advanceWallClockBy(60);
-		await result.error(new GitHubRequestError('late network failure', 'network'));
+		await result.error(new RequestError('late network failure', 'network'));
 		await rejected;
 		assert.strictEqual(scheduler.pendingCount, 0);
 	});
 
 	test('cancels parked work and disposes active and pending work', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const queue = store.add(new GitHubRequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));
+		const scheduler = store.add(new FakeScheduler());
+		const queue = store.add(new RequestQueue(scheduler, request => request.resource === 'search' ? 1_000 : 0));
 		const controller = new AbortController();
 		let parkedRan = false;
 		const parked = queue.enqueue(context({ resource: 'search', signal: controller.signal }), async () => { parkedRan = true; });

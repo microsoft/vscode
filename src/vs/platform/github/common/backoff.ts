@@ -5,15 +5,15 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
+import { IRequestScheduler, schedulerDelay } from './scheduler.js';
 
 /**
  * Shapes how far apart repeated attempts against a failing subject are spaced.
  * Without one, every subscriber that reacts to a failure retries at its normal
  * rate for the whole outage, which turns one unhealthy dependency into a
- * request storm against GitHub from every user at once.
+ * request storm against the service from every user at once.
  */
-export interface GitHubBackoffPolicy {
+export interface BackoffPolicy {
 	/** Consecutive failures that may retry without waiting, so a single blip still recovers at once. */
 	readonly immediateRetries: number;
 	readonly base: number;
@@ -21,7 +21,7 @@ export interface GitHubBackoffPolicy {
 	readonly jitter: number;
 	/**
 	 * Quiet time after which consecutive failures are forgotten. Only
-	 * {@link GitHubBackoffGate} consults it, for subjects whose recovery nothing
+	 * {@link BackoffGate} consults it, for subjects whose recovery nothing
 	 * else can report; callers that observe a success reset the count directly.
 	 */
 	readonly decay?: number;
@@ -32,7 +32,7 @@ export interface GitHubBackoffPolicy {
  * shorter than `minimum`. Jittered so a host that fails many callers at once
  * does not gather them into a single retry burst when the delay elapses.
  */
-export function gitHubBackoffDelay(policy: GitHubBackoffPolicy, scheduler: IGitHubScheduler, attempts: number, minimum = 0): number {
+export function backoffDelay(policy: BackoffPolicy, scheduler: IRequestScheduler, attempts: number, minimum = 0): number {
 	const escalated = attempts <= policy.immediateRetries
 		? 0
 		: Math.min(policy.base * 2 ** (attempts - policy.immediateRetries - 1), policy.maximum);
@@ -42,6 +42,7 @@ export function gitHubBackoffDelay(policy: GitHubBackoffPolicy, scheduler: IGitH
 	return delay === 0 ? 0 : delay + scheduler.jitter(policy.jitter);
 }
 
+/** Consecutive failures and the resulting wait for one opaque subject. */
 interface IBackoffState {
 	readonly key: string;
 	readonly attempts: number;
@@ -58,7 +59,7 @@ interface IBackoffState {
  * The subject is named by an opaque key -- which may carry a secret and is
  * therefore never logged -- so replacing it recovers immediately.
  */
-export class GitHubBackoffGate extends Disposable {
+export class BackoffGate extends Disposable {
 
 	private readonly _lifetime = new AbortController();
 	private _changed = new AbortController();
@@ -66,8 +67,8 @@ export class GitHubBackoffGate extends Disposable {
 
 	constructor(
 		private readonly _label: string,
-		private readonly _policy: GitHubBackoffPolicy,
-		private readonly _scheduler: IGitHubScheduler,
+		private readonly _policy: BackoffPolicy,
+		private readonly _scheduler: IRequestScheduler,
 		private readonly _logService?: ILogService,
 	) {
 		super();
@@ -91,7 +92,7 @@ export class GitHubBackoffGate extends Disposable {
 			if (remaining <= 0) {
 				return waited;
 			}
-			this._logService?.debug(`[GitHubBackoffGate] Delaying ${this._label} by ${remaining}ms after ${state.attempts} consecutive failure(s)`);
+			this._logService?.debug(`[BackoffGate] Delaying ${this._label} by ${remaining}ms after ${state.attempts} consecutive failure(s)`);
 			const changed = this._changed.signal;
 			waited = true;
 			try {
@@ -116,10 +117,10 @@ export class GitHubBackoffGate extends Disposable {
 			&& state.key === key
 			&& now - state.recordedAt <= (this._policy.decay ?? Number.POSITIVE_INFINITY);
 		const attempts = (continues ? state.attempts : 0) + 1;
-		const delay = gitHubBackoffDelay(this._policy, this._scheduler, attempts, minimumDelay);
+		const delay = backoffDelay(this._policy, this._scheduler, attempts, minimumDelay);
 		this._set({ key, attempts, recordedAt: now, blockedUntil: now + delay });
 		if (delay > 0) {
-			this._logService?.warn(`[GitHubBackoffGate] Backing off ${this._label} by ${delay}ms after ${attempts} consecutive failure(s)`);
+			this._logService?.warn(`[BackoffGate] Backing off ${this._label} by ${delay}ms after ${attempts} consecutive failure(s)`);
 		}
 	}
 
@@ -132,7 +133,7 @@ export class GitHubBackoffGate extends Disposable {
 
 	override dispose(): void {
 		this._state = undefined;
-		this._lifetime.abort(new Error(`GitHub ${this._label} backoff was disposed`));
+		this._lifetime.abort(new Error(`${this._label} backoff was disposed`));
 		super.dispose();
 	}
 
