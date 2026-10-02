@@ -11,10 +11,11 @@ import { Schemas } from '../../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mockObject, upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { ConfirmResult, IDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -25,6 +26,7 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { isResourceEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../../../services/editor/common/editorGroupsService.js';
 import { clearChatEditor } from '../../../../browser/actions/chatClear.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from '../../../../browser/widgetHosts/editor/chatEditorInput.js';
 import { IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
@@ -32,6 +34,7 @@ import { IAgentHostEnablementService } from '../../../../../../../platform/agent
 import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation, SessionTypeSelectionReason } from '../../../../common/constants.js';
+import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
@@ -40,6 +43,89 @@ import { TestContextService, TestStorageService } from '../../../../../../test/c
 suite('ChatEditorInput', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createInputWithPendingEdits(willKeepAlive: boolean) {
+		const sessionResource = LocalChatSessionUri.forSession('pending-edits');
+		const model = upcastPartial<IChatModel>({
+			sessionResource,
+			onDidDispose: Event.None,
+			onDidChange: Event.None,
+			willKeepAlive,
+			editingSession: upcastPartial<IChatEditingSession>({
+				entries: constObservable([upcastPartial<IModifiedFileEntry>({
+					state: constObservable(ModifiedFileEntryState.Modified),
+				})]),
+			}),
+		});
+		const prompt = mockObject<IDialogService>()().prompt.resolves({ result: false });
+		const input = disposables.add(new ChatEditorInput(
+			sessionResource, {},
+			upcastPartial<IChatService>({ acquireExistingSession: () => ({ object: model, dispose() { } }) }),
+			upcastPartial<IDialogService>({ prompt }),
+			upcastPartial<IConfigurationService>({}),
+			upcastPartial<IChatSessionsService>({}),
+			upcastPartial<IInstantiationService>({}),
+			upcastPartial<IStorageService>({}),
+			new NullLogService(),
+			new TestContextService(),
+			upcastPartial<IAgentHostEnablementService>({}),
+			upcastPartial<IAgentHostConnectionsService>({}),
+			NullTelemetryService,
+			upcastPartial<IProgressService>({}),
+		));
+		input.updateModel(model);
+		return { input, prompt };
+	}
+
+	test('background-kept editing sessions do not require close confirmation', async () => {
+		const { input, prompt } = createInputWithPendingEdits(true);
+		assert.deepStrictEqual({
+			showConfirm: input.showConfirm(),
+			confirmation: await input.confirm([]),
+			prompts: prompt.callCount,
+		}, { showConfirm: false, confirmation: ConfirmResult.SAVE, prompts: 0 });
+	});
+
+	for (const closeResult of [true, false, 'error'] as const) {
+		test(`move confirmation suppression is scoped when close returns ${closeResult}`, async () => {
+			const { input, prompt } = createInputWithPendingEdits(false);
+			const before = input.showConfirm();
+			let during: { showConfirm: boolean; confirmation: ConfirmResult } | undefined;
+			const error = new Error('Unable to close the editor');
+			const group = upcastPartial<IEditorGroup>({
+				async closeEditor() {
+					during = { showConfirm: input.showConfirm(), confirmation: await input.confirm([]) };
+					if (closeResult === 'error') {
+						throw error;
+					}
+					return closeResult;
+				},
+			});
+
+			let moved: boolean | undefined;
+			if (closeResult === 'error') {
+				await assert.rejects(input.closeForMove(group), error);
+			} else {
+				moved = await input.closeForMove(group);
+			}
+
+			assert.deepStrictEqual({
+				before,
+				during,
+				after: input.showConfirm(),
+				normalConfirmation: await input.confirm([]),
+				prompts: prompt.callCount,
+				moved,
+			}, {
+				before: true,
+				during: { showConfirm: false, confirmation: ConfirmResult.SAVE },
+				after: true,
+				normalConfirmation: ConfirmResult.CANCEL,
+				prompts: 1,
+				moved: closeResult === 'error' ? undefined : closeResult,
+			});
+		});
+	}
 
 	test('explicit local session type starts local session for generic editor URI', async () => {
 		const sessionResource = LocalChatSessionUri.forSession('explicit-local');
@@ -73,7 +159,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
@@ -134,7 +220,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
@@ -189,7 +275,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
@@ -235,7 +321,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
@@ -293,7 +379,7 @@ suite('ChatEditorInput', () => {
 			{} as IStorageService,
 			new NullLogService(),
 			new TestContextService(),
-			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) },
+			{ _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 			{ ambientConnection: undefined } as unknown as IAgentHostConnectionsService,
 			NullTelemetryService,
 			{ withProgress: (_options: unknown, task: (progress: unknown) => unknown) => task({ report() { } }) } as unknown as IProgressService,
@@ -329,7 +415,7 @@ suite('ChatEditorInput', () => {
 		}]);
 		const storageService = store.add(new TestStorageService());
 		const workspaceContextService = new TestContextService();
-		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false) } satisfies IAgentHostEnablementService;
+		const agentHostEnablementService = { _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) } satisfies IAgentHostEnablementService;
 
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(IDialogService, {});
@@ -384,7 +470,7 @@ suite('ChatEditorInput', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.set(ILogService, new NullLogService());
 		instantiationService.set(IWorkspaceContextService, new TestContextService());
-		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false) });
+		instantiationService.set(IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(agentHostEnabled), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) });
 		return store.add(instantiationService.createInstance(ChatEditorInput, resource, {}));
 	}
 

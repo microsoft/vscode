@@ -105,6 +105,22 @@ suite('modelRequestProjection', () => {
 		assert.ok(modelRequestsMatch(projectModelRequest(recorded), projectModelRequest(live)));
 	});
 
+	test('a lone text block matches replayed text after reasoning is removed', () => {
+		const recorded = projectModelRequest(request([{
+			role: 'assistant',
+			content: [{ type: 'thinking' }, { type: 'text', text: 'DONE' }],
+		}]));
+		const live = (content: IReadableAnthropicRequest['messages'][number]['content']) =>
+			projectModelRequest(request([{ role: 'assistant', content }]));
+
+		assert.deepStrictEqual({
+			sameText: modelRequestsMatch(recorded, live('DONE')),
+			differentText: modelRequestsMatch(recorded, live('NOT_DONE')),
+			extraTextBlock: modelRequestsMatch(recorded, live([{ type: 'text', text: 'DONE' }, { type: 'text', text: '' }])),
+			extraTool: modelRequestsMatch(recorded, live([{ type: 'text', text: 'DONE' }, { type: 'tool_use', name: 'view', input: {} }])),
+		}, { sameText: true, differentText: false, extraTextBlock: false, extraTool: false });
+	});
+
 	test('a path matches however it is spelled', () => {
 		// Windows CI recorded all of these against captures made on macOS. Each
 		// pair is the same location addressed differently: an unsubstituted

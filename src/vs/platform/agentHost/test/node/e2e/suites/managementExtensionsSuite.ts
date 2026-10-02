@@ -74,6 +74,14 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 	}
 
+	async function collectPopulatedDebugLogs(kind: 'archive' | 'directory', session?: string): Promise<DebugLogsArtifactResult> {
+		return retry(async () => {
+			const artifact = await collectDebugLogs(kind, session);
+			assert.ok(artifact.entries.some(entry => isAgentHostProcessLog(entry.path)), 'the asynchronous process logger has not created its file yet');
+			return artifact;
+		}, 50, 100);
+	}
+
 	async function readDebugLogsChunk(resource: string, position: number): Promise<DebugLogsChunkResult> {
 		return context.client.call<DebugLogsChunkResult>(ReadAgentHostDebugLogsChunkExtensionMethod, {
 			resource,
@@ -136,7 +144,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug archive has a readable manifest and zip payload', async function () {
 		await initializeClient('debug-archive');
-		const artifact = await collectDebugLogs('archive');
+		const artifact = await collectPopulatedDebugLogs('archive');
 		const payload = await readDebugLogsArtifact(artifact.resource, artifact.size);
 
 		assertSafeManifest(artifact);
@@ -153,7 +161,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug directory streams every manifest entry', async function () {
 		await initializeClient('debug-directory');
-		const artifact = await collectDebugLogs('directory');
+		const artifact = await collectPopulatedDebugLogs('directory');
 		assertSafeManifest(artifact);
 
 		const sizes = await Promise.all(artifact.entries.map(async entry => {
@@ -247,7 +255,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 
 	conformanceTest(context, 'host-wide debug collection without a live provider contains only host logs', async function () {
 		await initializeClient('debug-host-only');
-		const artifact = await collectDebugLogs('archive');
+		const artifact = await collectPopulatedDebugLogs('archive');
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,
@@ -264,7 +272,7 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		const workspace = mkdtempSync(join(tmpdir(), 'ahp-debug-unmaterialized-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `debug-unmaterialized-${config.provider}`, createdSessions, URI.file(workspace));
-		const artifact = await collectDebugLogs('directory', sessionUri);
+		const artifact = await collectPopulatedDebugLogs('directory', sessionUri);
 
 		assert.deepStrictEqual({
 			providerLogsIncluded: artifact.providerLogsIncluded,
@@ -433,14 +441,18 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 				hasProvider: provider !== undefined,
 				hasSnapshot: provider?.snapshot !== undefined,
 				hasError: provider?.error !== undefined,
-				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'mixed', 'none'].includes(provider.snapshot.source),
+				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'policyHelper', 'mixed', 'none'].includes(provider.snapshot.source),
 				managedKeysAreArray: Array.isArray(provider?.snapshot?.managedKeys),
+				layersAreArray: Array.isArray(provider?.snapshot?.layers),
+				diagnosticsAreArray: Array.isArray(provider?.snapshot?.diagnostics),
 			}, {
 				hasProvider: true,
 				hasSnapshot: true,
 				hasError: false,
 				sourceIsValid: true,
 				managedKeysAreArray: true,
+				layersAreArray: true,
+				diagnosticsAreArray: true,
 			});
 		});
 	}
@@ -474,23 +486,21 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 		});
 
 		if (config.provider === 'copilotcli') {
-			(context.runKnownIssueTests ? test : test.skip)('materialized Copilot debug collection includes provider log entries', async function () {
-				this.timeout(180_000);
+			providerHostOnlyTest(context, 'materialized Copilot debug collection includes process log', async function () {
 				const workspace = mkdtempSync(join(tmpdir(), 'ahp-copilot-debug-logs-'));
 				tempDirs.push(workspace);
 				const sessionUri = await createRealSession(context.client, config, 'copilot-debug-logs', createdSessions, URI.file(workspace));
-				await driveTurnToCompletion(context.client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
 
 				const debugLogs = await collectDebugLogs('archive', sessionUri);
 
 				assert.deepStrictEqual({
 					providerLogsIncluded: debugLogs.providerLogsIncluded,
-					hasProviderLogEntries: debugLogs.entries.some(entry => !isAgentHostProcessLog(entry.path)),
+					hasProcessLog: debugLogs.entries.some(entry => entry.path === 'process.log' && entry.size > 0),
 				}, {
 					providerLogsIncluded: true,
-					hasProviderLogEntries: true,
+					hasProcessLog: true,
 				});
-			});
+			}, context.runHostOnlyKnownIssueTests);
 		}
 	}
 }

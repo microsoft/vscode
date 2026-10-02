@@ -44,7 +44,7 @@ export class TestWorkingCopyHistoryService extends NativeWorkingCopyHistoryServi
 		const remoteAgentService = new TestRemoteAgentService();
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		const lifecycleService = disposables.add(new TestLifecycleService());
-		const labelService = disposables.add(new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), disposables.add(new TestStorageService()), lifecycleService));
+		const labelService = disposables.add(new LabelService(environmentService, new TestContextService(), new TestPathService(), new TestRemoteAgentService(), disposables.add(new TestStorageService()), lifecycleService, uriIdentityService));
 		const configurationService = new TestConfigurationService();
 
 		super(fileService, remoteAgentService, environmentService, uriIdentityService, labelService, lifecycleService, logService, configurationService);

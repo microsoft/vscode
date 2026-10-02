@@ -6,88 +6,91 @@ exchanges:
       system: ${system}
       messages:
         - role: user
-          content: 'Use the `task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+          content: 'Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
     response:
       content:
         - type: tool_use
           id: toolcall_0
           name: task
           input:
-            name: list-files
-            prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+            name: read-file-a
             agent_type: explore
-            description: List files in cwd
-            mode: sync
+            model: claude-sonnet-5
+            description: Read file-a.txt contents
+            prompt: |-
+              Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a
+
+              Then call a single read-only file-reading tool (e.g. Read or view) to read the file `file-a.txt` in the current working directory, and report its contents. Do not run a shell command.
       stopReason: tool_use
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+          content: |-
+            Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a
+
+            Then call a single read-only file-reading tool (e.g. Read or view) to read the file `file-a.txt` in the current working directory, and report its contents. Do not run a shell command.
     response:
       content:
+        - type: text
+          text: subagent replay note sentinel-7f3a
         - type: tool_use
           id: toolcall_1
           name: view
           input:
-            path: ${workdir}
+            path: ${workdir}/file-a.txt
       stopReason: tool_use
   - request:
-      model: claude-haiku-4.5
+      model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+          content: |-
+            Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a
+
+            Then call a single read-only file-reading tool (e.g. Read or view) to read the file `file-a.txt` in the current working directory, and report its contents. Do not run a shell command.
         - role: assistant
           content:
-            - type: thinking
+            - type: text
+              text: subagent replay note sentinel-7f3a
             - type: tool_use
               name: view
               input:
-                path: ${workdir}
+                path: ${workdir}/file-a.txt
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_1
-              content: |-
-                file-a.txt
-                file-b.txt
+              content: alpha
     response:
-      content: |-
-        subagent replay note sentinel-7f3a
-
-        Files in the current working directory:
-        - file-a.txt
-        - file-b.txt
+      content: 'The contents of `file-a.txt` is: `alpha`'
       stopReason: end_turn
   - request:
       model: claude-sonnet-5
       system: ${system}
       messages:
         - role: user
-          content: 'Use the `task` tool to spawn a subagent to list the files in the current working directory. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should list the files. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
+          content: 'Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. Instruct the subagent to begin its response with this sentence on its own line: subagent replay note sentinel-7f3a. Then the subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. After the subagent completes, you, the main agent, must reply exactly "SUBAGENT_DONE" and must not repeat that sentence.'
         - role: assistant
           content:
             - type: thinking
             - type: tool_use
               name: task
               input:
-                name: list-files
-                prompt: 'Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a. Then list the files in the current working directory.'
+                name: read-file-a
                 agent_type: explore
-                description: List files in cwd
-                mode: sync
+                model: claude-sonnet-5
+                description: Read file-a.txt contents
+                prompt: |-
+                  Begin your response with this exact sentence on its own line: subagent replay note sentinel-7f3a
+
+                  Then call a single read-only file-reading tool (e.g. Read or view) to read the file `file-a.txt` in the current working directory, and report its contents. Do not run a shell command.
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: |-
-                subagent replay note sentinel-7f3a
-
-                Files in the current working directory:
-                - file-a.txt
-                - file-b.txt
+              content: 'The contents of `file-a.txt` is: `alpha`'
     response:
       content: SUBAGENT_DONE
       stopReason: end_turn

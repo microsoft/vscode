@@ -20,6 +20,9 @@ class MockRelayChannel implements IRelayChannel {
 	private readonly _onDidRelayMessage = new Emitter<IRelayMessage>();
 	readonly onDidRelayMessage = this._onDidRelayMessage.event;
 
+	private readonly _onDidRelayActivity = new Emitter<string>();
+	readonly onDidRelayActivity = this._onDidRelayActivity.event;
+
 	private readonly _onDidRelayClose = new Emitter<string>();
 	readonly onDidRelayClose = this._onDidRelayClose.event;
 
@@ -34,12 +37,17 @@ class MockRelayChannel implements IRelayChannel {
 		this._onDidRelayMessage.fire(msg);
 	}
 
+	fireRelayActivity(connectionId: string): void {
+		this._onDidRelayActivity.fire(connectionId);
+	}
+
 	fireRelayClose(connectionId: string): void {
 		this._onDidRelayClose.fire(connectionId);
 	}
 
 	dispose(): void {
 		this._onDidRelayMessage.dispose();
+		this._onDidRelayActivity.dispose();
 		this._onDidRelayClose.dispose();
 	}
 }
@@ -91,6 +99,18 @@ suite('RelayTransport', () => {
 		mockChannel.fireRelayMessage({ connectionId: 'conn-2', data: '{"jsonrpc":"2.0","id":1}' });
 
 		assert.strictEqual(received.length, 0);
+	});
+
+	test('reports relay activity for its own connectionId as received data', () => {
+		const transport = disposables.add(new RelayTransport('conn-1', mockChannel, undefined, new NullLogService(), '[SSHRelayTransport]', AgentHostClientConnectionKind.SSH));
+
+		let dataEvents = 0;
+		disposables.add(transport.onDidReceiveData(() => dataEvents++));
+
+		mockChannel.fireRelayActivity('conn-1');
+		mockChannel.fireRelayActivity('conn-2');
+
+		assert.strictEqual(dataEvents, 1);
 	});
 
 	test('drops malformed JSON messages', () => {
@@ -233,6 +253,49 @@ suite('ReconnectingRelayTransport', () => {
 		mockChannel.fireRelayMessage({ connectionId: 'conn-2', data: '{"id":"other"}' });
 
 		assert.deepStrictEqual(received, [{ id: 'connected' }]);
+	});
+
+	test('forwards relay activity only for its established connectionId', async () => {
+		const transport = disposables.add(new ReconnectingRelayTransport(
+			async () => ({ connectionId: 'conn-1' }),
+			mockChannel,
+			() => undefined,
+			new NullLogService(),
+			'[ReconnectingRelayTransport]',
+			AgentHostClientConnectionKind.SSH
+		));
+		const activity: string[] = [];
+		disposables.add(transport.onDidReceiveData(() => activity.push('data')));
+
+		mockChannel.fireRelayActivity('conn-1');
+		await transport.connect();
+		mockChannel.fireRelayActivity('conn-1');
+		mockChannel.fireRelayActivity('conn-2');
+
+		assert.deepStrictEqual(activity, ['data']);
+	});
+
+	test('creates each reconnect logger with the established connectionId', async () => {
+		const loggerConnectionIds: string[] = [];
+		const createTransport = (connectionId: string) => disposables.add(new ReconnectingRelayTransport(
+			async () => ({ connectionId }),
+			mockChannel,
+			activeConnectionId => {
+				loggerConnectionIds.push(activeConnectionId);
+				return undefined;
+			},
+			new NullLogService(),
+			'[ReconnectingRelayTransport]',
+			AgentHostClientConnectionKind.DevTunnel
+		));
+
+		const initial = createTransport('relay-1');
+		await initial.connect();
+		initial.dispose();
+		const reconnected = createTransport('relay-2');
+		await reconnected.connect();
+
+		assert.deepStrictEqual(loggerConnectionIds, ['relay-1', 'relay-2']);
 	});
 
 	test('warns and drops messages sent before adopting a channel', () => {

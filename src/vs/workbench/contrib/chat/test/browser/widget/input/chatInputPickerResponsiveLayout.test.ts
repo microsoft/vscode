@@ -4,9 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
+import { timeout } from '../../../../../../../base/common/async.js';
+import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { renderChatInputPickerSplit } from '../../../../browser/widget/input/chatInputPickerActionItem.js';
 import '../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 import '../../../../browser/widget/media/chat.css';
 
@@ -19,7 +23,61 @@ suite('ChatInputPickerResponsiveLayout', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		host.remove();
+	});
+
+	function createPickerLane(width: number, expandedWidths: number[], usePreferredWidth = false) {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = `${width}px`;
+		lane.style.overflow = 'hidden';
+
+		const items = expandedWidths.map(expandedWidth => {
+			const picker = dom.append(lane, dom.$('.picker'));
+			picker.style.flex = '0 0 auto';
+			picker.style.width = `${expandedWidth}px`;
+			const label = dom.append(picker, dom.$('.picker-label'));
+			label.style.display = 'block';
+			label.style.width = `${expandedWidth}px`;
+			let compact = false;
+			return {
+				element: picker,
+				isCompact: () => compact,
+				setCompact: (value: boolean) => {
+					compact = value;
+					picker.style.width = value ? '20px' : `${expandedWidth}px`;
+					label.style.display = value ? 'none' : 'block';
+				},
+			};
+		});
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.measuredPickerLane', lane, {
+			getItems: () => items,
+			usePreferredWidth,
+		}));
+		return { lane, items, layout };
+	}
+
+	test('intrinsic sizing ignores intermediate reveal widths and restores labels', () => {
+		const { lane, items, layout } = createPickerLane(260, [80, 80, 80], true);
+		for (const item of items) {
+			const animation = item.element.animate([{ width: '20px' }, { width: '80px' }], { duration: 1000 });
+			store.add(toDisposable(() => animation.cancel()));
+			animation.pause();
+			animation.currentTime = 0;
+		}
+		layout.layout();
+		const wide = items.map(item => item.isCompact());
+		lane.style.width = '180px';
+		layout.layout();
+		const narrow = items.map(item => item.isCompact());
+		lane.style.width = '260px';
+		layout.layout();
+		assert.deepStrictEqual({ wide, narrow, restored: items.map(item => item.isCompact()) }, {
+			wide: [false, false, false],
+			narrow: [false, false, true],
+			restored: [false, false, false],
+		});
 	});
 
 	test('uses the rendered picker width instead of a viewport threshold', () => {
@@ -106,6 +164,117 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
+	test('restores expanded items when compaction is disabled', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '80px';
+		lane.style.overflow = 'auto';
+
+		let compact = true;
+		let compactionEnabled = false;
+		const picker = dom.append(lane, dom.$('.picker'));
+		picker.style.flex = '0 0 auto';
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.scrollablePickerLane', lane, {
+			isCompactionEnabled: () => compactionEnabled,
+			getItems: () => [{
+				element: picker,
+				isCompact: () => compact,
+				setCompact: value => {
+					compact = value;
+					picker.style.width = value ? '20px' : '120px';
+				},
+			}],
+		}));
+
+		layout.layout();
+		const expandedForScrolling = compact;
+		compactionEnabled = true;
+		layout.layout();
+
+		assert.deepStrictEqual({ expandedForScrolling, compactAfterEnabling: compact }, {
+			expandedForScrolling: false,
+			compactAfterEnabling: true,
+		});
+	});
+
+	test('skips preferred-width measurement while rendered pickers overflow', () => {
+		const { lane, items, layout } = createPickerLane(130, [80, 80, 80]);
+		const clone = sinon.spy(lane, 'cloneNode');
+
+		layout.layout();
+
+		assert.deepStrictEqual({
+			compact: items.map(item => item.isCompact()),
+			measurements: clone.callCount,
+		}, {
+			compact: [false, true, true],
+			measurements: 2,
+		});
+	});
+
+	test('prepares all preferred-width measurement styles before attaching the clone', () => {
+		const { items, layout } = createPickerLane(300, [80, 80, 80]);
+		const observer = new (dom.getWindow(host).MutationObserver)(() => { });
+		store.add(toDisposable(() => observer.disconnect()));
+		observer.observe(host, { attributes: true, childList: true, subtree: true });
+
+		layout.layout();
+
+		const mutations = observer.takeRecords();
+		const measurementHosts = mutations.flatMap(mutation => Array.from(mutation.addedNodes))
+			.filter((node): node is HTMLElement => dom.isHTMLElement(node) && node.classList.contains('chat-input-picker-measurement-host'));
+		const measurementWrites = mutations.filter(mutation =>
+			mutation.type === 'attributes' && dom.isHTMLElement(mutation.target) && mutation.target.closest('.chat-input-picker-measurement-host'));
+		const measurement = measurementHosts[0]?.firstElementChild;
+
+		assert.deepStrictEqual({
+			compact: items.map(item => item.isCompact()),
+			measurements: measurementHosts.length,
+			measurementWrites: measurementWrites.length,
+			ariaHidden: measurement?.getAttribute('aria-hidden'),
+			inert: measurement?.hasAttribute('inert'),
+			remainingHosts: host.querySelectorAll('.chat-input-picker-measurement-host').length,
+		}, {
+			compact: [false, false, false],
+			measurements: 1,
+			measurementWrites: 0,
+			ariaHidden: 'true',
+			inert: true,
+			remainingHosts: 0,
+		});
+	});
+
+	test('preserves visual compaction order for reversed picker lanes', () => {
+		const { lane, items, layout } = createPickerLane(180, [80, 80, 80]);
+		lane.style.flexDirection = 'row-reverse';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [true, false, false]);
+	});
+
+	test('excludes hidden picker bounds from fit checks', () => {
+		const { items, layout } = createPickerLane(160, [80, 200, 80]);
+		items[1].element.style.display = 'none';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [false, false, false]);
+	});
+
+	test('still measures non-picker contents when picker bounds fit', () => {
+		const { lane, items, layout } = createPickerLane(120, [80]);
+		const fixedItem = dom.append(lane, dom.$('.non-responsive-item'));
+		fixedItem.style.flex = '0 0 100px';
+		const label = dom.append(fixedItem, dom.$('span'));
+		label.style.display = 'block';
+		label.style.width = '100px';
+
+		layout.layout();
+
+		assert.deepStrictEqual(items.map(item => item.isCompact()), [true]);
+	});
+
 	test('treats an empty picker set as fully compact', () => {
 		const lane = dom.append(host, dom.$('.picker-lane'));
 		const layout = store.add(new ChatInputPickerResponsiveLayout('test.emptyPickerLane', lane, {
@@ -140,11 +309,22 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		await new Promise(resolve => setTimeout(resolve, 0));
 		const afterUnrelatedMutation = layoutCalls;
 
+		picker.setAttribute('data-picker-open', 'true');
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const afterVisualStateMutation = layoutCalls;
+
 		picker.textContent = 'picker changed';
 		await new Promise(resolve => setTimeout(resolve, 0));
 
-		assert.strictEqual(afterUnrelatedMutation, 0);
-		assert.ok(layoutCalls > 0);
+		assert.deepStrictEqual({
+			afterUnrelatedMutation,
+			afterVisualStateMutation,
+			afterContentMutation: layoutCalls > 0,
+		}, {
+			afterUnrelatedMutation: 0,
+			afterVisualStateMutation: 0,
+			afterContentMutation: true,
+		});
 	});
 
 	test('restores overflowed actions in compact form before considering expanded labels', () => {
@@ -412,12 +592,13 @@ suite('ChatInputPickerResponsiveLayout', () => {
 
 		const modelItem = dom.append(row, dom.$('.chat-input-picker-item.model-picker-item'));
 		modelItem.style.width = '100px';
-		const modelLabel = dom.append(modelItem, dom.$('a.action-label.model-picker-split'));
-		const modelName = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-name'));
+		const modelLabel = dom.append(modelItem, dom.$('div.action-label.model-picker-split'));
+		const { primaryButton: modelName, secondaryButton: modelConfig } = renderChatInputPickerSplit(modelLabel);
+		modelName.classList.add('model-picker-section', 'model-picker-name');
+		modelConfig.classList.add('model-picker-section', 'model-picker-config');
 		modelName.style.minWidth = '90px';
 		const pickerLabel = dom.append(modelName, dom.$('.chat-input-picker-label'));
 		pickerLabel.textContent = 'A very long model name';
-		const modelConfig = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-config'));
 		modelConfig.style.width = '40px';
 
 		const overflowItem = dom.append(row, dom.$('.overflow-item'));
@@ -463,27 +644,103 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
-	test('keeps the primary picker icon anchored when its label disappears', () => {
+	test('centers compact primary and secondary picker icons', () => {
 		host.style.setProperty('--vscode-spacing-size60', '6px');
-		host.classList.add('interactive-session');
-		const toolbar = dom.append(host, dom.$('.chat-input-toolbar'));
-		const item = dom.append(toolbar, dom.$('.chat-input-picker-item'));
-		const actionLabel = dom.append(item, dom.$('a.action-label'));
-		const icon = dom.append(actionLabel, dom.$('span.codicon'));
-		icon.style.width = '16px';
-		icon.style.height = '16px';
-		const pickerLabel = dom.append(actionLabel, dom.$('span.chat-input-picker-label'));
-		pickerLabel.textContent = 'Picker';
+		host.style.setProperty('--vscode-spacing-size80', '8px');
+		host.classList.add('monaco-workbench', 'interactive-session');
+		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
 
-		const expandedOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
-		item.classList.add('compact');
-		actionLabel.classList.add('icon-only');
-		pickerLabel.remove();
-		const compactOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
+		const renderPicker = (toolbarClass: string, itemClass: string) => {
+			const toolbar = dom.append(host, dom.$(`.${toolbarClass}`));
+			const item = dom.append(toolbar, dom.$(`.${itemClass}`));
+			const actionLabel = dom.append(item, dom.$('a.action-label'));
+			const icon = dom.append(actionLabel, dom.$('span.codicon'));
+			const pickerLabel = dom.append(actionLabel, dom.$('span.chat-input-picker-label'));
+			pickerLabel.textContent = 'Picker';
 
-		assert.deepStrictEqual({ expandedOffset, compactOffset }, {
-			expandedOffset: 6,
-			compactOffset: 6,
+			const expandedOffset = icon.getBoundingClientRect().left - actionLabel.getBoundingClientRect().left;
+			actionLabel.classList.add('icon-only');
+			pickerLabel.remove();
+			const actionBounds = actionLabel.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			return {
+				expandedOffset,
+				action: { width: actionBounds.width, height: actionBounds.height },
+				icon: {
+					width: iconBounds.width,
+					height: iconBounds.height,
+					x: iconBounds.left - actionBounds.left,
+					y: iconBounds.top - actionBounds.top,
+				},
+			};
+		};
+
+		assert.deepStrictEqual({
+			primary: renderPicker('chat-input-toolbar', 'chat-input-picker-item'),
+			secondary: renderPicker('chat-secondary-input-toolbar', 'chat-sessionPicker-item'),
+		}, {
+			primary: {
+				expandedOffset: 6,
+				action: { width: 22, height: 22 },
+				icon: { width: 12, height: 12, x: 5, y: 5 },
+			},
+			secondary: {
+				expandedOffset: 6,
+				action: { width: 22, height: 22 },
+				icon: { width: 12, height: 12, x: 5, y: 5 },
+			},
 		});
 	});
+
+	test('keeps icon-only model pickers at the toolbar control size regardless of stylesheet order', async () => {
+		host.classList.add('monaco-workbench', 'interactive-session');
+		host.style.setProperty('--vscode-spacing-size60', '6px');
+		host.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+
+		await timeout(0);
+		const splitPickerRule = [...document.styleSheets, ...document.adoptedStyleSheets]
+			.flatMap(sheet => Array.from(sheet.cssRules))
+			.flatMap(rule => rule instanceof CSSImportRule && rule.styleSheet ? Array.from(rule.styleSheet.cssRules) : [rule])
+			.find(rule => rule instanceof CSSStyleRule && rule.selectorText === '.interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split');
+		assert.ok(splitPickerRule);
+		// Load the real split-picker rule last to exercise the conflicting stylesheet order.
+		dom.append(host, dom.$('style')).textContent = splitPickerRule.cssText;
+
+		const toolbar = dom.append(host, dom.$('.chat-input-toolbar'));
+		const item = dom.append(toolbar, dom.$('.chat-input-picker-item.model-picker-item.compact-picker'));
+		item.style.width = '22px';
+		const actionLabel = dom.append(item, dom.$('div.action-label.model-picker-split.compact.icon-only'));
+		const { primaryButton: button, secondaryButton } = renderChatInputPickerSplit(actionLabel);
+		button.classList.add('model-picker-section', 'model-picker-name');
+		secondaryButton.style.display = 'none';
+		button.style.minWidth = '22px';
+		const icon = dom.append(button, dom.$('span.codicon'));
+
+		const measure = () => {
+			const actionBounds = actionLabel.getBoundingClientRect();
+			const buttonBounds = button.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			return {
+				action: { width: actionBounds.width, height: actionBounds.height },
+				button: { width: buttonBounds.width, height: buttonBounds.height },
+				icon: {
+					width: iconBounds.width,
+					height: iconBounds.height,
+					x: iconBounds.left - buttonBounds.left,
+					y: iconBounds.top - buttonBounds.top,
+				},
+			};
+		};
+
+		const compact = measure();
+		actionLabel.classList.add('minimal');
+		const minimal = measure();
+		const expected = {
+			action: { width: 22, height: 22 },
+			button: { width: 22, height: 22 },
+			icon: { width: 12, height: 12, x: 5, y: 5 },
+		};
+		assert.deepStrictEqual({ compact, minimal }, { compact: expected, minimal: expected });
+	});
+
 });

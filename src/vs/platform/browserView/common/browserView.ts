@@ -228,6 +228,13 @@ export interface IBrowserViewCaptureScreenshotOptions {
 	awaitNextPaint?: boolean;
 }
 
+/** Bounded semantic text from Chromium for user accessibility. */
+export interface IBrowserViewAccessibilitySnapshot {
+	readonly text: string;
+	readonly truncated: boolean;
+	readonly scope: 'main-frame';
+}
+
 /** Identifies who controls a browser view. */
 export type IBrowserViewOwner =
 	| { readonly type: 'user' }
@@ -256,14 +263,26 @@ export function matchesBrowserViewAudience(candidate: IBrowserViewAudience, patt
 		&& (pattern.sessionId === undefined || pattern.sessionId === candidate.sessionId);
 }
 
+/** Identifies the workbench window and optional Agents Window session that host a browser view. */
+export interface IBrowserViewHost {
+	readonly windowId: number;
+	readonly sessionId?: string;
+}
+
+export const enum BrowserViewPresentation {
+	Listed = 'listed',
+	Unlisted = 'unlisted',
+}
+
 /**
  * Summary information about a browser view, including its current state and
  * ownership. Returned by the main service when listing or creating views.
  */
 export interface IBrowserViewInfo {
 	readonly id: string;
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
+	readonly presentation: BrowserViewPresentation;
 	readonly associatedResource?: UriComponents;
 	readonly state: IBrowserViewState;
 }
@@ -288,9 +307,11 @@ export interface IBrowserViewCreatedEvent {
 
 /** Host, ownership, storage, and initial access for a newly created browser view. */
 export interface IBrowserViewCreationContext {
-	readonly hostWindowId: number;
+	readonly host: IBrowserViewHost;
 	readonly owner: IBrowserViewOwner;
 	readonly session: BrowserViewSessionSelector;
+	/** Controls whether the workbench registers this view as a normal integrated-browser page. */
+	readonly presentation?: BrowserViewPresentation;
 	/** Grants automation clients access before the view is announced to other processes. */
 	readonly initialAudiences?: readonly IBrowserViewAudience[];
 }
@@ -450,6 +471,10 @@ export function isInMemoryStorageScope(scope: BrowserViewStorageScope): boolean 
 	return scope === BrowserViewStorageScope.Ephemeral || scope === BrowserViewStorageScope.Agent;
 }
 
+export function isBrowserViewStorageScopeShareableWithAgent(scope: BrowserViewStorageScope, networkFilteringEnabled: boolean): boolean {
+	return !networkFilteringEnabled || scope === BrowserViewStorageScope.Agent;
+}
+
 /** Selects an existing browser context by ID or resolves one from storage options. */
 export type BrowserViewSessionSelector = string | IBrowserViewSessionOptions;
 
@@ -494,35 +519,62 @@ export interface IBrowserDeviceProfile {
  */
 export const browserViewIsolatedWorldId = 999;
 
-export interface IBrowserViewService {
-	/**
-	 * Fires when a new browser view is created.
-	 */
-	onDidCreateBrowserView: Event<IBrowserViewCreatedEvent>;
+export interface BrowserViewEventData {
+	onDidNavigate: IBrowserViewNavigationEvent;
+	onDidChangeLoadingState: IBrowserViewLoadingEvent;
+	onDidChangeFocus: IBrowserViewFocusEvent;
+	onDidChangeVisibility: IBrowserViewVisibilityEvent;
+	onDidChangeDevToolsState: IBrowserViewDevToolsStateEvent;
+	onDidKeyCommand: IBrowserViewKeyDownEvent;
+	onDidChangeTitle: IBrowserViewTitleChangeEvent;
+	onDidChangeFavicon: IBrowserViewFaviconChangeEvent;
+	onDidChangeOwner: IBrowserViewOwner;
+	onDidFindInPage: IBrowserViewFindInPageResult;
+	onDidClose: void;
+	onDidSelectElement: IElementData;
+	onDidRemoveElementComment: string;
+	onDidChangeElementSelectionState: IBrowserElementSelectionState;
+	onDidPickArea: IBrowserViewRect | undefined;
+	onDidChangeAreaSelectionActive: boolean;
+	onDidChangeDeviceEmulation: IBrowserDeviceProfile | undefined;
+	onDidChangeRemoteStatus: boolean;
+	onDidChangeAudiences: IBrowserViewAudience[];
+	onDidRequestPermission: IBrowserViewPermissionRequestEvent;
+	onDidChangePermissions: ISerializedBrowserPermissionsSnapshot;
+}
 
-	/**
-	 * Dynamic events that return an Event for a specific browser view ID.
-	 */
-	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
-	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
-	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
-	onDynamicDidChangeVisibility(id: string): Event<IBrowserViewVisibilityEvent>;
-	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
-	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
-	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
-	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
-	onDynamicDidFindInPage(id: string): Event<IBrowserViewFindInPageResult>;
-	onDynamicDidClose(id: string): Event<void>;
-	onDynamicDidSelectElement(id: string): Event<IElementData>;
-	onDynamicDidRemoveElementComment(id: string): Event<string>;
-	onDynamicDidChangeElementSelectionState(id: string): Event<IBrowserElementSelectionState>;
-	onDynamicDidPickArea(id: string): Event<IBrowserViewRect | undefined>;
-	onDynamicDidChangeAreaSelectionActive(id: string): Event<boolean>;
-	onDynamicDidChangeDeviceEmulation(id: string): Event<IBrowserDeviceProfile | undefined>;
-	onDynamicDidChangeRemoteStatus(id: string): Event<boolean>;
-	onDynamicDidChangeAudiences(id: string): Event<IBrowserViewAudience[]>;
-	onDynamicDidRequestPermission(id: string): Event<IBrowserViewPermissionRequestEvent>;
-	onDynamicDidChangePermissions(id: string): Event<ISerializedBrowserPermissionsSnapshot>;
+export type BrowserViewEventMap = { [K in keyof BrowserViewEventData]: Event<BrowserViewEventData[K]> };
+
+export type BrowserViewChangeEvent<K extends keyof BrowserViewEventData = keyof BrowserViewEventData> = {
+	[P in K]: { type: 'changed'; windowId: number; id: string; event: P; data: BrowserViewEventData[P] };
+}[K];
+
+interface IBrowserViewSerializedInfo extends Omit<IBrowserViewInfo, 'state'> {
+	readonly state: Omit<IBrowserViewState, 'lastScreenshot'>;
+}
+
+type BrowserViewEventPayload = BrowserViewChangeEvent
+	| { type: 'created'; windowId: number; data: Omit<IBrowserViewCreatedEvent, 'info'> & { info: IBrowserViewSerializedInfo } }
+	| { type: 'snapshot'; windowId: number; views: IBrowserViewSerializedInfo[] };
+
+/** Buffers must be array elements: IPC JSON-serializes objects without preserving nested VSBuffer values. */
+export type BrowserViewEvent = [event: BrowserViewEventPayload, screenshots: (VSBuffer | undefined)[]];
+
+export function serializeBrowserViewInfo(info: IBrowserViewInfo): [IBrowserViewSerializedInfo, VSBuffer | undefined] {
+	const { lastScreenshot, ...state } = info.state;
+	return [{ ...info, state }, lastScreenshot];
+}
+
+export function reviveBrowserViewInfo(info: IBrowserViewSerializedInfo, lastScreenshot: VSBuffer | undefined): IBrowserViewInfo {
+	return { ...info, state: { ...info.state, lastScreenshot } };
+}
+
+export interface IBrowserViewService {
+	/** Read-only accessibility snapshot that does not grant agent access. */
+	getAccessibilitySnapshot(id: string, expectedHostWindowId: number): Promise<IBrowserViewAccessibilitySnapshot>;
+
+	/** Subscribe once per workbench; the first event is its current snapshot, followed by live changes. */
+	onDynamicBrowserViewEvent(windowId: number): Event<BrowserViewEvent>;
 
 	/**
 	 * Get all known browser views with their ownership and state information.
@@ -542,6 +594,11 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	destroyBrowserView(id: string): Promise<void>;
+
+	/**
+	 * Update the owner of an existing browser view.
+	 */
+	setOwner(id: string, owner: IBrowserViewOwner): Promise<void>;
 
 	/**
 	 * Get the state of an existing browser view by ID, or throw if it doesn't exist

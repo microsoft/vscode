@@ -49,6 +49,11 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 	}
 
 	private _syncSessionInputNeededForChatAction(chatUri: ProtocolURI, action: ChatAction): void {
+		// A stale terminal action is echoed but leaves the current turn and its blockers intact.
+		if ((action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatTurnCancelled || action.type === ActionType.ChatError)
+			&& this._stateManager.getChatState(chatUri)?.activeTurn) {
+			return;
+		}
 		switch (action.type) {
 			case ActionType.ChatInputRequested:
 				this._syncChatInputNeeded(chatUri, action.request.id);

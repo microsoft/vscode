@@ -7,7 +7,9 @@ import type { SectionOverride, SystemMessageConfig, SystemMessageSection } from 
 import { copilotCliConfigSchema } from '../../../common/copilotCliConfig.js';
 import type { SchemaValue } from '../../../common/agentHostSchema.js';
 import type { ModelSelection } from '../../../common/state/protocol/state.js';
-import { appendSystemMessageContent, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
+import { AGENT_HOST_FILE_LINK_INSTRUCTIONS } from '../../shared/fileLinkInstructions.js';
+import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../shared/workspacelessInstructions.js';
+import { appendSystemMessageContent, COPILOT_AGENT_HOST_SYSTEM_MESSAGE, fullSystemPrompt, sectionOverrides, withDefaultSections } from './systemMessage.js';
 import { resolveToolInstructionsOverride, toolSearchInstructionLines, universalToolInstructions, type IToolInstructionContext } from './toolInstructions.js';
 
 type CopilotCliConfigDefinition = typeof copilotCliConfigSchema.definition;
@@ -53,7 +55,7 @@ export interface IAgentHostPromptContext {
 	/**
 	 * Whether this is a workspace-less session. When `true`, the
 	 * resolved system message gets a scratch/repoless section (see
-	 * {@link COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
+	 * {@link AGENT_HOST_WORKSPACELESS_INSTRUCTIONS}) telling the agent its
 	 * working directory is a scratch dir, not a code repo. Set by the launcher
 	 * from the session's `workspaceless` marker.
 	 */
@@ -156,7 +158,7 @@ export class AgentHostPromptRegistry {
 	resolveSystemMessageConfig(model: ModelSelection | undefined, context: IAgentHostPromptContext): SystemMessageConfig {
 		const config = this._withUniversalSections(this._resolveModelConfig(model, context), context);
 		const withWorkspacelessScratch = this._withWorkspacelessScratch(config, context);
-		return appendSystemMessageContent(withWorkspacelessScratch, COPILOT_AGENT_HOST_FILE_LINK_INSTRUCTIONS);
+		return appendSystemMessageContent(withWorkspacelessScratch, AGENT_HOST_FILE_LINK_INSTRUCTIONS);
 	}
 
 	/**
@@ -222,7 +224,7 @@ export class AgentHostPromptRegistry {
 		if (!context.workspaceless) {
 			return config;
 		}
-		return appendSystemMessageContent(config, COPILOT_AGENT_HOST_WORKSPACELESS_INSTRUCTIONS);
+		return appendSystemMessageContent(config, AGENT_HOST_WORKSPACELESS_INSTRUCTIONS);
 	}
 }
 

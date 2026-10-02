@@ -29,6 +29,33 @@ suite('ChatErrorMessages', () => {
 
 	suite('getChatErrorDetailsFromMeta', () => {
 
+		test('renders Copilot error detail when VS Code metadata is invalid without allowing command links', () => {
+			const copilot = { errorCode: 'limited', statusCode: 429, url: 'command:unsafe', providerCallId: 'request' };
+			const error: ErrorInfo = { errorType: 'rate_limit', message: 'Slow down', _meta: { 'copilot.errorDetail': copilot } };
+			const expected = {
+				message: 'Slow&nbsp;down', code: 'limited', isRateLimited: true, isQuotaExceeded: false, isExpectedError: true,
+			};
+			assert.deepStrictEqual([
+				getChatErrorDetailsFromMeta(error),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: null } }),
+				getChatErrorDetailsFromMeta({ ...error, _meta: { ...error._meta, chatError: { fetchError: {} } } }),
+			], [expected, expected, expected]);
+		});
+
+		test('valid VS Code error metadata keeps its existing formatting when both styles are present', () => {
+			const forwarded = {
+				fetchError: { type: ChatFetchResponseType.RateLimited, retryAfter: 60 },
+				copilotPlan: 'free',
+			};
+			assert.deepStrictEqual(
+				getChatErrorDetailsFromMeta(errorInfo({
+					chatError: forwarded,
+					'copilot.errorDetail': { errorCode: 'ignored', statusCode: 500 },
+				})),
+				getChatErrorDetailsFromMeta(errorInfo({ chatError: forwarded })),
+			);
+		});
+
 		test('returns undefined when no meta or no chatError', () => {
 			assert.strictEqual(getChatErrorDetailsFromMeta(undefined), undefined);
 			assert.strictEqual(getChatErrorDetailsFromMeta(errorInfo(undefined)), undefined);

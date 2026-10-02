@@ -9,6 +9,7 @@ import { ILogger } from '../logging';
 import { MarkdownContributionProvider } from '../markdownExtensions';
 import { Disposable } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
+import { getSafeNotificationMessage } from '../util/notification';
 import { MdLinkOpener } from '../util/openDocumentLink';
 import { areUrisEqual, getMarkdownLocalResourceRoots, WebviewResourceProvider } from '../util/resources';
 import { urlToUri } from '../util/url';
@@ -40,6 +41,13 @@ interface MarkdownPreviewDelegate {
 	getLineChanges?(): MarkdownPreviewLineChanges | Promise<MarkdownPreviewLineChanges | undefined> | undefined;
 	getDiffScrollSync?(): DiffScrollSyncData | Promise<DiffScrollSyncData | undefined> | undefined;
 	openPreviewLinkToMarkdownFile(markdownLink: vscode.Uri, fragment: string | undefined): void;
+}
+
+export function getStylesLoadErrorMessage(unloadedStyles: readonly string[]): string {
+	return getSafeNotificationMessage(
+		vscode.l10n.t("Could not load 'markdown.styles': {0}", unloadedStyles.join(', ')),
+		vscode.l10n.t("Could not load the styles configured in 'markdown.styles'."),
+	);
 }
 
 function getFirstChangedLine(lineChanges: MarkdownPreviewLineChanges): number | undefined {
@@ -197,10 +205,11 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 					vscode.commands.executeCommand('markdown.showPreviewSecuritySelector', e.source);
 					break;
 
-				case 'previewStyleLoadError':
-					vscode.window.showWarningMessage(
-						vscode.l10n.t("Could not load 'markdown.styles': {0}", e.unloadedStyles.join(', ')));
+				case 'previewStyleLoadError': {
+					this.#logger.trace('previewStyleLoadError', e.unloadedStyles.join(', '));
+					vscode.window.showWarningMessage(getStylesLoadErrorMessage(e.unloadedStyles));
 					break;
+				}
 			}
 		}));
 
@@ -472,7 +481,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 		const openLinks = config.get<string>('preview.openMarkdownLinks', 'inPreview');
 		if (openLinks === 'inPreview') {
 			const resolved = await this.#opener.resolveDocumentLink(href, this.resource);
-			if (resolved.kind === 'file') {
+			if (resolved?.kind === 'file') {
 				try {
 					const doc = await vscode.workspace.openTextDocument(vscode.Uri.from(resolved.uri));
 					if (isMarkdownFile(doc)) {

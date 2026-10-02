@@ -29,6 +29,7 @@ export interface InstructionsCollectionDebugEntry {
 }
 
 export type InstructionsCollectionEvent = {
+	provider?: string;
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
@@ -382,7 +383,7 @@ export interface IChatPromptSlashCommand {
 }
 
 export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
-	readonly parsedPromptFile: ParsedPromptFile;
+	readonly parsedPromptFile?: ParsedPromptFile;
 }
 
 
