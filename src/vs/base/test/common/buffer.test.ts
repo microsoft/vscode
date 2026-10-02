@@ -586,6 +586,46 @@ suite('Buffer', () => {
 			}
 		});
 
+		for (const padded of [true, false]) {
+			for (const urlSafe of [true, false]) {
+				function expectedEncoding(base64: string): string {
+					const result = urlSafe ? base64.replace(/\+/g, '-').replace(/\//g, '_') : base64;
+					return padded ? result : result.replace(/=+$/, '');
+				}
+
+				test(`encodes base64 with padded=${padded} and urlSafe=${urlSafe}`, () => {
+					assert.deepStrictEqual(
+						testCases.map(([bytes]) => encodeBase64(VSBuffer.wrap(bytes), padded, urlSafe)),
+						testCases.map(([, base64]) => expectedEncoding(base64)),
+					);
+				});
+
+				test(`encodes only the buffer view with padded=${padded} and urlSafe=${urlSafe}`, () => {
+					const actual = testCases.map(([bytes]) => {
+						const storage = new Uint8Array(bytes.length + 4).fill(255);
+						storage.set(bytes, 2);
+						return encodeBase64(VSBuffer.wrap(storage.subarray(2, bytes.length + 2)), padded, urlSafe);
+					});
+
+					assert.deepStrictEqual(actual, testCases.map(([, base64]) => expectedEncoding(base64)));
+				});
+
+				test(`encodes large buffers with all remainders, padded=${padded} and urlSafe=${urlSafe}`, () => {
+					const groups = 64 * 1024;
+					const input = VSBuffer.alloc(groups * 3 + 2);
+					const bytes = [0, 128, 255];
+					for (let i = 0; i < input.byteLength; i++) {
+						input.buffer[i] = bytes[i % bytes.length];
+					}
+
+					assert.deepStrictEqual(
+						[0, 1, 2].map(remainder => encodeBase64(input.slice(0, groups * 3 + remainder), padded, urlSafe)),
+						['', 'AA==', 'AIA='].map(tail => expectedEncoding('AID/'.repeat(groups) + tail)),
+					);
+				});
+			}
+		}
+
 		test('decodes, base64', () => {
 			for (const [expected, encoded] of testCases) {
 				assert.deepStrictEqual(new Uint8Array(decodeBase64(encoded).buffer), expected);
