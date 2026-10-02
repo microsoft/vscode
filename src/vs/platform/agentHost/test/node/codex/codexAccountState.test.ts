@@ -46,9 +46,11 @@ suite('CodexAccountState', () => {
 
 	test('preserves both Codex rate-limit windows with the weekly summary first', () => {
 		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			ordinaryUsageAllowed: null,
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 12, windowDurationMins: 300, resetsAt: 100 },
 				secondary: null,
 				credits: null,
@@ -61,6 +63,7 @@ suite('CodexAccountState', () => {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: { usedPercent: 21, windowDurationMins: 300, resetsAt: 200 },
 					secondary: { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: 300 },
 					credits: null,
@@ -86,9 +89,11 @@ suite('CodexAccountState', () => {
 
 	test('falls back to available rate-limit data', () => {
 		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			ordinaryUsageAllowed: null,
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 42.4, windowDurationMins: null, resetsAt: null },
 				secondary: null,
 				credits: null,
@@ -112,8 +117,9 @@ suite('CodexAccountState', () => {
 			...[-1, 0, NaN, Infinity].map(resetsAt => ({ ...window, resetsAt })),
 		];
 		assert.deepStrictEqual(invalidWindows.map(primary => codexAccountRateLimitsFromResponse({
+			ordinaryUsageAllowed: null,
 			rateLimits: {
-				limitId: null, limitName: null, primary, secondary: null, credits: null,
+				limitId: null, limitName: null, normalModelSlug: null, primary, secondary: null, credits: null,
 				individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null,
 			},
 			rateLimitsByLimitId: null, rateLimitResetCredits: null, accountId: null, rateLimitUpsell: null,
@@ -122,9 +128,11 @@ suite('CodexAccountState', () => {
 
 	test('falls back when the Codex bucket has no windows', () => {
 		assert.deepStrictEqual(codexAccountRateLimitsFromResponse({
+			ordinaryUsageAllowed: null,
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary: { usedPercent: 30, windowDurationMins: 10080, resetsAt: 400 },
 				secondary: null,
 				credits: null,
@@ -137,6 +145,7 @@ suite('CodexAccountState', () => {
 				codex: {
 					limitId: 'codex',
 					limitName: 'Codex',
+					normalModelSlug: null,
 					primary: null,
 					secondary: null,
 					credits: null,
@@ -154,9 +163,11 @@ suite('CodexAccountState', () => {
 
 	test('omits missing or invalid windows without losing a valid five-hour limit', () => {
 		assert.deepStrictEqual([null, { usedPercent: 0, windowDurationMins: 300, resetsAt: null }].map(primary => codexAccountRateLimitsFromResponse({
+			ordinaryUsageAllowed: null,
 			rateLimits: {
 				limitId: null,
 				limitName: null,
+				normalModelSlug: null,
 				primary,
 				secondary: { usedPercent: NaN, windowDurationMins: 10080, resetsAt: 400 },
 				credits: null,

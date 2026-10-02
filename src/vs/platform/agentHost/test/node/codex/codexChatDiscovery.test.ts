@@ -72,13 +72,14 @@ interface ITestCodexAgent {
 
 function thread(id: string, updatedAt = 1, name = id): Thread {
 	return {
-		id, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null,
+		id, environments: null, sessionId: id, extra: null, forkedFromId: null, parentThreadId: null,
 		preview: id, ephemeral: false, section: null, sectionEnteredAt: null,
 		projectId: null, historyMode: 'paginated', modelProvider: 'openai', model: null,
 		reasoningEffort: null, createdAt: 1, updatedAt, recencyAt: null,
 		status: { type: 'notLoaded' }, path: URI.joinPath(codexHome, 'sessions/2026/09/22', `${id}.jsonl`).fsPath,
-		cwd: '/project', cliVersion: '0.153.0', source: 'appServer', canAcceptDirectInput: null,
+		cwd: '/project', cliVersion: '0.153.0', originator: null, source: 'appServer', canAcceptDirectInput: null,
 		threadSource: null, agentNickname: null, agentRole: null, gitInfo: null, name, turns: [],
+		daybreakEnabled: null,
 	};
 }
 

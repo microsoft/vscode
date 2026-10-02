@@ -13,8 +13,8 @@ import type { McpServerElicitationRequestResponse } from './protocol/generated/v
 
 /**
  * Translate a codex `mcpServer/elicitation/request` into an agent-host
- * {@link ChatInputRequest}. Three modes are supported, mirroring the MCP
- * elicitation spec:
+ * {@link ChatInputRequest}. MCP form, OpenAI form, and URL modes are
+ * supported:
  *
  *  - `form` — projects each field of the requested JSON schema into a
  *    {@link ChatInputQuestion} (text / number / boolean / single- or
@@ -26,10 +26,17 @@ import type { McpServerElicitationRequestResponse } from './protocol/generated/v
  *  - `url` — surfaces the URL the server wants the user to open via
  *    {@link ChatInputRequest.url} with no questions.
  *
+ * `openai/userVerification` requires a native cryptographic proof and must
+ * not be represented as an ordinary confirmation. It returns `undefined` so
+ * the caller can decline the unsupported request.
+ *
  * MCP field names are used directly as the stable question id (the key
  * the answer map is later read back by).
  */
-export function buildElicitationRequest(requestId: string, params: McpServerElicitationRequestParams): ChatInputRequest {
+export function buildElicitationRequest(requestId: string, params: McpServerElicitationRequestParams): ChatInputRequest | undefined {
+	if (params.mode === 'openai/userVerification') {
+		return undefined;
+	}
 	if (params.mode === 'url') {
 		const request: ChatInputRequest = { id: requestId, message: params.message };
 		if (params.url) {
@@ -70,6 +77,9 @@ export function elicitationResponseFromAnswers(
 	response: ChatInputResponseKind,
 	answers: Record<string, ChatInputAnswer> | undefined,
 ): McpServerElicitationRequestResponse {
+	if (params.mode === 'openai/userVerification') {
+		return { action: 'decline', content: null, _meta: null };
+	}
 	if (response === ChatInputResponseKind.Decline) {
 		return { action: 'decline', content: null, _meta: null };
 	}
