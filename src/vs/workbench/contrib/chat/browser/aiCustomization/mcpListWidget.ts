@@ -312,7 +312,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		private readonly _getCompatibilityKind: (entry: IMcpInstalledEntry, reader?: IReader) => CustomizationMcpServerCompatibilityKind | undefined,
 		private readonly _openPlugin: (plugin: IAgentPlugin) => void,
 		private readonly _openMigrations: () => void,
-		private readonly _showOutput: (entry: IMcpInstalledEntry) => Promise<void>,
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IHoverService private readonly hoverService: IHoverService,
@@ -621,15 +620,6 @@ export class McpServerItemRenderer extends Disposable implements IListRenderer<I
 		statusElement.classList.add(presentation.className, ...ThemeIcon.asClassNameArray(presentation.icon));
 		statusElement.setAttribute('aria-hidden', 'true');
 		templateData.actionDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statusElement, presentation.label));
-		if (isError) {
-			const showOutputButton = createMcpShowOutputButton(statusContainer, templateData.actionDisposables, label);
-			registerMcpInlineButtonAction(templateData.actionDisposables, showOutputButton, async () => {
-				const entry = getEntry();
-				if (entry) {
-					await this._showOutput(entry);
-				}
-			});
-		}
 		this._renderManagementActions(getEntry, templateData.actions, templateData.actionDisposables, () => this.updateActionsTabbability(templateData));
 		this.updateActionsTabbability(templateData);
 	}
@@ -1805,6 +1795,7 @@ export class McpListWidget extends Disposable {
 	private readonly connectorChangeListener = this._register(new MutableDisposable());
 	private readonly delayedFilter = new Delayer<void>(200);
 	private readonly delayedGallerySearch = new Delayer<void>(400);
+	private _closeCustomizationEditor: () => Promise<void> = () => Promise.resolve();
 	private readonly agentHostCustomizationsChanged: IObservable<void>;
 	private readonly mcpServerCompatibility = observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(this, new Map());
 	private readonly mcpServerCompatibilityScope = this._register(new MutableDisposable<DisposableStore>());
@@ -1915,6 +1906,10 @@ export class McpListWidget extends Disposable {
 				this.connectorsCancellation.value?.cancel();
 			}
 		});
+	}
+
+	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<void>): void {
+		this._closeCustomizationEditor = closeCustomizationEditor;
 	}
 
 	private create(): void {
@@ -2045,7 +2040,6 @@ export class McpListWidget extends Disposable {
 			(entry, reader) => this.getMcpServerCompatibilityKind(entry, reader),
 			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
 			() => this._onDidRequestOpenMigrations.fire(),
-			entry => this.showMcpServerOutput(entry),
 		));
 		const marketplaceRenderer = new McpMarketplaceItemRenderer((server, button) => this.installMarketplaceServer(server, button));
 		this.list = this._register(this.instantiationService.createInstance(
@@ -3357,8 +3351,8 @@ export class McpListWidget extends Disposable {
 		const sessionResource = this.customizationHarnessService.activeSessionResource.get();
 		const activeSessionServer = getActiveSessionServer(entry);
 		return activeSessionServer
-			? getMcpServerOutputHandler(this.outputService, undefined, activeSessionServer, undefined, () => this.agentHostCustomizationService.showMcpServerLog(sessionResource, activeSessionServer.id))
-			: getMcpServerOutputHandler(this.outputService, entry.type === 'session-server-item' ? undefined : entry.localServer, undefined);
+			? getMcpServerOutputHandler(this.outputService, undefined, activeSessionServer, this._closeCustomizationEditor, beforeShow => this.agentHostCustomizationService.showMcpServerLog(sessionResource, activeSessionServer.id, beforeShow))
+			: getMcpServerOutputHandler(this.outputService, entry.type === 'session-server-item' ? undefined : entry.localServer, undefined, this._closeCustomizationEditor);
 	}
 
 	private async showMcpServerOutput(entry: IMcpInstalledEntry): Promise<void> {
@@ -3374,11 +3368,7 @@ export class McpListWidget extends Disposable {
 			return [];
 		}
 		entry = currentEntry;
-		const activeSessionServer = getActiveSessionServer(entry);
 		const actions = this.getMcpServerManagementActions(entry, disposables);
-		if (!activeSessionServer && entry.type === 'server-item') {
-			return actions;
-		}
 
 		const showOutput = this.getMcpServerOutputHandler(entry);
 		const outputIndex = actions.findIndex(action => action instanceof ShowServerOutputAction);
