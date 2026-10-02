@@ -30,7 +30,6 @@ import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerform
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
-import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -163,28 +162,6 @@ suite('agentHostBootstrap', () => {
 			source: 'vscode-insiders-agent-host/1.141.0',
 			egress: 'node',
 		});
-	});
-
-	test('wraps the existing proxy fetch for GitHub without changing the legacy Copilot fetch', async () => {
-		const requests: { redirect: RequestRedirect; credentials: RequestCredentials }[] = [];
-		const proxyResolver = new class extends mock<IAgentHostProxyResolver>() {
-			override async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
-				const request = new Request(input, init);
-				requests.push({ redirect: request.redirect, credentials: request.credentials });
-				return new Response();
-			}
-		}();
-		const foundation = createAgentServiceFoundation({
-			services: new StrictServiceCollection(), owned: disposables.add(new DisposableStore()),
-			logService: new NullLogService(), productService: { _serviceBrand: undefined, ...product },
-			transientProxyConfiguration: false, proxyResolver,
-		});
-		await foundation.gitHubServiceOptions.fetch!('https://api.test');
-		await foundation.fetchFn('https://api.test');
-		assert.deepStrictEqual(requests, [
-			{ redirect: 'manual', credentials: 'omit' },
-			{ redirect: 'follow', credentials: 'same-origin' },
-		]);
 	});
 
 	test('drops pending GitHub telemetry when root configuration disables collection', async () => {

@@ -57,7 +57,6 @@ import { LoggerChannelClient } from '../../../platform/log/common/logIpc.js';
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../platform/request/common/request.js';
-import { createFetch } from '../../../platform/request/electron-utility/fetch.js';
 import { ISharedProcessConfiguration } from '../../../platform/sharedProcess/node/sharedProcess.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { resolveCommonProperties } from '../../../platform/telemetry/common/commonProperties.js';
@@ -364,7 +363,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
 		this.server.registerChannel('telemetryAppender', new TelemetryAppenderChannel(appenders));
 		services.set(ITelemetryService, telemetryService);
-		services.set(IGitHubService, this._register(new SharedProcessGitHubService(createFetch(nativeHostService, configurationService, logService), configurationService, productService, logService, telemetryService)));
+		services.set(IGitHubService, this._register(new SharedProcessGitHubService(undefined, configurationService, productService, logService, telemetryService)));
 
 		// Custom Endpoint Telemetry
 		const customEndpointTelemetryService = new CustomEndpointTelemetryService(configurationService, telemetryService, loggerService, environmentService, productService);

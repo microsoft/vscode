@@ -15,12 +15,9 @@ import { deriveGitHubEndpoints } from '../../../../platform/github/common/github
 import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
 import { GitHubService, IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, IGitHubCredentialProvider } from '../../../../platform/github/common/githubTypes.js';
-import { RequestFetch } from '../../../../platform/github/common/types.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { createFetch } from '../../../../platform/request/common/fetch.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -114,12 +111,10 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		fetch: RequestFetch = request => globalThis.fetch(request),
 	) {
 		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
 			credentialProvider,
-			fetch: createFetch(fetch),
 			telemetrySource: isWeb ? 'web' : 'workbench',
 			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>
@@ -235,4 +230,4 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 	}
 }
 
-registerSingleton(IWorkbenchGitHubService, new SyncDescriptor(WorkbenchGitHubService, [], true));
+registerSingleton(IWorkbenchGitHubService, WorkbenchGitHubService, InstantiationType.Delayed);

@@ -15,7 +15,7 @@ import { RequestFetch } from '../common/types.js';
 
 export class SharedProcessGitHubService extends GitHubService {
 	constructor(
-		fetch: RequestFetch,
+		fetch: RequestFetch | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@ILogService logService: ILogService,

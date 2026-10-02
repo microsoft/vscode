@@ -413,7 +413,6 @@ export interface ICommonNativeHostService {
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
-	resolveProxyForUtilityProcess(url: string): Promise<string>;
 	resolveProxyWithPackage(url: string): Promise<IOSProxy[]>;
 	readProxyConfigWithPackage(): Promise<IOSProxyConfig>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
