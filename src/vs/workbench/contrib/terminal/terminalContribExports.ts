@@ -52,7 +52,6 @@ export const enum TerminalContribSettingId {
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
 	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
-	AgentSandboxWindowsEnabled = AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,

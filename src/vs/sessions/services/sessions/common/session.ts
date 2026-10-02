@@ -49,7 +49,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }
@@ -696,6 +696,15 @@ export interface IChat {
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
+	 * Providers that cannot determine this omit the observable.
+	 */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
+	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
@@ -783,6 +792,19 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
+export interface ISessionApplication {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface ISessionEnvironment {
+	/** Stable identity, independent of the environment's display name. */
+	readonly id: string;
+	readonly label: string;
+	/** Remote environments appear in the filter menu only while connected. */
+	readonly isConnected?: IObservable<boolean>;
+}
+
 export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
@@ -792,6 +814,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** Harness identity, independent of the session's routing type. */
+	readonly harness: string;
+	/** Provider-assigned environment identity: local, cloud, or a remote host identifier. */
+	readonly environment: string;
+	/** Creation provenance, which may hydrate after the session is discovered. */
+	readonly application: IObservable<ISessionApplication>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */

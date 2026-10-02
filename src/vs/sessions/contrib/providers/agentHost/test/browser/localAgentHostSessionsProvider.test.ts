@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
@@ -69,6 +70,7 @@ import { devContainerSamples, devContainerSampleUri } from '../../../../../../pl
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -963,32 +965,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
 		const codexAgent = { provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [] } as AgentInfo;
 		const setup = { download: 'ready' as const, signInProviderName: 'ChatGPT' };
-		const rootState = (accountStatus: 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
+		const rootState = (accountStatus: 'unknown' | 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
 			agents: [codexAgent],
 			_meta: {
 				...(hasSetup ? { [agentSdkSetupStatusKey(CODEX_AGENT_PROVIDER_ID)]: setup } : {}),
 				[CODEX_ACCOUNT_META_KEY]: { status: accountStatus },
 			},
 		});
-		agentHost.setRootState(rootState('signedIn'));
+		agentHost.setRootState(rootState('unknown'));
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
 
 		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
+		const windowGate = () => resolveSignedOutWindowGate(false, provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
 		const states = [initialization()];
+		const windowGates = [windowGate()];
+		agentHost.setRootState(rootState('signedIn'));
+		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut'));
 		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut', false));
 		states.push(initialization());
+		windowGates.push(windowGate());
 
-		assert.deepStrictEqual({ states, changes }, {
+		assert.deepStrictEqual({ states, windowGates, changes, configRequests: agentHost.resolveSessionConfigRequests }, {
 			states: [
+				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: false },
 				undefined,
 			],
+			windowGates: [SignedOutWindowGate.Proceed, SignedOutWindowGate.Proceed, SignedOutWindowGate.ForceGitHubSignIn, SignedOutWindowGate.ForceGitHubSignIn],
 			changes: 2,
+			configRequests: [],
 		});
 	});
 
@@ -1098,7 +1110,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const delivery of ['action', 'summary', 'reconnect'] as const) {
 		test(`external adoption metadata updates the same facade via ${delivery}`, () => runWithFakedTimers({}, async () => {
-			agentHost.addSession(createSession('adoption', { _meta: withSessionExternal(undefined, true) }));
+			agentHost.addSession(createSession('adoption', { _meta: withSessionInitiator(withSessionExternal(undefined, true), { name: 'github/cli' }) }));
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
 			const session = provider.getSessions()[0];
@@ -1122,11 +1134,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				identityPreserved: provider.getSessions()[0] === session,
 				observed,
 				metadata,
+				application: session.application.get(),
 				additionalListCalls: agentHost.listSessionsCallCount - initialListCalls,
 			}, {
 				identityPreserved: true,
 				observed: [true, false],
 				metadata: { 'vscode.external': false },
+				application: { id: 'github/cli', label: 'Copilot CLI' },
 				additionalListCalls: delivery === 'reconnect' ? 1 : 0,
 			});
 		}));
@@ -7525,6 +7539,47 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('list metadata and root summary updates surface chat change summaries without subscribing', async () => {
+			agentHost.setAgents([{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [], capabilities: {} } as AgentInfo]);
+			const rawId = 'multi-catalog-changes';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			const peerChat = URI.parse(buildChatUri(sessionUri, 'peer-1'));
+			agentHost.addSession(createSession(rawId, {
+				summary: 'Session',
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default', changes: { additions: 1, deletions: 2, files: 1 } },
+					{ chat: peerChat, kind: 'peer', summary: 'Peer', changes: { additions: 5 } },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+
+			provider.getSessions();
+			await timeout(0);
+			const session = provider.getSessions().find(candidate => AgentSession.id(candidate.resource) === rawId);
+			assert.ok(session);
+			const readSummaries = () => session.chats.get().map(chat => chat.changesSummary?.get());
+			const listed = readSummaries();
+
+			fireSessionSummaryChanged(agentHost, rawId, {
+				chats: [
+					{ resource: defaultChat.toString(), title: 'Default' },
+					{ resource: peerChat.toString(), title: 'Peer', changes: { additions: 6, deletions: 1, files: 2 } },
+				],
+				defaultChat: defaultChat.toString(),
+			});
+
+			assert.deepStrictEqual({
+				listed,
+				updated: readSummaries(),
+				sessionSubscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+			}, {
+				listed: [{ additions: 1, deletions: 2, files: 1 }, { additions: 5, deletions: 0, files: 0 }],
+				updated: [{ additions: 1, deletions: 2, files: 1 }, { additions: 6, deletions: 1, files: 2 }],
+				sessionSubscriptions: 0,
+			});
+		});
+
 		test('observed peer details resubscribe after subscription failure and host restart', async () => {
 			const rawId = 'multi-catalog-reconnect';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
@@ -8353,6 +8408,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -10842,11 +10898,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			supported, awaitingMetadata,
 			identityPreserved: provider.getSessions()[0] === session,
 			external: session.isExternal?.get(),
+			harness: session.harness,
+			environment: session.environment,
+			application: session.application.get(),
 			imported: agentHost.importedSessions.map(resource => resource.toString()),
 			turns: agentHost.dispatchedActions,
 		}, {
 			supported: [false, true, false], awaitingMetadata: true,
 			identityPreserved: true, external: false,
+			harness: 'copilot',
+			environment: 'local',
+			application: { id: 'github/autopilot', label: 'Copilot App' },
 			imported: [AgentSession.uri('copilotcli', 'import-session').toString()],
 			turns: [],
 		});

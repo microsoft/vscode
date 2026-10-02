@@ -42,7 +42,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -75,6 +75,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -2698,6 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 		let expectedMeta: SessionSummaryMeta | undefined = withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false);
 		expectedMeta = withWorkingDirectoryKey(expectedMeta, URI.file('/workspace/one').toString());
 		expectedMeta = withWorkingDirectoryScopeId(expectedMeta, [URI.file('/workspace/one').toString()]);
+		expectedMeta = withSessionInitiator(expectedMeta, { name: 'vscode' });
 		assert.deepStrictEqual({
 			state: getStateManager(localService).getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
@@ -2937,7 +2939,7 @@ suite('AgentService (node dispatcher)', () => {
 		const repository = URI.file('/work/repo');
 		const worktree = URI.file('/work/repo.worktrees/feature');
 		const branchName = 'agents/feature';
-		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createNullSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
 			sessionWorktreeInfo: () => ({
 				project: { uri: repository, displayName: 'repo' },
@@ -5245,8 +5247,22 @@ suite('AgentService (node dispatcher)', () => {
 				meta: getStateManager(service).getSessionState(session.toString())?._meta,
 			}, {
 				provider: 'copilot',
-				meta: withSessionExternal({ workspaceless: true }, false),
+				meta: withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }),
 			});
+		});
+
+		test('persists and lists the exact initiating client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
+			const session = await localService.createSession({ _meta: withSessionInitiator(undefined, initiator) });
+			const listed = await localService.listSessions();
+			assert.deepStrictEqual({
+				state: readSessionInitiator(getStateManager(localService).getSessionState(session.toString())),
+				listed: readSessionInitiator(listed[0]),
+				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
+			}, { state: initiator, listed: initiator, stored: JSON.stringify(initiator) });
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -8995,7 +9011,7 @@ suite('AgentService (node dispatcher)', () => {
 					published: stateManager.getExposedSessionKeys().includes(session.toString()),
 				}, {
 					registered: { external: false, source: 'explicit' },
-					metadata: withSessionExternal({ 'test.keep': 'preserved' }, false),
+					metadata: withSessionInitiator(withSessionExternal({ 'test.keep': 'preserved' }, false), { name: 'github/autopilot' }),
 					sends: 0,
 					turns: 0,
 					listed: [session.toString()],
@@ -11101,7 +11117,7 @@ suite('AgentService (node dispatcher)', () => {
 					titleSource: 'user',
 					isRead: false,
 					isArchived: false,
-					meta: { git: { branchName: 'current-provider' } },
+					meta: withSessionInitiator({ git: { branchName: 'current-provider' } }, { name: 'github/autopilot' }),
 					chats: [{ summary: 'Local chat', titleSource: 'user' }],
 				});
 			});
@@ -13903,7 +13919,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0]._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(sessions[0]._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
@@ -14768,7 +14784,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -14873,7 +14889,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			// No input workingDirectory → inferred workspace-less (tagged), and no
 			// git overlay because there is no working directory to probe.
-			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test.skip('createSession strips git-only catalogue entries for non-git working directory', async () => {
@@ -16763,6 +16779,20 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(readSessionCreationReference(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), creationReference);
+		});
+
+		test('restores the creating client rather than the current provider client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			await createAgentSession(copilotAgent);
+			const session = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			copilotAgent.sessionMetadataOverrides = { _meta: withSessionInitiator(undefined, { name: 'vscode-editor-window' }) };
+			const initiator = { name: 'github/cli', title: 'Copilot CLI' };
+			await database.setMetadata(SESSION_INITIATOR_METADATA_KEY, JSON.stringify(initiator));
+			await localService.restoreSession(session);
+			assert.deepStrictEqual(readSessionInitiator(getStateManager(localService).getSessionState(session.toString())), initiator);
 		});
 
 		test('restores persisted source-control provenance', async () => {
@@ -20823,6 +20853,7 @@ suite('AgentService (node dispatcher)', () => {
 			const stateTitleAfterCreate = getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title;
 			const legacyTitleAfterCreate = await db.getMetadata(`customChatTitle:${peer.toString()}`);
 			await db.setChatDraft(peer, { text: 'delete me', origin: { kind: MessageKind.User } });
+			await db.setMetadata(getChatChangesSummaryMetadataKey(peer.toString()), JSON.stringify({ additions: 1, deletions: 0, files: 1 }));
 			await localService.disposeChat(session, peer);
 			const afterDelete = await catalogDatabase.getSessionV2(session.toString());
 
@@ -20833,6 +20864,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate,
 				legacyTitleAfterCreate,
 				draft: await db.getChatDraft(peer),
+				changesSummary: await db.getMetadata(getChatChangesSummaryMetadataKey(peer.toString())),
 			}, {
 				afterCreate: [
 					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', title: undefined },
@@ -20845,6 +20877,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate: 'Central Peer',
 				legacyTitleAfterCreate: 'Central Peer',
 				draft: undefined,
+				changesSummary: '',
 			});
 		});
 

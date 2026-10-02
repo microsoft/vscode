@@ -10,11 +10,14 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.j
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,16 +30,17 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, FocusedViewContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../common/categories.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
-import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext } from './sessionsList.js';
-import { getChatCapabilities, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, IsNewChatSessionContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
+import { SessionItemCanImportContext, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext } from './sessionsList.js';
+import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
+import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -295,7 +299,7 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 //  View Title Menu
 
 MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-	submenu: SessionsViewFilterSubMenu,
+	submenu: Menus.SessionsViewFilter,
 	title: localize2('filterSessions', "Filter Sessions"),
 	icon: Codicon.settings,
 	group: 'navigation',
@@ -312,14 +316,85 @@ MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	order: 20,
 });
 
-MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
-	submenu: SessionsViewFilterOptionsSubMenu,
-	title: localize2('filter', "Filter"),
-	group: '0_filter',
-	order: 0,
-});
+for (const option of [
+	{ value: SessionsSorting.Created, label: localize('created', "Created") },
+	{ value: SessionsSorting.Updated, label: localize('updated', "Updated") },
+]) {
+	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewOrdering,
+		title: localize2('ordering', "Ordering ({0})", option.label),
+		when: SessionsViewSortingContext.isEqualTo(option.value),
+		group: '1_presentation',
+		order: 0,
+	});
+}
 
-registerExternalSessionsFilterMenu(SessionsViewFilterOptionsSubMenu, Menus.SessionsViewExternalFilter, '2_external');
+for (const option of [
+	{ value: SessionsGrouping.Date, label: localize('time', "Time") },
+	{ value: SessionsGrouping.Workspace, label: localize('workspace', "Workspace") },
+]) {
+	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewGrouping,
+		title: localize2('grouping', "Grouping ({0})", option.label),
+		when: SessionsViewGroupingContext.isEqualTo(option.value),
+		group: '1_presentation',
+		order: 1,
+	});
+}
+
+for (const option of [
+	{ capped: true, label: localize('recent', "Recent") },
+	{ capped: false, label: localize('all', "All") },
+]) {
+	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewShow,
+		title: localize2('showSessions', "Show ({0})", option.label),
+		when: ContextKeyExpr.and(
+			SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
+			IsWorkspaceGroupCappedContext.isEqualTo(option.capped),
+		),
+		group: '1_presentation',
+		order: 2,
+	});
+}
+
+for (const [index, item] of [
+	{ submenu: Menus.SessionsViewSource, title: localize2('createdIn', "Created In") },
+	{ submenu: Menus.SessionsViewHarness, title: localize2('harness', "Harness") },
+].entries()) {
+	MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		...item,
+		group: '2_filters',
+		order: index + 1,
+	});
+}
+
+registerExternalSessionsFilterMenu(Menus.SessionsViewFilter, Menus.SessionsViewExternalFilter, '3_visibility', true, localize2('createdExternally', "Created Externally"));
+
+registerAction2(class ToggleExternalSessionsSectionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.toggleExternalSessionsSection',
+			title: localize2('showInExternalSection', "Show in External Section"),
+			toggled: ContextKeyExpr.equals(`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`, true),
+			menu: {
+				id: Menus.SessionsViewExternalFilter,
+				group: '2_grouping',
+				order: 0,
+				when: ChatContextKeys.enabled,
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		await configurationService.updateValue(
+			SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING,
+			!configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING),
+			ConfigurationTarget.USER,
+		);
+	}
+});
 
 MenuRegistry.appendMenuItem(SessionSectionToolbarMenuId, {
 	submenu: Menus.SessionsViewExternalFilter,
@@ -336,10 +411,10 @@ registerAction2(class SortByCreatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.sortByCreated',
-			title: localize2('sortByCreated', "Sort by Created"),
+			title: localize2('created', "Created"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '1_sort', order: 0 }]
+			menu: [{ id: Menus.SessionsViewOrdering, group: '1_sort', order: 0 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -353,10 +428,10 @@ registerAction2(class SortByUpdatedAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.sortByUpdated',
-			title: localize2('sortByUpdated', "Sort by Updated"),
+			title: localize2('updated', "Updated"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Updated),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '1_sort', order: 1 }]
+			menu: [{ id: Menus.SessionsViewOrdering, group: '1_sort', order: 1 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -370,10 +445,10 @@ registerAction2(class GroupByWorkspaceAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.groupByWorkspace',
-			title: localize2('groupByWorkspace', "Group by Workspace"),
+			title: localize2('workspace', "Workspace"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '2_group', order: 0 }]
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -387,10 +462,10 @@ registerAction2(class GroupByTimeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.groupByTime',
-			title: localize2('groupByTime', "Group by Time"),
+			title: localize2('time', "Time"),
 			category: SessionsCategories.Sessions,
 			toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Date),
-			menu: [{ id: SessionsViewFilterSubMenu, group: '2_group', order: 1 }]
+			menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 0 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -408,8 +483,8 @@ registerAction2(class ToggleCompactSessionsViewAction extends Action2 {
 			category: SessionsCategories.Sessions,
 			toggled: SessionsViewCompactContext,
 			menu: [{
-				id: SessionsViewFilterSubMenu,
-				group: '3_view',
+				id: Menus.SessionsViewFilter,
+				group: '4_view',
 				order: 0,
 				when: IsPhoneLayoutContext.negate(),
 			}]
@@ -428,12 +503,12 @@ registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.showRecentSessions',
-			title: localize2('showRecentSessions', "Show Recent Sessions"),
+			title: localize2('recent', "Recent"),
 			category: SessionsCategories.Sessions,
 			toggled: IsWorkspaceGroupCappedContext,
 			menu: [{
-				id: SessionsViewFilterSubMenu,
-				group: '3_cap',
+				id: Menus.SessionsViewShow,
+				group: '1_show',
 				order: 0,
 				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
 			}]
@@ -451,12 +526,12 @@ registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'sessionsViewPane.showAllSessions',
-			title: localize2('showAllSessions', "Show All Sessions"),
+			title: localize2('all', "All"),
 			category: SessionsCategories.Sessions,
 			toggled: IsWorkspaceGroupCappedContext.negate(),
 			menu: [{
-				id: SessionsViewFilterSubMenu,
-				group: '3_cap',
+				id: Menus.SessionsViewShow,
+				group: '1_show',
 				order: 1,
 				when: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
 			}]
@@ -478,7 +553,7 @@ registerAction2(class CollapseAllGroupsAction extends Action2 {
 			id: 'sessionsViewPane.collapseAllGroups',
 			title: localize2('collapseAllGroups', "Collapse All Groups"),
 			category: SessionsCategories.Sessions,
-			menu: [{ id: SessionsViewFilterSubMenu, group: '4_collapse', order: 0 }]
+			menu: [{ id: Menus.SessionsViewFilter, group: '4_view', order: 1 }]
 		});
 	}
 	override run(accessor: ServicesAccessor) {
@@ -1053,7 +1128,7 @@ abstract class BaseArchiveSessionAction extends Action2 {
 				id: Menus.SessionBarToolbar,
 				group: 'secondary/1_session',
 				order: 30,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false)),
+				when: ContextKeyExpr.and(SessionIsCreatedContext, ContextKeyExpr.equals(SessionIsArchivedContext.key, false), SessionHeaderTargetsChatContext.negate()),
 			}]
 		});
 	}
@@ -1063,8 +1138,18 @@ abstract class BaseArchiveSessionAction extends Action2 {
 			: getFocusedSessionListTargets(accessor) ?? [];
 		const sessions = targets.filter(session => !session.isArchived.get());
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const configurationService = accessor.get(IConfigurationService);
+		const accessibilityService = accessor.get(IAccessibilityService);
+		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		for (const session of sessions) {
 			await sessionsManagementService.archiveSession(session);
+		}
+		if (
+			sessions.length > 0
+			&& configurationService.getValue<boolean>(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING)
+			&& !accessibilityService.isMotionReduced()
+		) {
+			void accessibilitySignalService.playSignal(AccessibilitySignal.confetti);
 		}
 	}
 }
@@ -1152,22 +1237,33 @@ abstract class BaseArchiveChatAction extends Action2 {
 				id: Menus.SessionChatItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when,
+				when: ContextKeyExpr.and(when, SessionChatItemIsUntitledContext.negate()),
+			}, {
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 30,
+				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext.negate()),
 			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: ISessionChatItem): Promise<void> {
-		if (!context || context.chat.isArchived.get() || !getChatCapabilities(context.chat, context.session, undefined).canArchive) {
+	override async run(accessor: ServicesAccessor, context?: ISessionChatItem | IActiveSession, chat?: IChat): Promise<void> {
+		let target: ISessionChatItem | undefined;
+		if (context && chat && hasKey(context, { sessionId: true })) {
+			target = { session: context, chat };
+		} else if (context && hasKey(context, { session: true, chat: true })) {
+			target = context;
+		}
+		if (!target || target.chat.isArchived.get() || !getChatCapabilities(target.chat, target.session, undefined).canArchive) {
 			return;
 		}
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await sessionsManagementService.archiveChat(context.session, context.chat);
+		await sessionsManagementService.archiveChat(target.session, target.chat);
 
 		const activeSession = sessionsService.activeSession.get();
-		if (activeSession?.sessionId === context.session.sessionId) {
-			const openChat = activeSession.openChats.get().find(chat => isEqual(chat.resource, context.chat.resource));
+		if (activeSession?.sessionId === target.session.sessionId) {
+			const openChat = activeSession.openChats.get().find(chat => isEqual(chat.resource, target.chat.resource));
 			if (openChat) {
 				await sessionsService.closeChat(activeSession, openChat);
 			}
@@ -1175,7 +1271,7 @@ abstract class BaseArchiveChatAction extends Action2 {
 	}
 }
 
-class ArchiveChatAction extends BaseArchiveChatAction {
+export class ArchiveChatAction extends BaseArchiveChatAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
@@ -1204,7 +1300,7 @@ abstract class BaseUnarchiveChatAction extends Action2 {
 				id: Menus.SessionChatItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when,
+				when: ContextKeyExpr.and(when, SessionChatItemIsUntitledContext.negate()),
 			}],
 		});
 	}

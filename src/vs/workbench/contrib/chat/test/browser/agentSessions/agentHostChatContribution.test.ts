@@ -14687,7 +14687,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('round-trips queued agent message provenance without rewriting it as a user message', async () => {
+		test('round-trips queued agent provenance and drops delegation ownership after a user edit', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'remote-agent-message');
 			agentHostService.sessionStates.set(backendSession.toString(), {
@@ -14730,15 +14730,33 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 			chatModel.firePendingRequestsChanged();
-			assert.deepStrictEqual({
+			const roundTrip = {
 				projectedOrigin: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].agentHostMessageOrigin,
 				projected: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].metadata,
 				storedOrigin: pendingRequests[0].sendOptions.agentHostMessageOrigin,
 				stored: pendingRequests[0].sendOptions.metadata,
 				rewrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet),
-			}, {
-				projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
-				storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+			};
+
+			agentHostService.dispatchedActions.length = 0;
+			pendingRequests[0] = {
+				...pendingRequests[0],
+				request: upcastPartial<IChatRequestModel>({ id: 'remote-message', message: { text: 'User-edited findings', parts: [] } }),
+			};
+			chatModel.firePendingRequestsChanged();
+			const edited = agentHostService.dispatchedActions.find(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet)?.action;
+
+			assert.deepStrictEqual({ roundTrip, edited }, {
+				roundTrip: {
+					projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
+					storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+				},
+				edited: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Queued,
+					id: 'remote-message',
+					message: { text: 'User-edited findings', origin: { kind: MessageKind.Agent } },
+				},
 			});
 		});
 

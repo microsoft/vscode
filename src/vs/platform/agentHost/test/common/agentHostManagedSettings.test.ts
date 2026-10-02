@@ -20,10 +20,10 @@ suite('AgentHostManagedSettings', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('combines restrictive contributions from explicitly configured global values', () => {
+	test('combines restrictive contributions from enterprise approval policies', () => {
 		const configurationService = createConfigurationService({
 			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, policyValue: false },
-			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, userValue: false },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false },
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {
@@ -55,10 +55,50 @@ suite('AgentHostManagedSettings', () => {
 		], [{}, {}]);
 	});
 
-	test('maps legacy settings without any opt-in present', () => {
+	for (const source of ['defaultValue', 'applicationValue', 'userValue', 'workspaceValue', 'workspaceFolderValue'] as const) {
+		test(`does not promote ${source} terminal approval preferences into managed rules`, () => {
+			const configurationService = createConfigurationService({
+				[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, [source]: false },
+				[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, [source]: { ls: false, rm: false } },
+			});
+
+			assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {});
+		});
+	}
+
+	test('maps synthetic per-command policy values without including personal preferences', () => {
+		const configurationService = createConfigurationService({
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: true, userValue: false },
+			// autoApprove has no registered VS Code policy; this value exercises the resolver only.
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: {
+				defaultValue: {},
+				policyValue: { 'git push': false },
+				userValue: { ls: false, rm: false },
+			},
+		});
+
+		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), { ask: ['Shell(git push)'] });
+	});
+
+	test('clears managed terminal restrictions when only personal preferences remain', () => {
+		const values: Record<string, IConfigurationValue<unknown>> = {
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false, userValue: false },
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: {}, userValue: { ls: false, rm: false } },
+		};
+		const configurationService = createConfigurationService(values);
+		const before = resolveManagedSettingsPermissions(configurationService);
+
+		values[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID] = { defaultValue: true, userValue: false };
+		assert.deepStrictEqual({ before, after: resolveManagedSettingsPermissions(configurationService) }, {
+			before: { ask: ['Shell'] },
+			after: {},
+		});
+	});
+
+	test('maps legacy approval policies without any opt-in present', () => {
 		const configurationService = createConfigurationService({
 			[GLOBAL_AUTO_APPROVE_SETTING_ID]: { defaultValue: false, userValue: false },
-			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, userValue: false },
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: { defaultValue: true, policyValue: false },
 		});
 
 		assert.deepStrictEqual(resolveManagedSettingsPermissions(configurationService), {

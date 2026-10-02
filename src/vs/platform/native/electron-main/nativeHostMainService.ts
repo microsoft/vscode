@@ -413,7 +413,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
 	}

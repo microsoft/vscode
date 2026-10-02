@@ -1388,6 +1388,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				new class extends mock<IMcpCopilotGlobalConfigurationService>() {
 					override async getConfigurationResource() { return undefined; }
 				}(),
+				new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
 			if (activeDescriptor) {
@@ -1768,6 +1771,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const browsePrimaryAction = featuredCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
+		assert(
+			!featuredCard || !browsePrimaryAction
+			|| Math.abs(featuredCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
+			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
+			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -1865,10 +1877,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		if (availableRows[0] && availablePrimaryAction) {
 			availablePrimaryAction.focus();
 			const targetWindow = DOM.getWindow(availableRows[0]);
-			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
-			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			const rowBounds = availableRows[0].getBoundingClientRect();
+			const primaryActionBounds = availablePrimaryAction.getBoundingClientRect();
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'solid', 'Focused Discover results must outline the entire item.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).borderRadius !== '0px', 'Focused Discover results must retain rounded corners for both pointer and keyboard focus.');
+			assert(
+				Math.abs(primaryActionBounds.left - rowBounds.left) <= 1
+				&& Math.abs(primaryActionBounds.top - rowBounds.top) <= 1
+				&& Math.abs(primaryActionBounds.right - rowBounds.right) <= 1
+				&& Math.abs(primaryActionBounds.bottom - rowBounds.bottom) <= 1,
+				'The Discover result primary action must cover the entire item behind its independent actions.',
+			);
+			const resultAction = availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+			if (resultAction) {
+				const pointerTransparentContent = [
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-icon'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-identity'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-aside'),
+				];
+				assert(
+					pointerTransparentContent.every(element => !element || targetWindow.getComputedStyle(element).pointerEvents === 'none')
+					&& targetWindow.getComputedStyle(resultAction).pointerEvents === 'auto',
+					'The Discover result must keep the primary action clickable around an independently clickable item action.',
+				);
+			}
 			availablePrimaryAction.blur();
 		}
+		const resultIcon = availableRows[0]?.querySelector<HTMLElement>('.customization-discovery-result-icon');
+		assert(!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40, 'Discover results must use the compact marketplace icon size.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			const selectedRow = resultRows[resultRows.length - 1];

@@ -422,12 +422,6 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 				? localize('mcpMigrationRollbackFailed', "Could not safely complete or roll back the migration for '{0}'. Review both MCP configuration files.", failures[0].name)
 				: localize('mcpMigrationRollbackFailedMultiple', "Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.");
 		}
-		const crossRootConflicts = failures.filter(failure => failure.reason === McpServerCustomizationMigrationFailureReason.CrossRootConflict);
-		if (crossRootConflicts.length > 0) {
-			return failures.length === 1
-				? localize('mcpMigrationCrossRootConflict', "Could not migrate '{0}' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.", crossRootConflicts[0].name)
-				: localize('mcpMigrationCrossRootConflicts', "Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.");
-		}
 		if (failures.length !== 1) {
 			const displayedFailures = failures.slice(0, 3);
 			return this.getFailedMessage(displayedFailures.map(failure => failure.name), failures.length - displayedFailures.length);
@@ -442,6 +436,8 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because the destination already contains a different server with that name.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.InvalidTarget:
 				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination MCP configuration is invalid.", failure.name);
+			case McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated:
+				return localize('mcpMigrationShadowedServerNotMigrated', "Could not migrate '{0}' because another workspace folder defines an MCP server with the same name. Migrate both servers together so the same configuration stays active.", failure.name);
 			default:
 				return this.getFailedMessage([failure.name], 0);
 		}

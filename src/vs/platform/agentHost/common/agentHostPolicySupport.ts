@@ -51,9 +51,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// The bridge requires managed approval for native shell requests. Custom terminal tools report
 	// custom-tool requests instead, so their host-side approval paths still need a parity audit.
 	ChatToolsTerminalEnableAutoApprove: { status: 'partial' },
-	// Connection-owned legacy requirements block direct session Off on macOS/Linux (#339144).
+	// Connection-owned legacy requirements block direct session Off on supported platforms (#339144).
 	// Policy loading versus withdrawal and last-client disconnect-grace transitions still need
-	// end-to-end verification. Windows uses its separate enablement setting. Copilot only.
+	// end-to-end verification. Copilot only.
 	ChatAgentSandboxEnabled: { status: 'partial' },
 	// Forwarded as the SDK sandbox `allowOutbound`. Copilot only.
 	ChatAgentSandboxAllowNetwork: { status: 'enforced' },
