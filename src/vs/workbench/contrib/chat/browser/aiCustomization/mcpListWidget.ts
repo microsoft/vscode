@@ -3266,11 +3266,7 @@ export class McpListWidget extends Disposable {
 			return [];
 		}
 		entry = currentEntry;
-		const activeSessionServer = getActiveSessionServer(entry);
 		const actions = this.getMcpServerManagementActions(entry, disposables);
-		if (!activeSessionServer && entry.type === 'server-item') {
-			return actions;
-		}
 
 		const showOutput = this.getMcpServerOutputHandler(entry);
 		const outputIndex = actions.findIndex(action => action instanceof ShowServerOutputAction);

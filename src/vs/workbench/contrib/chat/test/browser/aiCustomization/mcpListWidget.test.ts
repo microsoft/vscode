@@ -1559,6 +1559,7 @@ suite('mcpListWidget', () => {
 			let servers: AgentHostMcpServer[] = [server];
 			const shownLogs: string[] = [];
 			const shownLogSessions: string[] = [];
+			const outputActions: string[] = [];
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
@@ -1574,7 +1575,12 @@ suite('mcpListWidget', () => {
 			const agentHostCustomizationService = {
 				getMcpServers: () => servers,
 				onDidChangeCustomizations: onDidChangeCustomizations.event,
-				showMcpServerLog: async (resource: URI, serverId: string) => { shownLogs.push(serverId); shownLogSessions.push(resource.toString()); },
+				showMcpServerLog: async (resource: URI, serverId: string, beforeShow?: () => Promise<void>) => {
+					await beforeShow?.();
+					outputActions.push('show-output');
+					shownLogs.push(serverId);
+					shownLogSessions.push(resource.toString());
+				},
 				authenticateMcpServer: authenticate,
 				getWorkingDirectories: () => [],
 				setCustomizationEnablement: (...args: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>) => { hostEnablementCalls.push(args); },
@@ -1676,6 +1682,7 @@ suite('mcpListWidget', () => {
 				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
+				_closeCustomizationEditor: async () => { outputActions.push('close-editor'); },
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
 			const ariaSubscription = store.add(new MutableDisposable());
@@ -1686,6 +1693,7 @@ suite('mcpListWidget', () => {
 				templateData,
 				shownLogs,
 				shownLogSessions,
+				outputActions,
 				managementClicks,
 				openedPlugins,
 				openedExtensions,
@@ -1978,7 +1986,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		function nativeServer() {
+		function nativeServer(onShowOutput?: () => void) {
 			const outputCalls: string[] = [];
 			const startCalls: string[] = [];
 			const connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Native connection failed' });
@@ -1991,7 +1999,10 @@ suite('mcpListWidget', () => {
 				override readonly capabilities = observableValue('capabilities', undefined);
 				override readDefinitions() { return definitions; }
 				override async start() { startCalls.push('native'); return this.connectionState.get(); }
-				override async showOutput() { outputCalls.push('native'); }
+				override async showOutput() {
+					onShowOutput?.();
+					outputCalls.push('native');
+				}
 			}();
 			const workbenchServer = new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = 'native';
@@ -2032,7 +2043,7 @@ suite('mcpListWidget', () => {
 			test(`${kind} errors show an icon and retain menu output routing`, async () => {
 				const ctx = createRenderer(erroring(), false);
 				disposables.add(ctx.store);
-				const native = nativeServer();
+				const native = nativeServer(() => ctx.outputActions.push('show-output'));
 				const entry: Entry = kind === 'session-only'
 					? { type: 'session-server-item', server: erroring() }
 					: kind === 'native' || kind === 'matched'
@@ -2055,6 +2066,7 @@ suite('mcpListWidget', () => {
 					nativeCalls: native.outputCalls,
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
+					outputActions: ctx.outputActions,
 					inlineOutputButton: showOutputButton?.textContent,
 					errorIcon: statusIcon?.classList.contains('error'),
 				}, {
@@ -2062,6 +2074,7 @@ suite('mcpListWidget', () => {
 					nativeCalls: hostOwned ? [] : ['native'],
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
+					outputActions: ['close-editor', 'show-output'],
 					inlineOutputButton: undefined,
 					errorIcon: true,
 				});
