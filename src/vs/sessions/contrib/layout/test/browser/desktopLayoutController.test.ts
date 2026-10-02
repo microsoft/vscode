@@ -18,6 +18,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
@@ -1461,6 +1462,64 @@ suite('DesktopLayoutController', () => {
 			editorReveals: 0,
 			auxiliaryBarHides: 0,
 		});
+	});
+
+	test('[desktop reload] a fresh controller restores a session\'s composition, editor working set and panel view together', async () => {
+		const sessionResource = URI.parse('session:a');
+		const layoutState = [{
+			sessionResource: 'session:a',
+			editorWorkingSet: { id: 'ws-a', name: 'ws-a' },
+			panelViewContainerId: 'view.a',
+		}];
+		harness = createTestHarness(store, {
+			useModal: 'some',
+			chatLayoutEnabled: true,
+			desktopLayout: true,
+			workspaceFolders: [{ uri: URI.file('/repo') }],
+			layoutState,
+			initialPartVisibility: new Map([
+				[Parts.EDITOR_PART, true],
+				[Parts.AUXILIARYBAR_PART, true],
+				[Parts.PANEL_PART, false],
+			]),
+		});
+		harness.storageService.store(
+			'sessions.chatLayout.sidePaneComposition',
+			JSON.stringify([[sessionResource.toString(), { editor: false, auxiliaryBar: true }]]),
+			StorageScope.WORKSPACE,
+			0
+		);
+		store.add(harness.instaService.createInstance(TestDesktopController));
+
+		const session = makeSession(sessionResource);
+		harness.setPartHiddenCalls = [];
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			{
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			},
+			{ editorVisible: false, auxiliaryBarVisible: true },
+			'the persisted composition must be restored on the first visit after a fresh restart'
+		);
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: 'ws-a', name: 'ws-a' }],
+			'the persisted editor working set must be restored alongside the composition'
+		);
+
+		harness.openPaneCompositeCalls = [];
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
+
+		assert.deepStrictEqual(
+			harness.openPaneCompositeCalls,
+			[{ id: 'view.a', location: ViewContainerLocation.Panel }],
+			'the persisted panel view must be restored once the (runtime-only, not itself persisted) panel visibility is shown'
+		);
 	});
 
 	// --- [D10] Toggle Side Panel with an empty aux bar ---

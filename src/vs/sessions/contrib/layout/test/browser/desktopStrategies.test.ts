@@ -305,6 +305,64 @@ suite('Desktop layout strategies', () => {
 		]);
 	});
 
+	test('New Session re-entry restores its recorded composition instead of the entry default', () => {
+		const ctx = setup();
+		ctx.chatLayoutActive = () => true;
+		const session = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const emptyFiles = store.add(harness.instaService.createInstance(EmptyFileEditorInput, session.workspace.get()));
+		harness.activeGroupEditors.push(emptyFiles);
+		harness.activeEditorInput = emptyFiles;
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		createDraftStrategy(ctx);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(session);
+
+		assert.deepStrictEqual(harness.setPartHiddenCalls, [
+			{ hidden: false, part: Parts.AUXILIARYBAR_PART },
+			{ hidden: true, part: Parts.EDITOR_PART },
+		]);
+
+		harness.partVisibility.set(Parts.EDITOR_PART, true);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
+
+		activate(undefined);
+		harness.setPartHiddenCalls.length = 0;
+
+		activate(session);
+
+		assert.deepStrictEqual({
+			visibility: {
+				editor: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBar: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			},
+			visibilityChanges: harness.setPartHiddenCalls,
+		}, {
+			visibility: { editor: true, auxiliaryBar: true },
+			visibilityChanges: [],
+		});
+	});
+
+	test('New Session composition changes are captured to the focused draft owner while another session is simultaneously visible', async () => {
+		const ctx = setup();
+		ctx.chatLayoutActive = () => true;
+		const draft = makeSession(URI.parse('session:/new'), { status: SessionStatus.Untitled, isCreated: false });
+		const other = makeSession(URI.parse('session:other'));
+		createDraftStrategy(ctx);
+
+		activate(draft);
+		harness.visibleSessionsObs.set([draft, other], undefined);
+
+		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+		harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
+
+		assert.deepStrictEqual(
+			ctx.compositionStore.get(ctx.ownerKeyFor(draft)!),
+			{ editor: true, auxiliaryBar: false },
+			'a visibility change on the focused draft owner must be captured even while another session is simultaneously visible'
+		);
+	});
+
 	for (const composition of [
 		{ editor: false, auxiliaryBar: true },
 		{ editor: true, auxiliaryBar: true },

@@ -12,6 +12,7 @@ import {
 	observableFromEvent,
 	observableSignalFromEvent,
 } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -71,6 +72,64 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		this._registerSidePaneOpenEditorHide();
 		this._registerLastEditorClose();
 		this._registerDetailPanel();
+		this._registerOwnerComposition();
+	}
+
+	// --- Owner composition -----------------------------------------------------------------
+
+	private _activeOwnerKey(): URI | undefined {
+		if (!this._ctx.chatLayoutActive()) {
+			return undefined;
+		}
+		const activeSession = this._sessionsService.activeSession.get();
+		return activeSession && !activeSession.isCreated.get() && !activeSession.isQuickChat?.get()
+			? this._ctx.ownerKeyFor(activeSession)
+			: undefined;
+	}
+
+	private _readOwnerComposition(): { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined {
+		const ownerKey = this._activeOwnerKey();
+		return ownerKey ? this._ctx.compositionStore.get(ownerKey) : undefined;
+	}
+
+	private _applyOwnerComposition(state: { readonly editor: boolean; readonly auxiliaryBar: boolean }): void {
+		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
+		try {
+			if (state.auxiliaryBar !== this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+				this._layoutService.setPartHidden(!state.auxiliaryBar, Parts.AUXILIARYBAR_PART);
+			}
+			if (state.editor !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				this._layoutService.setPartHidden(!state.editor, Parts.EDITOR_PART);
+			}
+		} finally {
+			suppression.dispose();
+		}
+	}
+
+	private _captureOwnerCompositionIfApplicable(): void {
+		if (this._ctx.isRestoringSessionLayout || this._ctx.chatLayoutSuspended() || this._layoutService.isEditorMaximized()) {
+			return;
+		}
+		const ownerKey = this._activeOwnerKey();
+		if (!ownerKey) {
+			return;
+		}
+		this._ctx.compositionStore.set(ownerKey, {
+			editor: this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			auxiliaryBar: this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		});
+	}
+
+	private _registerOwnerComposition(): void {
+		this._register(
+			this._layoutService.onDidChangePartVisibility((event) => {
+				if ((event.partId !== Parts.EDITOR_PART && event.partId !== Parts.AUXILIARYBAR_PART) || event.source === 'resize') {
+					return;
+				}
+				this._captureOwnerCompositionIfApplicable();
+			}),
+		);
+		this._register(this._layoutService.onDidToggleSidePane(() => this._captureOwnerCompositionIfApplicable()));
 	}
 
 	// --- Editor visibility ---------------------------------------------------------------
@@ -109,6 +168,13 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			}
 			if (this._getActiveNewSessionKey() !== pendingSessionKey) {
 				this._pendingEntryHideSessionKey = undefined;
+				return;
+			}
+
+			const storedComposition = this._readOwnerComposition();
+			if (storedComposition) {
+				this._pendingEntryHideSessionKey = undefined;
+				this._applyOwnerComposition(storedComposition);
 				return;
 			}
 
