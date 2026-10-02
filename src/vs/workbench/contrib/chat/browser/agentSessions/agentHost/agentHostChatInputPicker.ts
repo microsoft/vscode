@@ -61,7 +61,7 @@ import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderSe
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { isCopilotCliSessionType } from './agentHostToolSetEnablementService.js';
-import { filterBranchPickerItems } from './agentHostBranchPicker.js';
+import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from './agentHostBranchPicker.js';
 import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
@@ -142,8 +142,11 @@ function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon 
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle): IActionListItem<IConfigPickerItem>[] {
-	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted = false, sandboxToggle?: IActionListItemInlineToggle, query?: string): IActionListItem<IConfigPickerItem>[] {
+	const pickerItems = property === SessionConfigKey.Branch
+		? ensureSelectedBranchPickerItem(items, currentValue, query)
+		: items;
+	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
 		const disabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted);
 		const hover = getConfigPickerItemHover(property, item, disabled);
 		return {
@@ -274,6 +277,8 @@ export function getConfigPickerListOptions(property: string): IActionListOptions
 			return { minWidth: 260 };
 		case SessionConfigKey.AutoApprove:
 			return { minWidth: 300 };
+		case SessionConfigKey.Branch:
+			return { maxVisibleItems: BRANCH_PICKER_MAX_VISIBLE_ITEMS };
 		case CodexSessionConfigKey.PermissionsPreset:
 			return getCodexApprovalsPickerListOptions();
 		default:
@@ -940,7 +945,7 @@ export class AgentHostChatInputPicker extends Disposable {
 						return [];
 					}
 					if (branches) {
-						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle());
+						return toActionItems(this._generic ? '' : this._property, filterBranchPickerItems(branches, query), refreshed.value, isAutoApprovePolicyRestricted(this._configurationService), this._getSandboxStandaloneToggle(), query);
 					}
 					return this._filterDelayer.trigger(async () => {
 						const items = await this._getItems(refreshed.schema, query);

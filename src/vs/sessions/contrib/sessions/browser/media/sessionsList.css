@@ -1139,20 +1139,6 @@
 		pointer-events: none;
 	}
 
-	.session-section-keybinding {
-		display: none;
-		flex-shrink: 0;
-		margin-left: var(--vscode-spacing-size40);
-
-		&.visible {
-			display: inline-flex;
-		}
-	}
-
-	&.session-section-new-session {
-		color: var(--vscode-foreground);
-	}
-
 	.session-section-new-badge-accent {
 		border-color: var(--vscode-activityBarBadge-background);
 		background-color: var(--vscode-activityBarBadge-background);
@@ -1196,10 +1182,6 @@
 .hc-black .session-section-new-badge,
 .hc-light .session-section-new-badge {
 	border-color: var(--vscode-contrastBorder);
-}
-
-.monaco-tree-sticky-row .session-section-new-session .session-section-keybinding {
-	margin-right: var(--vscode-spacing-size80);
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,

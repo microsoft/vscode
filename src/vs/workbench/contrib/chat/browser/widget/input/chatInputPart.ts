@@ -1446,6 +1446,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setCurrentLanguageModel(pinnedModels[nextIndex], true);
 	}
 
+	/** Exact desktop picker owned by this input; combined phone sheets have no search contract. */
+	public getModelPickerControl(): ReturnType<ModelPickerActionItem['getModelPickerControl']> {
+		return this.chatPhoneInputPresenter.enabled.get() ? undefined : this.modelWidget?.getModelPickerControl();
+	}
+
 	public openModelPicker(): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();

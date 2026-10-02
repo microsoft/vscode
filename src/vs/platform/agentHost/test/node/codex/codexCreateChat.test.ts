@@ -2089,13 +2089,16 @@ suite('CodexAgent createChat', () => {
 			const entry = agent['_sessions'].get('session-prewarm')!;
 			await entry.materializePromise;
 
+			const dispatchedProviders: string[] = [];
 			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, {
 				configurationResource: sessionUri,
 				resource: chat,
 				hostInstructions: ['Rename with exact casing'],
+				reportCodexModelProvider: provider => dispatchedProviders.push(provider),
 			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
+			assert.deepStrictEqual(dispatchedProviders, ['copilot']);
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
 			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
 			assert.deepStrictEqual(turn.params.additionalContext?.['vscode.agentHost'], { kind: 'application', value: 'Rename with exact casing' });
@@ -4296,6 +4299,72 @@ suite('CodexAgent chat backing durability', () => {
 		}
 	});
 
+	for (const sdkResolvableWithoutDownload of [false, true]) {
+		test(`materializeChat without a saved model does not start Codex (SDK local: ${sdkResolvableWithoutDownload})`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload, sessionStore: createTestSessionStore() });
+			const session = AgentSession.uri('codex', 'lazy-model-restore');
+			const chat = URI.parse(buildDefaultChatUri(session));
+
+			await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+
+			assert.deepStrictEqual({
+				connection: agent['_connection'].kind,
+				needsResume: agent['_sessions'].get('lazy-model-restore')?.needsResume,
+			}, {
+				connection: 'idle',
+				needsResume: true,
+			});
+		});
+	}
+
+	test('materializeChat reuses a discovered native model without another app-server request', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'discovered-model');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const listing = agent['_listCodexChats']('discovery');
+		const list = await readNextRequest(peer.outbound);
+		assert.strictEqual(list.method, 'thread/list');
+		peer.push({ id: list.id, result: { data: [{ id: 'discovered-model', cwd: '/repo/discovered', modelProvider: 'openai', model: 'gpt-test' }], nextCursor: null } });
+		await listing;
+
+		await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+
+		assert.deepStrictEqual({
+			model: agent['_sessions'].get('discovered-model')?.model?.id,
+			pendingAppServerBytes: peer.outbound.readableLength,
+		}, {
+			model: '@provider=openai:gpt-test',
+			pendingAppServerBytes: 0,
+		});
+	});
+
+	test('restores an external thread using its persisted provider and model before the default', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'external-model');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		// The host reads authoritative metadata before materializing the backing.
+		const restoring = agent.getChatMetadata(chat, context, undefined, { activation: 'restore' });
+		const read = await readNextRequest(peer.outbound);
+		assert.strictEqual(read.method, 'thread/read');
+		peer.push({ id: read.id, result: { thread: { id: 'external-model', cwd: '/repo/external', modelProvider: 'openai', model: 'gpt-test' } } });
+		const metadata = await restoring;
+		await agent.materializeChat(chat, context, undefined);
+		assert.deepStrictEqual({
+			metadataModel: metadata?.model?.id,
+			runtimeModel: agent['_sessions'].get('external-model')?.model?.id,
+			pendingAppServerBytes: peer.outbound.readableLength,
+		}, {
+			metadataModel: '@provider=openai:gpt-test',
+			runtimeModel: '@provider=openai:gpt-test',
+			pendingAppServerBytes: 0,
+		});
+	});
+
 	test('materializeChat rolls back a newly restored runtime when server-tool advertisement fails', async () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'restore-fail-advertise');
@@ -4303,7 +4372,7 @@ suite('CodexAgent chat backing durability', () => {
 		agent.setServerToolHost(createThrowingAdvertiseServerToolHost('restore advertise boom'));
 
 		await assert.rejects(
-			agent.materializeChat(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'restored-backing' })),
+			agent.materializeChat(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'restored-backing', model: { id: 'gpt-test' } })),
 			/restore advertise boom/,
 		);
 
@@ -4604,15 +4673,15 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'metadata-owner');
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 		const peerChat = URI.parse(buildChatUri(session, 'metadata-peer'));
-		await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, JSON.stringify({ sessionId: 'default-runtime' }));
-		await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sessionId: 'peer-runtime' }));
+		await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, JSON.stringify({ sessionId: 'default-runtime', model: { id: 'gpt-test' } }));
+		await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }));
 		agent['_sessions'].get('default-runtime')!.workingDirectory = URI.file('/repo/default');
 		agent['_sessions'].get('peer-runtime')!.workingDirectory = URI.file('/repo/peer');
 
 		const metadata = await agent.getChatMetadata(
 			peerChat,
 			{ configurationResource: session, resource: peerChat },
-			JSON.stringify({ sessionId: 'peer-runtime' }),
+			JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }),
 		);
 
 		assert.deepStrictEqual({
