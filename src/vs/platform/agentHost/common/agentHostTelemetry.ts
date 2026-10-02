@@ -60,11 +60,57 @@ export type AgentHostTurnSendStage =
 	/** Running the outgoing-turn chat contributions. */
 	| 'contributions'
 	/**
+	 * Waiting for the provider's turn preparation (`IAgentChats.prepareTurn`).
+	 * Preparation is started earlier and runs alongside the stages above and
+	 * the checkpoint capture, so this measures only the time it still costs
+	 * the critical path — not the preparation's total cost.
+	 */
+	| 'providerPreparation'
+	/**
 	 * Waiting for the turn-start checkpoint. The capture is started earlier and
 	 * runs alongside the stages above, so this measures only the time it still
 	 * costs the critical path — not the capture's total cost.
 	 */
 	| 'checkpoint';
+
+/**
+ * A bounded provider-owned step between host dispatch (`timeToProviderDispatch`)
+ * and the turn's first visible progress. Stages are sequential: marking one
+ * closes the previous one, and the open stage closes at first progress, so
+ * their durations partition the provider's share of time-to-first-progress.
+ *
+ * Providers mark only the stages they actually run; an absent stage did not
+ * run, while an observed `0` ran within the clock's resolution.
+ */
+export type AgentHostProviderSendStage =
+	/** Waiting behind earlier operations queued on the same chat. */
+	| 'queue'
+	/** Acquiring (and, when cold, starting) the provider's SDK client. */
+	| 'client'
+	/** Resolving customization, agent and MCP state for a session launch. */
+	| 'snapshot'
+	/** Building the provider session configuration. */
+	| 'config'
+	/** The provider SDK create/resume session call. */
+	| 'create'
+	/** Post-create session setup required before the session can be used. */
+	| 'finalize'
+	/** Registering and persisting a newly launched session. */
+	| 'persist'
+	/** Refreshing an existing live session whose configuration changed. */
+	| 'refresh'
+	/** Per-turn preparation after the session is ready and before the SDK send. */
+	| 'turnPrepare'
+	/** From the SDK send until the first visible progress (model latency). */
+	| 'modelResponse';
+
+/**
+ * Receives provider stage transitions for one turn. Implementations must be
+ * cheap and must never throw; providers call it on the hot send path.
+ */
+export interface IAgentProviderSendStageRecorder {
+	mark(stage: AgentHostProviderSendStage): void;
+}
 
 export interface IAgentHostClientTelemetryContext {
 	readonly clientType: AgentHostClientType;
@@ -81,6 +127,14 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptPlanTier?: 'free' | 'go' | 'plus' | 'pro' | 'business' | 'enterprise' | 'edu' | 'unknown';
 	readonly chatgptWeeklyQuotaState: 'available' | 'unavailable' | 'missing' | 'nonWeekly' | 'stale' | 'expired' | 'invalid';
 	readonly chatgptWeeklyUsedPercentBucket?: number;
+}
+
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
 }
 
 /** Provider-owned, immutable context captured without I/O when a turn starts. */

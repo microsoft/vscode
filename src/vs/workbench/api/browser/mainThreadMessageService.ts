@@ -14,6 +14,7 @@ import { Event } from '../../../base/common/event.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMessageService)
 export class MainThreadMessageService implements MainThreadMessageServiceShape {
@@ -93,6 +94,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 			const messageHandle = this._notificationService.notify({
 				severity,
 				message,
+				legacyExtensionLinkParsing,
 				actions: { primary: primaryActions, secondary: secondaryActions },
 				source,
 				priority: sourceIsUrgent ? NotificationPriority.URGENT : NotificationPriority.DEFAULT,

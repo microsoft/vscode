@@ -22,7 +22,8 @@ import { AgentSession, IAgent } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { CustomizationType, McpServerStatus, SessionInputRequestKind, type McpServerCustomization } from '../../common/state/protocol/state.js';
 import { ActionType, type ChatAction } from '../../common/state/sessionActions.js';
 import { buildDefaultChatUri, MessageKind, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, type ToolCallContributor, type ToolCallResult } from '../../common/state/sessionState.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../common/agentHostCheckpointService.js';
@@ -33,6 +34,8 @@ import { AgentHostLocalCommands, IAgentHostLocalCommands } from '../../node/loca
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { registerBuiltInChatContributions } from '../../node/chatContributions/builtInChatContributions.js';
+import { AgentHostChatInputService, IAgentHostChatInputService } from '../../node/agentHostChatInputService.js';
+import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
@@ -41,6 +44,7 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { createTestAgentHostProviderService } from './testAgentHostProviderService.js';
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from '../../node/agentHostSessionTitleController.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/agentHostToolCallTracker.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
@@ -81,6 +85,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {
@@ -170,8 +176,10 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const source: IAgentHostClientConnectionSource = {
 			hasSeenClient: candidate => candidate === clientId,
 			isClientConnected: candidate => connected && candidate === clientId,
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => connected ? new Map([[clientId, 1]]) : new Map(),
 			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: async () => false,
 		};
 		disposables.add(clientConnectionService.registerSource(source));
 		return value => connected = value;
@@ -297,9 +305,15 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
-		services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
+		const providerService = createTestAgentHostProviderService(() => agent);
+		services.set(IAgentHostProviderService, providerService);
+		services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, new AgentHostSubscriptionService())));
 		const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
 		services.set(IAgentHostTelemetryReporter, telemetryReporter);
 		const turnTracker = disposables.add(instantiationService.createInstance(AgentHostTurnTracker));
@@ -413,6 +427,14 @@ suite('AgentSideEffects — tool call telemetry', () => {
 
 	test('emits userCancelled with mcp source kind for a denied mcp tool', () => {
 		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.McpServer,
+			id: 'c1',
+			uri: 'mcp://managed/mail',
+			name: 'mail',
+			state: { kind: McpServerStatus.Ready },
+			_meta: withMcpServerSourceMeta(undefined, 'managed'),
+		}]);
 		startTurn('turn-1');
 
 		toolStart('turn-1', 'tc-mcp', 'lookup', { kind: ToolCallContributorKind.MCP, customizationId: 'c1' });
@@ -427,6 +449,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				toolId: 'lookup',
 				toolExtensionId: undefined,
 				toolSourceKind: 'mcp',
+				mcpSourceKind: 'managed',
 				toolCallId: 'tc-mcp',
 				provider: 'mock',
 				invocationTimeMs: undefined,
@@ -443,6 +466,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			toolId: 'lookup',
 			toolExtensionId: undefined,
 			toolSourceKind: 'mcp',
+			mcpSourceKind: 'managed',
 			toolCallId: 'tc-mcp',
 			provider: 'mock',
 			invocationTimeMs: undefined,
@@ -451,6 +475,84 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			model: undefined,
 			errorCode: 'denied',
 			msg: 'denied',
+		});
+	});
+
+	test('attributes parser-created plugin MCP children to their owning plugin', () => {
+		setupSession();
+		stateManager.setSessionCustomizations(sessionKey, [{
+			type: CustomizationType.Plugin,
+			id: 'plugin',
+			uri: 'file:///plugins/mail/plugin.json',
+			name: 'mail',
+			children: [{
+				type: CustomizationType.McpServer,
+				id: 'plugin-mcp',
+				uri: 'file:///plugins/mail/.mcp.json',
+				name: 'search',
+				state: { kind: McpServerStatus.Ready },
+			}],
+		}]);
+		startTurn('turn-1');
+
+		toolStart('turn-1', 'tc-plugin-mcp', 'search', { kind: ToolCallContributorKind.MCP, customizationId: 'plugin-mcp' });
+		toolComplete('turn-1', 'tc-plugin-mcp', { success: true, pastTenseMessage: 'searched' });
+		completeTurn('turn-1');
+
+		assert.deepStrictEqual({
+			languageModelToolInvoked: toolEvents()[0].data.mcpSourceKind,
+			agentHostToolInvoked: agentHostToolEvents()[0].data.mcpSourceKind,
+		}, {
+			languageModelToolInvoked: 'plugin',
+			agentHostToolInvoked: 'plugin',
+		});
+	});
+
+	test('emits every bounded MCP source kind and omits unknown provenance', () => {
+		setupSession();
+		const sources = ['user', 'workspace', 'builtin', 'managed'] as const;
+		stateManager.setSessionCustomizations(sessionKey, [
+			...sources.map(source => ({
+				type: CustomizationType.McpServer,
+				id: source,
+				uri: `mcp://${source}/server`,
+				name: source,
+				state: { kind: McpServerStatus.Ready } as const,
+				_meta: withMcpServerSourceMeta(undefined, source),
+			} satisfies McpServerCustomization)),
+			{
+				type: CustomizationType.McpServer,
+				id: 'unknown',
+				uri: 'mcp://unknown/server',
+				name: 'unknown',
+				state: { kind: McpServerStatus.Ready },
+			} satisfies McpServerCustomization,
+		]);
+		startTurn('turn-1');
+
+		for (const source of [...sources, 'unknown'] as const) {
+			toolStart('turn-1', `tc-${source}`, source, { kind: ToolCallContributorKind.MCP, customizationId: source });
+			toolComplete('turn-1', `tc-${source}`, { success: true, pastTenseMessage: source });
+		}
+		completeTurn('turn-1');
+
+		const summarize = (events: { data: Record<string, unknown> }[]) => events.map(event => ({
+			toolId: event.data.toolId,
+			mcpSourceKind: event.data.mcpSourceKind,
+		}));
+		const expected = [
+			{ toolId: 'user', mcpSourceKind: 'user' },
+			{ toolId: 'workspace', mcpSourceKind: 'workspace' },
+			{ toolId: 'builtin', mcpSourceKind: 'builtin' },
+			{ toolId: 'managed', mcpSourceKind: 'managed' },
+			{ toolId: 'unknown', mcpSourceKind: undefined },
+		];
+		assert.deepStrictEqual({
+			languageModelToolInvoked: summarize(toolEvents()),
+			agentHostToolInvoked: summarize(agentHostToolEvents()),
+		}, {
+			languageModelToolInvoked: expected,
+			agentHostToolInvoked: expected,
 		});
 	});
 

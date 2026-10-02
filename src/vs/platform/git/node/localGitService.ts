@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import { rm } from 'fs/promises';
 import { CancellationError } from '../../../base/common/errors.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IGitNetworkOptions, IGitPullOptions, ILocalGitService } from '../common/localGitService.js';
+
+const FULL_COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/i;
 
 export class LocalGitService implements ILocalGitService {
 	declare readonly _serviceBrand: undefined;
@@ -123,14 +126,32 @@ export class LocalGitService implements ILocalGitService {
 
 	async clone(operationId: string, cloneUrl: string, targetPath: string, ref?: string, options?: IGitNetworkOptions): Promise<void> {
 		const args = ['clone'];
-		if (ref) {
+		const normalizedRef = ref?.trim().toLowerCase();
+		const pinnedCommit = normalizedRef && FULL_COMMIT_SHA_PATTERN.test(normalizedRef) ? normalizedRef : undefined;
+		if (ref && !pinnedCommit) {
 			args.push('--branch', ref);
 		}
 		args.push('--', cloneUrl, targetPath);
 		await this._exec(operationId, args, undefined, options);
+		if (pinnedCommit) {
+			try {
+				await this._exec(operationId, ['fetch', 'origin', pinnedCommit], targetPath, options);
+				await this.checkoutCommit(operationId, targetPath, pinnedCommit);
+			} catch (error) {
+				try {
+					await rm(targetPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+				} catch (cleanupError) {
+					throw new AggregateError([error, cleanupError], localize('pluginsPinnedCloneCleanupFailed', "Failed to prepare and clean up the plugin repository at '{0}'.", targetPath));
+				}
+				throw error;
+			}
+		}
 	}
 
 	async pull(operationId: string, repoPath: string, options?: IGitPullOptions): Promise<boolean> {
+		if (options?.skipDetachedHead && (await this._exec(operationId, ['rev-parse', '--abbrev-ref', 'HEAD'], repoPath)).trim() === 'HEAD') {
+			return false;
+		}
 		const before = (await this._exec(operationId, ['rev-parse', 'HEAD'], repoPath)).trim();
 
 		try {
@@ -221,7 +242,7 @@ export class LocalGitService implements ILocalGitService {
 
 	async checkoutCommit(operationId: string, repoPath: string, commit: string): Promise<void> {
 		const expectedCommit = commit.trim().toLowerCase();
-		if (!/^[0-9a-f]{40}$/.test(expectedCommit)) {
+		if (!FULL_COMMIT_SHA_PATTERN.test(expectedCommit)) {
 			throw new Error(localize('pluginsInvalidPinnedCommit', "Pinned plugin commit '{0}' is not a full SHA-1 hash.", commit));
 		}
 

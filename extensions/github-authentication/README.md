@@ -8,34 +8,25 @@ This extension provides support for authenticating to GitHub. It registers the `
 
 ## GitHub Enterprise
 
-The `github-enterprise` provider authenticates to the GHE.com or GitHub Enterprise Server instance configured by `github-enterprise.uri`:
+For GitHub Enterprise Cloud (GHE.com) or GitHub Enterprise Server, add your instance URLs to your settings:
 
 ```json
 {
-	"github-enterprise.uri": "https://github.example.com"
+	"github-enterprise.uris": [
+		"https://octocat.ghe.com",
+		"https://github.example.com"
+	]
 }
 ```
 
-GitHub.com accounts use the `github` provider and do not need this setting. Account and session IDs, labels, token storage, and Microsoft account links retain their existing behavior.
+The list order does not select a default instance. When signing in without a specific instance, you can choose from your configured instances.
 
-## Session provenance
+The `github-enterprise.uris` setting replaces the deprecated `github-enterprise.uri`. If the list is not set, the older setting still applies. An explicitly empty list (`[]`) configures no enterprise instances.
 
-The proposed `authIssuers` API exposes optional `AuthenticationSession.authorizationServer` provenance. This built-in extension supplies it on every returned session and every added, changed, or removed session event, including sessions restored from saved tokens or brokered through Microsoft:
+Use **Manage Extension Account Preferences...** to choose which account an extension uses, or **Use a new account...** to sign in to another instance. Enterprise account labels always include their host, such as `octocat - octocat.ghe.com`, even when only one instance is configured.
 
-- `github`: `https://github.com/login/oauth`
-- `github-enterprise`: the configured instance's existing `/login/oauth` server
+Removing an instance hides its accounts without deleting saved sign-ins. You may be asked to select your enterprise account again after this update.
 
-New sessions take their issuer from the token result and retain it in storage. Sessions without it, including older saved sessions and sessions supplied by Codespaces, are populated using the provider's fallback base URI before being returned to clients, without requiring a new sign-in.
+Workspace and folder instance settings only apply in trusted workspaces.
 
-The value identifies the OAuth authorization server, **not** a REST API endpoint, resource audience, or Copilot endpoint. Its presence does not imply an enterprise account: GitHub.com sessions also include it. Consumers should use the provider ID and the returned issuer rather than infer the instance from an account label.
-
-Extensions using this proposed property must enable `authIssuers`. The existing issuer filter can select the configured provider:
-
-```ts
-const session = await vscode.authentication.getSession('github-enterprise', ['repo'], {
-	createIfNone: true,
-	authorizationServer: vscode.Uri.parse('https://github.example.com/login/oauth')
-});
-```
-
-Adoption by external extensions, including the separately released GitHub Pull Requests extension, is a separate change.
+GitHub.com accounts do not need this setting.
