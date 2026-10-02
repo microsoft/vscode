@@ -1247,8 +1247,8 @@ suite('MultiEditorTabsControl', () => {
 			});
 		}
 		assert.deepStrictEqual(measurements, [
-			{ tabHeight: 'default', stripHeight: 61, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', tabFillHeights: [28, 28], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 1 },
-			{ tabHeight: 'compact', stripHeight: 53, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', tabFillHeights: [24, 24], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 1 },
+			{ tabHeight: 'default', stripHeight: 61, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', tabFillHeights: [28, 28], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 0 },
+			{ tabHeight: 'compact', stripHeight: 53, wrapping: true, upperRow: false, gap: 0, clippingGap: 0, bottomRadius: '0px', shoulder: '""', tabFillHeights: [24, 24], rowGap: 2, overflow: ['visible', 'visible'], separatorOffset: 0, connectionOverlap: 0 },
 		]);
 	});
 
@@ -1635,7 +1635,7 @@ suite('MultiEditorTabsControl', () => {
 			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: '""' },
-			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '4px', leftMaskTop: '0px', rightMaskHeight: '4px', rightMaskTop: '0px' },
+			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', leftMaskHeight: '3px', leftMaskTop: '0px', rightMaskHeight: '3px', rightMaskTop: '0px' },
 			rightShoulderAtViewport: { edge: true, clipped: false, right: '1px', rightShoulder: '""', rightMask: '""', overflowEdge: 'block' },
 			rightShoulderRevealed: { edge: false, clipped: false, rightShoulder: '""', rightMask: '""' },
 			leftShoulderAtViewport: { edge: true, clipped: false, left: '1px', leftShoulder: 'none', leftMask: 'none', overflowEdge: 'none' },

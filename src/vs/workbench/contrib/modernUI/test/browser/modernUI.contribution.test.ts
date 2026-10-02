@@ -3027,12 +3027,12 @@ suite('ModernUIContribution', () => {
 			topFrame: { borderColors: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'], borderTopLeftRadius: '6px', borderWidths: ['1px', '1px'] },
 			upper: { tabBorders: ['2px', '2px'], fillInsets: ['-2px', '-2px'], fillInlineStart: '2px' },
 			inactive: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '0px' },
-				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			},
 			active: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '0px' },
-				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '0px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			},
 		});
 	});
