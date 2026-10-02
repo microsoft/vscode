@@ -327,7 +327,15 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			resolve,
 		}, context.signal);
 		this._logService.info(`[AgentMergeTools] Review thread reply completed: session=${session}, turn=${context.turnId}, replyOutcome=${result.reply.outcome}, resolved=${result.resolved}`);
-		return JSON.stringify({ reply: result.reply.outcome, resolved: result.resolved, resolveError: result.resolveError });
+		const message = result.reply.outcome === 'pending'
+			? 'The reply was saved to a pending GitHub review and is not published.'
+			: result.reply.outcome === 'indeterminate'
+				? 'Could not confirm whether the reply was published.'
+				: undefined;
+		return JSON.stringify({
+			reply: result.reply.outcome, resolved: result.resolved, resolveError: result.resolveError,
+			...(message ? { message: `${message} The thread was not resolved. Do not retry the reply or submit, discard, or replace the user's pending review. Ask the user how to proceed.` } : {}),
+		});
 	}
 
 	async rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string> {

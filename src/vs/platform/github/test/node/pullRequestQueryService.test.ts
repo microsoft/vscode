@@ -172,7 +172,7 @@ suite('PullRequestQueryService', () => {
 										path: 'a.ts',
 										diffSide: 'RIGHT',
 										comments: {
-											nodes: [{ id: 'C1', databaseId: 1, body: 'first', author: { login: 'a' } }],
+											nodes: [{ id: 'C1', databaseId: 1, body: 'first', state: 'SUBMITTED', author: { login: 'a' } }],
 											pageInfo: { hasNextPage: true, endCursor: 'comments-1' },
 										},
 									}],
@@ -188,7 +188,7 @@ suite('PullRequestQueryService', () => {
 					response: gitHubGraphQLResponse({
 						node: {
 							comments: {
-								nodes: [{ id: 'C2', databaseId: 2, body: 'second', author: { login: 'b' } }],
+								nodes: [{ id: 'C2', databaseId: 2, body: 'second', state: 'PENDING', author: { login: 'b' } }],
 								pageInfo: { hasNextPage: false, endCursor: null },
 							},
 						},
@@ -237,8 +237,8 @@ suite('PullRequestQueryService', () => {
 						line: undefined,
 						originalLine: undefined,
 						comments: [
-							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT'),
-							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT'),
+							graphQLComment('1', 'C1', 'a', 'first', 'RIGHT', 'SUBMITTED'),
+							graphQLComment('2', 'C2', 'b', 'second', 'RIGHT', 'PENDING'),
 						],
 					},
 					{
@@ -842,7 +842,7 @@ function core(headSha: string): PullRequestCore {
 	};
 }
 
-function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string): object {
+function graphQLComment(id: string, nodeId: string, login: string, body: string, side: string, state: string): object {
 	return {
 		id,
 		nodeId,
@@ -851,6 +851,7 @@ function graphQLComment(id: string, nodeId: string, login: string, body: string,
 		url: undefined,
 		createdAt: undefined,
 		updatedAt: undefined,
+		state,
 		path: undefined,
 		line: undefined,
 		originalLine: undefined,
