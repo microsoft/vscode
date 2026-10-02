@@ -4873,7 +4873,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const values = newSession.getConfigValues();
 		const derivedValues = this._derivedNewSessionConfig(newSession.session.workspace.get());
 		for (const [property, clearedValue] of Object.entries(SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES)) {
-			if (!isSessionConfigWritable(newSession.getConfig()?.schema.properties[property], true)) {
+			if (!newSession.getConfig()?.schema.properties[property]) {
 				continue;
 			}
 			const value = derivedValues[property] ?? (values && Object.hasOwn(values, property) ? clearedValue : undefined);
