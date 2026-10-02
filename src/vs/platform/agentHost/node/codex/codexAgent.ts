@@ -783,7 +783,7 @@ interface ICodexSession {
 	/**
 	 * Workbench-facing turn id -> codex app-server turn id, retained across
 	 * turn completion so {@link CodexAgent.truncateChat} can translate a
-	 * live host turn id to a `thread/rollback` target.
+	 * live host turn id to a `thread/revert` target.
 	 */
 	readonly codexTurnIdByHostTurnId: Map<string, string>;
 	/** Set when this session was restored (Phase 3) and needs `thread/resume` before the first `turn/start`. */
@@ -3103,6 +3103,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 		const requestId = generateUuid();
 		const request = buildElicitationRequest(requestId, params);
+		if (!request) {
+			this._logService.warn(`[Codex] unsupported elicitation mode=${params.mode}; declining`);
+			return { result: declinedElicitationResponse() };
+		}
 		try {
 			const result = await session.pendingUserInputs.registerAndFire(requestId, () => {
 				this._fire(session.sessionUri, { type: ActionType.ChatInputRequested, request });
@@ -3166,7 +3170,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		const retainedOutputResources = retainRecoveredOutput ? this._retainRecoveredCommandOutputs(session, mapped.turn.items) : undefined;
 		const out = mapTurnCompleted(session.mapState, mapped, isCurrentTurn ? this._clearTurnStopWatch(session) : undefined, retainedOutputResources);
 		// Remember which codex (app-server) turn each workbench turn maps to so
-		// truncateChat can translate a host turn id to a thread rollback even
+		// truncateChat can translate a host turn id to a thread revert even
 		// after the live correlation below is cleared.
 		session.codexTurnIdByHostTurnId.set(hostTurnId, appTurnId);
 		// Codex reports app-server turn ids, while the workbench owns host turn ids.
@@ -6570,14 +6574,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	/**
 	 * Truncate the chat Agent Host addresses, not the session it belongs to.
 	 *
-	 * Codex backs every chat with its own thread, so the rollback target is the
+	 * Codex backs every chat with its own thread, so the revert target is the
 	 * runtime bound to `chat` — resolved through the recorded binding, never by
 	 * re-deriving membership from its configuration scope or URI shape.
 	 *
 	 * Resolve the first turn to remove from the persisted thread, whose turn ids
 	 * match the workbench's restored turn ids (see {@link replayThreadToTurns}).
-	 * Paginated threads revert before that turn; legacy threads roll back by the
-	 * equivalent trailing-turn count. Unknown ids no-op to avoid data loss.
+	 * Paginated threads revert before that turn. The SDK no longer supports
+	 * truncating legacy threads. Unknown ids no-op to avoid data loss.
 	 */
 	async truncateChat(chat: URI, turnId?: string, context?: URI | IAgentChatContext): Promise<void> {
 		const targetUri = this._resolveConversationSession(chat, context);
@@ -6614,23 +6618,19 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (firstTurnToRemove >= turns.length) {
 			return;
 		}
+		if (read.thread.historyMode === 'legacy') {
+			throw new Error(localize('codex.legacyThreadTruncation', "This version of Codex cannot remove messages from legacy chats."));
+		}
 		try {
 			const conn = targetSession
 				? (await this._ensureThreadConnection(targetSession)).connection
 				: await this._ensureConnection();
-			if (read.thread.historyMode === 'paginated') {
-				await conn.client.request<'thread/revert'>('thread/revert', {
-					threadId: read.thread.id,
-					beforeTurnId: turns[firstTurnToRemove].id,
-				});
-			} else {
-				await conn.client.request<'thread/rollback'>('thread/rollback', {
-					threadId: read.thread.id,
-					numTurns: turns.length - firstTurnToRemove,
-				});
-			}
+			await conn.client.request<'thread/revert'>('thread/revert', {
+				threadId: read.thread.id,
+				beforeTurnId: turns[firstTurnToRemove].id,
+			});
 		} catch (err) {
-			this._logService.warn(`[Codex:${read.thread.id}] thread/${read.thread.historyMode === 'paginated' ? 'revert' : 'rollback'} failed: ${err instanceof Error ? err.message : String(err)}`);
+			this._logService.warn(`[Codex:${read.thread.id}] thread/revert failed: ${err instanceof Error ? err.message : String(err)}`);
 			return;
 		}
 		await this._deleteRetainedCommandOutputs(chat, turns.slice(firstTurnToRemove));
