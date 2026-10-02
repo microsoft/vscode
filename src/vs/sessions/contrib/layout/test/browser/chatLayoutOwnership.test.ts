@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
+import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IActiveSession, IChatDeletedEvent } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -26,6 +27,13 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 	const store = new DisposableStore();
 	let harness: ITestLayoutHarness;
+
+	class RecordingLogService extends NullLogService {
+		readonly errors: unknown[] = [];
+		override error(message: unknown): void {
+			this.errors.push(message);
+		}
+	}
 
 	class TestDesktopController extends DesktopLayoutController {
 		ownerKeyFor(session: IActiveSession): URI {
@@ -349,6 +357,58 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 			[{ id: 'view.custom', location: ViewContainerLocation.Panel }],
 			'showing the bottom after a fresh restart must restore the peer\'s exact remembered view that survived reconstruction'
 		);
+	});
+
+	test('[R7] a well-formed entry followed by a malformed entry discards the whole saved layout record rather than half-applying it', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
+			version: 1,
+			entries: [
+				{ sessionResource: 'session:a', panelVisible: true },
+				{ sessionResource: 'session:b', panelVisible: 'not-a-boolean' },
+			],
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const logService = new RecordingLogService();
+		harness.instaService.set(ILogService, logService);
+
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		assert.strictEqual(controller.capturedPanelVisibility(URI.parse('session:a')), undefined, 'a record with any malformed entry must not leave an earlier valid entry partially applied');
+		assert.strictEqual(logService.errors.length, 1, 'the malformed entry must be reported, not silently discarded while its valid sibling is kept');
+		assert.strictEqual(harness.storageService.get(CHAT_LAYOUT_STATE_STORAGE_KEY, StorageScope.WORKSPACE), undefined, 'the unreadable record must be cleared so it does not keep failing to load');
+	});
+
+	test('[R7] a malformed panelVisible value discards the saved layout record instead of silently misreading it', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
+			version: 1,
+			entries: [{ sessionResource: 'session:a', panelVisible: 'yes' }],
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const logService = new RecordingLogService();
+		harness.instaService.set(ILogService, logService);
+
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		assert.strictEqual(controller.capturedPanelVisibility(URI.parse('session:a')), undefined, 'a non-boolean panelVisible must not be interpreted as valid data');
+		assert.strictEqual(logService.errors.length, 1, 'a non-boolean panelVisible must be reported, not coerced or silently accepted');
+	});
+
+	test('[R7] a malformed editorWorkingSet shape discards the saved layout record instead of silently misreading it', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		harness.storageService.store(CHAT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify({
+			version: 1,
+			entries: [{ sessionResource: 'session:a', editorWorkingSet: { id: 'missing-name-field' } }],
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const logService = new RecordingLogService();
+		harness.instaService.set(ILogService, logService);
+
+		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		assert.strictEqual(controller.capturedWorkingSet(URI.parse('session:a')), undefined, 'an editorWorkingSet missing its required name field must not be accepted as valid');
+		assert.strictEqual(logService.errors.length, 1, 'a malformed editorWorkingSet shape must be reported, not silently discarded');
 	});
 
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {

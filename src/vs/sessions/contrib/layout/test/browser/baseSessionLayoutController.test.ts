@@ -14,6 +14,7 @@ import { Parts } from '../../../../../workbench/services/layout/browser/layoutSe
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
@@ -302,6 +303,36 @@ suite('BaseLayoutController', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: committed });
 
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[B6] a same-resource draft promotion does not block the committed session\'s next outgoing working-set save', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const resource = URI.parse('session:same');
+		const draft = makeSession(resource, { status: SessionStatus.Untitled, isCreated: false });
+		const committed = makeSession(resource, { status: SessionStatus.Completed });
+		const other = makeSession(URI.parse('session:other'));
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(draft, undefined);
+		await timeout(0);
+
+		harness.activeSessionObs.set(committed, undefined);
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		await timeout(0);
+
+		harness.visibleEditorsList = [{}, {}];
+
+		harness.saveWorkingSetCalls = [];
+		harness.activeSessionObs.set(other, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.saveWorkingSetCalls,
+			[`session-working-set:${resource.toString()}`],
+			'the committed session\'s outgoing working set must still be saved after a same-resource promotion, not suppressed by a stale blacklist entry'
+		);
 	});
 
 	test('[R5] same-session A/B/A keeps each chat\'s own editor working set and panel view distinct', async () => {

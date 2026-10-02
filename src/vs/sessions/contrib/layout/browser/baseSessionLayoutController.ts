@@ -82,12 +82,32 @@ interface ISessionLayoutStateSchema {
 	entries: ISessionLayoutEntry[];
 }
 
+function isValidEditorWorkingSet(value: unknown): value is IEditorWorkingSet {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const workingSet = value as Partial<IEditorWorkingSet>;
+	return typeof workingSet.id === 'string' && typeof workingSet.name === 'string';
+}
+
+function isValidSessionViewState(value: unknown): value is ISessionViewState {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const viewState = value as Partial<ISessionViewState>;
+	return typeof viewState.auxiliaryBarVisible === 'boolean'
+		&& (viewState.auxiliaryBarActiveViewContainerId === undefined || typeof viewState.auxiliaryBarActiveViewContainerId === 'string')
+		&& (viewState.auxiliaryBarHiddenByCollapse === undefined || typeof viewState.auxiliaryBarHiddenByCollapse === 'boolean');
+}
+
 function isValidSessionLayoutEntry(value: unknown): value is ISessionLayoutEntry {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
 	const entry = value as Partial<ISessionLayoutEntry>;
-	return typeof entry.sessionResource === 'string'
+	return typeof entry.sessionResource === 'string' && URI.parse(entry.sessionResource).scheme.length > 0
+		&& (entry.editorWorkingSet === undefined || isValidEditorWorkingSet(entry.editorWorkingSet))
+		&& (entry.viewState === undefined || isValidSessionViewState(entry.viewState))
 		&& (entry.editorPartHidden === undefined || typeof entry.editorPartHidden === 'boolean')
 		&& (entry.panelViewContainerId === undefined || typeof entry.panelViewContainerId === 'string')
 		&& (entry.panelVisible === undefined || typeof entry.panelVisible === 'boolean');
@@ -449,7 +469,7 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
-				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !this._replacedSessionResources.has(previousSession.resource)) {
+				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !this._replacedSessionResources.delete(previousSession.resource)) {
 					const ownerKey = this._ownerKeyFor(previousSession);
 					if (ownerKey) {
 						this._saveWorkingSet(ownerKey);
@@ -624,7 +644,9 @@ export abstract class BaseLayoutController extends Disposable {
 		// inherits the draft's on-screen layout.
 		const activeSession = this._sessionsService.activeSession.get();
 		const replacedSessionIsActive = isEqual(activeSession?.resource, from.resource) || isEqual(activeSession?.resource, to.resource);
-		this._replacedSessionResources.add(from.resource);
+		if (!isEqual(from.resource, to.resource)) {
+			this._replacedSessionResources.add(from.resource);
+		}
 
 		// [B2] Carry the draft's editor-part visibility over so the delayed
 		// working-set apply restores it as-left (instead of the created-session
@@ -849,7 +871,11 @@ export abstract class BaseLayoutController extends Disposable {
 		if (parsed.version !== SESSION_LAYOUT_STATE_SCHEMA_VERSION || !Array.isArray(parsed.entries)) {
 			throw new Error(`Unsupported ${storageKey} schema: expected version ${SESSION_LAYOUT_STATE_SCHEMA_VERSION}, got version ${String(parsed.version)}`);
 		}
-		return parsed.entries.filter(isValidSessionLayoutEntry);
+		const invalidIndex = parsed.entries.findIndex(entry => !isValidSessionLayoutEntry(entry));
+		if (invalidIndex !== -1) {
+			throw new Error(`Malformed ${storageKey} entry at index ${invalidIndex}`);
+		}
+		return parsed.entries;
 	}
 
 	private _loadState(): void {
