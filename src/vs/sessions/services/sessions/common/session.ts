@@ -182,6 +182,10 @@ export interface ISessionGitRepository {
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/** Default branch of the repository's `origin` remote (e.g. `main`). */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`). */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch is ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch is ahead of the upstream branch. */
@@ -1183,6 +1187,8 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.defaultBranchName === b.defaultBranchName
+		&& a.defaultRemoteBranchName === b.defaultRemoteBranchName
 		&& a.incomingChanges === b.incomingChanges
 		&& a.outgoingChanges === b.outgoingChanges
 		&& a.uncommittedChanges === b.uncommittedChanges
