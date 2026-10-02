@@ -23,6 +23,7 @@ import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/br
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';
 import '../../../../browser/parts/mobile/mobileChatShell.css';
@@ -95,7 +96,7 @@ const stickyAssistantResponse = [
 	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false): Promise<void> {
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
 	const width = options.width ?? fixtureWidth;
@@ -114,6 +115,8 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 
 	const chatView = dom.append(part, dom.$('.chat-view'));
+	chatView.classList.toggle('chat-view-chat', experimentalComposerLayout);
+	chatView.classList.toggle('experimental-session-composer', experimentalComposerLayout);
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 
 	await renderChatWidget({ ...context, container: chatView }, {
@@ -132,7 +135,7 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	auxiliaryBar?.classList.remove('auxiliarybar');
 }
 
-async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
+async function renderPhoneChatComposer(context: ComponentFixtureContext, experimentalComposerLayout: boolean): Promise<void> {
 	await renderChatView(context, false, {
 		width: 390,
 		height: 760,
@@ -143,15 +146,25 @@ async function renderPhoneChatComposer(context: ComponentFixtureContext): Promis
 			user: 'Keep the phone composer controls aligned.',
 			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
 		}],
-	}, true);
+		...(experimentalComposerLayout ? {
+			onRendered: ({ inputPart }) => {
+				inputPart.placeContextUsageWidget(inputPart.inputContainerElement);
+				inputPart.setInputEditorTrailingSpace(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE);
+			},
+		} : {}),
+	}, true, experimentalComposerLayout);
 
+	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
+	const contextUsage = context.container.querySelector<HTMLElement>('.chat-input-container > .chat-context-usage-container');
 	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
 	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
 	const submitBounds = submitButton?.getBoundingClientRect();
 	const inputActionBounds = inputAction?.getBoundingClientRect();
-	if (!submitBounds || !inputActionBounds
+	if ((experimentalComposerLayout && (!chatView || !contextUsage))
+		|| (!experimentalComposerLayout && (chatView || contextUsage))
+		|| !submitBounds || !inputActionBounds
 		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
-		throw new Error('The in-chat phone submit button must align with the other input toolbar actions.');
+		throw new Error('The in-chat phone composer must match the selected setting state and align its input actions.');
 	}
 }
 
@@ -369,10 +382,20 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
-	PhoneChatComposer: defineComponentFixture({
+	PhoneChatComposerSettingsDisabled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['A phone-sized active chat shows a short conversation above the bottom-pinned composer, with the send arrow vertically aligned to the other input toolbar actions.'],
-		render: renderPhoneChatComposer,
+		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],
+		render: context => renderPhoneChatComposer(context, false),
+	}),
+	PhoneChatComposerUnifiedWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With only the unified workspace picker enabled, a phone-sized active chat keeps the standard bottom-pinned composer because the experimental composer dependency is not enabled.'],
+		render: context => renderPhoneChatComposer(context, false),
+	}),
+	PhoneChatComposerExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With the unified workspace picker and experimental composer enabled, a phone-sized active chat keeps context usage inside the composer, right-aligns the model control, and aligns the send action with the input actions.'],
+		render: context => renderPhoneChatComposer(context, true),
 	}),
 	CheckpointControlsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

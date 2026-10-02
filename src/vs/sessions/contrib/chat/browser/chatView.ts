@@ -45,9 +45,7 @@ import { ISendRequestOptions } from '../../../services/sessions/common/sessionsP
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
@@ -88,8 +86,8 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 	return sessionStatus === undefined || !isActiveSessionStatus(sessionStatus);
 }
 
-export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
-	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
+export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService): boolean {
+	return isExperimentalSessionComposerLayoutEnabled(configurationService);
 }
 
 /**
@@ -335,14 +333,15 @@ export class ChatView extends AbstractChatView {
 		this._widget.setMaximumWidth(AGENTS_CENTERED_CONTENT_MAX_WIDTH);
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
-			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
 			this._widget.inputPart.setInputEditorTrailingSpace(enabled ? EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE : 0);
 		};
 		updateExperimentalComposerLayout();
-		this._register(contextKeyService.onDidChangeContext(event => {
-			if (event.affectsSome(new Set([IsPhoneLayoutContext.key]))) {
+		this._register(this.configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)
+				|| event.affectsConfiguration(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING)) {
 				updateExperimentalComposerLayout();
 			}
 		}));
