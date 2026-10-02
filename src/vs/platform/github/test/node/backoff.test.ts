@@ -5,17 +5,17 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubBackoffGate, GitHubBackoffPolicy } from '../../common/githubBackoff.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { BackoffGate, BackoffPolicy } from '../../common/backoff.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
-const policy: GitHubBackoffPolicy = { immediateRetries: 0, base: 10, maximum: 40, jitter: 0, decay: 100 };
+const policy: BackoffPolicy = { immediateRetries: 0, base: 10, maximum: 40, jitter: 0, decay: 100 };
 
-suite('GitHubBackoffGate', () => {
+suite('BackoffGate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function setup() {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const gate = store.add(new GitHubBackoffGate('test', policy, scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const gate = store.add(new BackoffGate('test', policy, scheduler));
 		return { scheduler, gate };
 	}
 
@@ -77,8 +77,8 @@ suite('GitHubBackoffGate', () => {
 	});
 
 	test('server minimum delay overrides immediate retries and the computed backoff ceiling', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
-		const gate = store.add(new GitHubBackoffGate('test', { ...policy, immediateRetries: 1 }, scheduler));
+		const scheduler = store.add(new FakeScheduler());
+		const gate = store.add(new BackoffGate('test', { ...policy, immediateRetries: 1 }, scheduler));
 		gate.fail('subject', 120_000);
 		let released = false;
 		const pending = gate.wait('subject', new AbortController().signal).then(() => { released = true; });

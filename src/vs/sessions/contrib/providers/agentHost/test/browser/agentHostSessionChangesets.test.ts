@@ -648,7 +648,7 @@ suite('AgentHostSessionChangesets', () => {
 		});
 	});
 
-	test('projects chat-owned changesets with session-owned Session Changes', () => {
+	test('prefers chat-owned Session Changes and otherwise projects the session-owned entry', () => {
 		const chatUri = URI.parse('ahp-chat://default/c2Vzc2lvbg');
 		const chatSummary: ChatSummary = {
 			resource: chatUri.toString(),
@@ -715,7 +715,7 @@ suite('AgentHostSessionChangesets', () => {
 		}, {
 			absentCatalogue: undefined,
 			initial: ['session'],
-			initialResource: ['file:///session/changeset/session'],
+			initialResource: [`${chatUri}/changeset/session`],
 			preservedIdentity: true,
 			updated: ['branch', 'session'],
 			updatedResource: [`${chatUri}/changeset/branch`, 'file:///session/changeset/session'],

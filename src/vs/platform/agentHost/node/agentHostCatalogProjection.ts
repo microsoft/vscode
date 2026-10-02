@@ -274,6 +274,8 @@ const gitValidator = plainObject(vObj({
 	isDetachedHead: vOptionalProp(vBoolean()),
 	baseBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	upstreamBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
+	defaultRemoteBranchName: vOptionalProp(boundedString(AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT)),
 	incomingChanges: vOptionalProp(safeInteger()),
 	outgoingChanges: vOptionalProp(safeInteger()),
 	uncommittedChanges: vOptionalProp(safeInteger()),
@@ -393,6 +395,7 @@ const chatValidator = plainObject(vObj({
 	archived: vOptionalProp(vBoolean()),
 	inheritedTurnId: vOptionalProp(boundedString(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
 	workingDirectories: vOptionalProp(workingDirectoriesValidator),
+	changes: vOptionalProp(agentHostCatalogChangesValidator),
 }));
 
 const chatsValidator = new RefinedValidator(

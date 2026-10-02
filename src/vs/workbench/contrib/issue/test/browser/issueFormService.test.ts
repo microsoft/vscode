@@ -17,7 +17,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { GitHubService, IGitHubService } from '../../../../../platform/github/common/githubService.js';
-import { GitHubFetch } from '../../../../../platform/github/common/githubTypes.js';
+import { RequestFetch } from '../../../../../platform/github/common/types.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -46,7 +46,7 @@ suite('IssueFormService', () => {
 		return instantiationService;
 	}
 
-	function createSearchService(fetch: GitHubFetch) {
+	function createSearchService(fetch: RequestFetch) {
 		const instantiationService = createInstantiationService();
 		const logService = new NullLogService();
 		const gitHubService = store.add(new GitHubService({

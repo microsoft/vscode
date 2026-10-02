@@ -6,19 +6,21 @@
 import { disposableLongTimeout } from '../../../base/common/async.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 
-export interface IGitHubScheduler {
+/** Clock, timer and jitter abstraction for deterministic request scheduling. */
+export interface IRequestScheduler {
 	now(): number;
 	schedule(callback: () => void, delay: number): IDisposable;
 	jitter(maximum: number): number;
 }
 
-export const systemGitHubScheduler: IGitHubScheduler = {
+/** Runtime scheduler using bounded native timer intervals. */
+export const systemRequestScheduler: IRequestScheduler = {
 	now: () => Date.now(),
 	schedule: (callback, delay) => disposableLongTimeout(callback, delay),
 	jitter: maximum => Math.floor(Math.random() * (Math.max(0, maximum) + 1)),
 };
 
-export function schedulerDelay(scheduler: IGitHubScheduler, delay: number, signal: AbortSignal): Promise<void> {
+export function schedulerDelay(scheduler: IRequestScheduler, delay: number, signal: AbortSignal): Promise<void> {
 	if (signal.aborted) {
 		return Promise.reject(signal.reason);
 	}

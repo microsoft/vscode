@@ -224,92 +224,6 @@
       "type": "function"
     },
     {
-      "name": "list_canvas_capabilities",
-      "description": "Inspect a canvas *type* to discover its open input schema and supported actions (action names + input schemas). Takes a canvasId from the <canvases> section — not a running instanceId.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "extensionId": {
-            "type": "string",
-            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
-          },
-          "canvasId": {
-            "type": "string",
-            "description": "Canvas type to inspect (not a running instance). Must be a canvasId from the <canvases> section."
-          }
-        },
-        "required": [
-          "canvasId"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "open_canvas",
-      "description": "Open or focus a declared canvas. canvasId selects the canvas type (from the <canvases> section); instanceId is a handle you choose for this specific panel and reuse in later invoke_canvas_action calls. Re-opening the same instanceId focuses the existing panel; using a new instanceId opens an additional panel of the same canvas type.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "extensionId": {
-            "type": "string",
-            "description": "Owning provider identifier. Optional when canvasId is unique across providers; required to disambiguate when multiple providers register the same canvasId."
-          },
-          "canvasId": {
-            "type": "string",
-            "description": "Canvas type to open. Must be a canvasId from the <canvases> section — do not invent one."
-          },
-          "instanceId": {
-            "type": "string",
-            "description": "Caller-chosen handle for this panel. Free-form (slug or UUID), unrelated to canvasId. Reuse it in invoke_canvas_action to address the same panel; pick a new value to open another panel of the same type."
-          },
-          "input": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Canvas open input matching the canvas input schema. Send a JSON object, or null when the canvas takes no input, and never JSON-encoded text"
-          }
-        },
-        "required": [
-          "canvasId",
-          "instanceId"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "invoke_canvas_action",
-      "description": "Invoke an action on an open canvas instance. Identify the panel by the instanceId you passed to open_canvas — do not pass canvasId or extensionId here. Action names and schemas come from list_canvas_capabilities for the canvas type.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "instanceId": {
-            "type": "string",
-            "description": "The instanceId from a prior open_canvas — the panel handle, NOT canvasId or extensionId."
-          },
-          "actionName": {
-            "type": "string",
-            "description": "Action name to invoke. See list_canvas_capabilities for the actions a canvas supports."
-          },
-          "input": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "description": "Action input matching the action input schema. Send a JSON object, or null when the action takes no input, and never JSON-encoded text"
-          }
-        },
-        "required": [
-          "instanceId",
-          "actionName"
-        ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
       "name": "sql",
       "description": "Query the session SQLite database for structured workflows. `todos` and `todo_deps` already exist—do not recreate them; create other tables as needed. Supports SQLite SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, and DROP.",
       "parameters": {
@@ -938,22 +852,46 @@
     },
     {
       "name": "send_message",
-      "description": "Send a message to an existing session or chat, starting a new turn there. Provide a session URI from `list_sessions` or an `agent-host-session://` link; a link carrying a chat id targets that specific chat. If the target chat is busy, the message is queued and starts after the active turn completes successfully. Delivery is asynchronous — this tool does not wait for or return the reply.",
+      "description": "Send, replace, or cancel your message in an existing session or chat. Use `delivery: \"steer\"` only to update an active turn; steering is handed to the provider immediately and cannot be replaced or cancelled. Use `delivery: \"queue\"` for a separate turn. Replace and cancel require the message ID and revision returned by an earlier call and succeed only while that queued message is pending. If it already started, the result reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up. Delivery is asynchronous — this tool does not wait for or return a reply.",
       "parameters": {
         "type": "object",
         "properties": {
+          "operation": {
+            "type": "string",
+            "enum": [
+              "send",
+              "replace",
+              "cancel"
+            ],
+            "description": "`send` (default) creates a message, `replace` updates one of your pending queued messages, and `cancel` removes one of your pending queued messages."
+          },
           "session": {
             "type": "string",
             "description": "The session or chat to message: a session URI from `list_sessions`, or an `agent-host-session://` link. A link carrying a chat id targets that specific chat."
           },
           "message": {
             "type": "string",
-            "description": "The message to send."
+            "description": "The complete message text. Required for `send` and `replace`; omit for `cancel`."
+          },
+          "delivery": {
+            "type": "string",
+            "enum": [
+              "queue",
+              "steer"
+            ],
+            "description": "For `send`, use `steer` to update an active turn or `queue` for a separate turn. Defaults to `queue`."
+          },
+          "messageId": {
+            "type": "string",
+            "description": "For `replace` or `cancel`, the ID returned when this chat sent the message."
+          },
+          "expectedRevision": {
+            "type": "number",
+            "description": "For `replace` or `cancel`, the revision returned with a pending queued message. The operation fails if the message changed or started processing."
           }
         },
         "required": [
-          "session",
-          "message"
+          "session"
         ]
       },
       "strict": false,
@@ -961,7 +899,7 @@
     },
     {
       "name": "get_session_context",
-      "description": "Read the recent conversation of an existing session or chat: a compacted transcript of its turns (messages, replies, and tool calls). Use this to see what a session you created is doing, or to gather context before sending it a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
+      "description": "Read the recent conversation of an existing session or chat and your pending messages there. Use this to see what a session you created is doing, recover message IDs and revisions before replacing or cancelling pending work, or gather context before sending a message. Returns a compacted summary by default (`detail: \"summary\"`); request `digest` or `full` for more detail. For session metadata (status, working directory, changes, …) use `list_sessions` with the `session` argument.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1004,17 +942,6 @@
         "required": [
           "session"
         ]
-      },
-      "strict": false,
-      "type": "function"
-    },
-    {
-      "name": "extensions_reload",
-      "description": "Reload all Copilot extensions in the current session after creating or modifying extension files. Do not use this merely to reopen an existing canvas when extension files are unchanged. Reloading stops and restarts every extension provider; open canvases become temporarily unavailable and are rehydrated when their providers reconnect. After this succeeds, call `list_canvas_capabilities` before `open_canvas` or `invoke_canvas_action`.",
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "additionalProperties": false
       },
       "strict": false,
       "type": "function"

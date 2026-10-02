@@ -45,9 +45,9 @@ import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } fr
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
 import { getPullRequestUrlKey } from './githubUrls.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
@@ -61,7 +61,7 @@ export interface GitHubEntityPollingPolicy {
 	readonly maximumDormantEntries: number;
 	readonly visible: number;
 	readonly background: number;
-	readonly failureBackoff: GitHubBackoffPolicy;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -305,11 +305,11 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	private readonly _dormant = new Map<number, EntityEntry<EntityRef, EntityValue>>();
 	private readonly _unsupportedGraphQLQueries = new Set<string>();
 	private readonly _scheduler: PullRequestScheduler;
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		scheduler: IRequestScheduler | undefined,
 		private readonly _policy: GitHubEntityPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _transport: IGitHubTransport,
@@ -318,7 +318,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._clock = scheduler ?? systemGitHubScheduler;
+		this._clock = scheduler ?? systemRequestScheduler;
 		this._scheduler = this._register(new PullRequestScheduler(this._clock));
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
@@ -1187,7 +1187,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	 */
 	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
 		entry.failureCount++;
-		const delay = gitHubBackoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		const delay = backoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
 		this._scheduleEntity(entry, this._clock.now() + delay);
 	}
 
@@ -1571,7 +1571,7 @@ function requiredActor(value: object): GitHubActor {
 	return id ? { id, login } : { login };
 }
 
-function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./githubTypes.js').GitHubRequestErrorKind; readonly statusCode?: number } {
+function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./types.js').RequestErrorKind; readonly statusCode?: number } {
 	if (error instanceof GitHubRequestError) {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}
