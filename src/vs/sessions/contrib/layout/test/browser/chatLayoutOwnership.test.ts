@@ -105,6 +105,30 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(JSON.parse(legacyRaw!), layoutState, 'the legacy key\'s content must be unchanged by the read');
 	});
 
+	test('[R-seed] a peer chat does not inherit the legacy session-keyed working set on its first visit', async () => {
+		const layoutState = [{
+			sessionResource: 'session:a',
+			editorWorkingSet: { id: 'ws-1', name: 'ws-1' },
+		}];
+		createDesktopController({ useModal: 'some', chatLayoutEnabled: true, layoutState });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		harness.applyWorkingSetCalls = [];
+
+		setActiveChat(session, peer);
+		await settle();
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			['empty'],
+			'a peer chat\'s first visit must not inherit the legacy session-keyed working set'
+		);
+	});
+
 	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
@@ -250,8 +274,6 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
-		// Force a genuine capture (the initial restore already seeds editor-only,
-		// so a no-op setVisible wouldn't fire a visibility-change event).
 		setVisible(true, true);
 		await settle();
 		setVisible(true, false);
@@ -264,31 +286,19 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const peerKey = controller.ownerKeyFor(session);
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true });
 
-		// Entering a phone layout while on the peer chat must not touch the
-		// on-screen composition at all — it stays exactly as the peer left it,
-		// not collapsed onto the shared session-wide profile.
 		harness.chatLayoutIsPhoneObs.set(true, undefined);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true }, 'suspension must not apply the shared session composition on entry');
 
-		// A same-session chat switch while suspended must not apply anything
-		// either: the owner is dormant, and switching focus during suspension
-		// must not overwrite the main chat's stored composition or the
-		// on-screen state.
 		setActiveChat(session, main);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true }, 'a focus change while suspended must not trigger a restore');
 
-		// A manual toggle while suspended is shared/dormant transient state, not
-		// a write into the now-focused main chat's remembered composition.
 		setVisible(true, true);
 		await settle();
 		assert.deepStrictEqual(controller.composition(mainKey), { editor: true, auxiliaryBar: false }, 'a toggle while suspended must not overwrite the focused owner\'s stored composition');
 		assert.deepStrictEqual(controller.composition(peerKey), { editor: false, auxiliaryBar: true }, 'a toggle while suspended must not overwrite the other owner\'s stored composition either');
 
-		// Leaving the phone layout applies the currently-focused owner's (main's)
-		// own remembered composition under the new epoch — not the peer's, and
-		// not the transient state left on screen during suspension.
 		harness.chatLayoutIsPhoneObs.set(false, undefined);
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'resuming applies the focused owner\'s own composition, not the transient suspended state');

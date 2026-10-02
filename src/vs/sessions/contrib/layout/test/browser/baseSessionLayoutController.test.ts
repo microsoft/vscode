@@ -142,27 +142,20 @@ suite('BaseLayoutController', () => {
 		const peer = addPeerChat(session, URI.parse('chat:peer'));
 		harness.activeSessionObs.set(session, undefined);
 
-		// Main: panel hidden. Peer: panel shown.
 		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
 		setActiveChat(session, peer);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: true });
 
 		harness.setPartHiddenCalls = [];
 
-		// Entering a phone layout while the peer (panel shown) is focused must
-		// not sync the panel purely from the active-flag flip.
 		harness.chatLayoutIsPhoneObs.set(true, undefined);
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
 			'suspending must not sync panel visibility'
 		);
 
-		// A manual toggle while suspended is dormant/transient — it must not be
-		// recorded against the peer's own remembered preference.
 		harness.onDidChangePartVisibility.fire({ partId: Parts.PANEL_PART, visible: false });
 
-		// Switching chats while suspended must not sync the panel either — the
-		// owner is dormant until the layout resumes.
 		setActiveChat(session, main);
 		assert.ok(
 			!harness.setPartHiddenCalls.some(c => c.part === Parts.PANEL_PART),
@@ -171,17 +164,11 @@ suite('BaseLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 
-		// Leaving the phone layout resumes the currently-focused chat's (main's)
-		// own remembered panel visibility (hidden), not the transient state left
-		// on screen during suspension (hidden too, here, but for the wrong reason
-		// — confirmed below via the peer's untouched record).
 		harness.chatLayoutIsPhoneObs.set(false, undefined);
 		const mainPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
 		assert.ok(mainPanelCall);
 		assert.strictEqual(mainPanelCall!.hidden, true, 'resuming restores the currently-focused chat\'s own panel visibility');
 
-		// The peer's own remembered visibility (shown) must be unaffected by the
-		// toggle made while suspended.
 		harness.setPartHiddenCalls = [];
 		setActiveChat(session, peer);
 		const peerPanelCall = harness.setPartHiddenCalls.find(c => c.part === Parts.PANEL_PART);
@@ -322,6 +309,45 @@ suite('BaseLayoutController', () => {
 		harness.onDidReplaceSession.fire({ from: draft, to: committed });
 
 		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }]);
+	});
+
+	test('[R5] same-session A/B/A keeps each chat\'s own editor working set and panel view distinct', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createWorkbenchPanelController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders });
+		harness.partVisibility.set(Parts.PANEL_PART, true);
+
+		const session = makeSession(URI.parse('session:a'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await timeout(0);
+
+		harness.visibleEditorsList = [{}];
+		harness.activePaneCompositeId = 'view.main';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.main'), viewContainerLocation: ViewContainerLocation.Panel });
+
+		setActiveChat(session, peer);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls.at(-1), { id: TERMINAL_VIEW_ID, location: ViewContainerLocation.Panel }, 'a peer chat starts with no remembered panel view on first visit');
+
+		harness.visibleEditorsList = [{}, {}];
+		harness.activePaneCompositeId = 'view.peer';
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const peerWorkingSetName = harness.saveWorkingSetCalls.at(-1);
+
+		harness.openPaneCompositeCalls = [];
+		harness.applyWorkingSetCalls = [];
+		setActiveChat(session, main);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.main', location: ViewContainerLocation.Panel }], 'returning to the main chat restores its own panel view, not the peer\'s');
+
+		harness.openPaneCompositeCalls = [];
+		harness.applyWorkingSetCalls = [];
+		setActiveChat(session, peer);
+		await timeout(0);
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.peer', location: ViewContainerLocation.Panel }], 'returning to the peer chat restores its own panel view, not the main chat\'s');
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: peerWorkingSetName, name: peerWorkingSetName }], 'returning to the peer chat restores its own distinct editor working set');
 	});
 
 	// --- [B2] Editor working sets ---
@@ -586,19 +612,11 @@ suite('BaseLayoutController', () => {
 		const sessionC = makeSession(URI.parse('session:c'));
 		const sessionA = makeSession(URI.parse('session:a'));
 
-		// Get past the initial-restore branch, as in the [R4] test above.
 		harness.activeSessionObs.set(sessionC, undefined);
 		await timeout(0);
 		harness.setPartHiddenCalls = [];
 		harness.applyWorkingSetCalls = [];
 
-		// A has no saved editor working set, so switching to it goes through the
-		// empty-working-set branch, whose reveal/hide decision is made only
-		// after the `await`. While A's apply is in flight, a phone transition
-		// lands — the owner is the same (A is still focused), but the chat
-		// layout's active flag flips, which still produces a new presentation
-		// snapshot and must stale-guard the in-flight apply exactly like a
-		// superseding owner switch would.
 		let raced = false;
 		harness.onApplyWorkingSet = () => {
 			if (!raced) {
@@ -633,10 +651,6 @@ suite('BaseLayoutController', () => {
 		await timeout(0);
 		assert.ok(session.activeChat.get() === main);
 
-		// Give the main chat a working set to restore (captured via an explicit
-		// save, since a same-session chat switch doesn't eagerly save the
-		// outgoing chat's working set — only `_saveState` does), then switch to
-		// the peer chat and give it a distinct one of its own.
 		harness.visibleEditorsList = [{}];
 		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 		const [mainWorkingSetName] = harness.saveWorkingSetCalls;
@@ -651,21 +665,14 @@ suite('BaseLayoutController', () => {
 
 		harness.applyWorkingSetCalls = [];
 
-		// Enter a phone layout while the peer chat is focused. No apply must
-		// fire purely from the active-flag flip.
 		harness.chatLayoutIsPhoneObs.set(true, undefined);
 		await timeout(0);
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'suspending must not itself trigger a working-set apply');
 
-		// Switching chats while suspended must likewise not apply anything —
-		// the owner is dormant until the layout resumes.
 		setActiveChat(session, main);
 		await timeout(0);
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'a chat switch while suspended must not trigger a working-set apply');
 
-		// Leaving the phone layout resumes with whichever chat is CURRENTLY
-		// focused (main, switched to while suspended), not whichever chat was
-		// focused when suspension began (the peer).
 		harness.chatLayoutIsPhoneObs.set(false, undefined);
 		await timeout(0);
 		assert.deepStrictEqual(

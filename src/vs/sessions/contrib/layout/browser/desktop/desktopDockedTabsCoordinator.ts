@@ -276,12 +276,6 @@ export class DesktopDockedTabsCoordinator extends Disposable {
 		return resource && this._sessionChangesService.getSessionResource(resource) ? resource : undefined;
 	}
 
-	/**
-	 * [R9/R13] The reconcile-intent scoping key for the active session: the chat-layout owner
-	 * key (session or peer chat) when chat-specific layout is active, so a peer-chat switch
-	 * within the same session drops stale intents/collapsed-tab state the same way a session
-	 * switch does; otherwise the plain session resource.
-	 */
 	private _ownerKeyString(): string | undefined {
 		const session = this._sessionsService.activeSession.get();
 		if (!session) {

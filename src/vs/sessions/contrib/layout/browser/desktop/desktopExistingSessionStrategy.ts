@@ -154,7 +154,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const activeChat = activeSession?.activeChat.read(reader);
 				const workspace = activeChat?.workspace.read(reader);
 				const isCreated = activeSession?.isCreated.read(reader);
-				if (!isWorkspaceConversion && activeSession && !isQuickChat && workspace && isCreated === true) {
+				const enteringSuspension = ownerKey === undefined && previousOwnerKey !== undefined;
+				if (!isWorkspaceConversion && !enteringSuspension && activeSession && !isQuickChat && workspace && isCreated === true) {
 					this._ctx.withSessionLayoutRestore(() => this._reveal(this._resolveComposition(activeSession, ownerKey)));
 				}
 				wasExistingActive = false;
@@ -175,9 +176,6 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const isCreated = activeSession.isCreated.read(reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
-			// Covers a different owner taking over or resuming from phone
-			// suspension, but not entering suspension (which must leave the
-			// on-screen composition undisturbed).
 			const ownerChanged = !sessionChanged && ownerKey !== undefined && !isEqual(previousOwnerKey, ownerKey);
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
 				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
@@ -243,10 +241,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _captureExistingProfileIfApplicable(): void {
-		if (this._ctx.isRestoringSessionLayout || this._ctx.multipleSessionsVisibleObs.get()) {
+		if (this._ctx.isRestoringSessionLayout) {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
+		if (this._ctx.multipleSessionsVisibleObs.get()) {
+			const ownerKey = activeSession && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(activeSession) : undefined;
+			if (!ownerKey) {
+				return;
+			}
+		}
 		if (!activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
 			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
