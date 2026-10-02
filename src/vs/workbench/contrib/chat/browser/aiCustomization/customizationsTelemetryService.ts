@@ -88,7 +88,9 @@ export class CustomizationsTelemetryService implements ICustomizationsTelemetryS
 	}
 
 	private async report(sessionResource: URI): Promise<void> {
-		await this.agentHostCustomizationService.whenCustomizationsReady(sessionResource);
+		if (!await this.agentHostCustomizationService.whenCustomizationsReady(sessionResource)) {
+			throw new Error(`Customizations are unavailable for session ${sessionResource.toString()}`);
+		}
 		const harness = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource));
 		if (!harness?.itemProvider) {
 			throw new Error(`No customization provider found for session type ${getChatSessionType(sessionResource)}`);

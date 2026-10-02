@@ -25,7 +25,7 @@ suite('CustomizationsTelemetryService', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reports source counts once after customization discovery completes', async () => {
-		const discovery = new DeferredPromise<void>();
+		const discovery = new DeferredPromise<boolean>();
 		let providerCalls = 0;
 		const itemProvider = new class extends mock<ICustomizationItemProvider>() {
 			override readonly onDidChange = Event.None;
@@ -50,8 +50,8 @@ suite('CustomizationsTelemetryService', () => {
 		const customizationService = new class extends mock<IAgentHostCustomizationService>() {
 			override readonly onDidChangeCustomAgents = Event.None;
 			override readonly onDidChangeCustomizations = Event.None;
-			override async whenCustomizationsReady(): Promise<void> {
-				await discovery.p;
+			override async whenCustomizationsReady(): Promise<boolean> {
+				return discovery.p;
 			}
 			override getClientWorkingDirectoryUris() {
 				return [];
@@ -91,7 +91,7 @@ suite('CustomizationsTelemetryService', () => {
 		service.reportNewSession(sessionResource);
 		assert.deepStrictEqual({ providerCalls, events }, { providerCalls: 0, events: [] });
 
-		await discovery.complete();
+		await discovery.complete(true);
 		await timeout(0);
 		assert.deepStrictEqual({
 			providerCalls,
@@ -110,29 +110,29 @@ suite('CustomizationsTelemetryService', () => {
 				event('plugin', { pluginCount: 1 }),
 			],
 		});
+	});
 
-		test('reports the first accepted request for a new session', () => {
-			const requests = new Emitter<IChatRequestAcceptedEvent>();
-			const reported: string[] = [];
-			const contribution = new CustomizationsTelemetryContribution(new class extends mock<IChatService>() {
-				override readonly onDidAcceptRequest = requests.event;
-			}(), new class extends mock<ICustomizationsTelemetryService>() {
-				override reportNewSession(resource: URI): void {
-					reported.push(resource.toString());
-				}
-			}());
+	test('reports the first accepted request for a new session', () => {
+		const requests = new Emitter<IChatRequestAcceptedEvent>();
+		const reported: string[] = [];
+		const contribution = new CustomizationsTelemetryContribution(new class extends mock<IChatService>() {
+			override readonly onDidAcceptRequest = requests.event;
+		}(), new class extends mock<ICustomizationsTelemetryService>() {
+			override reportNewSession(resource: URI): void {
+				reported.push(resource.toString());
+			}
+		}());
 
-			requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: true });
-			requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: false });
-			requests.fire({ chatSessionResource: URI.parse('agent-host-claude:/two'), isNewSession: true });
-			contribution.dispose();
-			requests.dispose();
+		requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: true });
+		requests.fire({ chatSessionResource: URI.parse('agent-host-copilotcli:/one'), isNewSession: false });
+		requests.fire({ chatSessionResource: URI.parse('agent-host-claude:/two'), isNewSession: true });
+		contribution.dispose();
+		requests.dispose();
 
-			assert.deepStrictEqual(reported, [
-				'agent-host-copilotcli:/one',
-				'agent-host-claude:/two',
-			]);
-		});
+		assert.deepStrictEqual(reported, [
+			'agent-host-copilotcli:/one',
+			'agent-host-claude:/two',
+		]);
 	});
 });
 
