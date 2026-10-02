@@ -225,6 +225,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 				toolId: input.harness === 'Copilot' ? 'image_generation' : 'image_gen.imagegen',
 				displayName: 'Generate Image',
 				invocationMessage: 'Generating image',
+				pastTenseMessage: 'Generated image',
 				complete: false,
 				toolSpecificData: {
 					kind: 'input',
