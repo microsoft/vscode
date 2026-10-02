@@ -977,6 +977,9 @@ class StandaloneWorkspaceTrustManagementService implements IWorkspaceTrustManage
 	async setUrisTrust(uri: URI[], trusted: boolean): Promise<void> {
 		// noop
 	}
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
+		return Disposable.None;
+	}
 	getTrustedUris(): URI[] {
 		return [];
 	}

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { IListAccessibilityProvider } from '../../../../../../../base/browser/ui/list/listWidget.js';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
@@ -28,6 +28,8 @@ import { TestConfigurationService } from '../../../../../../../platform/configur
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { INotificationService } from '../../../../../../../platform/notification/common/notification.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
@@ -35,10 +37,11 @@ import { NullTelemetryService } from '../../../../../../../platform/telemetry/co
 import { IView } from '../../../../../../../workbench/common/views.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
+import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../../../../contrib/changes/common/changes.js';
 import { ISessionsProvidersService } from '../../../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -49,12 +52,12 @@ import { ISessionsProvider } from '../../../../../../services/sessions/common/se
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../browser/agentHostSessionConfigPicker.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../../../contrib/chat/common/constants.js';
+import '../../../../../chat/browser/media/chatWidget.css';
 
 const SESSION_ID = 'local-agent-host:s1';
 const SESSION_RESOURCE = URI.parse('agent-session:/s1');
 
-function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string): ISessionWorkspace {
-	const root = URI.file('/repo');
+function makeWorkspace(uncommittedChanges: number | undefined, branchName = 'main', upstreamBranchName?: string, root = URI.file('/repo')): ISessionWorkspace {
 	return {
 		uri: root,
 		label: 'repo',
@@ -209,12 +212,12 @@ class AlwaysRenderConfigPicker extends AgentHostSessionConfigPicker {
 }
 
 function isolationSlot(container: HTMLElement): HTMLElement | null {
-	return container.querySelector<HTMLElement>('.sessions-chat-isolation-checkbox');
+	return container.querySelector<HTMLElement>('.sessions-chat-isolation-picker, .sessions-chat-isolation-checkbox');
 }
 
 function branchSlot(container: HTMLElement): HTMLElement | undefined {
 	return Array.from(container.querySelectorAll<HTMLElement>('.sessions-chat-picker-slot'))
-		.find(slot => !slot.classList.contains('sessions-chat-config-checkbox'));
+		.find(slot => !slot.classList.contains('sessions-chat-config-checkbox') && !slot.classList.contains('sessions-chat-isolation-picker'));
 }
 
 function branchLabel(container: HTMLElement): string | undefined {
@@ -252,8 +255,17 @@ function setupServices(
 	const branchSelectionEvents: string[] = [];
 	const provider = new FakeProvider(emitter, value => branchSelectionEvents.push(`set:${String(value)}`));
 	const actionWidget = new CapturingActionWidgetHolder();
+	const notificationErrors: string[] = [];
 
 	const instantiationService = store.add(new TestInstantiationService());
+	instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+		override async input() { return undefined; }
+	}());
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override error(error: string | Error): void {
+			notificationErrors.push(String(error));
+		}
+	}());
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,
 		hide: () => actionWidget.events.push('hide'),
@@ -294,9 +306,9 @@ function setupServices(
 		override readonly onDidChangeContext = Event.None;
 	})());
 	instantiationService.stub(IAgentWorkbenchLayoutService, new (class extends mock<IAgentWorkbenchLayoutService>() {
-		// No `phone-layout` class → `isPhoneLayout` is false → isolation renders as a checkbox.
+		// Desktop drafts use the isolation dropdown rather than the phone repository sheet.
 		override readonly mainContainer = document.createElement('div');
-		override readonly isSinglePaneLayoutEnabled = true;
+		override readonly agentWorkbenchLayout = AgentWorkbenchLayout.Desktop;
 		override revealEditorPartExplicitly(): void {
 			actionWidget.events.push('revealEditorPartExplicitly');
 		}
@@ -355,7 +367,7 @@ function setupServices(
 		override readonly activeChat = constObservable(activeChat);
 	}();
 	const sessionObs = observableValue<IActiveSession | undefined>('activeSession', activeSession);
-	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService };
+	return { instantiationService, provider, activeSession, sessionObs, workspaceObs, changesetsObs, uncommittedChangeset, actionWidget, checkoutInvocations, branchSelectionEvents, checkoutDialogs, configurationService, notificationErrors };
 }
 
 /** Create and render a fresh picker instance, as the toolbar does on a rebuild. */
@@ -378,6 +390,134 @@ function otherActiveSession(activeSession: IActiveSession): IActiveSession {
 suite('Agent Host Session Config Picker', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Copilot repository controls preserve target, baseBranch and new branch keys', async () => {
+		const services = setupServices(store);
+		services.provider.completions = [{ value: 'main', label: 'main' }, { value: 'dev', label: 'dev' }];
+		services.provider.config = {
+			schema: {
+				type: 'object', properties: {
+					target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'], enumLabels: ['Workspace', 'Worktree'], default: 'workspace', sessionMutable: false },
+					baseBranch: { type: 'string', title: 'Base branch', enum: [], enumDynamic: true, sessionMutable: false },
+					branch: { type: 'string', title: 'New branch', sessionMutable: false },
+					approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+					effectiveApprovalMode: { type: 'string', title: 'Effective approvals', enum: ['manual', 'assisted', 'allow-all', 'unknown'], readOnly: true },
+				}
+			},
+			values: { target: 'worktree', baseBranch: 'main', approvalMode: 'assisted', effectiveApprovalMode: 'manual' },
+		};
+		services.instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input() { return 'new-session-branch'; }
+		}());
+		const { container } = renderPicker(store, services);
+		const properties = Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty);
+		const target = container.querySelector<HTMLElement>('[data-session-config-property="target"] .action-label')!;
+		target.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'workspace')!.item!);
+		await timeout(0);
+		container.querySelector<HTMLElement>('[data-session-config-property="baseBranch"] .action-label')!.click();
+		await timeout(0);
+		await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'main')!.item!);
+		await timeout(0);
+		container.querySelector<HTMLElement>('[data-session-config-property="branch"] .action-label')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ properties, writes: services.provider.setSessionConfigValueArguments, checkouts: services.checkoutInvocations }, {
+			properties: ['target', 'baseBranch', 'branch'],
+			writes: [
+				{ sessionId: SESSION_ID, property: 'target', value: 'workspace' },
+				{ sessionId: SESSION_ID, property: 'baseBranch', value: 'main' },
+				{ sessionId: SESSION_ID, property: 'branch', value: 'new-session-branch' },
+			],
+			checkouts: [],
+		});
+	});
+
+	test('malformed VS approval schema uses generic UI rather than a second Copilot control', () => {
+		const services = setupServices(store);
+		services.provider.config = {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Custom approvals', enum: ['custom'] },
+					approvalMode: { type: 'string', title: 'Copilot approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: true },
+				}
+			},
+			values: { autoApprove: 'custom', approvalMode: 'allow-all' },
+		};
+		const { container } = renderPicker(store, services);
+		assert.deepStrictEqual(Array.from(container.querySelectorAll<HTMLElement>('[data-session-config-property]')).map(element => element.dataset.sessionConfigProperty), ['autoApprove']);
+	});
+
+	test('isolation dropdown preserves worktree and branch configuration values', async () => {
+		const services = setupServices(store);
+		const { container } = renderPicker(store, services);
+		const snapshots = [];
+		for (const value of ['folder', 'worktree']) {
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await new Promise(resolve => setTimeout(resolve));
+			snapshots.push(services.actionWidget.items.map(item => ({
+				label: item.label,
+				value: item.item?.value,
+				checked: item.item?.checked,
+				detail: item.detail,
+			})));
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === value)!.item!);
+			await new Promise(resolve => setTimeout(resolve));
+		}
+		assert.deepStrictEqual({
+			snapshots,
+			selections: services.provider.setSessionConfigValueArguments,
+			finalLabel: isolationSlot(container)?.textContent,
+			checkbox: container.querySelector('.monaco-checkbox'),
+		}, {
+			snapshots: [true, false].map(worktreeSelected => [
+				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
+				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on your machine' },
+			]),
+			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
+			finalLabel: 'New Worktree',
+			checkbox: null,
+		});
+	});
+
+	for (const enumDynamic of [false, true]) {
+		test(`isolation dropdown preserves provider-defined ${enumDynamic ? 'dynamic' : 'static'} options`, async () => {
+			const services = setupServices(store);
+			services.provider.completions = [
+				{ value: 'folder', label: 'Folder' },
+				{ value: 'worktree', label: 'Worktree' },
+				{ value: 'sandbox', label: 'Sandbox' },
+			];
+			services.provider.config = {
+				schema: {
+					type: 'object',
+					properties: {
+						[SessionConfigKey.Isolation]: {
+							type: 'string', title: 'Isolation', enumDynamic,
+							enum: enumDynamic ? ['folder', 'worktree'] : ['folder', 'worktree', 'sandbox'],
+							enumLabels: enumDynamic ? ['Folder', 'Worktree'] : ['Folder', 'Worktree', 'Sandbox'],
+						},
+					},
+				},
+				values: { [SessionConfigKey.Isolation]: 'folder' },
+			};
+			const { container } = renderPicker(store, services);
+			isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+			await timeout(0);
+			const items = services.actionWidget.items.map(item => ({ value: item.item?.value, label: item.label }));
+			await services.actionWidget.delegate!.onSelect(services.actionWidget.items.find(item => item.item?.value === 'sandbox')!.item!);
+			await timeout(0);
+			assert.deepStrictEqual({
+				items,
+				selections: services.provider.setSessionConfigValueArguments,
+				label: isolationSlot(container)?.textContent,
+			}, {
+				items: services.provider.completions,
+				selections: [{ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value: 'sandbox' }],
+				label: 'Sandbox',
+			});
+		});
+	}
 
 	test('marks the non-interactive toolbar host for focus-outline suppression', () => {
 		const services = setupServices(store);
@@ -545,7 +685,11 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.newSessionApprovePicker', order: 1 },
 				{ id: 'sessions.agentHost.newSessionPermissionModePicker', order: 2 },
 			],
-			runningSessionPrimary: [],
+			runningSessionPrimary: [
+				{ id: 'sessions.agentHost.runningSessionModePicker', order: 0.1 },
+				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 0.2 },
+				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 0.3 },
+			],
 			runningSessionSecondary: [
 				{ id: 'sessions.agentHost.runningSessionModePicker', order: 9 },
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
@@ -1257,6 +1401,7 @@ suite('Agent Host Session Config Picker', () => {
 			configUpdates: services.provider.setSessionConfigValueArguments,
 			checkoutInvocations: services.checkoutInvocations,
 			branchSelectionEvents: services.branchSelectionEvents,
+			errors: services.notificationErrors,
 		}, {
 			branch: 'main',
 			configUpdates: [],
@@ -1265,6 +1410,7 @@ suite('Agent Host Session Config Picker', () => {
 				_meta: { treeish: 'featureA' },
 			}],
 			branchSelectionEvents: ['checkout'],
+			errors: ['Error: Checkout failed'],
 		});
 	});
 
@@ -1591,7 +1737,7 @@ suite('Agent Host Session Config Picker', () => {
 		// Draft resolved → chips present and enabled.
 		provider.set(makeRepoConfig('main'), false);
 		const first = renderPicker(store, services);
-		assert.ok(isolationSlot(first.container), 'isolation checkbox renders for a resolved schema');
+		assert.ok(isolationSlot(first.container), 'isolation picker renders for a resolved schema');
 		assert.ok(branchSlot(first.container), 'branch chip renders for a resolved schema');
 		assert.strictEqual(isolationSlot(first.container)!.classList.contains('disabled'), false);
 
@@ -1609,7 +1755,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(isolationSlot(second.container)!.classList.contains('disabled'), false, 'isolation keeps its normal presentation while resolving');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('resolving'), true, 'branch blocks interaction without dimming while resolving');
 		assert.strictEqual(branchSlot(second.container)!.classList.contains('disabled'), false, 'branch keeps its normal presentation while resolving');
-		assert.strictEqual(isolationSlot(second.container)!.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'), 'true');
+		assert.strictEqual(isolationSlot(second.container)!.querySelector('.action-label')?.getAttribute('aria-disabled'), 'true');
 		assert.strictEqual(branchSlot(second.container)!.querySelector('a.action-label')?.getAttribute('aria-disabled'), 'true');
 
 		// Resolve lands → chips re-enable and reflect the resolved value.
@@ -1619,28 +1765,60 @@ suite('Agent Host Session Config Picker', () => {
 		assert.strictEqual(branchLabel(second.container), 'dev', 'branch label reflects the resolved value');
 	});
 
-	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', () => {
+	test('does not render a Dev Container checkbox and disables New Worktree while Dev Container is selected', async () => {
 		const services = setupServices(store);
 		services.provider.config = makeRepoConfig('main', 'folder');
 		services.provider.devContainerEnabled = true;
 		const { container } = renderPicker(store, services);
 		const worktree = isolationSlot(container)!;
 		worktree.querySelector<HTMLElement>('.action-label')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+		await new Promise(resolve => setTimeout(resolve));
+		const worktreeItem = services.actionWidget.items.find(item => item.item?.value === 'worktree')!;
+		await services.actionWidget.delegate?.onSelect(worktreeItem.item!);
 
 		assert.deepStrictEqual({
 			devContainerCheckbox: container.querySelector('.sessions-chat-dev-container-checkbox'),
-			worktreeDisabled: worktree.classList.contains('disabled'),
-			worktreeAriaDisabled: worktree.querySelector('.monaco-checkbox')?.getAttribute('aria-disabled'),
+			worktreeDisabled: worktreeItem.disabled,
+			reason: worktreeItem.detail,
+			ariaLabel: services.actionWidget.accessibilityProvider?.getAriaLabel?.(worktreeItem),
+			branchEnabled: !services.actionWidget.items.find(item => item.item?.value === 'folder')?.disabled,
 			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
 		}, {
 			devContainerCheckbox: null,
 			worktreeDisabled: true,
-			worktreeAriaDisabled: 'true',
+			reason: 'New Worktree cannot be combined with Dev Container execution.',
+			ariaLabel: 'New Worktree, New Worktree cannot be combined with Dev Container execution.',
+			branchEnabled: true,
 			setSessionConfigValueCalls: 0,
 		});
 	});
 
-	test('keeps the isolation checkbox node and focus stable while config resolves', () => {
+	test('disables New Worktree for samples without changing the host schema even when container worktrees are enabled', async () => {
+		const services = setupServices(store);
+		await services.configurationService.setUserConfiguration(DevContainerWorktreeEnabledSettingId, true);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.provider.devContainerEnabled = true;
+		services.workspaceObs.set(makeWorkspace(undefined, 'main', undefined, devContainerSampleUri(devContainerSamples[0])), undefined);
+		const { container } = renderPicker(store, services);
+		isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!.click();
+		await new Promise(resolve => setTimeout(resolve));
+		const worktreeItem = services.actionWidget.items.find(item => item.item?.value === 'worktree')!;
+		await services.actionWidget.delegate?.onSelect(worktreeItem.item!);
+
+		assert.deepStrictEqual({
+			schemaReadOnly: services.provider.config.schema.properties[SessionConfigKey.Isolation].readOnly,
+			worktreeDisabled: worktreeItem.disabled,
+			folderEnabled: !services.actionWidget.items.find(item => item.item?.value === 'folder')?.disabled,
+			setSessionConfigValueCalls: services.provider.setSessionConfigValueCalls,
+		}, {
+			schemaReadOnly: undefined,
+			worktreeDisabled: true,
+			folderEnabled: true,
+			setSessionConfigValueCalls: 0,
+		});
+	});
+
+	test('keeps isolation picker focus and blocks changes while config resolves', () => {
 		const services = setupServices(store);
 		const { provider } = services;
 		provider.set(makeRepoConfig('main'), false);
@@ -1648,16 +1826,15 @@ suite('Agent Host Session Config Picker', () => {
 		document.body.appendChild(container);
 		store.add({ dispose: () => container.remove() });
 
-		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const checkbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		checkbox.focus();
 		provider.set(makeRepoConfig('main', 'folder'), true);
-		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvingCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		const resolvingActionLabel = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		resolvingActionLabel.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
 		const resolvingState = {
-			sameNode: resolvingCheckbox === checkbox,
-			focused: document.activeElement === checkbox,
-			checked: resolvingCheckbox.getAttribute('aria-checked'),
+			focused: document.activeElement === resolvingCheckbox,
+			label: resolvingCheckbox.textContent,
 			disabled: resolvingCheckbox.getAttribute('aria-disabled'),
 			disabledPalette: resolvingCheckbox.classList.contains('disabled'),
 			resolving: isolationSlot(container)!.classList.contains('resolving'),
@@ -1667,34 +1844,31 @@ suite('Agent Host Session Config Picker', () => {
 		};
 
 		provider.set(makeRepoConfig('main', 'folder'), false);
-		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.monaco-checkbox')!;
+		const resolvedCheckbox = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
 		assert.deepStrictEqual({
 			resolving: resolvingState,
 			resolved: {
-				sameNode: resolvedCheckbox === checkbox,
-				focused: document.activeElement === checkbox,
-				checked: resolvedCheckbox.getAttribute('aria-checked'),
+				focused: document.activeElement === resolvedCheckbox,
+				label: resolvedCheckbox.textContent,
 				disabled: resolvedCheckbox.getAttribute('aria-disabled'),
 				resolving: isolationSlot(container)!.classList.contains('resolving'),
-				count: container.querySelectorAll('.sessions-chat-isolation-checkbox').length,
+				count: container.querySelectorAll('.sessions-chat-isolation-picker').length,
 			},
 		}, {
 			resolving: {
-				sameNode: true,
 				focused: true,
-				checked: 'false',
+				label: 'Branch',
 				disabled: 'true',
 				disabledPalette: false,
 				resolving: true,
 				dimmed: false,
-				pointerEvents: 'auto',
+				pointerEvents: 'none',
 				setSessionConfigValueCalls: 0,
 			},
 			resolved: {
-				sameNode: true,
 				focused: true,
-				checked: 'false',
-				disabled: 'false',
+				label: 'Branch',
+				disabled: null,
 				resolving: false,
 				count: 1,
 			},

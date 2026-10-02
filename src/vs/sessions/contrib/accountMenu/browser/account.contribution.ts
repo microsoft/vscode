@@ -33,6 +33,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { registerUpdateTitleBarMenuPlacement } from '../../../../workbench/contrib/update/browser/updateTitleBarEntry.js';
 import { ChatEntitlement, ChatEntitlementService, getChatPlanName, getQuotaReset, getQuotaUsage, IChatEntitlementService, IQuotaSnapshot, QuotaUsageKind } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard, IChatStatusDashboardOptions } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
+import { getCodexRateLimitLabel, getCodexRateLimits } from '../../../../workbench/contrib/chat/browser/chatStatus/codexStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarState, resolveAccountInfo } from '../../../browser/accountTitleBarState.js';
@@ -45,7 +46,7 @@ import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../wor
 import { URI } from '../../../../base/common/uri.js';
 import { IChatDashboardService } from '../../../browser/chatDashboardService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount, type ICodexAccountViewInfo } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
+import { createCodexAccountMenuActions, getCodexAccountPlanName, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount, type ICodexAccountViewInfo } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -71,10 +72,27 @@ const PERSONALIZE_ACTION_IDS: readonly string[] = [
 ];
 const SIGN_OUT_ACTION_ID = 'workbench.action.agenticSignOut';
 const accountDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
+const accountFullDateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric', year: 'numeric' });
 const accountTimeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 
 export function shouldShowAccountPanelSummary(state: Pick<IAccountTitleBarState, 'source' | 'kind'>, hasCopilotDashboard: boolean, isAccountLoading: boolean): boolean {
 	return !hasCopilotDashboard && !isAccountLoading && !(state.source === 'copilot' && state.kind === 'prominent');
+}
+
+export function getChatGPTRateLimitResetHover(rateLimit: ICodexAccountRateLimitInfo): string | undefined {
+	if (!rateLimit.resetsAt) {
+		return undefined;
+	}
+	const resetDate = new Date(rateLimit.resetsAt * 1000);
+	if (rateLimit.windowDurationMins !== undefined && rateLimit.windowDurationMins < 24 * 60) {
+		return localize('chatGPTShortLimitResetExact', "Resets at {0}", accountTimeFormatter.value.format(resetDate));
+	}
+	return localize(
+		'chatGPTLongLimitResetExact',
+		"Resets on {0} at {1}",
+		accountFullDateFormatter.value.format(resetDate),
+		accountTimeFormatter.value.format(resetDate),
+	);
 }
 
 // Register the shared VS Code update entry in the Agents left titlebar actions.
@@ -696,7 +714,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.codexAccountService.signOut(),
 			)), { icon: true, label: false });
-			this.appendChatGPTUsage(accountSection);
+			this.appendChatGPTUsage(accountSection, panelStore);
 		} else {
 			const codexAccountActions = createCodexAccountMenuActions(this.codexAccountService, codexAccountVisible);
 			if (codexAccountActions.length) {
@@ -838,27 +856,30 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-label', undefined, localize('copilotCreditsUsedLabel', "Credits used")));
 	}
 
-	private appendChatGPTUsage(accountSection: HTMLElement): void {
+	private appendChatGPTUsage(accountSection: HTMLElement, panelStore: DisposableStore): void {
 		const account = this.codexAccountService.account;
 		const usage = append(accountSection, $('.sessions-account-titlebar-panel-provider-usage'));
 		const planRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.primary'));
-		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, account.planType
-			? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
-			: localize('chatGPTSubscription', "ChatGPT subscription")));
+		append(planRow, $('span.sessions-account-titlebar-panel-provider-plan', undefined, getCodexAccountPlanName(account)));
 		const percentageFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
-		for (const rateLimit of getChatGPTRateLimits(account)) {
-			const limitLabel = this.getChatGPTLimitLabel(rateLimit.windowDurationMins);
+		for (const rateLimit of getCodexRateLimits(account)) {
+			const limitLabel = getCodexRateLimitLabel(rateLimit.windowDurationMins);
 			const usedPercentage = percentageFormatter.value.format(rateLimit.usedPercent);
 			const detailRow = append(usage, $('.sessions-account-titlebar-panel-provider-metric-row.secondary'));
-			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, rateLimit.resetsAt ? localize(
-				'chatGPTLimitReset',
-				"{0} resets {1}",
-				limitLabel,
-				fromNow(rateLimit.resetsAt * 1000, false, true),
-			) : limitLabel));
+			const description = rateLimit.resetsAt
+				? localize('chatGPTLimitReset', "{0} resets {1}", limitLabel, fromNow(rateLimit.resetsAt * 1000, false, true))
+				: limitLabel;
+			append(detailRow, $('span.sessions-account-titlebar-panel-provider-reset', undefined, description));
 			append(detailRow, $('span.sessions-account-titlebar-panel-provider-usage-value', {
 				'aria-label': localize('chatGPTWindowLimitUsedPercentage', "{0}: {1}% used", limitLabel, usedPercentage),
 			}, localize('chatGPTLimitUsedPercentage', "{0}% used", usedPercentage)));
+
+			const resetHover = getChatGPTRateLimitResetHover(rateLimit);
+			if (resetHover) {
+				detailRow.tabIndex = 0;
+				detailRow.setAttribute('aria-label', localize('chatGPTLimitResetAria', "{0}, {1}% used. {2}", description, usedPercentage, resetHover));
+				panelStore.add(this.hoverService.setupDelayedHover(detailRow, { content: resetHover }, { setupKeyboardEvents: true }));
+			}
 		}
 	}
 
@@ -871,21 +892,6 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		return reset.hasTime
 			? localize('copilotCreditsResetAt', "Resets {0} at {1}", accountDateFormatter.value.format(reset.date), accountTimeFormatter.value.format(reset.date))
 			: localize('copilotCreditsReset', "Resets {0}", accountDateFormatter.value.format(reset.date));
-	}
-
-	private getChatGPTLimitLabel(windowDurationMins: number | undefined): string {
-		if (windowDurationMins !== undefined) {
-			if (Math.abs(windowDurationMins - 7 * 24 * 60) <= 60) {
-				return localize('chatGPTWeeklyLimitUsed', "Weekly limit");
-			}
-			if (Math.abs(windowDurationMins - 24 * 60) <= 60) {
-				return localize('chatGPTDailyLimitUsed', "Daily limit");
-			}
-			if (windowDurationMins === 5 * 60) {
-				return localize('chatGPTFiveHourLimitUsed', "5-hour limit");
-			}
-		}
-		return localize('chatGPTUsageLimitUsed', "Usage limit");
 	}
 
 	private partitionMenuActions(rawActions: IAction[]): { signIn: IAction | undefined; signOut: IAction | undefined; personalize: IAction[]; other: IAction[] } {
@@ -995,18 +1001,16 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 	}
 }
 
-function getChatGPTRateLimits(account: ICodexAccountViewInfo): readonly ICodexAccountRateLimitInfo[] {
-	return account.rateLimits?.length ? account.rateLimits : account.rateLimit ? [account.rateLimit] : [];
-}
-
 function hasCodexAccountPanelContentChanged(previous: ICodexAccountViewInfo, current: ICodexAccountViewInfo): boolean {
+	const previousRateLimits = getCodexRateLimits(previous);
+	const currentRateLimits = getCodexRateLimits(current);
 	return previous.status !== current.status
 		|| previous.email !== current.email
 		|| previous.planType !== current.planType
 		|| previous.requiresOpenaiAuth !== current.requiresOpenaiAuth
 		|| previous.authUrl !== current.authUrl
 		|| previous.authUrlNonce !== current.authUrlNonce
-		|| !equals(getChatGPTRateLimits(previous), getChatGPTRateLimits(current), (a, b) => a.usedPercent === b.usedPercent && a.windowDurationMins === b.windowDurationMins && a.resetsAt === b.resetsAt);
+		|| !equals(previousRateLimits, currentRateLimits, (a, b) => a.usedPercent === b.usedPercent && a.windowDurationMins === b.windowDurationMins && a.resetsAt === b.resetsAt);
 }
 
 // --- Register custom view item --- //
@@ -1031,7 +1035,7 @@ registerAction2(class extends Action2 {
 	run(): void { }
 });
 
-class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
+export class AccountWidgetContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.sessionsWidget';
 

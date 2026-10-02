@@ -12,7 +12,7 @@ import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
 
 interface IRecordedProgress {
-	title: string | undefined;
+	title: IProgressNotificationOptions['title'];
 	readonly steps: IProgressStep[];
 	dismissed: boolean;
 	/** Resolves once the backing notification promise settles (i.e. is dismissed). */

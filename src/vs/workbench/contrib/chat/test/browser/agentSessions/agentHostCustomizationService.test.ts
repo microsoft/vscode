@@ -16,6 +16,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withMcpServerSourceMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { createSessionState, RootState, SessionState, SessionStatus, StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -28,9 +29,11 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { AbstractAgentHostCustomizationService, IAgentHostCustomizationTarget, WorkbenchAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 import { IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { assertCodexSkillItems, createCodexSkillCustomizations } from './agentHostSkillDiscoveryTestUtils.js';
 
@@ -496,6 +499,102 @@ suite('AbstractAgentHostCustomizationService', () => {
 suite('WorkbenchAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('notifies when customization enablement changes', () => {
+		const sessionResource = URI.parse('untitled:chat');
+		const backendSession = URI.parse('copilot:/session');
+		const server = mcpServer('file:///workspace/.mcp.json#mcp=component-explorer', 'component-explorer');
+		const subscription = new TestSessionSubscription();
+		subscription.setSnapshot({
+			...createSessionState({
+				resource: backendSession.toString(),
+				provider: 'copilot',
+				title: 'Session',
+				status: SessionStatus.Idle,
+				createdAt: new Date(0).toISOString(),
+				modifiedAt: new Date(0).toISOString(),
+			}),
+			customizations: [server],
+		});
+		const actions = store.add(new Emitter<ActionEnvelope>());
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly resourceUris = identityAgentHostResourceUriMapper;
+			override readonly onDidAction = actions.event;
+			override readonly rootState = {
+				value: undefined,
+				verifiedValue: undefined,
+				onDidChange: Event.None,
+				onWillApplyAction: Event.None,
+				onDidApplyAction: Event.None,
+			} satisfies IAgentSubscription<RootState>;
+
+			override getSubscription<T>(_kind: StateComponents): IReference<IAgentSubscription<T>> {
+				return {
+					object: subscription as unknown as IAgentSubscription<T>,
+					dispose: () => { },
+				};
+			}
+		}();
+		const enablementChanges: Array<[string, ContributionEnablementState]> = [];
+		const mcpService = {
+			servers: {
+				get: () => [{
+					definition: {
+						id: 'component-explorer',
+						label: 'component-explorer',
+					},
+				}],
+			},
+			enablementModel: {
+				setEnabled: (id: string, state: ContributionEnablementState) => enablementChanges.push([id, state]),
+			},
+		} as unknown as IMcpService;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
+		instantiationService.stub(IOutputService, {
+			getChannel: () => undefined,
+			getChannelDescriptor: () => undefined,
+			showChannel: async () => { },
+		});
+		const service = store.add(new WorkbenchAgentHostCustomizationService(
+			new class extends mock<IAgentHostConnectionsService>() {
+				override readonly ambientConnection = connection;
+			}(),
+			new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
+				override readonly onDidChange = Event.None;
+				override get(): URI {
+					return backendSession;
+				}
+			}(),
+			instantiationService,
+			new NullLogService(),
+			new class extends mock<IChatService>() {
+				override readonly onDidDisposeSession = Event.None;
+			}(),
+			new class extends mock<IAgentHostActiveClientService>() { }(),
+			mcpService,
+		));
+		let changes = 0;
+		store.add(service.onDidChangeCustomizations(() => changes++));
+		const visibleCustomizations = service.getCustomizations(sessionResource).map(customization => customization.id);
+
+		actions.fire({
+			channel: backendSession.toString(),
+			action: {
+				type: ActionType.SessionCustomizationToggled,
+				id: server.id,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			},
+			serverSeq: 1,
+			origin: undefined,
+		});
+
+		assert.deepStrictEqual({ visibleCustomizations, changes, enablementChanges }, {
+			visibleCustomizations: [server.id],
+			changes: 1,
+			enablementChanges: [['component-explorer', ContributionEnablementState.DisabledProfile]],
+		});
+	});
+
 	test('uses provisional roots only until authoritative session state is available', () => {
 		const sessionResource = URI.parse('untitled:chat');
 		const backendSession = URI.parse('copilot:/session');
@@ -547,6 +646,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				override readonly onDidDisposeSession = Event.None;
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
 		));
 		const createState = (workingDirectories: readonly URI[]): SessionState => createSessionState({
 			resource: backendSession.toString(),
@@ -674,6 +774,7 @@ suite('WorkbenchAgentHostCustomizationService', () => {
 				override readonly onDidDisposeSession = Event.None;
 			}(),
 			new class extends mock<IAgentHostActiveClientService>() { }(),
+			new class extends mock<IMcpService>() { }(),
 		));
 		const directory: Customization = {
 			type: CustomizationType.Directory,

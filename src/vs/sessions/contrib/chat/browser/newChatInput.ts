@@ -104,6 +104,7 @@ import { INewChatModelPickerService, NewChatModelPickerService } from './newChat
 import { ISessionModelSelection, SessionModelSelection } from './sessionModelSelection.js';
 import { hasSendableModelSelection } from './sessionModelPickerState.js';
 import { createNewSessionConfigToolbar, createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
+import { trackChatInputPickerFocus } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { ISessionContext, SessionContext } from '../../../services/sessions/browser/sessionContext.js';
 import { ISessionInputPickerVisibility, SessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from './sessionsChatHistory.js';
@@ -119,7 +120,7 @@ import { setupDictationMicGlow } from '../../../../workbench/contrib/chat/browse
 import { IDictationOnboardingService } from '../../../../workbench/contrib/chat/browser/speechToText/dictationOnboarding.js';
 import { ChatVoiceInputModeAction, VoiceInputModeActionViewItem } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
 import { IVoiceInputModeService } from '../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputMode.js';
-import { Separator, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { runDictationShortcut } from '../../../../workbench/contrib/chat/browser/actions/chatSpeechToTextActions.js';
 import { isDictationActiveForEditor, notifyDictationSubmitted, onDidChangeDictationEditor } from '../../../../workbench/contrib/chat/browser/speechToText/dictationSession.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
@@ -148,7 +149,7 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 
-function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPickerResponsiveLayoutItem[] {
+export function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPickerResponsiveLayoutItem[] {
 	const elements = new Map<HTMLElement, HTMLElement | undefined>();
 	const actionItemLabelCounts = new Map<HTMLElement, number>();
 	const visit = (element: HTMLElement, pickerSlot: HTMLElement | undefined, actionItem: HTMLElement | undefined): void => {
@@ -378,13 +379,15 @@ export interface INewChatInputSendRequest {
  * to add a bit of personality. One is picked per widget instance, avoiding
  * an immediate repeat of the previous pick.
  */
+export const NEW_SESSION_PROMPT_PLACEHOLDER = localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea");
+
 const RANDOM_PLACEHOLDERS = [
 	localize('sessionsChatInput.placeholder.whatAreYouBuilding', "What are you building?"),
 	localize('sessionsChatInput.placeholder.whatWillYouShipToday', "What will you ship today?"),
 	localize('sessionsChatInput.placeholder.describeWhatYouWantToBuild', "Describe what you want to build"),
 	localize('sessionsChatInput.placeholder.whatsYourNextMilestone', "What's your next milestone?"),
 	localize('sessionsChatInput.placeholder.whatAreYouTryingToAchieve', "What are you trying to achieve?"),
-	localize('sessionsChatInput.placeholder.pitchYourIdea', "Pitch your idea"),
+	NEW_SESSION_PROMPT_PLACEHOLDER,
 	localize('sessionsChatInput.placeholder.whatsTheGoal', "What's the goal?"),
 	localize('sessionsChatInput.placeholder.whatWillYouCreate', "What will you create?"),
 	localize('sessionsChatInput.placeholder.whatFeatureAreYouDreamingUp', "What feature are you dreaming up?"),
@@ -574,6 +577,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	// Attached context
 	private readonly _contextAttachments: NewChatContextAttachments;
+	private _attachButton: HTMLElement | undefined;
 
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
@@ -584,8 +588,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	private readonly _canSendRequest: IObservable<boolean>;
 	private readonly _compactModelPicker = observableValue(this, false);
 	private _primaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
+	private readonly _pickerFocusListeners = this._register(new MutableDisposable());
 	private _secondaryPickerResponsiveLayout: ChatInputPickerResponsiveLayout | undefined;
 	private _updateAttachmentOffset: (() => void) | undefined;
+	private _inputToolbar: HTMLElement | undefined;
+	private _sessionControlsContainer: HTMLElement | undefined;
+	private _sessionControlsToolbar: MenuWorkbenchToolBar | undefined;
+	private _configContainer: HTMLElement | undefined;
 
 	// Input state
 	private _draftState: IChatDraft | undefined = {
@@ -608,12 +617,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			onDidChangeWorkspaceSelection?: Event<void>;
 			canApplyWorkspaceDefault?: () => boolean;
 			sendRequest: (request: INewChatInputSendRequest) => Promise<boolean>;
+			clearInputOnSendStart?: () => boolean;
 			inputVisible?: IObservable<boolean>;
 			hostVisible?: IObservable<boolean>;
 			canSendRequest: IObservable<boolean>;
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
+			useExperimentalLayout?: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
@@ -621,6 +632,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			renderRepositoryControls?: boolean;
 			sessionTypePickerOptions?: ISessionTypePickerOptions;
 			supportsBackground?: boolean;
+			sendButtonLabel?: IObservable<string | undefined>;
 			deferredNotificationsEnabled?: IObservable<boolean>;
 			petHostPreferred?: IObservable<boolean>;
 			getChatPetPlatformElements?: () => readonly HTMLElement[];
@@ -720,6 +732,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// --- Rendering ---
 
 	render(parent: HTMLElement, root: HTMLElement): void {
+		this._pickerFocusListeners.value = trackChatInputPickerFocus(parent);
 		// Input slot, and the stack the notices, prompt options and input area sit in.
 		const chatInputContainer = dom.append(parent, dom.$(`.new-chat-input-container.${chatInputStackClass}`));
 
@@ -885,9 +898,20 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
-		const sessionControlsContainer = dom.append(newChatControlsContainer, dom.$('.new-chat-session-controls'));
-		const sessionControlsToolbar = this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
-
+		if (this._sessionControlsContainer && this._inputToolbar && this._configContainer) {
+			const sessionControlsContainer = this._sessionControlsContainer;
+			const inputToolbar = this._inputToolbar;
+			const configContainer = this._configContainer;
+			this._register(autorun(reader => {
+				if (this.options.useExperimentalLayout?.read(reader) ?? false) {
+					inputToolbar.insertBefore(sessionControlsContainer, configContainer);
+				} else {
+					newChatControlsContainer.append(sessionControlsContainer);
+				}
+				this._primaryPickerResponsiveLayout?.layout();
+				this._updateBottomContainerVisibility?.();
+			}));
+		}
 		const secondaryControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-secondary-controls-container'));
 		this._repositoryControlsHome = secondaryControlsContainer;
 		const repoConfigContainer = this._repositoryControlsContainer = dom.append(secondaryControlsContainer, dom.$('.new-chat-repo-config-container'));
@@ -933,7 +957,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			},
 		}));
 		const updateBottomContainerVisibility = () => {
-			const sessionControlCount = sessionControlsToolbar.getItemsLength();
+			const sessionControlCount = this.options.useExperimentalLayout?.get() ? 0 : this._sessionControlsToolbar?.getItemsLength() ?? 0;
 			const repositoryControlCount = repoConfigContainer.parentElement === secondaryControlsContainer ? repoConfigToolbar?.getItemsLength() ?? 0 : 0;
 			newChatBottomContainer.classList.toggle('empty', sessionControlCount + repositoryControlCount + statusToolbar.getItemsLength() === 0);
 		};
@@ -942,7 +966,9 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._register(repoConfigToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
 		}
 		this._register(statusToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
-		this._register(sessionControlsToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
+		if (this._sessionControlsToolbar) {
+			this._register(this._sessionControlsToolbar.onDidChangeMenuItems(updateBottomContainerVisibility));
+		}
 		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
@@ -1279,7 +1305,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	private _createAttachButton(container: HTMLElement): void {
-		const attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
+		const attachButton = this._attachButton = dom.append(container, dom.$('.sessions-chat-attach-button'));
 		const attachButtonLabel = localize('addContext', "Add Context...");
 		attachButton.tabIndex = 0;
 		attachButton.role = 'button';
@@ -1290,13 +1316,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			appearance: { showPointer: true }
 		}));
 		dom.append(attachButton, renderIcon(Codicon.addCompact));
+		this._register(dom.addDisposableListener(attachButton, dom.EventType.MOUSE_DOWN, event => {
+			if (this._contextAttachments.isPickerVisibleAt(attachButton)) {
+				dom.EventHelper.stop(event, true);
+			}
+		}));
 		this._register(dom.addDisposableListener(attachButton, dom.EventType.CLICK, () => {
 			this._showContextPicker();
 		}));
 	}
 
 	private _showContextPicker(): void {
-		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.());
+		this._contextAttachments.showPicker(this.options.getContextFolderUri(), this.options.getContextPickerActions?.(), this._attachButton);
+	}
+
+	async runAttachContextAction(action: IAction): Promise<void> {
+		await action.run({ anchor: this._attachButton });
 	}
 
 	private _createInputToolbar(container: HTMLElement): void {
@@ -1324,9 +1359,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._createAttachButton(toolbar);
 
+		const sessionControlsContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls'));
+		const sessionControlsToolbar = this._register(createNewSessionControlToolbar(sessionControlsContainer, this._scopedInstantiationService));
+		this._sessionControlsContainer = sessionControlsContainer;
+		this._sessionControlsToolbar = sessionControlsToolbar;
+		this._register({ dispose: () => sessionControlsContainer.remove() });
+
 		// Session config pickers (such as model) — rendered via MenuWorkbenchToolBar
 		// Visibility controlled by context keys (isActiveSessionBackgroundProvider, isNewChatSession)
 		const configContainer = dom.append(toolbar, dom.$('.sessions-chat-config-toolbar'));
+		this._inputToolbar = toolbar;
+		this._configContainer = configContainer;
 		const configToolbar = this._register(createNewSessionConfigToolbar(configContainer, this._scopedInstantiationService, this._compactModelPicker));
 
 		this._initializationLoadingSpinner = dom.append(toolbar, dom.$('.sessions-chat-loading-spinner'));
@@ -1400,14 +1443,28 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.icon = Codicon.arrowUpCompact;
+			if (this.options.sendButtonLabel) {
+				this._register(autorun(reader => {
+					const label = this.options.sendButtonLabel?.read(reader);
+					sendButton.label = label ?? '';
+					sendButton.element.ariaLabel = label ?? localize('send', "Send");
+					this._sendButtonContainer?.classList.toggle('labeled', !!label);
+				}));
+			}
 			// Hold Alt while clicking Send to start the session in the background.
 			this._register(sendButton.onDidClick(e => this._send(!!this.options.supportsBackground && !!(e as MouseEvent | KeyboardEvent | undefined)?.altKey)));
 		}
 		updateVoiceInputActionBorder();
 
-		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', configContainer, {
+		// Measure against the whole toolbar: in the experimental layout this lane also manages the
+		// reparented Agent/Mode session controls, which live in a sibling container to the left of
+		// the config pickers. Using the config container alone would place those controls outside
+		// the measured lane and force everything to compact even when the row has room.
+		this._primaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.primaryPicker', toolbar, {
 			getItems: () => {
-				const items: IChatInputPickerResponsiveLayoutItem[] = [];
+				const items = this.options.useExperimentalLayout?.get()
+					? getLabeledPickerResponsiveItems(sessionControlsContainer)
+					: [];
 				for (let index = 0; index < configToolbar.getItemsLength(); index++) {
 					const element = configToolbar.getItemElement(index);
 					if (!element) {
@@ -1416,7 +1473,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 					const isModelPicker = element.classList.contains('model-picker-item');
 					items.push({
 						element,
-						canShrink: isModelPicker,
 						isCompact: () => element.classList.contains('compact-picker'),
 						setCompact: (compact: boolean) => {
 							element.classList.toggle('compact-picker', compact);
@@ -1428,8 +1484,13 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				}
 				return items;
 			},
-			hasOverflow: () => configToolbar.hasOverflow(),
-			relayout: () => configToolbar.relayout(),
+			hasOverflow: () => (this.options.useExperimentalLayout?.get() ? sessionControlsToolbar.hasOverflow() : false) || configToolbar.hasOverflow(),
+			relayout: () => {
+				if (this.options.useExperimentalLayout?.get()) {
+					sessionControlsToolbar.relayout();
+				}
+				configToolbar.relayout();
+			},
 		}));
 		this._primaryPickerResponsiveLayout.layout();
 	}
@@ -1712,6 +1773,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		return this._send(background);
 	}
 
+	private _clearInputOnSendStart(rawQuery: string): (() => void) | undefined {
+		if (!this.options.clearInputOnSendStart?.()) {
+			return undefined;
+		}
+		const model = this._editor.getModel();
+		if (!model) {
+			return undefined;
+		}
+		model.setValue('');
+		return () => {
+			if (model.getValue() === '') {
+				model.setValue(rawQuery);
+			}
+		};
+	}
+
 	private async _send(background = false): Promise<boolean> {
 		const rawQuery = this._editor.getModel()?.getValue() ?? '';
 		const query = rawQuery.trim();
@@ -1740,6 +1817,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._updateInputLoadingState();
 
 		let sent = false;
+		let restoreInput: (() => void) | undefined;
 		try {
 			// Measure any pending dictation accuracy before the editor is cleared.
 			notifyDictationSubmitted(this._editor);
@@ -1763,10 +1841,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._history.append(this._toHistoryEntry(this._draftState));
 			}
 			this._clearDraftState();
+			restoreInput = this._clearInputOnSendStart(rawQuery);
 
 			sent = await this.options.sendRequest({ query, attachments: attachedContext, background, userInteraction });
 			if (!sent) {
 				userInteraction?.cancel('notDispatched');
+				restoreInput?.();
 				return false;
 			}
 			this.chatInputNotificationService.handleMessageSent(notificationContext);
@@ -1774,6 +1854,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			this._editor.getModel()?.setValue('');
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');
+			restoreInput?.();
 			this.logService.error('Failed to send request:', e);
 			return false;
 		} finally {
@@ -2045,6 +2126,15 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	}
 
 	prefillInput(text: string): void {
+		this.setInputValue(text);
+		this._editor?.focus();
+	}
+
+	getInputValue(): string {
+		return this._editor?.getModel()?.getValue() ?? '';
+	}
+
+	setInputValue(text: string): void {
 		const editor = this._editor;
 		const model = editor?.getModel();
 		if (editor && model) {
@@ -2052,7 +2142,6 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			const lastLine = model.getLineCount();
 			const maxColumn = model.getLineMaxColumn(lastLine);
 			editor.setPosition({ lineNumber: lastLine, column: maxColumn });
-			editor.focus();
 		}
 	}
 

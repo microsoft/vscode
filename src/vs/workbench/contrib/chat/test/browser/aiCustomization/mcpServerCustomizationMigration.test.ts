@@ -477,13 +477,166 @@ suite('McpServerCustomizationMigration', () => {
 			candidates: plan.candidates.map(item => item.name),
 			exclusions: plan.exclusions.map(item => [item.name, item.reason]),
 		}, {
-			candidates: ['eligible', 'variable', 'disabled'],
+			candidates: ['eligible', 'variable', 'metadata', 'disabled'],
 			exclusions: [
-				['metadata', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['cwd', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['sse', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 				['nullEnv', McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration],
 			],
+		});
+	});
+
+	for (const storage of [PromptsStorage.local, PromptsStorage.user] as const) {
+		for (const type of [McpServerType.LOCAL, McpServerType.REMOTE]) {
+			test(`plans and removes warned properties for ${storage} ${type} servers`, async () => {
+				const root = URI.file('/removals');
+				const selected = storage === PromptsStorage.user ? userCandidate() : candidate(root, 'demo');
+				const projectedConfiguration: IMcpServerConfiguration = type === McpServerType.LOCAL
+					? { type, command: 'node', args: ['server@1.0.0'], env: { PORT: 3000 } }
+					: { type, url: 'https://example.com/v1', headers: { 'X-Test': 'value' } };
+				const properties = [
+					{ gallery: true },
+					{ gallery: false },
+					{ gallery: 'https://registry.example' },
+					{ version: '1.0.0' },
+					{ dev: { watch: '${input:watch}', debug: { type: 'node' } } },
+					{ dev: { debug: { type: 'debugpy', debugpyPath: '${command:debugpy}' } } },
+					{ gallery: true, version: '1.0.0', dev: {} },
+					...(type === McpServerType.LOCAL ? [{ sandboxEnabled: true }, { sandboxEnabled: false }] : []),
+				];
+				const fileService = createFileService();
+				const unselected = { command: 'other', sandboxEnabled: true };
+				const sandbox = { network: { allowedDomains: ['example.com'] } };
+				const inputs = [{ id: 'watch', type: 'promptString' }];
+				await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(JSON.stringify({
+					sandbox,
+					inputs,
+					servers: {
+						...Object.fromEntries(properties.map((removed, index) => [`server${index}`, { ...projectedConfiguration, ...removed }])),
+						unselected,
+					},
+				})));
+				const snapshot: IAgentHostMcpServerSupportSnapshot = {
+					servers: properties.map((_, index) => {
+						const server = support(root, `server${index}`, {
+							projectedConfiguration,
+							compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.DevelopmentModeIgnored] },
+						});
+						return {
+							...server,
+							source: { ...server.source, collectionUri: selected.sourceUri, kind: storage === PromptsStorage.user ? AgentHostMcpServerSourceKind.UserProfile : AgentHostMcpServerSourceKind.VscodeWorkspaceFolder },
+						};
+					}),
+					discoveryComplete: true,
+					coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+				};
+				const migrator = createMigrator(fileService);
+				const plan = await migrator.createPlan(snapshot, [root], CancellationToken.None, selected.targetUri);
+				const result = await migrator.migrate(plan.candidates, { userTarget: selected.targetUri });
+				const targetConfiguration = type === McpServerType.LOCAL
+					? { type: 'local', command: 'node', args: ['server@1.0.0'], env: { PORT: '3000' }, tools: ['*'] }
+					: { type: 'http', url: 'https://example.com/v1', headers: { 'X-Test': 'value' }, tools: ['*'] };
+
+				assert.deepStrictEqual({
+					removals: plan.candidates.map(candidate => candidate.removedProperties),
+					exclusions: plan.exclusions,
+					result,
+					source: parse((await fileService.readFile(selected.sourceUri)).value.toString()),
+					target: parse((await fileService.readFile(selected.targetUri)).value.toString()),
+				}, {
+					removals: properties,
+					exclusions: [],
+					result: { migratedCount: properties.length, failures: [] },
+					source: { sandbox, inputs, servers: { unselected } },
+					target: { mcpServers: Object.fromEntries(properties.map((_, index) => [`server${index}`, targetConfiguration])) },
+				});
+			});
+		}
+	}
+
+	test('keeps other unsupported properties blocked even with removable metadata', async () => {
+		const root = URI.file('/unsupported');
+		const fileService = createFileService();
+		const configurations: IMcpServerConfiguration[] = [
+			{ type: McpServerType.LOCAL, command: 'node', envFile: '.env' },
+			{ type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' },
+			{ type: McpServerType.LOCAL, command: 'node', env: { SECRET: null } },
+			{ type: McpServerType.LOCAL, command: 'node', args: ['${input:secret}'] },
+			{ type: McpServerType.REMOTE, url: 'https://example.com', oauth: { clientId: 'required' } },
+			{ type: McpServerType.REMOTE, url: 'https://example.com', transport: 'sse' },
+		];
+		await fileService.writeFile(URI.joinPath(root, '.vscode', 'mcp.json'), VSBuffer.fromString(JSON.stringify({
+			servers: Object.fromEntries(configurations.map((configuration, index) => [`server${index}`, { ...configuration, gallery: true }])),
+		})));
+		const plan = await createMigrator(fileService).createPlan({
+			servers: configurations.map((projectedConfiguration, index) => support(root, `server${index}`, { projectedConfiguration })),
+			discoveryComplete: true,
+			coverage: { restrictedByMcpAccess: false, restrictedByCustomizationPolicy: false },
+		}, [root]);
+		assert.deepStrictEqual({
+			candidates: plan.candidates,
+			reasons: plan.exclusions.map(exclusion => exclusion.reason),
+		}, {
+			candidates: [],
+			reasons: configurations.map(() => McpServerCustomizationMigrationFailureReason.UnrepresentableConfiguration),
+		});
+	});
+
+	test('rejects new, changed, or unconfirmed property removals before writing', async () => {
+		const root = URI.file('/stale-removals');
+		const fileService = createFileService();
+		const selected = candidate(root, 'demo');
+		const changes = [
+			{ before: undefined, after: { gallery: true } },
+			{ before: { gallery: true }, after: { gallery: 'https://registry.example' } },
+			{ before: { version: '1' }, after: { version: '2' } },
+			{ before: { dev: {} }, after: { dev: { watch: '*.ts' } } },
+			{ before: { sandboxEnabled: false }, after: { sandboxEnabled: true } },
+			{ before: { sandboxEnabled: true }, after: {} },
+		];
+		const results = [];
+		for (const { before, after } of changes) {
+			const content = JSON.stringify({ servers: { demo: { command: 'node', ...after } } });
+			await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(content));
+			const result = await createMigrator(fileService).migrate([{ ...selected, removedProperties: before }]);
+			results.push({
+				migratedCount: result.migratedCount,
+				reasons: result.failures.map(failure => failure.reason),
+				sourceUnchanged: (await fileService.readFile(selected.sourceUri)).value.toString() === content,
+				targetExists: await fileService.exists(selected.targetUri),
+			});
+		}
+		assert.deepStrictEqual(results, changes.map(() => ({
+			migratedCount: 0,
+			reasons: [McpServerCustomizationMigrationFailureReason.SourceChanged],
+			sourceUnchanged: true,
+			targetExists: false,
+		})));
+	});
+
+	test('restores removed properties when the source write fails', async () => {
+		const root = URI.file('/rollback-removals');
+		const provider = new SourceWriteFailingProvider();
+		const fileService = createFileService(provider);
+		const selected = { ...candidate(root, 'demo'), removedProperties: { gallery: true, version: '1', dev: { watch: '*.ts' }, sandboxEnabled: true } };
+		const source = JSON.stringify({ servers: { demo: { command: 'node', ...selected.removedProperties } } });
+		const target = '{"mcpServers":{}}';
+		await fileService.writeFile(selected.sourceUri, VSBuffer.fromString(source));
+		await fileService.writeFile(selected.targetUri, VSBuffer.fromString(target));
+		provider.sourceUri = selected.sourceUri;
+		provider.failSourceWrite = true;
+
+		const result = await createMigrator(fileService).migrate([selected]);
+		assert.deepStrictEqual({
+			migratedCount: result.migratedCount,
+			reasons: result.failures.map(failure => failure.reason),
+			source: (await fileService.readFile(selected.sourceUri)).value.toString(),
+			target: (await fileService.readFile(selected.targetUri)).value.toString(),
+		}, {
+			migratedCount: 0,
+			reasons: [McpServerCustomizationMigrationFailureReason.WriteFailed],
+			source,
+			target,
 		});
 	});
 

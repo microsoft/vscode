@@ -12,6 +12,7 @@ import { CacheType, CustomDataPartMimeTypes } from '../../../../platform/endpoin
 import { ChatEndpoint } from '../../../../platform/endpoint/node/chatEndpoint';
 import { ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
+import { ThinkingDataInMessage } from '../../../../platform/thinking/common/thinking';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -19,7 +20,7 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { OpenAIEndpoint } from '../openAIEndpoint';
 
 // Test fixtures for thinking content
-const createThinkingMessage = (thinkingId: string, thinkingText: string): Raw.ChatMessage => ({
+const createThinkingMessage = (thinkingId: string | undefined, thinkingText: string | string[]): Raw.ChatMessage => ({
 	role: Raw.ChatRole.Assistant,
 	content: [
 		{
@@ -238,6 +239,29 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 			// OpenRouter expects the reasoning echoed back under `reasoning`.
 			expect(messages[0].reasoning).toBe('The user asked me to analyze the project. I should call the read_file tool.');
+		});
+
+		it.each([undefined, ''])('issue #338819: emits reasoning text without a provider ID (%s)', thinkingId => {
+			const endpoint = instaService.createInstance(OpenAIEndpoint,
+				{ ...modelMetadata, supported_endpoints: [ModelSupportedEndpoint.ChatCompletions] },
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			const body = endpoint.createRequestBody(createTestOptions([
+				createThinkingMessage(thinkingId, ['Read the file.\n', 'Then explain it.'])
+			]));
+			const [message] = body.messages as ThinkingDataInMessage[];
+
+			expect({
+				id: message.cot_id,
+				summary: message.cot_summary,
+				reasoning: message.reasoning_content,
+				alias: message.reasoning,
+			}).toEqual({
+				id: undefined,
+				summary: undefined,
+				reasoning: 'Read the file.\nThen explain it.',
+				alias: 'Read the file.\nThen explain it.',
+			});
 		});
 
 		it('issue #312746: does not emit reasoning_content / reasoning when the model does not support thinking', () => {

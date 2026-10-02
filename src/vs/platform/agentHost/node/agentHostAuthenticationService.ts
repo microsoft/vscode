@@ -10,6 +10,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { AuthenticateParams, AuthenticateResult, IAgent, IAgentHostAuthTokenRequest } from '../common/agent.js';
+import { authenticationAccountId, authenticationAccountMeta, IAgentAuthenticationAccount, readAuthenticationAccount } from '../common/meta/agentAuthenticationAccount.js';
 
 export interface IAgentHostAuthTokenChangeEvent {
 	readonly resource: string;
@@ -24,6 +25,7 @@ export interface IAgentHostAuthenticationService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeAuthToken: Event<IAgentHostAuthTokenChangeEvent>;
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined;
+	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined;
 }
 
 export interface IAgentHostAuthenticationController {
@@ -37,6 +39,7 @@ interface IStoredAuthToken {
 	readonly scopes: readonly string[];
 	readonly token: string;
 	readonly expiresAt: number | undefined;
+	readonly account?: IAgentAuthenticationAccount;
 }
 
 interface IAuthenticationRequest {
@@ -133,7 +136,8 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (this._authenticationRequests.get(key) !== request) {
 			return { authenticated };
 		}
-		const previousToken = this._tokens.get(key)?.token;
+		const previous = this._tokens.get(key);
+		const previousToken = previous?.token;
 		if (!authenticated && !rejected) {
 			authenticated = this._tokens.get(key)?.token === params.token;
 		}
@@ -142,10 +146,11 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			// while clearing its own live state.
 			this._tokens.delete(key);
 		} else if (authenticated) {
-			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt });
+			const account = readAuthenticationAccount(params);
+			this._tokens.set(key, { resource: params.resource, scopes, token: params.token, expiresAt, account });
 		}
 		const token = this._tokens.get(key)?.token;
-		if (previousToken !== token) {
+		if (previousToken !== token || authenticationAccountId(previous?.account) !== authenticationAccountId(this._tokens.get(key)?.account)) {
 			this._onDidChangeAuthToken.fire({ resource: params.resource, scopes, token });
 		}
 		return { authenticated };
@@ -171,7 +176,10 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 				continue;
 			}
 			const expiresIn = getRemainingTimeInSeconds(stored.expiresAt, now);
-			const params: AuthenticateParams = { resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn };
+			const params: AuthenticateParams = {
+				resource: stored.resource, scopes: stored.scopes, token: stored.token, expiresIn,
+				...(stored.account ? { _meta: authenticationAccountMeta(stored.account) } : {}),
+			};
 			if (protectedResources.has(stored.resource)) {
 				try {
 					await provider.authenticate(stored.resource, stored.token, expiresIn);
@@ -190,10 +198,18 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 	}
 
 	getAuthToken(request: IAgentHostAuthTokenRequest): string | undefined {
+		return this._getAuthToken(request, false)?.token;
+	}
+
+	getAuthAccount(request: IAgentHostAuthTokenRequest): IAgentAuthenticationAccount | undefined {
+		return (this._getAuthToken(request, false) ?? this._getAuthToken(request, true))?.account;
+	}
+
+	private _getAuthToken(request: IAgentHostAuthTokenRequest, includeExpired: boolean): IStoredAuthToken | undefined {
 		const scopes = this._normalizeScopes(request.scopes);
 		const exact = this._tokens.get(this._key(request.resource, scopes));
-		if (exact && !isExpired(exact.expiresAt)) {
-			return exact.token;
+		if (exact && (includeExpired || !isExpired(exact.expiresAt))) {
+			return exact;
 		}
 		if (scopes.length === 0) {
 			return undefined;
@@ -202,7 +218,7 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		const requested = new Set(scopes);
 		let best: IStoredAuthToken | undefined;
 		for (const candidate of this._tokens.values()) {
-			if (candidate.resource !== request.resource || candidate.scopes.length === 0 || isExpired(candidate.expiresAt)) {
+			if (candidate.resource !== request.resource || candidate.scopes.length === 0 || (!includeExpired && isExpired(candidate.expiresAt))) {
 				continue;
 			}
 			if (!this._containsAll(candidate.scopes, requested)) {
@@ -213,13 +229,13 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 			}
 		}
 		if (best) {
-			return best.token;
+			return best;
 		}
 
 		// Compatibility for clients that resolved the right token before scopes
 		// were forwarded through the authenticate command.
 		const unscoped = this._tokens.get(this._key(request.resource, []));
-		return unscoped && !isExpired(unscoped.expiresAt) ? unscoped.token : undefined;
+		return unscoped && (includeExpired || !isExpired(unscoped.expiresAt)) ? unscoped : undefined;
 	}
 
 	private _containsAll(scopes: readonly string[], requested: ReadonlySet<string>): boolean {

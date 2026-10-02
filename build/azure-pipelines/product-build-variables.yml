@@ -90,6 +90,14 @@ variables:
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), and(eq(variables.VSCODE_CIBUILD, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}
   - name: VSCODE_BUILD_STAGE_WINDOWS_ARM64
     value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  # Product architectures are split into their own stages. The existing macOS
+  # stage continues to hold the CI test jobs.
+  - name: VSCODE_BUILD_STAGE_MACOS_X64
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS_ARM64
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS_UNIVERSAL
+    value: ${{ and(eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
   - name: VSCODE_PUBLISH
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD

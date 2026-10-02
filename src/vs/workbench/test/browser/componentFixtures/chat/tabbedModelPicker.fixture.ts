@@ -224,6 +224,14 @@ const CONTROL_MODELS_WITH_LOCKED: IStringDictionary<IModelControlEntry> = {
 	'gpt-6': { label: 'GPT-6', featured: true, exists: false, minVSCodeVersion: '99.0.0' },
 };
 
+/** The curated list a Free or Student account sees, none of which it can select. */
+const FREE_PLAN_CONTROL_MODELS: IStringDictionary<IModelControlEntry> = {
+	'claude-haiku-4.5': { label: 'Claude Haiku 4.5', featured: true, exists: false },
+	'gpt-5.6-terra': { label: 'GPT-5.6 Terra', featured: true, exists: false },
+	'claude-sonnet-4.6': { label: 'Claude Sonnet 4.6', featured: true, exists: false },
+	'gpt-5-mini': { label: 'GPT-5 mini', demoted: true, exists: false },
+};
+
 /** In-memory model configuration so the fixture's cards and tiers are interactive. */
 function createConfigurationAccess(): IModelConfigurationAccess {
 	const values = new Map<string, IStringDictionary<unknown>>();
@@ -374,7 +382,10 @@ async function renderPicker(context: ComponentFixtureContext, options: IPickerFi
 				registration.defineInstance(IContextViewService, createInlineContextViewService(container, disposableStore));
 			}
 			registration.defineInstance(ILanguageModelsService, createLanguageModelsService());
-			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: options.entitlement ?? ChatEntitlement.Free }));
+			registration.defineInstance(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+				entitlement: options.entitlement ?? ChatEntitlement.Free,
+				onDidChangeEntitlement: Event.None,
+			}));
 			// The shared harness discards writes, so the picker cannot remember anything.
 			registration.defineInstance(IStorageService, disposableStore.add(new InMemoryStorageService()));
 		},
@@ -548,6 +559,7 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		{
 			currentModel: selected,
 			setModel: model => selected.set(model, undefined),
+			setModelProgrammatically: model => selected.set(model, undefined),
 			getModels: () => COPILOT_ONLY_MODELS,
 			getPresentationOptions: () => ({
 				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: false,
@@ -670,24 +682,39 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 			controlModels: CONTROL_MODELS_WITH_LOCKED,
 		}),
 	}),
+	PickerFreePlan: defineComponentFixture({
+		render: context => renderPicker(context, { models: [AUTO_MODEL], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	PickerFreePlanWithAddedModels: defineComponentFixture({
+		render: context => renderPicker(context, { models: [AUTO_MODEL, ...OLLAMA_MODELS, ...OPENAI_MODELS], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	/** Copilot relays nothing selectable here, but the plan's upgrades still have a tab. */
+	PickerFreePlanWithoutCopilotModels: defineComponentFixture({
+		render: context => renderPicker(context, { models: [...OLLAMA_MODELS, ...OPENAI_MODELS], selectedModelId: AUTO_MODEL.identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.Free }),
+	}),
+	/** A Student account in the Copilot harness: Auto, with HydraFusion offered only as an upgrade. */
+	PickerEduPlanCopilotHarness: defineComponentFixture({
+		render: context => renderPicker(context, { models: [RELAYED_MODELS[0], HYDRA_FUSION_MODEL], selectedModelId: RELAYED_MODELS[0].identifier, controlModels: FREE_PLAN_CONTROL_MODELS, entitlement: ChatEntitlement.EDU }),
+	}),
 	PickerRelayedByHost: defineComponentFixture({
 		render: context => renderPicker(context, { models: RELAYED_MODELS, selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
 	}),
 	PickerWithHydraFusion: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerAutoModeWithHydraFusion: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerHydraFusionSelected: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
 	}),
 	PickerHydraFusionNeedsUpdate: defineComponentFixture({
 		render: context => renderPicker(context, {
 			models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL],
 			selectedModelId: 'agent-host-copilotcli/gpt-5-5',
 			controlModels: { 'hydrafusion': { label: 'HydraFusion', featured: true, exists: true, minVSCodeVersion: '99.0.0' } },
+			entitlement: ChatEntitlement.Pro,
 		}),
 	}),
 	PickerLockedModels: defineComponentFixture({

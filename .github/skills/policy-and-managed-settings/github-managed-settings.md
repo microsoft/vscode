@@ -226,10 +226,13 @@ Follow this checklist only after the root [SKILL.md](./SKILL.md) routes the cont
 
 `forceRemoteSettingsRefresh` is not a user configuration setting. It controls whether the server-managed-settings cache may satisfy startup, so VS Code preserves it in the cached raw server bag and always includes it in the native MDM watch schema. `DefaultAccountProvider` resolves the control across native MDM, cached server, and managed-file delivery before using the server cache. When the result is `true`, only a fresh successful server response for the current account, authentication provider, and endpoint satisfies the requirement. A failed refresh may retain cached restrictions and the flag itself, but the Account Policy gate keeps AI features disabled until a retry succeeds. Authentication remains available so users can recover from missing or expired credentials.
 
+Once satisfied in the current window, the gate remains satisfied while subsequent refreshes for the same scope are in flight, including forced refreshes and refreshes after cache expiry. The last accepted policy stays active until the response arrives; a failure or timeout closes the gate, and retrying does not reopen it before success. Startup and scope changes still require a successful response before AI use. This does not change the polling interval or introduce a hard maximum policy age.
+
 Reference tests:
 - `src/vs/platform/policy/test/common/copilotManagedSettings.test.ts`
 - `src/vs/platform/policy/test/node/nativeManagedSettingsService.test.ts`
 - `src/vs/workbench/services/policies/test/browser/accountPolicyService.test.ts`
+- `src/vs/workbench/services/accounts/test/browser/defaultAccount.test.ts`
 - `src/vs/workbench/services/accounts/test/browser/managedSettings.test.ts` (includes an end-to-end equivalence test: a server JSON string and a native MDM JSON string resolve to the **identical** typed object).
 - `src/vs/platform/policy/test/common/fileManagedSettingsService.test.ts` (covers `normalizeManagedSettings` and the file-based channel reader).
 
