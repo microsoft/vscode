@@ -101,7 +101,7 @@ suite('Terminal chat agent tools configuration', () => {
 				AgentSandboxSettingId.AgentSandboxWindowsFileSystem,
 			].map(key => {
 				const legacy = terminalChatAgentToolsConfiguration[key];
-				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings];
+				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings, legacy.deprecated];
 			}),
 		}, {
 			description: 'Customize file path permissions in the sandbox.',
@@ -111,7 +111,7 @@ suite('Terminal chat agent tools configuration', () => {
 			restricted: true,
 			additionalProperties: false,
 			legacy: Array.from({ length: 3 }, () => [
-				'This legacy setting is deprecated. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true,
+				'This setting will be deprecated soon. For the Copilot Agent Host sandbox, use `#chat.agent.sandbox.fileSystem.userConfiguredPaths#` instead.', true, undefined,
 			]),
 		});
 	});
@@ -135,25 +135,27 @@ suite('Terminal chat agent tools configuration', () => {
 		]);
 	});
 
-	test('deprecates legacy sandbox settings without hiding them or changing defaults', () => {
-		const settings = [
-			[AgentSandboxSettingId.AgentSandboxEnabled, 'off'],
-			[AgentSandboxSettingId.AgentSandboxAllowNetwork, true],
-			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true],
-			[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true],
-			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxMacFileSystem, { denyRead: [], allowRead: [], allowWrite: [], denyWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxWindowsFileSystem, { denyRead: [], allowRead: [], allowWrite: [] }],
-			[AgentSandboxSettingId.AgentSandboxAdvancedRuntime, { enableWeakerNestedSandbox: false }],
-		] as const;
-		for (const [id, defaultValue] of settings) {
+	test('warns about upcoming sandbox setting deprecation without changing defaults', () => {
+		const settingIds = [
+			AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+			AgentSandboxSettingId.AgentSandboxAdvancedRuntime,
+		];
+		assert.deepStrictEqual(settingIds.map(id => {
 			const setting = terminalChatAgentToolsConfiguration[id];
-			assert.strictEqual(setting.deprecated, true, id);
-			assert.match(setting.markdownDeprecationMessage ?? '', /is deprecated\./, id);
-			assert.strictEqual(setting.deprecationMessageShowInSettings, true, id);
-			assert.deepStrictEqual(setting.default, defaultValue, id);
-			assert.strictEqual(setting.restricted, true, id);
-		}
+			return {
+				deprecated: setting.deprecated,
+				deprecationMessage: setting.markdownDeprecationMessage,
+				showInSettings: setting.deprecationMessageShowInSettings,
+				default: setting.default,
+				restricted: setting.restricted,
+			};
+		}), [true, { enableWeakerNestedSandbox: false }].map(defaultValue => ({
+			deprecated: undefined,
+			deprecationMessage: 'This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox.',
+			showInSettings: true,
+			default: defaultValue,
+			restricted: true,
+		})));
 	});
 
 	test('marks legacy sandbox device policies deprecated and identifies managed-settings replacements', () => {
@@ -170,8 +172,11 @@ suite('Terminal chat agent tools configuration', () => {
 		}
 	});
 
-	test('keeps new Agent Host sandbox controls available without deprecation', () => {
+	test('keeps Agent Host sandbox controls available without setting deprecation', () => {
 		const settingIds = [
+			AgentSandboxSettingId.AgentSandboxEnabled,
+			AgentSandboxSettingId.AgentSandboxAllowNetwork,
+			AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 			AgentSandboxSettingId.AgentSandboxAllowLocalNetwork,
 			AgentSandboxSettingId.AgentSandboxMcpServers,
 			AgentSandboxSettingId.AgentSandboxLspServers,

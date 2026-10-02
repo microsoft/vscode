@@ -342,7 +342,7 @@ suite('SettingsTree renderer', () => {
 				iconAriaLabel: icon?.getAttribute('aria-label'),
 				isInfo: template.containerElement.classList.contains('is-deprecated-info'),
 			}, {
-				text: 'This Local harness setting is deprecated. Configure Copilot Agent Host sandbox restrictions and permissions through managed settings instead.',
+				text: 'This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox.',
 				iconClasses: 'codicon codicon-error',
 				iconRole: 'img',
 				iconAriaLabel: 'Warning',
