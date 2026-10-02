@@ -4,18 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { promiseWithResolvers } from '../../../../../base/common/async.js';
+import { sep } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IRemoteAuthorityResolverService } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, ResolverResult } from '../../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustInfo } from '../../../../../platform/workspace/common/workspaceTrust.js';
-import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
+import { Workspace, testWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { Memento } from '../../../../common/memento.js';
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -45,6 +48,7 @@ suite('Workspace Trust', () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		const uriIdentityService = store.add(new UriIdentityService(fileService));
 
+		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
@@ -157,6 +161,225 @@ suite('Workspace Trust', () => {
 			// The same folder with a different _ah payload resolves to the same trust entry.
 			const sameFolderDifferentMeta = URI.from({ scheme: AGENT_HOST_SCHEME, authority: 'my-server', path: '/Users/me/code', query: '_ah=other' });
 			assert.strictEqual(true, (await testObject.getUriTrustInfo(sameFolderDifferentMeta)).trusted);
+		});
+
+		test('trust folders passed via --trust-folder', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-from-cli');
+			environmentService.trustedFolders = [folder.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(folder));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(folder)).trusted);
+		});
+
+		test('trust folders passed via --trust-folder (subfolder is trusted)', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const parent = URI.file('/trusted-parent');
+			environmentService.trustedFolders = [parent.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(URI.file('/trusted-parent/child')));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+		});
+
+		test('trust folder passed via --trust-folder with a trailing separator', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-trailing-separator');
+			environmentService.trustedFolders = [`${folder.fsPath}${sep}`];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(folder));
+			const testObject = await initializeTestObject();
+
+			assert.deepStrictEqual({
+				workspaceTrusted: testObject.isWorkspaceTrusted(),
+				trustedUris: testObject.getTrustedUris().map(uri => uri.toString())
+			}, {
+				workspaceTrusted: true,
+				trustedUris: [folder.toString()]
+			});
+		});
+
+		test('trust multiple folders passed via --trust-folder', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const a = URI.file('/cli-a');
+			const b = URI.file('/cli-b');
+			environmentService.trustedFolders = [a.fsPath, b.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(a));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(a)).trusted);
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(b)).trusted);
+		});
+
+		test('trusts a multi-root workspace when --trust-folder covers all roots', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const rootA = URI.file('/multi-a');
+			const rootB = URI.file('/multi-b');
+			environmentService.trustedFolders = [rootA.fsPath, rootB.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(rootA, rootB));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+		});
+
+		test('does not trust a multi-root workspace when --trust-folder covers only some roots', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const rootA = URI.file('/multi-a');
+			const rootB = URI.file('/multi-b');
+			environmentService.trustedFolders = [rootA.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(rootA, rootB));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(rootA)).trusted);
+			assert.strictEqual(false, (await testObject.getUriTrustInfo(rootB)).trusted);
+		});
+
+		test('trusts a remote (vscode-remote://) folder passed via --trust-folder', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const remoteAuthority = 'test+auth';
+			const remoteFolder = URI.parse(`vscode-remote://${remoteAuthority}/home/me/proj`);
+
+			environmentService.remoteAuthority = remoteAuthority;
+			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/proj`];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			// Trust must come from `--trust-folder` rather than the remote resolver.
+			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
+				override async resolveAuthority(authority: string): Promise<ResolverResult> {
+					return { authority: { authority } } as unknown as ResolverResult;
+				}
+				override async getCanonicalURI(uri: URI): Promise<URI> {
+					return uri;
+				}
+			});
+
+			workspaceService.setWorkspace(testWorkspace(remoteFolder));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, testObject.isWorkspaceTrusted());
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(remoteFolder)).trusted);
+		});
+
+		test('a --trust-folder value that fails to resolve does not discard the others', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const remoteAuthority = 'test+auth';
+			const good = URI.file('/good-cli');
+			environmentService.remoteAuthority = remoteAuthority;
+			environmentService.trustedFolders = [`vscode-remote://${remoteAuthority}/home/me/bad`, good.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			// A rejected remote URI must not discard the valid file entry.
+			instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() {
+				override async resolveAuthority(authority: string): Promise<ResolverResult> {
+					return { authority: { authority } } as unknown as ResolverResult;
+				}
+				override async getCanonicalURI(): Promise<URI> {
+					throw new Error('cannot resolve');
+				}
+			});
+
+			workspaceService.setWorkspace(testWorkspace(good));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(good)).trusted);
+		});
+
+		test('folders passed via --trust-folder persist across reloads', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-persist');
+			environmentService.trustedFolders = [folder.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(folder));
+			await initializeTestObject();
+
+			// The persisted entry must survive a launch without the flag.
+			environmentService.trustedFolders = [];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+			const reloaded = await initializeTestObject();
+
+			assert.strictEqual(true, reloaded.isWorkspaceTrusted());
+			assert.strictEqual(true, (await reloaded.getUriTrustInfo(folder)).trusted);
+		});
+
+		test('workspace trust initialization waits for the --trust-folder transition', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const folder = URI.file('/trusted-transition');
+			environmentService.trustedFolders = [folder.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+			workspaceService.setWorkspace(testWorkspace(folder));
+
+			const testObject = store.add(instantiationService.createInstance(WorkspaceTrustManagementService));
+			const { promise: transitionStarted, resolve: markTransitionStarted } = promiseWithResolvers<void>();
+			const { promise: continueTransition, resolve: releaseTransition } = promiseWithResolvers<void>();
+			store.add(testObject.addWorkspaceTrustTransitionParticipant({
+				async participate(): Promise<void> {
+					markTransitionStarted();
+					await continueTransition;
+				}
+			}));
+
+			let initialized = false;
+			testObject.workspaceTrustInitialized.then(() => initialized = true);
+			try {
+				await transitionStarted;
+				assert.strictEqual(initialized, false);
+			} finally {
+				releaseTransition();
+				await testObject.workspaceTrustInitialized;
+			}
+		});
+
+		test('an empty --trust-folder list trusts nothing', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			environmentService.trustedFolders = [];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(URI.file('/not-trusted')));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(false, testObject.isWorkspaceTrusted());
+			assert.strictEqual(0, testObject.getTrustedUris().length);
+		});
+
+		test('a malformed --trust-folder value is ignored but valid ones are trusted', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
+
+			const valid = URI.file('/valid-cli');
+			// The first value has an illegal URI scheme (URI.parse throws) and is skipped.
+			environmentService.trustedFolders = ['bad scheme://x', valid.fsPath];
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });
+
+			workspaceService.setWorkspace(testWorkspace(valid));
+			const testObject = await initializeTestObject();
+
+			assert.strictEqual(true, (await testObject.getUriTrustInfo(valid)).trusted);
+			assert.strictEqual(1, testObject.getTrustedUris().length);
 		});
 
 		test('setWorkspaceTrust waits for trust transition participants before resolving', async () => {
