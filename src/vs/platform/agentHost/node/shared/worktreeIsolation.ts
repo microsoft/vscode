@@ -56,7 +56,9 @@ export interface IAgentHostWorktreeIsolation extends IAgentHostWorktreePendingSt
 	notePending(sessionId: string): void;
 	clearPending(sessionId: string): void;
 	getResolvedWorktree(sessionId: string): URI | undefined;
+	getCreationError(sessionId: string): Error | undefined;
 	resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
+	resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined>;
 	createDetachedWorktree(request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree(handle: string): Promise<void>;
 	setDetachedWorktreeArchived(handle: string, archived: boolean, strictCleanup?: boolean): Promise<void>;
@@ -347,6 +349,11 @@ export interface IResolveIsolationConfigRequest {
 	readonly config: Record<string, unknown> | undefined;
 }
 
+interface IIsolationGitInfo {
+	readonly currentBranch: string;
+	readonly defaultBranch: IDefaultBranch;
+}
+
 /**
  * The isolation + branch schema contribution for an agent's
  * `resolveSessionConfig`. Callers merge {@link isolationProperty} (and
@@ -422,6 +429,8 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	/** Worktrees materialized during this host process, keyed by sessionId. */
 	private readonly _materializedWorktrees = new Map<string, ISessionWorktree & { readonly branchName: string }>();
 	private readonly _worktreeDeletionRetries = new Map<string, ISessionWorktree>();
+	private readonly _pendingGitInfo = new Map<string, Promise<IIsolationGitInfo | undefined>>();
+	private readonly _creationErrors = new Map<string, Error>();
 
 	/**
 	 * Per-session announcement (markdown) emitted as a synthetic streaming
@@ -501,14 +510,37 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		return this._materializedWorktrees.get(sessionId)?.worktree;
 	}
 
-	/**
-	 * First-send worktree resolution: creates the worktree (when the session
-	 * selected `worktree` isolation on a git repo) and clears the pending marker
-	 * regardless of outcome, so a failed creation falls back to folder isolation
-	 * instead of leaving the session permanently "pending". Delegates to
-	 * {@link resolveWorkingDirectory}, which is idempotent per session.
-	 */
+	getCreationError(sessionId: string): Error | undefined {
+		return this._creationErrors.get(sessionId);
+	}
+
 	async resolveOnFirstSend(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
+		return this._sequencer.queue(request.sessionId, async () => {
+			const previousError = this.getCreationError(request.sessionId);
+			if (previousError) {
+				throw previousError;
+			}
+			try {
+				const resolved = await this.resolveWorkingDirectory(request);
+				if (!this.getResolvedWorktree(request.sessionId) || !resolved || isEqual(resolved, request.workingDirectory)) {
+					throw new Error(localize('agentHost.noIsolatedWorktree', "No isolated worktree was created."));
+				}
+				return resolved;
+			} catch (error) {
+				const diagnostic = normalizeWorktreeFailureDiagnostic(errorMessage(error));
+				const failure = new Error(localize('agentHost.worktreeSessionFailed', "Couldn't create the isolated worktree. This session cannot continue. Start a new session to try again.\n\n{0}", diagnostic ?? errorMessage(error)));
+				this._creationErrors.set(request.sessionId, failure);
+				throw failure;
+			} finally {
+				// Keep failed sessions pending so providers cannot prewarm in the source checkout.
+				if (!this.getCreationError(request.sessionId)) {
+					this.clearPending(request.sessionId);
+				}
+			}
+		});
+	}
+
+	async resolveForWorkspaceConversion(request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> {
 		return this._sequencer.queue(request.sessionId, async () => {
 			try {
 				return await this.resolveWorkingDirectory(request);
@@ -860,7 +892,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	/**
 	 * All local branch names for the branch picker, ordered with the current and
-	 * default branches first. Pickers filter and limit the returned list.
+	 * default branches first. Pickers filter the returned list and cap how many rows they show.
 	 */
 	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
@@ -1214,6 +1246,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 	}
 
 	private async _removeSessionWorktree(sessionId: string, worktree: ISessionWorktree | undefined): Promise<void> {
+		this._creationErrors.delete(sessionId);
 		this.clearPending(sessionId);
 		if (!worktree) {
 			return;
@@ -1496,7 +1529,20 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 		} : undefined;
 	}
 
-	private async _getGitInfo(workingDirectory: URI): Promise<{ currentBranch: string; defaultBranch: IDefaultBranch } | undefined> {
+	private _getGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
+		const key = workingDirectory.toString();
+		const pending = this._pendingGitInfo.get(key);
+		if (pending) {
+			return pending;
+		}
+		// Overlapping callers share one best-effort read, including changes made
+		// while it is in flight. Once settled, the next caller reads Git afresh.
+		const request = this._readGitInfo(workingDirectory).finally(() => this._pendingGitInfo.delete(key));
+		this._pendingGitInfo.set(key, request);
+		return request;
+	}
+
+	private async _readGitInfo(workingDirectory: URI): Promise<IIsolationGitInfo | undefined> {
 		const repositoryRoot = await this._gitService.getRepositoryRoot(workingDirectory);
 		if (!repositoryRoot) {
 			return undefined;
@@ -1668,7 +1714,9 @@ export class NullAgentHostWorktreeIsolation implements IAgentHostWorktreeIsolati
 	notePending(_sessionId: string): void { }
 	clearPending(_sessionId: string): void { }
 	getResolvedWorktree(_sessionId: string): URI | undefined { return undefined; }
+	getCreationError(_sessionId: string): Error | undefined { return undefined; }
 	async resolveOnFirstSend(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
+	async resolveForWorkspaceConversion(_request: IResolveWorkingDirectoryRequest): Promise<URI | undefined> { return undefined; }
 	async createDetachedWorktree(_request: Omit<IResolveWorkingDirectoryRequest, 'sessionUri' | 'sessionId'>): Promise<{ handle: string; worktree: URI }> { throw new Error('Worktree isolation is not supported.'); }
 	async claimDetachedWorktree(_handle: string): Promise<void> { }
 	async setDetachedWorktreeArchived(_handle: string, _archived: boolean, _strictCleanup?: boolean): Promise<void> { }

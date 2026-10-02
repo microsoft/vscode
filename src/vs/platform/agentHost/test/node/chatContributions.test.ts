@@ -26,9 +26,10 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
 import { createEditorInlineChatInstruction, type IChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { withSessionSandboxState } from '../../common/meta/agentSandboxStateMeta.js';
 import { SendRemoteMessageToolReferenceName, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -722,11 +723,11 @@ class AfterSideChatHydrationContribution extends TestContribution {
 	}
 }
 
-function createConfigurationService(enableSendInstructions: boolean): IAgentConfigurationService {
+function createConfigurationService(enableSendInstructions: boolean, enableWorkspaceSnapshot = false): IAgentConfigurationService {
 	const agentConfigService = { _serviceBrand: undefined } as IAgentConfigurationService;
 	agentConfigService.getEffectiveWorkingDirectories = () => undefined;
 	agentConfigService.getRootValue = <D extends SchemaDefinition, K extends keyof D & string>(_schema: ISchema<D>, key: K): SchemaValue<D[K]> | undefined => {
-		return enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)
+		return (enableSendInstructions && (key === AgentHostMarkdownPlanRichLinksEnabledConfigKey || key === AgentHostArtifactToolsConfigKey)) || (enableWorkspaceSnapshot && key === AgentHostWorkspaceSnapshotEnabledConfigKey)
 			? true as SchemaValue<D[K]>
 			: undefined;
 	};
@@ -837,7 +838,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	return { service, database, session, chat: buildDefaultChatUri(session) };
 }
 
-function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta) {
+function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDisposablesAreLeakedInTestSuite>, observed?: string[], enableSendInstructions = false, sessionStatus = SessionStatus.IsRead, useCompactArtifactPrompts = false, surface?: IChatSurfaceMeta, copilotWorkspace?: URI) {
 	const logService = new NullLogService();
 	const stateManager = disposables.add(new AgentHostStateManager(logService));
 	const fileService = disposables.add(new FileService(logService));
@@ -845,9 +846,10 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 	stateManager.createSession({
 		resource: 'agent-host-session://test',
-		provider: 'test',
+		provider: copilotWorkspace ? 'copilotcli' : 'test',
 		title: 'Test',
 		status: sessionStatus,
+		...(copilotWorkspace ? { workingDirectories: [copilotWorkspace.toString()] } : {}),
 		createdAt: '2025-01-01T00:00:00.000Z',
 		modifiedAt: '2025-01-01T00:00:00.000Z',
 		_meta: withChatSurfaceMeta(undefined, surface ?? (enableSendInstructions ? { surface: 'terminal', osName: 'Linux' } : undefined)),
@@ -878,7 +880,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		observed?.push('persistedFailedTurns');
 		return originalGetPersistedTurns();
 	};
-	const agentConfigService = createConfigurationService(enableSendInstructions);
+	const agentConfigService = createConfigurationService(enableSendInstructions, !!copilotWorkspace);
 	const sessionDataService = createSessionDataService(usageDatabase);
 	const worktree = new RecordingWorktreeIsolation(observed);
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
@@ -1361,6 +1363,106 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain forwards server-dispatched steering to the provider', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.Agent } },
+		});
+		const steering: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'server-steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.Agent } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steering));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['server-steering'],
+			senders: [undefined],
+		});
+	});
+
+	test('queue drain does not consume queued work when server steering cleanup follows cancellation', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const queued = queuedMessage('queued', 'stay paused');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		const steering: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.Agent } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steering));
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'active-turn',
+			duration: 1,
+		});
+		const removed: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'steering',
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, removed);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, removed));
+
+		assert.deepStrictEqual({
+			admitted: queue.admitted,
+			queued: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+			pendingMessages: queue.pendingMessages.map(message => message?.id),
+		}, {
+			admitted: [],
+			queued: ['stay paused'],
+			pendingMessages: [undefined, 'steering', undefined],
+		});
+	});
+
+	test('queue drain does not forward client-dispatched steering twice', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const steering: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'client-steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+		queue.service.didDispatchAction({
+			...dispatchedAction(queue.chat, queue.session, steering),
+			origin: { clientId: 'client', clientSeq: 1 },
+		});
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steering));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['client-steering'],
+			senders: ['client'],
+		});
+	});
+
 	test('queue drain defers stale queued actions until a resumable turn completes', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {
@@ -1736,6 +1838,18 @@ suite('AgentHostChatContributions', () => {
 			const data = event.data as { titleGenerationStrategy?: string };
 			return data.titleGenerationStrategy;
 		}), [undefined, undefined]);
+	});
+
+	test('places the workspace snapshot between the Markdown plan and chat surface instructions on a Copilot first turn', async () => {
+		const workspace = URI.file('/workspace');
+		const contributions = createBuiltInContributions(disposables, undefined, true, undefined, undefined, undefined, workspace);
+		await contributions.fileService.writeFile(URI.joinPath(workspace, 'meta.json'), VSBuffer.fromString(''));
+		const chat = buildDefaultChatUri(contributions.session);
+		const message = { text: 'first-turn-send-order', origin: { kind: MessageKind.User } } as const;
+		contributions.stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: '2025-01-01T00:00:00.000Z', message });
+		const result = await contributions.service.outgoingTurn({ session: contributions.session, chat, message, turnId: 'first-turn', workingDirectories: [workspace] });
+
+		assert.deepStrictEqual((result.instructions ?? []).map(instruction => ['<rich_plan_markdown>', '<workspace_info>', '<terminal_chat>'].find(tag => instruction.includes(tag)) ?? instruction), ['<rich_plan_markdown>', '<workspace_info>', '<terminal_chat>', 'rename instruction']);
 	});
 
 	test('runs built-in outgoing-turn contributions in the original sequence', async () => {
@@ -2310,7 +2424,7 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
-	test('persists sandbox selections through the session metadata path', async () => {
+	test('keeps sandbox selections live without persisting them through session metadata', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const values = {
 			[SessionConfigKey.SandboxEnabled]: 'off',
@@ -2321,7 +2435,45 @@ suite('AgentHostChatContributions', () => {
 		});
 		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, { type: ActionType.SessionConfigChanged, config: values }));
 		await Promise.resolve();
-		assert.strictEqual(await contributions.database.getMetadata('configValues'), JSON.stringify({ [SessionConfigKey.SandboxEnabled]: 'off' }));
+		assert.deepStrictEqual({
+			persisted: await contributions.database.getMetadata('configValues'),
+			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
+		}, { persisted: '{}', live: values });
+	});
+
+	test('persists applied sandbox state instead of pending or failed selections', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const snapshots: string[] = [];
+		const values = { [SessionConfigKey.SandboxEnabled]: 'off', mode: 'plan' };
+		contributions.stateManager.setSessionConfig(contributions.session, {
+			schema: { type: 'object', properties: {} }, values,
+		});
+		const publish = async (enabled: boolean, failed = false) => {
+			const meta = withSessionSandboxState(undefined, {
+				enabled,
+				...(failed ? { error: { clientId: 'client', clientSeq: 1, message: 'Rejected' } } : {}),
+			});
+			contributions.stateManager.setSessionMeta(contributions.session, meta);
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionMetaChanged, _meta: meta,
+			}));
+			await Promise.resolve();
+			snapshots.push((await contributions.database.getMetadata('configValues'))!);
+		};
+		await publish(true);
+		contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+			type: ActionType.SessionConfigChanged, config: { sandboxEnabled: 'off' },
+		}));
+		await Promise.resolve();
+		snapshots.push((await contributions.database.getMetadata('configValues'))!);
+		await publish(true, true);
+		await publish(false);
+		assert.deepStrictEqual(snapshots.map(value => JSON.parse(value)), [
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'on', mode: 'plan' },
+			{ sandboxEnabled: 'off', mode: 'plan' },
+		]);
 	});
 
 	test('clears automatic archive time when a session is unarchived', async () => {

@@ -19,12 +19,14 @@ import {
 	GitHubComparisonCommit,
 	GitHubHydratableResourceRef,
 	GitHubIssue,
+	GitHubIssueOrPullRequest,
 	GitHubIssueRef,
 	GitHubIssueResource,
 	GitHubIssueSubscription,
 	GitHubPullRequestContext,
 	GitHubPullRequestContextComment,
 	GitHubPullRequestLookup,
+	GitHubPullRequestLookupOptions,
 	GitHubPullRequestsPage,
 	GitHubPullRequestSummary,
 	GitHubQueryApi,
@@ -32,19 +34,22 @@ import {
 	GitHubRecentPullRequest,
 	GitHubRecentPullRequestReviewThread,
 	GitHubRepository,
+	GitHubRepositoryMergeCapabilities,
 	GitHubRepositoryRef,
 	GitHubRepositoryResource,
 	GitHubRepositorySubscription,
 	GitHubResourcePriority,
 	GitHubResourceSubscriptionOptions,
 } from './githubQueryService.js';
-import { FragmentState, GitHubActor, PullRequestRef } from './githubPullRequestService.js';
+import { FragmentState, GitHubActor, PullRequestMergeMethod, PullRequestRef } from './githubPullRequestService.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { IGitHubCapabilities } from './githubHostCapabilitiesService.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, nullableStringProperty, numberProperty, objectAt, objectProperty, optionalObjectProperty, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
-import { GitHubBackoffPolicy, gitHubBackoffDelay } from './githubBackoff.js';
+import { BackoffPolicy, backoffDelay } from './backoff.js';
 import { IGitHubEndpointProvider } from './githubTypes.js';
+import { getPullRequestUrlKey } from './githubUrls.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
 
 export interface IGitHubQuery extends GitHubQueryApi {
@@ -56,7 +61,7 @@ export interface GitHubEntityPollingPolicy {
 	readonly maximumDormantEntries: number;
 	readonly visible: number;
 	readonly background: number;
-	readonly failureBackoff: GitHubBackoffPolicy;
+	readonly failureBackoff: BackoffPolicy;
 	readonly jitter: number;
 }
 
@@ -300,11 +305,11 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	private readonly _dormant = new Map<number, EntityEntry<EntityRef, EntityValue>>();
 	private readonly _unsupportedGraphQLQueries = new Set<string>();
 	private readonly _scheduler: PullRequestScheduler;
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 	private _entryId = 0;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		scheduler: IRequestScheduler | undefined,
 		private readonly _policy: GitHubEntityPollingPolicy = defaultPollingPolicy,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _transport: IGitHubTransport,
@@ -313,7 +318,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._clock = scheduler ?? systemGitHubScheduler;
+		this._clock = scheduler ?? systemRequestScheduler;
 		this._scheduler = this._register(new PullRequestScheduler(this._clock));
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
@@ -502,6 +507,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			let totalCommits = 0;
 			for (let page = 1; page <= maximumPaginationPages; page++) {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: `${this._restUrl(normalized, `compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`)}?per_page=100&page=${page}`,
 					etag: true,
@@ -572,6 +578,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 			const root = `pulls/${ref.number}`;
 			const [coreResponse, files, issueComments, reviewComments] = await Promise.all([
 				this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: this._restUrl(repositoryRef, root),
 					etag: true,
@@ -607,48 +614,116 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		});
 	}
 
+	async getIssueOrPullRequest(ref: GitHubIssueRef, signal: AbortSignal): Promise<GitHubIssueOrPullRequest> {
+		const normalized = normalizeRepositoryRef(ref);
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: this._restUrl(normalized, `issues/${ref.number}`),
+				etag: true,
+				priority: 'background',
+			}, combinedSignal);
+			const item: { readonly body?: unknown } = asObject(response.data, 'GitHub issue or pull request response was malformed');
+			const body = item.body;
+			if (typeof body !== 'string' && body !== null) {
+				throw new GitHubRequestError('GitHub issue or pull request body was malformed', 'malformedResponse');
+			}
+			return { title: requiredString(item, 'title'), body: body ?? '' };
+		});
+	}
+
+	async getRepositoryMergeCapabilities(ref: GitHubRepositoryRef, signal: AbortSignal): Promise<GitHubRepositoryMergeCapabilities> {
+		const normalized = normalizeRepositoryRef(ref);
+		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
+			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
+				method: 'GET',
+				url: this._restUrl(normalized, ''),
+				etag: true,
+				priority: 'interactive',
+			}, combinedSignal);
+			const item = asObject(response.data, 'GitHub repository merge settings were malformed');
+			const autoMergeAllowed = booleanProperty(item, 'allow_auto_merge');
+			const merge = booleanProperty(item, 'allow_merge_commit');
+			const squash = booleanProperty(item, 'allow_squash_merge');
+			const rebase = booleanProperty(item, 'allow_rebase_merge');
+			if (autoMergeAllowed === undefined || merge === undefined || squash === undefined || rebase === undefined) {
+				throw new GitHubRequestError('GitHub repository merge settings were incomplete', 'malformedResponse');
+			}
+			const mergeMethods: PullRequestMergeMethod[] = [];
+			if (merge) {
+				mergeMethods.push('MERGE');
+			}
+			if (squash) {
+				mergeMethods.push('SQUASH');
+			}
+			if (rebase) {
+				mergeMethods.push('REBASE');
+			}
+			return { autoMergeAllowed, mergeMethods };
+		});
+	}
+
 	async findPullRequestByHeadBranch(
 		ref: GitHubRepositoryRef,
 		branch: string,
 		headOwner: string | undefined,
 		signal: AbortSignal,
+		options?: GitHubPullRequestLookupOptions,
 	): Promise<GitHubPullRequestLookup | undefined> {
+		const allowedPullRequestUrls = options?.allowedPullRequestUrls;
+		if (allowedPullRequestUrls?.length === 0) {
+			return undefined;
+		}
 		const normalized = normalizeRepositoryRef(ref);
 		const owner = headOwner ?? normalized.owner;
 		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
-				url: `${this._restUrl(normalized, 'pulls')}?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=1`,
+				url: `${this._restUrl(normalized, 'pulls')}?head=${encodeURIComponent(`${owner}:${branch}`)}&state=all&sort=updated&direction=desc&per_page=${allowedPullRequestUrls ? 100 : 1}`,
 				etag: true,
-				priority: 'interactive',
+				priority: options?.priority ?? 'interactive',
 			}, combinedSignal);
 			const values = asArray(response.data, 'GitHub pull request lookup response was malformed');
-			return values.length > 0 ? toPullRequestLookup(normalized, values[0]) : undefined;
+			const selected = allowedPullRequestUrls ? selectAllowedPullRequest(values, allowedPullRequestUrls) : values[0];
+			return selected === undefined ? undefined : toPullRequestLookup(normalized, selected);
 		});
 	}
 
-	async findPullRequestByHeadSha(ref: GitHubRepositoryRef, sha: string, signal: AbortSignal): Promise<GitHubPullRequestLookup | undefined> {
+	async findPullRequestByHeadSha(ref: GitHubRepositoryRef, sha: string, signal: AbortSignal, options?: GitHubPullRequestLookupOptions): Promise<GitHubPullRequestLookup | undefined> {
+		const allowedPullRequestUrls = options?.allowedPullRequestUrls;
+		if (allowedPullRequestUrls?.length === 0) {
+			return undefined;
+		}
 		const normalized = normalizeRepositoryRef(ref);
 		return this._withCredential(normalized, signal, async (credential, combinedSignal) => {
 			let values: readonly unknown[];
 			try {
 				const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+					caller: 'github.query',
 					method: 'GET',
 					url: `${this._restUrl(normalized, `commits/${encodeURIComponent(sha)}/pulls`)}?per_page=${maximumCommitPullRequests}`,
 					etag: true,
-					priority: 'interactive',
+					priority: options?.priority ?? 'interactive',
 				}, combinedSignal);
 				values = asArray(response.data, 'GitHub commit pull request lookup response was malformed');
 			} catch (error) {
-				if (error instanceof GitHubRequestError && error.statusCode === 422 && error.responseBody?.includes('No commit found for SHA')) {
+				if (isMissingCommitResponse(error)) {
 					return undefined;
 				}
 				throw error;
 			}
 			if (values.length >= maximumCommitPullRequests) {
+				this._logService.warn(`[GitHubQueryService] Not resolving a pull request for ${sha}: the first page of associated pull requests is full`);
 				return undefined;
 			}
 			const atHead = values.filter(value => stringProperty(objectProperty(asObject(value, 'GitHub pull request was malformed'), 'head'), 'sha') === sha);
+			if (allowedPullRequestUrls) {
+				const selected = selectAllowedPullRequest(atHead, allowedPullRequestUrls);
+				return selected === undefined ? undefined : toPullRequestLookup(normalized, selected);
+			}
 			const open = atHead.filter(value => stringProperty(asObject(value, 'GitHub pull request was malformed'), 'state') === 'open');
 			const candidates = open.length > 0 ? open : atHead;
 			return candidates.length === 1 ? toPullRequestLookup(normalized, candidates[0]) : undefined;
@@ -849,6 +924,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					? `issues/${(entry.ref as GitHubIssueRef).number}`
 					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
 				url: this._restUrl(entry.ref, route),
 				etag: true,
@@ -939,6 +1015,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 					variables,
 					combinedSignal,
 					'interactive',
+					{ caller: 'github.query' },
 				);
 				throwGraphQLErrors(response.errors);
 				return response.data;
@@ -971,6 +1048,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 		let url: string | undefined = `${this._restUrl(ref, route)}?per_page=100&page=1`;
 		for (let page = 0; url && page < maximumPaginationPages; page++) {
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
+				caller: 'github.query',
 				method: 'GET',
 				url,
 				etag: true,
@@ -1109,7 +1187,7 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	 */
 	private _scheduleAfterFailure(entry: EntityEntry<EntityRef, EntityValue>): void {
 		entry.failureCount++;
-		const delay = gitHubBackoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
+		const delay = backoffDelay(this._policy.failureBackoff, this._clock, entry.failureCount, this._pollDelay(entry));
 		this._scheduleEntity(entry, this._clock.now() + delay);
 	}
 
@@ -1349,12 +1427,42 @@ function toPullRequestSummary(value: unknown, reviewRequested: boolean, assigned
 
 function toPullRequestLookup(ref: GitHubRepositoryRef, value: unknown): GitHubPullRequestLookup {
 	const item = asObject(value, 'GitHub pull request lookup response was malformed');
+	const title = stringProperty(item, 'title');
+	const state = stringProperty(item, 'state');
 	return {
 		ref: { ...ref, number: requiredNumber(item, 'number') },
 		id: idProperty(item, 'node_id'),
 		url: requiredString(item, 'html_url'),
+		...(title !== undefined ? { title } : {}),
 		createdAt: stringProperty(item, 'created_at'),
+		...(state === 'open' || state === 'closed' ? { state } : {}),
 	};
+}
+
+function selectAllowedPullRequest(values: readonly unknown[], allowedPullRequestUrls: readonly string[]): object | undefined {
+	const byUrl = new Map<string, object>();
+	for (const value of values) {
+		const item = asObject(value, 'GitHub pull request lookup response was malformed');
+		const url = stringProperty(item, 'html_url');
+		if (url !== undefined) {
+			byUrl.set(getPullRequestUrlKey(url), item);
+		}
+	}
+	const allowed = allowedPullRequestUrls.map(url => byUrl.get(getPullRequestUrlKey(url))).filter(item => item !== undefined);
+	return allowed.find(item => stringProperty(item, 'state') === 'open') ?? allowed[0];
+}
+
+function isMissingCommitResponse(error: unknown): boolean {
+	if (!(error instanceof GitHubRequestError) || error.statusCode !== 422 || !error.responseBody) {
+		return false;
+	}
+	let body: unknown;
+	try {
+		body = JSON.parse(error.responseBody);
+	} catch {
+		return false;
+	}
+	return isObject(body) && stringProperty(body, 'message')?.startsWith('No commit found for SHA: ') === true;
 }
 
 function toContextComment(kind: 'issue' | 'review', value: unknown): GitHubPullRequestContextComment {
@@ -1419,7 +1527,7 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	}
 	const types = errors.map(error => error.type?.toUpperCase());
 	const codes = errors.map(error => error.extensions?.code?.toUpperCase());
-	const kind = types.includes('RATE_LIMITED')
+	const kind = types.includes('RATE_LIMIT') || types.includes('RATE_LIMITED')
 		? 'rateLimit'
 		: types.some(type => type === 'FORBIDDEN' || type === 'UNAUTHORIZED')
 			? 'authorization'
@@ -1439,56 +1547,8 @@ function throwGraphQLErrors(errors: readonly GitHubGraphQLError[]): void {
 	);
 }
 
-function nextLink(link: string | undefined): string | undefined {
-	if (!link) {
-		return undefined;
-	}
-	for (const part of link.split(',')) {
-		const match = /^\s*<(?<url>[^>]+)>\s*;\s*rel="(?<rel>[^"]+)"/.exec(part);
-		if (match?.groups?.rel.split(/\s+/).includes('next')) {
-			return match.groups.url;
-		}
-	}
-	return undefined;
-}
-
-function objectAt(value: unknown, ...path: readonly string[]): object {
-	let current = asObject(value, 'GitHub response was malformed');
-	for (const part of path) {
-		current = objectProperty(current, part);
-	}
-	return current;
-}
-
-function asObject(value: unknown, message: string): object {
-	if (!isObject(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
 function isObject(value: unknown): value is object {
 	return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-}
-
-function asArray(value: unknown, message: string): readonly unknown[] {
-	if (!Array.isArray(value)) {
-		throw new GitHubRequestError(message, 'malformedResponse');
-	}
-	return value;
-}
-
-function objectProperty(value: object, key: string): object {
-	return asObject(Reflect.get(value, key), `GitHub response property ${key} was malformed`);
-}
-
-function optionalObjectProperty(value: object, key: string): object | undefined {
-	const property = Reflect.get(value, key);
-	return property === null || property === undefined ? undefined : asObject(property, `GitHub response property ${key} was malformed`);
-}
-
-function arrayProperty(value: object, key: string): readonly unknown[] {
-	return asArray(Reflect.get(value, key), `GitHub response property ${key} was not an array`);
 }
 
 function optionalArrayProperty(value: object, key: string): readonly unknown[] | undefined {
@@ -1496,47 +1556,6 @@ function optionalArrayProperty(value: object, key: string): readonly unknown[] |
 	return property === null || property === undefined
 		? undefined
 		: asArray(property, `GitHub response property ${key} was not an array`);
-}
-
-function requiredString(value: object, key: string): string {
-	const property = stringProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a string`, 'malformedResponse');
-	}
-	return property;
-}
-
-function stringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' ? property : undefined;
-}
-
-function nullableStringProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return property === null ? undefined : typeof property === 'string' ? property : undefined;
-}
-
-function numberProperty(value: object, key: string): number | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'number' && Number.isFinite(property) ? property : undefined;
-}
-
-function requiredNumber(value: object, key: string): number {
-	const property = numberProperty(value, key);
-	if (property === undefined) {
-		throw new GitHubRequestError(`GitHub response property ${key} was not a number`, 'malformedResponse');
-	}
-	return property;
-}
-
-function booleanProperty(value: object, key: string): boolean | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'boolean' ? property : undefined;
-}
-
-function idProperty(value: object, key: string): string | undefined {
-	const property = Reflect.get(value, key);
-	return typeof property === 'string' || typeof property === 'number' ? String(property) : undefined;
 }
 
 function enumProperty<T extends string>(value: object, key: string, allowed: readonly T[], fallback: T): T;
@@ -1552,7 +1571,7 @@ function requiredActor(value: object): GitHubActor {
 	return id ? { id, login } : { login };
 }
 
-function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./githubTypes.js').GitHubRequestErrorKind; readonly statusCode?: number } {
+function toFragmentError(error: unknown): { readonly message: string; readonly kind: import('./types.js').RequestErrorKind; readonly statusCode?: number } {
 	if (error instanceof GitHubRequestError) {
 		return { message: error.message, kind: error.kind, statusCode: error.statusCode };
 	}

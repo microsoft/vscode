@@ -11,11 +11,15 @@ export class SandboxSettingsResolutionHelper {
 		return managed === true ? AgentSandboxEnabledValue.On : local;
 	}
 
+	static resolveSandboxServers(local: boolean | undefined, managed: boolean | undefined): boolean | undefined {
+		return managed === true ? true : local;
+	}
+
 	static resolveAllowBypass(local: boolean | undefined, managed: boolean | undefined, managedEnabled: boolean | undefined): boolean | undefined {
 		return managed === false || (managedEnabled === true && managed !== true) ? false : local;
 	}
 
-	static resolveAllowOutbound(local: boolean | undefined, managed: boolean | undefined): boolean | undefined {
+	static resolveAllowAccess(local: boolean | undefined, managed: boolean | undefined): boolean | undefined {
 		return managed === false ? false : local;
 	}
 }

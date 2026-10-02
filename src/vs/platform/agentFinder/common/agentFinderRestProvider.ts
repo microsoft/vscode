@@ -122,7 +122,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 	}
 
 	private async resolveMcpIcons(page: ICustomizationMarketplaceSourcePage, token: CancellationToken): Promise<ICustomizationMarketplaceSourcePage> {
-		if (!page.items.some(item => !item.icon && item.installation?.kind === 'mcp' && item.externalUrl)) {
+		if (!page.items.some(item => (!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl)) {
 			return page;
 		}
 
@@ -137,15 +137,15 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 
 		try {
 			const items = await Promise.all(page.items.map(item =>
-				!item.icon && item.installation?.kind === 'mcp' && item.externalUrl
-					? limiter.queue(() => this.resolveMcpIcon(item, token, cancellation.token))
+				(!item.icon || !item.publisher) && item.installation?.kind === 'mcp' && item.externalUrl
+					? limiter.queue(() => this.resolveMcpMetadata(item, token, cancellation.token))
 					: item
 			));
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
 			if (timedOut) {
-				this.logService.warn('[AgentFinderRestProvider] Timed out resolving MCP catalog icons.');
+				this.logService.warn('[AgentFinderRestProvider] Timed out resolving MCP catalog metadata.');
 			}
 			return { ...page, items };
 		} finally {
@@ -154,7 +154,7 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 		}
 	}
 
-	private async resolveMcpIcon(item: ICustomizationMarketplaceEntry, queryToken: CancellationToken, iconToken: CancellationToken): Promise<ICustomizationMarketplaceEntry> {
+	private async resolveMcpMetadata(item: ICustomizationMarketplaceEntry, queryToken: CancellationToken, iconToken: CancellationToken): Promise<ICustomizationMarketplaceEntry> {
 		const installation = item.installation;
 		if (installation?.kind !== 'mcp' || !item.externalUrl || queryToken.isCancellationRequested || iconToken.isCancellationRequested) {
 			return item;
@@ -166,10 +166,16 @@ export class AgentFinderRestProvider implements ICustomizationMarketplaceProvide
 			if (server?.icon?.light && !icon) {
 				this.logService.warn(`[AgentFinderRestProvider] Ignoring an invalid MCP catalog icon for '${installation.name}'.`);
 			}
-			return icon ? { ...item, icon } : item;
+			const publisher = server?.publisherDisplayName ?? server?.publisher;
+			const repository = githubRepository(parseHttpUri(server?.repositoryUrl));
+			const repositoryOwner = repository?.path.split('/')[1];
+			const publisherUrl = parseHttpUri(server?.publisherUrl) ?? (repositoryOwner ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repositoryOwner}` }) : undefined);
+			return icon || publisher || publisherUrl || repository
+				? { ...item, ...(icon ? { icon } : {}), ...(publisher ? { publisher } : {}), ...(publisherUrl ? { publisherUrl } : {}), ...(repository ? { repository } : {}) }
+				: item;
 		} catch (error) {
 			if (!queryToken.isCancellationRequested && !iconToken.isCancellationRequested) {
-				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for '${installation.name}'.`, error);
+				this.logService.warn(`[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for '${installation.name}'.`, error);
 			}
 			return item;
 		}
@@ -301,6 +307,9 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 	const sourceSet = text(metadata?.sourceSet);
 	const repository = (sourceSet && !sourceSet.includes('://') ? githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true) : undefined) ?? githubRepository(url);
 	const publisher = repository?.path.split('/')[1];
+	const publisherUrl = publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}` }) : undefined;
+	const installation = parseInstallation(mediaType, metadata, url, externalUrl);
+	const readmeUri = getReadmeUri(installation);
 	return {
 		identifier,
 		displayName,
@@ -312,12 +321,22 @@ function parseResource(value: unknown): ICustomizationMarketplaceEntry {
 		url,
 		externalUrl,
 		repository,
+		...(readmeUri ? { readmeUri } : {}),
 		icon: publisher ? URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${publisher}.png`, query: 'size=64' }) : undefined,
 		publisher,
+		...(publisherUrl ? { publisherUrl } : {}),
 		version: text(value.version) ?? text(metadata?.version),
 		score: value.score,
-		installation: parseInstallation(mediaType, metadata, url, externalUrl),
+		installation,
 	};
+}
+
+function getReadmeUri(installation: CustomizationMarketplaceInstallation | undefined): URI | undefined {
+	if (installation?.kind !== 'plugin') {
+		return undefined;
+	}
+	const path = [installation.repository, installation.ref, installation.path, 'README.md'].filter(Boolean).join('/');
+	return URI.from({ scheme: Schemas.https, authority: 'raw.githubusercontent.com', path: `/${path}` });
 }
 
 function parseInstallation(mediaType: string, metadata: Record<string, unknown> | undefined, url: URI | undefined, externalUrl: string | undefined): CustomizationMarketplaceInstallation | undefined {
@@ -340,6 +359,9 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		: mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? 'plugin.json'
 			: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/plugin.json'
 				: undefined;
+	const marketplaceManifest = mediaType === CustomizationMarketplaceMediaType.CopilotPlugin ? '.github/plugin/marketplace.json'
+		: mediaType === CustomizationMarketplaceMediaType.ClaudePlugin ? '.claude-plugin/marketplace.json'
+			: undefined;
 	const sourceSet = metadata.sourceSet;
 	const repoPath = metadata.repoPath;
 	if (!manifest || url.authority.toLowerCase() !== 'github.com' || /%2f|%5c/i.test(externalUrl) ||
@@ -347,12 +369,20 @@ function parseInstallation(mediaType: string, metadata: Record<string, unknown> 
 		return undefined;
 	}
 	const repository = githubRepository(parseHttpUri(`https://github.com/${sourceSet}`), true);
-	if (repository?.path !== `/${sourceSet}` || (repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
+	const isMarketplacePlugin = kind === 'plugin' && repoPath === marketplaceManifest;
+	if (repository?.path !== `/${sourceSet}` || (!isMarketplacePlugin && repoPath !== manifest && !repoPath.endsWith(`/${manifest}`))) {
 		return undefined;
 	}
 	const [, owner, name, view, ...parts] = url.path.split('/');
 	if (`${owner}/${name}`.toLowerCase() !== sourceSet.toLowerCase() || (view !== 'blob' && view !== 'tree')) {
 		return undefined;
+	}
+	if (isMarketplacePlugin) {
+		const [ref, ...pathSegments] = parts;
+		const path = pathSegments.join('/');
+		return ref !== undefined && isSupportedMarketplaceRef(ref) && isSafeSourcePath(path)
+			? { kind: 'plugin', repository: sourceSet, ref, path }
+			: undefined;
 	}
 	const path = repoPath === manifest ? '' : repoPath.slice(0, -manifest.length - 1);
 	if (mediaType === CustomizationMarketplaceMediaType.CopilotPlugin && ['.claude-plugin', '.cursor-plugin', '.plugin'].includes(path.split('/').at(-1) ?? '')) {
@@ -379,6 +409,10 @@ function isSafeSourcePath(path: string): boolean {
 function isSafeGitRef(ref: string): boolean {
 	return ref.length <= maxGitRefLength && isSafeSourcePath(ref) && !ref.includes('..') &&
 		ref.split('/').every(part => !part.startsWith('.') && !part.toLowerCase().endsWith('.lock'));
+}
+
+function isSupportedMarketplaceRef(ref: string): boolean {
+	return ref === 'main' || ref === 'master' || /^[0-9a-f]{40}$/i.test(ref);
 }
 
 function parseHttpUri(value: unknown): URI | undefined {

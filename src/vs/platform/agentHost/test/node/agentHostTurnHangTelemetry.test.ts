@@ -54,6 +54,7 @@ import { AgentHostToolCallTracker, IAgentHostToolCallTracker } from '../../node/
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_ACTIVITY_NONE, TURN_HANG_THRESHOLD_MS } from '../../node/agentHostTurnTracker.js';
 import { AgentHostTurnService, IAgentHostTurnService } from '../../node/agentHostTurnService.js';
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { IAgentHostSessionPromptService } from '../../node/agentHostSessionPromptService.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
@@ -85,6 +86,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {
@@ -221,8 +224,10 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: clientId => clientId === 'test',
 			isClientConnected: clientId => clientId === 'test',
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
 			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
 		}));
 		const sharedLocalTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		const worktreeIsolation = createNoopWorktreeIsolation();
@@ -257,6 +262,10 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const chatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 		services.set(IAgentHostChatContributions, chatContributions);
+		services.set(IAgentHostSessionPromptService, {
+			_serviceBrand: undefined,
+			startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
+		});
 		services.set(IAgentHostTurnService, new AgentHostTurnService(stateManager, chatContributions, instantiationService));
 		services.set(IAgentHostSessionTitleController, disposables.add(new AgentHostSessionTitleController(stateManager, { sessionDataService }, logService)));
 		const providerService = createTestAgentHostProviderService(() => agent);
@@ -589,8 +598,10 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: clientId => clientId === 'connected-client',
 			isClientConnected: clientId => clientId === 'connected-client',
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
 			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
 		}));
 		const diagnosticAgent = disposables.add(new MockAgent('copilotcli'));
 		diagnosticAgent.getTurnDiagnosticSnapshot = () => ({

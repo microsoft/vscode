@@ -432,7 +432,6 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 	});
 
 	if (config.provider === 'copilotcli') {
-		// Since 1.0.15-preview.2 (still true in preview.3), the bundled runtime no longer exposes the account-scoped diagnostics API.
 		providerHostOnlyTest(context, 'managed settings diagnostics expose the provider snapshot', async function () {
 			await initializeClient('managed-settings-snapshot');
 			const result = await context.client.call<readonly IAgentHostManagedSettingsDiagnostics[]>('getManagedSettingsDiagnostics');
@@ -444,14 +443,18 @@ export function defineManagementExtensionTests(context: IAgentHostE2ETestContext
 				hasError: provider?.error !== undefined,
 				sourceIsValid: provider?.snapshot !== undefined && ['server', 'device', 'client', 'policyHelper', 'mixed', 'none'].includes(provider.snapshot.source),
 				managedKeysAreArray: Array.isArray(provider?.snapshot?.managedKeys),
+				layersAreArray: Array.isArray(provider?.snapshot?.layers),
+				diagnosticsAreArray: Array.isArray(provider?.snapshot?.diagnostics),
 			}, {
 				hasProvider: true,
 				hasSnapshot: true,
 				hasError: false,
 				sourceIsValid: true,
 				managedKeysAreArray: true,
+				layersAreArray: true,
+				diagnosticsAreArray: true,
 			});
-		}, context.runHostOnlyKnownIssueTests);
+		});
 	}
 
 	if (context.tier === 'parity') {

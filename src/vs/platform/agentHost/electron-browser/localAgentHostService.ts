@@ -5,7 +5,7 @@
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
-import { Disposable, DisposableStore, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { mark } from '../../../base/common/performance.js';
@@ -31,6 +31,7 @@ import { AGENT_HOST_CLIENT_PROXY_CHANNEL, AgentHostClientProxyChannel } from '..
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -46,6 +47,7 @@ import {
 	IAgentCreateSessionConfig,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
+	type IAgentHostCanvases,
 	IAgentHostManagementService,
 	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
@@ -54,6 +56,7 @@ import {
 	type IAgentHostOTelPolicyReadiness,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	IAgentPluginUninstallRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -151,11 +154,13 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	readonly clientId = generateUuid();
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
+	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
 	private readonly _ahpLogger: AhpJsonlLogger | undefined;
 	private _protocolClient: AgentHostProtocolClient | undefined;
+	private _mcpAuthenticationHandler: ((request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>) | undefined;
 	private _connectStarted = false;
 	private _didAcquireInitialMessagePort = false;
 	private _didConnectInitially = false;
@@ -239,6 +244,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 				() => this._createTransport(),
 				{ clientId: this.clientId, clientInfo: this._clientInfo },
 			));
+			this._register(this._protocolClient.registerMcpAuthenticationHandler(async request => this._mcpAuthenticationHandler?.(request) ?? false));
 			this._onDidAction.input = this._protocolClient.onDidAction;
 			this._onDidNotification.input = this._protocolClient.onDidNotification;
 			this._onMcpNotification.input = this._protocolClient.onMcpNotification;
@@ -403,6 +409,17 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().authenticate(params);
 	}
 
+	/** Registers silent MCP authentication even before the local protocol client is created. */
+	registerMcpAuthenticationHandler(handler: (request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>): IDisposable {
+		if (this._mcpAuthenticationHandler) {
+			throw new Error('MCP authentication handler is already registered');
+		}
+		this._mcpAuthenticationHandler = handler;
+		return toDisposable(() => {
+			this._mcpAuthenticationHandler = undefined;
+		});
+	}
+
 	listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._startupTelemetry?.sessionListRequested();
 		if (!this._didStartInitialSessionList) {
@@ -483,6 +500,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	refreshCopilotConnectorSessions(): Promise<void> {
 		return this._getManagementService().refreshCopilotConnectorSessions();
+	}
+
+	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
+		return this._getManagementService().uninstallPlugin(provider, request);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {

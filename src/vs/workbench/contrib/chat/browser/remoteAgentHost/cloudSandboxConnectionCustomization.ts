@@ -54,6 +54,7 @@ export function createCloudSandboxConnectionCustomization(
 		return undefined;
 	}
 	return {
+		requiresWorkspaceTrust: false,
 		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
 			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
