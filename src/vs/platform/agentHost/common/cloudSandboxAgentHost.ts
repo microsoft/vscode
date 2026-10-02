@@ -100,6 +100,7 @@ export interface ICloudSandboxCreatedSession {
 
 /** A sandbox session discovered from the Copilot task list, enough to seed a session entry. */
 export interface ICloudSandboxDiscoveredSession {
+	readonly eventType?: string;
 	/** Mission Control environment id the session's sandbox is bound to. */
 	readonly environmentId: string;
 	/**
@@ -272,6 +273,9 @@ export interface ICloudSandboxApiService {
 
 	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
 	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
+
+	/** Rename the Mission Control task without waking the sandbox. */
+	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by

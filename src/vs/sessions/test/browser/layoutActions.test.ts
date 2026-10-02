@@ -8,13 +8,15 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../platform/accessibility/common/accessibility.js';
 import { ToggleAuxiliaryBarAction } from '../../../workbench/browser/parts/auxiliarybar/auxiliaryBarActions.js';
+import { LayoutDensityMenu } from '../../../workbench/browser/actions/layoutDensityActions.js';
 import { PanelVisibleContext, SecondarySideBarVisibleContext } from '../../../workbench/common/contextkeys.js';
-import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { LayoutSettings, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../browser/menus.js';
 
 // Import layout actions to trigger menu registration
@@ -33,6 +35,31 @@ suite('Sessions - Layout Actions', () => {
 			import('../../contrib/editor/browser/editor.contribution.js'),
 			import('../../contrib/terminal/browser/sessionsTerminalContribution.js')
 		]);
+	});
+
+	test('offers shared layout density commands in the desktop View and title bar menus', () => {
+		const parents = [Menus.TitleBarContext, MenuId.MenubarViewMenu].map(menu =>
+			MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === LayoutDensityMenu));
+		const options = MenuRegistry.getMenuItems(LayoutDensityMenu).filter(isIMenuItem);
+
+		assert.deepStrictEqual({
+			parents: parents.map(item => ({ title: item?.title, when: item?.when?.serialize() })),
+			options: options.map(item => ({
+				id: item.command.id,
+				registered: !!CommandsRegistry.getCommand(item.command.id),
+				toggled: item.command.toggled,
+			})),
+		}, {
+			parents: [
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+				{ title: 'Layout Density', when: '!sessionsIsPhoneLayout' },
+			],
+			options: ['default', 'compact'].map(density => ({
+				id: `workbench.action.setLayoutDensity.${density}`,
+				registered: true,
+				toggled: ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, density),
+			})),
+		});
 	});
 
 	test('always-on-top toggle action is contributed to TitleBarRight', () => {

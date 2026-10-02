@@ -155,6 +155,11 @@ suite('Sessions - Editor Contribution', () => {
 			workbench.classList.add(theme);
 			for (const connected of [true, false]) {
 				workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				const horizontalSpacing = () => [row, ...buttons.map(button => button.closest<HTMLElement>('.editor-actions, .editor-layout-actions')!)].map(element => {
+					const style = mainWindow.getComputedStyle(element);
+					return [style.paddingLeft, style.paddingRight];
+				});
+				const defaultHorizontalSpacing = horizontalSpacing();
 				for (const compact of [true, false]) {
 					title.classList.toggle('compact-height', compact);
 					const rowBounds = row.getBoundingClientRect();
@@ -170,6 +175,11 @@ suite('Sessions - Editor Contribution', () => {
 						rowHeight: contentHeight + (connected ? 1 : 0),
 						buttonOffsets: [0, 0],
 					}, `${theme}, connected: ${connected}, compact: ${compact}`);
+					const densitySpacing = [false, true, false].map(compactLayout => {
+						workbench.classList.toggle('modern-ui-compact', compactLayout);
+						return horizontalSpacing();
+					});
+					assert.deepStrictEqual(densitySpacing, [defaultHorizontalSpacing, defaultHorizontalSpacing, defaultHorizontalSpacing]);
 				}
 			}
 			workbench.classList.remove(theme);
@@ -331,6 +341,75 @@ suite('Sessions - Editor Contribution', () => {
 			workbench.remove();
 		}
 	});
+
+	for (const connected of [false, true]) {
+		test(`preserves ${connected ? 'connected' : 'pill'} side-panel tab outlines without a duplicate docked-details divider`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench modern-ui-tabs agent-sessions-workbench dock-detail-panel');
+			workbench.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#808080');
+			workbench.style.setProperty('--vscode-contrastBorder', '#ffffff');
+			workbench.style.setProperty('--vscode-focusBorder', '#00ff00');
+			const editor = appendElement(workbench, 'part editor');
+			const content = appendElement(editor, 'content');
+			const group = appendElement(content, 'editor-group-container active');
+			const title = appendElement(group, 'title tabs');
+			const row = appendElement(title, 'tabs-and-actions-container tabs-border-bottom');
+			const tabs = appendElement(row, 'tabs-container');
+			const activeTab = appendElement(tabs, 'tab active');
+			const fill = appendElement(activeTab, 'tab-fill');
+			const pinnedTitle = appendElement(group, 'title tabs two-tab-bars');
+			const pinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const unpinnedRow = appendElement(pinnedTitle, 'tabs-and-actions-container tabs-border-bottom');
+			const singleTitle = appendElement(group, 'title');
+			const singleRow = appendElement(singleTitle, 'single-tab-and-actions-container');
+			const details = appendElement(editor, 'part auxiliarybar docked-auxiliarybar');
+			const modal = appendElement(workbench, 'part editor modal-editor-part');
+			const modalContent = appendElement(modal, 'content');
+			const modalGroup = appendElement(modalContent, 'editor-group-container');
+			const modalTitle = appendElement(modalGroup, 'title tabs');
+			const modalRow = appendElement(modalTitle, 'tabs-and-actions-container');
+			const hasSeparator = (element: HTMLElement) => {
+				const style = mainWindow.getComputedStyle(element, '::after');
+				return style.content !== 'none' && style.display !== 'none';
+			};
+
+			try {
+				for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+					workbench.classList.add(theme);
+					const capBorder = mainWindow.getComputedStyle(fill).borderTop;
+					const states = [false, true, false].map(compact => {
+						workbench.classList.toggle('modern-ui-compact', compact);
+						const detailsFrame = mainWindow.getComputedStyle(details, '::after');
+						return {
+							separator: hasSeparator(row),
+							pinnedSeparator: hasSeparator(pinnedRow),
+							unpinnedSeparator: hasSeparator(unpinnedRow),
+							singleSeparator: hasSeparator(singleRow),
+							modalSeparator: hasSeparator(modalRow),
+							capBorder: mainWindow.getComputedStyle(fill).borderTop,
+							detailsTopBorder: detailsFrame.borderTopWidth,
+							detailsSideBorder: detailsFrame.borderLeftWidth,
+						};
+					});
+
+					assert.deepStrictEqual(states, [false, true, false].map(compact => ({
+						separator: true,
+						pinnedSeparator: false,
+						unpinnedSeparator: true,
+						singleSeparator: true,
+						modalSeparator: true,
+						capBorder,
+						detailsTopBorder: '0px',
+						detailsSideBorder: compact ? '1px' : '0px',
+					})), theme);
+					workbench.classList.remove(theme);
+				}
+			} finally {
+				workbench.remove();
+			}
+		});
+	}
 
 	function stubEditorGroupCount(instantiationService: TestInstantiationService, count: number): void {
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {

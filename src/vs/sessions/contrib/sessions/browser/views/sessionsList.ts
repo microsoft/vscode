@@ -66,7 +66,6 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../../base/common/actions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../../../browser/sessionActionViewItem.js';
-import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { HoverStyle, IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -97,6 +96,7 @@ import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/c
 // eslint-disable-next-line no-restricted-imports
 import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
+import { SessionsListFilters } from './sessionsListFilters.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { buildOpenSessionLinkUri } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -1327,7 +1327,6 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly configurationService: IConfigurationService,
-		private readonly accessibilitySignalService: IAccessibilitySignalService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
 		private readonly sessionsProvidersService: ISessionsProvidersService,
@@ -1429,7 +1428,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.toolbarMenuId) {
 			const actionRunner = disposables.add(new SessionItemActionRunner(this.options.getMultiSelectedSessions, this.options.handleToolbarAction));
-			const actionViewItemProvider = createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService, this.accessibilitySignalService);
+			const actionViewItemProvider = createSessionActionViewItemProvider(scopedInstantiationService, this.configurationService);
 			titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, titleToolbarContainer, this.options.toolbarMenuId, {
 				menuOptions: { shouldForwardArgs: true },
 				actionRunner,
@@ -1448,7 +1447,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 								}
 							}));
 						}
-					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService, this.accessibilitySignalService));
+					}, action, getSessionArchiveActionViewItemOptions(options, this.configurationService));
 				},
 			}));
 		}
@@ -3517,16 +3516,9 @@ export interface ISessionsList {
 	pinSession(session: ISession): void;
 	unpinSession(session: ISession): void;
 	isSessionPinned(session: ISession): boolean;
-	setSessionTypeExcluded(sessionTypeId: string, excluded: boolean): void;
-	isSessionTypeExcluded(sessionTypeId: string): boolean;
-	setStatusExcluded(status: SessionStatus, excluded: boolean): void;
-	isStatusExcluded(status: SessionStatus): boolean;
+	readonly filters: SessionsListFilters;
 	setExcludeArchived(exclude: boolean): void;
 	isExcludeArchived(): boolean;
-	setExcludeRead(exclude: boolean): void;
-	isExcludeRead(): boolean;
-	setShowEmptyGroups(show: boolean): void;
-	isShowEmptyGroups(): boolean;
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
@@ -3610,13 +3602,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 	});
 	private visible = true;
 	private readonly onboardingTarget = observableValue<ISessionOnboardingTarget | undefined>(this, undefined);
-	private readonly excludedSessionTypes: Set<string>;
-	private readonly excludedStatuses: Set<SessionStatus>;
+	readonly filters: SessionsListFilters;
 	private _excludeArchived: boolean;
 	/** Whether the archived filter still follows {@link SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING} because the user has not chosen one. */
 	private _excludeArchivedIsDefault: boolean;
-	private _excludeRead: boolean;
-	private _showEmptyGroups: boolean;
 	private workspaceGroupCapped: boolean;
 
 	/** Tree delegate, retained so height reconciliation can recompute row heights. */
@@ -3698,7 +3687,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IVoicePlaybackService private readonly _listVoicePlaybackService: IVoicePlaybackService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -3711,11 +3699,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		super();
 		this.automationsNewBadgeState = this._register(instantiationService.createInstance(AutomationsNewBadgeState));
 
-		// Load excluded session types from storage
-		this.excludedSessionTypes = this.loadExcludedSessionTypes();
-
-		// Load excluded statuses from storage
-		this.excludedStatuses = this.loadExcludedStatuses();
+		this.filters = this._register(instantiationService.createInstance(SessionsListFilters));
+		for (const key of [SessionsList.EXCLUDED_TYPES_KEY, SessionsList.EXCLUDED_STATUSES_KEY, SessionsList.EXCLUDE_READ_KEY, SessionsList.SHOW_EMPTY_GROUPS_KEY]) {
+			this.storageService.remove(key, StorageScope.PROFILE);
+		}
 
 		// Load property filter state
 		const storedExcludeArchived = this.storageService.get(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE);
@@ -3723,8 +3710,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._excludeArchived = storedExcludeArchived === undefined
 			? this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING) !== true
 			: this.storageService.getBoolean(SessionsList.EXCLUDE_ARCHIVED_KEY, StorageScope.PROFILE, true);
-		this._excludeRead = this.storageService.getBoolean(SessionsList.EXCLUDE_READ_KEY, StorageScope.PROFILE, false);
-		this._showEmptyGroups = this.storageService.getBoolean(SessionsList.SHOW_EMPTY_GROUPS_KEY, StorageScope.PROFILE, true);
 		this.workspaceGroupCapped = this.storageService.getBoolean(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, StorageScope.PROFILE, true);
 		this.collapsedSessionResources = this.loadCollapsedSessionResources();
 
@@ -3807,7 +3792,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			instantiationService,
 			contextKeyService,
 			this.configurationService,
-			this.accessibilitySignalService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,
@@ -4317,6 +4301,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.update();
 			}
 		}));
+		this._register(this.filters.onDidChange(() => this.update()));
 
 		// Re-render when the active session changes.
 		this._register(autorun(reader => {
@@ -4370,6 +4355,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			for (const session of this.sessions) {
 				getSessionListChats(session, reader, !this._excludeArchived);
 				session.isExternal?.read(reader);
+				session.application.read(reader);
 			}
 			if (initialized && this.visible) {
 				this.update();
@@ -4400,22 +4386,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			const scoped = new Set(scopedProviderIds);
 			filtered = filtered.filter(s => scoped.has(s.providerId));
 		}
-		if (this.excludedSessionTypes.size > 0) {
-			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
-		}
-		if (this.excludedStatuses.size > 0) {
-			filtered = filtered.filter(s => !this.excludedStatuses.has(s.status.get()));
-		}
+		filtered = filtered.filter(session => this.filters.matches(session));
 		// The default only changes what the list shows for archived content that the other filters keep.
-		if (this._excludeArchivedIsDefault && filtered.some(session => (!this._excludeRead || !session.isRead.get()) && hasArchivedListContent(session))) {
+		if (this._excludeArchivedIsDefault && filtered.some(session => hasArchivedListContent(session))) {
 			logSettingExperimentTrigger(this.telemetryService, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING);
 		}
 		if (this._excludeArchived) {
 			filtered = filtered.filter(s => !s.isArchived.get());
 		}
-		if (this._excludeRead) {
-			filtered = filtered.filter(s => !s.isRead.get());
-		}
+
 		// Keep the active user-facing session visible even when another filter excludes it.
 		for (const revealedSession of [activeSession, onboardingSession]) {
 			if (revealedSession && !filtered.some(s => s.sessionId === revealedSession.sessionId)) {
@@ -4497,7 +4476,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			});
 		}
 		const defaultGroupIds = [...groupItemsById.values()]
-			.filter(item => this._showEmptyGroups || item.sessions.length > 0 || item.editing || item.comparison)
 			.sort((a, b) => b.group.createdAt - a.group.createdAt)
 			.map(item => `group:${item.group.id}`);
 
@@ -4506,14 +4484,14 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const hasRecentSessions = sections.some(s => s.id === 'recent' && s.sessions.length > 0);
 
 		// Keep the "Chats" default section visible even when empty so it stays
-		// discoverable, unless the user opts out via the setting or filter. The
+		// discoverable, unless the user opts out via the setting. The
 		// "Pinned" section is only shown when it actually has pinned sessions.
 		const showEmptyDefaultGroups = this.configurationService.getValue<boolean>(SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING);
 
 		// Keep the "Chats" section always visible (even with no quick chats) so its
 		// header — leading chat icon, label, and the "+" create action — is always
 		// reachable. Only when a provider can actually serve quick chats.
-		if (this._showEmptyGroups && showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
+		if (showEmptyDefaultGroups && this._someProviderSupportsQuickChats() && !sections.some(s => s.id === QUICK_CHATS_SECTION_ID)) {
 			sections.push({ id: QUICK_CHATS_SECTION_ID, label: localize('chatsSection', "Chats"), sessions: [] });
 		}
 
@@ -5879,7 +5857,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private get groupExternalSessions(): boolean {
-		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) !== false;
+		return this.configurationService.getValue<boolean>(SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING) === true;
 	}
 
 	private isRenderedInExternalSection(session: ISession): boolean {
@@ -5905,85 +5883,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._sessionsManagementService.markUnread(session);
 	}
 
-	// -- Session type filtering --
-
-	setSessionTypeExcluded(sessionTypeId: string, excluded: boolean): void {
-		if (excluded) {
-			this.excludedSessionTypes.add(sessionTypeId);
-		} else {
-			this.excludedSessionTypes.delete(sessionTypeId);
-		}
-		this.saveExcludedSessionTypes();
-		this.update();
-	}
-
-	isSessionTypeExcluded(sessionTypeId: string): boolean {
-		return this.excludedSessionTypes.has(sessionTypeId);
-	}
-
-	private loadExcludedSessionTypes(): Set<string> {
-		const raw = this.storageService.get(SessionsList.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
-		if (raw) {
-			try {
-				const arr = JSON.parse(raw);
-				if (Array.isArray(arr)) {
-					return new Set(arr);
-				}
-			} catch {
-				// ignore corrupt data
-			}
-		}
-		return new Set();
-	}
-
-	private saveExcludedSessionTypes(): void {
-		if (this.excludedSessionTypes.size === 0) {
-			this.storageService.remove(SessionsList.EXCLUDED_TYPES_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(SessionsList.EXCLUDED_TYPES_KEY, JSON.stringify([...this.excludedSessionTypes]), StorageScope.PROFILE, StorageTarget.USER);
-		}
-	}
-
-	// -- Status filtering --
-
-	setStatusExcluded(status: SessionStatus, excluded: boolean): void {
-		if (excluded) {
-			this.excludedStatuses.add(status);
-		} else {
-			this.excludedStatuses.delete(status);
-		}
-		this.saveExcludedStatuses();
-		this.update();
-	}
-
-	isStatusExcluded(status: SessionStatus): boolean {
-		return this.excludedStatuses.has(status);
-	}
-
-	private loadExcludedStatuses(): Set<SessionStatus> {
-		const raw = this.storageService.get(SessionsList.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
-		if (raw) {
-			try {
-				const arr = JSON.parse(raw);
-				if (Array.isArray(arr)) {
-					return new Set(arr);
-				}
-			} catch {
-				// ignore corrupt data
-			}
-		}
-		return new Set();
-	}
-
-	private saveExcludedStatuses(): void {
-		if (this.excludedStatuses.size === 0) {
-			this.storageService.remove(SessionsList.EXCLUDED_STATUSES_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(SessionsList.EXCLUDED_STATUSES_KEY, JSON.stringify([...this.excludedStatuses]), StorageScope.PROFILE, StorageTarget.USER);
-		}
-	}
-
-	// -- Archived / Read filtering --
+	// -- Archived filtering --
 
 	setExcludeArchived(exclude: boolean): void {
 		this._excludeArchived = exclude;
@@ -6003,43 +5903,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}
 	}
 
-	setExcludeRead(exclude: boolean): void {
-		this._excludeRead = exclude;
-		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, exclude, StorageScope.PROFILE, StorageTarget.USER);
-		this.update();
-	}
-
-	isExcludeRead(): boolean {
-		return this._excludeRead;
-	}
-
-	setShowEmptyGroups(show: boolean): void {
-		this._showEmptyGroups = show;
-		this.storageService.store(SessionsList.SHOW_EMPTY_GROUPS_KEY, show, StorageScope.PROFILE, StorageTarget.USER);
-		this.update();
-	}
-
-	isShowEmptyGroups(): boolean {
-		return this._showEmptyGroups;
-	}
-
 	resetFilters(): void {
-		this.excludedSessionTypes.clear();
-		this.saveExcludedSessionTypes();
-		this.excludedStatuses.clear();
-		this.saveExcludedStatuses();
 		this._excludeArchived = true;
 		this._excludeArchivedIsDefault = false;
 		this.storageService.store(SessionsList.EXCLUDE_ARCHIVED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
-		this._excludeRead = false;
-		this.storageService.store(SessionsList.EXCLUDE_READ_KEY, false, StorageScope.PROFILE, StorageTarget.USER);
-		this._showEmptyGroups = true;
-		this.storageService.store(SessionsList.SHOW_EMPTY_GROUPS_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this.workspaceGroupCapped = true;
 		this.storageService.store(SessionsList.WORKSPACE_GROUP_CAPPED_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
 		this.expandedSessionGroups.clear();
 		this.expandedMoreFolders = false;
-		this.update();
+		this.filters.reset();
 	}
 
 	// Session group capping
@@ -6470,7 +6342,7 @@ export function groupSessionsForList(
 	isSessionPinned: (session: ISession) => boolean,
 	getSortKey?: (session: ISession, sorting: SessionsSorting) => number,
 	archivedSectionLabel: string = getChatSessionArchivedSectionLabel(ChatSessionArchiveActionWording.MarkAsDone),
-	groupExternalSessions = true,
+	groupExternalSessions = false,
 ): ISessionSection[] {
 	const sorted = sortSessions(sessions.filter(session => !isAutomationSession(session)), sorting, getSortKey);
 
@@ -6697,7 +6569,6 @@ export class SessionsFlatList extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilitySignalService accessibilitySignalService: IAccessibilitySignalService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
 		@IVoicePlaybackService voicePlaybackService: IVoicePlaybackService,
 		@IAgentHostConnectionsService agentHostConnectionsService: IAgentHostConnectionsService,
@@ -6742,7 +6613,6 @@ export class SessionsFlatList extends Disposable {
 			instantiationService,
 			contextKeyService,
 			configurationService,
-			accessibilitySignalService,
 			markdownRendererService,
 			hoverService,
 			sessionsProvidersService,

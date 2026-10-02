@@ -18,7 +18,7 @@ import { combinedDisposable, DisposableStore, toDisposable } from '../../../../.
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpression, ContextKeyValue } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -45,6 +45,7 @@ import '../../../../browser/parts/media/paneCompositePart.css';
 import '../../../../browser/parts/statusbar/media/statusbarpart.css';
 import '../../../../browser/parts/titlebar/media/menubarControl.css';
 import { ModernUIContribution } from '../../browser/modernUI.contribution.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
@@ -188,16 +189,17 @@ suite('ModernUIContribution', () => {
 	}
 
 	test('updates the layout density from the Settings menu', async () => {
-		const updates: { key: string; value: unknown }[] = [];
+		const updates: { key: string; value: unknown; target: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides | undefined }[] = [];
 		const updateComplete = new DeferredPromise<void>();
 		const configurationService = new class extends TestConfigurationService {
-			override updateValue(key: string, value: unknown): Promise<void> {
-				updates.push({ key, value });
+			override updateValue(key: string, value: unknown, target?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void> {
+				updates.push({ key, value, target });
 				return updateComplete.p;
 			}
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 		const parent = MenuRegistry.getMenuItems(MenuId.GlobalActivity)
 			.filter(isISubmenuItem)
 			.find(item => (typeof item.title === 'string' ? item.title : item.title.value) === 'Layout Density');
@@ -224,6 +226,7 @@ suite('ModernUIContribution', () => {
 			updates: [{
 				key: LayoutSettings.MODERN_UI_DENSITY,
 				value: ModernUIDensity.Compact,
+				target: undefined,
 			}],
 			commandCompletedBeforeUpdate: false,
 			commandCompleted: true,

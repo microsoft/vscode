@@ -114,6 +114,10 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
+	/** Sessionless resolution layers; session client contributions and policy-helper execution are not included. */
+	readonly layers?: readonly { readonly source: string; readonly settings?: unknown }[];
+	/** Includes source failures and cache-fallback warnings, independently of failClosed. */
+	readonly diagnostics?: readonly { readonly path: string; readonly severity: 'error' | 'warning'; readonly message: string }[];
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -193,6 +197,8 @@ export interface IAgentSessionChatMetadata {
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	/** Host-advertised agent identity; older cached metadata may omit it. */
+	readonly provider?: string;
 	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 

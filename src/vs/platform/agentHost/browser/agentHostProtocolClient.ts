@@ -1895,6 +1895,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			const model = readCodexSessionModel(s);
 			return {
 				session: URI.parse(s.resource),
+				provider: s.provider,
 				startTime: Date.parse(s.createdAt),
 				modifiedTime: Date.parse(s.modifiedAt),
 				...(s.project ? {

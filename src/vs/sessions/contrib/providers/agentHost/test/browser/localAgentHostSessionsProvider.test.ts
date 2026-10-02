@@ -70,6 +70,7 @@ import { devContainerSamples, devContainerSampleUri } from '../../../../../../pl
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 import { AgentHostSessionAdapter, type IAgentHostAdapterOptions } from '../../browser/baseAgentHostSessionsProvider.js';
+import { withSessionInitiator } from '../../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
@@ -1109,7 +1110,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const delivery of ['action', 'summary', 'reconnect'] as const) {
 		test(`external adoption metadata updates the same facade via ${delivery}`, () => runWithFakedTimers({}, async () => {
-			agentHost.addSession(createSession('adoption', { _meta: withSessionExternal(undefined, true) }));
+			agentHost.addSession(createSession('adoption', { _meta: withSessionInitiator(withSessionExternal(undefined, true), { name: 'github/cli' }) }));
 			const provider = createProvider(disposables, agentHost);
 			await timeout(0);
 			const session = provider.getSessions()[0];
@@ -1133,11 +1134,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 				identityPreserved: provider.getSessions()[0] === session,
 				observed,
 				metadata,
+				application: session.application.get(),
 				additionalListCalls: agentHost.listSessionsCallCount - initialListCalls,
 			}, {
 				identityPreserved: true,
 				observed: [true, false],
 				metadata: { 'vscode.external': false },
+				application: { id: 'github/cli', label: 'Copilot CLI' },
 				additionalListCalls: delivery === 'reconnect' ? 1 : 0,
 			});
 		}));
@@ -8410,6 +8413,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 			instantiationService.stub(IPullRequestIconCache, new class extends mock<IPullRequestIconCache>() { });
 			const options: IAgentHostAdapterOptions = {
+				environment: 'local',
 				icon: Codicon.copilot,
 				loading: constObservable(false),
 				buildWorkspace: () => undefined,
@@ -10899,11 +10903,17 @@ suite('LocalAgentHostSessionsProvider', () => {
 			supported, awaitingMetadata,
 			identityPreserved: provider.getSessions()[0] === session,
 			external: session.isExternal?.get(),
+			harness: session.harness,
+			environment: session.environment,
+			application: session.application.get(),
 			imported: agentHost.importedSessions.map(resource => resource.toString()),
 			turns: agentHost.dispatchedActions,
 		}, {
 			supported: [false, true, false], awaitingMetadata: true,
 			identityPreserved: true, external: false,
+			harness: 'copilot',
+			environment: 'local',
+			application: { id: 'github/autopilot', label: 'Copilot App' },
 			imported: [AgentSession.uri('copilotcli', 'import-session').toString()],
 			turns: [],
 		});

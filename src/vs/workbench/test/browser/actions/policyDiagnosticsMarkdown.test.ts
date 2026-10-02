@@ -67,7 +67,7 @@ suite('Policy diagnostics Markdown', () => {
 		assert.deepStrictEqual({
 			verification: output.includes('### Applied requirements needing verification (2)'),
 			unsupported: output.includes('### Applied requirements not enforced'),
-			sandboxFloor: output.includes('blocks direct session Off overrides on macOS/Linux'),
+			sandboxFloor: output.includes('blocks direct session Off overrides on supported platforms'),
 			sandboxLifecycle: output.includes('across disconnect-grace expiry'),
 			hostIdentity: output.includes('The Agent Host pipeline honors identity capture and suppression.'),
 			runtimeAttribution: output.includes('requires a runtime update and end-to-end verification'),

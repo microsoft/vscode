@@ -313,14 +313,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['An empty Later group shows a muted "No session" placeholder row below its header, between the populated Release work group and the vscode-docs workspace section.'],
 	}),
-	SessionsList_Groups_EmptyHidden: defineSessionsListFixture({
-		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
-		groups: [RELEASE_GROUP, EMPTY_GROUP],
-		view: { height: 300, showEmptyGroups: false },
-	}, {
-		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['With empty groups filtered out, only the populated Release work group and the vscode-docs workspace section are shown; the empty Later group is hidden.'],
-	}),
 	SessionsList_Groups_EmptyHoveredHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS.filter(session => session.id !== 'flaky' && session.id !== 'guide'),
 		groups: [RELEASE_GROUP, EMPTY_GROUP],

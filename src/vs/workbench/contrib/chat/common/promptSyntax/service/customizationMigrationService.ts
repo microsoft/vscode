@@ -121,8 +121,8 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	InvalidTarget = 'invalidTarget',
 	/** The destination already defines the same server name with a non-equivalent configuration. */
 	TargetConflict = 'targetConflict',
-	/** The server name is also defined or selected for migration in another workspace root. */
-	CrossRootConflict = 'crossRootConflict',
+	/** The server takes precedence over a same-named server in another workspace folder that was not migrated with it. */
+	ShadowedServerNotMigrated = 'shadowedServerNotMigrated',
 	/** The destination changed before writing, or final source/target verification failed. */
 	TargetChanged = 'targetChanged',
 	/** A migration file operation failed without a more specific failure reason. */
@@ -140,7 +140,6 @@ export interface IMcpServerCustomizationMigrationFailure {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly reason: McpServerCustomizationMigrationFailureReason;
-	readonly conflictingUri?: URI;
 	readonly error?: Error;
 }
 

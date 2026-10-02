@@ -80,6 +80,8 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
+Providers also supply independent harness and environment identifiers, plus observable creating-application metadata. These are presentation identities, not routing identities. Application metadata can arrive after discovery, but adopting or opening a session does not change its creating application. Agent hosts persist the initiating client's identity, including the Editor/Agents Window distinction; providers may combine those clients into one application filter.
+
 ### Observable state
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
@@ -144,6 +146,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 A provider exposes:
 
 - stable identity and presentation metadata;
+- an environment identifier and display name, with observable connectivity for remote environments; multiple providers may share an environment;
 - supported session types and their changes;
 - the current session catalog and catalog changes;
 - workspace browsing and resolution;
@@ -153,7 +156,7 @@ Catalog events distinguish added, removed, and changed facades. Facade replaceme
 
 A provider that supersedes sessions from another provider may implement `resolveSessionResource`. Open paths use this hook to redirect persisted or linked resources before lookup. Providers decline unfamiliar resources, in which case callers retain the original resource.
 
-A provider that must establish backend state before presenting a session may implement `prepareSessionForOpen`. Explicit opens await preparation; startup restoration invokes it asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
+A provider that must establish backend state for an existing session may implement `prepareSessionForOpen`. Ordinary single-session opens activate and present the session while preparation is pending, allowing its loading and connection state to render; they still await preparation before completing. Providers must not rely on preparation completing before presentation. Open-to-side and batch grid operations await preparation before committing their visibility changes. Startup restoration invokes preparation asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
 
 ### Drafts
 

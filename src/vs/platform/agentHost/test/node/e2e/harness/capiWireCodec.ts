@@ -310,7 +310,7 @@ const ENVIRONMENT_CONTEXT_RE = /<environment_context>.*?<\/environment_context>/
  * and Codex's `<environment_context>` cwd/date preamble) so captures show just
  * the meaningful message and stay deterministic across re-records. Mirrors the
  * Copilot CLI harness, which normalizes the same injected blocks. */
-function normalizeVolatileText(text: string): string {
+export function normalizeVolatileText(text: string): string {
 	return text
 		.replace(CURRENT_DATETIME_RE, '')
 		.replace(SYSTEM_REMINDER_RE, '')

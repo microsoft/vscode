@@ -13,6 +13,7 @@ import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDe
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
+import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, SessionArtifactType, SESSION_META_ARTIFACTS_KEY, withSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { ChatInteractivity, ChatOriginKind } from '../../common/state/protocol/state.js';
 import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionSourceControlOutcome, SessionStatus, withSessionCreationReference, withSessionEhcliAdoptable, withSessionFolderPickerDecision, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless } from '../../common/state/sessionState.js';
@@ -144,6 +145,20 @@ suite('AgentHostCatalogSourceResolver', () => {
 			artifacts: [{ ...persistedArtifact, chat }],
 			persistedArtifacts: [{ ...persistedArtifact, chat }],
 		});
+	});
+
+	test('persists creating-client identity without replacing it during adoption or restore', async () => {
+		const initiator = { name: 'github/cli', title: 'Copilot CLI' };
+		const state = sourceState();
+		const initial = await createResolver({}).buildCatalogSyncRequest(session, { ...state, meta: withSessionInitiator(state.meta, initiator) }, {}, false);
+		const resolver = createResolver(initial.legacyMetadata);
+		const restored = await Promise.all([false, true].map(preferPersisted => resolver.buildCatalogSyncRequest(
+			session, { ...state, meta: withSessionInitiator(state.meta, { name: 'vscode-agents-window' }) }, {}, preferPersisted,
+		)));
+		assert.deepStrictEqual([initial, ...restored].map(result => ({
+			initiator: readSessionInitiator(result.data),
+			stored: result.legacyMetadata[SESSION_INITIATOR_METADATA_KEY],
+		})), [initial, ...restored].map(() => ({ initiator, stored: JSON.stringify(initiator) })));
 	});
 
 	test('does not persist temporary input restrictions as read-only chats', async () => {

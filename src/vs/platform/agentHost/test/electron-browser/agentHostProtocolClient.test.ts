@@ -43,7 +43,7 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError, type I
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
+import { AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, DISABLE_REPO_INFO_TELEMETRY_SETTING_ID, ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, GLOBAL_AUTO_APPROVE_SETTING_ID, telemetryLevelToAgentHostConfigValue, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, TERMINAL_AUTO_APPROVE_SETTING_ID, TERMINAL_IGNORE_DEFAULT_AUTO_APPROVE_RULES_SETTING_ID, type AgentHostTerminalAutoApproveRules } from '../../common/agentHostSchema.js';
 import { AgentSandboxSettingId } from '../../../sandbox/common/settings.js';
 import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
@@ -837,10 +837,10 @@ suite('AgentHostProtocolClient', () => {
 			},
 		});
 
-		assert.deepStrictEqual((await resultPromise).map(session => session.model), [
-			{ id: '@provider=openai:gpt-5.6-sol' },
-			undefined,
-			undefined,
+		assert.deepStrictEqual((await resultPromise).map(({ provider, model }) => ({ provider, model })), [
+			{ provider: 'codex', model: { id: '@provider=openai:gpt-5.6-sol' } },
+			{ provider: 'codex', model: undefined },
+			{ provider: 'codex', model: undefined },
 		]);
 	});
 
@@ -1810,7 +1810,6 @@ suite('AgentHostProtocolClient', () => {
 			params: {
 				permissions: {
 					disableBypassPermissionsMode: 'disable',
-					ask: ['Shell'],
 				},
 			},
 		});
@@ -1860,6 +1859,59 @@ suite('AgentHostProtocolClient', () => {
 			}
 		});
 	}
+
+	test('keeps personal terminal approval settings on the bypassable root-config path', async () => {
+		const configurationService = new TestConfigurationService({
+			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
+			[TERMINAL_AUTO_APPROVE_SETTING_ID]: { ls: false, rm: false },
+		});
+		const { client, transport } = createClientForIdentity(
+			LOCAL_AGENT_HOST_RESOURCE_IDENTITY,
+			disposables.add(new TestProtocolTransport()),
+			createPermissionService(),
+			undefined,
+			new NullLogService(),
+			configurationService,
+		);
+
+		await connectClient(client, transport);
+
+		const initial = {
+			managed: findLastManagedSettingsNotification(transport.sentMessages),
+			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
+			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
+		};
+
+		transport.sentMessages.length = 0;
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, true);
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID);
+		await configurationService.setUserConfiguration(TERMINAL_AUTO_APPROVE_SETTING_ID, { ls: true, rm: false });
+		fireConfigurationChange(configurationService, TERMINAL_AUTO_APPROVE_SETTING_ID);
+
+		const updated = {
+			managed: findLastManagedSettingsNotification(transport.sentMessages),
+			terminalEnabled: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveEnabledConfigKey),
+			terminalRules: findRootConfigValue(transport.sentMessages, AgentHostTerminalAutoApproveRulesConfigKey),
+		};
+		const emptyManagedSettings = {
+			jsonrpc: '2.0',
+			method: 'setClientManagedSettingsPermissions',
+			params: { permissions: {} },
+		};
+
+		assert.deepStrictEqual({ initial, updated }, {
+			initial: {
+				managed: emptyManagedSettings,
+				terminalEnabled: false,
+				terminalRules: { ls: false, rm: false },
+			},
+			updated: {
+				managed: emptyManagedSettings,
+				terminalEnabled: true,
+				terminalRules: { ls: true, rm: false },
+			},
+		});
+	});
 
 	test('forwards and clears the mapped per-tool auto-approval policy for the local host', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({});
