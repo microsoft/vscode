@@ -21,6 +21,9 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
  * Captures per-turn git **checkpoint refs** for Agent Host sessions so
  * end-of-turn diffs reflect the entire working-tree delta (including
  * terminal-tool edits that are invisible to the FileEditTracker pipeline).
+ * Each capture processes a checkout root once after success. Additional folders
+ * in that checkout can retry failed work; later captures take fresh snapshots.
+ * Linked worktrees remain separate checkout roots.
  *
  * Each checkpoint is a parentless or parent-chained commit (commit-tree)
  * pointing at a tree captured via the temp-index trick, anchored under
