@@ -9,7 +9,6 @@ import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { equals } from '../../../base/common/objects.js';
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -19,9 +18,9 @@ import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ConfigurationTarget, ConfigurationTargetToString, IConfigurationService } from '../../configuration/common/configuration.js';
-import { AgentCanvasAvailability, AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type IAgentCanvas, type IAgentCanvasSnapshot } from '../common/agent.js';
-import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostCanvases, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, agentHostCanvasesChangedParamsValidator, ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceResultValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostCanvases, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentSession, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification } from '../common/agent.js';
+import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, IAgentConnection, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
 import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
@@ -34,7 +33,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, parseChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionStatusArchived, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -274,23 +273,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	get devContainerService(): IDevContainerAgentHostMainService | undefined {
 		return this._state.kind !== AgentHostClientState.Closed && this._state.kind !== AgentHostClientState.Incompatible && supportsAgentHostDevContainers(this._initializeResult.get())
 			? this._devContainerService
-			: undefined;
-	}
-
-	private readonly _canvasSnapshots = new Map<string, IAgentCanvasSnapshot>();
-	private readonly _onDidChangeCanvases = this._register(new Emitter<IAgentCanvasSnapshot>());
-	private readonly _canvasService: IAgentHostCanvases = {
-		onDidChange: this._onDidChangeCanvases.event,
-		getSnapshots: () => [...this._canvasSnapshots.values()],
-		resolveSource: (chat, instanceId, revision) => this._resolveCanvasSource(chat, instanceId, revision),
-	};
-
-	get canvases(): IAgentHostCanvases | undefined {
-		return this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
-			&& this._state.kind !== AgentHostClientState.Closed
-			&& this._state.kind !== AgentHostClientState.Incompatible
-			&& supportsAgentHostCanvases(this._initializeResult.get())
-			? this._canvasService
 			: undefined;
 	}
 
@@ -688,7 +670,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn('[AgentHostProtocolClient] Dispose callback failed', error);
 			}
 		}
-		this._clearCanvasSnapshots();
 		this._handleClose(connectionDisposedError(this._address));
 		super.dispose();
 	}
@@ -1087,7 +1068,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 
 		this._logService.info(`[RemoteAgentHostProtocol] Server forgot client ${this._clientId}; initializing a fresh connection.`);
-		this._clearCanvasSnapshots();
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: [...CLIENT_SUPPORTED_PROTOCOL_VERSIONS],
@@ -1839,27 +1819,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		await this._sendRequest('disposeChat', { channel: chat.toString() });
 	}
 
-	private async _resolveCanvasSource(chat: URI, instanceId: string, revision: number): Promise<string> {
-		if (this.canvases !== this._canvasService) {
-			throw new Error('Agent Host canvases are not available for this connection.');
-		}
-		const snapshot = this._canvasSnapshots.get(chat.toString());
-		const canvas = snapshot?.canvases.find(canvas => canvas.instanceId === instanceId);
-		if (!canvas || canvas.revision !== revision || canvas.availability !== AgentCanvasAvailability.Ready) {
-			throw new Error(`Canvas '${instanceId}' is not available at revision ${revision}.`);
-		}
-		const result = await this._sendExtensionRequest(ResolveAgentHostCanvasSourceExtensionMethod, {
-			chat: chat.toString(),
-			instanceId,
-			revision,
-		});
-		const validated = resolveAgentHostCanvasSourceResultValidator.validate(result);
-		if (validated.error || !validated.content.url.trim()) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Agent Host returned an invalid canvas source.');
-		}
-		return validated.content.url;
-	}
-
 	/**
 	 * Create a new terminal on the remote agent host.
 	 */
@@ -1917,7 +1876,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 					origin: chat.origin,
 					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-					...(chat.archived === true ? { archived: true } : {}),
+					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
 					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 				})),
 				// Carry durable host provenance for sessions first materialized from a listing.
@@ -2094,10 +2053,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn(`[RemoteAgentHostProtocol] Received response for unknown request id ${msg.id}`);
 			}
 		} else if (isJsonRpcNotification(msg)) {
-			if ((msg as { method: string }).method === AgentHostCanvasesChangedNotification) {
-				this._handleCanvasSnapshot((msg as { params?: unknown }).params);
-				return;
-			}
 			if (this._devContainerService.handleNotification(msg.method, msg.params)) {
 				return;
 			}
@@ -2144,55 +2099,6 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 		} else {
 			this._logService.warn(`[RemoteAgentHostProtocol] Unrecognized message:`, JSON.stringify(msg));
-		}
-	}
-
-	private _handleCanvasSnapshot(params: unknown): void {
-		if (this._resourceIdentity !== LOCAL_AGENT_HOST_RESOURCE_IDENTITY) {
-			return;
-		}
-		const initializeResult = this._initializeResult.get();
-		if (initializeResult && !supportsAgentHostCanvases(initializeResult)) {
-			return;
-		}
-		const validated = agentHostCanvasesChangedParamsValidator.validate(params);
-		if (validated.error || !isValidAgentHostCanvasesChangedParams(validated.content)) {
-			this._logService.warn('[AgentHostProtocolClient] Ignoring invalid canvas snapshot.');
-			return;
-		}
-		let chat: URI;
-		try {
-			chat = URI.parse(validated.content.chat, true);
-		} catch {
-			this._logService.warn('[AgentHostProtocolClient] Ignoring canvas snapshot with an invalid chat URI.');
-			return;
-		}
-		if (!parseChatUri(chat)) {
-			this._logService.warn('[AgentHostProtocolClient] Ignoring canvas snapshot for a non-chat URI.');
-			return;
-		}
-		const canvases: readonly IAgentCanvas[] = validated.content.canvases;
-		const key = chat.toString();
-		const previous = this._canvasSnapshots.get(key);
-		if (previous && equals(previous.canvases, canvases)) {
-			return;
-		}
-		if (canvases.length === 0) {
-			if (!previous) {
-				return;
-			}
-			this._canvasSnapshots.delete(key);
-		} else {
-			this._canvasSnapshots.set(key, { chat, canvases });
-		}
-		this._onDidChangeCanvases.fire({ chat, canvases });
-	}
-
-	private _clearCanvasSnapshots(): void {
-		const snapshots = [...this._canvasSnapshots.values()];
-		this._canvasSnapshots.clear();
-		for (const snapshot of snapshots) {
-			this._onDidChangeCanvases.fire({ chat: snapshot.chat, canvases: [] });
 		}
 	}
 
