@@ -25,7 +25,6 @@ suite('BrowserRequestService', () => {
 	const localError = new Error('Local response lost');
 	const remoteError = new Error('Remote transport reached');
 
-	// Keep the existing LogService constructor lifecycle issue separate from request-path leak checks.
 	suiteSetup(() => {
 		const connection = new class extends mock<IRemoteAgentConnection>() {
 			override async withChannel(): Promise<never> {
@@ -51,7 +50,7 @@ suite('BrowserRequestService', () => {
 	for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
 		for (const failure of ['exception', '405']) {
 			for (const disableRemoteFallback of [undefined, true]) {
-				test(`${method} ${failure}: remote fallback ${disableRemoteFallback ? 'disabled' : 'default'}`, async () => {
+				test(`${method} ${disableRemoteFallback ? 'does not retry remotely when disableRemoteFallback is true' : 'retries remotely by default'} after ${failure === 'exception' ? 'a local exception' : 'a local HTTP 405 response'}`, async () => {
 					localCalls = 0;
 					remoteCalls = 0;
 					localFailure = failure;
