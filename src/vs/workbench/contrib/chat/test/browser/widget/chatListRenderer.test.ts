@@ -36,6 +36,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
@@ -49,6 +50,7 @@ import { ChatSubagentContentPart } from '../../../browser/widget/chatContentPart
 import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
@@ -56,7 +58,7 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -1622,7 +1624,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -1678,7 +1680,7 @@ suite('ChatListRenderer', () => {
 				override createSuggestionId() { return EditSuggestionId.newId(); }
 			}());
 		}
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource }));
 		if (editingSession) {
 			const chatService = instantiationService.get(IChatService);
 			assert.ok(chatService instanceof MockChatService);
@@ -6326,6 +6328,49 @@ suite('ChatListRenderer', () => {
 				progressRows: 0,
 				toolbarHeight: progressHeight,
 				text,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	test('disposes the turn summary displaced by retained progress while completed markdown drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/progress-summary' }),
+		});
+		try {
+			instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+				override getChangesForRequest() { return undefined; }
+			}());
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `first${index}`).join(' ')) });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Finished the first step') });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, index) => `last${index}`).join(' ')) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+
+			const summary = template.renderedParts?.find(part => part instanceof ChatTurnPillsContentPart);
+			assert.ok(summary instanceof ChatTurnPillsContentPart);
+			const summaryDispose = sinon.spy(summary, 'dispose');
+			disposables.add(toDisposable(() => summaryDispose.restore()));
+			await timeout(50);
+			const whileDraining = {
+				summaryDisposed: summaryDispose.calledOnce,
+				summaryDetached: summary.domNode.parentElement === null,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+			}, {
+				whileDraining: { summaryDisposed: true, summaryDetached: true, summaryCount: 1 },
+				summaryCount: 1,
+				loading: false,
 			});
 		} finally {
 			disposables.dispose();
