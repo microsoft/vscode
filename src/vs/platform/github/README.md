@@ -15,6 +15,7 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with direct Node networking. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
@@ -97,6 +98,38 @@ Bindings supply trusted product/channel/version and originating component/versio
 `X-Is-Retry` is `"true"` only for an engine-controlled retry and `"false"` for an initial attempt. New polls, pages, refreshes, and redirect hops are not retries. Higher-layer authentication or feature retries are not currently labeled, and these headers do not introduce retries or mutation replay.
 
 Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
+
+### Host networking
+
+Host-specific fetchers remain in this platform folder and implement the shared [RequestFetch](common/types.ts) contract. They run directly in the engine's host; there is no fetch IPC or automatic move to a different machine after a failure.
+
+- **Web and desktop workbench:** [BrowserFetchService](browser/fetchService.ts) uses browser fetch, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply. JavaScript cannot suppress browser-internal connection retries or install trust roots.
+- **Standalone Agent Host:** [NodeFetchService](node/fetchService.ts) uses the existing Agent Host proxy resolver's host/PAC, proxy authentication, configuration and certificate helpers. Its independent executor does not replace the legacy fetch used by Copilot or other Agent Host services. The foundation owns its lifetime and preserves the explicit fetch override used by tests.
+- **Shared process:** the same Node executor uses local-machine configuration and native-host utility-process proxy, Basic/Kerberos and certificate lookup services. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist. The executor is owned and disposed by the shared process, independently of the renderer engines.
+
+The Node executor combines `@vscode/proxy-agent` routing with Undici's lower-level `request`, not `IRequestService.request` or patched global fetch. It disables connection-level replay, including for GET, consumed POST uploads, and HTTP 421 responses. Proxy authentication negotiation can precede the one origin attempt; application retries and redirects remain engine decisions. Uploads are buffered; response headers arrive before body consumption, and gzip, deflate and Brotli bodies are decoded incrementally, including error responses. Engine limits apply to decoded bytes. Callers must consume or cancel every body; cancellation and service disposal release native requests and dispatchers.
+
+All bindings enforce manual redirects and omit ambient origin credentials. Anonymous requests also retain their no-referrer policy and never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
+
+Shared-process routing retains the proxy helper's precedence and loopback bypass: `http.noProxy`/`NO_PROXY`, configured/environment proxies, then system/PAC lookup. Network-interface changes invalidate cached system routes at `http.experimental.networkInterfaceCheckInterval`. Only local-user/default configuration is used, not remote-workspace proxy settings. Configured `http.proxyAuthorization` is sent to the proxy CONNECT endpoint, not the origin, and is not repeatedly resent after rejection.
+
+With `http.systemCertificates` enabled, additional host certificates honor `http.systemCertificatesNode` and are added to Node's default CA set. Verification and hostname checks remain enabled by default; `http.proxyStrictSSL: false` does not weaken this executor or cause a weaker-TLS retry. Extension-specific proxy/fetch switches do not select the core executor. The shared helper does not provide full Chromium parity: SOCKS4/4a, native NTLM, ordered PAC proxy failover and Chromium certificate exceptions are not reproduced. Proxy diagnostics are content-free and do not log URLs, credentials or response bodies.
+
+### Shared-process preparation
+
+`IGitHubService` is registered locally in the shared process. Desktop consumers may explicitly use `ISharedProcessGitHubService` for an anonymous, API-relative GET, with a cancellation token, request options and serializable result metadata. The boundary preserves domain error kinds, HTTP details, rate-limit delays and timeout dispatch status; disconnecting one caller cancels only its waiter and releases its lease. The complete shared engine still owns admission, cooldowns and response limits.
+
+This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
+
+Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
+
+```powershell
+npm run transpile-client
+npm run test-node -- --run src\vs\platform\github\test\node\fetchService.test.ts --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
+.\scripts\test.bat --run src\vs\platform\github\test\browser\fetchService.test.ts --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+```
+
+Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
 
 ### Telemetry
 

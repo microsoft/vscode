@@ -30,6 +30,7 @@ import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerform
 import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { SessionStatus } from '../../common/state/sessionState.js';
+import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 
 suite('agentHostBootstrap', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -161,6 +162,40 @@ suite('agentHostBootstrap', () => {
 			application: 'vscode-insiders/1.141.0',
 			source: 'vscode-insiders-agent-host/1.141.0',
 			egress: 'node',
+		});
+	});
+
+	test('uses the Node GitHub executor without replacing the legacy Copilot fetch', async () => {
+		const requests: { executor: string; redirect: RequestRedirect; credentials: RequestCredentials }[] = [];
+		const interceptors: number[] = [];
+		const proxyResolver = new class extends mock<IAgentHostProxyResolver>() {
+			override async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+				const request = new Request(input, init);
+				requests.push({ executor: 'legacy', redirect: request.redirect, credentials: request.credentials });
+				return new Response();
+			}
+			override createFetch: IAgentHostProxyResolver['createFetch'] = (_fetch, options) => {
+				interceptors.push(options.interceptors?.length ?? 0);
+				return async (input, init) => {
+					const request = new Request(input, init);
+					requests.push({ executor: 'github', redirect: request.redirect, credentials: request.credentials });
+					return new Response();
+				};
+			};
+		}();
+		const foundation = createAgentServiceFoundation({
+			services: new StrictServiceCollection(), owned: disposables.add(new DisposableStore()),
+			logService: new NullLogService(), productService: { _serviceBrand: undefined, ...product },
+			transientProxyConfiguration: false, proxyResolver,
+		});
+		await foundation.gitHubServiceOptions.fetch!('https://api.test');
+		await foundation.fetchFn('https://api.test');
+		assert.deepStrictEqual({ requests, interceptors }, {
+			requests: [
+				{ executor: 'github', redirect: 'manual', credentials: 'omit' },
+				{ executor: 'legacy', redirect: 'follow', credentials: 'same-origin' },
+			],
+			interceptors: [1],
 		});
 	});
 
