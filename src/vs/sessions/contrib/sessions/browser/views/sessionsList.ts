@@ -2311,7 +2311,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.icon.style.display = '';
 			template.elementDisposables.add(autorun(reader => {
 				const activeCustomView = this.customViewService.activeCustomView.read(reader);
-				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID);
+				template.container.classList.toggle('active', activeCustomView?.id === AUTOMATIONS_CUSTOM_VIEW_ID && !this.customizationsActive.read(reader));
 				const badgeStyle = this.automationNewBadgePresentation.read(reader);
 				template.newBadge.style.display = badgeStyle && badgeStyle !== 'unread' ? 'inline-flex' : 'none';
 				template.newBadge.classList.toggle('session-section-new-badge-accent', badgeStyle === 'accent');
@@ -3698,11 +3698,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.listContainer = DOM.append(container, $('.sessions-list-control.session-list-row-spacing'));
 		this.listContainer.classList.toggle('compact', this.isCompact());
-		this._register(DOM.addDisposableListener(this.listContainer, DOM.EventType.POINTER_DOWN, () => {
-			this.listContainer.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+		const markSectionFocusFromPointer = (element: HTMLElement) => this._register(DOM.addDisposableListener(element, DOM.EventType.POINTER_DOWN, () => {
+			element.classList.add(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}));
+		markSectionFocusFromPointer(this.listContainer);
+		if (this.options.navigationContainer) {
+			markSectionFocusFromPointer(this.options.navigationContainer);
+		}
 		this._register(DOM.addDisposableListener(this.listContainer.ownerDocument, DOM.EventType.KEY_DOWN, () => {
 			this.listContainer.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
+			this.options.navigationContainer?.classList.remove(SESSION_SECTION_FOCUS_FROM_POINTER_CLASS);
 		}, true));
 
 		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));

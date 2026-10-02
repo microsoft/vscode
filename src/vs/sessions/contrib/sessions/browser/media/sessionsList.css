@@ -19,9 +19,14 @@
 		border-radius: 0;
 	}
 
-	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
-	.monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
 		color: var(--vscode-descriptionForeground);
+	}
+
+	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut:not(.active):not(:hover, .hovered) {
+		background-color: transparent;
+		outline: 0 !important;
 	}
 }
 

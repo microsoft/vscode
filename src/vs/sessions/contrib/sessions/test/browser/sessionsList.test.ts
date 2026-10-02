@@ -513,6 +513,7 @@ suite('Sessions - SessionsList', () => {
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
 			const customizationsCount = observableValue(disposables, 7);
 			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const keybindingLookupContexts: (IContextKeyService | undefined)[] = [];
 			const createNewSessionKeybinding = (keybinding: number) => {
 				const resolved = createUSLayoutResolvedKeybinding(keybinding, OS);
@@ -528,7 +529,7 @@ suite('Sessions - SessionsList', () => {
 					override readonly catalogueState = constObservable('ready' as const);
 				});
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
-					override readonly activeCustomView = constObservable(undefined);
+					override readonly activeCustomView = activeCustomView;
 				});
 				instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 					override readonly onDidActiveEditorChange = activeEditorChanged.event;
@@ -583,6 +584,8 @@ suite('Sessions - SessionsList', () => {
 			}));
 			const customizationsSection = Array.from(navigationContainer.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
+			const automationsSection = Array.from(navigationContainer.querySelectorAll<HTMLElement>('.session-section-shortcut'))
+				.find(element => element.querySelector('.session-section-label')?.textContent === 'Automations');
 			const customizationsIcon = customizationsSection?.querySelector<HTMLElement>('.session-section-icon');
 			const customizationsPresentation = {
 				hasTotalCountBadge: customizationsSection?.querySelector('.monaco-count-badge') !== null,
@@ -602,10 +605,22 @@ suite('Sessions - SessionsList', () => {
 			newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN);
 			keybindingsChanged.fire();
 			const updatedNewSessionAriaLabel = navigationContainer.querySelector('.session-section-new-session')?.closest('.monaco-list-row')?.getAttribute('aria-label');
+			activeCustomView.set(upcastPartial<ICustomViewDescriptor>({ id: AUTOMATIONS_CUSTOM_VIEW_ID }), undefined);
+			const automationsActiveBeforeCustomizations = automationsSection?.classList.contains('active');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
 			activeEditorChanged.fire();
 			const customizationsActiveWhileOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentWhileOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
+			const automationsActiveWhileCustomizationsOpen = automationsSection?.classList.contains('active');
+			editorState.activeEditor = undefined;
+			activeEditorChanged.fire();
+			const customizationsActiveAfterClose = customizationsSection?.classList.contains('active');
+			const customizationsAriaCurrentAfterClose = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
+			const automationsActiveAfterCustomizationsClose = automationsSection?.classList.contains('active');
+			navigationContainer.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+			const pointerFocusClassAfterPointer = navigationContainer.classList.contains('session-section-focus-from-pointer');
+			mainWindow.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+			const pointerFocusClassAfterKeyboard = navigationContainer.classList.contains('session-section-focus-from-pointer');
 
 			showNavigationShortcuts = false;
 			list.updateNavigationVisibility();
@@ -626,8 +641,10 @@ suite('Sessions - SessionsList', () => {
 				shortcutCollapseStates,
 				customizationsPresentation,
 				customizationsPresentationWithoutMigration,
-				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
-				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
+				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen, customizationsActiveAfterClose],
+				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen, customizationsAriaCurrentAfterClose],
+				automationsActive: [automationsActiveBeforeCustomizations, automationsActiveWhileCustomizationsOpen, automationsActiveAfterCustomizationsClose],
+				pointerFocusClass: [pointerFocusClassAfterPointer, pointerFocusClassAfterKeyboard],
 				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
 				navigationUsesList: navigationContainer.querySelector('.monaco-list') !== null && navigationContainer.querySelector('[role="tree"]') === null,
 				sessionsUseTree: listContainer.querySelector('[role="tree"]') !== null,
@@ -660,8 +677,10 @@ suite('Sessions - SessionsList', () => {
 					hasExtensionsIcon: true,
 					iconColor: '',
 				},
-				customizationsActive: [false, true],
-				customizationsAriaCurrent: [null, 'page'],
+				customizationsActive: [false, true, false],
+				customizationsAriaCurrent: [null, 'page', null],
+				automationsActive: [true, false, true],
+				pointerFocusClass: [true, false],
 				stableFindHeaderUnmoved: true,
 				navigationUsesList: true,
 				sessionsUseTree: true,
