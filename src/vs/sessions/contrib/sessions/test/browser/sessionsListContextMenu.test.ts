@@ -530,12 +530,11 @@ suite('Sessions list context menus', () => {
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {
 		for (const grouped of [false, true]) {
 			const visible = createTestSession('Visible', { workspaceLabel: 'Workspace', isRead: false }).session;
-			const filtered = createTestSession('Filtered', { workspaceLabel: 'Workspace', status: SessionStatus.Error, isRead: false }).session;
+			const filtered = createTestSession('Filtered', { workspaceLabel: 'Workspace', harness: 'claude', isRead: false }).session;
 			const read = createTestSession('Read', { workspaceLabel: 'Workspace', isRead: true }).session;
 			const archived = createTestSession('Archived', { workspaceLabel: 'Workspace', isArchived: true, isRead: false }).session;
 			const { container, contextMenuService, managementService, list } = createList(grouped, false, SessionsGrouping.Workspace, [visible, filtered, read, archived]);
-			list.setStatusExcluded(SessionStatus.Error, true);
-			list.setExcludeRead(true);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 			const header = [...container.querySelectorAll<HTMLElement>('.session-section')]
 				.find(element => element.querySelector('.session-section-label')?.textContent === (grouped ? group.name : 'Workspace'));
 			assert.ok(header);

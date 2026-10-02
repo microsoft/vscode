@@ -20,23 +20,35 @@ const externalSessionOptions = [
 	{ mode: ChatExternalSessionsMode.Last30Days, title: localize2('agentSessions.filter.external.last30Days', "Last 30 Days") },
 ] as const;
 
-export function registerExternalSessionsFilterMenu(parentMenuId: MenuId, submenuId: MenuId, group: string): IDisposable {
+export function registerExternalSessionsFilterMenu(parentMenuId: MenuId, submenuId: MenuId, group: string, showSelectedValue = false): IDisposable {
 	const disposables = new DisposableStore();
+	const settingKey = `config.${ChatConfiguration.ShowExternalAgentSessions}`;
 	disposables.add(MenuRegistry.appendMenuItem(parentMenuId, {
 		submenu: submenuId,
 		title: localize2('agentSessions.filter.external', "External"),
+		when: showSelectedValue ? ContextKeyExpr.and(...externalSessionOptions.map(option => ContextKeyExpr.notEquals(settingKey, option.mode))) : undefined,
 		group,
 		order: 0,
 	}));
 
 	for (let index = 0; index < externalSessionOptions.length; index++) {
 		const option = externalSessionOptions[index];
+		const selected = ContextKeyExpr.equals(settingKey, option.mode);
+		if (showSelectedValue) {
+			disposables.add(MenuRegistry.appendMenuItem(parentMenuId, {
+				submenu: submenuId,
+				title: localize2('agentSessions.filter.external.selected', "External ({0})", option.title.value),
+				when: selected,
+				group,
+				order: 0,
+			}));
+		}
 		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: `agentSessions.filter.external.${option.mode}.${submenuId.id.toLowerCase()}`,
 					title: option.title,
-					toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowExternalAgentSessions}`, option.mode),
+					toggled: selected,
 					menu: {
 						id: submenuId,
 						group: '1_modes',

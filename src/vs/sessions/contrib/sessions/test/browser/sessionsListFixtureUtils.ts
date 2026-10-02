@@ -139,7 +139,6 @@ export interface ISessionsListFixtureView {
 	readonly expanded?: readonly SessionsListFixtureRow[];
 	/** Defaults to whether any session is archived. */
 	readonly showArchived?: boolean;
-	readonly showEmptyGroups?: boolean;
 	readonly reducedMotion?: boolean;
 }
 
@@ -777,9 +776,6 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}));
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
-	}
-	if (view.showEmptyGroups !== undefined) {
-		list.setShowEmptyGroups(view.showEmptyGroups);
 	}
 	list.layout(height, width);
 	if (view.collapsed === 'all') {

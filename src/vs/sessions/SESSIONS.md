@@ -80,6 +80,8 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
 
+Providers also supply independent harness and environment identifiers, plus observable creating-application metadata. These are presentation identities, not routing identities. Application metadata can arrive after discovery, but adopting or opening a session does not change its creating application. Agent hosts persist the initiating client's identity, including the Editor/Agents Window distinction; providers may combine those clients into one application filter.
+
 ### Observable state
 
 `ISession` and `IChat` are stable facades. Mutable state is exposed through `IObservable`, including status, title, workspace, chats, model, changes, archive state, and capabilities.
@@ -144,6 +146,7 @@ Recorded GitHub issue and pull request artifacts are resolved from `ISession.art
 A provider exposes:
 
 - stable identity and presentation metadata;
+- an environment identifier and display name, with observable connectivity for remote environments; multiple providers may share an environment;
 - supported session types and their changes;
 - the current session catalog and catalog changes;
 - workspace browsing and resolution;

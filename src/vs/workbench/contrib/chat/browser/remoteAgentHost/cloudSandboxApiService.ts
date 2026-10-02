@@ -41,6 +41,7 @@ type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
 /** The subset of a Mission Control task the sandbox discovery path reads. */
 interface ITaskSummary {
 	readonly id: string;
+	readonly event_type?: string;
 	readonly name?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
@@ -390,6 +391,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							removedTaskIds.push(task.id);
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
+						const eventType = full.event_type || task.event_type;
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
@@ -397,6 +399,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							session: binding ? {
 								...binding,
 								taskId: task.id,
+								...(eventType ? { eventType } : {}),
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),

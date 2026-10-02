@@ -113,6 +113,9 @@ function createSession(id: string, opts: {
 		resource: opts.resource ?? URI.parse(`session://${id}`),
 		providerId: 'test',
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.account,
 		createdAt,
 		workspace: observableValue(`workspace-${id}`, opts.workspaceLabel !== undefined ? {
@@ -1173,9 +1176,9 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('shows needs-input only in the containing section and respects filters and pins', () => {
-			const grouped = createTestSession('Grouped needs input', { workspaceLabel: 'Workspace B', status: SessionStatus.NeedsInput }).session;
+			const grouped = createTestSession('Grouped needs input', { workspaceLabel: 'Workspace B', status: SessionStatus.NeedsInput, harness: 'claude' }).session;
 			const read = createTestSession('Workspace read', { workspaceLabel: 'Workspace B' }).session;
-			const needsInput = createTestSession('Workspace needs input', { workspaceLabel: 'Workspace C', status: SessionStatus.NeedsInput }).session;
+			const needsInput = createTestSession('Workspace needs input', { workspaceLabel: 'Workspace C', status: SessionStatus.NeedsInput, harness: 'claude' }).session;
 			const pinnedSessionIds = new Set<string>();
 			const { list, container } = renderList([grouped, read, needsInput], {
 				groups: [group],
@@ -1184,9 +1187,9 @@ suite('Sessions - SessionsList', () => {
 			});
 			list.collapseAllSections();
 			const states = [needsInputSections(container)];
-			list.setStatusExcluded(SessionStatus.NeedsInput, true);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 			states.push(needsInputSections(container));
-			list.setStatusExcluded(SessionStatus.NeedsInput, false);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, false);
 			states.push(needsInputSections(container));
 			pinnedSessionIds.add(grouped.sessionId);
 			list.update();
@@ -1201,9 +1204,9 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('shows CI failures only in their containing sections and respects filters and pins', () => {
-			const grouped = createTestSession('Grouped CI failure', { workspaceLabel: 'Workspace B', status: SessionStatus.Error }).session;
+			const grouped = createTestSession('Grouped CI failure', { workspaceLabel: 'Workspace B', status: SessionStatus.Error, environment: 'cloud' }).session;
 			const read = createTestSession('Workspace read', { workspaceLabel: 'Workspace B' }).session;
-			const failingCI = createTestSession('Workspace CI failure', { workspaceLabel: 'Workspace C', status: SessionStatus.Error }).session;
+			const failingCI = createTestSession('Workspace CI failure', { workspaceLabel: 'Workspace C', status: SessionStatus.Error, environment: 'cloud' }).session;
 			const pinnedSessionIds = new Set<string>();
 			const { list, container, failingCISessions } = renderList([grouped, read, failingCI], {
 				groups: [group],
@@ -1216,9 +1219,9 @@ suite('Sessions - SessionsList', () => {
 				.map(header => header.querySelector('.session-section-label')?.textContent);
 			list.collapseAllSections();
 			const states = [markedSections()];
-			list.setStatusExcluded(SessionStatus.Error, true);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
 			states.push(markedSections());
-			list.setStatusExcluded(SessionStatus.Error, false);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 			states.push(markedSections());
 			pinnedSessionIds.add(grouped.sessionId);
 			list.update();
@@ -1457,17 +1460,17 @@ suite('Sessions - SessionsList', () => {
 		});
 
 		test('does not count unread sessions excluded by list filters', () => {
-			const grouped = createTestSession('Grouped unread', { isRead: false, status: SessionStatus.Error }).session;
-			const unread = createTestSession('Workspace unread', { isRead: false, status: SessionStatus.Error }).session;
+			const grouped = createTestSession('Grouped unread', { isRead: false, application: 'github/cli' }).session;
+			const unread = createTestSession('Workspace unread', { isRead: false, application: 'github/cli' }).session;
 			const read = createTestSession('Read').session;
 			const { list, container } = renderList([grouped, unread, read], {
 				groups: [group],
 				memberships: new Map([[grouped.sessionId, group.id]]),
 			});
 			list.collapseAllSections();
-			list.setStatusExcluded(SessionStatus.Error, true);
+			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, true);
 			const filtered = unreadSections(container);
-			list.setStatusExcluded(SessionStatus.Error, false);
+			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, false);
 
 			assert.deepStrictEqual({ filtered, restored: unreadSections(container) }, {
 				filtered: [],
@@ -1666,7 +1669,7 @@ suite('Sessions - SessionsList', () => {
 				['shown by default', true, true],
 				['chosen filter', true, false],
 				['nothing archived', false, undefined],
-				['hidden by the unread filter', true, undefined],
+				['obsolete unread filter', true, undefined],
 			] as const).map(([name, isArchived, showArchivedByDefault]) => {
 				const session = createTestSession(name, { isArchived }).session;
 				const { triggers } = renderList([session], instantiationService => {
@@ -1676,7 +1679,7 @@ suite('Sessions - SessionsList', () => {
 					if (name === 'chosen filter') {
 						instantiationService.get(IStorageService).store('sessionsListControl.excludeArchived', false, StorageScope.PROFILE, StorageTarget.USER);
 					}
-					if (name === 'hidden by the unread filter') {
+					if (name === 'obsolete unread filter') {
 						instantiationService.get(IStorageService).store('sessionsListControl.excludeRead', true, StorageScope.PROFILE, StorageTarget.USER);
 					}
 				});
@@ -1689,7 +1692,7 @@ suite('Sessions - SessionsList', () => {
 				'shown by default': trigger,
 				'chosen filter': [],
 				'nothing archived': [],
-				'hidden by the unread filter': [],
+				'obsolete unread filter': trigger,
 			});
 		});
 	});
@@ -2669,9 +2672,9 @@ suite('Sessions - SessionsList', () => {
 			const before = sectionLabels(container);
 			session.isExternal.set(true, undefined);
 			const external = sectionLabels(container);
-			list.setSessionTypeExcluded('test', true);
+			list.filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 			const filtered = sectionLabels(container);
-			list.setSessionTypeExcluded('test', false);
+			list.filters.setExcluded({ kind: 'harness', id: 'copilot' }, false);
 
 			assert.deepStrictEqual({ before, external, filtered, restored: sectionLabels(container) }, {
 				before: ['Alpha'],
@@ -2922,7 +2925,7 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('empty group filter', () => {
-		test('hides empty custom and default groups and persists the filter', () => {
+		test('migrates removed filters and keeps empty groups visible', () => {
 			const emptyGroup: ISessionGroup = { id: 'empty', name: 'Empty Group', createdAt: 2 };
 			const populatedGroup: ISessionGroup = { id: 'populated', name: 'Populated Group', createdAt: 1 };
 			const grouped = createTestSession('Grouped').session;
@@ -2930,6 +2933,10 @@ suite('Sessions - SessionsList', () => {
 				groups: [emptyGroup, populatedGroup],
 				memberships: new Map([[grouped.sessionId, populatedGroup.id]]),
 			});
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.showEmptyGroups', false, StorageScope.PROFILE, StorageTarget.USER);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.excludedSessionTypes', JSON.stringify(['test']), StorageScope.PROFILE, StorageTarget.USER);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.excludedStatuses', JSON.stringify([SessionStatus.Completed]), StorageScope.PROFILE, StorageTarget.USER);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.excludeRead', true, StorageScope.PROFILE, StorageTarget.USER);
 			const quickChatProvider = upcastPartial<ISessionsProvider>({ supportsQuickChats: true });
 			harness.instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
@@ -2946,20 +2953,15 @@ suite('Sessions - SessionsList', () => {
 			list.layout(300, 400);
 			const groupLabels = () => [...container.querySelectorAll<HTMLElement>('.session-section-label')].map(element => element.textContent);
 
-			const initiallyVisible = groupLabels();
-			list.setShowEmptyGroups(false);
-			const hidden = groupLabels();
-
 			assert.deepStrictEqual({
-				initiallyVisible,
-				hidden,
-				showEmptyGroups: list.isShowEmptyGroups(),
-				stored: harness.instantiationService.get(IStorageService).getBoolean('sessionsListControl.showEmptyGroups', StorageScope.PROFILE),
+				visible: groupLabels(),
+				sessionVisible: list.reveal(grouped.resource),
+				stored: ['showEmptyGroups', 'excludedSessionTypes', 'excludedStatuses', 'excludeRead'].map(key =>
+					harness.instantiationService.get(IStorageService).get(`sessionsListControl.${key}`, StorageScope.PROFILE)),
 			}, {
-				initiallyVisible: ['Chats', 'Empty Group', 'Populated Group'],
-				hidden: ['Populated Group'],
-				showEmptyGroups: false,
-				stored: false,
+				visible: ['Chats', 'Empty Group', 'Populated Group'],
+				sessionVisible: true,
+				stored: [undefined, undefined, undefined, undefined],
 			});
 		});
 
@@ -2973,8 +2975,6 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			list.setShowEmptyGroups(false);
-
 			list.beginRenameGroup(emptyGroup.id);
 			const input = container.querySelector<HTMLInputElement>('.session-group-input input');
 			const renderedWhileEditing = !!container.querySelector('.session-group');
@@ -2987,7 +2987,7 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				renderedWhileEditing: true,
 				hasRenameInput: true,
-				renderedAfterEditing: false,
+				renderedAfterEditing: true,
 			});
 		});
 	});
@@ -3804,19 +3804,19 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => { },
 			}));
 			list.layout(300, 400);
-			list.setStatusExcluded(SessionStatus.Completed, true);
+			list.filters.setExcluded({ kind: 'harness', id: 'copilot' }, true);
 			const before = list.reveal(session.resource);
 			const target = harness.store.add(list.revealArchiveAction(session));
 			const during = list.reveal(session.resource);
 			target.dispose();
 			assert.deepStrictEqual({
 				before, during, after: list.reveal(session.resource),
-				filterPreserved: list.isStatusExcluded(SessionStatus.Completed),
+				filterPreserved: list.filters.isExcluded({ kind: 'harness', id: 'copilot' }),
 			}, { before: false, during: true, after: false, filterPreserved: true });
 		});
 
 		test('spotlights a filtered session row without revealing its archive action or retaining recycled targets', () => {
-			const session = createTestSession('Running session', { status: SessionStatus.InProgress }).session;
+			const session = createTestSession('Running session', { status: SessionStatus.InProgress, harness: 'claude' }).session;
 			const replacement = createTestSession('Replacement').session;
 			const harness = createListHarness(disposables, [session, replacement]);
 			harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
@@ -3827,7 +3827,7 @@ suite('Sessions - SessionsList', () => {
 				onSessionOpen: () => assert.fail('Revealing onboarding must not open the session'),
 			}));
 			list.layout(300, 400);
-			list.setStatusExcluded(SessionStatus.InProgress, true);
+			list.filters.setExcluded({ kind: 'harness', id: 'claude' }, true);
 			list.collapseAllSections();
 			const before = list.reveal(session.resource);
 			const target = harness.store.add(list.revealSessionForOnboarding(session));
@@ -3848,7 +3848,7 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({
 				before, during, afterUpdate, afterRecycle,
 				afterRelease: !!findOnboardingTarget(mainWindow, target.targetId),
-				filterPreserved: list.isStatusExcluded(SessionStatus.InProgress),
+				filterPreserved: list.filters.isExcluded({ kind: 'harness', id: 'claude' }),
 			}, {
 				before: false,
 				during: { visible: true, title: 'Running session', archiveActionForced: 0 },
@@ -5352,8 +5352,8 @@ suite('Sessions - SessionsList', () => {
 			twistie.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
 			const collapsedParentHasProgress = !!container.querySelector('.session-item .session-icon > .monaco-pixel-spinner');
 
-			list.setStatusExcluded(SessionStatus.InProgress, true);
-			list.setStatusExcluded(SessionStatus.InProgress, false);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, true);
+			list.filters.setExcluded({ kind: 'environment', id: 'cloud' }, false);
 
 			assert.deepStrictEqual({
 				collapsedParentHasProgress,
