@@ -20,11 +20,20 @@ suite('SandboxSettingsResolutionHelper', () => {
 		}
 	});
 
-	test('managed false denies outbound access without widening local restrictions', () => {
+	test('managed false denies access without widening local restrictions', () => {
 		for (const local of [undefined, false, true]) {
 			assert.deepStrictEqual(
-				[undefined, false, true].map(managed => SandboxSettingsResolutionHelper.resolveAllowOutbound(local, managed)),
+				[undefined, false, true].map(managed => SandboxSettingsResolutionHelper.resolveAllowAccess(local, managed)),
 				[local, false, local],
+			);
+		}
+	});
+
+	test('only managed true forces server sandboxing', () => {
+		for (const local of [undefined, false, true]) {
+			assert.deepStrictEqual(
+				[undefined, false, true].map(managed => SandboxSettingsResolutionHelper.resolveSandboxServers(local, managed)),
+				[local, local, true],
 			);
 		}
 	});

@@ -144,7 +144,7 @@ suite('agentHostBootstrap', () => {
 		});
 		foundation.stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		managedSettings.setClientSandboxRequired('client', true);
-		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session)?.enabled, process.platform === 'win32' ? undefined : true);
+		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session)?.enabled, true);
 		managedSettings.removeClient('client');
 		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session), undefined);
 	});
