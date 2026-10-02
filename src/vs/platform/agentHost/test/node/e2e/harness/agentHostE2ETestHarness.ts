@@ -898,7 +898,7 @@ export class AgentHostE2EServerLease {
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget; readonly env?: Readonly<Record<string, string>> } = {},
 	) {
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
@@ -910,6 +910,7 @@ export class AgentHostE2EServerLease {
 				// Keep replay deterministic when tests run inside a Copilot app process
 				// that has local experimental CLI tools enabled.
 				COPILOT_CLI_ENABLED_FEATURE_FLAGS: '',
+				...startOptions.env,
 			},
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture

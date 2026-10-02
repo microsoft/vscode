@@ -9,11 +9,9 @@ import { Event } from '../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
@@ -131,6 +129,9 @@ export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentO
 
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
+
+/** Configuration key gating Canvas extensions and presentation in agent-host sessions. */
+export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
 
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
@@ -270,20 +271,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 		return true;
 	}
 	return defaultEnabled;
-}
-
-/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxEnabled} for both terminal implementations. */
-export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
-
-/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxWindowsEnabled} for both terminal implementations. */
-export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
-
-export type AgentHostCopilotSandboxSettingId =
-	| AgentSandboxSettingId.AgentSandboxEnabled
-	| AgentSandboxSettingId.AgentSandboxWindowsEnabled;
-
-export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
-	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
 }
 
 /**

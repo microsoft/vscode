@@ -10,6 +10,7 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatInputPickerResponsiveLayout } from '../../../../browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { renderChatInputPickerSplit } from '../../../../browser/widget/input/chatInputPickerActionItem.js';
 import '../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 import '../../../../browser/widget/media/chat.css';
 
@@ -558,12 +559,13 @@ suite('ChatInputPickerResponsiveLayout', () => {
 
 		const modelItem = dom.append(row, dom.$('.chat-input-picker-item.model-picker-item'));
 		modelItem.style.width = '100px';
-		const modelLabel = dom.append(modelItem, dom.$('a.action-label.model-picker-split'));
-		const modelName = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-name'));
+		const modelLabel = dom.append(modelItem, dom.$('div.action-label.model-picker-split'));
+		const { primaryButton: modelName, secondaryButton: modelConfig } = renderChatInputPickerSplit(modelLabel);
+		modelName.classList.add('model-picker-section', 'model-picker-name');
+		modelConfig.classList.add('model-picker-section', 'model-picker-config');
 		modelName.style.minWidth = '90px';
 		const pickerLabel = dom.append(modelName, dom.$('.chat-input-picker-label'));
 		pickerLabel.textContent = 'A very long model name';
-		const modelConfig = dom.append(modelLabel, dom.$('.model-picker-section.model-picker-config'));
 		modelConfig.style.width = '40px';
 
 		const overflowItem = dom.append(row, dom.$('.overflow-item'));
@@ -675,7 +677,9 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		const item = dom.append(toolbar, dom.$('.chat-input-picker-item.model-picker-item.compact-picker'));
 		item.style.width = '22px';
 		const actionLabel = dom.append(item, dom.$('div.action-label.model-picker-split.compact.icon-only'));
-		const button = dom.append(actionLabel, dom.$('a.model-picker-section.model-picker-name'));
+		const { primaryButton: button, secondaryButton } = renderChatInputPickerSplit(actionLabel);
+		button.classList.add('model-picker-section', 'model-picker-name');
+		secondaryButton.style.display = 'none';
 		button.style.minWidth = '22px';
 		const icon = dom.append(button, dom.$('span.codicon'));
 

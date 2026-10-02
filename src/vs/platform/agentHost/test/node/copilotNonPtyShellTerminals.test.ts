@@ -336,4 +336,137 @@ suite('NonPtyShellTerminalStreams', () => {
 			strictEqual(streams.completeToolCall('missing', undefined, undefined), undefined);
 		});
 	});
+
+	suite('background shells', () => {
+		const asyncStarted = (shellId: string) => `<command started in background with shellId: ${shellId}>`;
+
+		test('keeps streaming an attached command after its tool call returns, until the shell exits', () => {
+			streams.track('call-20', 'shell');
+			const uri = streams.append('call-20', 'step 1\n')?.uri;
+
+			const completion = streams.completeToolCall('call-20', asyncStarted('7'), undefined);
+			const streaming = streams.isStreamingInBackground('call-20');
+			streams.append('call-20', 'step 1\nstep 2\n');
+			const terminal = streams.getBackgroundShellTerminal('7');
+			streams.completeBackgroundShell('7', 0);
+			streams.append('call-20', 'step 1\nstep 2\nstep 3\n');
+
+			deepStrictEqual({
+				completion,
+				streaming,
+				terminal,
+				content: channelContent(),
+				finalized: manager.outputTerminalsFinalized,
+				afterExit: { streaming: streams.isStreamingInBackground('call-20'), terminal: streams.getBackgroundShellTerminal('7') },
+				disposed: manager.disposedTerminals,
+			}, {
+				completion: { uri, shouldRetire: false, backgroundShellId: '7' },
+				streaming: true,
+				terminal: uri,
+				content: 'step 1\nstep 2\n',
+				finalized: [{ uri, exitCode: 0 }],
+				afterExit: { streaming: false, terminal: undefined },
+				disposed: [],
+			});
+		});
+
+		test('creates the channel when the command returned before producing output', () => {
+			streams.track('call-21', 'shell');
+
+			const completion = streams.completeToolCall('call-21', '<command with shellId: 8 is still running after 30 seconds. The command is still running. Use read_bash to continue waiting for output, or stop_bash to stop it.>', undefined);
+			streams.append('call-21', 'late\n');
+
+			const uri = buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, 'call-21');
+			deepStrictEqual({ completion, created: manager.outputTerminalsCreated.map(terminal => terminal.uri), content: channelContent() }, {
+				completion: { uri, shouldRetire: false, backgroundShellId: '8' },
+				created: [uri],
+				content: 'late\n',
+			});
+		});
+
+		test('does not stream detached commands or a shell ID that is already in use', () => {
+			const results = {
+				'call-22': '<command started in detached background with shellId: 9>',
+				'call-26': '<command with shellId: 9 is still running in detached background after 30s. Use read_bash to continue waiting, or stop_bash to stop it.>',
+				'call-27': '<command with shellId: 9 is already running, wait for output with read_bash, stop it with stop_bash tool>',
+			};
+			const completions = Object.entries(results).map(([toolCallId, text]) => {
+				streams.track(toolCallId, 'shell');
+				streams.append(toolCallId, 'starting\n');
+				return { completion: streams.completeToolCall(toolCallId, text, undefined), streaming: streams.isStreamingInBackground(toolCallId) };
+			});
+
+			deepStrictEqual({ completions, terminal: streams.getBackgroundShellTerminal('9') }, {
+				completions: Object.keys(results).map(toolCallId => ({
+					completion: { uri: buildNonPtyShellTerminalUri(sessionUri, sessionUri, chatUri, toolCallId), shouldRetire: false },
+					streaming: false,
+				})),
+				terminal: undefined,
+			});
+		});
+
+		test('settles a shell from task reads started after it went to the background, even if never listed', () => {
+			streams.track('call-23', 'shell');
+			const earlier = streams.beginShellTaskRead();
+			const uri = streams.completeToolCall('call-23', asyncStarted('10'), undefined)?.uri;
+
+			// A read started before the call returned can predate the shell.
+			streams.reconcileBackgroundShells(new Set(), earlier);
+			const afterEarlierRead = [...manager.outputTerminalsFinalized];
+			streams.reconcileBackgroundShells(new Set(['10']), streams.beginShellTaskRead());
+			const whileListed = [...manager.outputTerminalsFinalized];
+			// A later read that no longer lists the shell settles it, whether or not an earlier read listed it.
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+
+			deepStrictEqual({ afterEarlierRead, whileListed, finalized: manager.outputTerminalsFinalized }, {
+				afterEarlierRead: [],
+				whileListed: [],
+				finalized: [{ uri, exitCode: undefined }],
+			});
+		});
+
+		test('settles a shell that exits before any read lists it', () => {
+			streams.track('call-28', 'shell');
+			const uri = streams.completeToolCall('call-28', asyncStarted('12'), undefined)?.uri;
+
+			streams.reconcileBackgroundShells(new Set(), streams.beginShellTaskRead());
+
+			deepStrictEqual(manager.outputTerminalsFinalized, [{ uri, exitCode: undefined }]);
+		});
+
+		test('settles a shell from a read result with its exit code and from a stop result', () => {
+			streams.track('call-29', 'shell');
+			const read = streams.completeToolCall('call-29', asyncStarted('13'), undefined)?.uri;
+			streams.track('call-30', 'shell');
+			const stopped = streams.completeToolCall('call-30', asyncStarted('14'), undefined)?.uri;
+			streams.track('call-31', 'shell');
+			const running = streams.completeToolCall('call-31', asyncStarted('15'), undefined)?.uri;
+
+			streams.completeBackgroundShellFromHelperResult('done\n<shellId: 13 completed with exit code 3>');
+			streams.completeBackgroundShellFromHelperResult('<command with id: 14 stopped>');
+			streams.completeBackgroundShellFromHelperResult('<shellId: 99 completed with exit code 1>');
+			streams.completeBackgroundShellFromHelperResult('still running');
+			streams.completeBackgroundShellFromHelperResult('log: <command with id: 15 stopped>\nlog: <shellId: 15 completed with exit code 0>\nstill running');
+
+			deepStrictEqual({ finalized: manager.outputTerminalsFinalized, running: streams.getBackgroundShellTerminal('15') }, {
+				finalized: [
+					{ uri: read, exitCode: 3 },
+					{ uri: stopped, exitCode: undefined },
+				],
+				running,
+			});
+		});
+
+		test('settles the previous command when a new one reuses its shell ID', () => {
+			streams.track('call-24', 'shell');
+			const first = streams.completeToolCall('call-24', asyncStarted('11'), undefined)?.uri;
+			streams.track('call-25', 'shell');
+			const second = streams.completeToolCall('call-25', asyncStarted('11'), undefined)?.uri;
+
+			deepStrictEqual({ finalized: manager.outputTerminalsFinalized, terminal: streams.getBackgroundShellTerminal('11') }, {
+				finalized: [{ uri: first, exitCode: undefined }],
+				terminal: second,
+			});
+		});
+	});
 });

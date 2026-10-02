@@ -19,11 +19,12 @@ import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetR
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { ConfirmationOptionKind, McpServerStatus, ToolCallStatus } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -35,6 +36,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestMenuService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IChatOutputRendererService, RenderedOutputPart } from '../../../browser/chatOutputItemRenderer.js';
+import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
@@ -48,6 +50,7 @@ import { ChatSubagentContentPart } from '../../../browser/widget/chatContentPart
 import { OpenSubagentChatActionViewItem } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { ChatThinkingContentPart } from '../../../browser/widget/chatContentParts/chatThinkingContentPart.js';
 import { ChatMarkdownContentPart } from '../../../browser/widget/chatContentParts/chatMarkdownContentPart.js';
+import { ChatTurnPillsContentPart } from '../../../browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { aggregateChatEditDiffs } from '../../../browser/widget/chatContentParts/chatEditStatsButton.js';
 import { IChatOutputPartStateCache, IOutputPartState } from '../../../browser/widget/chatContentParts/chatOutputPartStateCache.js';
 import { ChatSystemNotificationContentPart } from '../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
@@ -55,7 +58,7 @@ import { ChatCollapsibleContentPart } from '../../../browser/widget/chatContentP
 import { ChatRequestQueueKind, ConfirmedReason, ElicitationState, IChatMcpAuthenticationRequired, IChatMcpAuthenticationRequiredServer, IChatMcpServersStartingSlow, IChatQuestionCarousel, IChatService, IChatSubagentToolInvocationData, IChatTask, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { formatChatRequestTimestamp, formatChatResponseDetails, formatElapsedTime } from '../../../common/chatProgressFormatting.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../../../common/constants.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatModel } from '../../../common/model/chatModel.js';
 import { ChatViewModel, IChatPendingDividerViewModel, IChatRendererContent, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -1621,9 +1624,10 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgressVerbosity, options.progressVerbosity ?? ChatProgressVerbosity.Verbose);
@@ -1641,6 +1645,15 @@ suite('ChatListRenderer', () => {
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		if (options.renderFooterActions) {
+			const copyAction = instantiationService.createInstance(MenuItemAction, { id: 'chat.test.copy', title: 'Copy', icon: Codicon.copy }, undefined, undefined, undefined, undefined);
+			instantiationService.stub(IMenuService, new class extends TestMenuService {
+				override createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
+					const menu = super.createMenu(id, contextKeyService);
+					return id === MenuId.ChatMessageFooter ? { ...menu, getActions: () => [['navigation', [copyAction]]] } : menu;
+				}
+			}());
+		}
 		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		instantiationService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
@@ -1667,7 +1680,7 @@ suite('ChatListRenderer', () => {
 				override createSuggestionId() { return EditSuggestionId.newId(); }
 			}());
 		}
-		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true, resource: options.sessionResource }));
 		if (editingSession) {
 			const chatService = instantiationService.get(IChatService);
 			assert.ok(chatService instanceof MockChatService);
@@ -2997,7 +3010,7 @@ suite('ChatListRenderer', () => {
 			await timeout(90_000);
 			assert.deepStrictEqual({
 				label: progress.workingLabel,
-				hidden: progress.domNode.style.display === 'none',
+				hidden: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden',
 				active: progress.domNode.classList.contains('chat-working-progress-active'),
 				statuses: [...host.querySelectorAll('.monaco-status')].map(status => status.textContent).filter(Boolean),
 			}, { label: 'Working', hidden: true, active: false, statuses: [] });
@@ -6189,6 +6202,181 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const incremental of [false, true]) {
+		for (const fontSize of [13, 20]) {
+			for (const canceled of [false, true]) {
+				test(`persistent progress hands off an empty response without changing height (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, () => {
+					const { container, configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					renderer.renderElement(node, 0, template);
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(progress);
+					const visibleParts = [...template.value.children].filter(part => part.getBoundingClientRect().height > 0);
+					const onlyProgressVisible = visibleParts.length === 1 && visibleParts[0] === progress;
+					const progressTop = progress.getBoundingClientRect().top;
+					const heightBefore = template.rowContainer.getBoundingClientRect().height;
+					const heights = [heightBefore];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+					renderer.renderElement(node, 0, template);
+					heights.push(template.rowContainer.getBoundingClientRect().height);
+
+					assert.deepStrictEqual({
+						onlyProgressVisible,
+						heights: [...new Set(heights)],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						onlyProgressVisible: true,
+						heights: [heightBefore],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+
+				test(`persistent progress hands off to the toolbar without moving content (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, async () => {
+					const { container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+					configurePersistentProgressTypography(container, fontSize);
+					configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+					model.acceptResponseProgress(request, {
+						kind: 'markdownContent',
+						content: new MarkdownString('**Task completed:**\n\nMessage received.'),
+					});
+					renderer.renderElement(node, 0, template);
+					await retry(async () => {
+						assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Message received.');
+					}, 10, 100);
+					const paragraph = template.value.querySelector<HTMLElement>('.chat-markdown-part p:last-child');
+					const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+					assert.ok(paragraph && progress);
+					const measure = () => ({
+						height: template.rowContainer.getBoundingClientRect().height,
+						paragraphTop: paragraph.getBoundingClientRect().top,
+					});
+					const before = measure();
+					const progressTop = progress.getBoundingClientRect().top;
+					const samples = [before];
+
+					if (canceled) {
+						request.response?.cancel();
+					} else {
+						request.response?.complete();
+					}
+					samples.push(measure());
+					renderer.renderElement(node, 0, template);
+					samples.push(measure());
+					await retry(async () => {
+						samples.push(measure());
+						assert.strictEqual(template.rowContainer.classList.contains('chat-response-loading'), false);
+					}, 10, 100);
+
+					assert.deepStrictEqual({
+						heights: [...new Set(samples.map(sample => sample.height))],
+						paragraphPositions: [...new Set(samples.map(sample => sample.paragraphTop))],
+						toolbarTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+						progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+					}, {
+						heights: [before.height],
+						paragraphPositions: [before.paragraphTop],
+						toolbarTop: progressTop,
+						progressRows: 0,
+					});
+				});
+			}
+		}
+	}
+
+	test('persistent progress keeps its footprint while completed progressive content drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, container, model, request, response, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
+		try {
+			configurePersistentProgressTypography(container, 13);
+			const text = Array.from({ length: 80 }, (_, index) => `word${index}`).join(' ');
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(text) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+			assert.ok(progress);
+			const progressHeight = progress.getBoundingClientRect().height;
+
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+			const whileDraining = {
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				sameProgress: template.value.querySelector('.chat-working-progress') === progress,
+				progressHeight: progress.getBoundingClientRect().height,
+				progressVisibility: dom.getWindow(progress).getComputedStyle(progress).visibility,
+				toolbarHeight: template.footerToolbarContainer.getBoundingClientRect().height,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+				progressRows: template.value.querySelectorAll('.chat-working-progress').length,
+				toolbarHeight: template.footerToolbar.getElement().getBoundingClientRect().height,
+				text: template.value.querySelector('.chat-markdown-part')?.textContent?.trim(),
+			}, {
+				whileDraining: { loading: true, sameProgress: true, progressHeight, progressVisibility: 'hidden', toolbarHeight: 0 },
+				loading: false,
+				progressRows: 0,
+				toolbarHeight: progressHeight,
+				text,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
+	test('disposes the turn summary displaced by retained progress while completed markdown drains', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { disposables, instantiationService, model, request, response, renderer, template, node } = createPersistentProgressRenderer({
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/progress-summary' }),
+		});
+		try {
+			instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+				override getChangesForRequest() { return undefined; }
+			}());
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 20 }, (_, index) => `first${index}`).join(' ')) });
+			model.acceptResponseProgress(request, { kind: 'progressMessage', content: new MarkdownString('Finished the first step') });
+			model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString(Array.from({ length: 80 }, (_, index) => `last${index}`).join(' ')) });
+			await timeout(1);
+			response.renderData = { lastRenderTime: Date.now(), renderedWordCount: 20, renderedParts: [] };
+			renderer.renderElement(node, 0, template);
+			request.response?.complete();
+			renderer.renderElement(node, 0, template);
+
+			const summary = template.renderedParts?.find(part => part instanceof ChatTurnPillsContentPart);
+			assert.ok(summary instanceof ChatTurnPillsContentPart);
+			const summaryDispose = sinon.spy(summary, 'dispose');
+			disposables.add(toDisposable(() => summaryDispose.restore()));
+			await timeout(50);
+			const whileDraining = {
+				summaryDisposed: summaryDispose.calledOnce,
+				summaryDetached: summary.domNode.parentElement === null,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+			};
+			await timeout(1000);
+
+			assert.deepStrictEqual({
+				whileDraining,
+				summaryCount: template.value.querySelectorAll('.chat-turn-pills-part').length,
+				loading: template.rowContainer.classList.contains('chat-response-loading'),
+			}, {
+				whileDraining: { summaryDisposed: true, summaryDetached: true, summaryCount: 1 },
+				summaryCount: 1,
+				loading: false,
+			});
+		} finally {
+			disposables.dispose();
+		}
+	}));
+
 	for (const ending of ['complete', 'cancel', 'dispose'] as const) {
 		test(`retained working progress stops before the next list render (${ending})`, () => {
 			const { container, request, renderer, template, node } = createPersistentProgressRenderer();
@@ -6197,6 +6385,7 @@ suite('ChatListRenderer', () => {
 			const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
 			assert.ok(progress instanceof ChatWorkingProgressContentPart);
 			const visibleBefore = progress.domNode.getClientRects().length > 0;
+			const heightBefore = progress.domNode.getBoundingClientRect().height;
 			if (ending === 'complete') {
 				request.response?.complete();
 			} else if (ending === 'cancel') {
@@ -6206,9 +6395,11 @@ suite('ChatListRenderer', () => {
 			}
 			assert.deepStrictEqual({
 				visibleBefore,
-				visibleAfter: progress.domNode.getClientRects().length > 0,
+				visibleAfter: progress.domNode.getClientRects().length > 0 && dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility !== 'hidden',
+				preservesFootprint: progress.domNode.getBoundingClientRect().height === heightBefore,
 				preservesReplacementAnchor: progress.domNode.parentElement === template.value,
-			}, { visibleBefore: true, visibleAfter: false, preservesReplacementAnchor: true });
+				ariaHidden: progress.domNode.ariaHidden,
+			}, { visibleBefore: true, visibleAfter: false, preservesFootprint: ending !== 'dispose', preservesReplacementAnchor: true, ariaHidden: 'true' });
 			if (ending !== 'dispose') {
 				renderer.renderElement(node, 0, template);
 				assert.strictEqual(template.value.querySelector('.chat-working-progress'), null);
@@ -6223,11 +6414,11 @@ suite('ChatListRenderer', () => {
 		const progress = template.renderedParts?.find(part => part instanceof ChatWorkingProgressContentPart);
 		assert.ok(progress instanceof ChatWorkingProgressContentPart);
 		request.response?.complete();
-		const hiddenAfterCompletion = progress.domNode.getClientRects().length === 0;
+		const hiddenAfterCompletion = dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'hidden';
 		request.response?.reopen();
 		assert.deepStrictEqual({
 			hiddenAfterCompletion,
-			visibleAfterResume: progress.domNode.getClientRects().length > 0,
+			visibleAfterResume: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			progressRows: template.value.querySelectorAll('.chat-working-progress').length,
 		}, { hiddenAfterCompletion: true, visibleAfterResume: true, progressRows: 1 });
 	});
@@ -6243,13 +6434,13 @@ suite('ChatListRenderer', () => {
 		assert.ok(progress instanceof ChatWorkingProgressContentPart);
 		request.response.complete();
 		const afterCompletion = {
-			visible: progress.domNode.getClientRects().length > 0,
+			visible: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			active: progress.domNode.classList.contains('chat-working-progress-active'),
 		};
 		request.response.reopen();
 		assert.deepStrictEqual({
 			afterCompletion,
-			visibleAfterReopen: progress.domNode.getClientRects().length > 0,
+			visibleAfterReopen: dom.getWindow(progress.domNode).getComputedStyle(progress.domNode).visibility === 'visible',
 			activeAfterReopen: progress.domNode.classList.contains('chat-working-progress-active'),
 		}, {
 			afterCompletion: { visible: false, active: false },
@@ -7830,9 +8021,105 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
+	test('keeps only warnings that opt in outside collapsed completed steps', async () => {
+		const disposables = store.add(new DisposableStore());
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
+		configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, false);
+		configurationService.setUserConfiguration(ChatConfiguration.CollapseCompletedResponses, true);
+		configurationService.setUserConfiguration('chat.checkpoints.enabled', false);
+		configurationService.setUserConfiguration('chat.checkpoints.showFileChanges', false);
+		configurationService.setUserConfiguration(ChatConfiguration.Verbose, false);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatModelFeedbackSurveyService, new MockChatModelFeedbackSurveyService());
+		instantiationService.stub(IChatAgentService, disposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const model = disposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const text = 'hi';
+		const request = model.addRequest({
+			text,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)]
+		}, { variables: [] }, 0);
+		const response = viewModel.getItems().find(isResponseVM);
+		assert.ok(response);
+
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		disposables.add(toDisposable(() => container.remove()));
+		const renderer = disposables.add(instantiationService.createInstance(
+			ChatListItemRenderer,
+			{} as ChatEditorOptions,
+			{},
+			{
+				getListLength: () => 1,
+				onDidScroll: () => toDisposable(() => { }),
+				container,
+				currentChatMode: () => ChatModeKind.Agent,
+				isStickyScrollEnabled: () => false,
+				refreshStickyScroll: () => { },
+				stickyScrollTopPadding: 0,
+			},
+			undefined,
+			viewModel,
+		));
+		const template = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(template)));
+		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
+
+		const runTool = async (callId: string) => {
+			const toolInvocation = new ChatToolInvocation({
+				invocationMessage: 'Running tool...',
+				pastTenseMessage: 'Tool completed',
+			}, {
+				id: 'my-tool',
+				displayName: 'My Tool',
+				modelDescription: 'Test tool',
+				source: ToolDataSource.Internal,
+			}, callId, undefined, {}, {}, request.id);
+			model.acceptResponseProgress(request, toolInvocation);
+			await toolInvocation.didExecuteTool(undefined);
+		};
+		await runTool('call-1');
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Some tools are not available'), keepVisibleWhenCollapsed: true });
+		model.acceptResponseProgress(request, { kind: 'warning', content: new MarkdownString('Ordinary warning') });
+		await runTool('call-2');
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Final response') });
+		request.response?.complete();
+		renderer.renderElement(node, 0, template);
+		const firstDisclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		renderer.renderElement(node, 0, template);
+
+		const findWarning = (text: string) => [...container.querySelectorAll<HTMLElement>('.chat-notification-widget')]
+			.find(element => element.textContent?.includes(text));
+		const warning = findWarning('Some tools are not available');
+		const ordinaryWarning = findWarning('Ordinary warning');
+		const disclosure = container.querySelector<HTMLDetailsElement>('.completed-response-disclosure');
+		assert.deepStrictEqual({
+			warningVisible: !!warning,
+			warningInsideDisclosure: !!warning && !!disclosure?.contains(warning),
+			warningBeforeDisclosure: !!warning && !!disclosure && !!(warning.compareDocumentPosition(disclosure) & Node.DOCUMENT_POSITION_FOLLOWING),
+			ordinaryWarningInsideDisclosure: !!ordinaryWarning && !!disclosure?.contains(ordinaryWarning),
+			disclosureLabel: disclosure?.querySelector('.completed-response-summary')?.textContent,
+			disclosureReusedOnRerender: !!disclosure && disclosure === firstDisclosure,
+		}, {
+			warningVisible: true,
+			warningInsideDisclosure: false,
+			warningBeforeDisclosure: true,
+			ordinaryWarningInsideDisclosure: true,
+			disclosureLabel: 'Completed 3 steps',
+			disclosureReusedOnRerender: true,
+		});
+
+		disposables.dispose();
+	});
+
 	function createBackgroundSubagentRenderer(chatWidgetService?: IChatWidgetService) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		instantiationService.stub(ILanguageModelToolsService, disposables.add(new MockLanguageModelToolsService()));
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
@@ -9276,7 +9563,7 @@ suite('ChatListRenderer', () => {
 			assert.ok(subagent);
 			subagent.focus();
 			const childControl = mainWindow.document.activeElement;
-			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-widget'));
+			assert.ok(dom.isHTMLElement(childControl) && childControl.classList.contains('chat-subagent-pill-content'));
 
 			data.isActive = false;
 			invocation.notifyToolSpecificDataChanged();
@@ -9441,6 +9728,7 @@ suite('ChatListRenderer', () => {
 	test('reconstructs a large collapsed subagent history through one renderer batch', async () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Off);
 		configurationService.setUserConfiguration('chat.agent.thinking.collapsedTools', CollapsedToolsDisplayMode.Off);

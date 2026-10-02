@@ -291,6 +291,7 @@ export class TaskApiBackend implements CloudAgentBackend {
 					const resolvedRepo = await resolveRepo(task, repo);
 					return {
 						taskId: task.id,
+						eventType: 'event_type' in task && typeof task.event_type === 'string' ? task.event_type : undefined,
 						title: task.name ?? '',
 						state: task.state,
 						createdAt: task.created_at,

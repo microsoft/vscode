@@ -28,6 +28,7 @@ export interface IModelPickerConfigurationHost {
 	readonly getCacheBreakLearnMoreLink: () => IActionListHeaderLink | undefined;
 	readonly dismissCacheBreakHint: () => void;
 	readonly getContextViewLayer?: () => number | undefined;
+	readonly setExpanded?: (expanded: boolean) => void;
 }
 
 export class ModelPickerConfiguration {
@@ -113,6 +114,7 @@ export class ModelPickerConfiguration {
 			onHide: () => {
 				telemetrySession.close(whenModelConfigValuesSaved(this._host.getConfigurationAccess()));
 				button.setAttribute('aria-expanded', 'false');
+				this._host.setExpanded?.(false);
 				if (dom.isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -120,6 +122,7 @@ export class ModelPickerConfiguration {
 		};
 
 		button.setAttribute('aria-expanded', 'true');
+		this._host.setExpanded?.(true);
 		const showCacheBreakHint = this._host.shouldShowCacheBreakHint();
 		this._actionWidgetService.show(
 			'ChatModelConfigPicker',

@@ -12,10 +12,11 @@ import { Event } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IUserDataSyncEnablementService } from '../../../../../platform/userDataSync/common/userDataSync.js';
 import { ISetting } from '../../../../services/preferences/common/preferences.js';
@@ -27,6 +28,8 @@ import { APPLY_ALL_PROFILES_SETTING } from '../../../../services/configuration/c
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestContextMenuService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
+import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
 
 class TestSettingRenderer extends AbstractSettingRenderer {
 	readonly templateId = 'test';
@@ -101,7 +104,7 @@ function createSettingElement(deprecationMessageSeverity: 'warning' | 'info'): S
 		new TestConfigurationService() as unknown as never,
 		false,
 		new class extends mock<IExperimentalSettingsService>() { override hasAssignment() { return false; } }(),
-		new NullManagedSettingsService(),
+		new class extends mock<IManagedSettingsPresentationService>() { override getValue() { return undefined; } }(),
 	);
 	element.inspectSelf = () => { };
 	return element;
@@ -109,6 +112,11 @@ function createSettingElement(deprecationMessageSeverity: 'warning' | 'info'): S
 
 suite('SettingsTree renderer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	assert.ok(terminalContribConfiguration);
+	const configurationNode = { id: 'sandboxRendererPresentationTest', properties: Object.fromEntries(Object.entries(terminalContribConfiguration).filter(([, property]) => property.managedSettingsPresentation)) };
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
 	suite('array overrides', () => {
 		function renderArray(settingsTarget: SettingsTarget, defaultValue: string[], inherited = false) {
@@ -137,6 +145,7 @@ suite('SettingsTree renderer', () => {
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
 			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
 			instantiationService.stub(IUserDataSyncEnablementService, { isEnabled: () => false });
 			const contextMenuService = new class extends TestContextMenuService {
@@ -231,27 +240,33 @@ suite('SettingsTree renderer', () => {
 		});
 	});
 
-	for (const key of [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork]) {
+	for (const key of [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork, AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentSandboxSettingId.AgentSandboxMcpServers, AgentSandboxSettingId.AgentSandboxLspServers]) {
 		test(`renders managed state and unlocks ${key} after policy removal`, () => {
-			const isEnabled = key === AgentSandboxSettingId.AgentSandboxEnabled || key === AgentSandboxSettingId.AgentSandboxWindowsEnabled;
+			const isEnabled = key === AgentSandboxSettingId.AgentSandboxEnabled;
+			const isServerSandbox = key === AgentSandboxSettingId.AgentSandboxMcpServers || key === AgentSandboxSettingId.AgentSandboxLspServers;
 			const configuration = new class extends TestConfigurationService {
 				isSettingAppliedForAllProfiles(): boolean { return false; }
-			}({ [key]: isEnabled ? 'off' : true, [APPLY_ALL_PROFILES_SETTING]: [] });
+			}({ [key]: isEnabled ? 'off' : !isServerSandbox, [APPLY_ALL_PROFILES_SETTING]: [] });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			const instantiationService = workbenchInstantiationService({ configurationService: () => configuration }, store);
 			let required = true;
 			let allowBypass: boolean | undefined = false;
 			let allowOutbound: boolean | undefined = false;
+			let sandboxServers: boolean | undefined = true;
 			instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
 				override readonly onDidChangeManagedSettings = Event.None;
 				override getManagedSettingValue(key: string) {
-					if (key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) {
+					if (key === COPILOT_SANDBOX_MCP_SERVERS_KEY || key === COPILOT_SANDBOX_LSP_SERVERS_KEY) {
+						return sandboxServers;
+					}
+					if (key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY || key === COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY || key === COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY) {
 						return allowOutbound;
 					}
 					return key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : key === COPILOT_SANDBOX_ENABLED_KEY && required ? true : undefined;
 				}
 			}());
 			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 			instantiationService.stub(IUserDataSyncEnablementService, { isEnabled: () => false });
 			const model = store.add(instantiationService.createInstance(SettingsTreeModel, { settingsTarget: ConfigurationTarget.USER_LOCAL }, true));
 			model.update({
@@ -282,14 +297,16 @@ suite('SettingsTree renderer', () => {
 			const managed = render();
 			allowBypass = true;
 			allowOutbound = true;
+			sandboxServers = false;
 			const bypassAllowed = render();
 			required = false;
 			allowBypass = undefined;
 			allowOutbound = undefined;
+			sandboxServers = undefined;
 			assert.deepStrictEqual({ managed, bypassAllowed, removed: render() }, {
-				managed: { disabled: true, value: isEnabled ? 'on' : false, indicator: true },
-				bypassAllowed: { disabled: isEnabled, value: isEnabled ? 'on' : true, indicator: isEnabled },
-				removed: { disabled: false, value: isEnabled ? 'off' : true, indicator: false },
+				managed: { disabled: true, value: isEnabled ? 'on' : isServerSandbox, indicator: true },
+				bypassAllowed: { disabled: isEnabled, value: isEnabled ? 'on' : !isServerSandbox, indicator: isEnabled },
+				removed: { disabled: false, value: isEnabled ? 'off' : !isServerSandbox, indicator: false },
 			});
 		});
 	}
@@ -303,6 +320,37 @@ suite('SettingsTree renderer', () => {
 		assert.strictEqual(renderer.toolbarDisposed, true);
 
 		renderer.dispose();
+	});
+
+	test('renders an upcoming deprecation warning separately from the description', () => {
+		const renderer = store.add(new TestSettingRenderer());
+		const template = renderer.renderTemplate(document.createElement('div'));
+		const element = store.add(createSettingElement('warning'));
+		store.add(element.parent!);
+		const setting = terminalContribConfiguration?.[AgentSandboxSettingId.AgentSandboxAllowAutoApprove];
+		assert.ok(setting);
+		element.setting.deprecationMessage = setting.markdownDeprecationMessage;
+		element.setting.deprecationMessageShowInSettings = setting.deprecationMessageShowInSettings;
+
+		try {
+			renderer.renderElement({ element } as never, 0, template);
+			const icon = template.deprecationWarningElement.firstElementChild;
+			assert.deepStrictEqual({
+				text: template.deprecationWarningElement.textContent,
+				iconClasses: icon?.className,
+				iconRole: icon?.getAttribute('role'),
+				iconAriaLabel: icon?.getAttribute('aria-label'),
+				isInfo: template.containerElement.classList.contains('is-deprecated-info'),
+			}, {
+				text: 'This setting will be deprecated soon.',
+				iconClasses: 'codicon codicon-error',
+				iconRole: 'img',
+				iconAriaLabel: 'Warning',
+				isInfo: false,
+			});
+		} finally {
+			renderer.disposeTemplate(template);
+		}
 	});
 
 	test('renders informational deprecation severity', () => {
