@@ -209,6 +209,8 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 				COPILOT_OTEL_EXPORTER_TYPE: 'file',
 				COPILOT_OTEL_FILE_EXPORTER_PATH: exportFile,
 				OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
+				// Keep SDK batching comfortably inside the file-export polling budget.
+				OTEL_BSP_SCHEDULE_DELAY: '100',
 			},
 		});
 	});
