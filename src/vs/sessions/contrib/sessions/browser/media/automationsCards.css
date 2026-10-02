@@ -69,6 +69,8 @@
 .automations-cards-state,
 .automations-cards-partial-state,
 .automations-templates,
+.automations-refresh-toolbar,
+.automations-history-state,
 .automations-history {
 	width: 100%;
 	max-width: 900px;
@@ -663,6 +665,27 @@
 .automations-temporary-run {
 	height: 54px;
 	width: 100%;
+}
+
+.automations-refresh-toolbar {
+	display: flex;
+	justify-content: flex-end;
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.automations-refresh-toolbar .monaco-button {
+	width: auto;
+}
+
+.automations-history-state {
+	margin-top: var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automations-temporary-run .automations-run-actions {
+	flex-shrink: 0;
+	margin-left: var(--vscode-spacing-size80);
 }
 
 .hc-black .automations-card,

@@ -33,6 +33,7 @@ function automation(providerId: string): IAutomationDescriptor {
 }
 
 class TestAuthority extends mock<ISessionsProviderAutomations>() {
+	override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly enabled = observableValue(this, true);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly canCreateAutomation = this.catalogueState.map(state => state === 'ready');
@@ -123,6 +124,19 @@ suite('ProviderAutomationService', () => {
 		disposables.add(autorun(reader => states.push(service.catalogueState.read(reader))));
 		initialProvidersSettled.set(true, undefined);
 		assert.deepStrictEqual(states, ['loading', 'unavailable']);
+	});
+
+	test('history completeness is reactive and independent of definition readiness', () => {
+		const cloud = new TestAuthority('cloud');
+		const { service } = setup([provider(cloud)]);
+		const states: AutomationCatalogueState[] = [];
+		disposables.add(autorun(reader => states.push(service.historyState.read(reader))));
+		cloud.historyState.set('loading', undefined);
+		cloud.historyState.set('error', undefined);
+		assert.deepStrictEqual({ states, catalogue: service.catalogueState.get(), canRun: service.canRunAutomation('cloud-automation') },
+			{ states: ['ready', 'loading', 'error'], catalogue: 'ready', canRun: true });
+		cloud.enabled.set(false, undefined);
+		assert.strictEqual(service.historyState.get(), 'ready');
 	});
 
 	test('routes customization choices to the target owner, not the saved automation owner', async () => {

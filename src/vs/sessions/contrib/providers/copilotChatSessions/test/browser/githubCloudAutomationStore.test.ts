@@ -58,6 +58,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly mutations: string[] = [];
 	mutationResult: AutomationDetail | Promise<AutomationDetail> | Error = definition;
 	tasks: readonly Task[] = [];
+	readonly historyErrors = new Map<string, Error>();
 	taskDetail: Task | Promise<Task> | undefined;
 	readonly detailStarted = new DeferredPromise<void>();
 	activeDetails = 0;
@@ -87,6 +88,10 @@ class TestApi extends mock<IAutomationsClient>() {
 
 	override async listRuns(_id: string, _signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		assert.deepStrictEqual(options, { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false });
+		const error = this.historyErrors.get(_id);
+		if (error) {
+			throw error;
+		}
 		return { data: { tasks: this.tasks } };
 	}
 
@@ -356,6 +361,20 @@ suite('GitHubCloudAutomationStore', () => {
 		await pending.complete(definition);
 		await rejected;
 		assert.deepStrictEqual(store.entries.get(), []);
+	});
+
+	test('missing definitions do not block remaining history or definition readiness', async () => {
+		const { store, api, recents } = setup();
+		recents.workspaces = [recentWorkspace(workspace)];
+		api.definitions.set(repository.name, [definition, { ...definition, id: 'deleted' }]);
+		await store.refresh();
+		api.historyErrors.set('deleted', new ApiRequestError(404, 'notFound'));
+		api.tasks = [{ id: 'run', state: 'completed', created_at: definition.created_at, remote_steerable: true }];
+		await store.refreshHistory();
+		assert.deepStrictEqual({
+			state: store.catalogueState.get(), definitions: store.entries.get().map(entry => entry.definition.id),
+			history: store.history.get().map(row => row.task.id),
+		}, { state: 'ready', definitions: [definition.id], history: ['run'] });
 	});
 
 	test('history refresh bounds detail concurrency and cancels queued work on disposal', async () => {

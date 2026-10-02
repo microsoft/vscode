@@ -25,6 +25,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly historyState = derived(this, reader => {
+		this.providersChanged.read(reader);
+		return combineAutomationCatalogueStates(this.getStores(reader).map(store => store.historyState?.read(reader) ?? 'ready'));
+	});
 	/** Aggregate completeness, with errors taking precedence over loading, unavailability, and readiness. */
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 	readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;

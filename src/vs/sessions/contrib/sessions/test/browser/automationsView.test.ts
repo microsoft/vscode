@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { stub } from 'sinon';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
 import { DataTransfers } from '../../../../../base/browser/dnd.js';
 import { EventType, getWindow, ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
@@ -153,6 +155,24 @@ async function waitForSessionActions(): Promise<void> {
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	canStop = true;
+	readonly stoppedRuns: string[] = [];
+	override canStopRun(run: IAutomationRun): boolean {
+		return this.canStop && (run.status === 'running' || run.status === 'pending');
+	}
+	override async stopRun(run: IAutomationRun): Promise<void> {
+		this.stoppedRuns.push(run.id);
+	}
+	refreshCalls = 0;
+	refreshFailure: Error | undefined;
+	override async refresh(): Promise<void> {
+		this.refreshCalls++;
+		if (this.refreshFailure) {
+			throw this.refreshFailure;
+		}
+	}
+
 	private readonly automationValue = observableValue<readonly IAutomationDescriptor[]>(this, []);
 	private readonly runValue = observableValue<readonly IAutomationRun[]>(this, []);
 	private readonly catalogueStateValue = observableValue<AutomationCatalogueState>(this, 'loading');
@@ -662,6 +682,10 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
 		instantiationService.stub(ILogService, logService);
+		const opened: string[] = [];
+		instantiationService.stub(IOpenerService, { open: async resource => { opened.push(resource.toString()); return true; } });
+		const refreshErrors: string[] = [];
+		instantiationService.stub(INotificationService, { error: message => refreshErrors.push(String(message)) });
 		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 			override readonly onDidChange = Event.None;
@@ -693,8 +717,101 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened };
 	}
+
+	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
+		const { widget, automationService, refreshErrors } = setup();
+		widget.focus();
+		await timeout(0);
+		automationService.refreshFailure = new Error('Offline');
+		widget.focus();
+		widget.element.querySelector<HTMLElement>('.automations-refresh-toolbar .monaco-button')!.click();
+		await timeout(0);
+		assert.deepStrictEqual({ calls: automationService.refreshCalls, errors: refreshErrors }, { calls: 2, errors: ['Could not refresh automations: Offline'] });
+	});
+
+	test('external run rows preserve identity, expose status and support keyboard actions without a native session', async () => {
+		const { widget, automationService, opened } = setup();
+		automationService.setAutomations([automation()]);
+		const external = run({ sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task'), status: 'running' });
+		automationService.setRuns([external]);
+		const row = widget.element.querySelector<HTMLElement>('.automations-temporary-run')!;
+		row.querySelector<HTMLElement>('[aria-label="Open on GitHub"]')!.click();
+		await timeout(0);
+		const stop = row.querySelector<HTMLElement>('[aria-label="Stop"]')!;
+		stop.focus();
+		stop.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+		dispatchKeydown(stop, { key: 'Enter', keyCode: 13 });
+		stop.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+		await timeout(0);
+		const running = row.querySelector('.session-description')?.textContent?.includes('Running on GitHub');
+		automationService.setRuns([{ ...external, status: 'completed' }]);
+		assert.deepStrictEqual({
+			running, stopped: automationService.stoppedRuns, opened,
+			sameRow: widget.element.querySelector('.automations-temporary-run') === row,
+			completed: row.textContent?.includes('Completed on GitHub'),
+			stopVisible: !!row.querySelector('[aria-label="Stop"]'),
+			externalVisible: !!row.querySelector('[aria-label="Open on GitHub"]'),
+			focusInRow: row.contains(document.activeElement),
+		}, { running: true, stopped: [external.id], opened: [external.externalResource!.toString()], sameRow: true, completed: true, stopVisible: false, externalVisible: true, focusInRow: true });
+		automationService.setRuns([]);
+		assert.strictEqual(document.activeElement, widget.element);
+	});
+
+	test('history states distinguish failed refresh from confirmed empty without hiding cached runs', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const state = widget.element.querySelector('.automations-history-state')!;
+		const empty = state.textContent;
+		automationService.historyState.set('loading', undefined);
+		const loading = state.textContent;
+		automationService.setRuns([run({ sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/task') })]);
+		automationService.historyState.set('error', undefined);
+		assert.deepStrictEqual({
+			empty, loading, error: state.textContent, rows: widget.element.querySelectorAll('.automations-temporary-run').length,
+		}, {
+			empty: 'No runs yet. Run an automation now or wait for its next scheduled run.',
+			loading: 'Refreshing run history...',
+			error: 'Run history could not be refreshed. Showing the last available history. Use Refresh to try again.',
+			rows: 1,
+		});
+	});
+
+	test('removing a focused external row restores focus when other history remains', () => {
+		const { widget, automationService } = setup();
+		automationService.setAutomations([automation()]);
+		const first = run({ sessionResource: undefined, externalResource: URI.parse('https://github.com/owner/private/tasks/first') });
+		const second = { ...first, id: 'second', externalResource: URI.parse('https://github.com/owner/private/tasks/second') };
+		automationService.setRuns([first, second]);
+		widget.element.querySelector<HTMLElement>('.automations-run-actions [aria-label="Open on GitHub"]')!.focus();
+		automationService.setRuns([second]);
+		assert.deepStrictEqual({ rows: widget.element.querySelectorAll('.automations-temporary-run').length, focused: document.activeElement === widget.element }, { rows: 1, focused: true });
+	});
+
+	test('disabled cloud cards retain repository metadata and show schedules in local time when enabled', () => {
+		const { widget, automationService } = setup();
+		const cloud = automation({
+			enabled: false,
+			targetDisplay: { label: 'GitHub Cloud: owner/private', icon: Codicon.cloud },
+			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' },
+		});
+		automationService.setAutomations([cloud]);
+		const folder = widget.element.querySelector<HTMLElement>('.automations-card-folder')!;
+		assert.deepStrictEqual({ visible: folder.style.display, text: folder.textContent }, { visible: '', text: 'GitHub Cloud: owner/private' });
+		automationService.setAutomations([{ ...cloud, enabled: true }]);
+		assert.ok(widget.element.querySelector('.automations-card-schedule')?.textContent?.includes('(local)'));
+	});
+
+	test('accessible cloud history includes needs-input status, external link and refresh errors', () => {
+		const external = run({ status: 'running', sessionResource: undefined, needsInput: true, statusDescription: 'Needs input on GitHub', externalResource: URI.parse('https://github.com/owner/private/tasks/task') });
+		const content = buildAutomationsAccessibleContent([automation()], [external], 'ready', [], [], 'error');
+		assert.deepStrictEqual({
+			needsInput: content.includes('Needs input on GitHub'),
+			external: content.includes('https://github.com/owner/private/tasks/task'),
+			error: content.includes('Run history could not be refreshed. Use Refresh to try again.'),
+		}, { needsInput: true, external: true, error: true });
+	});
 
 	test('reports the Automations view when rendered', () => {
 		const { telemetryService } = setup();

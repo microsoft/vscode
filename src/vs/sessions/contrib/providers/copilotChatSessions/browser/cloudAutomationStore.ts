@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
@@ -17,6 +19,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutomationRequest } from '../../../../../platform/github/common/missionControl/automations.js';
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
@@ -35,6 +38,13 @@ import { CloudAutomationToolCatalog, GitHubCloudAutomationStore, ICloudAutomatio
 export class CloudAutomationStore extends Disposable implements ISessionsProviderAutomations {
 	private readonly store = observableValue<GitHubCloudAutomationStore | undefined>(this, undefined);
 	private readonly refreshError = observableValue<string | undefined>(this, undefined);
+	readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
+	private historyRefresh: Promise<void> | undefined;
+	private discoveryAttempts = 0;
+	private readonly historyScheduler = this._register(new RunOnceScheduler(() => {
+		this.discoveryAttempts = Math.max(0, this.discoveryAttempts - 1);
+		this.refreshHistoryInBackground();
+	}, 15_000));
 	readonly enabled: IObservable<boolean>;
 	readonly catalogueState = derived<AutomationCatalogueState>(this, reader =>
 		this.refreshError.read(reader) ? 'error' : this.store.read(reader)?.catalogueState.read(reader) ?? 'unavailable');
@@ -84,6 +94,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		this._register(autorun(reader => {
 			accountChanged.read(reader);
 			clientChanged.read(reader);
+			this.historyScheduler.cancel();
+			this.discoveryAttempts = 0;
+			this.historyRefresh = undefined;
 			const account = defaultAccountService.currentDefaultAccount;
 			let store: GitHubCloudAutomationStore | undefined;
 			if (this.enabled.read(reader) && account && !account.enterprise) {
@@ -92,6 +105,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			transaction(tx => {
 				this.store.set(store, tx);
 				this.refreshError.set(undefined, tx);
+				this.historyState.set('ready', tx);
 			});
 			if (store) {
 				void (async () => {
@@ -162,7 +176,44 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			throw error;
 		}
 		this.assertCurrentStore(store);
-		await store.refreshHistory();
+		await this.refreshHistory();
+	}
+
+	private refreshHistory(): Promise<void> {
+		if (this.historyRefresh) {
+			return this.historyRefresh;
+		}
+		const store = this.requireStore();
+		this.historyScheduler.cancel();
+		this.historyState.set('loading', undefined);
+		this.historyRefresh = (async () => {
+			try {
+				await store.refreshHistory();
+				this.assertCurrentStore(store);
+				this.historyState.set('ready', undefined);
+			} catch (error) {
+				if (this.store.get() === store && !isCancellationError(error)) {
+					this.historyState.set('error', undefined);
+				}
+				throw error;
+			} finally {
+				if (this.store.get() === store && !this._store.isDisposed) {
+					this.historyRefresh = undefined;
+					if (this.historyState.get() === 'ready' && (this.discoveryAttempts > 0 || this.runs.get().some(run => run.status === 'pending' || run.status === 'running'))) {
+						this.historyScheduler.schedule();
+					}
+				}
+			}
+		})();
+		return this.historyRefresh;
+	}
+
+	private refreshHistoryInBackground(): void {
+		void this.refreshHistory().catch(error => {
+			if (!isCancellationError(error)) {
+				this.logService.warn('[CloudAutomations] History refresh failed', error);
+			}
+		});
 	}
 
 	getAutomation(id: string): IAutomationDescriptor | undefined {
@@ -235,7 +286,19 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	async runAutomation(id: string, token: CancellationToken = CancellationToken.None): Promise<{ readonly kind: 'accepted' }> {
-		await this.requireWritableStore().run(this.requireEntry(id), token);
+		const store = this.requireWritableStore();
+		try {
+			await store.run(this.requireEntry(id), token);
+		} catch (error) {
+			if ((error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') && this.store.get() === store) {
+				this.discoveryAttempts = 4;
+				this.refreshHistoryInBackground();
+			}
+			throw error;
+		}
+		this.assertCurrentStore(store);
+		this.discoveryAttempts = 4;
+		this.refreshHistoryInBackground();
 		return { kind: 'accepted' };
 	}
 
@@ -250,6 +313,9 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 			throw new AutomationUnavailableError(localize('cloudAutomations.stopUnavailable', "Unable to stop this cloud automation run."));
 		}
 		await store.stop(entry);
+		this.assertCurrentStore(store);
+		this.discoveryAttempts = 4;
+		this.refreshHistoryInBackground();
 	}
 
 	private updateValue(definition: AutomationDetail, id: string, patch: IUpdateAutomationOptions): EditAutomationRequest {
@@ -325,6 +391,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		return {
 			id: JSON.stringify([this.providerId, this.defaultAccountService.currentDefaultAccount?.accountName, repository.owner.toLowerCase(), repository.name.toLowerCase(), definition.id]),
 			name: definition.name, prompt: definition.prompt, schedule,
+			targetDisplay: { label: localize('cloudAutomationTarget', "GitHub Cloud: {0}/{1}", repository.owner, repository.name), icon: Codicon.cloud },
 			target: { kind: 'workspace', providerId: this.providerId, sessionTypeId: this.sessionTypeId, isolation: { kind: 'default' }, folderUri: URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: `/${repository.owner}/${repository.name}/HEAD` }) },
 			sessionTemplate: {
 				...(definition.model ? { modelId: definition.model } : {}),

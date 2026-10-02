@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -55,6 +56,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	historyError: Error | undefined;
 	getError: Error | undefined;
 	createError: Error | undefined;
+	dispatchError: Error | undefined;
 	pendingList: Promise<void> | undefined;
 	pendingVisibility: Promise<boolean> | undefined;
 	readonly visibilityStarted = new DeferredPromise<void>();
@@ -99,7 +101,13 @@ class TestApi extends mock<IAutomationsClient>() {
 		this.calls.push('update');
 		return { ...this.definitions[0], ...value };
 	}
-	override async dispatch(): Promise<CreateAutomationTaskResponse> { this.calls.push('run'); return {}; }
+	override async dispatch(): Promise<CreateAutomationTaskResponse> {
+		this.calls.push('run');
+		if (this.dispatchError) {
+			throw this.dispatchError;
+		}
+		return {};
+	}
 	toolsError: Error | undefined;
 	override async listTools(): Promise<readonly AutomationToolGroup[]> {
 		this.calls.push('tools');
@@ -150,6 +158,7 @@ suite('CloudAutomationStore', () => {
 			}();
 			override readonly tasks = new class extends mock<ITasksClient>() {
 				override async get() { return api.tasks[0]; }
+				override async abort() { api.calls.push('stop'); }
 			}();
 			override readonly credentials = new class extends mock<IGitHubCredentials>() {
 				override async getCredential() {
@@ -182,6 +191,92 @@ suite('CloudAutomationStore', () => {
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
 		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation };
+	}
+
+	test('idle definitions do not poll and postdispatch history discovery is bounded', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { provider, api, set } = setup();
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			api.calls.length = 0;
+			await clock.tickAsync(60_000);
+			assert.deepStrictEqual(api.calls, []);
+			await provider.runAutomation(provider.automations.get()[0].id);
+			await clock.tickAsync(120_000);
+			assert.deepStrictEqual(api.calls.filter(call => call !== 'visibility'), ['run', 'history', 'history', 'history', 'history', 'history']);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('active history refreshes at 15 seconds and stops on completion and client invalidation', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { provider, api, set, clientChanged } = setup();
+			api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			api.calls.length = 0;
+			await clock.tickAsync(14_999);
+			assert.deepStrictEqual(api.calls, []);
+			await clock.tickAsync(1);
+			assert.deepStrictEqual(api.calls, ['history']);
+			api.tasks = [{ ...api.tasks[0], state: 'completed' }];
+			await clock.tickAsync(60_000);
+			assert.deepStrictEqual(api.calls, ['history', 'history']);
+			api.tasks = [{ ...api.tasks[0], state: 'in_progress' }];
+			await provider.refresh();
+			api.tasks = [];
+			clientChanged.fire();
+			await clock.tickAsync(0);
+			api.calls.length = 0;
+			await clock.tickAsync(60_000);
+			assert.deepStrictEqual({ calls: api.calls, runs: provider.runs.get() }, { calls: [], runs: [] });
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('history failures retain rows without poisoning definition readiness or acknowledgements', async () => {
+		const { provider, api, set } = setup();
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const run = provider.runs.get()[0];
+		api.historyError = new Error('History offline');
+		const accepted = await provider.runAutomation(provider.automations.get()[0].id);
+		await provider.stopRun(run);
+		await assert.rejects(provider.refresh(), /History offline/);
+		assert.deepStrictEqual({
+			accepted, stopped: api.calls.includes('stop'), catalogue: provider.catalogueState.get(),
+			history: provider.historyState.get(), canCreate: provider.canCreateAutomation.get(), run: provider.runs.get()[0],
+		}, { accepted: { kind: 'accepted' }, stopped: true, catalogue: 'ready', history: 'error', canCreate: true, run });
+		api.historyError = undefined;
+		await provider.refresh();
+		assert.strictEqual(provider.historyState.get(), 'ready');
+	});
+
+	for (const error of [new MutationUncertainError('network'), new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate')]) {
+		test(`uncertain ${error.name} dispatch discovers history without clearing mutation uncertainty`, async () => {
+			const clock = useFakeTimers();
+			try {
+				const { provider, api, set } = setup();
+				await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+				await provider.refresh();
+				api.calls.length = 0;
+				api.dispatchError = error;
+				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate === error);
+				await clock.tickAsync(120_000);
+				assert.deepStrictEqual({
+					historyReads: api.calls.filter(call => call === 'history').length,
+					canCreate: provider.canCreateAutomation.get(),
+				}, { historyReads: 5, canCreate: false });
+			} finally {
+				clock.restore();
+			}
+		});
 	}
 
 	test('loads the tool catalog once from Mission Control, maps server labels, and retries after failure', async () => {
