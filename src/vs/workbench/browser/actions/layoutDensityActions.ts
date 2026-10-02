@@ -5,9 +5,10 @@
 
 import { localize2 } from '../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
+import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 import { LayoutSettings, ModernUIDensity } from '../../services/layout/browser/layoutService.js';
 
 export const LayoutDensityMenu = new MenuId('LayoutDensityMenu');
@@ -33,7 +34,11 @@ for (let index = 0; index < layoutDensityOptions.length; index++) {
 		}
 
 		override run(accessor: ServicesAccessor): Promise<void> {
-			return accessor.get(IConfigurationService).updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
+			const configurationService = accessor.get(IConfigurationService);
+			if (accessor.get(IWorkbenchEnvironmentService).isSessionsWindow) {
+				return configurationService.updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density, ConfigurationTarget.WORKSPACE);
+			}
+			return configurationService.updateValue(LayoutSettings.MODERN_UI_DENSITY, option.density);
 		}
 	});
 }

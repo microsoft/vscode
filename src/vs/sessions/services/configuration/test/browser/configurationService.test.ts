@@ -10,7 +10,9 @@ import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { deepClone } from '../../../../../base/common/objects.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationNode, IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IPolicyService, NullPolicyService, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
@@ -44,7 +46,9 @@ import { SettingsTreeGroupElement, SettingsTreeSettingElement } from '../../../.
 import { ExperimentalSettingsService } from '../../../../../workbench/services/configuration/common/experimentalSettings.js';
 import { ISetting } from '../../../../../workbench/services/preferences/common/preferences.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
 import '../../../../../workbench/browser/workbench.contribution.js';
+import '../../../../../workbench/browser/actions/layoutDensityActions.js';
 
 const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 
@@ -339,6 +343,37 @@ suite('Sessions ConfigurationService', () => {
 			changes: [ModernUIDensity.Compact, ModernUIDensity.Default],
 		});
 	}));
+
+	for (const density of [ModernUIDensity.Default, ModernUIDensity.Compact]) {
+		test(`the ${density} density command creates an Agents-only override`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const key = LayoutSettings.MODERN_UI_DENSITY;
+			const userValue = density === ModernUIDensity.Default ? ModernUIDensity.Compact : ModernUIDensity.Default;
+			await testObject.updateValue(key, userValue, ConfigurationTarget.USER);
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(IConfigurationService, testObject);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: true });
+			const command = CommandsRegistry.getCommand(`workbench.action.setLayoutDensity.${density}`);
+			assert.ok(command);
+
+			await instantiationService.invokeFunction(accessor => command.handler(accessor));
+			const inspected = testObject.inspect<ModernUIDensity>(key);
+			const userContent = (await fileService.readFile(userDataProfileService.currentProfile.settingsResource)).value.toString();
+			const workspaceContent = (await fileService.readFile(workspaceConfigResource)).value.toString();
+			assert.deepStrictEqual({
+				value: inspected.value,
+				user: inspected.userValue,
+				agentsWindow: inspected.workspaceValue,
+				savedUser: JSON.parse(userContent)[key],
+				savedAgentsWindow: JSON.parse(workspaceContent).settings[key],
+			}, {
+				value: density,
+				user: userValue,
+				agentsWindow: density,
+				savedUser: userValue,
+				savedAgentsWindow: density,
+			});
+		}));
+	}
 
 	test('persists an empty Agents array override without changing User settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const key = 'sessionsConfigurationService.arraySetting';
