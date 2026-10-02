@@ -144,7 +144,7 @@ export class DesktopLayoutController extends BaseLayoutController {
 	}
 
 	protected preHideComposition(ownerKey: URI): ISidePaneState | undefined {
-		return this._existingSession?.preHideComposition(ownerKey);
+		return this._compositionStore?.getPreHide(ownerKey);
 	}
 
 	// --- Base hooks ---
@@ -167,8 +167,6 @@ export class DesktopLayoutController extends BaseLayoutController {
 		return false;
 	}
 
-	/**
-	 */
 	protected override get _isPanelVisibilityPerSession(): boolean {
 		return this._chatLayoutEnabled;
 	}
@@ -216,11 +214,9 @@ export class DesktopLayoutController extends BaseLayoutController {
 
 	protected override _onOwnerKeyRemapped(oldKey: URI, newKey: URI): void {
 		this._compositionStore?.remap(oldKey, newKey);
-		this._existingSession?.remapPreHideComposition(oldKey, newKey);
 	}
 
 	protected override _onOwnerKeysForgotten(keys: readonly URI[]): void {
 		this._compositionStore?.forget(keys);
-		this._existingSession?.forgetPreHideComposition(keys);
 	}
 }

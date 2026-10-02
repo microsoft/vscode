@@ -8,7 +8,6 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
 import { autorun, IReader, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -22,7 +21,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -58,7 +57,6 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _detailHiddenTransiently = false;
 	private _detailHiddenByEditor = false;
 	private _changingDetailTransiently = false;
-	private readonly _preHideComposition = new ResourceMap<ISidePaneState>();
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -239,7 +237,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		if (!ownerKey) {
 			return;
 		}
-		this._preHideComposition.set(ownerKey, this._layoutService.captureSidePaneComposition());
+		this._ctx.compositionStore.setPreHide(ownerKey, this._layoutService.captureSidePaneComposition());
 	}
 
 	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
@@ -252,7 +250,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		if (!ownerKey) {
 			return;
 		}
-		const preHide = this._preHideComposition.get(ownerKey);
+		const preHide = this._ctx.compositionStore.getPreHide(ownerKey);
 		if (preHide && (preHide.editor !== e.after.editor || preHide.auxiliaryBar !== e.after.auxiliaryBar)) {
 			this._layoutService.restoreSidePaneComposition(preHide);
 		}
@@ -261,28 +259,6 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _activeOwnerKey(): URI | undefined {
 		const activeSession = this._sessionsService.activeSession.get();
 		return activeSession && this._ctx.ownerKeyFor(activeSession);
-	}
-
-	remapPreHideComposition(oldKey: URI, newKey: URI): void {
-		if (isEqual(oldKey, newKey)) {
-			return;
-		}
-		const state = this._preHideComposition.get(oldKey);
-		if (!state) {
-			return;
-		}
-		this._preHideComposition.set(newKey, state);
-		this._preHideComposition.delete(oldKey);
-	}
-
-	forgetPreHideComposition(keys: readonly URI[]): void {
-		for (const key of keys) {
-			this._preHideComposition.delete(key);
-		}
-	}
-
-	preHideComposition(ownerKey: URI): ISidePaneState | undefined {
-		return this._preHideComposition.get(ownerKey);
 	}
 
 	private _resolveComposition(activeSession: IActiveSession, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {

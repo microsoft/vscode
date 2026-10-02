@@ -276,6 +276,48 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'reopening via the real toggle must restore A\'s own composition, not B\'s legacy pre-hide state');
 	});
 
+	test('[R5] a fresh controller after reload restores A\'s own normal-toggle last-open composition, not B\'s, with no geometry involved', async () => {
+		harness = createTestHarness(store, { desktopLayout: true, workspaceFolders: [{ uri: URI.file('/repo') }], chatLayoutEnabled: true });
+		const firstRunStore = new DisposableStore();
+		const controllerA = firstRunStore.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		const sessionA = makeSession(URI.parse('session:a'));
+		const sessionB = makeSession(URI.parse('session:b'));
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		assert.deepStrictEqual(controllerA.composition(controllerA.ownerKeyFor(sessionA)), { editor: true, auxiliaryBar: true });
+
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'closing A via the real toggle hides both parts');
+		assert.deepStrictEqual(controllerA.preHideComposition(controllerA.ownerKeyFor(sessionA)), { editor: true, auxiliaryBar: true }, 'A\'s own normal-toggle last-open composition must be captured before the controller is recreated');
+
+		harness.activeSessionObs.set(sessionB, undefined);
+		await settle();
+		setVisible(false, true);
+		await settle();
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'closing B via the real toggle hides both parts and overwrites the shared legacy before-hide cache with B\'s own state, not A\'s');
+
+		firstRunStore.dispose();
+
+		const controllerB = store.add(harness.instaService.createInstance(TestDesktopController));
+		await settle();
+
+		harness.activeSessionObs.set(sessionA, undefined);
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'A\'s own composition at the time it was hidden must be reapplied unchanged by a fresh controller');
+
+		harness.layoutService.toggleSidePane();
+		await settle();
+		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: true }, 'a fresh controller must restore A\'s own persisted normal-toggle last-open composition, not B\'s and not a default, surviving the recreation');
+		assert.deepStrictEqual(controllerB.preHideComposition(controllerB.ownerKeyFor(sessionB)), { editor: false, auxiliaryBar: true }, 'B\'s own persisted normal-toggle last-open composition must also survive the recreation, unaffected by A\'s restore');
+	});
+
 	test('[R5] enabled: all four Editor/Details compositions round-trip per owner', async () => {
 		createDesktopController({ chatLayoutEnabled: true });
 		await settle();
