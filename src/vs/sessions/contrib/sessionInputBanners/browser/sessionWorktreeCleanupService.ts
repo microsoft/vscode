@@ -26,7 +26,7 @@ export const CLEANUP_THRESHOLD_WORKTREES = 20;
 const DEFAULT_MINIMUM_SESSION_AGE_DAYS = 15;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SCAN_CACHE_DURATION_MS = 60 * 60 * 1000;
-const WORKTREE_MEASUREMENT_TIMEOUT_MS = 30_000;
+const WORKTREE_MEASUREMENT_TIMEOUT_MS = 10_000;
 
 export const AGENT_SESSIONS_STORAGE_CLEANUP_SUGGESTION_SETTING = 'chat.agentSessions.sessionStorageCleanupSuggestion.enabled';
 export const LEGACY_AGENT_SESSIONS_WORKTREE_LIMIT_PROMPT_SETTING = 'sessions.chat.experimental.worktreeLimitPrompt';
