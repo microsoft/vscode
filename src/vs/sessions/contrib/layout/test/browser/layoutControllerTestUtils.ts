@@ -269,8 +269,10 @@ export interface ITestLayoutHarness {
 	editorGroupsHaveContent: boolean;
 	/** Records every `applyWorkingSet` call made by the controller. */
 	applyWorkingSetCalls: (IEditorWorkingSet | 'empty')[];
-	/** Records the name of every `saveWorkingSet` call made by the controller. */
 	saveWorkingSetCalls: string[];
+	deleteWorkingSetCalls: string[];
+	workspaceFolders: { readonly uri: URI }[];
+	onDidChangeWorkspaceFolders: Emitter<void>;
 	/**
 	 * Optional callback invoked synchronously during `applyWorkingSet`, allowing
 	 * tests to simulate external visibility changes (e.g. the desktop detail
@@ -386,6 +388,9 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		editorGroupsHaveContent: true,
 		applyWorkingSetCalls: [],
 		saveWorkingSetCalls: [],
+		deleteWorkingSetCalls: [],
+		workspaceFolders: options.workspaceFolders ? [...options.workspaceFolders] : [],
+		onDidChangeWorkspaceFolders: store.add(new Emitter<void>()),
 		openChangesEditorCalls: [],
 		sessionChangesService: store.add(new SessionChangesService(new class extends mock<IEditorService>() { }, instaService, new class extends mock<IAgentWorkbenchLayoutService>() {
 			override get agentWorkbenchLayout(): AgentWorkbenchLayout { return options.desktopLayout ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile; }
@@ -799,12 +804,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			update();
 			return registrations;
 		}
-		override deleteWorkingSet() { }
+		override deleteWorkingSet(workingSet: IEditorWorkingSet) {
+			harness.deleteWorkingSetCalls.push(workingSet.id);
+		}
 	});
 
 	instaService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
-		override readonly onDidChangeWorkspaceFolders = Event.None;
-		override getWorkspace(): IWorkspace { return { id: 'test', folders: (options.workspaceFolders ?? []) as IWorkspace['folders'] }; }
+		override get onDidChangeWorkspaceFolders() { return harness.onDidChangeWorkspaceFolders.event; }
+		override getWorkspace(): IWorkspace { return { id: 'test', folders: harness.workspaceFolders as IWorkspace['folders'] }; }
 	});
 
 	return harness;

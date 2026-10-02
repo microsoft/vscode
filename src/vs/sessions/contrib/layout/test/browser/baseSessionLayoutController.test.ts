@@ -7,6 +7,7 @@ import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
@@ -15,7 +16,7 @@ import { ViewContainerLocation } from '../../../../../workbench/common/views.js'
 import { TERMINAL_VIEW_ID } from '../../../../../workbench/contrib/terminal/common/terminal.js';
 import { BaseLayoutController } from '../../browser/baseSessionLayoutController.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat } from './layoutControllerTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makePaneComposite, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 
 /** Concrete, behaviourless subclass so the abstract base (its view-state hook is a no-op) can be instantiated. */
 class TestBaseLayoutController extends BaseLayoutController { }
@@ -565,6 +566,49 @@ suite('BaseLayoutController', () => {
 			'the outgoing session working set should be saved eagerly despite the gated apply holding back'
 		);
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply should hold back while the incoming workspace is not ready');
+	});
+
+	test('[B2] once a held-back workspace folder arrives, the gated apply restores the still-current session\'s own saved working set, not a stale or empty one', async () => {
+		const otherWorkspace = {
+			uri: URI.file('/other'),
+			label: 'other',
+			icon: Codicon.repo,
+			folders: [{ root: URI.file('/other'), workingDirectory: URI.file('/other'), name: 'other', description: undefined, gitRepository: undefined }],
+			requiresWorkspaceTrust: false,
+			isVirtualWorkspace: false,
+		};
+		const workspaceFolders = [{ uri: URI.file('/repo') }, { uri: URI.file('/other') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const session1 = makeSession(URI.parse('session:1'));
+		const session2 = makeSession(URI.parse('session:2'), { workspace: otherWorkspace });
+
+		harness.visibleEditorsList = [{}];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/other/a.txt')))];
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+		harness.activeSessionObs.set(session1, undefined);
+		await timeout(0);
+
+		harness.workspaceFolders = harness.workspaceFolders.filter(folder => !isEqual(folder.uri, otherWorkspace.uri));
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		harness.applyWorkingSetCalls = [];
+		harness.activeSessionObs.set(session2, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [], 'the gated apply must hold back while session 2\'s workspace folder is missing from the catalog');
+
+		harness.workspaceFolders = [...harness.workspaceFolders, { uri: otherWorkspace.uri }];
+		harness.onDidChangeWorkspaceFolders.fire();
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.applyWorkingSetCalls,
+			[{ id: `session-working-set:${session2.resource.toString()}`, name: `session-working-set:${session2.resource.toString()}` }],
+			'once the previously missing workspace folder arrives, the gated apply must fire for the still-current session\'s own real saved working set, not a stale or empty one'
+		);
 	});
 
 	test('[B2] gates working-set restoration on the active chat workspace', async () => {

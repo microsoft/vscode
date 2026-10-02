@@ -774,6 +774,46 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.strictEqual(controller.capturedPanelView(peerKey), undefined, 'a confirmed chat deletion must forget the deleted chat\'s own panel view');
 	});
 
+	test('[R8] a confirmed peer-chat deletion deletes only that peer\'s real working-set handle, leaving the main chat\'s handle untouched and still applicable', async () => {
+		const controller = createDesktopController({ chatLayoutEnabled: true });
+		await settle();
+
+		const session = makeSession(URI.parse('session:a'));
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		harness.visibleEditorsList = [{} as never];
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/main-handle.txt')))];
+		await settle();
+		const mainKey = controller.ownerKeyFor(session);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const mainWorkingSet = controller.capturedWorkingSet(mainKey);
+		assert.notStrictEqual(mainWorkingSet, undefined, 'the main chat\'s editor working set must be captured before the peer deletion');
+
+		setActiveChat(session, peer);
+		await settle();
+		harness.activeGroupEditors = [store.add(new TestStubEditorInput(URI.file('/peer-handle.txt')))];
+		await settle();
+		const peerKey = controller.ownerKeyFor(session);
+		harness.storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+		const peerWorkingSet = controller.capturedWorkingSet(peerKey);
+		assert.notStrictEqual(peerWorkingSet, undefined, 'the peer chat\'s editor working set must be captured before its own deletion');
+
+		harness.deleteWorkingSetCalls = [];
+		const event: IChatDeletedEvent = { session, sessionResource: session.resource, chatResource: peer.resource };
+		harness.onDidDeleteChat.fire(event);
+		await settle();
+
+		assert.deepStrictEqual(harness.deleteWorkingSetCalls, [peerWorkingSet!.id], 'only the deleted peer\'s own working-set handle must reach the real editor-groups deleteWorkingSet call');
+		assert.deepStrictEqual(controller.capturedWorkingSet(mainKey), mainWorkingSet, 'the main chat\'s working-set handle must remain untouched by the sibling peer\'s deletion');
+
+		setActiveChat(session, session.mainChat.get());
+		harness.applyWorkingSetCalls = [];
+		await settle();
+
+		assert.deepStrictEqual(harness.applyWorkingSetCalls, [mainWorkingSet], 'returning to the main chat after the peer\'s deletion must still apply the main chat\'s original, still-live working-set handle');
+	});
+
 	test('[R8] a draft promotion carries a peer chat\'s editor working set and panel visibility/view to its new owner key', async () => {
 		const controller = createDesktopController({ chatLayoutEnabled: true });
 		await settle();
