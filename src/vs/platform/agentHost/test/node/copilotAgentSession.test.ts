@@ -224,7 +224,7 @@ class MockCopilotSession {
 			input?: { hint: string; required?: boolean; preserveMultilineInput?: boolean };
 		}>;
 	} = { commands: [] };
-	commandInvokeResult: { kind: 'text'; text: string; markdown?: boolean } | { kind: 'completed'; message?: string } | { kind: 'agent-prompt'; prompt: string; displayPrompt: string; mode?: 'interactive' | 'plan' | 'autopilot' } = { kind: 'text', text: '' };
+	commandInvokeResult: Awaited<ReturnType<CopilotSession['rpc']['commands']['invoke']>> = { kind: 'text', text: '' };
 	commandInvokeError: Error | undefined;
 	messages: SessionEvent[] = [];
 	usageMetricsResult = {
@@ -4933,6 +4933,100 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('Chronicle commands', () => {
+		async function createChronicleSession() {
+			const context = await createAgentSession(disposables);
+			context.mockSession.commandListResult = {
+				commands: [{
+					name: 'chronicle',
+					kind: 'builtin',
+					description: 'Session history tools and insights',
+					allowDuringAgentExecution: false,
+				}],
+			};
+			return context;
+		}
+
+		for (const input of ['standup', 'search CLI pooling', 'tips', 'cost-tips', 'improve']) {
+			test(`dispatches /chronicle ${input} and preserves its display prompt`, async () => {
+				const { session, mockSession, signals } = await createChronicleSession();
+				const displayPrompt = `/chronicle ${input}`;
+				mockSession.commandInvokeResult = {
+					kind: 'agent-prompt',
+					prompt: `Expanded Chronicle instructions for ${input}.`,
+					displayPrompt,
+				};
+
+				await session.send(displayPrompt, undefined, 'turn-chronicle');
+
+				assert.deepStrictEqual({
+					invocations: mockSession.commandInvokeCalls,
+					sends: mockSession.sendRequests,
+					completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete),
+				}, {
+					invocations: [{ name: 'chronicle', input }],
+					sends: [{ prompt: `Expanded Chronicle instructions for ${input}.`, attachments: undefined, displayPrompt }],
+					completed: [],
+				});
+			});
+		}
+
+		test('shows subcommand guidance for bare /chronicle without sending a model prompt', async () => {
+			const { session, mockSession, signals } = await createChronicleSession();
+			mockSession.commandInvokeResult = {
+				kind: 'select-subcommand',
+				command: 'chronicle',
+				title: 'Chronicle',
+				options: [{ name: 'standup', description: 'Daily report' }, { name: 'search', description: 'Search history' }],
+			};
+
+			await session.send('/chronicle', undefined, 'turn-chronicle');
+
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				sends: mockSession.sendRequests,
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+				completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+			}, {
+				invocations: [{ name: 'chronicle' }],
+				sends: [],
+				responses: ['The /chronicle command requires selecting a subcommand. Available options: standup, search'],
+				completed: ['turn-chronicle'],
+			});
+		});
+
+		test('completes /chronicle reindex without sending a model prompt', async () => {
+			const { session, mockSession, signals } = await createChronicleSession();
+			mockSession.commandInvokeResult = { kind: 'text', text: 'Session store reindexed.' };
+
+			await session.send('/chronicle reindex', undefined, 'turn-chronicle');
+
+			assert.deepStrictEqual({
+				invocations: mockSession.commandInvokeCalls,
+				sends: mockSession.sendRequests,
+				responses: getActions(signals).filter(a => a.type === ActionType.ChatResponsePart)
+					.map(a => a.part.kind === ResponsePartKind.Markdown ? a.part.content : a.part.kind),
+				completed: getActions(signals).filter(a => a.type === ActionType.ChatTurnComplete).map(a => a.turnId),
+			}, {
+				invocations: [{ name: 'chronicle', input: 'reindex' }],
+				sends: [],
+				responses: ['Session store reindexed.'],
+				completed: ['turn-chronicle'],
+			});
+		});
+
+		test('surfaces Chronicle failures instead of sending the command as a prompt', async () => {
+			const { session, mockSession } = await createChronicleSession();
+			mockSession.commandInvokeError = new Error('Request session.commands.invoke failed with message: Session store unavailable');
+
+			await assert.rejects(() => session.send('/chronicle search tests', undefined, 'turn-chronicle'), {
+				message: 'Session store unavailable',
+			});
+			assert.deepStrictEqual(mockSession.sendRequests, []);
+		});
+	});
+
 	test('renders expected runtime slash command validation errors as guidance', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = {
@@ -5083,7 +5177,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'rubber-duck', input: 'focus on tests' }],
-			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined }],
+			sendRequests: [{ prompt: 'Run the rubber duck critic.', attachments: undefined, displayPrompt: 'Review the current work' }],
 		});
 	});
 
@@ -5113,7 +5207,7 @@ suite('CopilotAgentSession', () => {
 		}, {
 			commandListCalls: [{ includeBuiltins: true, includeSkills: true, includeClientCommands: true }],
 			commandInvokeCalls: [{ name: 'wait-what' }],
-			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined }],
+			sendRequests: [{ prompt: 'Loaded skill instructions for wait-what.', attachments: undefined, displayPrompt: '/wait-what' }],
 		});
 	});
 
@@ -5904,7 +5998,7 @@ suite('CopilotAgentSession', () => {
 			overrideModeAfterInvokeBeforeSend: log.lastIndexOf('mode.set') > log.indexOf('commands.invoke') && log.lastIndexOf('mode.set') < log.indexOf('send'),
 		}, {
 			modeSetCalls: [{ mode: 'interactive' }, { mode: 'autopilot' }],
-			sendRequests: [{ prompt: 'do it', attachments: undefined }],
+			sendRequests: [{ prompt: 'do it', attachments: undefined, displayPrompt: 'do it' }],
 			firstModeBeforeInvoke: true,
 			overrideModeAfterInvokeBeforeSend: true,
 		});

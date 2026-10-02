@@ -3561,6 +3561,7 @@ export class CopilotAgentSession extends Disposable {
 		const abortToken = this._abortToken;
 		const sendingTurn = this._currentTurn.value;
 
+		let displayPrompt: string | undefined;
 		const slashCommand = parseLeadingSlashCommand(prompt);
 		if (slashCommand?.command === 'compact') {
 			try {
@@ -3722,6 +3723,7 @@ export class CopilotAgentSession extends Disposable {
 							mode = runtimeMode;
 						}
 						prompt = result.prompt;
+						displayPrompt = result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':
@@ -3767,7 +3769,7 @@ export class CopilotAgentSession extends Disposable {
 					requestHeaders: { Authorization: '******' },
 				});
 			} else {
-				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined });
+				await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}) });
 			}
 		}), sendingTurn, abortToken, sendingTurn);
 		if (execution.kind === 'skipped') {

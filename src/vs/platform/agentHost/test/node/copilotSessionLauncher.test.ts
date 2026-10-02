@@ -905,6 +905,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createManagedSettings: createConfigs[0].managedSettings,
 				createFeatureFlags: createConfigs[0].featureFlags,
 				createStreaming: createConfigs[0].streaming,
+				createEnableSessionStore: createConfigs[0].enableSessionStore,
 				createRequestExtensions: createConfigs[0].requestExtensions,
 				createRequestCanvasRenderer: createConfigs[0].requestCanvasRenderer,
 				createExtensionSdkPath: createConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
@@ -923,12 +924,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: resumeConfigs[0].managedSettings,
 				resumeFeatureFlags: resumeConfigs[0].featureFlags,
 				resumeStreaming: resumeConfigs[0].streaming,
+				resumeEnableSessionStore: resumeConfigs[0].enableSessionStore,
 				resumeRequestExtensions: resumeConfigs[0].requestExtensions,
 				resumeRequestCanvasRenderer: resumeConfigs[0].requestCanvasRenderer,
 				resumeExtensionSdkPath: resumeConfigs[0].extensionSdkPath?.replaceAll('\\', '/').endsWith('/copilot-sdk'),
 				resumeToolNames: resumeConfigs[0].tools?.map(tool => tool.name),
 				resumeExcludedTools: resumeConfigs[0].excludedTools,
 				ephemeralMcpServers: createConfigs[1].mcpServers,
+				ephemeralEnableSessionStore: createConfigs[1].enableSessionStore,
 				ephemeralMcpOAuthTokenStorage: createConfigs[1].mcpOAuthTokenStorage,
 				ephemeralDisabledMcpServers: createConfigs[1].disabledMcpServers,
 				ephemeralExcludedTools: createConfigs[1].excludedTools,
@@ -970,6 +973,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				createFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				createStreaming: true,
+				createEnableSessionStore: true,
 				createRequestExtensions: true,
 				createRequestCanvasRenderer: true,
 				createExtensionSdkPath: true,
@@ -995,12 +999,14 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeFeatureFlags: { CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true },
 				resumeStreaming: true,
+				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
 				resumeRequestCanvasRenderer: true,
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
 				resumeExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralMcpServers: {},
+				ephemeralEnableSessionStore: false,
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
 				ephemeralExcludedTools: [...disabledWorkflowTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
@@ -1045,6 +1051,55 @@ suite('CopilotSessionLauncher shared session config', () => {
 			await launcher.disposeByokProxyHandle();
 		}
 	});
+});
+
+suite('CopilotSessionLauncher local index', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const localIndexEnabled of [undefined, false, true]) {
+		test(`honors local indexing on create and resume (${localIndexEnabled ?? 'default'}) but excludes ephemeral sessions`, async () => {
+			const configs: ResumeSessionConfig[] = [];
+			const session = {
+				sessionId: 'session-1',
+				on: () => () => { },
+				disconnect: async () => { },
+				rpc: { options: { update: async () => ({ success: true }) } },
+			} as unknown as CopilotSession;
+			const client = new class extends mock<CopilotSessionLaunchPlan['client']>() {
+				override createSession = async (config: SessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+				override resumeSession = async (_id: string, config: ResumeSessionConfig): Promise<CopilotSession> => {
+					reportManagedSettings(config);
+					configs.push(config);
+					return session;
+				};
+			};
+			const launcher = createTestLauncher(undefined, { [CopilotCliConfigKey.LocalIndexEnabled]: localIndexEnabled });
+			const basePlan = {
+				client,
+				extensionSdkPath: '/copilot-sdk',
+				sessionId: 'session-1',
+				workingDirectory: testWorkingDirectory,
+				resolvedAgentName: undefined,
+				snapshot: { tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(),
+				shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+			};
+
+			for (const isEphemeral of [false, true]) {
+				store.add(await launcher.launch({ ...basePlan, kind: 'create', model: undefined, isEphemeral }, testRuntime));
+				store.add(await launcher.launch({ ...basePlan, kind: 'resume', fallback: { model: undefined }, isEphemeral }, testRuntime));
+			}
+
+			assert.deepStrictEqual(configs.map(config => config.enableSessionStore), [
+				localIndexEnabled !== false, localIndexEnabled !== false, false, false,
+			]);
+		});
+	}
 });
 
 suite('CopilotSessionLauncher canvas config', () => {

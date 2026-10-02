@@ -1058,6 +1058,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
 			{
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
+				isLocalIndexEnabled: () => this._isLocalIndexEnabled(),
 				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => {
 					const session = AgentSession.uri(this.id, sessionId);
@@ -1144,6 +1145,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isSessionSyncEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostSessionSyncEnabledConfigKey) === true;
+	}
+
+	private _isLocalIndexEnabled(): boolean {
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false;
 	}
 
 	private _isRubberDuckEnabled(): boolean {
@@ -1242,6 +1247,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._isGitHubMcpServerEnabled(),
 			this._areCopilotConnectorsEnabled(),
 			this._managedSettingsService.permissions,
+			this._isLocalIndexEnabled(),
 		);
 	}
 

@@ -1118,6 +1118,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			enableFileHooks: true,
 			enableConfigDiscovery: true,
 			enableSkills: true,
+			enableSessionStore: !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalIndexEnabled) !== false,
 			requestExtensions: canvasRuntimeEnabled,
 			requestCanvasRenderer: canvasRuntimeEnabled,
 			...(canvasRuntimeEnabled ? { extensionSdkPath: plan.extensionSdkPath } : {}),
