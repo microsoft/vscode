@@ -31,6 +31,7 @@ interface IStoredSessionComparisonParticipant extends Omit<ISessionComparisonPar
 }
 
 interface IStoredSessionComparison extends Omit<ISessionComparison, 'workspace' | 'attachedContext' | 'participants'> {
+	readonly version?: number;
 	readonly workspace: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly participants: readonly IStoredSessionComparisonParticipant[];
@@ -337,7 +338,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const synthesisPlanPrompt = this._getSynthesisPlanPrompt(comparison);
 			const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
 				query: localize('sessionComparison.synthesisPrompt', "Synthesize the strongest parts of comparison `{0}` into a new implementation.\n\n## Process\n1. Call `#readAttemptComparison` exactly once with this comparison ID.\n2. Read implementation code only from the authoritative worktrees in the manifest. If `changedFilesStatus` is unavailable, read the Git diff from that worktree.\n3. Treat additional instructions below and in the manifest as explicit user requirements. Reconcile the strongest approaches coherently instead of copying hunks mechanically.\n4. Call `get_session_context` only with an exact `sessionContextTarget` returned by the manifest and only for rationale or validation evidence. Never recover implementation code or paths from a transcript.\n5. Do not inspect another checkout, discover sessions, or guess references. Preserve correct behavior and resolve the Judge's reported conflicts.\n\n## Judge recommendation\n{1}{2}\n\n## Completion\n- Run the relevant validation.\n- Respond concisely with **Changes**, **Validation**, and **Remaining issues** sections using bullet points.", comparison.id, this._getVerdictRecommendation(comparison), synthesisPlanPrompt),
-				attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
+				attachedContext: comparison.attachedContext?.slice(),
 				title: localize('sessionComparison.synthesisTitle', "Synthesis: {0}", comparison.title),
 				background: true,
 			}, {
@@ -642,16 +643,22 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 		}
 	}
 
+	restoreComparison(comparisonId: string): string {
+		const comparison = this._requireComparison(comparisonId);
+		const group = this.sessionGroupsService.getGroup(comparison.groupId) ?? this.sessionGroupsService.createGroup(comparison.title);
+		this._replaceComparison({ ...comparison, groupId: group.id, archivedAt: undefined });
+		return group.id;
+	}
+
 	private async _startJudge(comparison: ISessionComparison, judgeParticipantId: string): Promise<void> {
 		const judge = comparison.participants.find(participant => participant.id === judgeParticipantId && participant.role === SessionComparisonParticipantRole.Judge);
 		if (!judge) {
 			return;
 		}
 		const harness = judge.harness;
-		const query = createSessionComparisonJudgePrompt(comparison.id);
 		const session = await this.sessionsManagementService.createAndSendNewChatRequest(comparison.workspace, {
-			query,
-			attachedContext: comparison.attachedContext ? [...comparison.attachedContext] : undefined,
+			query: createSessionComparisonJudgePrompt(comparison.id),
+			attachedContext: comparison.attachedContext?.slice(),
 			title: localize('sessionComparison.judgeTitle', "Judge: {0}", comparison.title),
 			background: true,
 		}, {
@@ -765,7 +772,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			const sessionIds = comparison.participants
 				.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource)?.sessionId : undefined)
-				.filter(sessionId => sessionId !== undefined);
+				.filter((sessionId): sessionId is string => sessionId !== undefined && !this.sessionGroupsService.getGroupOfSession(sessionId));
 			this.sessionGroupsService.addToGroup(sessionIds, comparison.groupId);
 		}
 	}
@@ -959,6 +966,10 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			const stored = parse(raw) as readonly IStoredSessionComparison[];
 			return stored.map(comparison => ({
 				...comparison,
+				judgeHarness: comparison.judgeHarness ?? (comparison.version === undefined
+					? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Coordinator)?.harness
+						?? comparison.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt && participant.sessionResource)?.harness
+					: undefined),
 				synthesisPlan: comparison.synthesisPlan?.instructions ? { instructions: comparison.synthesisPlan.instructions } : undefined,
 				verdict: comparison.verdict ? {
 					recommendedParticipantId: comparison.verdict.recommendedParticipantId,
@@ -988,6 +999,7 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 	private _save(): void {
 		const stored: readonly IStoredSessionComparison[] = this._comparisons.get().map(comparison => ({
 			...comparison,
+			version: 1,
 			workspace: comparison.workspace.toString(),
 			attachedContext: comparison.attachedContext?.map(IChatRequestVariableEntry.toExport),
 			participants: comparison.participants.map(participant => ({

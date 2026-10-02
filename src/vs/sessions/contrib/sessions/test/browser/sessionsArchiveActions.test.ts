@@ -12,9 +12,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
+import { SessionComparisonService } from '../../../../services/sessions/browser/sessionComparisonService.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
@@ -27,7 +32,7 @@ import { createListHarness, createTestSession } from './sessionsListTestUtils.js
 suite('Sessions - Bulk archive undo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setup(wording = ChatSessionArchiveActionWording.MarkAsDone) {
+	function setup(wording = ChatSessionArchiveActionWording.MarkAsDone, withComparison = false) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const now = Date.now();
 		const sessions = ['first', 'second', 'alreadyDone'].map((resourceId, index) => {
@@ -47,7 +52,7 @@ suite('Sessions - Bulk archive undo', () => {
 		const sessionArchived = store.add(new Emitter<ISession>());
 		const archived: string[] = [];
 		const restored: string[] = [];
-		const state = { failArchive: '', failRestore: '', confirmed: true, notices: 0, message: '', undo: async () => { } };
+		const state = { failArchive: '', failRestore: '', confirmed: true, launching: false, notices: 0, message: '', undo: async () => { } };
 		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
 			override async confirm() { return { confirmed: state.confirmed }; }
 		});
@@ -88,6 +93,28 @@ suite('Sessions - Bulk archive undo', () => {
 		const groupsService = store.add(instantiationService.createInstance(SessionGroupsService));
 		instantiationService.stub(ISessionGroupsService, groupsService);
 		const group = groupsService.createGroup('Group', ['first', 'second']);
+		if (withComparison) {
+			const comparison: ISessionComparison = {
+				id: 'comparison', groupId: group.id, title: group.name, createdAt: now,
+				workspace: URI.file('/workspace'), prompt: 'Compare attempts',
+				participants: sessions.slice(0, 2).map(({ session }) => ({
+					id: session.sessionId, role: SessionComparisonParticipantRole.Attempt,
+					harness: { providerId: session.providerId, sessionTypeId: session.sessionType, label: session.title.get() },
+					sessionResource: session.resource,
+				})),
+			};
+			storageService.store('sessions.comparisons', JSON.stringify([{
+				...comparison,
+				version: 1,
+				workspace: comparison.workspace.toString(),
+				participants: comparison.participants.map(participant => ({ ...participant, sessionResource: participant.sessionResource?.toString() })),
+			}]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		}
+		const comparisonService = store.add(new SessionComparisonService(
+			managementService, groupsService, storageService, new NullLogService(),
+			upcastPartial<IChatService>({ getSession: () => undefined }), new NullTelemetryServiceShape(),
+		));
+		instantiationService.stub(ISessionComparisonService, comparisonService);
 		const listModel = store.add(instantiationService.createInstance(SessionsListModelService));
 		const membership = () => sessions
 			.filter(entry => groupsService.getGroupOfSession(entry.session.sessionId))
@@ -106,12 +133,107 @@ suite('Sessions - Bulk archive undo', () => {
 			const actionId = kind === 'group' ? 'sessionsView.markAllInGroupAsDone' : 'sessionsView.sectionArchive';
 			const action = getSessionsArchiveActionConstructors(wording).map(ctor => new ctor()).find(action => action.desc.id === actionId)!;
 			const context = kind === 'group'
-				? upcastPartial<ISessionGroupItem>({ group, sessions: targets })
+				? upcastPartial<ISessionGroupItem>({
+					group, sessions: targets,
+					comparison: withComparison ? { id: 'comparison', title: group.name, launching: state.launching, summary: () => '' } : undefined,
+				})
 				: { id: kind === 'workspace' ? 'workspace:test' : 'today', label: 'Section', sessions: targets } satisfies ISessionSection;
 			return instantiationService.invokeFunction(accessor => action.run(accessor, context));
 		};
-		return { run, sessions, membership, groupsService, group, listModel, managementService, storageService, archived, restored, state };
+		return { run, sessions, sessionsChanged, membership, groupsService, group, comparisonService, listModel, managementService, storageService, archived, restored, state };
 	}
+
+	for (const kind of ['group', 'section'] as const) {
+		test(`standard ${kind} action removes a completed comparison group and Undo restores it`, async () => {
+			const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+			await test.run(kind);
+			const afterArchive = {
+				groups: test.groupsService.getGroups().length,
+				archived: test.comparisonService.getComparison('comparison')?.archivedAt !== undefined,
+				message: test.state.message,
+			};
+			await test.state.undo();
+			const comparison = test.comparisonService.getComparison('comparison')!;
+			assert.deepStrictEqual({
+				afterArchive,
+				groups: test.groupsService.getGroups().map(group => group.name),
+				membership: test.membership().map(([sessionId, groupId]) => [sessionId, groupId === comparison.groupId]),
+				archived: comparison.archivedAt !== undefined,
+			}, {
+				afterArchive: { groups: 0, archived: true, message: '2 marked done' },
+				groups: ['Group'],
+				membership: [['first', true], ['second', true]],
+				archived: false,
+			});
+		});
+	}
+
+	test('a partial comparison archive keeps its group and remains undoable', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		test.state.failArchive = 'second';
+		await assert.rejects(test.run('group'), /archive failed/);
+		await test.state.undo();
+		assert.deepStrictEqual({
+			group: test.groupsService.getGroup(test.group.id)?.name,
+			membership: test.membership(),
+			archived: test.comparisonService.getComparison('comparison')?.archivedAt !== undefined,
+		}, {
+			group: 'Group', membership: [['first', test.group.id], ['second', test.group.id]], archived: false,
+		});
+	});
+
+	test('marking every session done preserves a manually created group', async () => {
+		const test = setup();
+		await test.run('group');
+		assert.deepStrictEqual({
+			groups: test.groupsService.getGroups(),
+			members: test.groupsService.getSessionIdsInGroup(test.group.id),
+			archived: test.archived,
+		}, {
+			groups: [test.group],
+			members: [],
+			archived: ['first', 'second'],
+		});
+	});
+
+	test('comparison cleanup does not delete an unrelated empty manual group', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		const manualGroup = test.groupsService.createGroup('Manual group');
+		await test.run('group');
+		assert.deepStrictEqual(test.groupsService.getGroups(), [manualGroup]);
+	});
+
+	test('marking only visible comparison participants done keeps the group', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		await test.run('group', [test.sessions[0].session]);
+		assert.deepStrictEqual({
+			groups: test.groupsService.getGroups(),
+			membership: test.membership(),
+			archived: test.archived,
+		}, {
+			groups: [test.group],
+			membership: [['second', test.group.id]],
+			archived: ['first'],
+		});
+	});
+
+	test('cannot mark a comparison done while its attempts are launching', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		test.state.launching = true;
+		await test.run('group');
+		assert.deepStrictEqual({ archived: test.archived, notices: test.state.notices }, { archived: [], notices: 0 });
+	});
+
+	test('comparison Undo preserves independently restored membership during later session updates', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		await test.run('group');
+		await test.managementService.unarchiveSession(test.sessions[0].session);
+		const manualGroup = test.groupsService.createGroup('Manual group', ['first']);
+		await test.state.undo();
+		test.sessionsChanged.fire({ added: [], removed: [], changed: [test.sessions[1].session] });
+		const comparison = test.comparisonService.getComparison('comparison')!;
+		assert.deepStrictEqual(test.membership(), [['first', manualGroup.id], ['second', comparison.groupId]]);
+	});
 
 	for (const kind of ['workspace', 'section', 'group'] as const) {
 		test(`undo restores only newly archived sessions and their groups from a ${kind}`, async () => {
@@ -229,6 +351,25 @@ suite('Sessions - Bulk archive undo', () => {
 		test.state.failRestore = '';
 		await test.state.undo();
 		assert.deepStrictEqual(test.restored, ['first', 'second']);
+	});
+
+	test('comparison Undo retries a partial restore without recreating the group twice', async () => {
+		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+		await test.run('group');
+		test.state.failRestore = 'second';
+		await assert.rejects(test.state.undo(), /restore failed/);
+		const restoredGroupId = test.comparisonService.getComparison('comparison')!.groupId;
+		test.state.failRestore = '';
+		await test.state.undo();
+		assert.deepStrictEqual({
+			groups: test.groupsService.getGroups().map(group => group.id),
+			restored: test.restored,
+			membership: test.membership(),
+		}, {
+			groups: [restoredGroupId],
+			restored: ['first', 'second'],
+			membership: [['first', restoredGroupId], ['second', restoredGroupId]],
+		});
 	});
 
 	test('undo does not recreate deleted groups or move independently restored sessions', async () => {

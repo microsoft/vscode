@@ -1624,7 +1624,7 @@ suite('ChatListRenderer', () => {
 		assert.deepStrictEqual({ whileStarting, afterStarting }, { whileStarting: true, afterStarting: false });
 	});
 
-	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService } = {}) {
+	function createPersistentProgressRenderer(options: { thinkingStyle?: ThinkingDisplayMode; progressVerbosity?: ChatProgressVerbosity; chatMode?: ChatModeKind; collapsedTools?: CollapsedToolsDisplayMode; dockPlanReview?: boolean; renderFooterActions?: boolean; sessionResource?: URI; rendererOptions?: IChatListItemRendererOptions; editingSession?: IChatEditingSession; chatWidgetService?: IChatWidgetService; requestText?: string } = {}) {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ILanguageModelsService, { onDidChangeLanguageModels: Event.None, lookupLanguageModel: () => undefined });
@@ -1688,9 +1688,10 @@ suite('ChatListRenderer', () => {
 			model.startEditingSession();
 		}
 		const viewModel = disposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+		const requestText = options.requestText ?? 'test';
 		const request = model.addRequest({
-			text: 'test',
-			parts: [new ChatRequestTextPart(new OffsetRange(0, 4), new Range(1, 1, 1, 5), 'test')],
+			text: requestText,
+			parts: [new ChatRequestTextPart(new OffsetRange(0, requestText.length), new Range(1, 1, 1, requestText.length + 1), requestText)],
 		}, { variables: [] }, 0);
 		const response = viewModel.getItems().find(isResponseVM);
 		assert.ok(response);
@@ -1759,6 +1760,83 @@ suite('ChatListRenderer', () => {
 		const node = { element: response, children: [], depth: 0, visibleChildrenCount: 0, visibleChildIndex: 0, collapsible: false, collapsed: false, visible: true, filterData: undefined };
 		return { disposables, instantiationService, configurationService, model, viewModel, request, response, container, renderer, template, node };
 	}
+
+	suite('request summaries', () => {
+		for (const summary of ['Judge Instructions', 'Synthesis Instructions']) {
+			test(`collapses ${summary} without changing the full request and preserves expansion across rendering`, () => {
+				const prompt = 'Call #readAttemptComparison with the comparison ID, then inspect the attempt worktrees.';
+				const { disposables, viewModel, request, renderer, template, node } = createPersistentProgressRenderer({
+					requestText: prompt, rendererOptions: { firstRequestSummary: summary, editable: true },
+				});
+				const element = viewModel.getItems().find(isRequestVM)!;
+				const requestNode = { ...node, element };
+				const message = request.message;
+				const variables = request.variableData;
+				let editRequests = 0;
+				disposables.add(renderer.onDidClickRequest(() => editRequests++));
+				renderer.renderElement(requestNode, 0, template);
+				const details = template.value.querySelector('details');
+				const toggle = details?.querySelector('summary');
+				assert.ok(details && toggle);
+				const collapsed = { open: details.open, label: toggle.textContent, expanded: toggle.getAttribute('aria-expanded') };
+				for (const key of ['Enter', ' ']) {
+					toggle.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'Enter' ? 13 : 32, bubbles: true }));
+				}
+				toggle.click();
+				const expanded = { open: details.open, expanded: toggle.getAttribute('aria-expanded') };
+				renderer.renderElement(requestNode, 0, template);
+				const restored = template.value.querySelector('details');
+				const staysExpanded = restored?.open;
+				restored?.querySelector('summary')?.click();
+				assert.deepStrictEqual({
+					collapsed, expanded, staysExpanded, collapsedAgain: restored?.open,
+					editRequests, messageUnchanged: request.message === message,
+					variablesUnchanged: request.variableData === variables,
+					message: element.messageText,
+					fullTextRendered: restored?.textContent?.includes(prompt),
+				}, {
+					collapsed: { open: false, label: summary, expanded: 'false' },
+					expanded: { open: true, expanded: 'true' }, staysExpanded: true, collapsedAgain: false,
+					editRequests: 0, messageUnchanged: true, variablesUnchanged: true,
+					message: prompt, fullTextRendered: true,
+				});
+			});
+		}
+
+		test('leaves ordinary requests and evaluator followups expanded', () => {
+			const { model, viewModel, request, renderer, template, node } = createPersistentProgressRenderer();
+			const first = viewModel.getItems().find(isRequestVM)!;
+			renderer.renderElement({ ...node, element: first }, 0, template);
+			const ordinaryDisclosure = !!template.value.querySelector('details');
+			request.response?.complete();
+			model.addRequest({ text: 'Follow up', parts: [new ChatRequestTextPart(new OffsetRange(0, 9), new Range(1, 1, 1, 10), 'Follow up')] }, { variables: [] }, 0);
+			renderer.updateOptions({ firstRequestSummary: 'Judge Instructions' });
+			const followup = viewModel.getItems().filter(isRequestVM)[1];
+			renderer.renderElement({ ...node, element: followup }, 2, template);
+			assert.deepStrictEqual({
+				ordinaryDisclosure, followupDisclosure: !!template.value.querySelector('details'),
+				followupVisible: template.value.textContent?.includes('Follow up'),
+			}, { ordinaryDisclosure: false, followupDisclosure: false, followupVisible: true });
+		});
+
+		test('preserves programmatic expansion used by Find and leaves the editing request expanded', async () => {
+			const { viewModel, renderer, template, node } = createPersistentProgressRenderer({ rendererOptions: { firstRequestSummary: 'Judge Instructions' } });
+			const element = viewModel.getItems().find(isRequestVM)!;
+			const requestNode = { ...node, element };
+			renderer.renderElement(requestNode, 0, template);
+			const details = template.value.querySelector('details')!;
+			details.open = true;
+			await timeout(0);
+			const expanded = details.querySelector('summary')?.getAttribute('aria-expanded');
+			renderer.renderElement(requestNode, 0, template);
+			const staysExpanded = template.value.querySelector('details')?.open;
+			viewModel.setEditing(element);
+			renderer.renderElement(requestNode, 0, template);
+			assert.deepStrictEqual({
+				expanded, staysExpanded, editingDisclosure: !!template.value.querySelector('details'),
+			}, { expanded: 'true', staysExpanded: true, editingDisclosure: false });
+		});
+	});
 
 	function configureTerminalProgressRenderer({ instantiationService, configurationService }: Pick<ReturnType<typeof createPersistentProgressRenderer>, 'instantiationService' | 'configurationService'>): void {
 		configurationService.setUserConfiguration('editor', { fontFamily: 'monospace' });

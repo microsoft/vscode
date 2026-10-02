@@ -44,7 +44,7 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { AccessibilityCommandId } from '../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -1446,12 +1446,16 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._loadingSpinner, localize('loading', "Loading...")));
 
 		if (this._sendButtonContainer) {
+			const sendButtonTitle = this.options.supportsBackground
+				? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
+				: localize('send', "Send");
 			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
 				supportIcons: true,
-				title: this.options.supportsBackground
-					? localize('sendWithBackgroundHint', "Send (Alt-click to start in the background)")
-					: localize('send', "Send"),
+				title: sendButtonTitle,
+				hoverDelegate: this.options.sendButtonLabel ? this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
+					dynamicDelay: () => this.options.sendButtonLabel?.get() ? 0 : undefined,
+				}, {})) : undefined,
 				ariaLabel: localize('send', "Send"),
 			}));
 			sendButton.label = '$(arrow-up-compact)';
@@ -1459,6 +1463,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				this._register(autorun(reader => {
 					const label = this.options.sendButtonLabel?.read(reader);
 					sendButton.label = label ? `$(arrow-up-compact) ${label}` : '$(arrow-up-compact)';
+					sendButton.setTitle(label ? localize('comparisonTokenWarning', "This will use tokens for each session.") : sendButtonTitle);
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
 					this._sendButtonContainer?.classList.toggle('labeled', !!label);
 				}));

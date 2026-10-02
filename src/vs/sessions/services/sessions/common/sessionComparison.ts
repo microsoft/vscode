@@ -160,6 +160,8 @@ export interface ISessionComparisonService {
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
 	cancelComparison(comparisonId: string): void;
 	archiveComparison(comparisonId: string): void;
+	/** Restores an automatically removed comparison group for bulk archive Undo and returns its group ID. */
+	restoreComparison(comparisonId: string): string;
 	selectAttempt(comparisonId: string, participantId: string): void;
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void;
 	canRetryJudge(comparisonId: string): boolean;

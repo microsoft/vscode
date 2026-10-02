@@ -38,7 +38,7 @@ suite('AgentHostSessionPermissions', () => {
 			copilotOptions: [
 				{ id: 'default', label: 'Manual permissions', default: true, allowAll: undefined, comparisonModeId: undefined },
 				{ id: 'assisted', label: 'Assisted permissions', default: undefined, allowAll: undefined, comparisonModeId: undefined },
-				{ id: 'autoApprove', label: 'Allow all', default: undefined, allowAll: true, comparisonModeId: 'autopilot' },
+				{ id: 'autoApprove', label: 'Allow all', default: undefined, allowAll: true, comparisonModeId: undefined },
 			],
 			claudeOptions: [
 				{ id: 'default', label: 'Ask Before Edits', default: true, allowAll: undefined, comparisonModeId: undefined },

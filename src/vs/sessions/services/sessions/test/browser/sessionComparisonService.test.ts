@@ -39,6 +39,7 @@ suite('SessionComparisonService', () => {
 			readonly deletedGroupIds: string[] = [];
 			override readonly onDidChange = groupChanges.event;
 			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
+			override getGroupOfSession(): string | undefined { return undefined; }
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}
@@ -330,6 +331,7 @@ suite('SessionComparisonService', () => {
 		thirdStatus.set(SessionStatus.Completed, undefined);
 		sessionsManagementService.fireChange();
 		await timeout(0);
+		const prompt = sessionsManagementService.createCalls[3].options.query;
 		assert.deepStrictEqual({
 			createCalls: sessionsManagementService.createCalls.length,
 			judgeBeforeCreateReturned,
@@ -346,12 +348,12 @@ suite('SessionComparisonService', () => {
 				hasOnSessionCreated: typeof sessionsManagementService.createCalls[3].createOptions?.onSessionCreated === 'function',
 			},
 			judgePrompt: {
-				hasComparisonId: sessionsManagementService.createCalls[3].options.query.includes(comparison.id),
-				readsComparison: sessionsManagementService.createCalls[3].options.query.includes('#readAttemptComparison'),
-				completesComparison: sessionsManagementService.createCalls[3].options.query.includes('#completeAttemptComparison'),
-				readsReportedValidationFirst: sessionsManagementService.createCalls[3].options.query.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
-				doesNotRerunReportedValidation: sessionsManagementService.createCalls[3].options.query.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
-				doesNotSubstituteValidation: sessionsManagementService.createCalls[3].options.query.includes('do not substitute a different validation category.'),
+				hasComparisonId: prompt.includes(comparison.id),
+				readsComparison: prompt.includes('#readAttemptComparison'),
+				completesComparison: prompt.includes('#completeAttemptComparison'),
+				readsReportedValidationFirst: prompt.includes('Use `get_session_context` with the exact manifest target to identify validation that the attempt already completed.'),
+				doesNotRerunReportedValidation: prompt.includes('Do not rerun a validation category when the attempt report contains a clear result.'),
+				doesNotSubstituteValidation: prompt.includes('do not substitute a different validation category.'),
 			},
 		}, {
 			createCalls: 4,
@@ -1204,7 +1206,7 @@ suite('SessionComparisonService', () => {
 
 		const restored = createServices(storageService).service.getComparison(comparison.id);
 		assert.deepStrictEqual({
-			requests: sessionsManagementService.createCalls.map(call => call.options.attachedContext?.map(entry => String(entry.value))),
+			requests: sessionsManagementService.createCalls.map(call => call.options.attachedContext?.map(entry => entry.id === 'context' ? String(entry.value) : entry.name)),
 			stored: service.getComparison(comparison.id)?.attachedContext?.map(entry => String(entry.value)),
 			restored: restored?.attachedContext?.map(entry => String(entry.value)),
 		}, {

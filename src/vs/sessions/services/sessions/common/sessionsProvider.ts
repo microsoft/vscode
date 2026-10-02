@@ -36,7 +36,7 @@ export interface ISessionPermissionOption {
 	readonly description: string;
 	readonly isDefault?: boolean;
 	readonly isAllowAll?: boolean;
-	/** Optional session mode applied only when a comparison bulk permission toggle selects this option. */
+	/** Selected provider execution mode to preserve when launching comparison participants. */
 	readonly comparisonModeId?: string;
 	readonly locked?: boolean;
 	readonly lockedReason?: string;

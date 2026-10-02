@@ -105,7 +105,36 @@ suite('SessionComparisonModelSelection', () => {
 		const retained = { attempts: selection.attemptModelIds.get(), configured: selection.configured.get(), page: selection.state.get()?.title };
 		available.set(false, undefined);
 		assert.deepStrictEqual({ retained, enabled: selection.enabled.get(), state: selection.state.get() }, {
-			retained: { attempts: ['two', 'two'], configured: false, page: 'Attempts' }, enabled: true, state: undefined,
+			retained: { attempts: ['two', 'two'], configured: false, page: 'Attempts' }, enabled: false, state: undefined,
 		});
 	});
+
+	for (const configured of [false, true]) {
+		test(`unavailable workflow resets setup and does not revive it (configured: ${configured})`, () => {
+			const available = observableValue('available', true);
+			const selection = store.add(new SessionComparisonModelSelection(available));
+			selection.start();
+			selection.select('attempt');
+			selection.next();
+			selection.select('judge');
+			selection.next();
+			selection.select('synthesizer');
+			if (configured) {
+				selection.finish();
+			}
+			available.set(false, undefined);
+			assert.throws(() => selection.start(), /not available/);
+			available.set(true, undefined);
+			assert.deepStrictEqual({
+				enabled: selection.enabled.get(),
+				configured: selection.configured.get(),
+				attempts: selection.attemptModelIds.get(),
+				judge: selection.judgeModelId.get(),
+				synthesizer: selection.synthesizerModelId.get(),
+				state: selection.state.get(),
+			}, {
+				enabled: false, configured: false, attempts: [], judge: undefined, synthesizer: undefined, state: undefined,
+			});
+		});
+	}
 });

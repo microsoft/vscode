@@ -25,7 +25,7 @@ import { NewChatWidget } from '../../browser/newChatWidget.js';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import { getNewSessionWelcomePhrases } from '../../common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../services/sessions/common/sessionPickerVisibility.js';
 import { IChatRequestVariableEntry, toFileVariableEntry, toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
@@ -2236,7 +2236,11 @@ suite('NewChatWidget', () => {
 		});
 	});
 
-	for (const { runs, navigationFails } of [{ runs: 2, navigationFails: false }, { runs: 10, navigationFails: true }]) {
+	for (const { runs, navigationFails, openInGrid } of [
+		{ runs: 2, navigationFails: false, openInGrid: true },
+		{ runs: 10, navigationFails: true, openInGrid: true },
+		{ runs: 3, navigationFails: false, openInGrid: false },
+	]) {
 		test(`launches ${runs} repeated attempts with independent IDs and the draft permissions`, async () => {
 			const selection = disposables.add(new SessionComparisonModelSelection(constObservable(true)));
 			selection.start();
@@ -2250,7 +2254,7 @@ suite('NewChatWidget', () => {
 			const workspace = URI.file('/workspace');
 			const session = upcastPartial<IActiveSession>({
 				sessionId: 'draft', sessionType: 'copilotcli', providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-				mode: constObservable({ id: 'interactive', kind: 'agent' }),
+				mode: constObservable({ id: 'file:///agents/reviewer.agent.md', kind: 'agent' }),
 			});
 			let options: IStartSessionComparisonOptions | undefined;
 			let fail = true;
@@ -2259,22 +2263,32 @@ suite('NewChatWidget', () => {
 			const errors: Error[] = [];
 			const harness = {
 				_comparisonSelection: selection,
+				configurationService: {
+					getValue: (key: string) => {
+						assert.strictEqual(key, COMPARE_AGENTS_OPEN_IN_GRID_SETTING);
+						return openInGrid;
+					}
+				},
 				_workspacePicker: {
 					selectedFolderUri: workspace,
-					selectedResolved: { workspace: upcastPartial<ISessionWorkspace>({
-						folders: [{ root: workspace, workingDirectory: workspace, name: 'workspace', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ hasGitRemote: true }) }],
-					}) },
+					selectedResolved: {
+						workspace: upcastPartial<ISessionWorkspace>({
+							folders: [{ root: workspace, workingDirectory: workspace, name: 'workspace', description: undefined, gitRepository: upcastPartial<ISessionGitRepository>({ hasGitRemote: true }) }],
+						})
+					},
 				},
 				_getComparisonBranch: () => 'feature',
-				sessionsProvidersService: { getProvider: () => upcastPartial<ISessionsProvider>({
-					getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
-					getModelsSnapshotForCreation: (_workspace, _type, id) => ({
-						models: [],
-						modelTarget: 'copilotcli',
-						desiredModelResolution: { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) },
-					}),
-					getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
-				}) },
+				sessionsProvidersService: {
+					getProvider: () => upcastPartial<ISessionsProvider>({
+						getPermissionOptionForSession: () => ({ id: 'autoApprove', label: 'Allow all', description: '', comparisonModeId: 'autopilot', locked: permissionLocked }),
+						getModelsSnapshotForCreation: (_workspace, _type, id) => ({
+							models: [],
+							modelTarget: 'copilotcli',
+							desiredModelResolution: { kind: 'available', model: upcastPartial<ILanguageModelChatMetadataAndIdentifier>({ identifier: id!, metadata: upcastPartial<ILanguageModelChatMetadata>({ name: id! }) }) },
+						}),
+						getAutomationModelConfiguration: () => ({ getModelConfiguration: () => ({ effort: 'high' }), getModelConfigurationActions: () => [], setModelConfiguration: async () => { }, onDidChange: Event.None }),
+					})
+				},
 				sessionsManagementService: {
 					getSessionTypesForFolder: () => [{ providerId: session.providerId, sessionType: { id: session.sessionType, label: 'Copilot', supportsWorktreeConfiguration: true } }],
 					discardNewSession: (draft: IActiveSession) => {
@@ -2282,21 +2296,25 @@ suite('NewChatWidget', () => {
 						navigation.push('discardDraft');
 					},
 				},
-				sessionComparisonService: { startComparison: async (value: IStartSessionComparisonOptions) => {
-					if (fail) {
-						throw new Error('Provider unavailable');
+				sessionComparisonService: {
+					startComparison: async (value: IStartSessionComparisonOptions) => {
+						if (fail) {
+							throw new Error('Provider unavailable');
+						}
+						options = value;
+						return { id: 'comparison' };
 					}
-					options = value;
-					return { id: 'comparison' };
-				} },
+				},
 				sessionsService: { unsetNewSession: () => navigation.push('activateEmptyComposer') },
-				commandService: { executeCommand: async (id: string, comparisonId: string) => {
-					assert.deepStrictEqual([id, comparisonId], ['sessions.openComparison', 'comparison']);
-					navigation.push('openGrid');
-					if (navigationFails) {
-						throw new Error('Navigation unavailable');
+				commandService: {
+					executeCommand: async (id: string, comparisonId: string) => {
+						assert.deepStrictEqual([id, comparisonId], ['sessions.openComparison', 'comparison']);
+						navigation.push('openGrid');
+						if (navigationFails) {
+							throw new Error('Navigation unavailable');
+						}
 					}
-				} },
+				},
 				logService: { error: () => { } },
 				notificationService: { error: (error: Error) => errors.push(error) },
 			};
@@ -2320,13 +2338,15 @@ suite('NewChatWidget', () => {
 				modes: options.attempts.map(attempt => attempt.harness.modeId),
 				config: options.attempts[0].harness.modelConfiguration,
 				judge: options.judgeHarness?.modelId, synthesizer: options.synthesisHarness?.modelId,
+				evaluatorModes: [options.judgeHarness?.modeId, options.synthesisHarness?.modeId],
 				workspace: options.workspace.toString(), branch: options.branch, attachments: options.attachedContext,
 				enabled: selection.enabled.get(), navigation,
 			}, {
 				models: Array(runs).fill('model'), uniqueIds: runs, permissions: Array(runs).fill('autoApprove'),
-				modes: Array(runs).fill('interactive'), config: { effort: 'high' },
+				modes: Array(runs).fill('autopilot'), config: { effort: 'high' },
+				evaluatorModes: ['autopilot', 'autopilot'],
 				judge: 'judge', synthesizer: 'synthesizer', workspace: workspace.toString(), branch: 'feature',
-				attachments: [attachment], enabled: false, navigation: navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
+				attachments: [attachment], enabled: false, navigation: !openInGrid ? ['discardDraft'] : navigationFails ? ['openGrid'] : ['openGrid', 'discardDraft'],
 			});
 		});
 	}
@@ -2628,10 +2648,12 @@ suite('NewChatWidget', () => {
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
-			sessionsManagementService: { getSessionTypesForFolder: () => [{
-				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-				sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
-			}] },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+				}]
+			},
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),
@@ -2710,10 +2732,12 @@ suite('NewChatWidget', () => {
 		});
 		const harness: IComparisonActionVisibilityHarness = {
 			_compareAgentsEnabled: constObservable(true),
-			sessionsManagementService: { getSessionTypesForFolder: () => [{
-				providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
-				sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
-			}] },
+			sessionsManagementService: {
+				getSessionTypesForFolder: () => [{
+					providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+					sessionType: { id: 'copilotcli', label: 'Copilot', supportsWorktreeConfiguration: true },
+				}]
+			},
 			_pendingPreferredUpgrade: { value: undefined },
 			_newSessionCreation: { value: undefined },
 			_session: constObservable(session),

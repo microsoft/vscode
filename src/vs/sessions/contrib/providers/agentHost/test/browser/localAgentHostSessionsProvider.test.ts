@@ -6252,6 +6252,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 			}]);
 	});
 
+	for (const mode of ['interactive', 'autopilot', 'plan']) {
+		for (const permissionId of ['default', 'assisted', 'autoApprove']) {
+			test(`comparison drafts inherit ${mode} with ${permissionId} from the source input`, async () => {
+				const provider = createProvider(disposables, agentHost);
+				const sessionTypeId = provider.sessionTypes[0].id;
+				const workspace = URI.file('/home/user/project');
+				const source = provider.createNewSession(workspace, sessionTypeId, { permissionId, modeId: mode });
+				await waitForSessionConfig(provider, source.sessionId, config => config?.values.mode === mode && config.values.autoApprove === permissionId);
+				const permission = provider.getPermissionOptionForSession(source.sessionId);
+				assert.ok(permission);
+				const attempt = provider.createNewSession(workspace, sessionTypeId, {
+					permissionId: permission.id, modeId: permission.comparisonModeId,
+				});
+				await waitForSessionConfig(provider, attempt.sessionId, config => config?.values.mode === mode && config.values.autoApprove === permissionId);
+				const attemptConfig = provider.getSessionConfig(attempt.sessionId);
+				assert.deepStrictEqual({
+					permissionId: permission.id, mode: permission.comparisonModeId,
+					attemptMode: attemptConfig?.values.mode, attemptPermission: attemptConfig?.values.autoApprove,
+				}, { permissionId, mode, attemptMode: mode, attemptPermission: permissionId });
+			});
+		}
+	}
+
 	test('createNewSession restores and captures an Automation session template', async () => {
 		const sessionTemplate = {
 			modelId: 'agent-host-copilotcli:auto',

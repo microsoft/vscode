@@ -27,6 +27,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from '../../browser/responseSelectionSideChatController.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../browser/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
@@ -600,10 +601,13 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const disabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 		const disabledContent = disabledProvider.provideContent();
 		await configuration.setUserConfiguration(COMPARE_AGENTS_ENABLED_SETTING, true);
+		const pickerDisabledContent = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+		await configuration.setUserConfiguration(TABBED_MODEL_PICKER_SETTING_ID, true);
 		const enabledProvider = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService));
 
 		assert.deepStrictEqual({
 			disabled: disabledContent.includes('activate Compare Models'),
+			pickerDisabled: pickerDisabledContent.includes('activate Compare Models'),
 			enabled: enabledProvider.provideContent().includes('activate Compare Models'),
 			repeated: enabledProvider.provideContent().includes('choose one model and set Number of Runs from two to ten'),
 			optionalJudge: enabledProvider.provideContent().includes('run attempts without review'),
@@ -616,7 +620,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopParticipant: enabledProvider.provideContent().includes('stop only that participant'),
 			stopAll: enabledProvider.provideContent().includes('stops every running attempt, Judge, and Synthesizer'),
 			stopOnlyWhileRunning: enabledProvider.provideContent().includes('Stop and Stop All are available only while their comparison sessions are running'),
-			archiveComparison: enabledProvider.provideContent().includes('check-mark Archive Comparison action'),
+			archiveComparison: enabledProvider.provideContent().includes('comparison header\'s Mark All as Done action'),
+			undoComparison: enabledProvider.provideContent().includes('Undo restores the group and its sessions.'),
+			tokenWarning: enabledProvider.provideContent().includes('Running a comparison uses tokens for each session.'),
+			instructions: enabledProvider.provideContent().includes('press Enter or Space to expand or collapse the full instructions'),
+			gridOptOut: enabledProvider.provideContent().includes('Turn off sessions.chat.compareAgents.openInGrid to start them without automatic navigation.'),
 			deleteGroup: enabledProvider.provideContent().includes('Delete Group remains available from the comparison header context menu'),
 			inactivePaneNotification: enabledProvider.provideContent().includes('question tool needs input in an inactive visible pane'),
 			rationaleOrder: enabledProvider.provideContent().includes('Comparison, Validation, Code quality, Solution'),
@@ -628,6 +636,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			customSynthesis: enabledProvider.provideContent().includes('activate Custom Synthesis to reveal a decision table'),
 		}, {
 			disabled: false,
+			pickerDisabled: false,
 			enabled: true, repeated: true, optionalJudge: true, optionalSynthesizer: true, done: true,
 			opensAttemptsGrid: true,
 			twoPaneInputs: true,
@@ -637,6 +646,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			stopAll: false,
 			stopOnlyWhileRunning: false,
 			archiveComparison: true,
+			undoComparison: true,
+			tokenWarning: true,
+			instructions: true,
+			gridOptOut: true,
 			deleteGroup: true,
 			inactivePaneNotification: true,
 			rationaleOrder: true,

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import { SESSION_COMPARISON_MAX_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
@@ -42,7 +42,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			title: step === 'attempts' ? localize('comparisonPicker.attempts', "Attempts")
 				: step === 'judge' ? localize('comparisonPicker.judge', "Judge")
 					: localize('comparisonPicker.synthesizer', "Synthesizer"),
-			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Choose 2–10 models, or run one model 2–10 times.")
+			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Choose 2 to 10 models, or run one model 2 to 10 times.")
 				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Optionally choose a model to review the attempts and recommend a winner. Leave unselected to run attempts only.")
 					: localize('comparisonPicker.synthesizerDescription', "Optionally choose a model to combine the best parts after review. Synthesis starts only when you request it."),
 			summary: localize('comparisonPicker.summary', "{0} Attempts", this.attemptModelIds.read(reader).length),
@@ -63,9 +63,17 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 
 	constructor(readonly available: IObservable<boolean>) {
 		super();
+		this._register(autorun(reader => {
+			if (!available.read(reader)) {
+				this.cancel();
+			}
+		}));
 	}
 
 	start(): void {
+		if (!this.available.get()) {
+			throw new Error('Model comparison is not available.');
+		}
 		transaction(tx => {
 			this._enabled.set(true, tx);
 			this._configured.set(false, tx);

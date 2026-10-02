@@ -3548,7 +3548,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
-		return this.getPermissionOptionsForCreation(sessionType).find(option => option.id === permissionId);
+		const option = this.getPermissionOptionsForCreation(sessionType).find(option => option.id === permissionId);
+		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
+		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
 	}
 
 	get order(): number { return 0; }
