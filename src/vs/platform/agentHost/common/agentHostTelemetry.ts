@@ -129,6 +129,14 @@ export interface ICodexAccountTelemetryContext {
 	readonly chatgptWeeklyUsedPercentBucket?: number;
 }
 
+export type CodexModelProvider = 'openai' | 'copilot' | 'other' | 'unknown';
+
+export interface IAgentTurnTelemetryCorrelation {
+	readonly agentSessionId: string;
+	readonly chatSessionId: string;
+	readonly turnId: string;
+}
+
 /** Provider-owned, immutable context captured without I/O when a turn starts. */
 export interface IAgentProviderTurnTelemetryContext {
 	readonly codex?: ICodexAccountTelemetryContext;

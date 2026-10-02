@@ -42,7 +42,7 @@ import { ClaudeSessionConfigKey } from '../../common/claudeSessionConfigKeys.js'
 import { CodexSessionConfigKey } from '../../common/codexSessionConfigKeys.js';
 import { ISessionCatalogSyncPendingSnapshot, ISessionCatalogSyncSnapshot, ISessionDatabase, ISessionDataService, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
 import { IAgentHostGitStateService, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../../common/agentHostGitStateService.js';
-import { META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION } from '../../common/agentHostChangesetService.js';
 import { GitRefType, type IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { readSessionSandboxPolicy } from '../../common/meta/agentSandboxPolicyMeta.js';
@@ -57,6 +57,7 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../co
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -74,6 +75,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { AGENT_MERGE_CHANGESET_ID, buildBranchChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
@@ -1488,6 +1490,83 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('a provisional Codex session seeds its provider-qualified model into live metadata', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('codex'));
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			agent.chatModel = model;
+			const createChat = agent.chats.createChat;
+			agent.chats.createChat = async (chat, context, options) => ({
+				...(await createChat(chat, context, options) ?? {}),
+				provisional: true,
+			});
+			registerTestAgentProvider(svc, agent);
+
+			const session = await svc.createSession({ provider: 'codex', model });
+
+			assert.deepStrictEqual(readCodexSessionModel(getStateManager(svc).getSessionSummary(session.toString())), model);
+		});
+
+		test('live Codex catalog writes retain the current model through turn and read-state transitions', async () => {
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+			const agent = disposables.add(new MockAgent('codex'));
+			const initialModel = { id: '@provider=openai:gpt-5.6-sol' };
+			const nextModel = { id: '@provider=openai:gpt-6-astra' };
+			agent.chatModel = initialModel;
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'codex', model: initialModel });
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const nextSummaryChange = () => Event.toPromise(Event.filter(stateManager.onDidChangeSessionSummary, event => event.session === session.toString()));
+			const snapshots: Array<{ stage: string; state: string | undefined; catalog: string | undefined; listing: string | undefined }> = [];
+			const capture = async (stage: string) => {
+				await svc.whenCatalogReconciliationIdle();
+				const [listed] = await svc.listSessions();
+				snapshots.push({
+					stage,
+					state: readCodexSessionModel(stateManager.getSessionSummary(session.toString()))?.id,
+					catalog: readCodexSessionModel(catalogDataOf(await catalogDatabase.getSessionV2(session.toString())))?.id,
+					listing: listed.model?.id,
+				});
+			};
+
+			await capture('created');
+			agent.chatModel = nextModel;
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			const turnStarted = nextSummaryChange();
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: nextModel },
+			}, 'client-1', 1);
+			await Promise.all([sent, turnStarted]);
+			await capture('turnStarted');
+			const readChanged = nextSummaryChange();
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, 'client-1', 2);
+			await readChanged;
+			await capture('read');
+			const turnCompleted = nextSummaryChange();
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			await turnCompleted;
+			await capture('turnCompleted');
+
+			assert.deepStrictEqual(snapshots, [
+				{ stage: 'created', state: initialModel.id, catalog: initialModel.id, listing: initialModel.id },
+				...['turnStarted', 'read', 'turnCompleted'].map(stage => ({
+					stage,
+					state: nextModel.id,
+					catalog: nextModel.id,
+					listing: nextModel.id,
+				})),
+			]);
+		});
+
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
@@ -2620,6 +2699,7 @@ suite('AgentService (node dispatcher)', () => {
 		let expectedMeta: SessionSummaryMeta | undefined = withSessionExternal({ [SESSION_META_GITHUB_DATA_KEY]: { [getWorkingDirectoryKey(sessionFolder)]: github }, multiRoot }, false);
 		expectedMeta = withWorkingDirectoryKey(expectedMeta, URI.file('/workspace/one').toString());
 		expectedMeta = withWorkingDirectoryScopeId(expectedMeta, [URI.file('/workspace/one').toString()]);
+		expectedMeta = withSessionInitiator(expectedMeta, { name: 'vscode' });
 		assert.deepStrictEqual({
 			state: getStateManager(localService).getSessionState(session.toString())?._meta,
 			persisted: await db.getMetadata(SESSION_META_MULTI_ROOT_KEY),
@@ -2859,7 +2939,7 @@ suite('AgentService (node dispatcher)', () => {
 		const repository = URI.file('/work/repo');
 		const worktree = URI.file('/work/repo.worktrees/feature');
 		const branchName = 'agents/feature';
-		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createNullSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+		const service = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 		setTestAgentHostWorktreeIsolation(service, createTestAgentHostWorktreeIsolation({
 			sessionWorktreeInfo: () => ({
 				project: { uri: repository, displayName: 'repo' },
@@ -5167,8 +5247,22 @@ suite('AgentService (node dispatcher)', () => {
 				meta: getStateManager(service).getSessionState(session.toString())?._meta,
 			}, {
 				provider: 'copilot',
-				meta: withSessionExternal({ workspaceless: true }, false),
+				meta: withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }),
 			});
+		});
+
+		test('persists and lists the exact initiating client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			const initiator = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
+			const session = await localService.createSession({ _meta: withSessionInitiator(undefined, initiator) });
+			const listed = await localService.listSessions();
+			assert.deepStrictEqual({
+				state: readSessionInitiator(getStateManager(localService).getSessionState(session.toString())),
+				listed: readSessionInitiator(listed[0]),
+				stored: await database.getMetadata(SESSION_INITIATOR_METADATA_KEY),
+			}, { state: initiator, listed: initiator, stored: JSON.stringify(initiator) });
 		});
 
 		test('throws when no providers are registered at all', async () => {
@@ -8917,7 +9011,7 @@ suite('AgentService (node dispatcher)', () => {
 					published: stateManager.getExposedSessionKeys().includes(session.toString()),
 				}, {
 					registered: { external: false, source: 'explicit' },
-					metadata: withSessionExternal({ 'test.keep': 'preserved' }, false),
+					metadata: withSessionInitiator(withSessionExternal({ 'test.keep': 'preserved' }, false), { name: 'github/autopilot' }),
 					sends: 0,
 					turns: 0,
 					listed: [session.toString()],
@@ -10563,6 +10657,49 @@ suite('AgentService (node dispatcher)', () => {
 				});
 			});
 
+			test('ordinary Codex discovery backfills a missing catalog model without a recency change', async () => {
+				class CodexDiscoveryAgent extends DirectImportAgent {
+					latest: IAgentChatMetadata | undefined;
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this.latest ?? super.getChatMetadata(chat, context);
+					}
+				}
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new CodexDiscoveryAgent('codex'));
+				const session = AgentSession.uri('codex', 'model-metadata-backfill');
+				const modifiedTime = Date.now();
+				agent.catalog = [{ ...metadata(session), modifiedTime }];
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const before = readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString())));
+
+				const latest = {
+					...metadata(session, withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					modifiedTime,
+				};
+				agent.latest = latest;
+				await (svc as unknown as {
+					_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				})._registerDiscoveredChats(agent, [{
+					...latest,
+					external: true,
+				}]);
+				await (svc as unknown as {
+					_catalogReconciliationService: { runPass(): Promise<unknown> };
+				})._catalogReconciliationService.runPass();
+
+				assert.deepStrictEqual({
+					before,
+					after: readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString()))),
+				}, {
+					before: undefined,
+					after: { id: '@provider=openai:gpt-5.6-sol' },
+				});
+			});
+
 			test('fulfilled incomplete initial import retries provider-only candidates without another provider event', async () => {
 				const database = new TransientRegistryWriteDatabase();
 				const perSession = createPerSessionDataService();
@@ -10980,7 +11117,7 @@ suite('AgentService (node dispatcher)', () => {
 					titleSource: 'user',
 					isRead: false,
 					isArchived: false,
-					meta: { git: { branchName: 'current-provider' } },
+					meta: withSessionInitiator({ git: { branchName: 'current-provider' } }, { name: 'github/autopilot' }),
 					chats: [{ summary: 'Local chat', titleSource: 'user' }],
 				});
 			});
@@ -13782,7 +13919,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await svc.listSessions();
 			assert.strictEqual(sessions.length, 1);
-			assert.deepStrictEqual(sessions[0]._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(sessions[0]._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test('listSessions overlays the adopted-legacy marker so a migrated session keeps its legacy listing', async () => {
@@ -14647,7 +14784,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [workingDirectory.fsPath, workingDirectory.fsPath]);
 			assert.deepStrictEqual(
 				getStateManager(localService).getSessionState(session.toString())?._meta,
-				withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]),
+				withSessionInitiator(withWorkingDirectoryScopeId(withWorkingDirectoryKey(withSessionExternal({ git: gitState }, false), workingDirectory.toString()), [workingDirectory.toString()]), { name: 'vscode' }),
 			);
 		});
 
@@ -14752,7 +14889,7 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			// No input workingDirectory → inferred workspace-less (tagged), and no
 			// git overlay because there is no working directory to probe.
-			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionExternal({ workspaceless: true }, false));
+			assert.deepStrictEqual(getStateManager(localService).getSessionState(session.toString())?._meta, withSessionInitiator(withSessionExternal({ workspaceless: true }, false), { name: 'vscode' }));
 		});
 
 		test.skip('createSession strips git-only catalogue entries for non-git working directory', async () => {
@@ -16642,6 +16779,20 @@ suite('AgentService (node dispatcher)', () => {
 			await localService.restoreSession(sessionResource);
 
 			assert.deepStrictEqual(readSessionCreationReference(getStateManager(localService).getSessionState(sessionResource.toString())?._meta), creationReference);
+		});
+
+		test('restores the creating client rather than the current provider client', async () => {
+			const database = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, copilotAgent);
+			await createAgentSession(copilotAgent);
+			const session = (await copilotAgent.listSessions())[0].session;
+			copilotAgent.sessionMessages = [];
+			copilotAgent.sessionMetadataOverrides = { _meta: withSessionInitiator(undefined, { name: 'vscode-editor-window' }) };
+			const initiator = { name: 'github/cli', title: 'Copilot CLI' };
+			await database.setMetadata(SESSION_INITIATOR_METADATA_KEY, JSON.stringify(initiator));
+			await localService.restoreSession(session);
+			assert.deepStrictEqual(readSessionInitiator(getStateManager(localService).getSessionState(session.toString())), initiator);
 		});
 
 		test('restores persisted source-control provenance', async () => {
@@ -20702,6 +20853,7 @@ suite('AgentService (node dispatcher)', () => {
 			const stateTitleAfterCreate = getStateManager(localService).getSessionState(session.toString())?.chats.find(chat => chat.resource === peer.toString())?.title;
 			const legacyTitleAfterCreate = await db.getMetadata(`customChatTitle:${peer.toString()}`);
 			await db.setChatDraft(peer, { text: 'delete me', origin: { kind: MessageKind.User } });
+			await db.setMetadata(getChatChangesSummaryMetadataKey(peer.toString()), JSON.stringify({ additions: 1, deletions: 0, files: 1 }));
 			await localService.disposeChat(session, peer);
 			const afterDelete = await catalogDatabase.getSessionV2(session.toString());
 
@@ -20712,6 +20864,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate,
 				legacyTitleAfterCreate,
 				draft: await db.getChatDraft(peer),
+				changesSummary: await db.getMetadata(getChatChangesSummaryMetadataKey(peer.toString())),
 			}, {
 				afterCreate: [
 					{ uri: buildDefaultChatUri(session), order: 0, kind: 'default', title: undefined },
@@ -20724,6 +20877,7 @@ suite('AgentService (node dispatcher)', () => {
 				stateTitleAfterCreate: 'Central Peer',
 				legacyTitleAfterCreate: 'Central Peer',
 				draft: undefined,
+				changesSummary: '',
 			});
 		});
 
@@ -24710,7 +24864,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('codex');
-			const model = { id: 'codex-model:openai:gpt-5.6-sol' };
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -24728,10 +24882,16 @@ suite('AgentService (node dispatcher)', () => {
 
 			await localService.restoreSession(session);
 
-			assert.deepStrictEqual(getStateManager(localService).getDefaultChatState(session.toString())?.draft, {
-				text: 'unsent text',
-				origin: { kind: MessageKind.User },
-				model,
+			assert.deepStrictEqual({
+				draft: getStateManager(localService).getDefaultChatState(session.toString())?.draft,
+				sessionModel: readCodexSessionModel(getStateManager(localService).getSessionSummary(session.toString())),
+			}, {
+				draft: {
+					text: 'unsent text',
+					origin: { kind: MessageKind.User },
+					model,
+				},
+				sessionModel: model,
 			});
 		});
 

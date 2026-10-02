@@ -9,6 +9,27 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.agent-sessions-navigation-container {
+	.monaco-list-row:is(:hover, .hovered) .session-section-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list .monaco-list-row.session-section.focused.session-section-shortcut:is(:hover, .hovered) {
+		background-color: var(--vscode-list-hoverBackground);
+		border-radius: 0;
+	}
+
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut:not(.active):not(:hover, .hovered) {
+		background-color: transparent;
+		outline: 0 !important;
+	}
+}
+
 .sessions-list-control {
 	flex: 1 1 auto;
 	height: 100%;
@@ -153,6 +174,14 @@
 			.session-diff-removed {
 				color: unset;
 			}
+		}
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-chat-folder-row .session-chat-diff {
+
+		.session-chat-diff-added,
+		.session-chat-diff-removed {
+			color: unset;
 		}
 	}
 
@@ -803,16 +832,13 @@
 }
 
 .session-chat-item {
-	/* Base title-row height, matching SessionsTreeDelegate.CHAT_ITEM_HEIGHT.
-		Folder and approval rows stack beneath it without changing this value. */
-	--session-chat-base-height: 28px;
 	display: flex;
 	flex-direction: column;
 	box-sizing: border-box;
 	position: relative;
 	overflow: visible;
 	min-width: 0;
-	padding: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size360);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120) var(--vscode-spacing-size80) var(--vscode-spacing-size360);
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	font-weight: var(--vscode-fontWeight-regular);
@@ -832,7 +858,7 @@
 		position: absolute;
 		box-sizing: border-box;
 		top: 0;
-		height: calc(var(--session-chat-base-height) / 2);
+		height: var(--vscode-spacing-size160);
 		left: var(--vscode-spacing-size200);
 		width: var(--vscode-spacing-size120);
 		border-left: var(--vscode-strokeThickness) solid var(--vscode-tree-indentGuidesStroke);
@@ -858,23 +884,23 @@
 		display: flex;
 		align-items: center;
 		flex: 0 0 auto;
-		height: var(--session-chat-base-height);
 		gap: var(--vscode-spacing-size60);
 		line-height: 17px;
+		padding-bottom: var(--vscode-spacing-size40);
 	}
 
 	.session-chat-folder-row {
 		display: flex;
 		align-items: center;
-		flex: 0 0 var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
+		flex: 0 0 auto;
 		margin-left: var(--vscode-spacing-size240);
 		gap: var(--vscode-spacing-size40);
 		min-width: 0;
 		overflow: hidden;
 		color: var(--vscode-descriptionForeground);
 		font-size: var(--vscode-fontSize-label2);
-		line-height: var(--vscode-spacing-size160);
+		line-height: 15px;
+		max-height: 15px;
 
 		&[hidden] {
 			display: none;
@@ -915,6 +941,21 @@
 		.session-chat-separator,
 		.session-chat-time {
 			flex-shrink: 0;
+		}
+
+		.session-chat-diff {
+			display: flex;
+			flex-shrink: 0;
+			gap: var(--vscode-spacing-size20);
+			font-variant-numeric: tabular-nums;
+
+			.session-chat-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-chat-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
 		}
 	}
 
@@ -969,18 +1010,28 @@
 		}
 	}
 
-	/* Reuses the session row's approval-row styling; only the left inset is
-		reset since the chat row is already indented. When visible, a small bottom
-		margin adds slack that absorbs the rendered code-block's line-height
-		rounding (the chat row has no bottom padding of its own). As a flex-item
-		margin it reserves the same space without an ancestor `:has()` match. Kept
-		in sync with SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK. */
 	.session-approval-row {
 		margin-left: 0;
+	}
+}
 
-		&.visible {
-			margin-bottom: 6px;
-		}
+.sessions-list-control.compact .session-chat-item {
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120) var(--vscode-spacing-size60) var(--vscode-spacing-size360);
+
+	&::after {
+		height: calc(var(--vscode-spacing-size60) + var(--vscode-spacing-size80));
+	}
+
+	.session-chat-title-row {
+		height: var(--vscode-spacing-size160, 16px);
+		padding-bottom: 0;
+		line-height: var(--vscode-spacing-size160, 16px);
+	}
+
+	.session-approval-row {
+		margin-top: var(--vscode-spacing-size60);
+		padding-top: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
+		padding-bottom: calc(var(--vscode-spacing-size40) - var(--vscode-strokeThickness));
 	}
 }
 
@@ -1065,18 +1116,6 @@
 	width: 100%;
 	padding: var(--vscode-spacing-size100) 0 0;
 	box-sizing: border-box;
-}
-
-.sessions-list-header-row {
-	--vscode-list-hoverBackground: transparent;
-}
-
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:is(:hover, .hovered),
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
-	background-color: transparent;
-	cursor: default;
 }
 
 .session-section {
@@ -1198,10 +1237,6 @@
 	border-color: var(--vscode-contrastBorder);
 }
 
-.monaco-tree-sticky-row .session-section-new-session .session-section-keybinding {
-	margin-right: var(--vscode-spacing-size80);
-}
-
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
 .monaco-list-row.focused .session-section .session-section-toolbar,
 .monaco-list-row .session-section.dropdown-active .session-section-toolbar {
@@ -1256,17 +1291,9 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	/* Shortcut sections only change label and icon color on hover, unless active. */
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
-		color: var(--vscode-descriptionForeground);
-	}
-
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected,
-		.monaco-list-row.session-list-shortcut-row.focused,
-		.monaco-list-row.session-list-shortcut-row.selected {
+		.monaco-list-row.session-list-section-row.selected {
 			outline: none !important;
 		}
 	}
@@ -1536,8 +1563,25 @@
 		font-size: var(--vscode-fontSize-body1);
 	}
 
+	.session-chat-item::after {
+		height: calc(var(--session-chat-base-height) / 2);
+	}
+
 	.session-chat-item .session-chat-title-row {
+		height: var(--session-chat-base-height);
+		padding-bottom: 0;
 		padding-right: var(--session-chat-base-height);
+	}
+
+	.session-chat-item .session-chat-folder-row {
+		flex-basis: var(--vscode-spacing-size160);
+		height: var(--vscode-spacing-size160);
+		line-height: var(--vscode-spacing-size160);
+		max-height: var(--vscode-spacing-size160);
+	}
+
+	.session-chat-item .session-approval-row.visible {
+		margin-bottom: var(--vscode-spacing-size60);
 	}
 
 	.session-item .session-icon {

@@ -57,7 +57,7 @@ import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsCon
 import { createSessionPullRequestPillData } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
 import { createSessionSubagentsPillData, type IChatSubagentPillEntry } from '../../sessionSubagentsPill.js';
-import { toChatBackgroundShells } from './agentHostBackgroundShells.js';
+import { AgentHostBackgroundShellOutputs } from './agentHostBackgroundShells.js';
 import { agentHostChangesetFileToEntryDiff } from './agentHostResponseFileChanges.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { GitHubCommitResolver } from '../../../../github/browser/githubCommitResolver.js';
@@ -795,8 +795,9 @@ export class AgentHostSessionInputPills extends Disposable {
 			resolveChatCustomizations(customizationRefs.read(reader), customizationIndex.read(reader)));
 		const sessionCustomizations = this._register(instantiationService.createInstance(SessionCustomizations, chatCustomizations, customizationFolders));
 		// A new source per chat keeps one chat's shell details from carrying over to another.
-		const backgroundShells = this._register(new SessionBackgroundShellsControl(derived(this, reader => chatResource.read(reader) ? {
-			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => toChatBackgroundShells(chatState.read(shellReader)?.backgroundWork)),
+		const backgroundShellOutputs = new AgentHostBackgroundShellOutputs(reader => resolution.read(reader)?.connection);
+		const backgroundShells = this._register(instantiationService.createInstance(SessionBackgroundShellsControl, derived(this, reader => chatResource.read(reader) ? {
+			backgroundShells: derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, shellReader => backgroundShellOutputs.project(chatState.read(shellReader)?.backgroundWork)),
 		} : undefined)));
 
 		const sources = this._register(instantiationService.createInstance(StandardChatInputPillSources, {

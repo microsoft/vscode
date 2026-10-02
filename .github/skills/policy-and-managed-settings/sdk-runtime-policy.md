@@ -55,9 +55,10 @@ Bridge invariants:
 - add mappings only for legacy settings that already exist; never create a new setting for this bridge;
 - mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
 - mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
-- simple mappings use explicit global layers, in policy, user, then application precedence; workspace/folder values do not contribute;
-- composite network mappings also consult registered global defaults to preserve the filter's empty-list deny-all behavior;
-- explicit terminal denials become managed asks, including user-origin restrictions; these intentionally require confirmation even under Allow All or assisted approval and must not be described as necessarily administrator-originated;
+- approval-setting mappings use only exact enterprise `policyValue`; user, application, default, workspace, and folder values do not become managed approval restrictions;
+- the network-domain composite retains global precedence (policy, user, then application) and registered global defaults to preserve the filter's empty-list deny-all behavior;
+- personal approval settings remain on the ordinary root-config path, where session/global Allow All overrides them and default mode honors them; user/application settings are not an administrator enforcement boundary;
+- administrator terminal approval restrictions become managed asks and still require confirmation under Allow All or assisted approval;
 - contributions aggregate restrictively and are transported without parsing their rule grammar in VS Code;
 - the aggregate is supplied on SDK create and resume;
 - an empty aggregate is forwarded when settings are removed so stale restrictions clear across JSON/AHP serialization;
@@ -66,6 +67,8 @@ Bridge invariants:
 - changed contributions refresh local default and peer sessions at an idle boundary before the next turn.
 
 Keep additional legacy mappings in the shared bridge table and cover their scope, removal, create/resume, and refresh behavior in the corresponding Agent Host unit tests.
+
+`chat.tools.terminal.enableAutoApprove` has a registered VS Code policy; `chat.tools.terminal.autoApprove` does not. Per-command `policyValue` fixtures exercise the resolver synthetically, not a currently deployable VS Code policy. Test targeted managed shell asks directly at the SDK boundary, and test the registered terminal approval policy through the bridge.
 
 Default-on bridging is not full policy parity. Unsupported allowlists, patterns,
 per-tool approval, and discovery paths are still tracked in

@@ -77,3 +77,26 @@ suite('ExtHostLanguageModels reasoning capabilities', () => {
 		});
 	}
 });
+
+suite('ExtHostLanguageModels request model resolution', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fails instead of falling back to the default model when the selected model is unavailable', async () => {
+		const proxy: Partial<MainThreadLanguageModelsShape> = {
+			$registerLanguageModelProvider: () => { },
+			$unregisterProvider: () => { },
+			$selectChatModels: async () => [],
+		};
+		const host = store.add(new ExtHostLanguageModels(SingleProxyRPCProtocol(proxy), new NullLogService(), new class extends mock<IExtHostAuthentication>() { }));
+		store.add(host.registerLanguageModelChatProvider(nullExtensionDescription, 'test', {
+			provideLanguageModelChatInformation: async () => [{ id: 'available', name: 'available', family: 'available', version: '1', maxInputTokens: 1000, maxOutputTokens: 1000, capabilities: {} }],
+			provideLanguageModelChatResponse: async () => { throw new Error('Unexpected model request'); },
+			provideTokenCount: async () => 0,
+		}));
+		await host.$provideLanguageModelChatInfo('test', { silent: true }, CancellationToken.None);
+
+		const available = await host.getLanguageModelForRequest(nullExtensionDescription, 'test/available');
+		assert.strictEqual(available.id, 'available');
+		await assert.rejects(host.getLanguageModelForRequest(nullExtensionDescription, 'test/missing'), /test\/missing/);
+	});
+});

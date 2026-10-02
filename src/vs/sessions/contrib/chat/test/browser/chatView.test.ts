@@ -38,7 +38,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -52,6 +52,17 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('does not render the running-session secondary toolbar for the experimental composer', () => {
+		assert.deepStrictEqual([
+			shouldRenderRunningSessionSecondaryToolbar(false),
+			shouldRenderRunningSessionSecondaryToolbar(true),
+		], [true, false]);
+	});
+
+	test('reserves only the collapsed context usage widget width in the experimental composer', () => {
+		assert.strictEqual(EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, 14 + 6 + 4 + 4);
+	});
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {
 		const calls: { folder: URI; options?: ISelectWorkspaceOptions }[] = [];

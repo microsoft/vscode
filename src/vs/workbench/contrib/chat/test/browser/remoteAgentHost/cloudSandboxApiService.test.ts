@@ -45,6 +45,7 @@ function task(id: string, name: string, repositoryId: number | undefined, sessio
 }
 
 type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
+	readonly event_type?: string;
 	readonly current_environment?: { readonly id: string; readonly kind: string };
 	readonly updated_at?: string;
 	readonly archived_at?: string;
@@ -335,6 +336,15 @@ suite('CloudSandboxApiService connection credentials', () => {
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves the creating application from cloud task discovery', async () => {
+		const { service } = createService(store, {
+			tasks: [{ ...task('task-1', 'From Slack', undefined, 'session-1', 'environment-1'), event_type: 'slack' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.eventType), ['slack']);
+	});
 
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
@@ -1374,6 +1384,95 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	}());
 	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
+
+suite('CloudSandboxApiService task renaming', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('patches the encoded task name through Mission Control', async () => {
+		const { service, calls } = createServiceForCreate(store, { name: 'New title' });
+		await service.renameTask('task/with spaces', 'New title', CancellationToken.None);
+		assert.deepStrictEqual(calls, [{
+			url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
+			type: 'PATCH',
+			body: { name: 'New title' },
+			timeout: 10_000,
+			headers: {
+				Accept: 'application/json',
+				'Copilot-Integration-Id': 'code-oss',
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer tok',
+			},
+		}]);
+	});
+
+	for (const statusCode of [400, 403, 404, 422, 429, 500]) {
+		test(`surfaces rejected task rename: HTTP ${statusCode}`, async () => {
+			const { service } = createServiceForCreate(store, { message: 'rename rejected' }, statusCode);
+			await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), new RegExp(`task rename failed: HTTP ${statusCode}`));
+		});
+	}
+
+	test('requires authentication before renaming', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), /signed-in GitHub account/);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('surfaces transport errors', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), requestError: new Error('rename transport failed'),
+		});
+		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), /rename transport failed/);
+	});
+
+	test('refreshes a renamed task even when the incremental list omits it', async () => {
+		const original = { ...task('task-1', 'Old title', undefined, 'sess-1', 'env-1'), updated_at: '2026-08-01T00:00:00Z' };
+		let renamed = false;
+		const { service } = createService(store, {
+			tasks: [original], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'PATCH') {
+					renamed = true;
+					return jsonResponse({});
+				}
+				if (renamed && url.pathname.endsWith('/tasks/task-1')) {
+					return jsonResponse({ ...original, name: 'New title' });
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		await service.renameTask('task-1', 'New title', CancellationToken.None);
+		const result = await service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual(result.kind !== 'failed' ? result.sessions.map(session => session.name) : result.kind, ['New title']);
+	});
+
+	test('invalidates discovery in flight when a task is renamed', async () => {
+		const entered = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const original = task('task-1', 'Old title', undefined, 'sess-1', 'env-1');
+		const { service } = createService(store, {
+			tasks: [original], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'PATCH') {
+					return jsonResponse({});
+				}
+				if (url.pathname.endsWith('/tasks/task-1')) {
+					void entered.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const discovery = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.renameTask('task-1', 'New title', CancellationToken.None);
+		await response.complete(jsonResponse(original));
+		assert.strictEqual((await discovery).kind, 'failed');
+	});
+});
 
 suite('CloudSandboxApiService task deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

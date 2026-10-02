@@ -14,7 +14,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
-import type { IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
@@ -114,6 +114,10 @@ export interface IAgentHostManagedSettingsSnapshot {
 	readonly sandboxEnabledByUndeterminedPolicy?: boolean;
 	readonly managedKeys: readonly string[];
 	readonly settings?: unknown;
+	/** Sessionless resolution layers; session client contributions and policy-helper execution are not included. */
+	readonly layers?: readonly { readonly source: string; readonly settings?: unknown }[];
+	/** Includes source failures and cache-fallback warnings, independently of failClosed. */
+	readonly diagnostics?: readonly { readonly path: string; readonly severity: 'error' | 'warning'; readonly message: string }[];
 }
 
 // ---- IPC data types (serializable across MessagePort) -----------------------
@@ -188,10 +192,13 @@ export interface IAgentSessionChatMetadata {
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
 	readonly archived?: boolean;
+	readonly changes?: ChangesSummary;
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	/** Host-advertised agent identity; older cached metadata may omit it. */
+	readonly provider?: string;
 	readonly chats?: readonly IAgentSessionChatMetadata[];
 }
 
@@ -497,6 +504,9 @@ export interface IAgentChatContext {
 	readonly clientTelemetryContext?: IAgentHostClientTelemetryContext;
 	/** The owning turn's immutable admission snapshot, supplied only for its send. */
 	readonly turnTelemetryContext?: IAgentProviderTurnTelemetryContext;
+	readonly turnTelemetryCorrelation?: IAgentTurnTelemetryCorrelation;
+	/** Records provider-owned dispatch facts on the addressed turn, before progress can complete it. */
+	readonly reportCodexModelProvider?: (provider: CodexModelProvider) => void;
 	/**
 	 * The addressed chat's origin, taken verbatim from the host-owned chat
 	 * catalog, and exhaustive across every way a chat comes into existence:
