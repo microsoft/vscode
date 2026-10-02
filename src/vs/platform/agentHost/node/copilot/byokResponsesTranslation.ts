@@ -18,6 +18,9 @@ interface IResponsesContentPart {
 	readonly type?: string;
 	readonly text?: string;
 	readonly image_url?: string;
+	readonly filename?: string;
+	readonly file_data?: string;
+	readonly file_id?: string;
 }
 
 interface IResponsesSummaryPart {
@@ -88,6 +91,18 @@ function toBridgeRole(role: string | undefined): 'system' | 'developer' | 'user'
 	}
 }
 
+/**
+ * The Copilot runtime sends document attachments (e.g. a referenced PDF) as
+ * Responses `input_file` parts. BYOK models are served through the LM API,
+ * which has no capability declaring document input, so the file is replaced
+ * with a note telling the model it was omitted rather than failing the turn.
+ */
+function omittedFileText(part: IResponsesContentPart): string {
+	const mimeType = part.file_data ? /^data:(?<mimeType>[^;,]+)/.exec(part.file_data)?.groups?.mimeType : undefined;
+	const name = part.filename || part.file_id || 'file';
+	return `[${name}${mimeType ? ` (${mimeType})` : ''} omitted: this model does not accept file inputs]`;
+}
+
 function toContentParts(content: string | IResponsesContentPart[] | undefined, itemIndex: number): IByokLmContentPart[] {
 	if (typeof content === 'string') {
 		return content ? [{ type: 'text', text: content }] : [];
@@ -117,6 +132,9 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 				};
 			}
 			throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}].image_url`);
+		}
+		if (part.type === 'input_file') {
+			return { type: 'text' as const, text: omittedFileText(part) };
 		}
 		throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}] type '${part.type ?? ''}'`);
 	});
