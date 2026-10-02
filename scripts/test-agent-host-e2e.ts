@@ -67,6 +67,11 @@ const suites: readonly ISuite[] = [
 		label: 'Copilot OTel',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts',
 	},
+	{
+		id: 'copilot-managed-settings',
+		label: 'Copilot managed settings',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts',
+	},
 ];
 
 async function main(): Promise<void> {

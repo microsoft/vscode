@@ -67,11 +67,13 @@ suite('ChatConfiguration defaults', () => {
 
 	suite('enterprise policy diagnostics preserve existing rollout selection', () => {
 		const legacyRequirements = [
-			{ policy: 'ChatMCP', setting: 'chat.mcp.access', value: 'none' },
-			{ policy: 'ChatHooks', setting: 'chat.useHooks', value: false },
-			{ policy: 'ChatPluginsEnabled', setting: 'chat.plugins.enabled', value: false },
-			{ policy: 'ChatToolsEligibleForAutoApproval', setting: 'chat.tools.eligibleForAutoApproval', value: { tool: false } },
-			{ policy: 'ChatAgentSandboxEnabled', setting: 'chat.agent.sandbox.enabled', value: 'on' },
+			{ policy: 'ChatMCP', setting: 'chat.mcp.access', value: 'none', reportsGap: true },
+			{ policy: 'ChatHooks', setting: 'chat.useHooks', value: false, reportsGap: true },
+			{ policy: 'ChatPluginsEnabled', setting: 'chat.plugins.enabled', value: false, reportsGap: true },
+			{ policy: 'ChatToolsEligibleForAutoApproval', setting: 'chat.tools.eligibleForAutoApproval', value: { tool: false }, reportsGap: true },
+			{ policy: 'ChatAgentSandboxEnabled', setting: 'chat.agent.sandbox.enabled', value: 'on', reportsGap: false },
+			{ policy: 'ChatAgentSandboxAllowNetwork', setting: 'chat.agent.sandbox.network.allowNetwork', value: false, reportsGap: false },
+			{ policy: 'ChatAgentSandboxAllowUnsandboxedCommands', setting: 'chat.agent.sandbox.allowUnsandboxedCommands', value: false, reportsGap: false },
 		];
 		setup(() => {
 			sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')
@@ -88,10 +90,10 @@ suite('ChatConfiguration defaults', () => {
 			return { configuration, inspection };
 		}
 
-		test('each accepted legacy gap remains visible without changing either rollout default', () => {
+		test('legacy gaps remain visible and retired sandbox policies stay excluded without changing either rollout default', () => {
 			const sessions = createChatSessionsService(SessionType.AgentHostCopilot);
 			const storage = disposables.add(new TestStorageService());
-			for (const { policy, setting, value } of legacyRequirements) {
+			for (const { policy, setting, value, reportsGap } of legacyRequirements) {
 				for (const rolloutDefault of [false, true]) {
 					const { configuration, inspection } = createRestrictedConfiguration({
 						[ChatConfiguration.DefaultToCopilotHarness]: rolloutDefault,
@@ -106,7 +108,7 @@ suite('ChatConfiguration defaults', () => {
 						gaps: getAgentHostPolicyGaps(configuration).map(gap => gap.policyName),
 						computed: getComputedDefaultSessionType(configuration, sessions, localWorkspace, true),
 						resolved: resolveSessionTypeWithReason(configuration, sessions, storage, localWorkspace, true),
-					}, { gaps: [policy], computed: expected, resolved: { sessionType: expected, selectionReason: 'computedDefault' } });
+					}, { gaps: reportsGap ? [policy] : [], computed: expected, resolved: { sessionType: expected, selectionReason: 'computedDefault' } });
 				}
 			}
 		});

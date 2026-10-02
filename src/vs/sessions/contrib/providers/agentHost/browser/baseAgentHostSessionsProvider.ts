@@ -4873,7 +4873,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const values = newSession.getConfigValues();
 		const derivedValues = this._derivedNewSessionConfig(newSession.session.workspace.get());
 		for (const [property, clearedValue] of Object.entries(SETTINGS_DERIVED_SESSION_CONFIG_CLEARED_VALUES)) {
-			if (!isSessionConfigWritable(newSession.getConfig()?.schema.properties[property], true)) {
+			if (!newSession.getConfig()?.schema.properties[property]) {
 				continue;
 			}
 			const value = derivedValues[property] ?? (values && Object.hasOwn(values, property) ? clearedValue : undefined);
@@ -6078,13 +6078,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!cached || !rawId || !connection) {
+		if (!cached || !rawId) {
 			return;
 		}
 		const sessionUri = cached.backendUri;
 		const chatId = chatUri.fragment;
 		if (!chatId && this._adapterOptions().useSessionTitleForDefaultChat) {
 			return this.renameSession(sessionId, title);
+		}
+		if (!connection) {
+			return;
 		}
 		const action = { type: ActionType.SessionTitleChanged as const, title };
 		if (chatId) {
@@ -7113,7 +7116,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
 		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
 		const branchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
-		if (newSession && previousBranchName !== undefined && branchName !== undefined && branchName !== previousBranchName) {
+		if (newSession && branchName !== undefined && branchName !== previousBranchName) {
 			void this._syncFolderDraftBranch(newSession, branchName).catch(error => {
 				if (this._getNewSession(sessionId) === newSession) {
 					this._logService.warn(`[${this.id}] Failed to follow the checked-out branch for ${sessionId}: ${error}`);

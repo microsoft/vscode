@@ -156,7 +156,7 @@ Catalog events distinguish added, removed, and changed facades. Facade replaceme
 
 A provider that supersedes sessions from another provider may implement `resolveSessionResource`. Open paths use this hook to redirect persisted or linked resources before lookup. Providers decline unfamiliar resources, in which case callers retain the original resource.
 
-A provider that must establish backend state before presenting a session may implement `prepareSessionForOpen`. Explicit opens await preparation; startup restoration invokes it asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
+A provider that must establish backend state for an existing session may implement `prepareSessionForOpen`. Ordinary single-session opens activate and present the session while preparation is pending, allowing its loading and connection state to render; they still await preparation before completing. Providers must not rely on preparation completing before presentation. Open-to-side and batch grid operations await preparation before committing their visibility changes. Startup restoration invokes preparation asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
 
 ### Drafts
 

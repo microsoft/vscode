@@ -40,8 +40,6 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 			return localize('policyGap.toolApproval', "Allow All is disabled session-wide, but tools excluded by policy can still be approved automatically through other approval paths.");
 		case 'ChatToolsTerminalEnableAutoApprove':
 			return localize('policyGap.terminalApproval', "Native shell commands require approval through the bridge. Custom terminal tools do not have equivalent managed-ask coverage in every approval mode.");
-		case 'ChatAgentSandboxEnabled':
-			return localize('policyGap.sandbox', "Policy-required sandboxing blocks direct session Off overrides on supported platforms. Verify delayed policy loading and loss/reapplication of the last client's requirement across disconnect-grace expiry.");
 		case 'ChatAgentNetworkFilter':
 		case 'ChatAgentAllowedNetworkDomains':
 		case 'ChatAgentDeniedNetworkDomains':
@@ -93,8 +91,6 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 		case 'ChatAllowManagedHooksOnly':
 		case 'ChatStrictPluginOnlyCustomization':
 			return value !== false;
-		case 'ChatAgentSandboxEnabled':
-			return value !== 'off' && value !== false;
 		case 'ChatMCP':
 			return value !== 'all';
 		case 'ChatToolsEligibleForAutoApproval':

@@ -302,7 +302,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			standaloneHidden: 'none',
 			dispatches: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } }],
-			refreshes: [{ mode: 'interactive', approvalMode: 'assisted' }],
+			refreshes: [{ mode: 'interactive', approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] }],
 		});
 	});
 

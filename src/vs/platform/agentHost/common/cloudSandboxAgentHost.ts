@@ -274,6 +274,9 @@ export interface ICloudSandboxApiService {
 	/** Soft-delete the Mission Control task, including its persisted session history, without waking the sandbox. */
 	deleteTask(taskId: string, token: CancellationToken): Promise<void>;
 
+	/** Rename the Mission Control task without waking the sandbox. */
+	renameTask(taskId: string, title: string, token: CancellationToken): Promise<void>;
+
 	/**
 	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
 	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.

@@ -531,6 +531,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,
 		keywords: ['Sandbox', 'sandboxing'],
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', "This legacy setting is deprecated. For Copilot Agent Host, use the session sandbox controls and the `sandbox.enabled` managed setting for mandatory enforcement."),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
@@ -549,8 +552,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.116',
 			localization: {
 				description: {
-					key: 'agentSandbox.enabledSetting',
-					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+					key: 'agentSandbox.enabledPolicy',
+					value: localize('agentSandbox.enabledPolicy', "Deprecated. Controls whether the Local agent uses sandboxing to restrict what tools can do. In Copilot Agent Host, this legacy policy supplies an overridable sandbox default, not a mandatory requirement. Use the runtime-native sandbox.enabled managed setting to require sandboxing in Copilot Agent Host."),
 				},
 				enumDescriptions: [
 					{
@@ -569,6 +572,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveAllowAccess(undefined, read(COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY) !== false),
 		order: 20,
 		keywords: ['Sandbox', 'sandboxing'],
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.allowNetwork.deprecated', "This legacy setting is deprecated. For Copilot Agent Host, use the `sandbox.userPolicy.network.allowOutbound` managed setting to enforce outbound network restrictions."),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.allowNetwork', "Allow the sandboxed process to reach the Internet."),
 		type: 'boolean',
 		default: true,
@@ -579,8 +585,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.127',
 			localization: {
 				description: {
-					key: 'agentSandbox.allowNetwork',
-					value: localize('agentSandbox.allowNetwork', "Allow the sandboxed process to reach the Internet."),
+					key: 'agentSandbox.allowNetworkPolicy',
+					value: localize('agentSandbox.allowNetworkPolicy', "Deprecated. Controls whether the Local agent sandbox allows outbound connections to all network domains while preserving file system restrictions. Use the sandbox.userPolicy.network.allowOutbound managed setting to enforce outbound network restrictions in Copilot Agent Host."),
 				}
 			}
 		}
@@ -601,6 +607,9 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		order: 30,
 		keywords: ['Sandbox', 'sandboxing'],
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.allowUnsandboxedCommands.deprecated', "This legacy setting is deprecated. For Copilot Agent Host, use the `sandbox.allowBypass` managed setting to control sandbox bypass."),
+		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command."),
 		type: 'boolean',
 		default: true,
@@ -611,15 +620,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			minimumVersion: '1.116',
 			localization: {
 				description: {
-					key: 'agentSandbox.allowUnsandboxedCommands',
-					value: localize('agentSandbox.allowUnsandboxedCommands', "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command."),
+					key: 'agentSandbox.allowUnsandboxedCommandsPolicy',
+					value: localize('agentSandbox.allowUnsandboxedCommandsPolicy', "Deprecated. Controls whether Local agent terminal commands can run outside the sandbox after user confirmation when sandbox restrictions would block the command. Use the sandbox.allowBypass managed setting to control sandbox bypass in Copilot Agent Host."),
 				}
 			}
 		}
 	},
 	[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests]: {
 		markdownDescription: localize('agentSandbox.retryWithAllowNetworkRequests', "Controls whether agent mode terminal commands can retry in the sandbox with unrestricted network access after user confirmation. This applies only when {0} is enabled and preserves file system sandboxing while relaxing network restrictions for an approved command.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		markdownDeprecationMessage: localize('agentSandbox.retryWithAllowNetworkRequests.deprecated', "This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox."),
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.retryWithAllowNetworkRequests.deprecated', "This Local harness setting is deprecated. Configure Copilot Agent Host sandbox restrictions and permissions through managed settings instead."),
 		deprecationMessageShowInSettings: true,
 		type: 'boolean',
 		default: true,
@@ -685,7 +695,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
 		order: 70,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This legacy setting is deprecated. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
 		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
@@ -727,7 +738,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem]: {
 		order: 80,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This legacy setting is deprecated. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
 		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
@@ -769,7 +781,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
 		order: 90,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This legacy setting is deprecated. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
 		deprecationMessageShowInSettings: true,
 		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
@@ -809,7 +822,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
 		markdownDescription: localize('agentSandbox.runtimeSetting', "Note: this setting is applicable only when {0} is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		markdownDeprecationMessage: localize('agentSandbox.runtimeSetting.deprecated', "This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox."),
+		deprecated: true,
+		markdownDeprecationMessage: localize('agentSandbox.runtimeSetting.deprecated', "This Local harness setting is deprecated. Configure Copilot Agent Host sandboxing through managed settings instead."),
 		deprecationMessageShowInSettings: true,
 		type: 'object',
 		default: {

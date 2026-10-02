@@ -996,6 +996,7 @@ interface IRenderEditorOptions {
 	readonly toggleMarketplaceVisibility?: boolean;
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
+	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1128,6 +1129,16 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[1]), { kind: 'installed', target: getFixtureInstallationTarget(customizationMarketplaceResources[1]) });
 	} else if (options.customizationMarketplaceInstallationState === 'missing') {
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(customizationMarketplaceResources[0]), { kind: 'missing', target: getFixtureInstallationTarget(customizationMarketplaceResources[0]) });
+	}
+	if (options.customizationMarketplaceDetailState) {
+		const resource = customizationMarketplaceResources[0];
+		const target = getFixtureInstallationTarget(resource);
+		const state: CustomizationMarketplaceInstallState = options.customizationMarketplaceDetailState === 'missing'
+			? { kind: 'missing', target }
+			: options.customizationMarketplaceDetailState === 'error'
+				? { kind: 'error', target, message: 'Installation failed because the selected destination is not writable.' }
+				: { kind: 'unavailable', message: 'This customization requires a runtime that is not installed.', setupUrl: URI.parse('https://example.com/setup') };
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), state);
 	}
 
 	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
@@ -1387,6 +1398,9 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				mcpService,
 				new class extends mock<IMcpCopilotGlobalConfigurationService>() {
 					override async getConfigurationResource() { return undefined; }
+				}(),
+				new class extends mock<IWorkspaceContextService>() {
+					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
 				}(),
 			));
 			const activeDescriptor = harnessService.findHarnessById(getChatSessionType(options.sessionResource));
@@ -1920,6 +1934,18 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				}
 			}
 			assert(detailContainer !== null && scrollHost !== null, 'Marketplace detail must render inside its page scroll host.');
+			if (options.customizationMarketplaceDetailState) {
+				const diagnostic = detailContainer.querySelector<HTMLElement>('.mcp-detail-diagnostic-card');
+				assert(Boolean(diagnostic?.textContent?.trim()), 'Marketplace failure detail must render its diagnostic banner.');
+				const detailSection = detailContainer.querySelector<HTMLElement>('.marketplace-detail-query-list');
+				assert(
+					!diagnostic || !detailSection
+					|| Math.abs(diagnostic.getBoundingClientRect().left - detailSection.getBoundingClientRect().left) <= 1
+					&& Math.abs(diagnostic.getBoundingClientRect().right - detailSection.getBoundingClientRect().right) <= 1,
+					'Marketplace failure detail must align with the page content.',
+				);
+				assert(options.customizationMarketplaceDetailState !== 'missing' || !diagnostic || diagnostic.offsetHeight < 72, 'A summary-only marketplace diagnostic must size to its content.');
+			}
 			assert(
 				scrollHost.getBoundingClientRect().bottom <= detailContainer.getBoundingClientRect().bottom + 1,
 				'Marketplace detail scroll host must remain inside the detail page bounds.',
@@ -3427,6 +3453,42 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectDiscoveryResult: true,
 			width: 560,
 			height: 520,
+		}),
+	}),
+
+	DiscoverMissingDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A missing marketplace customization shows the MCP-style warning banner and a primary Repair action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'missing',
+		}),
+	}),
+
+	DiscoverInstallErrorDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A marketplace installation error shows the MCP-style error banner with its failure reason and a disabled Install action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'error',
+		}),
+	}),
+
+	DiscoverUnavailableDetail: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['An unavailable marketplace customization shows the MCP-style warning banner with its setup reason and a View Setup action above its details.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'repository review',
+			selectDiscoveryResult: true,
+			customizationMarketplaceDetailState: 'unavailable',
 		}),
 	}),
 
