@@ -1,32 +1,18 @@
-# Black AI Assistant
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Black AI Assistant icon">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#111827" />
+      <stop offset="100%" stop-color="#0d1117" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#58a6ff" />
+      <stop offset="100%" stop-color="#1f6feb" />
+    </linearGradient>
+  </defs>
 
-A lightweight, independent AI coding assistant for VS Code powered by Gemini.
-
-## Features
-
-- Ask questions about the active file and selection
-- Generate practical code suggestions
-- Explain logic and refactor options
-- Insert the last response into the active editor
-- Clean dark theme inspired by GitHub-style IDE UIs
-
-## Setup
-
-1. Open VS Code settings.
-2. Search for `Black AI Assistant`.
-3. Add your Gemini API key under `blackAiAssistant.apiKey`.
-4. Run the command: `Black AI: Open Chat`.
-
-## Notes
-
-This is intentionally a semi-independent module rather than a clone of GitHub Copilot. It is built as a standalone extension with its own product identity and UI.
-
-## Development
-
-```bash
-cd black-ai-assistant
-npm install
-npm run compile
-```
-
-Then press `F5` in VS Code to launch the extension host.
+  <rect x="8" y="8" width="112" height="112" rx="22" fill="url(#bg)"/>
+  <rect x="18" y="18" width="92" height="92" rx="18" fill="#161b22" stroke="#30363d"/>
+  <path d="M36 82V46h18c11 0 18 6 18 16 0 10-7 16-18 16H36zm16-12h6c5 0 8-2 8-6s-3-6-8-6h-6v12z" fill="url(#accent)"/>
+  <path d="M76 86l12-20 12 20h-8l-2-4h-4l-2 4h-8zm12-12l-2 4h4l-2-4z" fill="#e6edf3"/>
+  <circle cx="92" cy="46" r="8" fill="#58a6ff"/>
+</svg>
