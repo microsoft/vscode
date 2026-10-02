@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DocumentPasteEdit } from '../../../common/languages.js';
 
 /** Owns cached paste edits until they are disposed or transferred to another session. */
-export class PasteEditSession extends Disposable {
-	private readonly _edits = this._register(new MutableDisposable<IDisposable>());
+export class PasteEditSession<T extends DocumentPasteEdit = DocumentPasteEdit> extends Disposable {
+	private readonly _disposables = this._register(new MutableDisposable<IDisposable>());
 
-	constructor(edits: IDisposable | undefined) {
+	constructor(readonly edits: readonly T[], disposables: IDisposable | undefined) {
 		super();
-		this._edits.value = edits;
+		this._disposables.value = disposables;
 	}
 
 	/** Transfers the edits to a new owner. Disposing this session will no longer release them. */
-	take(): PasteEditSession {
-		return new PasteEditSession(this._edits.clearAndLeak());
+	take(): PasteEditSession<T> {
+		return new PasteEditSession(this.edits, this._disposables.clearAndLeak());
 	}
 }
