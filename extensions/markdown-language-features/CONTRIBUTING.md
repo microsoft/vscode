@@ -84,6 +84,8 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`
 
+Markdown link navigation has two entry points: preview links use `MdLinkOpener`, while source-editor links use the language client's document-link provider. The client middleware and preview opener preserve fragments that the language server does not resolve to a line or heading. When changing link resolution, test both paths, including percent-encoded fragments and existing line/heading navigation.
+
 ### Updating the Markdown language service
 
 Language features such as IntelliSense, validation, document links, and rename are powered by a language server rather than being implemented directly in this extension. There are two packages for this:

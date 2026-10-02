@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as lsp from 'vscode-languageclient';
 import { MdLanguageClient } from '../client/client';
 import * as proto from '../client/protocol';
+import { getFragmentFromLinkText } from './linkFragment';
 
 enum OpenMarkdownLinks {
 	beside = 'beside',
@@ -71,20 +72,9 @@ export class MdLinkOpener {
 					uri = uri.with({ fragment: locationFragment });
 					rangeSelection = getSelectionFromLocationFragment(locationFragment);
 				} else {
-					const hashIndex = linkText.indexOf('#');
-					if (hashIndex !== -1) {
-						const rawSlice = linkText.slice(hashIndex + 1);
-						if (rawSlice) {
-							let raw: string | undefined;
-							try {
-								raw = decodeURIComponent(rawSlice);
-							} catch {
-								raw = undefined;
-							}
-							if (raw) {
-								uri = uri.with({ fragment: raw });
-							}
-						}
+					const fragment = getFragmentFromLinkText(linkText);
+					if (fragment) {
+						uri = uri.with({ fragment });
 					}
 				}
 			}
@@ -208,17 +198,7 @@ function getSelectionFromLocationFragment(fragment: string): vscode.Range | unde
 }
 
 function getLocationFragmentFromLinkText(linkText: string): string | undefined {
-	const fragmentStart = linkText.indexOf('#');
-	if (fragmentStart < 0) {
-		return undefined;
-	}
-
-	let fragment: string;
-	try {
-		fragment = decodeURIComponent(linkText.slice(fragmentStart + 1));
-	} catch {
-		return undefined;
-	}
+	const fragment = getFragmentFromLinkText(linkText);
 	if (!fragment) {
 		return undefined;
 	}

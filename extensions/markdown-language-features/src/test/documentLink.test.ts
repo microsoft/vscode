@@ -49,6 +49,40 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 		assertActiveDocumentUri(workspaceFile('b.md'));
 	});
 
+	test('Should preserve non-line fragments on resolved file links', async () => {
+		const targetName = `fragment-target-${Date.now()}.pdf`;
+		const target = workspaceFile(targetName);
+		await vscode.workspace.fs.writeFile(target, new Uint8Array());
+		try {
+			const fragments = [
+				'#page=3',
+				'#page%3D3',
+				'#nameddest=Chapter%201',
+				'#nameddest=Chapter%25201',
+				'',
+				'#',
+				'#bad%',
+			];
+			await withFileContents(testFileA, joinLines(...fragments.map(fragment => `[pdf](${targetName}${fragment})`)));
+
+			const links = await getLinksForFile(testFileA);
+			assert.deepStrictEqual(links.map(link => ({
+				path: link.target?.fsPath,
+				fragment: link.target?.fragment,
+			})), [
+				{ path: target.fsPath, fragment: 'page=3' },
+				{ path: target.fsPath, fragment: 'page=3' },
+				{ path: target.fsPath, fragment: 'nameddest=Chapter 1' },
+				{ path: target.fsPath, fragment: 'nameddest=Chapter%201' },
+				{ path: target.fsPath, fragment: '' },
+				{ path: target.fsPath, fragment: '' },
+				{ path: target.fsPath, fragment: '' },
+			]);
+		} finally {
+			await vscode.workspace.fs.delete(target);
+		}
+	});
+
 	test('Should navigate to markdown file with leading ./', async () => {
 		await withFileContents(testFileA, '[b](./b.md)');
 

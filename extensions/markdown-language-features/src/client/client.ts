@@ -8,6 +8,7 @@ import * as lsp from 'vscode-languageclient';
 import { IMdParser } from '../markdownEngine';
 import { IDisposable } from '../util/dispose';
 import { looksLikeMarkdownPath, markdownFileExtensions, markdownLanguageIds } from '../util/file';
+import { createDocumentLinkMiddleware } from './documentLinks';
 import { FileWatcherManager } from './fileWatchingManager';
 import { InMemoryDocument } from './inMemoryDocument';
 import * as proto from './protocol';
@@ -71,6 +72,7 @@ export async function startClient(factory: LanguageClientConstructor, parser: IM
 
 	const clientOptions: lsp.LanguageClientOptions = {
 		documentSelector: markdownLanguageIds,
+		middleware: createDocumentLinkMiddleware(),
 		synchronize: {
 			configurationSection: ['markdown'],
 			fileEvents: vscode.workspace.createFileSystemWatcher(mdFileGlob),

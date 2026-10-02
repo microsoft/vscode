@@ -5,11 +5,73 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import * as sinon from 'sinon';
 import * as vscode from 'vscode';
+import { MdLanguageClient } from '../client/client';
 import type { ResolvedDocumentLinkTarget } from '../client/protocol';
 import { getAbsoluteUri, getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
+import { getFragmentFromLinkText } from '../util/linkFragment';
 
 suite('Open Markdown document link', () => {
+	teardown(() => sinon.restore());
+
+	test('forwards fragments to vscode.open while preserving selections', async () => {
+		const client = sinon.createStubInstance(MdLanguageClient);
+		const opener = new MdLinkOpener(client);
+		const open = sinon.stub(vscode.commands, 'executeCommand').resolves();
+		const target = vscode.Uri.file('/workspace/file.pdf');
+		const source = vscode.Uri.file('/workspace/source.md');
+		const links = ['file.pdf#page=3', 'file.pdf#page%3D3', 'file.pdf#nameddest=Chapter%201', 'file.pdf#bad%', 'file.pdf', 'file.pdf#L10,2-L12,4'];
+		client.resolveLinkTarget.resolves({ kind: 'file', uri: target });
+		for (const link of links) {
+			await opener.openDocumentLink(link, source, vscode.ViewColumn.Active);
+		}
+		client.resolveLinkTarget.resolves({ kind: 'file', uri: target, positionOrRange: { line: 4, character: 2 } });
+		await opener.openDocumentLink('file.pdf#page=3', source, vscode.ViewColumn.Active);
+		client.resolveLinkTarget.resolves({ kind: 'file', uri: target.with({ fragment: 'page=2' }) });
+		await opener.openDocumentLink('file.pdf#page=3', source, vscode.ViewColumn.Active);
+
+		const options = { selection: undefined, viewColumn: vscode.ViewColumn.Active };
+		assert.deepStrictEqual(open.getCalls().map(call => call.args), [
+			['vscode.open', target.with({ fragment: 'page=3' }), options],
+			['vscode.open', target.with({ fragment: 'page=3' }), options],
+			['vscode.open', target.with({ fragment: 'nameddest=Chapter 1' }), options],
+			['vscode.open', target, options],
+			['vscode.open', target, options],
+			['vscode.open', target.with({ fragment: 'L10,2-L12,4' }), { ...options, selection: new vscode.Range(9, 1, 11, 3) }],
+			['vscode.open', target, { ...options, selection: new vscode.Range(4, 2, 4, 2) }],
+			['vscode.open', target.with({ fragment: 'page=2' }), options],
+		]);
+	});
+
+	test('extracts and decodes fragments once', () => {
+		assert.deepStrictEqual([
+			'file.pdf#page=3',
+			'file.pdf#page%3D3',
+			'file.pdf#nameddest=Chapter%201',
+			'file.pdf#nameddest=Chapter%25201',
+			'file.pdf#nameddest=Chapter%23One',
+			'file.pdf',
+			'file.pdf#',
+			'file.pdf#bad%',
+			'file.pdf#%FF',
+			'file%23name.pdf#page=3',
+			'file.txt#L10%2C2-L12%2C4',
+		].map(getFragmentFromLinkText), [
+			'page=3',
+			'page=3',
+			'nameddest=Chapter 1',
+			'nameddest=Chapter%201',
+			'nameddest=Chapter#One',
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			'page=3',
+			'L10,2-L12,4',
+		]);
+	});
+
 	test('recognizes absolute links without treating relative links as URIs', () => {
 		assert.deepStrictEqual({
 			github: getAbsoluteUri('https://github.com/microsoft/vscode/issues/123')?.toString(),
