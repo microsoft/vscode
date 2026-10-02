@@ -33,6 +33,7 @@ import { RenameToolId } from '../../tools/renameTool.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkspaceAgentPluginActivationService } from '../../workspaceAgentPluginActivation.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
 import { type ILocalCustomizationSyncOptions, resolveCustomizationRefs, resolveLocalCustomAgents } from './agentHostLocalCustomizations.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
@@ -121,6 +122,7 @@ class AgentCustomizationScope extends Disposable {
 		@IFileService private readonly _fileService: IFileService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IWorkspaceAgentPluginActivationService private readonly _workspaceAgentPluginActivationService: IWorkspaceAgentPluginActivationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
@@ -133,6 +135,7 @@ class AgentCustomizationScope extends Disposable {
 			const seq = ++this._updateSeq;
 			let completedInitialResolution = false;
 			try {
+				await this._workspaceAgentPluginActivationService.reconcile(this._roots.slice(0, 1));
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,
@@ -147,7 +150,7 @@ class AgentCustomizationScope extends Disposable {
 						this._roots,
 						this._windowRemoteAuthority,
 					),
-					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options),
+					resolveLocalCustomAgents(this._fileService, this._promptsService, this._syncProvider, this._agentPluginService, this._sessionType, this._options, this._roots),
 				]);
 				if (seq !== this._updateSeq) {
 					return;
@@ -186,6 +189,7 @@ class AgentCustomizationScope extends Disposable {
 			this._promptsService.onDidChangeInstructions,
 		)(() => scheduleUpdate()));
 		this._register(autorun(reader => {
+			const workspaceFolder = this._roots[0];
 			for (const plugin of this._agentPluginService.plugins.read(reader)) {
 				plugin.enablement.read(reader);
 				plugin.hooks.read(reader);
@@ -194,6 +198,9 @@ class AgentCustomizationScope extends Disposable {
 				plugin.agents.read(reader);
 				plugin.instructions.read(reader);
 				plugin.mcpServerDefinitions.read(reader);
+				if (workspaceFolder) {
+					this._agentPluginService.getWorkspaceConfiguredEnablement(plugin, workspaceFolder, reader);
+				}
 			}
 			scheduleUpdate();
 		}));
@@ -300,9 +307,11 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	}
 
 	acquireScope(sessionType: string, roots: readonly URI[]): IAgentCustomizationScope {
+		const orderedRoots = deduplicateRoots(roots, this._uriIdentityService.extUri);
 		const normalizedRoots = normalizeRoots(roots, this._uriIdentityService.extUri);
 		const scopeKey = getScopeKey(normalizedRoots, this._uriIdentityService.extUri);
-		const serviceScopeKey = getServiceScopeKey(sessionType, scopeKey);
+		const primaryRootKey = orderedRoots[0] ? this._uriIdentityService.extUri.getComparisonKey(orderedRoots[0]) : undefined;
+		const serviceScopeKey = getServiceScopeKey(sessionType, primaryRootKey, scopeKey);
 		let scope = this._scopes.get(serviceScopeKey);
 		if (!scope) {
 			// A host that does not share the client's filesystem needs user storage shipped over the wire.
@@ -310,7 +319,7 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 			const createdScope: AgentCustomizationScope = this._instantiationService.createInstance(
 				AgentCustomizationScope,
 				sessionType,
-				normalizedRoots,
+				orderedRoots,
 				scopeKey,
 				this.getSyncProvider(sessionType),
 				options,
@@ -451,17 +460,19 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 }
 
 function normalizeRoots(roots: readonly URI[], extUri: IExtUri): readonly URI[] {
-	const rootsByUri = new ResourceMap<URI>(root => extUri.getComparisonKey(root));
-	for (const root of roots) {
-		rootsByUri.set(root, root);
-	}
-	// Ordinal (not locale) ordering: this order feeds `getScopeKey`, whose hash
-	// becomes an on-disk plugin cache directory name on the agent host side.
-	return [...rootsByUri.values()].sort((a, b) => {
+	return [...deduplicateRoots(roots, extUri)].sort((a, b) => {
 		const left = extUri.getComparisonKey(a);
 		const right = extUri.getComparisonKey(b);
 		return left < right ? -1 : left > right ? 1 : 0;
 	});
+}
+
+function deduplicateRoots(roots: readonly URI[], extUri: IExtUri): readonly URI[] {
+	const rootsByUri = new ResourceMap<URI>(root => extUri.getComparisonKey(root));
+	for (const root of roots) {
+		rootsByUri.set(root, root);
+	}
+	return [...rootsByUri.values()];
 }
 
 /** Returns whether two working-directory sets describe the same customization scope. */
@@ -469,15 +480,20 @@ export function areCustomizationScopeRootsEqual(first: readonly URI[] | undefine
 	const toComparisonKey = (root: URI) => extUri.getComparisonKey(root);
 	const firstRoots = new ResourceSet(first ?? [], toComparisonKey);
 	const secondRoots = new ResourceSet(second, toComparisonKey);
-	return firstRoots.size === secondRoots.size && [...firstRoots].every(root => secondRoots.has(root));
+	const firstPrimary = first?.[0];
+	const secondPrimary = second[0];
+	const samePrimary = firstPrimary === undefined
+		? secondPrimary === undefined
+		: secondPrimary !== undefined && extUri.isEqual(firstPrimary, secondPrimary);
+	return samePrimary && firstRoots.size === secondRoots.size && [...firstRoots].every(root => secondRoots.has(root));
 }
 
 function getScopeKey(roots: readonly URI[], extUri: IExtUri): string {
 	return roots.map(root => extUri.getComparisonKey(root)).join('\n');
 }
 
-function getServiceScopeKey(sessionType: string, scopeKey: string): string {
-	return JSON.stringify([sessionType, scopeKey]);
+function getServiceScopeKey(sessionType: string, primaryRootKey: string | undefined, scopeKey: string): string {
+	return JSON.stringify([sessionType, primaryRootKey, scopeKey]);
 }
 
 function createScopeAuthority(sessionType: string, scopeKey: string): string {

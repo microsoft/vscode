@@ -643,7 +643,10 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 
 	const marketplaceRef = parseMarketplaceReference('microsoft/plugins')!;
 
-	function createService(autoUpdate: AutoUpdateConfigurationValue = 'on', extraMarketplaces: Record<string, unknown> = {}): PluginMarketplaceService {
+	function createService(
+		autoUpdate: AutoUpdateConfigurationValue = 'on',
+		extraMarketplaces: Record<string, unknown> = {},
+	): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
@@ -724,6 +727,20 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 			unmanaged: false,
 		});
 	});
+
+	test('repository marketplace autoUpdate does not override the global setting', () => {
+		const repositoryMarketplace = parseMarketplaceReference('microsoft/repository-plugins')!;
+
+		assert.deepStrictEqual({
+			enabledWithGlobalOff: createService('off').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: true }),
+			enabledWithGlobalOn: createService('on').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: true }),
+			disabledWithGlobalOn: createService('on').isMarketplaceAutoUpdateEnabled({ ...repositoryMarketplace, autoUpdate: false }),
+		}, {
+			enabledWithGlobalOff: false,
+			enabledWithGlobalOn: true,
+			disabledWithGlobalOn: false,
+		});
+	});
 });
 
 suite('PluginMarketplaceService - installed plugins lifecycle', () => {
@@ -748,6 +765,8 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		configurationService?: TestConfigurationService;
 		meteredConnectionService?: IMeteredConnectionService;
 		pluginRepositoryService?: Partial<IAgentPluginRepositoryService>;
+		workspaceExtraMarketplaces?: IWorkspacePluginSettingsService['extraMarketplaces'];
+		autoUpdate?: AutoUpdateConfigurationValue;
 	}): PluginMarketplaceService {
 		const instantiationService = store.add(new TestInstantiationService());
 
@@ -765,7 +784,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
 		instantiationService.stub(IWorkspacePluginSettingsService, {
-			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			extraMarketplaces: options?.workspaceExtraMarketplaces ?? observableValue('test.extraMarketplaces', []),
 			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
 		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
 		instantiationService.stub(IWorkspaceTrustManagementService, {
@@ -773,7 +792,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, {
-			getAutoUpdateValue: () => 'on',
+			getAutoUpdateValue: () => options?.autoUpdate ?? 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
 		stubMeteredConnectionService(instantiationService, options?.meteredConnectionService);
 
@@ -911,6 +930,49 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		await timeout(0);
 		await timeout(0);
 		assert.strictEqual(fetchCount, 1);
+	});
+
+	test('repository marketplace changes do not schedule update checks when global auto-update is off', async () => {
+		let runIdle: ((idle: IdleDeadline) => void) | undefined;
+		store.add(installFakeRunWhenIdle((_target, runner) => {
+			runIdle = runner;
+			return Disposable.None;
+		}));
+		const installedRepositoryRef = { ...marketplaceRef, autoUpdate: false };
+		const configuredRepositoryRef = { ...marketplaceRef, autoUpdate: true };
+		const workspaceExtraMarketplaces = observableValue<readonly { name: string; reference: IMarketplaceReference }[]>('test.extraMarketplaces', []);
+		let fetchCount = 0;
+		const service = createService({
+			autoUpdate: 'off',
+			workspaceExtraMarketplaces,
+			pluginRepositoryService: {
+				fetchRepository: async () => {
+					fetchCount++;
+					return false;
+				},
+			},
+		});
+		service.addInstalledPlugin(
+			URI.file('/agent-plugins/github.com/microsoft/plugins/my-plugin'),
+			makePlugin('my-plugin', 'my-plugin', installedRepositoryRef),
+		);
+
+		assert.ok(runIdle);
+		runIdle({ didTimeout: false, timeRemaining: () => 50 });
+		await timeout(0);
+		const beforeRepositoryConfiguration = fetchCount;
+
+		workspaceExtraMarketplaces.set([{ name: 'repository', reference: configuredRepositoryRef }], undefined);
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			beforeRepositoryConfiguration,
+			afterRepositoryConfiguration: fetchCount,
+		}, {
+			beforeRepositoryConfiguration: 0,
+			afterRepositoryConfiguration: 0,
+		});
 	});
 
 	test('defers an overdue check until queued updates are acknowledged', async () => {

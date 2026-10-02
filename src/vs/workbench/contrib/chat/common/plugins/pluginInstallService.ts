@@ -57,6 +57,11 @@ export interface IInstallPluginFromSourceResult {
 	readonly matchedPlugin?: IMarketplacePlugin;
 }
 
+export interface IInstallMarketplacePluginOptions {
+	/** Skips the trust prompt after trusted workspace configuration established the marketplace source. */
+	readonly skipTrust?: boolean;
+}
+
 export interface IPluginInstallService {
 	readonly _serviceBrand: undefined;
 
@@ -64,7 +69,7 @@ export interface IPluginInstallService {
 	 * Clones the marketplace repository (if not already cached) and registers
 	 * the plugin in the marketplace service's installed plugins storage.
 	 */
-	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken): Promise<void>;
+	installPlugin(plugin: IMarketplacePlugin, token?: CancellationToken, options?: IInstallMarketplacePluginOptions): Promise<void>;
 
 	/**
 	 * Removes the exact installed plugin entry and performs best-effort source cleanup.

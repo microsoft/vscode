@@ -140,7 +140,7 @@ Manages the catalog of available and installed plugins:
 - **Fetch** — reads `chat.plugins.marketplaces` config (GitHub shorthand, Git URLs, or file URIs), fetches `marketplace.json` from each, and returns parsed `IMarketplacePlugin` entries.
 - **Installed storage** — persists installed plugins in application-scoped storage (`chat.plugins.installed.v1`). Each entry tracks `{ pluginUri, plugin, enabled }`.
 - **Trust** — marketplace canonical IDs must be explicitly trusted before install proceeds (`chat.plugins.trustedMarketplaces.v1`).
-- **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
+- **Auto-update** — checks eligible installed marketplaces approximately every 24 hours and reports their canonical IDs through `marketplacesWithUpdates`. Managed `extraKnownMarketplaces.<name>.autoUpdate` values override `extensions.autoUpdate` for that marketplace; undefined entries inherit the global setting. Repository settings cannot authorize silent updates to the shared plugin cache. Checks and updates are restricted to enabled marketplaces and still enforce `strictKnownMarketplaces`.
 - **GitHub caching** — caches raw GitHub API responses with an 8-hour TTL to avoid repeated fetches.
 
 ### Marketplace Definition Files
@@ -181,6 +181,10 @@ Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific 
 | `chat.pluginsEnabled` | boolean | `true` | Master switch for the plugin system |
 | `chat.pluginLocations` | `Record<string, boolean>` | `{}` | Local plugin directories to discover |
 | `chat.pluginMarketplaces` | `string[]` | `[]` | Marketplace references to fetch from |
+
+### Repository-scoped activation
+
+Trusted workspace settings in `.claude/settings(.local).json` and `.github/copilot/settings(.local).json` can define `extraKnownMarketplaces` and `enabledPlugins`. Repository layers follow Copilot CLI precedence: Copilot local, Copilot shared, Claude local, then Claude shared. In multi-root windows, each folder retains its own marketplace aliases and enablement map; an agent-host session receives only the decision for its primary working directory. An `enabledPlugins` entry set to `true` installs the plugin from the repository's exact marketplace source without another confirmation and overlays workspace enablement only onto that source; `false` overlays workspace disablement; an absent entry leaves the stored user state unchanged. Repository-installed plugins receive a disabled profile baseline so that leaving the workspace does not activate them globally, and they participate in automatic updates only when authorized by user or managed settings. Enterprise policy remains authoritative, and none of these workspace decisions are exposed while the workspace is untrusted.
 
 ### Enterprise customization lockdown
 

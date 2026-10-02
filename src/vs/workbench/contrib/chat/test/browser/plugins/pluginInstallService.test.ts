@@ -72,6 +72,7 @@ suite('PluginInstallService', () => {
 		/** Whether the terminal resolves the command completion at all */
 		terminalCompletes: boolean;
 		pullRepositoryCalls: { marketplace: IMarketplaceReference; options?: IPullRepositoryOptions }[];
+		pullRepositoryChanged: boolean;
 		updatePluginSourceCalls: { plugin: IMarketplacePlugin; options?: IPullRepositoryOptions }[];
 		/** Whether the marketplace is already trusted */
 		marketplaceTrusted: boolean;
@@ -128,6 +129,7 @@ suite('PluginInstallService', () => {
 			terminalExitCode: 0,
 			terminalCompletes: true,
 			pullRepositoryCalls: [],
+			pullRepositoryChanged: false,
 			updatePluginSourceCalls: [],
 			marketplaceTrusted: true,
 			strictMarketplacePolicyActive: false,
@@ -304,6 +306,7 @@ suite('PluginInstallService', () => {
 			},
 			pullRepository: async (marketplace: IMarketplaceReference, options?: IPullRepositoryOptions) => {
 				state.pullRepositoryCalls.push({ marketplace, options });
+				return state.pullRepositoryChanged;
 			},
 			getPluginSourceInstallUri: (descriptor: IPluginSourceDescriptor) => {
 				const key = descriptor.kind;
@@ -1001,6 +1004,36 @@ suite('PluginInstallService', () => {
 			});
 		});
 
+		test('applies a simulated repository marketplace update automatically', async () => {
+			const installed = installedPlugin('repository-plugin', 'microsoft/repository-plugins');
+			const updated = { ...installed.plugin, version: '2.0.0', description: 'updated' };
+			const { service, state } = createService({
+				installedPlugins: [installed],
+				fetchedMarketplacePlugins: [updated],
+				pullRepositoryChanged: true,
+				autoUpdateByMarketplace: new Map([[installed.plugin.marketplaceReference.canonicalId, true]]),
+			});
+
+			const result = await service.updateAllPlugins({
+				silent: true,
+				automatic: true,
+				marketplaceIds: new Set([installed.plugin.marketplaceReference.canonicalId]),
+			}, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				result,
+				pulled: state.pullRepositoryCalls.map(call => call.marketplace.canonicalId),
+				fetched: state.fetchMarketplaceCalls,
+			}, {
+				result: {
+					updatedNames: [installed.plugin.marketplaceReference.displayLabel],
+					failedNames: [],
+				},
+				pulled: [installed.plugin.marketplaceReference.canonicalId],
+				fetched: [[installed.plugin.marketplaceReference.canonicalId]],
+			});
+		});
+
 		test('rechecks managed auto-update policy before an automatic update', async () => {
 			const installed = installedPlugin('blocked', 'microsoft/blocked');
 			const { service, state } = createService({
@@ -1089,6 +1122,24 @@ suite('PluginInstallService', () => {
 
 			assert.strictEqual(state.addedPlugins.length, 1);
 			assert.strictEqual(state.trustedMarketplaces.length, 0, 'should not re-trust');
+		});
+
+		test('skips trust prompt when a trusted repository established the marketplace source', async () => {
+			const { service, state } = createService({ marketplaceTrusted: false, dialogConfirmResult: false });
+			const plugin = createPlugin({
+				source: 'plugins/myPlugin',
+				sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: 'plugins/myPlugin' },
+			});
+
+			await service.installPlugin(plugin, CancellationToken.None, { skipTrust: true });
+
+			assert.deepStrictEqual({
+				installed: state.addedPlugins.length,
+				trusted: state.trustedMarketplaces.length,
+			}, {
+				installed: 1,
+				trusted: 0,
+			});
 		});
 
 		test('shows trust prompt and installs when user confirms', async () => {

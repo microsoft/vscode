@@ -182,6 +182,14 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		), false);
 	});
 
+	test('keeps scopes with different primary workspace roots separate', () => {
+		const extUri = new ExtUri(() => false);
+		const first = URI.file('/workspace-a');
+		const second = URI.file('/workspace-b');
+
+		assert.strictEqual(areCustomizationScopeRootsEqual([first, second], [second, first], extUri), false);
+	});
+
 	let agentHost: MockAgentHostService;
 	let sessionResolutions: ResourceMap<IAgentHostSessionResolution | undefined>;
 	let onDidChangeSessionResolution: Emitter<void>;

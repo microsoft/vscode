@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -14,6 +15,7 @@ import { FileService } from '../../../../../../platform/files/common/fileService
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { testWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { WorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
 
@@ -23,10 +25,14 @@ suite('WorkspacePluginSettingsService', () => {
 
 	let fileService: FileService;
 	let workspaceContextService: TestContextService;
+	let workspaceTrusted: boolean;
+	let trustChanged: Emitter<boolean>;
 	const workspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace' });
 
 	setup(() => {
 		workspaceContextService = new TestContextService(testWorkspace(workspaceRoot));
+		workspaceTrusted = true;
+		trustChanged = store.add(new Emitter<boolean>());
 		fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 	});
@@ -36,6 +42,10 @@ suite('WorkspacePluginSettingsService', () => {
 			fileService,
 			workspaceContextService,
 			logService,
+			{
+				isWorkspaceTrusted: () => workspaceTrusted,
+				onDidChangeTrust: trustChanged.event,
+			} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService,
 		));
 	}
 
@@ -54,7 +64,43 @@ suite('WorkspacePluginSettingsService', () => {
 		await fileService.writeFile(uri, VSBuffer.fromString(content));
 	}
 
+	async function writeCopilotLocalSettings(content: string): Promise<void> {
+		const uri = URI.from({ scheme: Schemas.inMemory, path: '/workspace/.github/copilot/settings.local.json' });
+		await fileService.writeFile(uri, VSBuffer.fromString(content));
+	}
+
 	// --- enabledPlugins parsing ---
+
+	test('ignores workspace plugin settings until the workspace is trusted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		workspaceTrusted = false;
+		await writeCopilotSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'my-marketplace': { source: 'github', repo: 'owner/repo' }
+			},
+			enabledPlugins: { 'my-plugin@my-marketplace': true }
+		}));
+
+		const service = createService();
+		assert.deepStrictEqual({
+			marketplaces: service.extraMarketplaces.get(),
+			enabledPlugins: [...service.enabledPlugins.get()],
+		}, {
+			marketplaces: [],
+			enabledPlugins: [],
+		});
+
+		workspaceTrusted = true;
+		trustChanged.fire(true);
+		await waitForState(service.enabledPlugins, value => value.size > 0);
+
+		assert.deepStrictEqual({
+			marketplaces: service.extraMarketplaces.get().map(entry => entry.name),
+			enabledPlugins: [...service.enabledPlugins.get()],
+		}, {
+			marketplaces: ['my-marketplace'],
+			enabledPlugins: [['my-plugin@my-marketplace', true]],
+		});
+	}));
 
 	test('parses enabledPlugins from Claude settings', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
@@ -110,7 +156,7 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(enabled.get('from-copilot@mp'), true);
 	}));
 
-	test('Claude enabledPlugins take precedence over Copilot for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('Copilot enabledPlugins take precedence over Claude for same key', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		await writeClaudeSettings(JSON.stringify({
 			enabledPlugins: { 'shared-plugin@mp': false }
 		}));
@@ -122,7 +168,63 @@ suite('WorkspacePluginSettingsService', () => {
 		await waitForState(service.enabledPlugins, v => v.size > 0);
 
 		const enabled = service.enabledPlugins.get();
-		assert.strictEqual(enabled.get('shared-plugin@mp'), false, 'Claude should win');
+		assert.strictEqual(enabled.get('shared-plugin@mp'), true, 'Copilot should win');
+	}));
+
+	test('Copilot local enabledPlugins take precedence over all other repository layers', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeClaudeLocalSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeCopilotSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': false } }));
+		await writeCopilotLocalSettings(JSON.stringify({ enabledPlugins: { 'shared-plugin@mp': true } }));
+
+		const service = createService();
+		await waitForState(service.enabledPlugins, v => v.size > 0);
+
+		assert.strictEqual(service.enabledPlugins.get().get('shared-plugin@mp'), true);
+	}));
+
+	test('keeps plugin settings scoped to their source workspace folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const secondWorkspaceRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspace-b' });
+		workspaceContextService = new TestContextService(testWorkspace(workspaceRoot, secondWorkspaceRoot));
+		await fileService.writeFile(
+			URI.joinPath(workspaceRoot, '.github', 'copilot', 'settings.json'),
+			VSBuffer.fromString(JSON.stringify({
+				extraKnownMarketplaces: { shared: { source: 'github', repo: 'owner/marketplace-a' } },
+				enabledPlugins: { 'shared-plugin@shared': true },
+			})),
+		);
+		await fileService.writeFile(
+			URI.joinPath(secondWorkspaceRoot, '.github', 'copilot', 'settings.json'),
+			VSBuffer.fromString(JSON.stringify({
+				extraKnownMarketplaces: { shared: { source: 'github', repo: 'owner/marketplace-b' } },
+				enabledPlugins: { 'shared-plugin@shared': false },
+			})),
+		);
+
+		const service = createService();
+		await waitForState(service.workspaceSettings, settings => settings.length === 2 && settings.every(entry => entry.enabledPlugins.size === 1));
+
+		const first = service.getWorkspaceSettings(workspaceRoot);
+		const second = service.getWorkspaceSettings(secondWorkspaceRoot);
+		assert.deepStrictEqual({
+			first: {
+				enabled: first?.enabledPlugins.get('shared-plugin@shared'),
+				marketplace: first?.extraMarketplaces[0].reference.canonicalId,
+			},
+			second: {
+				enabled: second?.enabledPlugins.get('shared-plugin@shared'),
+				marketplace: second?.extraMarketplaces[0].reference.canonicalId,
+			},
+		}, {
+			first: {
+				enabled: true,
+				marketplace: 'github:owner/marketplace-a',
+			},
+			second: {
+				enabled: false,
+				marketplace: 'github:owner/marketplace-b',
+			},
+		});
 	}));
 
 	// --- extraKnownMarketplaces parsing ---
@@ -170,6 +272,7 @@ suite('WorkspacePluginSettingsService', () => {
 		await writeClaudeSettings(JSON.stringify({
 			extraKnownMarketplaces: {
 				'nested-mp': {
+					autoUpdate: true,
 					source: {
 						source: 'github',
 						repo: 'nested-owner/nested-repo',
@@ -185,6 +288,31 @@ suite('WorkspacePluginSettingsService', () => {
 		assert.strictEqual(marketplaces.length, 1);
 		assert.strictEqual(marketplaces[0].reference.githubRepo, 'nested-owner/nested-repo');
 		assert.strictEqual(marketplaces[0].reference.displayLabel, 'nested-mp');
+		assert.strictEqual(marketplaces[0].reference.autoUpdate, true);
+	}));
+
+	test('settings.local.json overrides settings.json for a same-named marketplace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/shared' }
+			}
+		}));
+		await writeClaudeLocalSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/local' }
+			}
+		}));
+
+		const service = createService();
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
+
+		assert.deepStrictEqual(service.extraMarketplaces.get().map(entry => ({
+			name: entry.name,
+			repo: entry.reference.githubRepo,
+		})), [{
+			name: 'shared-name',
+			repo: 'owner/local',
+		}]);
 	}));
 
 	test('deduplicates marketplaces across Claude and Copilot by canonical ID', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -204,7 +332,31 @@ suite('WorkspacePluginSettingsService', () => {
 
 		const marketplaces = service.extraMarketplaces.get();
 		assert.strictEqual(marketplaces.length, 1, 'should deduplicate by canonical ID');
-		assert.strictEqual(marketplaces[0].name, 'claude-name', 'Claude entry should win');
+		assert.strictEqual(marketplaces[0].name, 'copilot-name', 'Copilot entry should win');
+	}));
+
+	test('Copilot marketplace takes precedence over a same-named Claude marketplace', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		await writeClaudeSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/claude' }
+			}
+		}));
+		await writeCopilotSettings(JSON.stringify({
+			extraKnownMarketplaces: {
+				'shared-name': { source: 'github', repo: 'owner/copilot' }
+			}
+		}));
+
+		const service = createService();
+		await waitForState(service.extraMarketplaces, v => v.length > 0);
+
+		assert.deepStrictEqual(service.extraMarketplaces.get().map(entry => ({
+			name: entry.name,
+			repo: entry.reference.githubRepo,
+		})), [{
+			name: 'shared-name',
+			repo: 'owner/copilot',
+		}]);
 	}));
 
 	// --- Invalid input handling ---

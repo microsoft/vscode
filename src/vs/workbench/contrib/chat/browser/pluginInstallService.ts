@@ -23,7 +23,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { IPluginInstallService, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
+import { IPluginInstallService, IInstallMarketplacePluginOptions, IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../common/plugins/pluginInstallService.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService, MarketplaceReferenceKind, MarketplaceType, hasSourceChanged, parseMarketplaceReference, parseMarketplaceReferences, PluginSourceKind, readConfiguredMarketplaces } from '../common/plugins/pluginMarketplaceService.js';
 
 const maxPluginSubdirectoryLength = 8192;
@@ -45,9 +45,9 @@ export class PluginInstallService implements IPluginInstallService {
 		@IPathService private readonly _pathService: IPathService,
 	) { }
 
-	async installPlugin(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None): Promise<void> {
+	async installPlugin(plugin: IMarketplacePlugin, token: CancellationToken = CancellationToken.None, options?: IInstallMarketplacePluginOptions): Promise<void> {
 		this.throwIfCancelled(token);
-		if (!await this._ensureMarketplaceTrusted(plugin, token)) {
+		if (!options?.skipTrust && !await this._ensureMarketplaceTrusted(plugin, token)) {
 			throw new CancellationError();
 		}
 		this.throwIfCancelled(token);

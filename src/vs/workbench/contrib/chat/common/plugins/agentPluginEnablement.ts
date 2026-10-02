@@ -7,6 +7,7 @@ import { IObservable, IReader, ITransaction } from '../../../../../base/common/o
 import { AgentPluginDiscoveryPriority, IAgentPlugin } from './agentPluginService.js';
 import { IGitHubPluginSource, IGitUrlPluginSource, IMarketplacePlugin, INpmPluginSource, IPipPluginSource, PluginSourceKind } from './pluginMarketplaceService.js';
 import { type IMarketplaceReference } from './marketplaceReference.js';
+import { type IWorkspaceMarketplaceEntry } from './workspacePluginSettingsService.js';
 import { CollisionEnablementModel, ContributionEnablementState, IEnablementModel, isContributionEnabled } from '../enablement.js';
 
 export interface IDiscoveredAgentPlugins {
@@ -28,37 +29,41 @@ interface IAgentPluginCandidate {
  */
 const COPILOT_CLI_INSTALL_PATH_FRAGMENT = '/.copilot/installed-plugins/';
 
-class AgentPluginPolicyEnablementModel implements IEnablementModel {
+class AgentPluginConfiguredEnablementModel implements IEnablementModel {
 	constructor(
 		private readonly base: IEnablementModel,
-		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly configuredEnablement?: IObservable<ReadonlyMap<string, ContributionEnablementState>>,
 	) { }
 
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState {
-		const policyValue = this.policyEnablement?.read(reader).get(key);
-		return policyValue === true
-			? ContributionEnablementState.EnabledProfile
-			: policyValue === false
-				? ContributionEnablementState.DisabledProfile
-				: this.base.readEnabled(key, reader);
+		return this.configuredEnablement?.read(reader).get(key) ?? this.base.readEnabled(key, reader);
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
-		return this.policyEnablement?.read(reader).get(key) ?? this.base.readProfileEnabled(key, reader);
+		const configuredState = this.configuredEnablement?.read(reader).get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile) {
+			return true;
+		}
+		if (configuredState === ContributionEnablementState.DisabledProfile) {
+			return false;
+		}
+		return this.base.readProfileEnabled(key, reader);
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
-		const policy = this.policyEnablement?.get();
-		if (policy?.has(key)) {
+		const configuredState = this.configuredEnablement?.get().get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile || configuredState === ContributionEnablementState.DisabledProfile) {
 			return;
 		}
 		this.base.setEnabled(key, state, tx);
 	}
 
 	remove(key: string): void {
-		if (!this.policyEnablement?.get().has(key)) {
-			this.base.remove(key);
+		const configuredState = this.configuredEnablement?.get().get(key);
+		if (configuredState === ContributionEnablementState.EnabledProfile || configuredState === ContributionEnablementState.DisabledProfile) {
+			return;
 		}
+		this.base.remove(key);
 	}
 }
 
@@ -66,14 +71,17 @@ export class AgentPluginCollisionEnablementModel extends CollisionEnablementMode
 	constructor(
 		base: IEnablementModel,
 		private readonly collisionGroups: IObservable<ReadonlyMap<string, readonly string[]>>,
-		private readonly policyEnablement?: IObservable<ReadonlyMap<string, boolean>>,
+		private readonly configuredEnablement?: IObservable<ReadonlyMap<string, ContributionEnablementState>>,
 	) {
-		super(new AgentPluginPolicyEnablementModel(base, policyEnablement), collisionGroups);
+		super(new AgentPluginConfiguredEnablementModel(base, configuredEnablement), collisionGroups);
 	}
 
 	override setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {
 		const group = isContributionEnabled(state) ? this.collisionGroups.get().get(key) : undefined;
-		if (group?.some(otherId => otherId !== key && this.policyEnablement?.get().get(otherId) === true)) {
+		if (group?.some(otherId => {
+			const configuredState = this.configuredEnablement?.get().get(otherId);
+			return otherId !== key && configuredState !== undefined && isContributionEnabled(configuredState);
+		})) {
 			return;
 		}
 		super.setEnabled(key, state, tx);
@@ -146,6 +154,60 @@ export function getAgentPluginPolicyEnablement(
 ): boolean | undefined {
 	const pluginId = getAgentPluginPolicyId(plugin);
 	return pluginId === undefined ? undefined : enabledPluginsPolicy?.[pluginId];
+}
+
+export function getAgentPluginConfiguredEnablement(
+	plugin: IAgentPlugin,
+	enabledPluginsPolicy: Record<string, boolean> | undefined,
+	workspaceEnabledPlugins: ReadonlyMap<string, boolean> | undefined,
+	workspaceMarketplaces?: readonly IWorkspaceMarketplaceEntry[],
+): ContributionEnablementState | undefined {
+	const policyEnablement = getAgentPluginPolicyEnablement(plugin, enabledPluginsPolicy);
+	if (policyEnablement !== undefined) {
+		return policyEnablement ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile;
+	}
+
+	const workspaceEnablement = getAgentPluginWorkspaceEnablement(plugin, workspaceEnabledPlugins, workspaceMarketplaces);
+	if (workspaceEnablement !== undefined) {
+		return workspaceEnablement ? ContributionEnablementState.EnabledWorkspace : ContributionEnablementState.DisabledWorkspace;
+	}
+
+	return undefined;
+}
+
+export function getAgentPluginWorkspaceEnablement(
+	plugin: IAgentPlugin,
+	workspaceEnabledPlugins: ReadonlyMap<string, boolean> | undefined,
+	workspaceMarketplaces?: readonly IWorkspaceMarketplaceEntry[],
+): boolean | undefined {
+	const identity = getPolicyIdentity(plugin);
+	if (!identity || !workspaceEnabledPlugins) {
+		return undefined;
+	}
+
+	const pluginId = `${identity.name}@${identity.marketplace}`;
+	const workspaceMarketplace = workspaceMarketplaces?.find(entry => entry.name === identity.marketplace);
+	const matchesWorkspaceMarketplace = workspaceMarketplace === undefined
+		|| identity.marketplaceReference?.canonicalId === workspaceMarketplace.reference.canonicalId;
+	const directEnablement = matchesWorkspaceMarketplace ? workspaceEnabledPlugins.get(pluginId) : undefined;
+	if (directEnablement !== undefined) {
+		return directEnablement;
+	}
+
+	if (!identity.marketplaceReference) {
+		return undefined;
+	}
+	for (const [configuredPluginId, enabled] of workspaceEnabledPlugins) {
+		const separator = configuredPluginId.lastIndexOf('@');
+		if (separator <= 0 || configuredPluginId.slice(0, separator) !== identity.name) {
+			continue;
+		}
+		const configuredMarketplace = workspaceMarketplaces?.find(entry => entry.name === configuredPluginId.slice(separator + 1));
+		if (configuredMarketplace?.reference.canonicalId === identity.marketplaceReference.canonicalId) {
+			return enabled;
+		}
+	}
+	return undefined;
 }
 
 export function getAgentPluginPolicyId(plugin: IAgentPlugin): string | undefined {
