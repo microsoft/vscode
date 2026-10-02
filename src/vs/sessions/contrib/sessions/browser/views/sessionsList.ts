@@ -25,7 +25,6 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { fromNow } from '../../../../../base/common/date.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { OS } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId, IMenuService, MenuItemAction, SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
@@ -43,7 +42,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
-import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultToggleStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -114,17 +113,13 @@ import { ICustomViewService } from '../../../../services/customView/browser/cust
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { AutomationsNewBadgeState, type AutomationsNewBadgeStyle } from '../automationsNewBadge.js';
 import { OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../customizationsConstants.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { getSessionConversationStatusAriaLabel } from '../../../../browser/sessionConversationGroups.js';
 import { getAgentMergeAwarePullRequestIcon, getSessionAgentMergeConfigurationObservable, ISessionAgentMergeConfiguration, isAgentMergePullRequestIcon } from '../../../../browser/sessionAgentMerge.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 
 const $ = DOM.$;
 
-const NEW_SESSION_SECTION_ID = 'newSession';
 const AUTOMATIONS_SECTION_ID = 'automations';
 const CUSTOMIZATIONS_SECTION_ID = 'customizations';
 const EXTERNAL_SESSIONS_SECTION_ID = 'external';
@@ -363,8 +358,6 @@ function isSessionSection(item: SessionListItem): item is ISessionSection {
 
 function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 	switch (sectionId) {
-		case NEW_SESSION_SECTION_ID:
-			return Codicon.plus;
 		case QUICK_CHATS_SECTION_ID:
 			return Codicon.commentDiscussion;
 		case 'pinned':
@@ -389,7 +382,7 @@ function getSessionSectionIcon(sectionId: string): ThemeIcon | undefined {
 }
 
 function isShortcutSection(sectionId: string): boolean {
-	return sectionId === NEW_SESSION_SECTION_ID || sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
+	return sectionId === AUTOMATIONS_SECTION_ID || sectionId === CUSTOMIZATIONS_SECTION_ID;
 }
 
 function isSessionShowMore(item: SessionListItem): item is ISessionShowMore {
@@ -425,17 +418,10 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	private static readonly INPUT_NEEDED_ROW_HEIGHT = 32;
 	/** Quick-chat rows are single-line — see the `.session-item.quick-chat` rules in `sessionsList.css`. */
 	private static readonly ITEM_HEIGHT_QUICK_CHAT = 28;
-	private static readonly CHAT_ITEM_HEIGHT = 28;
 	private static readonly CHAT_ITEM_HEIGHT_PHONE = 44;
 	private static readonly CHAT_FOLDER_ROW_HEIGHT = 16;
-	/**
-	 * Bottom slack reserved under a chat row's approval prompt. The session row
-	 * absorbs the rendered code-block's line-height rounding in its own bottom
-	 * padding; the chat row has none, so it reserves this small buffer instead.
-	 * Keep in sync with the `.session-approval-row.visible` bottom margin in
-	 * `sessionsList.css`.
-	 */
-	private static readonly CHAT_APPROVAL_BOTTOM_SLACK = 6;
+	/** Phone chat rows have no bottom padding, so approvals reserve matching rounding slack. */
+	private static readonly CHAT_APPROVAL_PHONE_BOTTOM_SLACK = 6;
 	/**
 	 * Phone layout uses a taller row so the inline action toolbar can
 	 * meet the 44px minimum touch target without overflowing. Sized to
@@ -476,11 +462,7 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 
 	getHeight(element: SessionListItem): number {
 		if (isSessionChatItem(element)) {
-			let chatHeight = this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT;
-			if (!this._isCompact()) {
-				chatHeight += SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT;
-			}
-			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, chatHeight));
+			return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
 		}
 		if (isSessionGroupItem(element) && element.comparison) {
 			return SessionsTreeDelegate.COMPARISON_SECTION_HEIGHT;
@@ -537,11 +519,14 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 	}
 
 	getHeightWithoutChatWorkspace(element: ISessionChatItem): number {
-		const detailsHeight = !this._isCompact() ? SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT : 0;
-		return this.withInsetRowSpacing(this.withChatApprovalHeight(
-			element,
-			(this._isPhone() ? SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE : SessionsTreeDelegate.CHAT_ITEM_HEIGHT) + detailsHeight,
-		));
+		return this.withInsetRowSpacing(this.withChatApprovalHeight(element, this.getChatBaseHeight()));
+	}
+
+	private getChatBaseHeight(): number {
+		if (this._isPhone()) {
+			return SessionsTreeDelegate.CHAT_ITEM_HEIGHT_PHONE + (this._isCompact() ? 0 : SessionsTreeDelegate.CHAT_FOLDER_ROW_HEIGHT);
+		}
+		return this._isCompact() ? SessionsTreeDelegate.ITEM_HEIGHT_COMPACT : SessionsTreeDelegate.ITEM_HEIGHT;
 	}
 
 	private withChatApprovalHeight(element: ISessionChatItem, height: number): number {
@@ -552,7 +537,9 @@ class SessionsTreeDelegate implements IListVirtualDelegate<SessionListItem> {
 		if (!approval) {
 			return height;
 		}
-		return height + SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines) + SessionsTreeDelegate.CHAT_APPROVAL_BOTTOM_SLACK;
+		return height
+			+ SessionItemRenderer.getApprovalRowHeight(approval.label, this._approvalRowMaxLines)
+			+ (this._isPhone() ? SessionsTreeDelegate.CHAT_APPROVAL_PHONE_BOTTOM_SLACK : 0);
 	}
 
 	hasDynamicHeight(element: SessionListItem): boolean {
@@ -2160,8 +2147,6 @@ interface ISessionSectionTemplate extends ISessionHeaderTemplate {
 	readonly count: HTMLElement;
 	readonly countLabel: HTMLElement;
 	readonly newBadge: HTMLElement;
-	readonly keybindingHint: HTMLElement;
-	readonly keybindingLabel: KeybindingLabel;
 	readonly chevron: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
 	readonly disposables: DisposableStore;
@@ -2223,8 +2208,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly uriIdentityService: IUriIdentityService,
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
-		private readonly keybindingService: IKeybindingService,
-		private readonly newSessionActive: IObservable<boolean>,
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
@@ -2252,12 +2235,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		const newBadge = DOM.append(container, $('span.session-section-new-badge'));
 		newBadge.setAttribute('aria-hidden', 'true');
 		newBadge.textContent = localize('automationsNewBadge', "New");
-		const keybindingHint = DOM.append(container, $('span.session-section-keybinding'));
-		keybindingHint.setAttribute('aria-hidden', 'true');
-		const keybindingLabel = disposables.add(new KeybindingLabel(keybindingHint, OS, {
-			...defaultKeybindingLabelStyles,
-			disableTitle: true,
-		}));
 		const toolbarContainer = DOM.append(container, $('.session-section-toolbar'));
 
 		const contextKeyService = disposables.add(this.contextKeyService.createScoped(container));
@@ -2309,7 +2286,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			},
 		}));
 
-		return { container, icon, collapsed: observableValue(this, false), label, count, countLabel, newBadge, keybindingHint, keybindingLabel, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
+		return { container, icon, collapsed: observableValue(this, false), label, count, countLabel, newBadge, toolbarContainer, toolbar, chevron, contextKeyService, elementDisposables, disposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionSectionTemplate): void {
@@ -2322,7 +2299,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		this.templatesById.set(element.id, template);
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
-		template.container.classList.remove('session-section-new-session');
 		template.container.classList.remove('session-section-customizations');
 		template.container.classList.remove('active');
 		template.container.closest('.monaco-list-row')?.removeAttribute('aria-current');
@@ -2332,8 +2308,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			'session-section-new-badge-soft',
 			'session-section-new-badge-outline',
 		);
-		template.keybindingHint.classList.remove('visible');
-		template.keybindingLabel.set(undefined);
 		const shortcut = isShortcutSection(element.id);
 		template.toolbarContainer.style.display = shortcut ? 'none' : '';
 		if (shortcut) {
@@ -2341,23 +2315,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			template.toolbar.context = undefined;
 		} else {
 			renderSessionHeaderToolbar(template, element, this.select);
-		}
-		if (element.id === NEW_SESSION_SECTION_ID) {
-			template.container.classList.add('session-section-new-session');
-			template.keybindingHint.classList.add('visible');
-			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID));
-			updateKeybinding();
-			template.elementDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
-			template.elementDisposables.add(autorun(reader => {
-				const active = this.newSessionActive.read(reader);
-				template.container.classList.toggle('active', active);
-				const row = template.container.closest('.monaco-list-row');
-				if (active) {
-					row?.setAttribute('aria-current', 'page');
-				} else {
-					row?.removeAttribute('aria-current');
-				}
-			}));
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
@@ -2830,10 +2787,8 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 	readonly automationNewBadgeVisible?: IObservable<boolean>;
 	readonly customizationsCount?: IObservable<number>;
 	readonly customizationMigrationsAvailable?: IObservable<boolean>;
-	readonly newSessionKeybindingAriaLabel?: IObservable<string | undefined>;
 	readonly showUnreadInCollapsedSections?: IObservable<boolean>;
 	readonly sessionsWithFailingCI?: IObservable<ReadonlySet<string>>;
-	readonly getAriaLevel?: (element: SessionListItem) => number | undefined;
 	/** Mirrors {@link SessionItemRenderer}'s option of the same name — see there for rationale. */
 	readonly deriveStatusFromMainChat?: boolean;
 	readonly collapsedSessionIds?: IObservable<ReadonlySet<string>>;
@@ -2841,14 +2796,10 @@ interface ISessionsAccessibilityProviderOptions extends ICompactInputNeededPrese
 }
 
 class SessionsAccessibilityProvider {
-	readonly getAriaLevel: ((element: SessionListItem) => number | undefined) | undefined;
-
 	constructor(
 		private readonly automationStatus?: IObservable<SessionStatus | undefined>,
 		private readonly options?: ISessionsAccessibilityProviderOptions,
-	) {
-		this.getAriaLevel = options?.getAriaLevel;
-	}
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('sessionsList', "Sessions");
@@ -2890,14 +2841,6 @@ class SessionsAccessibilityProvider {
 		if (isSessionSection(element)) {
 			if (element.id === SESSIONS_HEADER_SECTION_ID) {
 				return element.label;
-			}
-			if (element.id === NEW_SESSION_SECTION_ID) {
-				return derived(this, reader => {
-					const keybindingAriaLabel = this.options?.newSessionKeybindingAriaLabel?.read(reader);
-					return keybindingAriaLabel
-						? localize('newSessionAria', "New Session ({0})", keybindingAriaLabel)
-						: localize('newSessionAriaWithoutKeybinding', "New Session");
-				});
 			}
 			if (element.id === AUTOMATIONS_SECTION_ID) {
 				return derived(this, reader => {
@@ -3642,7 +3585,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private suspendCollapseStatePersistence = false;
 	private sessionsHeaderHeight = SESSIONS_HEADER_DEFAULT_HEIGHT + SESSIONS_HEADER_VERTICAL_SPACING;
 	private readonly sessionsHeaders = new Set<HTMLElement>();
-	private readonly accessibilityLevels = new WeakMap<SessionListItem, number>();
 	private readonly findOpen = observableValue(this, false);
 
 	/** The group whose header is currently showing its inline name editor. */
@@ -3867,8 +3809,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				.map(blocked => blocked.session.sessionId)
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
-		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID)?.getAriaLabel() ?? undefined);
-		const newSessionActive = derived(this, reader => this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
@@ -3885,8 +3825,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.uriIdentityService,
 			this.customViewService,
 			this.menuService,
-			this.keybindingService,
-			newSessionActive,
 			customizationsActive,
 			customizationMigrationsAvailable,
 			templateId,
@@ -3959,10 +3897,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 					automationNewBadgeVisible: this.automationsNewBadgeState.showNewBadge,
 					customizationsCount,
 					customizationMigrationsAvailable,
-					newSessionKeybindingAriaLabel,
 					showUnreadInCollapsedSections,
 					sessionsWithFailingCI,
-					getAriaLevel: element => this.accessibilityLevels.get(element),
 				}),
 				dnd: this._register(new SessionsListDragAndDrop({
 					isReorderable: session => this.isReorderable(session),
@@ -4163,12 +4099,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 				if (!DOM.isMouseEvent(e.browserEvent) || e.browserEvent.button !== 0) {
 					this.commandService.executeCommand(OPEN_SESSION_COMPARISON_COMMAND_ID, element.comparison.id);
 				}
-				return;
-			}
-			if (isSessionSection(element) && element.id === NEW_SESSION_SECTION_ID) {
-				this.tree.setSelection([]);
-				logSessionsInteraction(this.telemetryService, 'newSession', 'sidebar');
-				await this.commandService.executeCommand(NEW_SESSION_ACTION_ID, e.sideBySide ? { toSide: true } : undefined);
 				return;
 			}
 			if (isSessionSection(element) && element.id === CUSTOMIZATIONS_SECTION_ID) {
@@ -4794,19 +4724,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		if (showNavigationShortcuts && this.options.createSessionsHeader) {
 			this.setTreeChildren([
+				...navigationChildren,
 				{
-					element: { id: NEW_SESSION_SECTION_ID, label: localize('new', "New"), sessions: [] },
+					element: SESSIONS_HEADER_SECTION,
 					collapsible: false,
 					collapsed: false,
-					children: [
-						...navigationChildren,
-						{
-							element: SESSIONS_HEADER_SECTION,
-							collapsible: false,
-							collapsed: false,
-							children,
-						},
-					],
+					children,
 				},
 			]);
 		} else {
@@ -4819,16 +4742,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	}
 
 	private setTreeChildren(children: IObjectTreeElement<SessionListItem>[]): void {
-		const updateAccessibilityLevels = (elements: Iterable<IObjectTreeElement<SessionListItem>>, level: number): void => {
-			for (const element of elements) {
-				this.accessibilityLevels.set(element.element, level);
-				if (element.children) {
-					const childLevel = isSessionSection(element.element) && element.element.id === NEW_SESSION_SECTION_ID ? level : level + 1;
-					updateAccessibilityLevels(element.children, childLevel);
-				}
-			}
-		};
-		updateAccessibilityLevels(children, 1);
 		this.tree.setChildren(null, children);
 	}
 

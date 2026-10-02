@@ -1831,7 +1831,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			resource,
 			summary,
 			this.createdAt,
-			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri))),
+			// Nested chats default to their own Session Changes; the main chat keeps the provider default.
+			createChatChangesets(this.backendUri, constObservable(backendUri), this._options, this.isActiveSessionObs, this._createChatCurrentTurnChangesObservable(constObservable(backendUri)), ChangesetKind.Session),
 			this._createChatBackgroundShellsObservable(constObservable(backendUri)),
 			() => this._acquireChatDetails(this.sessionId),
 			this.workspace,
@@ -2991,6 +2992,9 @@ class NewSession extends Disposable {
 					hasGitRemote: gitState?.hasGitRemote ?? currentRepository.hasGitRemote,
 					hasGitHubRemote: gitState?.hasGitHubRemote ?? currentRepository.hasGitHubRemote,
 					upstreamBranchName: gitState?.upstreamBranchName ?? currentRepository.upstreamBranchName,
+					defaultBranchName: gitState?.defaultBranchName ?? currentRepository.defaultBranchName,
+					defaultRemoteBranchName: gitState?.defaultRemoteBranchName
+						?? (gitState?.defaultBranchName !== undefined ? undefined : currentRepository.defaultRemoteBranchName),
 					incomingChanges: gitState?.incomingChanges ?? currentRepository.incomingChanges,
 					outgoingChanges: gitState?.outgoingChanges ?? currentRepository.outgoingChanges,
 					uncommittedChanges: gitState?.uncommittedChanges ?? currentRepository.uncommittedChanges,
@@ -5000,11 +5004,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const workspace = getSessionWorkspaceProperties(config.schema);
 			newSession.beginResolveConfigSync();
 			if (property === workspace.isolation?.key) {
-				const upstreamBranchName = normalizedValue === 'worktree'
-					? newSession.session.workspace.get()?.folders[0]?.gitRepository?.upstreamBranchName
+				// Mirror the host default so the chip does not flash while the config resolves.
+				const repository = newSession.session.workspace.get()?.folders[0]?.gitRepository;
+				const defaultBranchName = normalizedValue === 'worktree'
+					? repository?.upstreamBranchName ?? repository?.defaultBranchName
 					: undefined;
 				if (workspace.baseBranch && isSessionConfigWritable(workspace.baseBranch.schema, true)) {
-					newSession.setConfigValue(workspace.baseBranch.key, upstreamBranchName);
+					newSession.setConfigValue(workspace.baseBranch.key, defaultBranchName);
 				}
 			}
 			newSession.setConfigValue(property, normalizedValue, true);
@@ -7019,7 +7025,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleNewSessionStateUpdate(sessionId: string, state: SessionState): void {
 		const previous = this._lastSessionStates.get(sessionId);
 		this._lastSessionStates.set(sessionId, state);
-		this._newSessions.get(sessionId)?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
+		const newSession = this._newSessions.get(sessionId);
+		const previousBranchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
+		newSession?.applySessionMeta(state._meta, state.workingDirectories?.[0]);
+		const branchName = newSession?.session.workspace.get()?.folders[0]?.gitRepository?.branchName;
+		if (newSession && previousBranchName !== undefined && branchName !== undefined && branchName !== previousBranchName) {
+			void this._syncFolderDraftBranch(newSession, branchName).catch(error => {
+				if (this._getNewSession(sessionId) === newSession) {
+					this._logService.warn(`[${this.id}] Failed to follow the checked-out branch for ${sessionId}: ${error}`);
+				}
+			});
+		}
 		if (!structuralEquals(readSessionSandboxPolicy(previous), readSessionSandboxPolicy(state)) || readSessionSandboxState(previous)?.enabled !== readSessionSandboxState(state)?.enabled) {
 			this._onDidChangeSessionConfig.fire(sessionId);
 		}
@@ -7027,6 +7043,39 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			this._onDidChangeCustomAgents.fire();
 			this._onDidChangeCustomizations.fire();
 		}
+	}
+
+	/**
+	 * A folder draft works on the checked-out branch, so its branch value follows
+	 * the branch switches its Git state reports, including checkouts made outside
+	 * the branch picker. Checkouts from the picker already set the value.
+	 */
+	private async _syncFolderDraftBranch(newSession: NewSession, branchName: string): Promise<void> {
+		const getOutOfSyncBranchKey = (): string | undefined => {
+			const config = newSession.getConfig();
+			if (!config || this._getNewSession(newSession.sessionId) !== newSession
+				|| newSession.session.workspace.get()?.folders[0]?.gitRepository?.branchName !== branchName) {
+				return undefined;
+			}
+			const workspace = getSessionWorkspaceProperties(config.schema);
+			return workspace.baseBranch && isSessionConfigWritable(workspace.baseBranch.schema, true)
+				&& readSessionIsolation(workspace.isolation, config.values[workspace.isolationKey]) === 'folder'
+				&& config.values[workspace.baseBranch.key] !== branchName
+				? workspace.baseBranch.key
+				: undefined;
+		};
+		if (!getOutOfSyncBranchKey()) {
+			return;
+		}
+		await waitForState(newSession.isResolvingConfig, resolving => !resolving, undefined, newSession.cancellationToken);
+		const branchKey = getOutOfSyncBranchKey();
+		if (!branchKey) {
+			return;
+		}
+		newSession.beginResolveConfigSync();
+		newSession.setConfigValue(branchKey, branchName);
+		this._onDidChangeSessionConfig.fire(newSession.sessionId);
+		await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession));
 	}
 
 	/**

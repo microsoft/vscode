@@ -62,6 +62,74 @@ suite('GitHub HTTP rate-limit governance', () => {
 		assert.strictEqual(transport.rateLimits.getDelay(account, 'core'), 0);
 	});
 
+	for (const resource of ['core', 'graphql'] as const) {
+		for (const retryAfter of ['-1', '0.5', '0x0', '0.0', ' ', '9007199254740992']) {
+			test(`${resource} ignores malformed Retry-After quota evidence ${JSON.stringify(retryAfter)}`, () => runWithFakedTimers({}, async () => {
+				let calls = 0;
+				const transport = store.add(new GitHubTransport(async () => {
+					calls++;
+					return Response.json({ message: 'Rate Limit Exceeded' }, {
+						status: 403, headers: { ...headers(resource, 4999), 'retry-after': retryAfter },
+					});
+				}));
+				const request = resource === 'core'
+					? transport.rest(account, 'token', { method: 'GET', url: `${origin}/denied` }, signal())
+					: transport.graphql(account, 'token', `${origin}/graphql`, 'query { viewer { login } }', {}, signal());
+				await assert.rejects(request, { kind: 'authorization', statusCode: 403 });
+				assert.deepStrictEqual({ calls, delay: transport.rateLimits.getDelay(account, resource) }, { calls: 1, delay: 0 });
+			}));
+		}
+
+		for (const remaining of ['0x0', '0.0', '0e0', '-0', '-1', ' ', '9007199254740992']) {
+			test(`${resource} ignores malformed quota counters ${JSON.stringify(remaining)}`, () => runWithFakedTimers({}, async () => {
+				const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+				for (const status of [200, 403]) {
+					coordinator.updateFromResponse(account, new Response(null, {
+						status, headers: { ...headers(resource, 4999), 'x-ratelimit-remaining': remaining },
+					}), 'Rate Limit Exceeded');
+					assert.deepStrictEqual({
+						delay: coordinator.getDelay(account, resource), remaining: coordinator.getState(account, resource)?.remaining,
+					}, { delay: 0, remaining: undefined });
+				}
+			}));
+		}
+
+		for (const retryAfter of ['-1', '0.5', '0x0']) {
+			test(`${resource} malformed Retry-After cannot shorten a valid exhausted reset ${retryAfter}`, () => runWithFakedTimers({}, async () => {
+				const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+				coordinator.updateFromResponse(account, new Response(null, {
+					status: 403, headers: { ...headers(resource, 0), 'retry-after': retryAfter },
+				}), 'API rate limit exceeded');
+				assert.strictEqual(coordinator.getDelay(account, resource), 3_600_000);
+			}));
+		}
+	}
+
+	test('malformed REST quota fields preserve earlier valid feedback', () => runWithFakedTimers({}, async () => {
+		const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		coordinator.updateFromResponse(account, new Response(null, {
+			headers: { ...headers('core', 100), 'x-ratelimit-limit': '5000', 'x-ratelimit-used': '4900' },
+		}));
+		const previous = coordinator.getState(account, 'core');
+		coordinator.updateFromResponse(account, new Response(null, {
+			headers: {
+				'x-ratelimit-resource': 'core', 'x-ratelimit-limit': '5e3', 'x-ratelimit-used': '0x0',
+				'x-ratelimit-remaining': '0.0', 'x-ratelimit-reset': '9e6',
+			},
+		}));
+		assert.deepStrictEqual(coordinator.getState(account, 'core'), previous);
+	}));
+
+	for (const retryAfter of ['10', 'Fri, 02 Oct 2026 00:00:10 GMT', 'Friday, 02-Oct-26 00:00:10 GMT', 'Fri Oct  2 00:00:10 2026']) {
+		test(`REST preserves valid Retry-After quota evidence ${retryAfter}`, () => runWithFakedTimers({ startTime: Date.UTC(2026, 9, 2) }, async () => {
+			const transport = store.add(new GitHubTransport(async () => Response.json({ message: 'Rate Limit Exceeded' }, {
+				status: 403, headers: { ...headers('core', 4999), 'retry-after': retryAfter },
+			})));
+			await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/limited` }, signal()), { kind: 'rateLimit' });
+			assert.strictEqual(transport.rateLimits.getDelay(account, 'core'), 10_000);
+		}));
+	}
+
 	for (const kind of ['primary', 'secondary', 'retry-after'] as const) {
 		test(`preserves explicit ${kind} evidence on a 403`, () => runWithFakedTimers({}, async () => {
 			const message = kind === 'secondary' ? 'You have exceeded a secondary rate limit.' : 'Rate Limit Exceeded';
@@ -453,6 +521,69 @@ suite('GitHub HTTP rate-limit governance', () => {
 		await assert.rejects(transport.rest(account, 'token', { method: 'GET', url: `${origin}/repos/o/r/check-runs/2`, deadline: Date.now() + 100 }, signal()), { kind: 'timeout' });
 		assert.strictEqual(calls, GitHubRateLimitCoordinator.maximumRestResourceMappings + 2);
 	}));
+
+	test('inherited headerless quota feedback survives observation eviction', () => runWithFakedTimers({}, async () => {
+		const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		coordinator.retainAccount(account, coordinator);
+		const url = `${origin}/repos/o/r/check-runs/1`;
+		const seed = coordinator.acquireRestResource(account, url, 'seed');
+		seed.object.observe(new Headers({ 'x-ratelimit-resource': 'checks' }));
+		seed.dispose();
+		const inherited = store.add(coordinator.acquireRestResource(account, url, 'inherited'));
+		for (let index = 0; index < GitHubRateLimitCoordinator.maximumRestResourceMappings - 1; index++) {
+			const mapping = coordinator.acquireRestResource(account, `${origin}/route/${index}`, 'fill');
+			mapping.object.observe(new Headers({ 'x-ratelimit-resource': 'core' }));
+			mapping.dispose();
+		}
+		assert.strictEqual(inherited.object.responseName, 'checks');
+		coordinator.updateFromResponse(account, new Response(null, {
+			status: 403, headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '10' },
+		}), 'API rate limit exceeded', inherited.object.responseName);
+		const beforeEviction = coordinator.getDelay(account, coordinator.getRestResource(account, url, 'fresh'));
+		inherited.dispose();
+		coordinator.updateCooldown(account, 'core', 5000);
+		const peer = store.add(coordinator.acquireRestResource({ ...account, accountId: 'peer' }, `${origin}/peer`));
+		const later = store.add(coordinator.acquireRestResource(account, url, 'later'));
+		assert.deepStrictEqual({
+			beforeEviction, afterEviction: coordinator.getDelay(account, later.object.name),
+			checks: coordinator.getDelay(account, 'checks'), peerResource: peer.object.name,
+		}, { beforeEviction: 10_000, afterEviction: 10_000, checks: 10_000, peerResource: 'core' });
+		await timeout(10_000);
+		assert.strictEqual(coordinator.getDelay(account, later.object.name), 0);
+	}));
+
+	for (const overflowWait of [0, 5000]) {
+		test(`route resource overflow recovers without losing the rejected resource wait (${overflowWait}ms)`, () => runWithFakedTimers({}, async () => {
+			const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));
+			coordinator.retainAccount(account, coordinator);
+			const url = `${origin}/repos/o/r/check-runs/1`;
+			const mapping = coordinator.acquireRestResource(account, url, 'client');
+			for (let index = 0; index < 16; index++) {
+				mapping.object.observe(new Headers({ 'x-ratelimit-resource': `bucket_${index}` }));
+				coordinator.updateCooldown(account, `bucket_${index}`, 1000);
+			}
+			const overflowHeaders = new Headers({
+				'x-ratelimit-resource': 'overflow', 'x-ratelimit-remaining': overflowWait ? '0' : '100',
+				...(overflowWait ? { 'retry-after': String(overflowWait / 1000) } : {}),
+			});
+			await assert.rejects(async () => mapping.object.observe(overflowHeaders), { kind: 'overloaded' });
+			coordinator.updateFromResponse(account, new Response(null, { status: overflowWait ? 429 : 200, headers: overflowHeaders }));
+			mapping.dispose();
+			await assert.rejects(async () => coordinator.acquireRestResource(account, url, 'client'), { kind: 'overloaded' });
+			assert.strictEqual(coordinator.getDelay(account, coordinator.getRestResource(account, url, 'fresh')), Math.max(1000, overflowWait));
+			await timeout(1000);
+			const recovered = store.add(coordinator.acquireRestResource(account, url, 'client'));
+			assert.deepStrictEqual({
+				response: recovered.object.responseName,
+				delay: coordinator.getDelay(account, recovered.object.name),
+				peer: coordinator.getDelay({ ...account, accountId: 'peer' }, 'overflow'),
+			}, { response: 'overflow', delay: Math.max(0, overflowWait - 1000), peer: 0 });
+			await timeout(Math.max(0, overflowWait - 1000));
+			assert.strictEqual(coordinator.getDelay(account, recovered.object.name), 0);
+			recovered.object.observe(new Headers({ 'x-ratelimit-resource': 'core' }));
+			assert.strictEqual(recovered.object.name, 'core');
+		}));
+	}
 
 	test('bounds pinned route mappings and reclaims an unreferenced slot', async () => {
 		const coordinator = store.add(new GitHubRateLimitCoordinator(systemRequestScheduler));

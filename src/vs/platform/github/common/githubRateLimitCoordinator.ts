@@ -50,23 +50,28 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		if (!entry) {
 			if (this._restResources.size >= GitHubRateLimitCoordinator.maximumRestResourceMappings) {
 				const idle = [...this._restResources].filter(([, candidate]) => candidate.references === 0);
-				const unused = idle.find(([, candidate]) => [...candidate.resources].every(resource => this.getDelay(candidate.account, resource) === 0)) ?? idle[0];
+				const unused = idle.find(([, candidate]) => this._restResourceDelay(candidate) === 0) ?? idle[0];
 				if (!unused) {
 					throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
 				}
-				const cooldown = Math.max(0, ...[...unused[1].resources].map(resource => this.getDelay(unused[1].account, resource)));
+				const cooldown = this._restResourceDelay(unused[1]);
 				this._restResources.delete(unused[0]);
 				// Compact lost feedback without letting one idle account monopolize the registry.
 				this.preserveCooldown(unused[1].account, GitHubRateLimitCoordinator.unobservedRestResource, cooldown);
 			}
 			entry = { account, accountKey: RequestQueue.accountKey(account), route: route.key, resource: route.fallback, resources: new Set(), references: 0, overflow: false };
 		}
+		if (entry.overflow) {
+			this._pruneRestResources(entry);
+			if (entry.resources.size >= GitHubRateLimitCoordinator.maximumResourcesPerRoute && !entry.resources.has(entry.resource)) {
+				throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
+			}
+			entry.resources.add(entry.resource);
+			entry.overflow = false;
+		}
 		if (!entry.resources.size) {
 			const resource = this.getRestResource(account, url, scope);
 			entry.resource = resource === GitHubRateLimitCoordinator.unobservedRestResource ? route.fallback : resource;
-		}
-		if (entry.overflow) {
-			throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
 		}
 		this._restResources.delete(key);
 		this._restResources.set(key, entry);
@@ -83,16 +88,13 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 					if (!resource) {
 						return;
 					}
-					for (const previous of retained.resources) {
-						if (owner.getDelay(account, previous) === 0) {
-							retained.resources.delete(previous);
-						}
-					}
+					owner._pruneRestResources(retained);
+					// Retain the latest response bucket even when its variant exceeds the bound.
+					retained.resource = resource;
 					if (!retained.resources.has(resource) && retained.resources.size >= GitHubRateLimitCoordinator.maximumResourcesPerRoute) {
 						retained.overflow = true;
 						throw new GitHubRequestError('GitHub resource mapping capacity exceeded', 'overloaded');
 					}
-					retained.resource = resource;
 					retained.resources.add(resource);
 				},
 			},
@@ -107,11 +109,12 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		const unresolvedKey = account.kind === 'bootstrap' && account.accountId !== undefined
 			? RequestQueue.accountKey({ ...account, accountId: undefined })
 			: undefined;
-		const observed = entry?.resources.size ? [entry] : [];
+		const observed = entry ? [entry] : [];
 		let selected = entry?.resource ?? route.fallback;
-		if (!observed.length || unresolvedKey) {
+		if (!entry?.resources.size || unresolvedKey) {
 			for (const candidate of this._restResources.values()) {
-				if (candidate.route !== route.key || !candidate.resources.size) {
+				if (candidate === entry || candidate.route !== route.key
+					|| !candidate.resources.size && this.getDelay(candidate.account, candidate.resource) === 0) {
 					continue;
 				}
 				if (!entry?.resources.size && candidate.accountKey === accountKey) {
@@ -123,7 +126,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 			}
 		}
 		for (const mapping of observed) {
-			for (const resource of mapping.resources) {
+			for (const resource of [mapping.resource, ...mapping.resources]) {
 				if (this.getDelay(account, resource) > this.getDelay(account, selected)) {
 					selected = resource;
 				}
@@ -144,6 +147,21 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		return `${RequestQueue.accountKey(account)}\x00${scope}\x00${route}`;
 	}
 
+	private _restResourceDelay(mapping: IRestResourceMapping): number {
+		let delay = this.getDelay(mapping.account, mapping.resource);
+		for (const resource of mapping.resources) {
+			delay = Math.max(delay, this.getDelay(mapping.account, resource));
+		}
+		return delay;
+	}
+
+	private _pruneRestResources(mapping: IRestResourceMapping): void {
+		for (const resource of mapping.resources) {
+			if (this.getDelay(mapping.account, resource) === 0) {
+				mapping.resources.delete(resource);
+			}
+		}
+	}
 
 	updateFromResponse(account: RequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
 		const resource = readRateLimitResource(response.headers) ?? fallbackResource;
@@ -152,9 +170,9 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 		const previous = this._states.get(key);
 		const previousBlockedUntil = previous?.blockedUntil ?? (previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now, isGraphQL);
-		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
-		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now, true);
+		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'), true);
+		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), true);
 		const rateLimit = classifyGitHubHttpRateLimit(response, responseBody);
 		const rateLimited = rateLimit !== undefined;
 		const secondaryLimited = rateLimit === 'secondary';
@@ -181,9 +199,9 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
-			limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit'), isGraphQL) ?? previous?.limit,
+			limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit'), true) ?? previous?.limit,
 			remaining: remaining ?? previous?.remaining,
-			used: parseHeaderNumber(response.headers.get('x-ratelimit-used'), isGraphQL) ?? previous?.used,
+			used: parseHeaderNumber(response.headers.get('x-ratelimit-used'), true) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
 			blockedUntil: previousBlockedUntil !== undefined && previousBlockedUntil > now
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
@@ -273,9 +291,9 @@ export function classifyGitHubHttpRateLimit(response: Pick<Response, 'status' | 
 		|| /\bsecondary rate limit\b|\babuse detection mechanism\b/i.test(body ?? '')) {
 		return 'secondary';
 	}
-	const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'));
+	const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), true);
 	if (response.status === 429 || remaining === 0
-		|| parseRetryAfter(response.headers.get('retry-after'), 0) !== undefined
+		|| parseRetryAfter(response.headers.get('retry-after'), 0, true) !== undefined
 		|| remaining === undefined && /\bAPI rate limit exceeded\b/i.test(body ?? '')) {
 		return 'primary';
 	}

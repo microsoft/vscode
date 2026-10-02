@@ -2890,7 +2890,7 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('truncateChat rolls back the thread of the addressed chat', async () => {
+	test('truncateChat reverts the thread of the addressed chat', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
@@ -2923,25 +2923,25 @@ suite('CodexAgent exact chat routing', () => {
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
-				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
 			});
 			const historyRead = await readNextRequest(peer.outbound);
 			peer.push({
 				id: historyRead.id,
-				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }] } },
+				result: { data: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }], nextCursor: null },
 			});
-			const rollback = await readNextRequest(peer.outbound);
-			peer.push({ id: rollback.id, result: {} });
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
 			await truncating;
 
 			assert.deepStrictEqual([
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: historyRead.method, threadId: historyRead.params.threadId },
-				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
+				{ method: revert.method, threadId: revert.params.threadId, beforeTurnId: revert.params.beforeTurnId },
 			], [
 				{ method: 'thread/read', threadId: 'peer-thread' },
-				{ method: 'thread/read', threadId: 'peer-thread' },
-				{ method: 'thread/rollback', threadId: 'peer-thread', numTurns: 1 },
+				{ method: 'thread/turns/list', threadId: 'peer-thread' },
+				{ method: 'thread/revert', threadId: 'peer-thread', beforeTurnId: 'turn-3' },
 			]);
 		} finally {
 			peer.dispose();
@@ -2988,6 +2988,55 @@ suite('CodexAgent exact chat routing', () => {
 				method: 'thread/revert',
 				threadId: 'paginated-truncate-thread',
 				beforeTurnId: 'turn-3',
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('truncateChat rejects legacy history without removing retained output', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'legacy-truncate');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/legacy-truncate');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('legacy-truncate')!.materializePromise;
+			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const output = VSBuffer.fromString('retained output').buffer;
+			await database.createTurn('drop-turn');
+			await database.storeTerminalOutput('drop-turn', 'cmd-legacy', output);
+
+			const truncating = assert.rejects(agent.truncateChat(chat, 'keep-turn', { configurationResource: session, resource: chat }), /cannot remove messages from legacy chats/);
+			const read = await readNextRequest(peer.outbound);
+			peer.push({ id: read.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({
+				id: historyRead.id,
+				result: {
+					thread: {
+						id: 'legacy-thread', cwd: folder.fsPath, historyMode: 'legacy',
+						turns: [{ id: 'keep-turn' }, { id: 'drop-turn', items: [{ type: 'commandExecution', id: 'cmd-legacy' }] }],
+					},
+				},
+			});
+			await truncating;
+
+			assert.deepStrictEqual({
+				unexpectedRequest: peer.outbound.read(),
+				retainedOutputSize: await database.getTerminalOutputSize('cmd-legacy'),
+			}, {
+				unexpectedRequest: null,
+				retainedOutputSize: output.byteLength,
 			});
 		} finally {
 			peer.dispose();
@@ -3051,7 +3100,7 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('truncateChat resumes a replacement app-server before reading or rolling back', async () => {
+	test('truncateChat resumes a replacement app-server before reading or reverting', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
@@ -3075,11 +3124,11 @@ suite('CodexAgent exact chat routing', () => {
 			const inventory = await readNextRequest(peer.outbound);
 			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'paginated', turns: [] } } });
 			const historyRead = await readNextRequest(peer.outbound);
-			peer.push({ id: historyRead.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
-			const rollback = await readNextRequest(peer.outbound);
-			peer.push({ id: rollback.id, result: {} });
+			peer.push({ id: historyRead.id, result: { data: [{ id: 'keep-turn' }, { id: 'drop-turn' }], nextCursor: null } });
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
 			await truncating;
 
 			assert.deepStrictEqual([
@@ -3087,13 +3136,13 @@ suite('CodexAgent exact chat routing', () => {
 				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: historyRead.method, threadId: historyRead.params.threadId },
-				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
+				{ method: revert.method, threadId: revert.params.threadId, beforeTurnId: revert.params.beforeTurnId },
 			], [
 				{ method: 'thread/resume', threadId: 'resume-before-truncate-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'resume-before-truncate-thread' },
 				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
-				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
-				{ method: 'thread/rollback', threadId: 'resume-before-truncate-thread', numTurns: 1 },
+				{ method: 'thread/turns/list', threadId: 'resume-before-truncate-thread' },
+				{ method: 'thread/revert', threadId: 'resume-before-truncate-thread', beforeTurnId: 'drop-turn' },
 			]);
 		} finally {
 			peer.dispose();
