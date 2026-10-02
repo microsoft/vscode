@@ -26,6 +26,7 @@ import { CloudSandboxApiService } from './cloudSandboxApiService.js';
 import { CloudSandboxTelemetryService, ICloudSandboxTelemetryService } from './cloudSandboxTelemetry.js';
 import { EditorCloudSandboxContribution } from './editorCloudSandboxContribution.js';
 import { RemoteAgentHostContribution } from './remoteAgentHostChatContribution.js';
+import './missionControlEnvironmentActions.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 
 const experimentalMissionControlEndpoint = 'chat.agentHost.experimentalMissionControlFakeEndpoint';
@@ -125,7 +126,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[experimentalMissionControlEnabled]: {
 			type: 'boolean',
-			description: localize('experimentalMissionControlEnabled', "Development only: register the native Agent Host as a discoverable Mission Control environment so other clients can connect through Azure Web PubSub. Local VS Code continues using local IPC. Remote clients receive trusted-owner access like a dev-tunnel client, including sessions, tools, and local resources. Not enabled in built products."),
+			description: localize('experimentalMissionControlEnabled', "Development only: register the native Agent Host as a discoverable Mission Control environment so other clients can connect through Azure Web PubSub. Local VS Code continues using local IPC. Remote clients receive trusted-owner access including sessions, tools, and workspace resources. Native session actions are mirrored to Mission Control for catalog/history storage; conversation content is not end-to-end encrypted. Not enabled in built products."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,

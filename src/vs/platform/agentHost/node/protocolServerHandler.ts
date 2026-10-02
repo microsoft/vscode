@@ -493,8 +493,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						client = result.client;
 						if (result.response instanceof Promise) {
 							this._trackRequest(result.response).then(
-								response => transport.send(jsonRpcSuccess(msg.id, response)),
-								err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+								response => { if (!disposables.isDisposed) { transport.send(jsonRpcSuccess(msg.id, response)); } },
+								err => {
+									if (client === result.client) {
+										client = undefined;
+									}
+									if (!disposables.isDisposed) {
+										transport.send(jsonRpcErrorFrom(msg.id, err));
+									}
+								},
 							);
 						} else {
 							transport.send(jsonRpcSuccess(msg.id, result.response));
@@ -506,17 +513,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 				if (!client && msg.method === 'reconnect') {
 					let responsePromise: Promise<unknown>;
+					let reconnectingClient: IConnectedClient;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
 						client = result.client;
+						reconnectingClient = result.client;
 						responsePromise = this._trackRequest(result.responsePromise);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
 						return;
 					}
 					responsePromise.then(
-						response => transport.send(jsonRpcSuccess(msg.id, response)),
-						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+						response => { if (!disposables.isDisposed) { transport.send(jsonRpcSuccess(msg.id, response)); } },
+						err => {
+							if (client === reconnectingClient) {
+								client = undefined;
+							}
+							if (!disposables.isDisposed) {
+								transport.send(jsonRpcErrorFrom(msg.id, err));
+							}
+						},
 					);
 					return;
 				}
@@ -937,7 +953,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				transport.relayHandshakeMeta && typeof result === 'object' && result !== null
 					? { ...result, _meta: transport.relayHandshakeMeta }
 					: result
-			));
+			)).catch(error => {
+				this._rollbackFailedInitialization(client, existingRecord);
+				throw error;
+			});
 
 			client.telemetryConnectionActive = true;
 			const counts = this._clientConnections.getConnectionCounts(params.clientId);
@@ -1144,7 +1163,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
 				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
-			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
+			}, Math.max(0, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT - (Date.now() - record.lastSeenAt))));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
@@ -1316,7 +1335,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			if (record.connections.length === 0) {
 				if (previousRecord?.state === 'grace') {
-					this._clients.set(client.clientId, previousRecord);
+					previousRecord.disconnectTimeouts.dispose();
+					this._clients.set(client.clientId, { ...previousRecord, disconnectTimeouts: new DisposableMap() });
+					this._handleClientDisconnected(client.clientId);
 				} else {
 					this._clients.delete(client.clientId);
 					this._baselineDebt.delete(client.clientId);

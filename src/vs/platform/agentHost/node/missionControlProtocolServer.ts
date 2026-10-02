@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import WebSocket from 'ws';
+import { randomBytes } from 'crypto';
 import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../base/common/async.js';
-import { Emitter, Event } from '../../../base/common/event.js';
+import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
@@ -17,6 +18,7 @@ import { parseGroupName } from '../common/webPubSub/groups.js';
 import { MissionControlControlVerifier } from './missionControlControl.js';
 import { MissionControlAuthentication } from './missionControlAuthentication.js';
 import type { AuthenticateParams } from '../common/agent.js';
+import { MissionControlSessionMirror, type MissionControlMirrorEvent } from './missionControlSessionMirror.js';
 
 export interface IMissionControlSocket {
 	send(data: string): void;
@@ -28,7 +30,14 @@ export interface IMissionControlSocket {
 export interface IMissionControlBootstrap {
 	readonly url: string;
 	readonly access_token: string;
-	readonly groups: { readonly control: string };
+	readonly groups: { readonly control: string; readonly ingest_ack?: string };
+}
+
+const relayKeepAliveTimeoutMs = 15 * 60_000;
+
+function newConnectionGeneration(): number {
+	const bytes = randomBytes(7);
+	return (bytes[0] & 15) * 2 ** 48 + bytes.readUIntBE(1, 6) + 1;
 }
 
 class MissionControlLane extends Disposable implements IProtocolTransport {
@@ -37,7 +46,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	get relayPassive(): boolean { return this.passive; }
 	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
-		return this._authentication ? { ...this._authentication.handshakeMeta, ...(this.passive ? { 'copilot.passive': true } : {}) } : undefined;
+		return { ...this._authentication?.handshakeMeta, 'copilot.keepAliveTimeoutMs': relayKeepAliveTimeoutMs, ...(this.passive ? { 'copilot.passive': true } : {}) };
 	}
 	relayAuthenticate(params: AuthenticateParams): Promise<AuthenticateParams> {
 		if (!this._authentication) {
@@ -52,9 +61,13 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	private _closed = false;
 	private _active = false;
 	private _hasHandshake = false;
+	private _handshakeId: number | string | undefined;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
+	readonly generation = newConnectionGeneration();
+	lastReceived = Date.now();
+	get isClosed(): boolean { return this._closed; }
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown, generation: number) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void, private readonly _didClose?: (lane: MissionControlLane) => void) {
 		super();
 	}
 
@@ -62,17 +75,18 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 		if (this._closed || typeof message !== 'object' || message === null || Array.isArray(message)) {
 			return;
 		}
-		const request = message as { method?: unknown; params?: { clientId?: unknown } };
+		this.lastReceived = Date.now();
+		const request = message as { id?: unknown; method?: unknown; params?: { clientId?: unknown } };
 		if ((request.method === 'initialize' || request.method === 'reconnect') && request.params?.clientId !== this.clientId) {
 			this.dispose();
 			return;
 		}
 		if (request.method === 'initialize' || request.method === 'reconnect') {
-			if (this._active && this._hasHandshake && this._rehandshake) {
+			if (this._active && (this._hasHandshake || this._handshakeId !== undefined) && this._rehandshake) {
 				this._rehandshake(this, message);
 				return;
 			}
-			this._hasHandshake = true;
+			this._handshakeId = typeof request.id === 'number' || typeof request.id === 'string' ? request.id : undefined;
 			this._authentication?.beginHandshake();
 		}
 		if (!this._authentication && (request.method === 'authenticate' || request.method === 'resourceRequest' || request.method === 'dispatchAction' || request.method === 'setClientManagedSettingsPermissions')) {
@@ -102,8 +116,12 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			throw new Error('Mission Control lane closed');
 		}
 		const response = hasKey(message, { id: true });
+		if (response && this._handshakeId !== undefined && message.id === this._handshakeId) {
+			this._hasHandshake = hasKey(message, { result: true });
+			this._handshakeId = undefined;
+		}
 		try {
-			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message);
+			this._publish(`${this._prefix}.${response ? 'to-client' : 'broadcast'}`, message, this.generation);
 		} catch (error) {
 			this.dispose();
 			throw error;
@@ -115,6 +133,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			this._closed = true;
 			this._authentication?.dispose();
 			this._onClose.fire();
+			this._didClose?.(this);
 		}
 		super.dispose();
 	}
@@ -125,6 +144,8 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
  * The bootstrap and owner are supplied by the trusted registration lifecycle.
  */
 export class MissionControlProtocolServer extends Disposable implements IProtocolServer {
+	private readonly _onClose = this._register(new Emitter<void>());
+	readonly onClose = this._onClose.event;
 	private readonly _onConnection = this._register(new Emitter<IProtocolTransport>());
 	readonly onConnection = this._onConnection.event;
 	readonly address = undefined;
@@ -138,11 +159,13 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private _outboundBytes = 0;
 	private _draining = false;
 	private readonly _joins = new Map<number, string>();
+	private readonly _bootstrapJoins = new Set<string>();
 	private _socket: IMissionControlSocket | undefined;
 	private _ackId = 0;
 	private _sequence = 0;
 	private _connected = false;
 	private _closed = false;
+	private _ackDeadline: number | undefined;
 
 	get isClosed(): boolean { return this._closed; }
 
@@ -155,6 +178,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		private readonly _onError: (error: Error) => void = () => { },
 		private readonly _authenticationFactory?: () => MissionControlAuthentication,
 		readonly rootMeta?: Record<string, unknown>,
+		private readonly _mirror?: MissionControlSessionMirror,
 	) {
 		super();
 		parseGroupName(_bootstrap.groups.control, { expected: { uid: _owner, eid: _environment } });
@@ -174,9 +198,22 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 		this._socket.on('message', data => this._receive(data));
 		this._socket.on('close', () => this.dispose());
 		this._socket.on('error', () => this.dispose());
-		this._sweep.cancelAndSet(() => this._reassembler.sweepExpired(), 15_000);
-		this._ackTimeout.schedule();
+		this._sweep.cancelAndSet(() => {
+			this._reassembler.sweepExpired();
+			for (const [id, lane] of this._lanes) {
+				if (Date.now() - lane.lastReceived >= relayKeepAliveTimeoutMs) {
+					this._lanes.deleteAndLeak(id)?.dispose();
+					this._send({ type: 'leaveGroup', group: `user.${this._owner}.env.${this._environment}.client.${id}.to-host` });
+				}
+			}
+		}, 15_000);
+		this._waitForAck();
 		return this._ready.p;
+	}
+
+	private _waitForAck(): void {
+		this._ackDeadline ??= Date.now() + 30_000;
+		this._ackTimeout.schedule(Math.max(0, this._ackDeadline - Date.now()));
 	}
 
 	private _send(frame: object): void {
@@ -189,12 +226,21 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 	private _join(group: string): void {
 		const ackId = ++this._ackId;
 		this._joins.set(ackId, group);
-		this._ackTimeout.schedule();
+		this._waitForAck();
 		this._send({ type: 'joinGroup', group, ackId });
 	}
 
-	private _publish(group: string, payload: unknown): void {
-		const frames = buildPublish({ group, payload, nextAckId: () => ++this._ackId }).map(frame => ({ ackId: frame.ackId, frame: JSON.stringify(frame) }));
+	private _publish(group: string, payload: unknown, generation?: number): void {
+		const frames = buildPublish({ group, payload, generation, nextAckId: () => ++this._ackId }).map(frame => ({ ackId: frame.ackId, frame: JSON.stringify(frame) }));
+		this._enqueue(frames);
+	}
+
+	publishMirrorEvent(event: MissionControlMirrorEvent): undefined {
+		const ackId = ++this._ackId;
+		this._enqueue([{ ackId, frame: JSON.stringify({ ...event, ackId }) }]);
+	}
+
+	private _enqueue(frames: readonly { ackId: number; frame: string }[]): void {
 		const bytes = frames.reduce((total, frame) => total + Buffer.byteLength(frame.frame), 0);
 		if (this._closed || this._outbound.length + frames.length > 512 || this._outboundBytes + bytes > 64 * 1024 * 1024) {
 			throw new Error('Mission Control ordered publish queue exceeded its limit');
@@ -214,7 +260,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				const next = this._outbound.shift()!;
 				this._outboundBytes -= Buffer.byteLength(next.frame);
 				this._pending.add(next.ackId);
-				this._ackTimeout.schedule();
+				this._waitForAck();
 				this._socket!.send(next.frame);
 			}
 		} finally {
@@ -237,7 +283,14 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			const fields = frame as Record<string, unknown>;
 			if (fields.type === 'system' && fields.event === 'connected') {
 				this._connected = true;
+				this._bootstrapJoins.add(this._bootstrap.groups.control);
+				if (this._mirror && this._bootstrap.groups.ingest_ack) {
+					this._bootstrapJoins.add(this._bootstrap.groups.ingest_ack);
+				}
 				this._join(this._bootstrap.groups.control);
+				if (this._mirror && this._bootstrap.groups.ingest_ack) {
+					this._join(this._bootstrap.groups.ingest_ack);
+				}
 				return;
 			}
 			if (fields.type === 'ack') {
@@ -252,7 +305,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 					this.dispose();
 					throw new Error('Mission Control WPS operation rejected');
 				}
-				if (group && group !== this._bootstrap.groups.control) {
+				if (group && group !== this._bootstrap.groups.control && group !== this._bootstrap.groups.ingest_ack) {
 					const clientId = parseGroupName(group).scope === 'client' ? group.split('.')[5] : undefined;
 					const lane = clientId ? this._lanes.get(clientId) : undefined;
 					if (lane) {
@@ -260,11 +313,16 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 						lane.activate();
 					}
 				}
-				if (group === this._bootstrap.groups.control) {
-					this._ready.complete();
+				if ((group === this._bootstrap.groups.control || group === this._bootstrap.groups.ingest_ack)
+					&& group !== undefined) {
+					this._bootstrapJoins.delete(group);
+					if (this._bootstrapJoins.size === 0) {
+						this._ready.complete();
+					}
 				}
 				if (this._joins.size === 0 && this._pending.size === 0) {
 					this._ackTimeout.cancel();
+					this._ackDeadline = undefined;
 				}
 				this._drain();
 				return;
@@ -286,21 +344,44 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 			const envelope = typeof fields.data === 'object' && fields.data !== null ? fields.data as { readonly kind?: unknown } : undefined;
 			if (fields.type === 'message' && fields.from === 'group' && fields.group === this._bootstrap.groups.control
-				&& fields.dataType === 'json' && envelope?.kind === 'spawn_request') {
-				this._openLane(fields.data);
+				&& fields.dataType === 'json' && (envelope?.kind === 'spawn_request' || envelope?.kind === 'backfill_request')) {
+				this._receiveControl(fields.data);
 				return;
 			}
+			if (this._mirror && fields.type === 'message' && fields.from === 'group' && fields.group === this._bootstrap.groups.ingest_ack
+				&& fields.dataType === 'json' && typeof fields.data === 'object' && fields.data !== null && hasKey(fields.data, { watermarks: true })) {
+				this._mirror.ingestAck(fields.data);
+				return;
+			}
+			if (fields.type === 'message' && fields.from === 'group' && typeof fields.group === 'string') {
+				const group = parseGroupName(fields.group, { expected: { uid: this._owner, eid: this._environment } });
+				if (group.scope === 'client' && group.lane === 'to-host') {
+					if (this._authenticationFactory && fields.fromUserId !== this._owner) {
+						throw new Error('WPS publisher does not match the registered owner');
+					}
+					const lane = this._lanes.get(group.cid);
+					if (lane) {
+						lane.lastReceived = Date.now();
+					}
+				}
+			}
 			const result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: { expected: { uid: this._owner, eid: this._environment } } });
-			if (result.kind !== 'payload') {
+			if (result.kind !== 'payload' && result.kind !== 'batch') {
 				return;
 			}
 			if (result.group.scope === 'env' && result.group.lane === 'control') {
-				this._openLane(result.payload);
+				if (result.kind === 'payload') {
+					this._receiveControl(result.payload);
+				}
+			} else if (result.group.scope === 'env' && result.group.lane === 'ingest-ack' && result.kind === 'payload') {
+				this._mirror?.ingestAck(result.payload);
 			} else if (result.group.scope === 'client' && result.group.lane === 'to-host') {
 				if (this._authenticationFactory && fields.fromUserId !== this._owner) {
 					throw new Error('WPS publisher does not match the registered owner');
 				}
-				this._lanes.get(result.group.cid)?.receive(result.payload);
+				for (const payload of result.kind === 'batch' ? result.payloads : [result.payload]) {
+					this._receiveForClient(result.group.cid, payload);
+				}
 			}
 		} catch (error) {
 			this._onError(error instanceof Error ? error : new Error(String(error)));
@@ -308,6 +389,28 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 				this.dispose();
 			}
 		}
+	}
+
+	private _receiveControl(payload: unknown): void {
+		if (typeof payload === 'object' && payload !== null && Object.getOwnPropertyDescriptor(payload, 'kind')?.value === 'backfill_request') {
+			const backfill = this._verifier.verifyBackfill(payload);
+			if (!this._mirror) {
+				throw new Error('Mission Control session mirroring is unavailable');
+			}
+			this._mirror.backfill(backfill);
+		} else {
+			this._openLane(payload);
+		}
+	}
+
+	private _receiveForClient(clientId: string, payload: unknown): void {
+		let lane = this._lanes.get(clientId);
+		if (lane?.isClosed) {
+			lane = this._createLane(clientId, lane.passive);
+			this._onConnection.fire(lane);
+			lane.activate();
+		}
+		lane?.receive(payload);
 	}
 
 	private _openLane(payload: unknown): void {
@@ -328,22 +431,26 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	private _createLane(clientId: string, passive: boolean): MissionControlLane {
 		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
-		const lane = new MissionControlLane(clientId, passive, (group, payload) => this._publish(group, payload), prefix, this._authenticationFactory?.(), (previous, message) => {
+		const lane = new MissionControlLane(clientId, passive, (group, payload, generation) => this._publish(group, payload, generation), prefix, this._authenticationFactory?.(), (previous, message) => {
 			if (this._closed || this._lanes.get(clientId) !== previous) {
 				return;
 			}
-			this._lanes.deleteAndDispose(clientId);
-			const replacement = this._createLane(clientId, passive);
-			this._onConnection.fire(replacement);
-			replacement.activate();
-			replacement.receive(message);
-		});
-		this._lanes.set(clientId, lane);
-		Event.once(lane.onClose)(() => {
-			if (this._lanes.get(clientId) === lane) {
-				this._lanes.deleteAndLeak(clientId);
+			previous.dispose();
+			this._receiveForClient(clientId, message);
+		}, ended => {
+			if (!this._closed && this._lanes.get(clientId) === ended) {
+				const ackId = ++this._ackId;
+				const frame = JSON.stringify({ type: 'sendToGroup', group: `${prefix}.to-client`, ackId, dataType: 'json', noEcho: true, data: { kind: 'closed', generation: ended.generation } });
+				try {
+					this._enqueue([{ ackId, frame }]);
+				} catch (error) {
+					this._onError(error instanceof Error ? error : new Error(String(error)));
+					this.dispose();
+					return;
+				}
 			}
 		});
+		this._lanes.set(clientId, lane);
 		return lane;
 	}
 
@@ -355,6 +462,7 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 			}
 			this._socket?.close();
 			this._socket = undefined;
+			this._onClose.fire();
 		}
 		super.dispose();
 	}

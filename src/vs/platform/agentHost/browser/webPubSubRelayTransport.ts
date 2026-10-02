@@ -18,7 +18,7 @@ import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../bas
 import { hasKey, isObject } from '../../../base/common/types.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
 import { type InboundResult, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
@@ -130,6 +130,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	/** Guards against firing onClose / resolving connect more than once. */
 	private _closed = false;
 	private _connectResolved = false;
+	private _generation: number | undefined;
+	private _handshakeId: JsonRpcRequest['id'] | undefined;
+	private readonly _requests = new Set<JsonRpcRequest['id']>();
+	private readonly _closedBeforeHandshake = new Set<number>();
 
 	constructor(private readonly _options: IWebPubSubRelayTransportOptions) {
 		super();
@@ -325,11 +329,59 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			this._options.onProtocolError?.(err);
 			return;
 		}
-		if (result.kind === 'payload') {
-			const payload = result.payload as ProtocolMessage;
-			this._logProtocolMessage(payload, 's2c');
-			this._onMessage.fire(payload);
+		if (result.kind === 'closed') {
+			if (result.group.scope === 'client' && result.group.lane === 'to-client') {
+				if (this._handshakeId !== undefined) {
+					if (result.generation !== undefined) {
+						this._closedBeforeHandshake.add(result.generation);
+						if (this._closedBeforeHandshake.size > 128) {
+							this._options.onProtocolError?.(new Error('Relay handshake closure window exceeded'));
+							this._fireClose();
+						}
+					}
+				} else if (result.generation === undefined || result.generation === this._generation) {
+					this._fireClose();
+				}
+			}
+		} else if (result.kind === 'payload' || result.kind === 'batch') {
+			for (const value of result.kind === 'batch' ? result.payloads : [result.payload]) {
+				if (this._closed) {
+					break;
+				}
+				this._deliver(value as ProtocolMessage, result.generation);
+			}
 		}
+	}
+
+	private _deliver(payload: ProtocolMessage, generation: number | undefined): void {
+		if (!isObject(payload) || payload.jsonrpc !== '2.0') {
+			this._options.onProtocolError?.(new Error('Invalid AHP relay message'));
+			return;
+		}
+		const response = isJsonRpcResponse(payload);
+		if (this._handshakeId !== undefined && !(response && payload.id === this._handshakeId)) {
+			return;
+		}
+		if (response && payload.id !== null && payload.id === this._handshakeId) {
+			if (generation !== undefined && this._closedBeforeHandshake.has(generation)) {
+				this._fireClose();
+				return;
+			}
+			this._generation = generation;
+			this._handshakeId = undefined;
+			this._closedBeforeHandshake.clear();
+			this._requests.clear();
+		} else if (generation !== undefined && this._generation !== undefined && generation !== this._generation) {
+			if (response && payload.id !== null && this._requests.has(payload.id)) {
+				this._fireClose();
+			}
+			return;
+		}
+		if (response && payload.id !== null) {
+			this._requests.delete(payload.id);
+		}
+		this._logProtocolMessage(payload, 's2c');
+		this._onMessage.fire(payload);
 	}
 
 	/** Publish each chunk once; rejection or a missing acknowledgement after 30 seconds fails the transport. */
@@ -340,6 +392,17 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
 			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
 			throw new Error('Refusing to send plaintext authentication over Web PubSub');
+		}
+		if (hasKey(message, { id: true, method: true }) && (typeof message.id === 'number' || typeof message.id === 'string')) {
+			if (this._requests.size >= 1024) {
+				this._fireClose();
+				throw new Error('Web PubSub outstanding request limit exceeded');
+			}
+			this._requests.add(message.id);
+			if (message.method === 'initialize' || message.method === 'reconnect') {
+				this._handshakeId = message.id;
+				this._closedBeforeHandshake.clear();
+			}
 		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
 		// relay frames they were split into.
@@ -419,6 +482,8 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		this._publishAckTimer.cancel();
 		this._pendingJoinAcks.clear();
 		this._pendingPublishAcks.clear();
+		this._requests.clear();
+		this._closedBeforeHandshake.clear();
 		this._rejectConnect = undefined;
 		try {
 			this._ws?.close();

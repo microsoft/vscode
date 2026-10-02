@@ -18,6 +18,9 @@ import { MissionControlControlVerifier, type IMissionControlSigningKey } from '.
 import { MissionControlProtocolServer, type IMissionControlSocket } from '../../node/missionControlProtocolServer.js';
 import { ExperimentalMissionControlEnvironment } from '../../node/missionControlEnvironment.js';
 import type { IProtocolTransport } from '../../common/state/sessionTransport.js';
+import { MissionControlSessionMirror } from '../../node/missionControlSessionMirror.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { ActionType } from '../../common/state/sessionActions.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -27,11 +30,15 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 	readonly joins: string[] = [];
 	readonly acknowledgements: number[] = [];
 	readonly publishAckIds: number[] = [];
+	readonly userEvents: { readonly event: string; readonly data: object }[] = [];
 	closed = false;
 	constructor(private readonly _ackSuccess = true, private readonly _manualPublishAcks = false) { super(); }
 
 	send(data: string): void {
-		const frame = JSON.parse(data) as { type: string; ackId?: number; group?: string; data?: { kind: string; data: object }; sequenceId?: number };
+		const frame = JSON.parse(data) as { type: string; event?: string; ackId?: number; group?: string; data?: { kind: string; data: object }; sequenceId?: number };
+		if (frame.type === 'event' && frame.event && frame.data) {
+			this.userEvents.push({ event: frame.event, data: frame.data });
+		}
 		if (frame.type === 'joinGroup' && frame.group) {
 			this.joins.push(frame.group);
 		}
@@ -61,11 +68,10 @@ class FakeWpsSocket extends EventEmitter implements IMissionControlSocket {
 suite('Experimental Mission Control WPS', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function signingFixture() {
+	function signingFixture(kid = 'test-key') {
 		const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
-		const key: IMissionControlSigningKey = { ...(publicKey.export({ format: 'jwk' }) as JsonWebKey), kid: 'test-key', kty: 'EC', crv: 'P-256', alg: 'ES256', use: 'sig' };
-		const signed = (clientId: string, nonce: string, passive = false, environment = 'environment') => {
-			const payload = { kind: 'spawn_request', client_id: clientId, spawn_request_id: `spawn-${nonce}`, passive };
+		const key: IMissionControlSigningKey = { ...(publicKey.export({ format: 'jwk' }) as JsonWebKey), kid, kty: 'EC', crv: 'P-256', alg: 'ES256', use: 'sig' };
+		const signedControl = <T extends { kind: string }>(payload: T, nonce: string, environment = 'environment') => {
 			const header = Buffer.from(JSON.stringify({ typ: 'JWT', alg: 'ES256', kid: key.kid })).toString('base64url');
 			const claims = Buffer.from(JSON.stringify({
 				iat: Math.floor(Date.now() / 1000), jti: nonce, user_id: 'owner', environment_id: environment, kind: payload.kind, payload,
@@ -78,7 +84,9 @@ suite('Experimental Mission Control WPS', () => {
 			}
 			return { ...payload, signature: `${input}.${signature.toString('base64url')}` };
 		};
-		return { key, signed };
+		const signed = (clientId: string, nonce: string, passive = false, environment = 'environment') =>
+			signedControl({ kind: 'spawn_request', client_id: clientId, spawn_request_id: `spawn-${nonce}`, passive }, nonce, environment);
+		return { key, signed, signedControl };
 	}
 
 	test('rejects stale, mismatched, spoofed, and replayed control before opening a lane', () => {
@@ -128,6 +136,78 @@ suite('Experimental Mission Control WPS', () => {
 		});
 	});
 
+	test('signing-key rotation revokes the removed key without resetting replay protection', () => {
+		const original = signingFixture();
+		const rotated = signingFixture('rotated-key');
+		const verifier = new MissionControlControlVerifier('environment', 'owner', [original.key]);
+		const accepted = original.signed('client-a', 'already-seen');
+		verifier.verify(accepted);
+		verifier.updateKeys([original.key, rotated.key]);
+		assert.throws(() => verifier.verify(accepted), /Replay/);
+		verifier.verify(rotated.signed('client-b', 'new-key'));
+		verifier.updateKeys([rotated.key]);
+		assert.throws(() => verifier.verify(original.signed('client-c', 'removed-key')), /Untrusted/);
+	});
+
+	test('publishes a closure after teardown and gives a successor a different generation', async () => {
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
+		));
+		const lanes: IProtocolTransport[] = [];
+		let teardownObserved = false;
+		store.add(server.onConnection(lane => {
+			lanes.push(lane);
+			store.add(lane.onClose(() => { teardownObserved = true; }));
+			store.add(lane.onMessage(message => lane.send({ jsonrpc: '2.0', id: hasKey(message, { id: true }) ? message.id : 0, result: null })));
+		}));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'generation'), 1);
+		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client-a' } }, 2);
+		lanes[0].dispose();
+		assert.strictEqual(teardownObserved, true);
+		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 2, method: 'reconnect', params: { clientId: 'client-a' } }, 3);
+		const frames = socket.publishes.map(frame => frame.data as { kind: string; generation?: number });
+		assert.deepStrictEqual(frames.map(frame => frame.kind), ['message', 'closed', 'message']);
+		assert.strictEqual(frames[0].generation, frames[1].generation);
+		assert.ok(Number.isSafeInteger(frames[0].generation));
+		assert.notStrictEqual(frames[0].generation, frames[2].generation);
+		assert.strictEqual(lanes.length, 2);
+	});
+
+	test('reclaims a silent lane after the advertised window without a closure notice', async () => {
+		const clock = sinon.useFakeTimers();
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
+		));
+		try {
+			let lane: IProtocolTransport | undefined;
+			let closed = false;
+			store.add(server.onConnection(value => { lane = value; store.add(value.onClose(() => { closed = true; })); }));
+			const ready = server.connect();
+			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+			await ready;
+			socket.deliver(`${prefix}.control`, signed('client-a', 'idle'), 1);
+			const timeout = lane?.relayHandshakeMeta?.['copilot.keepAliveTimeoutMs'];
+			assert.strictEqual(timeout, 900_000);
+			await clock.tickAsync(899_999);
+			assert.strictEqual(closed, false);
+			await clock.tickAsync(1);
+			assert.strictEqual(closed, true);
+			assert.strictEqual(socket.publishes.length, 0);
+		} finally {
+			server.dispose();
+			clock.restore();
+		}
+	});
+
 	test('serializes AHP publishes behind acknowledgements without reordering', async () => {
 		const { key, signed } = signingFixture();
 		const socket = new FakeWpsSocket(true, true);
@@ -148,6 +228,67 @@ suite('Experimental Mission Control WPS', () => {
 		assert.deepStrictEqual({ beforeAck, ids: socket.publishes.map(frame => (frame.data.data as { id: number }).id) }, {
 			beforeAck: 1, ids: [1, 2],
 		});
+	});
+
+	test('overlapping handshakes replace the pending connection instead of leaving a stuck lane', async () => {
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
+		));
+		const lanes: IProtocolTransport[] = [];
+		store.add(server.onConnection(lane => {
+			lanes.push(lane);
+			store.add(lane.onMessage(message => {
+				if (hasKey(message, { id: true }) && message.id === 2) {
+					lane.send({ jsonrpc: '2.0', id: 2, result: {} });
+				}
+			}));
+		}));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'overlap'), 1);
+		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'client-a' } }, 2);
+		socket.deliver(`${prefix}.client.client-a.to-host`, { jsonrpc: '2.0', id: 2, method: 'initialize', params: { clientId: 'client-a' } }, 3);
+		assert.strictEqual(lanes.length, 2);
+		assert.deepStrictEqual(socket.publishes.map(frame => frame.data.kind), ['closed', 'message']);
+	});
+
+	test('mirrors authoritative actions as user events and accepts only signed retained backfill', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const { key, signedControl } = signingFixture();
+			const socket = new FakeWpsSocket();
+			const mirror = store.add(new MissionControlSessionMirror('environment', {}, new NullLogService()));
+			const session = 'ahp-session:/mirror-test';
+			mirror.registerSession(session);
+			const server = store.add(new MissionControlProtocolServer(
+				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control`, ingest_ack: `${prefix}.ingest-ack` } },
+				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket, undefined, undefined, undefined, mirror,
+			));
+			const ready = server.connect();
+			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+			await ready;
+			store.add(mirror.attach(event => server.publishMirrorEvent(event)));
+			mirror.enqueue({ channel: session, serverSeq: 7, origin: undefined, action: { type: ActionType.SessionTitleChanged, title: 'Mirrored title' } }, session);
+			await clock.tickAsync(2);
+			const original = socket.userEvents[0];
+			assert.strictEqual(original.event, 'sessionEvents');
+			assert.strictEqual(mirror.getSessionStatus(session).retainedFrames, 1);
+			const request = signedControl({ kind: 'backfill_request', environment_id: 'environment', session_id: session, ns: 'ahp', from_seq: 0, to_seq: 0, request_id: 'backfill-test' }, 'backfill-nonce');
+			socket.deliver(`${prefix}.control`, request, 1);
+			await clock.tickAsync(2);
+			assert.deepStrictEqual(socket.userEvents[1], original);
+			socket.deliver(`${prefix}.ingest-ack`, { watermarks: { [session]: { ahp: 0 } } }, 2);
+			assert.strictEqual(mirror.getSessionStatus(session).retainedFrames, 0);
+			assert.deepStrictEqual(socket.joins, [`${prefix}.control`, `${prefix}.ingest-ack`]);
+			server.dispose();
+			mirror.dispose();
+		} finally {
+			clock.restore();
+		}
 	});
 
 	test('failed relay startup marks the registered environment offline', async () => {
@@ -224,7 +365,7 @@ suite('Experimental Mission Control WPS', () => {
 			joins: [`${prefix}.control`, toHost, `${prefix}.client.client-b.to-host`],
 			firstClosed: false,
 			secondPassive: true,
-			publishes: [`${prefix}.client.client-b.to-client`],
+			publishes: [`${prefix}.client.client-a.to-client`, `${prefix}.client.client-b.to-client`, `${prefix}.client.client-b.to-client`],
 			acks: [1, 2, 3, 4, 4, 5],
 			errors: [],
 			credentialLaneClosed: true,
@@ -275,7 +416,8 @@ suite('Experimental Mission Control WPS', () => {
 					bearer: init?.headers !== undefined && Object.hasOwn(init.headers, 'Authorization'),
 					body: init?.body ? JSON.parse(init.body.toString()) as Record<string, unknown> : undefined,
 				});
-				return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] } : environment);
+				return Response.json(url.pathname.endsWith('jwks.json') ? { keys: [key] }
+					: url.pathname.endsWith('/token') ? { ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() } : environment);
 			};
 			const service = store.add(new ExperimentalMissionControlEnvironment(
 				path, fakeFetch, () => ({ dispose() { } }), () => { throw new Error('Unexpected WPS failure'); },
@@ -306,8 +448,8 @@ suite('Experimental Mission Control WPS', () => {
 					['/cmc_internal/api/agents/environments/register', true, 'user-local', persisted],
 					['/cmc_internal/api/agents/environments/.well-known/jwks.json', true, undefined, undefined],
 					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
+					['/cmc_internal/api/agents/environments/environment/token', true, undefined, undefined],
 					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
-					['/cmc_internal/api/agents/environments/.well-known/jwks.json', true, undefined, undefined],
 					['/cmc_internal/api/agents/environments/environment/heartbeat', true, undefined, undefined],
 				],
 				persisted: true,
@@ -334,7 +476,9 @@ suite('Experimental Mission Control WPS', () => {
 				sockets: FakeWpsSocket[];
 				options: { baseUrl: string; live: boolean; accountId: string; credential: string; roots: string[] };
 				changeIdentityAuthority: (base: string) => void;
+				tokens: number[];
 			}) => Promise<void>,
+			bootstrapLifetime?: number,
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -344,16 +488,21 @@ suite('Experimental Mission Control WPS', () => {
 				const heartbeats: { time: number; status: string }[] = [];
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
+				const tokens: number[] = [];
 				let identityApiBase = 'https://api.github.com';
 				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
 					id: 'environment', kind: 'user-local', user_id: '123', owner_id: '123', owner_type: 'user',
-					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' } },
+					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' }, ...(bootstrapLifetime === undefined ? {} : { expires_at: new Date(clock.now + bootstrapLifetime).toISOString() }) },
 				};
 				service = store.add(new ExperimentalMissionControlEnvironment(
 					path,
 					async (input, init) => {
 						const url = new URL(input.toString());
+						if (url.pathname.endsWith('/token')) {
+							tokens.push(clock.now - Date.UTC(2026, 9, 2));
+							return Response.json({ ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() });
+						}
 						if (url.pathname.endsWith('/heartbeat')) {
 							const reply = replies[heartbeats.length];
 							heartbeats.push({ time: clock.now - Date.UTC(2026, 9, 2), status: (JSON.parse(String(init?.body)) as { status: string }).status });
@@ -379,7 +528,7 @@ suite('Experimental Mission Control WPS', () => {
 				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, errors, sockets, options,
+					service, clock, heartbeats, errors, sockets, options, tokens,
 					changeIdentityAuthority: base => {
 						identityApiBase = base;
 						identityAuthorityChanged.fire();
@@ -391,6 +540,17 @@ suite('Experimental Mission Control WPS', () => {
 				await rm(path, { recursive: true });
 			}
 		}
+
+		test('rotates expiring access tokens during load shedding without reconnecting a healthy socket', async () => {
+			await withEnvironment([{ retryAfter: '300' }], async ({ clock, heartbeats, errors, sockets, tokens }) => {
+				await clock.tickAsync(89_999);
+				assert.deepStrictEqual(tokens, []);
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ tokens, heartbeats, sockets: sockets.length, errors }, {
+					tokens: [90_000], heartbeats: [{ time: 0, status: 'online' }], sockets: 1, errors: [],
+				});
+			}, 120_000);
+		});
 
 		for (const scenario of [
 			{ name: 'delta-seconds on the initial online heartbeat', value: '120', delay: 120_000 },
@@ -443,17 +603,17 @@ suite('Experimental Mission Control WPS', () => {
 		}
 
 		test('relay recovery does not bypass the heartbeat delay for its online update', async () => {
-			await withEnvironment([{}, { retryAfter: '240' }], async ({ clock, heartbeats, errors, sockets }) => {
+			await withEnvironment([{ retryAfter: '240' }], async ({ clock, heartbeats, errors, sockets }) => {
 				sockets[0].emit('close');
-				await clock.tickAsync(60_000);
+				await clock.tickAsync(500);
 				const socketsAfterRecovery = sockets.length;
-				await clock.tickAsync(239_999);
+				await clock.tickAsync(239_499);
 				const beforeDeadline = heartbeats.length;
 				await clock.tickAsync(1);
 				assert.deepStrictEqual({ socketsAfterRecovery, beforeDeadline, heartbeats, errors }, {
 					socketsAfterRecovery: 2,
-					beforeDeadline: 2,
-					heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'offline' }, { time: 300_000, status: 'online' }],
+					beforeDeadline: 1,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 240_000, status: 'online' }],
 					errors: [],
 				});
 			});

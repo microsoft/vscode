@@ -263,6 +263,72 @@ suite('CloudSandboxApiService connection credentials', () => {
 	});
 });
 
+suite('Mission Control environment discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('caches credential-free metadata and invalidates it when the account changes', async () => {
+		const { service, requestedUrls, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
+				id: 'host', kind: 'user-local', name: 'Native host', status: 'online', webpubsub: { access_token: 'must-not-be-cached' },
+			}]) : undefined,
+		});
+		const first = await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
+		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
+		changeAuthentication();
+		await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 2);
+	});
+
+	test('skips unusable metadata without hiding other valid environments or rejecting future statuses', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([
+				{ id: 'invalid', name: 'Invalid host', kind: 'user-local' },
+				{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+				{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+			]) : undefined,
+		});
+		assert.deepStrictEqual(await service.listEnvironments(CancellationToken.None), [
+			{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+			{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+		]);
+	});
+
+	test('explicit inventory refresh observes a host started since the cached offline result', async () => {
+		let status = 'offline';
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{ id: 'host', name: 'Native host', kind: 'user-local', status }]) : undefined,
+		});
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None))[0].status, 'offline');
+		status = 'online';
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None, { refresh: true }))[0].status, 'online');
+	});
+
+	test('does not publish a late inventory from a previous account', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname.endsWith('/agents/environments')) {
+					started.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const inventory = service.listEnvironments(CancellationToken.None);
+		await started.p;
+		changeAuthentication();
+		response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Old account', status: 'online' }]));
+		await assert.rejects(inventory, CancellationError);
+	});
+});
+
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

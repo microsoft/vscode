@@ -36,6 +36,10 @@ import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkD
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
+import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import { parseChatUri } from '../common/state/sessionState.js';
+import { parseAnnotationsUri } from '../common/annotationsUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -505,6 +509,35 @@ async function startAgentHost(): Promise<void> {
 			environmentId => logService.info(`[AgentHost] Experimental Mission Control ready; environmentId=${environmentId}`),
 			getGitHubIdentityApiBase,
 			onDidChangeGitHubIdentityAuthority,
+			environmentId => {
+				const mirror = instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
+				const registered = new Set<string>();
+				const source = stateManager.onDidEmitEnvelope(envelope => {
+					const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
+						?? parseChangesetUri(envelope.channel)?.sessionUri ?? envelope.channel;
+					const session = stateManager.getSessionSummary(channel);
+					if (!session) {
+						return;
+					}
+					try {
+						if (!missionControl?.isEnabled) {
+							if (registered.has(session.resource)) {
+								mirror.reportSourceLag(session.resource, 1);
+							}
+							return;
+						}
+						if (!registered.has(session.resource)) {
+							mirror.registerSession(session.resource);
+							registered.add(session.resource);
+							mirror.setLifecycle(session.resource, 'started');
+						}
+						mirror.enqueue(envelope, session.resource);
+					} catch (error) {
+						logService.error('[AgentHost] Mission Control mirror admission failed', error);
+					}
+				});
+				return { mirror, source };
+			},
 		))
 		: undefined;
 	const management = instantiationService.createInstance(

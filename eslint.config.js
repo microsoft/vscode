@@ -202,6 +202,40 @@ export default defineConfig(
 			]
 		}
 	},
+	{
+		files: [
+			'src/vs/platform/agentHost/test/**/missionControl*.test.ts',
+			'src/vs/platform/agentHost/test/**/protocolServerHandler.test.ts',
+			'src/vs/platform/agentHost/test/**/agentHostProtocolClient.test.ts',
+			'src/vs/platform/agentHost/test/**/webPubSubRelayTransport.test.ts',
+			'src/vs/platform/agentHost/test/common/webPubSub/*.test.ts',
+			'src/vs/workbench/contrib/chat/test/browser/remoteAgentHost/cloudSandbox*.test.ts',
+			'src/vs/sessions/contrib/providers/remoteAgentHost/test/browser/remoteAgentHost.contribution.test.ts',
+		],
+		plugins: {
+			'agent-host-test': {
+				rules: {
+					'no-nested-tests': {
+						meta: {
+							type: 'problem',
+							schema: [],
+							messages: { nested: 'Declare tests in the suite, not inside another test; Mocha does not execute nested declarations.' },
+						},
+						create(context) {
+							return {
+								'CallExpression[callee.name="test"] CallExpression[callee.name="test"]'(node) {
+									context.report({ node, messageId: 'nested' });
+								},
+							};
+						},
+					},
+				},
+			},
+		},
+		rules: {
+			'agent-host-test/no-nested-tests': 'error',
+		},
+	},
 	// Disallow common telemetry properties in event data
 	{
 		files: [

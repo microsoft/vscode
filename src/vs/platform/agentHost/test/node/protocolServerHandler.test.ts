@@ -13,7 +13,7 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -1576,7 +1576,8 @@ suite('ProtocolServerHandler', () => {
 		const events = new EventEmitter();
 		const approvalDelivered = new DeferredPromise<void>();
 		const dispatchResponseDelivered = new DeferredPromise<void>();
-		const publishes: { group: string; data: { kind: string; data: { id?: number; result?: unknown; error?: unknown } } }[] = [];
+		const publishes: { group: string; data: { kind: string; generation?: number; data: { id?: number; result?: unknown; error?: unknown } } }[] = [];
+		const closures: (number | undefined)[] = [];
 		const groupPrefix = 'user.123.env.environment';
 		const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
 		const key = { ...(publicKey.export({ format: 'jwk' }) as JsonWebKey), kid: 'fake-key', use: 'sig', alg: 'ES256' };
@@ -1584,8 +1585,10 @@ suite('ProtocolServerHandler', () => {
 			on: (event, listener) => { events.on(event, listener); },
 			close: () => { events.emit('close'); },
 			send: data => {
-				const frame = JSON.parse(data) as { type: string; ackId?: number; group?: string; data?: { kind: string; data: { id?: number; result?: unknown; error?: unknown } } };
-				if (frame.type === 'sendToGroup' && frame.group && frame.data) {
+				const frame = JSON.parse(data) as { type: string; ackId?: number; group?: string; data?: { kind: string; generation?: number; data: { id?: number; result?: unknown; error?: unknown } } };
+				if (frame.type === 'sendToGroup' && frame.data?.kind === 'closed') {
+					closures.push(frame.data.generation);
+				} else if (frame.type === 'sendToGroup' && frame.group && frame.data) {
 					publishes.push({ group: frame.group, data: frame.data });
 					const message = frame.data.data as ProtocolMessage;
 					if (isJsonRpcNotification(message) && message.method === 'action' && (message.params as ActionEnvelope).action.type === ActionType.ChatToolCallConfirmed) {
@@ -1725,6 +1728,11 @@ suite('ProtocolServerHandler', () => {
 			await relayHandler?.whenIdle();
 			const fresh = publishes.find(publish => publish.data.data.id === 10)?.data.data as JsonRpcResponse;
 			assert.deepStrictEqual(hasKey(fresh, { result: true }) ? (fresh.result as InitializeResult).snapshots?.map(snapshot => snapshot.resource) : undefined, [ROOT_STATE_URI]);
+			const failedGeneration = publishes.find(publish => publish.data.data.id === 9)?.data.generation;
+			const initializedGeneration = publishes.find(publish => publish.data.data.id === 10)?.data.generation;
+			assert.strictEqual(closures.length, 1);
+			assert.notStrictEqual(closures[0], failedGeneration);
+			assert.strictEqual(failedGeneration, initializedGeneration);
 			deliver(toHost, request(11, 'authenticate', { channel: ROOT_STATE_URI, resource: 'https://api.github.com', token: `copilot-sealed.v1.${encryptionKey.keyId}.${Buffer.from(box).toString('base64url')}` }), 12);
 			await relayHandler?.whenIdle();
 			deliver(toHost, request(12, 'subscribe', { channel: nativeChat }), 13);
@@ -1736,6 +1744,91 @@ suite('ProtocolServerHandler', () => {
 			await rm(userData, { recursive: true });
 		}
 	});
+
+	test('an asynchronous initialization failure releases the transport for a fresh handshake', async () => {
+		const transport = disposables.add(new MockProtocolTransport());
+		const barrier = agentService.subscribeBarrier = new DeferredPromise<void>();
+		const snapshot = stateManager.getSnapshot.bind(stateManager);
+		let fail = false;
+		stateManager.getSnapshot = resource => {
+			if (fail && resource === ROOT_STATE_URI) {
+				throw new Error('Snapshot failed');
+			}
+			return snapshot(resource);
+		};
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', {
+			clientId: 'async-retry', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, buildAnnotationsUri(sessionUri)],
+		}));
+		fail = true;
+		await barrier.complete();
+		await handler.whenIdle();
+		const failed = findResponse(transport.sent, 1);
+		assert.ok(failed && hasKey(failed, { error: true }));
+		fail = false;
+		transport.simulateMessage(request(2, 'initialize', { clientId: 'async-retry', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+		await handler.whenIdle();
+		const retried = findResponse(transport.sent, 2);
+		assert.ok(retried && hasKey(retried, { result: true }));
+	});
+
+	for (const handshake of ['initialize', 'reconnect'] as const) {
+		test(`failed asynchronous ${handshake} preserves the predecessor's residual grace cleanup`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			stateManager.createSession(makeSessionSummary());
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady });
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionActiveClientSet, activeClient: { clientId: 'grace-owner', tools: [{ name: 'test', description: 'Test' }] } });
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatTurnStarted, turnId: 'grace-turn', startedAt: '2026-10-02T00:00:00.000Z', message: { text: 'Test', origin: { kind: MessageKind.User } },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallStart, turnId: 'grace-turn', toolCallId: 'grace-tool', toolName: 'test', displayName: 'Test',
+				contributor: { kind: ToolCallContributorKind.Client, clientId: 'grace-owner' },
+			});
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatToolCallReady, turnId: 'grace-turn', toolCallId: 'grace-tool', invocationMessage: 'Test', confirmed: ToolCallConfirmationReason.NotNeeded,
+			});
+			const removed: string[] = [];
+			const remove = managedSettingsService.removeClientPermissions.bind(managedSettingsService);
+			managedSettingsService.removeClientPermissions = id => { removed.push(id); remove(id); };
+			const previous = connectClient('grace-owner', [sessionUri]);
+			previous.simulateClose();
+			await timeout(10_000);
+			const barrier = agentService.subscribeBarrier = new DeferredPromise<void>();
+			const snapshot = stateManager.getSnapshot.bind(stateManager);
+			const sessions = stateManager.getSessionUris.bind(stateManager);
+			let fail = false;
+			stateManager.getSnapshot = uri => {
+				if (handshake === 'initialize' && fail && uri === ROOT_STATE_URI) {
+					fail = false;
+					throw new Error('Asynchronous snapshot failure');
+				}
+				return snapshot(uri);
+			};
+			stateManager.getSessionUris = () => {
+				if (handshake === 'reconnect' && fail) {
+					fail = false;
+					throw new Error('Asynchronous restoration failure');
+				}
+				return sessions();
+			};
+			const current = disposables.add(new MockProtocolTransport());
+			server.simulateConnection(current);
+			current.simulateMessage(handshake === 'initialize'
+				? request(1, 'initialize', { clientId: 'grace-owner', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, buildAnnotationsUri(sessionUri)] })
+				: request(1, 'reconnect', { clientId: 'grace-owner', lastSeenServerSeq: 0, subscriptions: [ROOT_STATE_URI, sessionUri] }));
+			fail = true;
+			await barrier.complete();
+			await handler.whenIdle();
+			const failed = findResponse(current.sent, 1);
+			assert.ok(failed && hasKey(failed, { error: true }));
+			await timeout(19_999);
+			assert.strictEqual(removed.length, 0);
+			await timeout(1);
+			const part = stateManager.getSessionState(sessionUri)?.activeTurn?.responseParts[0];
+			assert.strictEqual(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined, false);
+			assert.strictEqual(removed.length, 1);
+		}));
+	}
 
 	test('ping responds after initialize', async () => {
 		const transport = connectClient('client-1');

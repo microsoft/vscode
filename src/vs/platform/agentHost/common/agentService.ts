@@ -755,10 +755,20 @@ export interface IExperimentalMissionControlOptions {
 	readonly requireConnectionBinding?: boolean;
 }
 
+/** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */
+export interface IMissionControlCredentialSealingRequest {
+	readonly token: string;
+	readonly resource: string;
+	readonly key: { readonly key_id: string; readonly use: 'auth-token' | 'mcp-auth-token'; readonly algorithm: string; readonly public_key: string };
+	readonly challenge?: string;
+}
+
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
 	/** Development-only Mission Control ingress; never enabled in builds. */
 	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void>;
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
+	getExperimentalMissionControlEnvironmentId(): Promise<string | undefined>;
 
 	/**
 	 * Local-only compatibility path for session fields not yet represented by
@@ -1237,6 +1247,8 @@ export interface IAgentHostService extends IAgentConnection {
 	readonly _serviceBrand: undefined;
 	/** Available only in the local, development Agent Host. */
 	configureExperimentalMissionControl?(options: IExperimentalMissionControlOptions | undefined): Promise<void>;
+	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
+	getExperimentalMissionControlEnvironmentId?(): Promise<string | undefined>;
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;

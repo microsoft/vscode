@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createPublicKey, verify, type JsonWebKey } from 'crypto';
+import { hasKey } from '../../../base/common/types.js';
+import type { IMissionControlMirrorBackfill } from './missionControlSessionMirror.js';
 
 const MAX_SKEW_SECONDS = 300;
 const P256_ORDER_HALF = BigInt('0x7fffffff800000007fffffffffffffffffffffffffffffffde737d56d38bcf427');
@@ -53,9 +55,23 @@ export class MissionControlControlVerifier {
 	constructor(
 		private readonly _environmentId: string,
 		private readonly _ownerId: string,
-		private readonly _keys: readonly IMissionControlSigningKey[],
+		private _keys: readonly IMissionControlSigningKey[],
 		private readonly _now: () => number = Date.now,
-	) { }
+	) {
+		this.updateKeys(_keys);
+	}
+
+	updateKeys(keys: readonly IMissionControlSigningKey[]): void {
+		if (keys.length === 0 || keys.length > 64 || new Set(keys.map(key => key?.kid)).size !== keys.length
+			|| keys.some(key => !key || typeof key.kid !== 'string' || !key.kid || key.kid.length > 256
+				|| key.kty !== 'EC' || key.crv !== 'P-256' || key.alg !== 'ES256' || key.use !== 'sig' || hasKey(key, { d: true }))) {
+			throw new Error('Invalid Mission Control signing keys');
+		}
+		for (const key of keys) {
+			createPublicKey({ key, format: 'jwk' });
+		}
+		this._keys = keys.map(key => ({ ...key }));
+	}
 
 	verify(value: unknown): IMissionControlSpawn {
 		if (!object(value) || value.kind !== 'spawn_request' || typeof value.client_id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value.client_id)
@@ -64,7 +80,30 @@ export class MissionControlControlVerifier {
 			|| typeof value.signature !== 'string') {
 			throw new Error('Invalid Mission Control spawn request');
 		}
-		const [encodedHeader, encodedClaims, encodedSignature, extra] = value.signature.split('.');
+		const payload = this._verifyControl(value.signature, 'spawn_request', signed => signed.client_id === value.client_id
+			&& signed.spawn_request_id === value.spawn_request_id && signed.passive === value.passive);
+		return { kind: 'spawn_request', client_id: String(payload.client_id), spawn_request_id: String(payload.spawn_request_id), passive: payload.passive === true, signature: value.signature };
+	}
+
+	verifyBackfill(value: unknown): IMissionControlMirrorBackfill {
+		if (!object(value) || value.kind !== 'backfill_request' || typeof value.signature !== 'string'
+			|| value.environment_id !== this._environmentId || typeof value.session_id !== 'string' || value.session_id.length > 8192
+			|| value.ns !== 'ahp' || typeof value.request_id !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value.request_id)
+			|| typeof value.from_seq !== 'number' || typeof value.to_seq !== 'number'
+			|| !Number.isSafeInteger(value.from_seq) || !Number.isSafeInteger(value.to_seq)
+			|| value.from_seq < 0 || value.to_seq < value.from_seq || value.to_seq - value.from_seq >= 4096) {
+			throw new Error('Invalid Mission Control backfill request');
+		}
+		const payload = this._verifyControl(value.signature, 'backfill_request', signed =>
+			['environment_id', 'session_id', 'ns', 'from_seq', 'to_seq', 'request_id'].every(key => signed[key] === value[key]));
+		return {
+			kind: 'backfill_request', environment_id: this._environmentId, session_id: String(payload.session_id), ns: 'ahp',
+			from_seq: value.from_seq, to_seq: value.to_seq, request_id: String(payload.request_id),
+		};
+	}
+
+	private _verifyControl(compactSignature: string, kind: 'spawn_request' | 'backfill_request', matches: (payload: Record<string, unknown>) => boolean): Record<string, unknown> {
+		const [encodedHeader, encodedClaims, encodedSignature, extra] = compactSignature.split('.');
 		if (!encodedHeader || !encodedClaims || !encodedSignature || extra !== undefined) {
 			throw new Error('Invalid control signature');
 		}
@@ -84,10 +123,8 @@ export class MissionControlControlVerifier {
 		const payload = claims.payload;
 		if (!Number.isInteger(claims.iat) || Math.abs(now - (claims.iat as number)) > MAX_SKEW_SECONDS
 			|| typeof claims.jti !== 'string' || !claims.jti || claims.environment_id !== this._environmentId
-			|| claims.user_id !== this._ownerId || claims.kind !== 'spawn_request'
-			|| !object(payload) || payload.kind !== 'spawn_request'
-			|| payload.client_id !== value.client_id || payload.spawn_request_id !== value.spawn_request_id
-			|| payload.passive !== value.passive) {
+			|| claims.user_id !== this._ownerId || claims.kind !== kind
+			|| !object(payload) || payload.kind !== kind || !matches(payload)) {
 			throw new Error('Control request does not match this environment');
 		}
 		for (const [nonce, time] of this._seen) {
@@ -99,6 +136,6 @@ export class MissionControlControlVerifier {
 			throw new Error('Replay or exhausted control replay window');
 		}
 		this._seen.set(claims.jti, (claims.iat as number) + MAX_SKEW_SECONDS);
-		return { kind: 'spawn_request', client_id: value.client_id, spawn_request_id: value.spawn_request_id, passive: value.passive === true, signature: value.signature };
+		return payload;
 	}
 }

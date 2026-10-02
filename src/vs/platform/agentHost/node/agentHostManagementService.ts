@@ -7,7 +7,8 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
-import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IExperimentalMissionControlOptions } from '../common/agentService.js';
+import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IExperimentalMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
+import { sealMissionControlCredential } from './missionControlAuthentication.js';
 import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
@@ -40,6 +41,17 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Experimental Mission Control is unavailable in this Agent Host');
 		}
 		return this._missionControl.configure(options);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		if (!this._missionControl || this._shuttingDown) {
+			throw new Error('Local Mission Control sealing is unavailable');
+		}
+		return sealMissionControlCredential(request);
+	}
+
+	async getExperimentalMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._missionControl?.environmentId;
 	}
 
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {

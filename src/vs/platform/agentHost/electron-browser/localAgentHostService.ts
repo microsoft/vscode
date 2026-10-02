@@ -52,6 +52,7 @@ import {
 	IAgentHostService,
 	IAgentHostSocketInfo,
 	type IExperimentalMissionControlOptions,
+	type IMissionControlCredentialSealingRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -606,6 +607,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
 		return this._getManagementService().configureExperimentalMissionControl(options);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		return this._getManagementService().sealMissionControlCredential(request);
+	}
+
+	getExperimentalMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._getManagementService().getExperimentalMissionControlEnvironmentId();
 	}
 
 }

@@ -81,6 +81,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(IConfigurationService, configurationService);
 
 	instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+		override readonly onDidChangeAccount = Event.None;
 		override async connect(): Promise<CloudSandboxConnectResult> {
 			// Hold the last result so a caller can keep re-minting past the scripted responses.
 			const result = results[Math.min(calls, results.length - 1)];

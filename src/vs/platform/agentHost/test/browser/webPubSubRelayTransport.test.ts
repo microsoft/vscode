@@ -137,6 +137,70 @@ suite('WebPubSubRelayTransport', () => {
 		assert.strictEqual(transport.isOpen, true);
 	});
 
+	test('pins the handshake generation, discards stale frames and honors only its closure notice', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 12, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', method: 'stale' } }, BROADCAST);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emit({ type: 'message', from: 'group', group: BROADCAST, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(transport.isOpen, true);
+		assert.strictEqual(received.length, 1);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a later-generation answer to an outstanding request detects a lost closure notice', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 1, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 2, data: { jsonrpc: '2.0', id: 2, result: {} } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a previous connection closure cannot end the pending reconnect handshake', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const messages: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => messages.push(message)));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: { clientId: 'c1', subscriptions: [], lastSeenServerSeq: 0 } });
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', id: 99, result: {} } });
+		fake.emitGroupMessage(2, { kind: 'message', generation: 12, data: { jsonrpc: '2.0', id: 1, error: { code: -32008, message: 'Not found' } } });
+		assert.strictEqual(transport.isOpen, true);
+		assert.strictEqual(messages.length, 1);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 12 } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('a handshake response from an already closed connection cannot establish the transport', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'c1', protocolVersions: ['0.9.0'] } });
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'closed', generation: 11 } });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 11, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		assert.strictEqual(fake.closed, true);
+	});
+
+	test('delivers batch items in order and accepts legacy envelopes without a generation', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'batch', items: [{ jsonrpc: '2.0', id: 1, result: {} }, { jsonrpc: '2.0', id: 2, result: {} }] } });
+		assert.deepStrictEqual(received.map(message => hasKey(message, { id: true }) ? message.id : undefined), [1, 2]);
+	});
+
 	test('rejects the connect when a joinGroup ack reports failure', async () => {
 		const fake = new FakeWebSocket();
 		const transport = createTransport(fake);

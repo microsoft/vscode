@@ -24,11 +24,11 @@ import {
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { findRemoteAgentHostSessionTypeAuthority, remoteAgentHostSessionTypeId } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -40,6 +40,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { sealMissionControlMcpCredential } from './missionControlCredentialSealing.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -152,7 +153,32 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		// specifics into that shared code path.
 		this._register(this._connectionCustomizations.register(
 			isCloudSandboxConnectionAddress,
-			address => createCloudSandboxConnectionCustomization(address, this._cloudSandboxService)!,
+			address => {
+				const connection = this._remoteAgentHostService.configuredEntries.find(entry => getEntryAddress(entry) === address)?.connection;
+				const userLocal = connection?.type === RemoteAgentHostEntryType.CloudSandbox && connection.environmentKind === 'user-local';
+				return createCloudSandboxConnectionCustomization(address, this._cloudSandboxService, userLocal, async request => {
+					if (!userLocal) {
+						throw new Error('User-local MC sealing requires a user-local connection.');
+					}
+					const environment = await this._apiService.getEnvironment(connection.environmentId, CancellationToken.None);
+					const client = this._remoteAgentHostService.getConnection(address);
+					const root = client?.rootState.value;
+					if (environment.id !== connection.environmentId || !client || !root || root instanceof Error) {
+						throw new Error('Mission Control environment or host is unavailable for sealing.');
+					}
+					const initialization = client.initializeResult.get();
+					const local = this._instantiationService.invokeFunction(accessor => accessor.get(IAgentHostService));
+					if (!local.sealMissionControlCredential) {
+						throw new Error('Trusted local credential sealing is unavailable.');
+					}
+					const seal = local.sealMissionControlCredential.bind(local);
+					const result = await sealMissionControlMcpCredential(request, environment.encryption_keys, root, initialization?._meta, seal);
+					if (this._remoteAgentHostService.getConnection(address) !== client || client.initializeResult.get() !== initialization) {
+						throw new CancellationError();
+					}
+					return result;
+				})!;
+			},
 		));
 
 		// Keep providers wired to their live connections and their status fresh.

@@ -5,7 +5,7 @@
 
 // Protocol client for communicating with an agent host process.
 
-import { DeferredPromise, disposableTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, IntervalTimer, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -372,6 +372,8 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * their own.
 	 */
 	private readonly _pingTimer = this._register(new TimeoutTimer());
+	private readonly _relayKeepAliveTimer = this._register(new IntervalTimer());
+	private _relayKeepAlivePending: Promise<unknown> | undefined;
 	private readonly _closeTimer = this._register(new TimeoutTimer());
 
 	/**
@@ -693,6 +695,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * and let the service decide whether to spin up a fresh client.
 	 */
 	private _handleTransportClose(): void {
+		this._relayKeepAliveTimer.cancel();
 		if (this._state.kind !== AgentHostClientState.Closed) {
 			this._diagnostic('transport.closed', `state=${this._state.kind}; sinceLastMessageMs=${Date.now() - this._lastReadTime}`);
 		}
@@ -915,6 +918,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._lastReadTime = Date.now();
 			this._resetLivenessTimers();
 			this._transitionTo({ kind: AgentHostClientState.Connected });
+			this._startRelayKeepAlive(result._meta ?? this._initializeResult.get()?._meta);
 			gate.complete();
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 			this._diagnostic('reconnect.succeeded', `attempt=${reconnect.attempt}`);
@@ -950,9 +954,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
-	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result']; freshInitialize: boolean }> {
+	private async _reconnectOrInitialize(lastSeenServerSeq: number, subscriptions: string[]): Promise<{ result: CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }; freshInitialize: boolean }> {
 		try {
-			const result = await this._dispatchRequest<CommandMap['reconnect']['result']>('reconnect', {
+			const result = await this._dispatchRequest<CommandMap['reconnect']['result'] & { readonly _meta?: Record<string, unknown> }>('reconnect', {
 				clientId: this._clientId,
 				lastSeenServerSeq,
 				subscriptions,
@@ -1141,6 +1145,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private _applyInitializeResult(result: IAgentHostExtensionInitializeResult, forwardClientConfig = true): void {
 		this._initializeResult.set(result, undefined);
+		this._startRelayKeepAlive(result._meta);
 		this._serverSeq = result.serverSeq;
 		if (result.defaultDirectory) {
 			const directory = result.defaultDirectory;
@@ -2023,6 +2028,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _handleFatalClose(error: ProtocolError, reason?: AgentHostTransportFailureReason): void {
+		this._relayKeepAliveTimer.cancel();
 		this._onDidFatalClose.fire(error);
 		this._handleClose(error, reason);
 	}
@@ -2470,6 +2476,29 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * silent handshake cannot leave subscription requests gated indefinitely.
 	 * An inbound message also clears any deferred liveness state.
 	 */
+	private _startRelayKeepAlive(meta: Record<string, unknown> | undefined): void {
+		this._relayKeepAliveTimer.cancel();
+		const window = meta?.['copilot.keepAliveTimeoutMs'];
+		if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub
+			|| typeof window !== 'number' || !Number.isSafeInteger(window) || window < 1) {
+			return;
+		}
+		this._relayKeepAliveTimer.cancelAndSet(() => {
+			if (this._state.kind !== AgentHostClientState.Connected || this._relayKeepAlivePending) {
+				return;
+			}
+			const operation = this._dispatchRequest<CommandMap['ping']['result']>('ping', { channel: ROOT_STATE_URI }, { timeoutMs: 10_000 });
+			this._relayKeepAlivePending = operation;
+			void operation.catch(error => {
+				this._logService.warn('[AgentHostProtocolClient] Relay keep-alive failed', error);
+			}).finally(() => {
+				if (this._relayKeepAlivePending === operation) {
+					this._relayKeepAlivePending = undefined;
+				}
+			});
+		}, Math.max(1, Math.min(60_000, Math.floor(window / 3))));
+	}
+
 	private _resetLivenessTimers(): void {
 		this._cancelLivenessTimers();
 		if (!this._canCheckLiveness()) {

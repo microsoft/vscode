@@ -11,11 +11,12 @@ import { type IInstantiationService } from '../../../../../platform/instantiatio
 import { type INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress } from '../../../../common/agentHostSessionsProvider.js';
 import { type ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
+import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from './remoteAgentHostSessionsProvider.js';
 import { watchForIncompatibleNotifications } from './remoteHostOptions.js';
 
 /** Options supplied by a remote-host kind when creating its sessions provider. */
 export interface IEntryDrivenProviderOptions {
+	readonly sessionSchemeAlias?: IRemoteAgentHostSessionsProviderConfig['sessionSchemeAlias'];
 	readonly connectOnDemand?: () => Promise<void>;
 	readonly disconnectOnDemand?: () => Promise<void>;
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
@@ -102,6 +103,7 @@ export abstract class EntryDrivenProviderContribution extends Disposable {
 			onDidReportConnectProgress: options.onDidReportConnectProgress,
 			autoConnect: options.autoConnect,
 			preferenceKey: options.preferenceKey,
+			...(options.sessionSchemeAlias ? { sessionSchemeAlias: options.sessionSchemeAlias } : {}),
 		});
 		if (options.initialStatus !== undefined) {
 			provider.setConnectionStatus(options.initialStatus);

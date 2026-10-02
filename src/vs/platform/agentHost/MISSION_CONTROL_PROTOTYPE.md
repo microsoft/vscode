@@ -10,7 +10,7 @@ Other clients ----- MC / WPS --------+
 
 Enabling registration does not create a relay client in VS Code, change the local session provider, or send local customization synchronization through Azure. The local and relay handlers share the same `AgentService` and `AgentHostStateManager`. A local session is therefore available to remote AHP `listSessions` and subscriptions without recreating it remotely.
 
-**Temporary one-shot test:** The shared `AgentSession` helpers currently create Copilot CLI session URIs as `ahp-session:/<id>` and route that scheme back to the `copilotcli` provider. This is a native scheme change, not a relay compatibility layer. Restart this prototype build and create a fresh local Copilot session for the desktop-app test. Existing stored session identifiers are not migrated. Revert these two helper changes after the experiment; accepting arbitrary host-advertised URIs remains the proper client fix.
+**URI migration is deferred:** The shared `AgentSession` helpers currently create Copilot CLI session URIs as `ahp-session:/<id>` and route that scheme back to the `copilotcli` provider. This is a native scheme change, not a relay compatibility layer. Existing stored session identifiers and URI-keyed UI state are not migrated. The current development experiment does not establish release compatibility for this transition.
 
 ## Real service experiment
 
@@ -31,7 +31,9 @@ The random compute identity is stored once in `agent-host-mission-control-id` un
 
 Separate user-data directories represent separate hosts. For example, a throwaway launch profile and the normal dev profile can both register, producing two environments with the same human-readable label. Restarting either profile reuses its own identity. Use one intended profile for this experiment; stop extra test hosts instead of sharing an identity between concurrently running processes. Stopped environments may remain listed as offline until MC removes their registry records.
 
-Environment discovery and session discovery are separate: an MC client must attach to this environment and issue AHP `listSessions` to see the host's available sessions. The prototype does not publish into MC's central session/task catalog or persist session history there. That catalog/mirroring path is not required for the direct-connect scenario above, and merely being signed into MC does not attach a client to every environment.
+Environment discovery and session discovery are separate: an MC client must attach to this environment and issue AHP `listSessions` to see the host's available sessions. The development client offers **Connect to Mission Control Environment...** in the command palette and Agents host-management menu. It lists existing user-local environments, excludes its own host, checks current availability before connecting, and never provisions replacement compute. User-local connections use the generic native Sessions provider; sandbox connections retain their own checkout/history behavior.
+
+Live registration also publishes native authoritative AHP envelopes as MC `sessionEvents` through a bounded, process-owned mirror. Durable acknowledgements free its spool; signed backfill replays retained frames exactly. The mirror does not publish a fabricated raw SDK stream, and process-restart epochs and a complete pre-attachment history baseline are not implemented. The live two-window evidence below predates this mirror/discovery integration; real MC catalog/history and picker behavior still require validation. Token sealing does not encrypt mirrored conversation content.
 
 **Trust boundary:** Live mode exposes native sessions to the authenticated environment owner. MC filesystem calls are limited to the initially exposed and locally known session workspaces; session content storage is readable, not writable through that grant. Local/direct filesystem behavior is unchanged. This is not OS confinement or a per-session credential boundary. Control signatures, environment/owner binding, WPS publisher identity, lane/client-ID binding, and passive action rejection remain enforced. Remote GitHub credentials must open to the canonical registered owner.
 
@@ -58,7 +60,7 @@ A two-instance relay test can isolate host behavior from other client implementa
 3. In B, obtain a fresh MC client connection for A's exact environment ID, use MC's pre-sealed GitHub token or seal B's credential to A's HTTPS-advertised public key, and construct the existing WPS transport and AHP protocol client.
 4. List and subscribe to A's session from B; send a harmless turn and verify both windows observe the same response/tool state.
 
-B needs a test-only MC connection entry/harness because generic MC environment discovery is not implemented in the native UI. Enabling host registration in B is not a substitute: that would expose a second host rather than attach B to A. Keep the connector separate from A's host-registration setting; local sessions in A must never be rerouted through its relay. No session mirroring or additional daemon is required.
+B connects through **Connect to Mission Control Environment...**; enabling host registration in B instead exposes a second host, not a connection to A. The command and connection service reject self-relay. Local sessions in A continue using IPC. The recorded exercises below use the earlier test-only connector, so they remain evidence of the transport/session behavior rather than validation of the new picker.
 
 ### Verified live two-window exercise
 
@@ -95,7 +97,7 @@ npm run test-node -- --run src/vs/platform/agentHost/test/node/missionControlAut
 
 The host-only scenario was exercised against real MC and Azure WPS with a standalone Node client: a session was created and sent a message through the native local socket, then appeared in the independent relay client's session list. That client used its own GitHub credential and a connection-bound sealed envelope, created another session, received tool-call actions and response deltas, and completed a turn with `MC_INDEPENDENT_OK`. No host-side self-connect or sealing management helper was used. Additional client implementations, especially web clients with different credential audiences or sealing capabilities, still require their own interoperability validation.
 
-See [production gaps and open questions](./MISSION_CONTROL_PRODUCTION_GAPS.md). Session mirroring/backfill remains separate from the working live AHP path; `AgentHostStateManager.onDidEmitEnvelope` is its ordered seam.
+See [production gaps and open questions](./MISSION_CONTROL_PRODUCTION_GAPS.md). Session mirroring/backfill is separate from the direct AHP path, observes `AgentHostStateManager.onDidEmitEnvelope`, and does not derive another authoritative state projection.
 
 ## Changed files
 

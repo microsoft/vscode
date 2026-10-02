@@ -77,6 +77,39 @@ suite('WebPubSub - framing', () => {
 		assert.strictEqual(first.kind, 'pending');
 	});
 
+	test('stamps every fragment without exceeding its serialized ceiling', () => {
+		let ack = 0;
+		const frames = buildPublish({ group: GROUP, nextAckId: () => ++ack, payload: 'x'.repeat(4096), generation: Number.MAX_SAFE_INTEGER, chunkOptions: { maxChunkBytes: 512 } });
+		const reassembler = new Reassembler();
+		for (const frame of frames) {
+			assert.strictEqual(frame.data.generation, Number.MAX_SAFE_INTEGER);
+			assert.ok(new TextEncoder().encode(JSON.stringify(frame.data)).byteLength <= 512);
+		}
+		const values = frames.map(frame => parseInbound({ type: 'message', from: 'group', group: GROUP, dataType: 'json', data: frame.data }, { reassembler }));
+		assert.deepStrictEqual(values.at(-1), { kind: 'payload', group: { scope: 'client', lane: 'to-client', uid: 'u1', eid: 'e1', cid: 'c1' }, payload: 'x'.repeat(4096), generation: Number.MAX_SAFE_INTEGER });
+	});
+
+	test('decodes batches, receiver capabilities and closure notices independently of AHP', () => {
+		const parse = (data: object) => parseInbound({ type: 'message', from: 'group', group: GROUP, dataType: 'json', data }, { reassembler: new Reassembler() });
+		const group = { scope: 'client', lane: 'to-client', uid: 'u1', eid: 'e1', cid: 'c1' };
+		assert.deepStrictEqual(parse({ kind: 'batch', items: [{ id: 1 }, { id: 2 }], generation: 7 }), { kind: 'batch', group, payloads: [{ id: 1 }, { id: 2 }], generation: 7 });
+		assert.deepStrictEqual(parse({ kind: 'capabilities', accepts: ['batch', 'future'] }), { kind: 'capabilities', group, accepts: ['batch', 'future'] });
+		assert.deepStrictEqual(parse({ kind: 'closed', generation: 7 }), { kind: 'closed', group, generation: 7 });
+		for (const data of [{ kind: 'batch', items: [] }, { kind: 'batch', items: Array(257).fill({}) }, { kind: 'message', data: {}, generation: 0 }, { kind: 'closed', generation: Number.MAX_SAFE_INTEGER + 1 }]) {
+			assert.throws(() => parse(data), FramingError);
+		}
+	});
+
+	test('rejects fragments that try to mix host connection generations', () => {
+		const reassembler = new Reassembler();
+		let ack = 0;
+		const frames = buildPublish({ group: GROUP, nextAckId: () => ++ack, payload: 'x'.repeat(4096), generation: 1, chunkOptions: { maxChunkBytes: 512 } });
+		const parse = (data: object) => parseInbound({ type: 'message', from: 'group', group: GROUP, dataType: 'json', data }, { reassembler });
+		assert.strictEqual(parse(frames[0].data).kind, 'pending');
+		assert.throws(() => parse({ ...frames[1].data, generation: 2 }), /generation mismatch/);
+		assert.strictEqual(reassembler.inFlightGroupCount, 0);
+	});
+
 	test('ignores non group-fanout frames', () => {
 		const reassembler = new Reassembler();
 		assert.strictEqual(parseInbound({ type: 'ack', ackId: 1 }, { reassembler }).kind, 'ignored');

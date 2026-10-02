@@ -218,6 +218,8 @@ export interface IRemoteAgentHostWSLConnection {
  * on demand with freshly-minted, short-lived credentials.
  */
 export interface IRemoteAgentHostCloudSandboxConnection {
+	/** User-local environments use the same MC transport but not sandbox-specific providers. */
+	readonly environmentKind?: 'user-local';
 	readonly type: RemoteAgentHostEntryType.CloudSandbox;
 	/** Synthesized display address: `cloudsandbox:<environmentId>`. */
 	readonly address: string;

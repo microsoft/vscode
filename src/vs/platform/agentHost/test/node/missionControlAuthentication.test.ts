@@ -8,7 +8,7 @@ import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from '../../node/missionControlAuthentication.js';
+import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner, sealMissionControlCredential } from '../../node/missionControlAuthentication.js';
 
 suite('Mission Control sealed authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -20,6 +20,22 @@ suite('Mission Control sealed authentication', () => {
 		const box = sodium.crypto_box_seal(JSON.stringify({ cty: 'text', ctx: { purpose: use, resource: target, ...(connection ? { connection } : {}) }, value }), Buffer.from(key.public_key, 'base64'));
 		return `copilot-sealed.v1.${key.key_id}.${Buffer.from(box).toString('base64url')}`;
 	}
+
+	test('trusted local sealing produces purpose-specific, resource-bound portable tokens', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const key = sealing.advertisedKeys.find(key => key.use === 'mcp-auth-token');
+		assert.ok(key);
+		const challenge = randomBytes(16).toString('hex');
+		const target = 'https://mcp.example.test';
+		const envelope = await sealMissionControlCredential({ token: 'test-mcp-token', resource: target, key: { ...key, use: 'mcp-auth-token' }, challenge });
+		const opened = sealing.open(envelope, 'mcp-auth-token', target);
+		assert.strictEqual(opened.token, 'test-mcp-token');
+		assert.strictEqual(opened.connection?.challenge, challenge);
+		assert.match(String(opened.connection?.nonce), /^[0-9a-f]{32}$/);
+		assert.throws(() => sealing.open(envelope, 'auth-token', target), /Unknown sealing key/);
+		assert.throws(() => sealing.open(envelope, 'mcp-auth-token', 'https://different.test'), /context/);
+		await assert.rejects(sealMissionControlCredential({ token: 'test', resource: target, key: { ...key, key_id: 'mismatched', use: 'mcp-auth-token' } }), /recipient key/);
+	});
 
 	test('opens the independently produced portable sealed-box vector', () => {
 		const sealing = store.add(new MissionControlSealing([{ use: 'auth-token', privateKey: Buffer.from('aSFRt0ENOIh44Ovgwe34W2STEqRZg1CKS7TJg2yanWs=', 'base64') }]));

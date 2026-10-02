@@ -416,6 +416,29 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	test('relay keep-alive continues during sixteen minutes of uninterrupted inbound traffic', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+		const transport = disposables.add(new TestProtocolTransport(AgentHostClientConnectionKind.WebPubSub));
+		const { client } = createClient(transport, undefined, { hasHighLoad: () => false });
+		try {
+			await connectClient(client, transport, { 'copilot.keepAliveTimeoutMs': 90_000 });
+			let answered = 0;
+			for (let second = 0; second < 16 * 60; second++) {
+				transport.fireMessage({ jsonrpc: '2.0', id: -1, result: null });
+				await timeout(1000);
+				const requests = transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'ping');
+				for (const request of requests.slice(answered)) {
+					assert.ok(hasKey(request, { id: true }));
+					transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+				}
+				answered = requests.length;
+			}
+			assert.strictEqual(answered, 32);
+			assert.strictEqual(client.connectionState, AgentHostClientState.Connected);
+		} finally {
+			client.dispose();
+		}
+	}));
+
 	test('Dev Container facade is capability gated for old and malformed hosts', async () => {
 		const supported: boolean[] = [];
 		for (const meta of [undefined, { 'vscode.devContainers': 'true' }, { 'vscode.devContainers': false }, getAgentHostExtensionInitializeResultMeta(true, true)]) {
