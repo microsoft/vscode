@@ -17,6 +17,8 @@ The authentication owner can supply account provenance for the exact pending or 
 
 Bootstrap clients isolate private responses by token and API base, use the combined GitHub client-capacity bound, and confine GET requests and redirects to their approved HTTPS API base. They omit ambient credentials and referrers. Their last reference cancels only their own work.
 
+Generic GitHub 403 messages are not sufficient quota evidence: entitlement/policy denials remain 403 failures rather than becoming account-wide cooldowns. Discovery admission and queued-waiter feedback use the server-reported resource learned by the shared GitHub coordinator, including when it differs from core.
+
 ## CAPI model/control requests
 
 [CopilotControlTransport](common/copilotControlTransport.ts) reuses the existing bounded queue, scheduler, response reader, and shared-waiter mechanisms. Its admission/cooldown state is separate from GitHub REST/GraphQL because CAPI throttling is not repository-core quota.

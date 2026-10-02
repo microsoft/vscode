@@ -438,4 +438,40 @@ suite('Copilot discovery and control', () => {
 		assert.deepStrictEqual((await long).map(model => model.id), ['test-model']);
 		assert.deepStrictEqual({ discoveries, elapsed: Date.now() - refusedAt }, { discoveries: 2, elapsed: 2_000 });
 	}));
+
+	test('a generic GitHub discovery denial remains a 403 and does not poison later control reads', async () => {
+		const requests: string[] = [];
+		const { service } = create(async input => {
+			const path = new URL(String(input)).pathname;
+			requests.push(path);
+			if (requests.length === 1) {
+				return Response.json({ message: 'Rate Limit Exceeded' }, {
+					status: 403, headers: { 'x-ratelimit-resource': 'core', 'x-ratelimit-remaining': '4999', 'x-ratelimit-reset': String(Math.ceil(Date.now() / 1000) + 3600) },
+				});
+			}
+			return path === '/copilot_internal/user' ? user() : models();
+		}, { getAccountId: () => '101' });
+		await assert.rejects(service.models('token'), error => error instanceof CopilotApiError && error.status === 403 && error.code !== 'rate_limited');
+		const result = await service.models('token');
+		assert.deepStrictEqual({ requests, models: result.map(model => model.id) }, {
+			requests: ['/copilot_internal/user', '/copilot_internal/user', '/models'], models: ['test-model'],
+		});
+	});
+
+	test('discovery uses a reported non-core bucket across credential replacement', () => runWithFakedTimers({}, async () => {
+		let calls = 0;
+		const { service } = create(async () => {
+			calls++;
+			return Response.json({ message: 'API rate limit exceeded' }, {
+				status: 403, headers: {
+					'x-ratelimit-resource': 'discovery', 'x-ratelimit-remaining': '0',
+					'x-ratelimit-reset': String(Math.ceil(Date.now() / 1000) + 3600),
+				},
+			});
+		}, { getAccountId: () => '101' });
+		await assert.rejects(service.models('first'), { status: 403 });
+		const now = Date.now();
+		await assert.rejects(service.models('replacement'), { status: 429, code: 'rate_limited' });
+		assert.deepStrictEqual({ calls, elapsed: Date.now() - now }, { calls: 1, elapsed: 0 });
+	}));
 });
