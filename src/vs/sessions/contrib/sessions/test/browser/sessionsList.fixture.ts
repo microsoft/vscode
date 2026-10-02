@@ -41,6 +41,15 @@ const ARCHIVED_CHAT_SESSION: ISessionsListFixtureSession = {
 		{ id: 'archived', title: 'Previous persistence approach', isArchived: true, canArchive: true },
 	],
 };
+const NEW_NESTED_CHAT_SESSION: ISessionsListFixtureSession = {
+	id: 'nested-new',
+	title: 'Investigate session persistence',
+	workspace: 'vscode',
+	minutesAgo: 2,
+	chats: [
+		{ id: 'new', title: 'New Chat', status: SessionStatus.Untitled, canArchive: true },
+	],
+};
 const NESTED_CHAT_APPROVAL_SESSION: ISessionsListFixtureSession = {
 	id: 'a',
 	title: 'HTTP Client Retry Plan',
@@ -611,22 +620,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	//#region Archived chats
 
 	SessionsList_NestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { showArchived: true, width: 400 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The hovered active child shows Mark as Done, while its done sibling keeps its completed archive icon. The parent and done sibling do not show their row actions.'],
+		expectedVisualDescriptions: ['The hovered untitled child is labeled New Session and shows Delete instead of Mark as Done. The parent does not show its row actions.'],
 	}),
 	SessionsList_CompactNestedChatActions: defineSessionsListFixture({
-		sessions: [ARCHIVED_CHAT_SESSION],
+		sessions: [NEW_NESTED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 260 },
-		interaction: { hovered: { session: 'nested-archive', chat: 'active' } },
+		interaction: { hovered: { session: 'nested-new', chat: 'new' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['In a narrow compact list, the hovered active child keeps its title clear of its Mark as Done action. Its done sibling remains an indented leaf, and neither child action nor hierarchy guide overlaps the title.'],
+		expectedVisualDescriptions: ['In a narrow compact list, the hovered untitled child is labeled New Session and keeps its title clear of its Delete action. The hierarchy guide does not overlap the title.'],
 	}),
 	SessionsList_ArchivedNestedChat: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
@@ -678,7 +687,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		deferPaint: true,
-		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
+		expectedVisualDescriptions: ['An expanded compact multi-folder session shows a committed nested chat with its workspace badge beside the title and its Mark as Done primary action aligned to the trailing edge of the row.'],
 	}),
 	//#endregion
 
@@ -774,14 +783,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['New, Automations, and Customizations appear as three full-width navigation rows at the start of the scrollable Sessions tree. New is the leading row with a plus icon and the platform New Session keybinding aligned on the right. As content scrolls, New remains sticky at the top and the Sessions header joins it when the session list reaches the viewport, without a duplicate New button. Automations has a compact right-aligned NEW capsule, and Customizations shows its count of 8 beside the label in a compact badge with the visible neutral secondary-button fill.'],
+		expectedVisualDescriptions: ['New Session, Automations, and Customizations appear as three full-width navigation rows above the Sessions header. The session tree starts after the header and contains only session sections. New Session has a plus icon and its platform keybinding aligned on the right, Automations has a compact right-aligned NEW capsule, and Customizations has no total-count badge.'],
 	}),
 	SessionsList_CustomizationsMigrationsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'migrations', title: 'Move instructions into the new format', workspace: 'vscode', minutesAgo: 5 }],
 		header: { navigationShortcuts: true, customizationsCount: 8, customizationMigrationsAvailable: true },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Customizations navigation row shows the count of 8 beside its label in a compact badge with the visible neutral secondary-button fill, followed by a small warning dot.'],
+		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small warning dot beside its label.'],
 	}),
 	SessionsList_LightweightNewButton: defineSessionsListFixture({
 		sessions: [],

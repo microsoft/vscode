@@ -132,8 +132,14 @@ export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentO
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
+/** Configuration key gating Canvas extensions and presentation in agent-host sessions. */
+export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
+
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
+/** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
+export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot

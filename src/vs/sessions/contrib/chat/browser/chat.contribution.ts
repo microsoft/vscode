@@ -293,6 +293,30 @@ class CustomizeNewSessionWelcomeMessageAction extends Action2 {
 
 registerAction2(CustomizeNewSessionWelcomeMessageAction);
 
+class HideNewSessionWelcomeMessageAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.sessions.hideWelcomeMessage',
+			title: localize2('sessions.chat.hideWelcomeMessage', "Hide Welcome Message"),
+			category: CHAT_CATEGORY,
+			icon: Codicon.eyeClosed,
+			precondition: IsSessionsWindowContext,
+			menu: [{
+				id: Menus.NewSessionWelcomeContext,
+				group: 'navigation',
+				order: 1,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		await accessor.get(IConfigurationService).updateValue(NEW_SESSION_WELCOME_PHRASES_SETTING, false, ConfigurationTarget.USER);
+	}
+}
+
+registerAction2(HideNewSessionWelcomeMessageAction);
+
 class SetChatBackgroundAction extends Action2 {
 
 	constructor() {
