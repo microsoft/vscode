@@ -30,7 +30,6 @@ suite('WindowsMainService - Agents CLI', () => {
 		// The window manager requires Electron's main-process APIs.
 		if (process.type !== 'browser') {
 			this.skip();
-			return;
 		}
 		windowsMainServiceClass = (await import('../../electron-main/windowsMainService.js')).WindowsMainService;
 	});
