@@ -134,7 +134,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 		{} as IAgentHostTerminalManager,
 		logService,
 		{} as IFileService,
-		{ _serviceBrand: undefined, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
 		{
 			_serviceBrand: undefined,
@@ -301,7 +301,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				assert.deepStrictEqual({
 					applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
 					stored: fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled,
-				}, { applied: [true], stored: 'default' });
+				}, { applied: [true], stored: 'on' });
 			});
 		}
 	}
@@ -336,7 +336,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			id: 'enforced', parentId: null, timestamp: '2026-01-01T00:00:00Z', type: 'session.managed_settings_enforced', ephemeral: true,
 			data: { action: 'bypass_permissions_blocked', setting: 'sandbox.enabled', failClosed: false, message: 'Sandbox required' },
 		});
-		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'default');
+		assert.strictEqual(fixture.configuration.getSessionConfigValues(fixture.owner)?.sandboxEnabled, 'on');
 	});
 });
 
@@ -576,6 +576,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		let disposes = 0;
 		const service: IByokLmProxyService = {
 			_serviceBrand: undefined,
+			onDidCapTools: Event.None,
 			start: async (): Promise<IByokLmProxyHandle> => {
 				const nonce = `NONCE-${++starts}`;
 				return {

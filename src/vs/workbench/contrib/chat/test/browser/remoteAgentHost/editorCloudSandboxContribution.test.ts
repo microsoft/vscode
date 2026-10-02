@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -36,6 +36,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { TestWorkspaceTrustManagementService } from '../../../../../test/common/workbenchTestServices.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
@@ -231,6 +233,8 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override warn(message: string): void { calls.repositoryErrors.push(message); }
 	}());
 	instantiationService.stub(IStorageService, options?.storageService ?? store.add(new InMemoryStorageService()));
+	const workspaceTrust = store.add(new TestWorkspaceTrustManagementService(false));
+	instantiationService.stub(IWorkspaceTrustManagementService, workspaceTrust);
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = focusChanged.event;
 		override readonly hasFocus = true;
@@ -348,7 +352,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes,
+		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
 			await Promise.all(initialRefreshes);
@@ -389,6 +393,21 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 
 suite('Editor cloud sandbox discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('trusts only discovered sandbox authorities and releases trust on teardown', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const folder = toAgentHostUri(URI.file('/workspaces/repo'), authority);
+		const otherEnvironment = folder.with({ authority: `${authority}-other` });
+		const before = await Promise.all([folder, otherEnvironment, URI.file(folder.path)].map(uri => h.workspaceTrust.getUriTrustInfo(uri)));
+		await h.setEnabled(CloudSandboxEnabledSettingId, false);
+		const after = await h.workspaceTrust.getUriTrustInfo(folder);
+		assert.deepStrictEqual({
+			before: before.map(info => info.trusted),
+			after: after.trusted,
+			connected: h.calls.connected,
+		}, { before: [true, false, false], after: false, connected: [] });
+	});
 
 	for (const rejectDeletion of [false, true]) {
 		test(`deletes additional connected sessions through AHP: rejected=${rejectDeletion}`, async () => {
@@ -853,6 +872,7 @@ suite('Editor cloud sandbox discovery', () => {
 		});
 		await started.p;
 		const before = restored.items().map(item => [item.resource.toString(), item.label, item.status]);
+		const offlineTrusted = (await restored.workspaceTrust.getUriTrustInfo(toAgentHostUri(URI.file('/workspaces/repo'), authority))).trusted;
 		await pending.complete({
 			kind: 'complete',
 			sessions: [{ ...discovered, name: 'Renamed after reload', updatedAt: '2026-01-03T03:04:05.000Z', status: SessionStatus.InputNeeded }],
@@ -861,11 +881,13 @@ suite('Editor cloud sandbox discovery', () => {
 
 		assert.deepStrictEqual({
 			before,
+			offlineTrusted,
 			after: restored.items().map(item => [item.resource.toString(), item.label, item.status]),
 			connected: restored.calls.connected,
 			created: restored.calls.created,
 		}, {
 			before: [[resource.toString(), discovered.name, ChatSessionStatus.Completed]],
+			offlineTrusted: true,
 			after: [[resource.toString(), 'Renamed after reload', ChatSessionStatus.NeedsInput]],
 			connected: [],
 			created: 0,

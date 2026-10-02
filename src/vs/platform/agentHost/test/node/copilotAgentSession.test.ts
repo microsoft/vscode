@@ -41,7 +41,8 @@ import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../comm
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
-import { AgentSystemNotificationKind, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
+import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
@@ -6248,6 +6249,36 @@ suite('CopilotAgentSession', () => {
 		});
 	}
 
+	test('reports resolved subagent model options and preserves them through usage and model rounds', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-parent');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests', model: 'gpt-5.4-mini',
+		}, { agentId: 'agent-1' });
+		const configurations = () => signals.flatMap(signal => signal.kind === 'action'
+			&& signal.action.type === ActionType.ChatUsage && signal.parentToolCallId === 'tc-subagent'
+			? [readAgentRuntimeModelConfiguration(signal.action.usage)] : []);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'xhigh', contextTier: 'long_context',
+		}, { agentId: 'agent-1' });
+		const configured = configurations().at(-1);
+		mockSession.fire('assistant.usage', { model: 'gpt-5.4-mini', inputTokens: 5, outputTokens: 7 }, { agentId: 'agent-1' });
+		mockSession.fire('assistant.turn_start', { turnId: 'child-turn', model: 'gpt-5.4-mini' }, { agentId: 'agent-1' });
+		const afterUsage = configurations().at(-1);
+		mockSession.fire('subagent.configured', {
+			model: 'gpt-5.4-mini', multiTurn: true, reasoningEffort: 'low', contextTier: 'default',
+		}, { agentId: 'agent-1' });
+		const changed = configurations().at(-1);
+		mockSession.fire('subagent.configured', { model: 'gpt-5.4-mini', multiTurn: true }, { agentId: 'agent-1' });
+
+		assert.deepStrictEqual({ configured, afterUsage, changed, cleared: configurations().at(-1) }, {
+			configured: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			afterUsage: { reasoningEffort: 'xhigh', contextTier: 'long_context' },
+			changed: { reasoningEffort: 'low', contextTier: 'default' },
+			cleared: {},
+		});
+	});
+
 	test('reports the model when a background child starts after its parent turn finishes', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		session.resetTurnState('turn-parent');
@@ -6596,6 +6627,29 @@ suite('CopilotAgentSession', () => {
 
 		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart
 			? [action.part.kind === ResponsePartKind.Markdown ? action.part.content : action.part.kind] : []), ['The final answer.']);
+	});
+
+	test('warns in the active turn when the BYOK proxy caps tools, once per dropped-tool count', async () => {
+		const { session, signals } = await createAgentSession(disposables);
+		session.reportByokToolsCapped(200, 128);
+		session.resetTurnState('turn-1');
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(200, 128);
+		session.reportByokToolsCapped(140, 128);
+
+		assert.deepStrictEqual(getActions(signals).flatMap(action => action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.SystemNotification
+			? [{ turnId: action.turnId, content: action.part.content, meta: readAgentSystemNotificationMeta(action.part) }] : []), [
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 72 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+			{
+				turnId: 'turn-1',
+				content: 'The model only supports 128 tools, 12 tools were not provided to the model.',
+				meta: { kind: AgentSystemNotificationKind.ByokToolLimitExceeded, severity: AgentSystemNotificationSeverity.Warning, workspaceKind: undefined, workspaceName: undefined, fusionStatus: undefined },
+			},
+		]);
 	});
 
 	for (const restored of [false, true]) {

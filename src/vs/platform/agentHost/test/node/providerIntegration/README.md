@@ -13,3 +13,11 @@ Run one suite with:
 ```
 
 `copilotAutoTier.integrationTest.ts` checks that a scalar default selected by the client travels through the existing `ModelSelection.config.tier` / SDK `capi.autoTier` boundary to the actual first `/auto` request and survives resume. It uses the production scalar reader and tier accessor with the bundled SDK and isolated HTTP service. Picker scope/lifecycle and send/model-change ordering are covered separately in the browser store and Copilot agent unit suites. These tests characterize client startup preferences, not runtime policy enforcement or backend authoring semantics; they do not require a real account or modify device policy.
+
+`copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge
+against the bundled runtime with an isolated synthetic BYOK model. It checks URL
+denials and terminal managed asks on create, cold resume, and removal, preserving
+unrelated shell/read/write/URL approval behavior. Managed terminal asks are also
+checked in Allow All and assisted modes. URL requests reaching the permission
+handler are rejected, so the test does not fetch external content. No Copilot
+sign-in or device-policy changes are needed.

@@ -486,9 +486,12 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			}
 			const rateLimit = readGraphQLRateLimit(json.data);
 			this._rateLimits.updateFromGraphQL(account, rateLimit);
-			if (errors.some(error => error.type === 'RATE_LIMITED')) {
+			if (errors.some(error => error.type === 'RATE_LIMIT' || error.type === 'RATE_LIMITED')) {
 				this._telemetry?.record('rateLimitedResponses');
-				this._rateLimits.markGraphQLRateLimited(account);
+			}
+			// RATE_LIMITED also covers resource updates and queries that cost more than the remaining points.
+			if (errors.some(error => error.type === 'RATE_LIMIT') || rateLimit?.remaining === 0) {
+				this._rateLimits.markGraphQLRateLimited(account, response.headers.get('retry-after'));
 			}
 			this._logRateLimit(account, 'graphql');
 			this._logService?.trace(`[GitHubTransport] GraphQL ${operation} returned ${errors.length} error(s)`);
@@ -948,7 +951,7 @@ function readGraphQLRateLimit(data: unknown): { limit?: number; remaining?: numb
 
 function readNumber(value: object, key: string): number | undefined {
 	const property = Reflect.get(value, key);
-	return typeof property === 'number' ? property : undefined;
+	return typeof property === 'number' && Number.isSafeInteger(property) && property >= 0 ? property : undefined;
 }
 
 function readString(value: object, key: string): string | undefined {
