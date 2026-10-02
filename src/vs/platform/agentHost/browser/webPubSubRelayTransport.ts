@@ -92,7 +92,6 @@ export interface IWebPubSubRelayTransportOptions {
 	 * `vscode/collectAgentHostDebugLogs`, so this is the only way to see their frames.
 	 */
 	readonly ahpLogger?: AhpJsonlLogger;
-	readonly requiresSealedAuthentication?: boolean;
 }
 
 /**
@@ -328,7 +327,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		}
 		if (result.kind === 'payload') {
 			const payload = result.payload as ProtocolMessage;
-			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
+			this._logProtocolMessage(payload, 's2c');
 			this._onMessage.fire(payload);
 		}
 	}
@@ -338,13 +337,13 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
 		}
-		if (this._options.requiresSealedAuthentication && hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
+		if (hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
 			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
 			throw new Error('Refusing to send plaintext authentication over Web PubSub');
 		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
 		// relay frames they were split into.
-		this._options.ahpLogger?.log(message, 'c2s', getAhpLogByteLength(JSON.stringify(message)));
+		this._logProtocolMessage(message, 'c2s');
 		const frames = buildPublish({
 			group: this._options.toHostGroup,
 			nextAckId: () => ++this._ackId,
@@ -361,6 +360,16 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._schedulePublishAckTimeout();
 			}
 		}
+	}
+
+	private _logProtocolMessage(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest, direction: 'c2s' | 's2c'): void {
+		if (!this._options.ahpLogger) {
+			return;
+		}
+		const logged = hasKey(message, { method: true, params: true }) && message.method === 'authenticate' && isObject(message.params)
+			? { ...message, params: { ...message.params, token: '[REDACTED]' } }
+			: message;
+		this._options.ahpLogger.log(logged, direction, getAhpLogByteLength(JSON.stringify(message)));
 	}
 
 	private _schedulePublishAckTimeout(): void {

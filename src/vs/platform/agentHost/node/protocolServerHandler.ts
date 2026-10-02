@@ -5,8 +5,12 @@
 
 import { disposableTimeout, raceCancellationError, raceTimeout } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { realpathSync } from 'fs';
-import { relative, isAbsolute } from '../../../base/common/path.js';
+import { lstatSync, realpathSync, statSync } from 'fs';
+import { parseSessionDbUri } from '../common/sessionDbUri.js';
+import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
+import { parseGitBlobUri } from './gitDiffContent.js';
+import { dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
+import { Schemas } from '../../../base/common/network.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { isJsonRpcResponse } from '../../../base/common/jsonRpcProtocol.js';
@@ -348,6 +352,8 @@ export interface IProtocolServerConfig {
 	/** Restricts experimental relay clients to explicitly granted local roots. */
 	readonly relayRoots?: readonly string[];
 	readonly relayRootMeta?: Record<string, unknown>;
+	/** Locally known workspace/content roots exposed by the Mission Control host. */
+	readonly relayResourceRoots?: (readOnly: boolean) => readonly string[];
 	/**
 	 * Characters that, when typed in a {@link UserMessage} input, SHOULD
 	 * cause the client to issue a `completions` request. Announced to
@@ -539,6 +545,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return;
 				}
 				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
+					if (transport.relayClientId !== undefined) {
+						this._logService.warn('[ProtocolServer] Relay clients cannot change host managed permissions');
+						return;
+					}
 					if (client) {
 						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
 						if (isManagedSettingsPermissions(permissions)) {
@@ -674,6 +684,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const pendingSnapshots: Promise<void>[] = [];
 			if (params.initialSubscriptions) {
 				for (const uri of params.initialSubscriptions) {
+					if (transport.relayAuthenticated === false && !isAhpRootChannel(uri)) {
+						continue;
+					}
 					const snapshot = this._addInitialSubscription(client, uri.toString());
 					if (snapshot instanceof Promise) {
 						pendingSnapshots.push(snapshot.then(value => {
@@ -711,7 +724,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
 					...transport.relayHandshakeMeta,
 				},
-				snapshots,
+				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
 				terminalCommandPrefix: this._config.terminalCommandPrefix,
@@ -723,7 +736,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				response: pendingSnapshots.length === 0 ? response : Promise.all(pendingSnapshots).then(() => ({
 					...response,
 					serverSeq: this._stateManager.serverSeq,
-					snapshots: snapshots.map(snapshot => this._getSnapshot(snapshot.resource) ?? snapshot),
+					snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, this._getSnapshot(snapshot.resource) ?? snapshot)),
 				})).catch(error => {
 					this._rollbackFailedInitialization(client, previousRecord);
 					throw error;
@@ -873,6 +886,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const existingRecord = this._clients.get(params.clientId);
 		if (!existingRecord) {
 			throw new ProtocolError(AhpErrorCodes.NotFound, `Reconnect client not found: ${params.clientId}`);
+		}
+		if (transport.relayAuthenticated === false) {
+			throw new ProtocolError(AhpErrorCodes.NotFound, 'Relay reconnect requires fresh initialization and identity authentication');
 		}
 		this._applyClientTelemetryLevel(params._meta);
 
@@ -1583,7 +1599,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				// `IStateSnapshot` is widened with `ChatState` (see sessionProtocol.ts);
 				// the generated wire `Snapshot` union does not list it yet. The value
 				// is JSON over the wire, so narrowing at this boundary is safe.
-				return { snapshot: snapshot as SubscribeResult['snapshot'] };
+				return { snapshot: this._projectRelayRootSnapshot(client, snapshot) as SubscribeResult['snapshot'] };
 			} catch (err) {
 				if (!pendingSubscription.active && client.subscriptions.get(classified.uri) === pendingSubscription) {
 					client.subscriptions.delete(classified.uri);
@@ -1596,6 +1612,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		createSession: async (_client, params) => {
 			this._requireRelayMutation(_client);
+			if (_client.transport.relayClientId !== undefined && this._config.relayResourceRoots && (!params.workingDirectories?.length || !params.workingDirectories.every(directory => this._isGrantedRelayResource(directory, false)))) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Session creation requires a host workspace grant');
+			}
 			if (this._config.relayRoots && (!params.workingDirectories?.length || !params.workingDirectories.every(directory => this._isGrantedRelayDirectory(directory)))) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Working directory is not an explicitly granted project root');
 			}
@@ -1799,6 +1818,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		authenticate: async (_client, params) => {
 			const authentication = _client.transport.relayAuthenticate ? await _client.transport.relayAuthenticate(params) : params;
+			if (_client.disposables.isDisposed) {
+				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Relay connection ended during authentication');
+			}
+			if (_client.transport.relayPassive) {
+				return {};
+			}
 			const result = await this._agentService.authenticate(authentication);
 			if (!result.authenticated) {
 				throw new ProtocolError(AHP_AUTH_REQUIRED, `Authentication failed for resource: ${params.resource}`);
@@ -1861,6 +1886,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
+		if (client.transport.relayAuthenticated === false && method !== 'authenticate') {
+			client.transport.send(jsonRpcError(id, AHP_AUTH_REQUIRED, 'Relay identity authentication is required'));
+			return;
+		}
+		try {
+			this._requireRelayResourceAccess(client, method, params);
+		} catch (error) {
+			this._logService.warn('[ProtocolServer] Relay resource access denied', error);
+			client.transport.send(jsonRpcErrorFrom(id, error));
+			return;
+		}
 		if (method === 'dispatchAction' || method === 'unsubscribe') {
 			this._trackRequest(this._handleLegacyNotificationRequest(client, method, params)).then(
 				result => {
@@ -1880,7 +1916,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 		if (client.transport.relayPassive && !new Set([
 			'authenticate', 'subscribe', 'listSessions', 'listChats', 'listModels', 'listAgents',
-			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'getTurns',
+			'resolveSessionConfig', 'sessionConfigCompletions', 'completions', 'fetchTurns',
 			'resourceList', 'resourceRead', 'resourceResolve',
 		]).has(method)) {
 			client.transport.send(jsonRpcError(id, JsonRpcErrorCodes.InvalidRequest, 'Passive relay connections cannot mutate state'));
@@ -1893,9 +1929,15 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const handler = this._requestHandlers.hasOwnProperty(method) ? this._requestHandlers[method as RequestMethod] : undefined;
 		if (handler) {
 			this._trackRequest((handler as (client: IConnectedClient, params: unknown) => Promise<unknown>)(client, params)).then(result => {
+				if (client.disposables.isDisposed) {
+					return;
+				}
 				this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} succeeded`);
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
 			}).catch(err => {
+				if (client.disposables.isDisposed) {
+					return;
+				}
 				if (shouldLogFailedRequest(method, params, err)) {
 					this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
 				}
@@ -1946,12 +1988,26 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const action = params.action;
 		const origin = { clientId: client.clientId, clientSeq: params.clientSeq };
 		let rejection: string | undefined;
-		if (client.transport.relayPassive) {
+		if (client.transport.relayAuthenticated === false) {
+			rejection = 'Relay identity authentication is required';
+		} else if (client.transport.relayClientId !== undefined && action.type === ActionType.RootConfigChanged) {
+			rejection = 'Relay clients cannot change host configuration';
+		} else if (client.transport.relayPassive) {
 			rejection = 'Passive relay connections cannot mutate state';
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 			rejection = `Unsupported action: ${action.type}`;
+		}
+		if (!rejection && client.transport.relayClientId !== undefined && this._config.relayResourceRoots && action.type === ActionType.SessionWorkingDirectorySet) {
+			try {
+				if (!this._isGrantedRelayResource(action.directory, false)) {
+					rejection = 'Working directory is outside the host workspace grants';
+				}
+			} catch (error) {
+				this._logService.warn('[ProtocolServer] Invalid relay working-directory resource', error);
+				rejection = 'Working-directory resource could not be authorized';
+			}
 		}
 		if (rejection) {
 			this._logService.warn(`[ProtocolServer] rejecting client action: ${rejection}`);
@@ -2016,6 +2072,131 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (transport.relayClientId !== undefined && transport.relayClientId !== clientId) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Client ID does not match relay lane');
 		}
+		if (transport.relayClientId !== undefined && !this._clients.has(clientId) && this._clientConnections.hasSeenClient(clientId)) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Relay client ID collides with another host connection');
+		}
+	}
+
+	private _requireRelayResourceAccess(client: IConnectedClient, method: string, params: unknown): void {
+		if (client.transport.relayClientId === undefined || !this._config.relayResourceRoots) {
+			return;
+		}
+		const fields = method === 'resourceCopy' || method === 'resourceMove' ? ['source', 'destination']
+			: method.startsWith('resource') || method === 'createResourceWatch' ? ['uri']
+				: method === 'createTerminal' ? ['cwd'] : [];
+		for (const field of fields) {
+			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
+			const readOnly = ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
+			if (typeof value !== 'string' || !this._isGrantedRelayResource(value, readOnly)) {
+				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
+			}
+			if (field === 'cwd') {
+				let directory = false;
+				try {
+					directory = statSync(URI.parse(value).fsPath).isDirectory();
+				} catch (error) {
+					if (!isParamsObject(error) || (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')) {
+						throw error;
+					}
+				}
+				if (!directory) {
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Terminal cwd must be an existing granted directory');
+				}
+			}
+		}
+	}
+
+	private _isGrantedRelayResource(resource: string, readOnly: boolean): boolean {
+		const uri = URI.parse(resource, true);
+		if (uri.scheme !== Schemas.file) {
+			const gitContent = readOnly ? parseGitBlobUri(resource) : undefined;
+			if (gitContent && (!gitContent.sha || gitContent.sha.startsWith('-'))) {
+				return false;
+			}
+			const pendingContent = readOnly ? parsePendingEditContentUri(resource) : undefined;
+			const content = readOnly ? parseSessionDbUri(resource) ?? gitContent ?? pendingContent : undefined;
+			if (!content) {
+				return false;
+			}
+			const boundChat = isAhpChatChannel(content.sessionUri) ? parseChatUri(content.sessionUri) : undefined;
+			const session = isAhpChatChannel(content.sessionUri) ? boundChat?.session : content.sessionUri;
+			if (!session || (!this._stateManager.getSessionSummary(session) && !this._stateManager.getSurfacedSessionSummary(session))) {
+				return false;
+			}
+			if (pendingContent) {
+				// The memory provider keys by path, not authority. Require the exact
+				// reference published by an owning chat's pending tool, not just its owner.
+				// Worker previews retain their parent's storage URI.
+				return this._stateManager.getSessionState(session)?.chats.some(chat =>
+					this._stateManager.getChatState(chat.resource)?.activeTurn?.responseParts.some(part =>
+						part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation
+						&& part.toolCall.edits?.items.some(edit =>
+							(edit.before?.content.uri && URI.parse(edit.before.content.uri).toString() === uri.toString())
+							|| (edit.after?.content.uri && URI.parse(edit.after.content.uri).toString() === uri.toString())
+						)
+					)
+				) === true;
+			}
+			return true;
+		}
+		let ancestor = uri.fsPath;
+		let canonical: string;
+		while (true) {
+			try {
+				canonical = resolve(realpathSync(ancestor), relative(ancestor, uri.fsPath));
+				break;
+			} catch (error) {
+				if (!isParamsObject(error) || error.code !== 'ENOENT' || dirname(ancestor) === ancestor) {
+					throw error;
+				}
+				try {
+					if (lstatSync(ancestor).isSymbolicLink()) {
+						return false;
+					}
+				} catch (statError) {
+					if (!isParamsObject(statError) || statError.code !== 'ENOENT') {
+						throw statError;
+					}
+				}
+				ancestor = dirname(ancestor);
+			}
+		}
+		return this._config.relayResourceRoots?.(readOnly).some(root => {
+			try {
+				const relativePath = relative(realpathSync(root), canonical);
+				return !isAbsolute(relativePath) && relativePath !== '..' && !relativePath.startsWith(`..${sep}`);
+			} catch (error) {
+				if (isParamsObject(error) && error.code === 'ENOENT') {
+					return false;
+				}
+				throw error;
+			}
+		}) === true;
+	}
+
+	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
+		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
+			return snapshot;
+		}
+		if (client.transport.relayAuthenticated !== false) {
+			// Host-wide configuration may contain credentials; it is not a relay-owned surface.
+			const { config: _config, ...state } = snapshot.state;
+			return { ...snapshot, state };
+		}
+		return {
+			...snapshot,
+			state: {
+				agents: snapshot.state.agents.map(agent => ({
+					provider: agent.provider,
+					displayName: agent.displayName,
+					description: agent.description,
+					models: agent.models,
+					protectedResources: agent.protectedResources,
+					capabilities: agent.capabilities,
+				})),
+				_meta: this._config.relayRootMeta,
+			},
+		};
 	}
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {
@@ -2421,7 +2602,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0', method: type, params } as AhpServerNotification;
 		for (const record of this._clients.values()) {
-			this._getActiveClientFromRecord(record)?.transport.send(msg);
+			const client = this._getActiveClientFromRecord(record);
+			if (client && client.transport.relayAuthenticated !== false) {
+				client.transport.send(msg);
+			}
 		}
 	}
 
@@ -2445,7 +2629,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		const msg = { jsonrpc: '2.0' as const, method: notification.method, params } as unknown as AhpServerNotification;
 		for (const record of this._clients.values()) {
-			this._getActiveClientFromRecord(record)?.transport.send(msg);
+			const client = this._getActiveClientFromRecord(record);
+			if (client && client.transport.relayAuthenticated !== false) {
+				client.transport.send(msg);
+			}
 		}
 	}
 
@@ -2524,6 +2711,13 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
+		if (client.transport.relayAuthenticated === false) {
+			return false;
+		}
+		if (client.transport.relayClientId !== undefined && envelope.action.type === ActionType.RootConfigChanged
+			&& (!envelope.rejectionReason || envelope.origin?.clientId !== client.clientId)) {
+			return false;
+		}
 		const sub = client.subscriptions.get(envelope.channel);
 		if ((sub?.kind === ChannelKind.State || sub?.kind === ChannelKind.ResourceWatch) && sub.active) {
 			return true;

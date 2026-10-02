@@ -7,6 +7,11 @@ import assert from 'assert';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { IWebPubSubRelayTransportOptions, IWebSocketLike, WebPubSubRelayTransport } from '../../browser/webPubSubRelayTransport.js';
@@ -390,12 +395,40 @@ suite('WebPubSubRelayTransport', () => {
 
 	test('refuses plaintext credentials before publishing when sealed authentication is required', async () => {
 		const socket = new FakeWebSocket();
-		const transport = createTransport(socket, { requiresSealedAuthentication: true });
+		const transport = createTransport(socket);
 		await connectHandshake(transport, socket);
 		assert.throws(() => transport.send({
 			jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'plaintext-test-credential' },
 		}), /Refusing to send plaintext/);
 		assert.deepStrictEqual(socket.sentOfType('sendToGroup'), []);
+	});
+
+	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'relay', connectionId: 'client', transport: 'webpubsub' },
+			fileService, new NullLogService(),
+		));
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket, { ahpLogger: logger });
+		await connectHandshake(transport, socket);
+		const request: JsonRpcRequest = {
+			jsonrpc: '2.0', id: 1, method: 'authenticate',
+			params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'copilot-sealed.v1.test.replayable-ciphertext' },
+		};
+		transport.send(request);
+		await logger.flush();
+		const transcript = (await fileService.readFile(logger.resource)).value.toString();
+		assert.deepStrictEqual({
+			ciphertextLogged: transcript.includes('replayable-ciphertext'),
+			redacted: transcript.includes('[REDACTED]'),
+			published: socket.sentOfType('sendToGroup')[0]['data'],
+		}, {
+			ciphertextLogged: false,
+			redacted: true,
+			published: { kind: 'message', data: request },
+		});
 	});
 
 	test('publishes outbound messages to the to_host lane as sendToGroup frames', async () => {

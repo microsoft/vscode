@@ -7,8 +7,9 @@ import { randomUUID } from 'crypto';
 import { mkdir, open, readFile } from 'fs/promises';
 import { realpathSync } from 'fs';
 import { join } from '../../../base/common/path.js';
-import { disposableLongTimeout, Sequencer } from '../../../base/common/async.js';
+import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../base/common/async.js';
 import { Disposable, MutableDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
+import type { Event } from '../../../base/common/event.js';
 import type { IExperimentalMissionControlOptions } from '../common/agentService.js';
 import { parseGroupName } from '../common/webPubSub/groups.js';
 import { RELIABLE_JSON_SUBPROTOCOL } from '../common/webPubSub/framing.js';
@@ -77,6 +78,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	private _heartbeatNotBefore = 0;
 	private _ownerAccount: string | undefined;
 	private _canonicalOwner: string | undefined;
+	private _identityApiBase: string | undefined;
 	private _policy: string | undefined;
 	private _options: IExperimentalMissionControlOptions | undefined;
 	private _environment: IEnvironmentResponse | undefined;
@@ -92,8 +94,20 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		private readonly _getSessionCount: () => Promise<number> = async () => 0,
 		private readonly _getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>,
 		private readonly _onReady?: (environmentId: string) => void,
+		private readonly _getIdentityApiBase: () => string = () => 'https://api.github.com',
+		onDidChangeIdentityAuthority?: Event<void>,
 	) {
 		super();
+		if (onDidChangeIdentityAuthority) {
+			this._register(onDidChangeIdentityAuthority(() => {
+				if (this._options?.live && this._identityApiBase !== this._getIdentityApiBase()) {
+					this._generation++;
+					this._handler.clear();
+					this._server.clear();
+					void this.configure(undefined).catch(this._onError);
+				}
+			}));
+		}
 	}
 
 	configure(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
@@ -132,7 +146,14 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
 			throw new Error('Agent Host already belongs to another local account; restart the process to change owners');
 		}
-		const owner = options.live ? await resolveMissionControlOwner(this._fetch, options.baseUrl, options.credential) : options.accountId;
+		const identityApiBase = this._getIdentityApiBase();
+		if (options.live && (new URL(identityApiBase).protocol !== 'https:' || (this._identityApiBase && this._identityApiBase !== identityApiBase))) {
+			throw new Error('Mission Control requires a stable HTTPS GitHub identity authority');
+		}
+		const owner = options.live ? await resolveMissionControlOwner(this._fetch, identityApiBase, options.credential) : options.accountId;
+		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
+			throw new Error('GitHub identity authority changed during Mission Control configuration');
+		}
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new Error('Credential does not match the Agent Host owner');
 		}
@@ -150,6 +171,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		}
 		this._ownerAccount = options.accountId;
 		this._canonicalOwner = owner;
+		this._identityApiBase = identityApiBase;
 		this._generation++;
 		this._options = { ...options, roots };
 		try {
@@ -196,6 +218,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		if (!options) {
 			throw new Error('Mission Control is disabled');
 		}
+		const generation = this._generation;
 		const response = await this._fetch(new URL(path, `${options.baseUrl.replace(/\/$/, '')}/`), {
 			method: body ? 'POST' : 'GET',
 			headers: { Authorization: `Bearer ${options.credential}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
@@ -216,7 +239,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			}
 		}
 		if (!response.ok) {
-			if (response.status === 401 || response.status === 403) {
+			if ((response.status === 401 || response.status === 403) && generation === this._generation && this._options === options) {
 				this._handler.clear();
 				this._server.clear();
 			}
@@ -262,13 +285,16 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		if (!options || (this._environment && Date.now() < this._heartbeatNotBefore)) {
 			return;
 		}
-		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._getSessionCount() };
+		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._getSessionCount()) };
 		let remoteControl: Record<string, unknown> | undefined;
 		if (options.live) {
 			if (!this._getRemoteControlPolicy) {
 				throw new Error('Cannot register before reading device remote-control policy');
 			}
-			remoteControl = await this._getRemoteControlPolicy();
+			remoteControl = await this._boundedRegistrationWork(this._getRemoteControlPolicy());
+		}
+		if (generation !== this._generation || this._options !== options) {
+			return;
 		}
 		const policy = JSON.stringify(remoteControl ?? null);
 		const register = !this._environment || (options.live && policy !== this._policy);
@@ -309,12 +335,16 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control returned no signing keys');
 		}
 		const sealing = this._sealing.value;
+		const identityApiBase = this._identityApiBase;
+		if (sealing && !identityApiBase) {
+			throw new Error('Mission Control identity authority is unavailable');
+		}
 		const server = new MissionControlProtocolServer(
 			response.webpubsub, response.user_id, response.id,
 			new MissionControlControlVerifier(response.id, response.user_id, keys),
 			this._socketFactory,
 			error => this._onError(error),
-			sealing ? () => new MissionControlAuthentication(sealing, response.user_id, new URL(options.baseUrl).origin, this._fetch, options.requireConnectionBinding === true) : undefined,
+			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
 			sealing?.rootMeta,
 		);
 		this._server.value = server;
@@ -329,5 +359,13 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, { status: 'online', capabilities, encryption_keys: encryptionKeys }, options);
 		}
 		this._onReady?.(response.id);
+	}
+
+	private async _boundedRegistrationWork<T>(operation: Promise<T>): Promise<T> {
+		const result = await raceTimeout(operation.then(value => ({ value })), 15_000);
+		if (!result) {
+			throw new Error('Mission Control registration metadata timed out');
+		}
+		return result.value;
 	}
 }

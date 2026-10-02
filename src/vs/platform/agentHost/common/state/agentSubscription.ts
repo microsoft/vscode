@@ -1231,11 +1231,19 @@ export class AgentSubscriptionManager extends Disposable {
 	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
 	 */
 	beginSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.beginSnapshotRefresh();
+			return;
+		}
 		this._subscriptions.get(resource)?.sub.beginSnapshotRefresh();
 	}
 
 	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
 	cancelSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.cancelSnapshotRefresh();
+			return;
+		}
 		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
 	}
 

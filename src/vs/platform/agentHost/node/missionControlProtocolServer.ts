@@ -35,6 +35,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly clientConnectionKind = AgentHostClientConnectionKind.WebPubSub;
 	get relayClientId(): string { return this.clientId; }
 	get relayPassive(): boolean { return this.passive; }
+	get relayAuthenticated(): boolean | undefined { return this._authentication?.authenticated; }
 	get relayHandshakeMeta(): Record<string, unknown> | undefined {
 		return this._authentication ? { ...this._authentication.handshakeMeta, ...(this.passive ? { 'copilot.passive': true } : {}) } : undefined;
 	}
@@ -50,9 +51,10 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	readonly onClose = this._onClose.event;
 	private _closed = false;
 	private _active = false;
+	private _hasHandshake = false;
 	private readonly _earlyMessages: ProtocolMessage[] = [];
 
-	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication) {
+	constructor(readonly clientId: string, readonly passive: boolean, private readonly _publish: (group: string, message: unknown) => void, private readonly _prefix: string, private readonly _authentication?: MissionControlAuthentication, private readonly _rehandshake?: (lane: MissionControlLane, message: object) => void) {
 		super();
 	}
 
@@ -66,6 +68,11 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 			return;
 		}
 		if (request.method === 'initialize' || request.method === 'reconnect') {
+			if (this._active && this._hasHandshake && this._rehandshake) {
+				this._rehandshake(this, message);
+				return;
+			}
+			this._hasHandshake = true;
 			this._authentication?.beginHandshake();
 		}
 		if (!this._authentication && (request.method === 'authenticate' || request.method === 'resourceRequest' || request.method === 'dispatchAction' || request.method === 'setClientManagedSettingsPermissions')) {
@@ -106,6 +113,7 @@ class MissionControlLane extends Disposable implements IProtocolTransport {
 	override dispose(): void {
 		if (!this._closed) {
 			this._closed = true;
+			this._authentication?.dispose();
 			this._onClose.fire();
 		}
 		super.dispose();
@@ -304,14 +312,39 @@ export class MissionControlProtocolServer extends Disposable implements IProtoco
 
 	private _openLane(payload: unknown): void {
 		const spawn = this._verifier.verify(payload);
-		if (this._lanes.has(spawn.client_id) || this._lanes.size >= 32) {
-			throw new Error('Mission Control client lane already exists or capacity reached');
+		const existing = this._lanes.get(spawn.client_id);
+		if (existing) {
+			if (existing.passive !== (spawn.passive === true)) {
+				throw new Error('Mission Control cannot change the role of an existing client lane');
+			}
+			return;
 		}
-		const prefix = `user.${this._owner}.env.${this._environment}.client.${spawn.client_id}`;
-		const lane = new MissionControlLane(spawn.client_id, spawn.passive === true, (group, payload) => this._publish(group, payload), prefix, this._authenticationFactory?.());
-		this._lanes.set(spawn.client_id, lane);
-		Event.once(lane.onClose)(() => this._lanes.deleteAndLeak(spawn.client_id));
-		this._join(`${prefix}.to-host`);
+		if (this._lanes.size >= 32) {
+			throw new Error('Mission Control client lane capacity reached');
+		}
+		this._createLane(spawn.client_id, spawn.passive === true);
+		this._join(`user.${this._owner}.env.${this._environment}.client.${spawn.client_id}.to-host`);
+	}
+
+	private _createLane(clientId: string, passive: boolean): MissionControlLane {
+		const prefix = `user.${this._owner}.env.${this._environment}.client.${clientId}`;
+		const lane = new MissionControlLane(clientId, passive, (group, payload) => this._publish(group, payload), prefix, this._authenticationFactory?.(), (previous, message) => {
+			if (this._closed || this._lanes.get(clientId) !== previous) {
+				return;
+			}
+			this._lanes.deleteAndDispose(clientId);
+			const replacement = this._createLane(clientId, passive);
+			this._onConnection.fire(replacement);
+			replacement.activate();
+			replacement.receive(message);
+		});
+		this._lanes.set(clientId, lane);
+		Event.once(lane.onClose)(() => {
+			if (this._lanes.get(clientId) === lane) {
+				this._lanes.deleteAndLeak(clientId);
+			}
+		});
+		return lane;
 	}
 
 	override dispose(): void {

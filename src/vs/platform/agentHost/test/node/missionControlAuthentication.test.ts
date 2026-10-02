@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { createHash, randomBytes } from 'crypto';
 import sodium from 'libsodium-wrappers';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from '../../node/missionControlAuthentication.js';
 
@@ -83,5 +84,80 @@ suite('Mission Control sealed authentication', () => {
 	test('refuses failed identity validation and non-user principals', async () => {
 		await assert.rejects(resolveMissionControlOwner(async () => new Response('', { status: 401 }), resource, 'test'), /401/);
 		await assert.rejects(resolveMissionControlOwner(async () => Response.json({ id: 123, type: 'Bot' }), resource, 'test'), /user identity/);
+	});
+
+	for (const transition of ['handshake', 'close'] as const) {
+		test(`does not authorize a stale credential after ${transition}`, async () => {
+			const sealing = store.add(new MissionControlSealing());
+			const identity = new DeferredPromise<Response>();
+			const auth = new MissionControlAuthentication(sealing, '123', resource, () => identity.p, false);
+			const request = auth.authenticate({ resource, token: seal(sealing, 'test-owner-token') });
+			const rejected = assert.rejects(request, /expired handshake/);
+			if (transition === 'handshake') {
+				auth.beginHandshake();
+			} else {
+				auth.dispose();
+			}
+			await identity.complete(Response.json({ id: 123, type: 'User' }));
+			await rejected;
+			assert.strictEqual(auth.authenticated, false);
+		});
+	}
+
+	test('MCP authentication cannot establish the owner identity or retarget a credential', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const mcpResource = 'https://mcp.example.test';
+		const auth = new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false);
+		await assert.rejects(auth.authenticate({ resource: mcpResource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) }), /relay identity/);
+		await auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+		const accepted = await auth.authenticate({ resource: mcpResource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) });
+		await assert.rejects(auth.authenticate({ resource: 'https://attacker.test', token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) }), /context/);
+		assert.deepStrictEqual({ authorized: auth.authenticated, token: accepted.token }, { authorized: true, token: 'mcp-token' });
+		auth.beginHandshake();
+		assert.strictEqual(auth.authenticated, false);
+	});
+
+	test('validates Enterprise identity at the trusted API base rather than the MC origin', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const api = 'https://github.enterprise.test/api/v3';
+		const requests: string[] = [];
+		const auth = new MissionControlAuthentication(sealing, '123', api, async input => {
+			requests.push(input.toString());
+			return Response.json({ id: 123, type: 'User' });
+		}, false);
+		await auth.authenticate({ resource: api, token: seal(sealing, 'enterprise-token', undefined, 'auth-token', api) });
+		assert.deepStrictEqual({ authorized: auth.authenticated, requests }, { authorized: true, requests: [`${api}/user`] });
+	});
+
+	test('identity-authority changes invalidate an outstanding owner check', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const identity = new DeferredPromise<Response>();
+		let current = true;
+		const auth = new MissionControlAuthentication(sealing, '123', resource, () => identity.p, false, () => current);
+		const request = auth.authenticate({ resource, token: seal(sealing, 'test-owner-token') });
+		const rejected = assert.rejects(request, /expired handshake/);
+		current = false;
+		await identity.complete(Response.json({ id: 123, type: 'User' }));
+		await rejected;
+		assert.strictEqual(auth.authenticated, false);
+	});
+
+	test('concurrently restored MCP credentials wait for the same-handshake identity check', async () => {
+		const sealing = store.add(new MissionControlSealing());
+		const identity = new DeferredPromise<Response>();
+		const auth = new MissionControlAuthentication(sealing, '123', resource, () => identity.p, false);
+		const owner = auth.authenticate({ resource, token: seal(sealing, 'owner-token') });
+		const mcpResource = 'https://mcp.example.test';
+		const mcp = auth.authenticate({ resource: mcpResource, token: seal(sealing, 'mcp-token', undefined, 'mcp-auth-token', mcpResource) });
+		let installed = false;
+		void mcp.then(() => { installed = true; });
+		await Promise.resolve();
+		const beforeOwnerCheck = installed;
+		await identity.complete(Response.json({ id: 123, type: 'User' }));
+		await owner;
+		const result = await mcp;
+		assert.deepStrictEqual({ beforeOwnerCheck, authorized: auth.authenticated, token: result.token }, {
+			beforeOwnerCheck: false, authorized: true, token: 'mcp-token',
+		});
 	});
 });

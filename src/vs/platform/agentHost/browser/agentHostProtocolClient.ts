@@ -5,7 +5,7 @@
 
 // Protocol client for communicating with an agent host process.
 
-import { DeferredPromise, TimeoutTimer } from '../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference } from '../../../base/common/lifecycle.js';
@@ -33,7 +33,7 @@ import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotation
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
-import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { isClientTransport, NonReconnectableTransportError, type AgentHostTransportFailureReason, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../common/state/protocol/errors.js';
@@ -224,6 +224,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _resourceIdentity: AgentHostResourceIdentity;
 	private readonly _transportFactory: (() => IProtocolTransport) | undefined;
 	private _transport!: IProtocolTransport;
+	private _relayRootRefresh: { readonly transport: IProtocolTransport; readonly promise: Promise<void> } | undefined;
 	/** Disposable holding the listeners attached to the current transport. */
 	private readonly _transportListeners = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _connectionAuthority: string;
@@ -541,6 +542,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._diagnostic('transport.closeDetails', `code=${close.code ?? 'unavailable'}; wasClean=${close.wasClean ?? 'unavailable'}; reason=${sanitizeConnectionDiagnosticText(close.reason ?? '(unavailable)')}`);
 			}));
 		}
+		if (this._relayRootRefresh && this._relayRootRefresh.transport !== transport) {
+			this._subscriptionManager.cancelSnapshotRefresh(URI.parse(ROOT_STATE_URI));
+			this._relayRootRefresh = undefined;
+		}
 		this._transport = transport;
 		this._transportListeners.value = listeners;
 	}
@@ -613,18 +618,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				initialSubscriptions: [ROOT_STATE_URI],
 			}, { bypassInitializeQueue: true }));
 			this._applyInitializeResult(result);
+			if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+				this._hydrateInitializedRootState(result);
+			}
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
 				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
 				}
 			}
-
-			// Hydrate root state from the initial snapshot
-			for (const snapshot of result.snapshots ?? []) {
-				if (isAhpRootChannel(snapshot.resource)) {
-					this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
-				}
+			if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub) {
+				this._hydrateInitializedRootState(result);
 			}
 
 			if (isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
@@ -1120,6 +1124,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource} after host restart: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}));
+		await this._refreshRelayRootSnapshot();
 		this._authenticationRestorePending = false;
 	}
 
@@ -1146,6 +1151,14 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 	}
 
+	private _hydrateInitializedRootState(result: IAgentHostExtensionInitializeResult): void {
+		for (const snapshot of result.snapshots ?? []) {
+			if (isAhpRootChannel(snapshot.resource)) {
+				this._subscriptionManager.handleRootSnapshot(snapshot.state as RootState, snapshot.fromSeq);
+			}
+		}
+	}
+
 	/**
 	 * Push the renderer-owned config values the host mirrors (telemetry level,
 	 * proxy discovery, migrate flag, …) as `RootConfigChanged` actions. Called on
@@ -1160,6 +1173,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * settings contributed by an extension rather than by core.
 	 */
 	private _forwardClientConfig(includeManagedSettings = true): void {
+		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+			return;
+		}
 		this._dispatchRootConfig(resolveAgentHostConfigurationSyncPatch(this._configurationService, getAgentHostConfigurationSyncTarget(this._resourceIdentity)));
 		this._updateTelemetryLevel();
 		this._updateTerminalAutoApproveEnabled();
@@ -1536,7 +1552,48 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		} else {
 			this._authentication.delete(key);
 		}
+		await this._refreshRelayRootSnapshot();
 		return { authenticated: true };
+	}
+
+	private _refreshRelayRootSnapshot(): Promise<void> {
+		if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub) {
+			return Promise.resolve();
+		}
+		if (this._relayRootRefresh?.transport === this._transport) {
+			return this._relayRootRefresh.promise;
+		}
+		const transport = this._transport;
+		const refresh = { transport, promise: this._readRelayRootSnapshot(transport) };
+		this._relayRootRefresh = refresh;
+		const release = () => {
+			if (this._relayRootRefresh === refresh) {
+				this._relayRootRefresh = undefined;
+			}
+		};
+		void refresh.promise.then(release, release);
+		return refresh.promise;
+	}
+
+	private async _readRelayRootSnapshot(transport: IProtocolTransport): Promise<void> {
+		const root = URI.parse(ROOT_STATE_URI);
+		this._subscriptionManager.beginSnapshotRefresh(root);
+		try {
+			const result = await this._dispatchRequest<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI }, { bypassInitializeQueue: true, bypassReconnectGate: true, timeoutMs: 30_000 });
+			if (transport !== this._transport) {
+				throw transportLostError(this._address);
+			}
+			const snapshot = result.snapshot;
+			if (!snapshot || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
+				throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'Relay root subscription returned no root snapshot');
+			}
+			this._subscriptionManager.handleRootSnapshot(snapshot.state, snapshot.fromSeq);
+			this._serverSeq = Math.max(this._serverSeq, snapshot.fromSeq);
+		} finally {
+			if (transport === this._transport) {
+				this._subscriptionManager.cancelSnapshotRefresh(root);
+			}
+		}
 	}
 
 	private _normalizeAuthenticationParams(params: AuthenticateParams): AuthenticateParams {
@@ -2273,6 +2330,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private _updateManagedSettingsPermissions(sendDuringReconnect = false): void {
+		if (this._transport.clientConnectionKind === AgentHostClientConnectionKind.WebPubSub) {
+			return;
+		}
 		const permissions = this._resourceIdentity === LOCAL_AGENT_HOST_RESOURCE_IDENTITY
 			? resolveManagedSettingsPermissions(this._configurationService)
 			: {};
@@ -2292,7 +2352,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private async _dispatchRequest<TResult>(
 		method: string,
 		params: unknown,
-		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean } = {},
+		options: { readonly bypassInitializeQueue?: boolean; readonly allowIncompatibleUpgrade?: boolean; readonly bypassReconnectGate?: boolean; readonly timeoutMs?: number } = {},
 	): Promise<TResult> {
 		if (this._state.kind === AgentHostClientState.Closed) {
 			throw this._state.error;
@@ -2301,12 +2361,12 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			if (!options.allowIncompatibleUpgrade) {
 				throw this._state.error;
 			}
-			const { request, result } = this._createRequest<TResult>(method, params);
+			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
 			this._transport.send(request);
 			return result;
 		}
 		if (!options.bypassInitializeQueue && isClientTransport(this._transport) && this._state.kind === AgentHostClientState.Connecting) {
-			const { request, result } = this._createRequest<TResult>(method, params);
+			const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
 			this._state.outbox.push(request as ProtocolMessage);
 			return result;
 		}
@@ -2337,15 +2397,24 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			throw current.error;
 		}
 
-		const { request, result } = this._createRequest<TResult>(method, params);
+		const { request, result } = this._createRequest<TResult>(method, params, options.timeoutMs);
 		this._transport.send(request);
 		return result;
 	}
 
-	private _createRequest<TResult>(method: string, params: unknown): { request: JsonRpcRequest; result: Promise<TResult> } {
+	private _createRequest<TResult>(method: string, params: unknown, timeoutMs?: number): { request: JsonRpcRequest; result: Promise<TResult> } {
 		const id = this._nextRequestId++;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingRequests.set(id, { deferred, suppressNotFoundWarning: isFileResourceRead(method, params), sentAt: Date.now() });
+		if (timeoutMs !== undefined) {
+			const deadline = disposableTimeout(() => {
+				if (this._pendingRequests.get(id)?.deferred === deferred) {
+					this._pendingRequests.delete(id);
+					deferred.error(new ProtocolError(JSON_RPC_INTERNAL_ERROR, `${method} response timed out`));
+				}
+			}, timeoutMs, this._store);
+			void deferred.p.then(() => deadline.dispose(), () => deadline.dispose());
+		}
 		return {
 			request: { jsonrpc: '2.0', id, method, params },
 			result: deferred.p as Promise<TResult>,

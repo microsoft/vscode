@@ -10,6 +10,8 @@ import { mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import sinon from 'sinon';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { MissionControlControlVerifier, type IMissionControlSigningKey } from '../../node/missionControlControl.js';
@@ -124,27 +126,27 @@ suite('Experimental Mission Control WPS', () => {
 		assert.deepStrictEqual({ closed: socket.closed, errors: errors.map(error => error.message) }, {
 			closed: true, errors: ['Mission Control WPS operation rejected'],
 		});
+	});
 
-		test('serializes AHP publishes behind acknowledgements without reordering', async () => {
-			const { key, signed } = signingFixture();
-			const socket = new FakeWpsSocket(true, true);
-			const server = store.add(new MissionControlProtocolServer(
-				{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
-				'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
-			));
-			store.add(server.onConnection(lane => {
-				lane.send({ jsonrpc: '2.0', id: 1, result: null });
-				lane.send({ jsonrpc: '2.0', id: 2, result: null });
-			}));
-			const ready = server.connect();
-			socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
-			await ready;
-			socket.deliver(`${prefix}.control`, signed('client-a', 'serial'), 1);
-			const beforeAck = socket.publishes.length;
-			socket.emit('message', JSON.stringify({ type: 'ack', ackId: socket.publishAckIds[0], success: true }));
-			assert.deepStrictEqual({ beforeAck, ids: socket.publishes.map(frame => (frame.data.data as { id: number }).id) }, {
-				beforeAck: 1, ids: [1, 2],
-			});
+	test('serializes AHP publishes behind acknowledgements without reordering', async () => {
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket(true, true);
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]), () => socket,
+		));
+		store.add(server.onConnection(lane => {
+			lane.send({ jsonrpc: '2.0', id: 1, result: null });
+			lane.send({ jsonrpc: '2.0', id: 2, result: null });
+		}));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'serial'), 1);
+		const beforeAck = socket.publishes.length;
+		socket.emit('message', JSON.stringify({ type: 'ack', ackId: socket.publishAckIds[0], success: true }));
+		assert.deepStrictEqual({ beforeAck, ids: socket.publishes.map(frame => (frame.data.data as { id: number }).id) }, {
+			beforeAck: 1, ids: [1, 2],
 		});
 	});
 
@@ -230,6 +232,31 @@ suite('Experimental Mission Control WPS', () => {
 		});
 	});
 
+	test('fresh signed spawn retries reuse the lane without changing its role', async () => {
+		const { key, signed } = signingFixture();
+		const socket = new FakeWpsSocket();
+		const errors: string[] = [];
+		const server = store.add(new MissionControlProtocolServer(
+			{ url: 'ws://127.0.0.1/fake', access_token: 'fake-token', groups: { control: `${prefix}.control` } },
+			'owner', 'environment', new MissionControlControlVerifier('environment', 'owner', [key]),
+			() => socket, error => errors.push(error.message),
+		));
+		const lanes: IProtocolTransport[] = [];
+		store.add(server.onConnection(lane => lanes.push(lane)));
+		const ready = server.connect();
+		socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' }));
+		await ready;
+		socket.deliver(`${prefix}.control`, signed('client-a', 'first'), 1);
+		socket.deliver(`${prefix}.control`, signed('client-a', 'retry'), 2);
+		socket.deliver(`${prefix}.control`, signed('client-a', 'changed-role', true), 3);
+		assert.deepStrictEqual({ laneCount: lanes.length, joins: socket.joins, passive: lanes[0].relayPassive, errors }, {
+			laneCount: 1,
+			joins: [`${prefix}.control`, `${prefix}.client.client-a.to-host`],
+			passive: false,
+			errors: ['Mission Control cannot change the role of an existing client lane'],
+		});
+	});
+
 	test('registers the process identity, heartbeats, and refuses account rebinding', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-test-'));
 		const clock = sinon.useFakeTimers();
@@ -306,6 +333,7 @@ suite('Experimental Mission Control WPS', () => {
 				errors: string[];
 				sockets: FakeWpsSocket[];
 				options: { baseUrl: string; live: boolean; accountId: string; credential: string; roots: string[] };
+				changeIdentityAuthority: (base: string) => void;
 			}) => Promise<void>,
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
@@ -316,6 +344,8 @@ suite('Experimental Mission Control WPS', () => {
 				const heartbeats: { time: number; status: string }[] = [];
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
+				let identityApiBase = 'https://api.github.com';
+				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
 					id: 'environment', kind: 'user-local', user_id: '123', owner_id: '123', owner_type: 'user',
 					webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' } },
@@ -342,10 +372,19 @@ suite('Experimental Mission Control WPS', () => {
 					},
 					undefined,
 					async () => undefined,
+					undefined,
+					() => identityApiBase,
+					identityAuthorityChanged.event,
 				));
 				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] };
 				await service.configure(options);
-				await run({ service, clock, heartbeats, errors, sockets, options });
+				await run({
+					service, clock, heartbeats, errors, sockets, options,
+					changeIdentityAuthority: base => {
+						identityApiBase = base;
+						identityAuthorityChanged.fire();
+					},
+				});
 			} finally {
 				service?.dispose();
 				clock.restore();
@@ -440,6 +479,22 @@ suite('Experimental Mission Control WPS', () => {
 				});
 			});
 		});
+
+		test('changing the GitHub authority closes the relay immediately and withdraws registration', async () => {
+			await withEnvironment([], async ({ service, clock, heartbeats, errors, sockets, changeIdentityAuthority }) => {
+				changeIdentityAuthority('https://api.enterprise.test');
+				const closedImmediately = sockets.every(socket => socket.closed);
+				await service.configure(undefined);
+				const afterWithdrawal = heartbeats.length;
+				await clock.tickAsync(120_000);
+				assert.deepStrictEqual({ closedImmediately, afterWithdrawal, heartbeats, errors }, {
+					closedImmediately: true,
+					afterWithdrawal: 2,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 0, status: 'offline' }],
+					errors: [],
+				});
+			});
+		});
 	});
 
 	test('reuses compute identity across windows and restarts, but not different user-data directories', async () => {
@@ -486,6 +541,40 @@ suite('Experimental Mission Control WPS', () => {
 				registrationsForTwoWindows: 1, restartIdentityMatches: true, isolatedIdentityDiffers: true, registrations: 3,
 			});
 		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
+	test('registration metadata is bounded and late answers cannot register a disabled host', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-metadata-timeout-'));
+		const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+		try {
+			const metadata = new DeferredPromise<number>();
+			const started = new DeferredPromise<void>();
+			const requests: string[] = [];
+			const service = store.add(new ExperimentalMissionControlEnvironment(
+				path,
+				async input => {
+					requests.push(input.toString());
+					return Response.json({ id: 123, type: 'User' });
+				},
+				() => { throw new Error('Timed-out registration must not attach a server'); },
+				error => { throw error; },
+				undefined,
+				() => { started.complete(); return metadata.p; },
+				async () => undefined,
+			));
+			const configuring = service.configure({ baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] });
+			const rejected = assert.rejects(configuring, /registration metadata timed out/);
+			await started.p;
+			await clock.tickAsync(15_000);
+			await rejected;
+			await metadata.complete(42);
+			await clock.tickAsync(60_000);
+			assert.deepStrictEqual(requests, ['https://api.github.com/user']);
+			service.dispose();
+		} finally {
+			clock.restore();
 			await rm(path, { recursive: true });
 		}
 	});

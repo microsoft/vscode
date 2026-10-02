@@ -108,7 +108,7 @@ export async function resolveMissionControlOwner(fetcher: typeof fetch, apiOrigi
 	if (!/^[\x21-\x7e]+$/.test(credential)) {
 		throw new Error('Invalid GitHub credential encoding');
 	}
-	const response = await fetcher(new URL('/user', apiOrigin), {
+	const response = await fetcher(new URL('user', `${apiOrigin.replace(/\/$/, '')}/`), {
 		headers: { Authorization: `Bearer ${credential}`, Accept: 'application/vnd.github+json' },
 		redirect: 'error',
 		signal: AbortSignal.timeout(15_000),
@@ -136,6 +136,10 @@ export class MissionControlAuthentication {
 	private _challenge = randomBytes(16).toString('hex');
 	private readonly _seen = new Map<string, number>();
 	private _time = 0;
+	private _generation = 0;
+	private _authenticated = false;
+	private _closed = false;
+	private _identityValidation: Promise<string> | undefined;
 
 	constructor(
 		private readonly _sealing: MissionControlSealing,
@@ -143,11 +147,27 @@ export class MissionControlAuthentication {
 		private readonly _apiOrigin: string,
 		private readonly _fetch: typeof fetch,
 		private readonly _requireBinding: boolean,
+		private readonly _isCurrentIdentityAuthority: () => boolean = () => true,
 	) { }
 
 	beginHandshake(): void {
+		this._generation++;
+		this._authenticated = false;
 		this._challenge = randomBytes(16).toString('hex');
 		this._seen.clear();
+		this._identityValidation = undefined;
+	}
+
+	get authenticated(): boolean {
+		return this._authenticated && !this._closed && this._isCurrentIdentityAuthority();
+	}
+
+	dispose(): void {
+		this._closed = true;
+		this._generation++;
+		this._authenticated = false;
+		this._seen.clear();
+		this._identityValidation = undefined;
 	}
 
 	get handshakeMeta(): Record<string, unknown> {
@@ -158,8 +178,22 @@ export class MissionControlAuthentication {
 	}
 
 	async authenticate(params: AuthenticateParams): Promise<AuthenticateParams> {
+		if (this._closed || !this._isCurrentIdentityAuthority()) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication is closed');
+		}
+		const generation = this._generation;
 		const resource = new URL(params.resource);
-		const identity = resource.origin === this._apiOrigin;
+		const identity = resource.origin === new URL(this._apiOrigin).origin;
+		if (!identity && !this.authenticated) {
+			const validation = this._identityValidation;
+			if (!validation) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Authenticate the relay identity before MCP resources');
+			}
+			await validation;
+			if (!this.authenticated || generation !== this._generation) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay identity authentication is unavailable');
+			}
+		}
 		const opened = this._sealing.open(params.token ?? '', identity ? 'auth-token' : 'mcp-auth-token', params.resource);
 		const binding = opened.connection;
 		if (!binding && this._requireBinding) {
@@ -179,8 +213,24 @@ export class MissionControlAuthentication {
 			}
 			this._seen.set(binding.nonce, (binding.issuedAt as number) + 300);
 		}
-		if (identity && await resolveMissionControlOwner(this._fetch, this._apiOrigin, opened.token) !== this._owner) {
-			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Credential does not belong to the registered owner');
+		if (identity) {
+			const validation = resolveMissionControlOwner(this._fetch, this._apiOrigin, opened.token);
+			this._identityValidation = validation;
+			try {
+				if (await validation !== this._owner) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Credential does not belong to the registered owner');
+				}
+			} finally {
+				if (this._identityValidation === validation) {
+					this._identityValidation = undefined;
+				}
+			}
+		}
+		if (this._closed || generation !== this._generation || !this._isCurrentIdentityAuthority()) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Relay authentication belongs to an expired handshake');
+		}
+		if (identity) {
+			this._authenticated = true;
 		}
 		return { ...params, token: opened.token };
 	}

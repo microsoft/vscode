@@ -45,6 +45,8 @@ export interface IProtocolTransport extends IDisposable {
 	/** Trusted read-only designation assigned by a relay server. */
 	readonly relayPassive?: boolean;
 	readonly relayHandshakeMeta?: Record<string, unknown>;
+	/** Owner-validated identity for the current relay handshake, independent of transport access. */
+	readonly relayAuthenticated?: boolean;
 	relayAuthenticate?(params: AuthenticateParams): Promise<AuthenticateParams>;
 	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
 	readonly onDidCloseDetails?: Event<ITransportCloseDetails>;
