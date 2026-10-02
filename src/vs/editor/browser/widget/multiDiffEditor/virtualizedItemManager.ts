@@ -132,6 +132,7 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 	private readonly _isHidden = observableValue(this, false);
 	private _lastRender: { renderedRange: OffsetRange; scrollOffset: number; width: number; renderedViewport: OffsetRange; context: ICompressedVirtualizedScrollItemContext | undefined } | undefined;
 	private _didRenderFail = false;
+	private _isClearingBinding = false;
 	readonly template = derived(this, reader => this._templateReference.read(reader)?.object);
 	readonly binding = derived(this, reader => this.template.read(reader)?.currentBinding.read(reader));
 	readonly size;
@@ -225,21 +226,26 @@ export class ManagedVirtualizedItem<TItem, TBinding extends IVirtualizedItemBind
 	private _clearBinding(): void {
 		const templateReference = this._templateReference.get();
 		const binding = templateReference?.object.currentBinding.get();
-		if (!templateReference || !binding) {
+		if (!templateReference || !binding || this._isClearingBinding) {
 			return;
 		}
-		transaction(tx => {
-			this._delegate.onWillUnbind?.(binding, tx);
-		});
-		binding.hide();
-		binding.dispose();
-		if (templateReference.object.currentBinding.get()) {
-			throw new BugIndicatingError('Virtualized binding did not release its template when disposed');
+		this._isClearingBinding = true;
+		try {
+			transaction(tx => {
+				this._delegate.onWillUnbind?.(binding, tx);
+			});
+			binding.hide();
+			binding.dispose();
+			if (templateReference.object.currentBinding.get()) {
+				throw new BugIndicatingError('Virtualized binding did not release its template when disposed');
+			}
+			transaction(tx => {
+				this._templateReference.set(undefined, tx);
+			});
+			templateReference.dispose();
+		} finally {
+			this._isClearingBinding = false;
 		}
-		transaction(tx => {
-			this._templateReference.set(undefined, tx);
-		});
-		templateReference.dispose();
 	}
 
 	override dispose(): void {
