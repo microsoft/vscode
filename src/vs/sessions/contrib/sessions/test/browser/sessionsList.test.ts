@@ -4114,6 +4114,69 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('matches the main chat row vertical layout in compact and regular views', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Main chat').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const snapshot = (compact: boolean) => {
+				const { container } = renderSessionChatsList(session, undefined, false, true, compact);
+				const mainItem = container.querySelector<HTMLElement>('.session-item');
+				const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+				const mainRow = mainItem?.closest<HTMLElement>('.monaco-list-row');
+				const peerRow = peerItem?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(mainItem);
+				assert.ok(peerItem);
+				assert.ok(mainRow);
+				assert.ok(peerRow);
+
+				const mainTitleStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-title-row')!);
+				const peerTitleStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-title-row')!);
+				const mainDetailsStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-details-row')!);
+				const peerDetailsStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-folder-row')!);
+
+				return {
+					mainHeight: mainRow.style.height,
+					peerHeight: peerRow.style.height,
+					mainTitleLineHeight: mainTitleStyle.lineHeight,
+					peerTitleLineHeight: peerTitleStyle.lineHeight,
+					mainDetailsLineHeight: mainDetailsStyle.lineHeight,
+					peerDetailsLineHeight: peerDetailsStyle.lineHeight,
+					peerDetailsDisplay: peerDetailsStyle.display,
+				};
+			};
+
+			assert.deepStrictEqual({
+				regular: snapshot(false),
+				compact: snapshot(true),
+			}, {
+				regular: {
+					mainHeight: '56px',
+					peerHeight: '56px',
+					mainTitleLineHeight: '17px',
+					peerTitleLineHeight: '17px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'flex',
+				},
+				compact: {
+					mainHeight: '30px',
+					peerHeight: '30px',
+					mainTitleLineHeight: '16px',
+					peerTitleLineHeight: '16px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'none',
+				},
+			});
+		});
+
 		test('shows each resolved chat modified time independently and omits unresolved times', () => {
 			const built = buildTestSession({
 				id: 'chat-times',
@@ -4155,12 +4218,12 @@ suite('Sessions - SessionsList', () => {
 					mainAriaLabel: 'Main chat, updated now, State: Completed',
 					peerTime: undefined,
 					peerAriaLabel: 'Peer chat, chat, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 				after: {
 					peerTime: 'now',
 					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 			});
 		});
@@ -4420,7 +4483,7 @@ suite('Sessions - SessionsList', () => {
 					folderRow: 'second·now',
 					folderIcon: 'folder',
 					ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed',
-					height: '46px',
+					height: '56px',
 				},
 				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
@@ -4957,7 +5020,7 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
-			list.layout(300, 400);
+			list.layout(500, 400);
 
 			const initial = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
@@ -5620,7 +5683,7 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '46px',
+				desktopHeight: '56px',
 				phoneHeight: '62px',
 			});
 		});
@@ -6558,6 +6621,46 @@ suite('Sessions - SessionsList', () => {
 
 			const heights = { taskA: rowHeight('Task A'), taskB: rowHeight('Task B') };
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
+		});
+
+		test('reserves approval rounding slack in phone chat rows', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvalModel = createApprovalModel(new Map([[peer.resource.toString(), terminalApproval(peer, 'npm run build')]]));
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			setSessionChatsExpanded(container, true);
+
+			const approvalRow = approvalRowFor(container, 'Task A');
+			const chatRow = approvalRow?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(approvalRow);
+			assert.ok(chatRow);
+			assert.deepStrictEqual({
+				height: chatRow.style.height,
+				approvalBottomMargin: mainWindow.getComputedStyle(approvalRow).marginBottom,
+			}, {
+				height: '100px',
+				approvalBottomMargin: '6px',
+			});
 		});
 
 		test('confirms the chat approval when its Allow button is clicked', () => {
