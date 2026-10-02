@@ -859,9 +859,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	 *
 	 * This fails the launch closed unconditionally. The host cannot tell whether a
 	 * session is policy-bearing: `IAgentHostManagedSettingsService` only carries the
-	 * legacy VS Code settings bridge, which is itself behind a false-by-default
-	 * compatibility setting, while server and MDM policy is discovered by the runtime
-	 * itself under `enableManagedSettings`. Gating a security control on that signal
+	 * supported legacy VS Code settings bridge restrictions, while server and MDM
+	 * policy is discovered by the runtime itself under `enableManagedSettings`.
+	 * Gating a security control on that signal
 	 * would leave exactly the enterprise sessions it protects unprotected, so the
 	 * option is treated as required for every session.
 	 *
