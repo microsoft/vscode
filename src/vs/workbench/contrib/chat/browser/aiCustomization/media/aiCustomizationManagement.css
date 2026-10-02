@@ -1825,9 +1825,11 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .marketplace-detail-query-list {
 	display: flex;
 	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size20);
 	margin: 0;
-	padding: 0;
+	padding: var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-textCodeBlock-background);
 	list-style: none;
 }
 
@@ -1837,10 +1839,10 @@ per-word capitalization does not survive translation. */
 	align-items: center;
 	gap: var(--vscode-spacing-size120);
 	width: 100%;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
-	border-radius: var(--vscode-cornerRadius-medium);
-	background: var(--vscode-editorWidget-background);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	background: transparent;
 	color: var(--vscode-foreground);
 	font: inherit;
 	text-align: left;
@@ -1848,7 +1850,6 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-query-button:hover {
-	border-color: var(--vscode-focusBorder);
 	background: var(--vscode-list-hoverBackground);
 }
 
@@ -1871,14 +1872,23 @@ per-word capitalization does not survive translation. */
 	display: flex;
 	flex-shrink: 0;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	color: var(--vscode-textLink-foreground);
-	font-size: var(--vscode-fontSize-label1);
-	font-weight: var(--vscode-fontWeight-semiBold);
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+	color: var(--vscode-button-background);
+	font-size: var(--vscode-codiconFontSize-compact);
 }
 
-.ai-customization-management-editor .marketplace-detail-query-action .codicon {
-	font-size: var(--vscode-codiconFontSize-compact);
+.ai-customization-management-editor .marketplace-detail-query-button:hover .marketplace-detail-query-action {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:focus-visible .marketplace-detail-query-action {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {

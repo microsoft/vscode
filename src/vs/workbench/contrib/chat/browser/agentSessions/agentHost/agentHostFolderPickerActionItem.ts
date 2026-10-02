@@ -132,6 +132,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		if (stored) {
 			return stored;
 		}
+		if (sessionResource && this._newSessionFolderService.isNoFolderSelected(sessionResource)) {
+			return undefined;
+		}
 		// A started session's working directory is fixed at creation time and may
 		// differ from the current workspace's first folder (e.g. a single-folder
 		// session opened inside a multi-root workspace), so show its own folder

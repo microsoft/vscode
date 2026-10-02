@@ -1001,6 +1001,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateHomeButtonHarnessPresentation();
 	}
 
+	private async runMarketplacePrompt(prompt: string): Promise<void> {
+		if (this.workspaceService.isSessionsWindow) {
+			await this.commandService.executeCommand('workbench.action.sessions.newChat', { prompt, noWorkspace: true });
+			return;
+		}
+		await this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt, noWorkspace: true });
+	}
+
 	private createBackArrowButton(
 		onClick?: () => void,
 		ariaLabel = localize('backToOverview', "Back to overview"),
@@ -4687,7 +4695,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.embeddedMarketplaceDetail = this.editorDisposables.add(this.instantiationService.createInstance(EmbeddedMarketplaceDetail, detailBody, {
 			getSourceLabel: sourceId => this.marketplaceService.sources.find(source => source.id === sourceId)?.displayName ?? sourceId,
 			install: resource => this.marketplaceInstallService.install(resource),
-			runPrompt: prompt => this.commandService.executeCommand(`workbench.action.chat.openNewSessionSidebar.${AgentSessionProviders.AgentHostCopilot}`, { prompt }),
+			runPrompt: prompt => this.runMarketplacePrompt(prompt),
 			openExternal: resource => this.openMarketplaceExternal(resource),
 		}));
 		const resizeObserver = this.editorDisposables.add(new DOM.DisposableResizeObserver(

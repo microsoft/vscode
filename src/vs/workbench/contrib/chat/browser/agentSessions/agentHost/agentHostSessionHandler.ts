@@ -6359,6 +6359,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	private _resolveRequestedWorkingDirectory(sessionResource: URI): URI | undefined {
+		if (this._newSessionFolderService?.isNoFolderSelected(sessionResource)) {
+			return undefined;
+		}
 		return this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._newSessionFolderService?.getFolder(sessionResource)
 			?? this._workingDirectoryResolver?.resolve(sessionResource)

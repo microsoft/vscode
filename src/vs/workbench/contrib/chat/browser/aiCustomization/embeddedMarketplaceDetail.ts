@@ -245,8 +245,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			})) as HTMLButtonElement;
 			DOM.append(button, $('span.marketplace-detail-query-text')).textContent = query;
 			const action = DOM.append(button, $('span.marketplace-detail-query-action'));
-			DOM.append(action, $('span.marketplace-detail-query-action-label')).textContent = localize('marketplaceDetail.runQuery', "Run");
-			const icon = DOM.append(action, $(`span.codicon.codicon-${Codicon.arrowRight.id}`));
+			const icon = DOM.append(action, $(`span.codicon.codicon-${Codicon.arrowUpCompact.id}`));
 			icon.setAttribute('aria-hidden', 'true');
 			this.renderDisposables.add(DOM.addDisposableListener(button, DOM.EventType.CLICK, async () => {
 				button.disabled = true;

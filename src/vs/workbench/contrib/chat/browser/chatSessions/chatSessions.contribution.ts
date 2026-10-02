@@ -44,6 +44,7 @@ import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
+import { IAgentHostNewSessionFolderService } from '../agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
@@ -1722,6 +1723,7 @@ export enum ChatSessionPosition {
 
 type NewChatSessionSendOptions = {
 	readonly prompt: string;
+	readonly noWorkspace?: boolean;
 	readonly attachedContext?: IChatRequestVariableEntry[];
 	readonly initialSessionOptions?: ReadonlyChatSessionOptionsMap;
 	/**
@@ -1756,9 +1758,13 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const progressService = accessor.get(IProgressService);
+	const newSessionFolderService = chatSendOptions?.noWorkspace ? accessor.get(IAgentHostNewSessionFolderService) : undefined;
 
 	// Determine resource to open
 	const sessionResource = getResourceForNewChatSession(openOptions);
+	if (newSessionFolderService) {
+		newSessionFolderService.setNoFolder(sessionResource);
+	}
 
 	// Stash any imported ("Continue in…") conversation before the session is
 	// opened: opening can eagerly pre-create the backend session (via the chat
