@@ -30,6 +30,7 @@ import { addMillisecondsToTimestamp } from '../common/state/protocol/common/time
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
+	ChatOriginKind,
 	type ChangesetFile,
 	type ISessionFileDiff,
 	type SessionConfigState,
@@ -50,7 +51,7 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName 
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
-import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
+import { IAgentHostChangesetService, IPersistedChangesetMetadata, IRestoredChangesetDiffs, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, getScopedBranchChangesetMetadataKey, META_CHANGES_SUMMARY, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS, StaticChangesetKind, ChangesetDiffStrategy } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
@@ -184,6 +185,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
 	/** Per-owner debounce timers for mid-turn Session Changes computation. */
 	private readonly _debouncedSessionDiffTimers = this._register(new DisposableMap<string>());
+	/** Per-chat debounce timers for mid-turn chat Session Changes aggregates. */
+	private readonly _debouncedChatSummaryTimers = this._register(new DisposableMap<string>());
+	/** Chats whose Session Changes aggregate is queued but has not started computing. */
+	private readonly _queuedChatSummaries = new Set<ProtocolURI>();
 	/** Per-canonical-owner debounce timers for mid-turn Branch Changes computation. */
 	private readonly _debouncedBranchDiffTimers = this._register(new DisposableMap<string>());
 	/** Per-`(session, turnId)` debounce timers for mid-turn per-turn changeset recomputation. */
@@ -289,6 +294,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		const owner = kind === 'branch' ? this._getBranchChangesetOwner(session) : session;
 		const changesetUri = this._stateManager.registerChangeset(staticChangesetUri(owner, kind));
 		this._publishChangesetDiffs(owner, changesetUri, diffs);
+		if (kind === 'session') {
+			this._publishDefaultChatChangesSummary(owner);
+		}
 	}
 
 	parsePersistedStaticChangesets(sessionUri: ProtocolURI, metadata: IPersistedChangesetMetadata): IRestoredChangesetDiffs {
@@ -1359,6 +1367,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	onToolCallEditsApplied(session: ProtocolURI, turnId: string, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._scheduleDebouncedDiffComputation(session, turnId, clientContext);
+		this._scheduleChatChangesSummary(session, true);
 		// Per-turn URIs have no catalogue chip aggregates, so skip the
 		// recompute entirely when no client is observing this turn. The
 		// next subscriber will get a fresh snapshot from
@@ -1394,6 +1403,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
 		this._scheduleStaticRecompute(containingSessionUri(session), 'session', turnId, true, clientContext, 'fileEditTracker');
+		this._scheduleChatChangesSummary(session, false);
 	}
 
 	onSessionTruncated(session: ProtocolURI): void {
@@ -1402,12 +1412,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._scheduleStaticRecompute(session, 'session', undefined, true, undefined, 'fileEditTracker');
 		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
 			this._refreshChatSessionChangeset(chat.resource);
+			this._scheduleChatChangesSummary(chat.resource, false);
 		}
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
 		this._debouncedBranchDiffTimers.deleteAndDispose(owner);
 		this._debouncedSessionDiffTimers.deleteAndDispose(owner);
+		this._debouncedChatSummaryTimers.deleteAndDispose(owner);
 		this._unavailableBranchOwners.delete(owner);
 		this._failedBranchOwners.delete(owner);
 		for (const [key, scheduled] of this._scheduledStaticRecomputes) {
@@ -1422,6 +1434,120 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				this._perTurnDebouncedDiffTimers.deleteAndDispose(key);
 				this._perTurnDebouncedDiffTimerKeys.delete(key);
 			}
+		}
+	}
+
+	ensureChatChangesSummary(chat: ProtocolURI): void {
+		const state = this._stateManager.getChatState(chat);
+		if (!state || state.changes !== undefined || (state.turns.length === 0 && !state.activeTurn) || !this._isChatChangesSummaryOwner(chat)) {
+			return;
+		}
+		if (isDefaultChatUri(chat)) {
+			this._publishDefaultChatChangesSummary(containingSessionUri(chat));
+		} else {
+			this._queueChatChangesSummary(chat);
+		}
+	}
+
+	refreshChatChangesSummary(chat: ProtocolURI): void {
+		if (!this._isChatChangesSummaryOwner(chat)) {
+			return;
+		}
+		this._scheduleStaticRecompute(containingSessionUri(chat), 'session', undefined, false, undefined, 'fileEditTracker');
+		if (isDefaultChatUri(chat)) {
+			return;
+		}
+		this._queueChatChangesSummary(chat);
+	}
+
+	// ---- Chat Session Changes aggregates -----------------------------------
+	//
+	// Each chat's aggregate mirrors the Session Changes entry its Changes view
+	// shows: the default chat shows the session's cumulative Session Changes,
+	// while a peer chat shows its own Session Changes, computed from the edits
+	// tracked in that chat.
+
+	/** Whether the chat is listed in its session catalog, which carries per-chat aggregates. */
+	private _isChatChangesSummaryOwner(chat: ProtocolURI): boolean {
+		const summary = this._stateManager.getSessionState(containingSessionUri(chat))?.chats.find(candidate => candidate.resource === chat);
+		return !!summary && summary.origin?.kind !== ChatOriginKind.Tool;
+	}
+
+	/** Publishes the session's ready Session Changes as its default chat's aggregate. */
+	private _publishDefaultChatChangesSummary(session: ProtocolURI): void {
+		const defaultChat = buildDefaultChatUri(session);
+		const changeset = this._stateManager.getChangesetState(buildSessionChangesetUri(session));
+		if (changeset?.status === ChangesetStatus.Ready && this._isChatChangesSummaryOwner(defaultChat)) {
+			this._setChatChangesSummary(defaultChat, changeset.files.map(file => file.edit));
+		}
+	}
+
+	/**
+	 * Schedules a peer chat's aggregate. While a client observes the chat's own
+	 * Session Changes, that computation publishes the aggregate instead.
+	 */
+	private _scheduleChatChangesSummary(chat: ProtocolURI, debounce: boolean): void {
+		if (!isAhpChatChannel(chat) || isDefaultChatUri(chat) || !this._isChatChangesSummaryOwner(chat) || this._hasSubscription(chat, buildSessionChangesetUri(chat))) {
+			return;
+		}
+		if (!debounce) {
+			this._debouncedChatSummaryTimers.deleteAndDispose(chat);
+			this._queueChatChangesSummary(chat);
+			return;
+		}
+		this._debouncedChatSummaryTimers.set(chat, disposableTimeout(() => {
+			this._debouncedChatSummaryTimers.deleteAndDispose(chat);
+			this._queueChatChangesSummary(chat);
+		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+	}
+
+	/** Serializes per-chat computations, coalescing requests that arrive before a queued run starts. */
+	private _queueChatChangesSummary(chat: ProtocolURI): void {
+		if (this._queuedChatSummaries.has(chat)) {
+			return;
+		}
+		this._queuedChatSummaries.add(chat);
+		void this._diffComputationSequencer.queue(`${chat}\u0000chatChanges`, async () => {
+			this._queuedChatSummaries.delete(chat);
+			await this._computeChatChangesSummary(chat);
+		});
+	}
+
+	/**
+	 * Computes a peer chat's Session Changes from its tracked edits, using the
+	 * same database and folder scope as the chat's own Session Changes entry.
+	 */
+	private async _computeChatChangesSummary(chat: ProtocolURI): Promise<void> {
+		if (!this._isChatChangesSummaryOwner(chat) || !this._hasWorkingDirectory(chat)) {
+			return;
+		}
+		const workingDirectories = this._getEffectiveWorkingDirectories(chat);
+		const folderScope = this._getTrackedEditFolderScope(chat, workingDirectories);
+		const trackedUri = this._getTrackedDatabaseUri(chat);
+		let ref: ReturnType<ISessionDataService['openDatabase']>;
+		try {
+			ref = this._sessionDataService.openDatabase(URI.parse(trackedUri));
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to open chat database for Session Changes: ${chat}`, err);
+			return;
+		}
+		try {
+			const diffs = await computeSessionDiffs(trackedUri, ref.object, this._diffComputeService, undefined, folderScope);
+			if (this._isChatChangesSummaryOwner(chat) && equals(workingDirectories, this._getEffectiveWorkingDirectories(chat))) {
+				this._setChatChangesSummary(chat, diffs);
+			}
+		} catch (err) {
+			this._logService.warn(`[AgentHostChangesetService] Failed to compute Session Changes for ${chat}`, err);
+		} finally {
+			ref.dispose();
+		}
+	}
+
+	/** Publishes a chat's aggregate and persists it in the containing session's database. */
+	private _setChatChangesSummary(chat: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
+		const summary = summariseDiffs(diffs);
+		if (summary && this._stateManager.setChatSummaryChanges(chat, summary)) {
+			this._persistSessionFlag(containingSessionUri(chat), getChatChangesSummaryMetadataKey(chat), JSON.stringify(summary));
 		}
 	}
 
@@ -1772,6 +1898,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 					// session-changeset payload so older readers stay correct
 					// during the rollout window.
 					this._persistSessionFlag(persistenceOwner, META_LEGACY_DIFFS, JSON.stringify(diffs));
+				}
+			}
+
+			if (kind === ChangesetKind.Session) {
+				if (!isAhpChatChannel(session)) {
+					this._publishDefaultChatChangesSummary(session);
+				} else if (!isDefaultChatUri(session) && this._isChatChangesSummaryOwner(session)) {
+					this._setChatChangesSummary(session, diffs);
 				}
 			}
 

@@ -85,6 +85,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {

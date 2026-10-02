@@ -156,6 +156,14 @@
 		}
 	}
 
+	.monaco-list:focus .monaco-list-row.selected .session-chat-folder-row .session-chat-diff {
+
+		.session-chat-diff-added,
+		.session-chat-diff-removed {
+			color: unset;
+		}
+	}
+
 	.monaco-list-row.selected .session-title,
 	.monaco-list-row.selected .session-chat-title {
 		color: unset;
@@ -915,6 +923,21 @@
 		.session-chat-separator,
 		.session-chat-time {
 			flex-shrink: 0;
+		}
+
+		.session-chat-diff {
+			display: flex;
+			flex-shrink: 0;
+			gap: var(--vscode-spacing-size20);
+			font-variant-numeric: tabular-nums;
+
+			.session-chat-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-chat-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
 		}
 	}
 
