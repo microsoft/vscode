@@ -482,7 +482,7 @@ suite('Agent Merge server tools', () => {
 				resolved: published,
 			};
 			const calls: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
-			let pendingReplyReports = 0;
+			const trackedReplies: Promise<PullRequestReplyAndResolveResult>[] = [];
 			const client = createTestGitHubClient({
 				mutations: new class extends mock<IPullRequestMutations>() {
 					override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>) {
@@ -508,7 +508,7 @@ suite('Agent Merge server tools', () => {
 				configuration: { ...defaultAgentMergeConfiguration, addressReviews: true, replyAttribution: true },
 				snapshot, signal: new AbortController().signal, commentWatermark: '',
 				deferredCheckIds: new Set(), initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
-				onPendingReviewReply: () => { pendingReplyReports++; },
+				trackReviewReply: reply => { trackedReplies.push(reply); },
 			};
 			const { host } = createHarness(true, () => context);
 
@@ -523,7 +523,7 @@ suite('Agent Merge server tools', () => {
 				preservesReview: result.message?.includes('submit, discard, or replace') ?? false,
 				asksUser: result.message?.includes('Ask the user') ?? false,
 				requiresReenablement: result.message?.includes('explicitly re-enable Agent Merge') ?? false,
-				pendingReplyReports,
+				trackedReplies: await Promise.all(trackedReplies),
 				calls,
 			}, {
 				reply: outcome,
@@ -532,7 +532,7 @@ suite('Agent Merge server tools', () => {
 				preservesReview: !published,
 				asksUser: !published,
 				requiresReenablement: outcome === 'pending',
-				pendingReplyReports: outcome === 'pending' ? 1 : 0,
+				trackedReplies: [mutationResult],
 				calls: [[ref, {
 					operationId: 'agent-merge:turn:T1', threadId: 'T1',
 					body: 'Fixed the feedback\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.',

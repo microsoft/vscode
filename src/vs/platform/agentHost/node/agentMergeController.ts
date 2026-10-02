@@ -14,7 +14,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
 import { IParsedPullRequestUrl, parsePullRequestUrl } from '../../github/common/githubUrls.js';
-import { GitHubWorkflowRerunOptions } from '../../github/common/githubPullRequestMutationService.js';
+import { GitHubWorkflowRerunOptions, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestRef, PullRequestSnapshot, PullRequestSubscription } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
@@ -71,7 +71,8 @@ interface IDeferredWorkflowRerun {
 }
 
 interface IActiveAgentMergeTurnContext extends IAgentMergeTurnContext {
-	hasPendingReviewReply: boolean;
+	readonly reviewReplies: Promise<PullRequestReplyAndResolveResult>[];
+	completing: boolean;
 }
 
 class AgentMergeRuntime extends Disposable {
@@ -610,7 +611,7 @@ export class AgentMergeController extends Disposable {
 			runtime.backstopScheduler.schedule();
 			return;
 		}
-		if (!runtime || !state || !agentMerge?.enabled || !chat || this._stateManager.getChatState(chat)?.activeTurn) {
+		if (!runtime || !state || !agentMerge?.enabled || !chat || this._activeTurns.get(key)?.completing || this._stateManager.getChatState(chat)?.activeTurn) {
 			return;
 		}
 		const configuration = this._getConfiguration(agentMerge);
@@ -785,8 +786,9 @@ export class AgentMergeController extends Disposable {
 					client: runtime.client,
 					signal: runtime.abortController.signal,
 					commentWatermark: gate.context.commentWatermark,
-					hasPendingReviewReply: false,
-					onPendingReviewReply: () => { context.hasPendingReviewReply = true; },
+					reviewReplies: [],
+					completing: false,
+					trackReviewReply: reply => { context.reviewReplies.push(reply); },
 					deferredCheckIds,
 					initialDeferredCheckIds: new Set(deferredCheckIds),
 					deferWorkflowRerun: (options, checkIds, running) => {
@@ -1239,46 +1241,62 @@ export class AgentMergeController extends Disposable {
 			return;
 		}
 		const [key, context] = entry;
-		this._activeTurns.delete(key);
-		const folder = { sessionUri: context.session, folderKey: context.folderKey };
-		const session = context.session;
-		const state = this._stateManager.getSessionState(session);
-		const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
-		const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
-		const runtime = this._runtimes.get(key);
-		if (!agentMerge?.enabled || !runtime?.subscription.value) {
-			this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
+		if (context.completing) {
 			return;
 		}
-		if (context.hasPendingReviewReply) {
-			this._disable(session, folder.folderKey, agentMerge, agentMergeDisableReasons.pendingReviewReply());
-			return;
-		}
-		const shouldAdvanceWatermark = context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
-		this._logService.info(`[AgentMergeController] Repair turn ended: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}, advanceFeedbackWatermark=${shouldAdvanceWatermark}`);
-		if (shouldAdvanceWatermark && agentMerge.target && context.commentWatermark !== agentMerge.target.commentWatermark) {
-			this._updateAgentMergeState(session, folder.folderKey, {
-				target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
-			});
-		}
-
-		// Decided here rather than on the next evaluation because the local
-		// commit is authoritative the instant the agent makes it, while the
-		// pull request's published head lags behind the push. Re-read the state
-		// so an advanced watermark is not written back stale.
-		const currentState = this._stateManager.getSessionState(session);
-		const current = readAgentMergeFolderState(currentState?.config?.values, folder.folderKey, this._sessionFolderKey(currentState)) ?? agentMerge;
-		if (await this._demoteMergePullRequestIfChanged(session, folder.folderKey, current, this._getConfiguration(current))) {
-			// The config write re-enters evaluation with the demoted value.
-			return;
-		}
-
+		context.completing = true;
 		try {
-			await runtime.subscription.value.refresh(undefined, runtime.cancellation.token, { authoritative: true });
-		} catch (error) {
-			this._logService.warn(`[AgentMergeController] Failed to refresh pull request after turn for ${session}`, error);
+			const replies = await Promise.allSettled(context.reviewReplies);
+			const folder = { sessionUri: context.session, folderKey: context.folderKey };
+			const session = context.session;
+			const state = this._stateManager.getSessionState(session);
+			const completedTurn = this._stateManager.getChatState(context.chat)?.turns.find(turn => turn.id === context.turnId);
+			const agentMerge = readAgentMergeFolderState(state?.config?.values, folder.folderKey, this._sessionFolderKey(state));
+			const runtime = this._runtimes.get(key);
+			if (!agentMerge?.enabled || !runtime?.subscription.value || runtime.abortController.signal !== context.signal) {
+				this._logService.debug(`[AgentMergeController] Repair turn ended after Agent Merge stopped: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}`);
+				return;
+			}
+			for (const reply of replies) {
+				if (reply.status === 'rejected') {
+					this._logService.warn(`[AgentMergeController] Review reply failed before turn completion: session=${session}, turn=${context.turnId}`, reply.reason);
+				}
+			}
+			const hasPendingReviewReply = replies.some(reply => reply.status === 'fulfilled' && reply.value.reply.outcome === 'pending');
+			const shouldAdvanceWatermark = !hasPendingReviewReply && context.actions.includes('addressReviews') && completedTurn?.state === TurnState.Complete;
+			this._logService.info(`[AgentMergeController] Repair turn ended: session=${session}, folder=${folder.folderKey}, turn=${context.turnId}, outcome=${completedTurn?.state ?? 'unknown'}, advanceFeedbackWatermark=${shouldAdvanceWatermark}`);
+			if (shouldAdvanceWatermark && agentMerge.target && context.commentWatermark !== agentMerge.target.commentWatermark) {
+				this._updateAgentMergeState(session, folder.folderKey, {
+					target: { ...agentMerge.target, commentWatermark: context.commentWatermark },
+				});
+			}
+
+			// Preserve the changed-worktree safeguard before the handoff clears the repair baseline.
+			const currentState = this._stateManager.getSessionState(session);
+			const current = readAgentMergeFolderState(currentState?.config?.values, folder.folderKey, this._sessionFolderKey(currentState)) ?? agentMerge;
+			const demoted = await this._demoteMergePullRequestIfChanged(session, folder.folderKey, current, this._getConfiguration(current));
+			if (!this._isCurrentRuntime(key, runtime)) {
+				return;
+			}
+			if (hasPendingReviewReply) {
+				this._disable(session, folder.folderKey, current, agentMergeDisableReasons.pendingReviewReply());
+				return;
+			}
+			if (demoted) {
+				return;
+			}
+
+			try {
+				await runtime.subscription.value.refresh(undefined, runtime.cancellation.token, { authoritative: true });
+			} catch (error) {
+				this._logService.warn(`[AgentMergeController] Failed to refresh pull request after turn for ${session}`, error);
+			}
+			this._schedule(key, 0);
+		} finally {
+			if (this._activeTurns.get(key) === context) {
+				this._activeTurns.delete(key);
+			}
 		}
-		this._schedule(key, 0);
 	}
 
 	/**

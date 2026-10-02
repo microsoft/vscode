@@ -429,8 +429,10 @@ suite('AgentMergeController', () => {
 			const replies: Parameters<IPullRequestMutations['replyAndResolveThread']>[] = [];
 			const mutations = new class extends mock<IPullRequestMutations>() {
 				outcome: 'pending' | 'succeeded' | 'reconciled' | 'indeterminate' = 'pending';
+				beforeReply: (() => Promise<void>) | undefined;
 				override async replyAndResolveThread(...args: Parameters<IPullRequestMutations['replyAndResolveThread']>): Promise<PullRequestReplyAndResolveResult> {
 					replies.push(args);
+					await this.beforeReply?.();
 					const published = this.outcome === 'succeeded' || this.outcome === 'reconciled';
 					const value = { id: `reply-${replies.length}`, state: published ? 'SUBMITTED' : 'PENDING', body: args[1].body, author: { login: 'viewer', association: 'MEMBER' } };
 					const snapshot = h.snapshot.get();
@@ -473,10 +475,11 @@ suite('AgentMergeController', () => {
 			return { ...h, tools, mutations, replies, folderState, completeTurn };
 		}
 
-		function withReviewReply(fn: (h: ReturnType<typeof createReviewReplyHarness>) => Promise<void>): Promise<void> {
+		function withReviewReply(fn: (h: ReturnType<typeof createReviewReplyHarness>) => Promise<void>, configure?: (h: ReturnType<typeof createReviewReplyHarness>) => void): Promise<void> {
 			return runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const h = createReviewReplyHarness();
 				try {
+					configure?.(h);
 					await h.start();
 					await fn(h);
 				} finally {
@@ -484,6 +487,116 @@ suite('AgentMergeController', () => {
 				}
 			});
 		}
+
+		for (const ending of ['complete', 'cancel', 'error'] as const) {
+			test(`waits for a pending reply confirmed after turn ${ending} before scheduling more repairs`, () => withReviewReply(async h => {
+				const response = new DeferredPromise<void>();
+				h.mutations.beforeReply = () => response.p;
+				const context = h.controller.getTurnContext(h.peerChat)!;
+				const reply = h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+				if (ending === 'complete') {
+					h.completeTurn();
+				} else if (ending === 'cancel') {
+					h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnCancelled, turnId: context.turnId, duration: 0 });
+				} else {
+					h.stateManager.dispatchServerAction(h.peerChat, {
+						type: ActionType.ChatError, turnId: context.turnId, duration: 0,
+						part: createErrorResponsePart({ errorType: 'failed', message: 'Turn ended during reply' }),
+					});
+				}
+				await timeout(11 * 60_000);
+				const whileWriting = { enabled: h.folderState()?.enabled, turns: h.startTurns.length };
+				await response.complete();
+				await reply;
+				await timeout(31 * 60_000);
+
+				assert.deepStrictEqual({
+					whileWriting,
+					enabled: h.folderState()?.enabled,
+					turns: h.startTurns.length,
+					disabledNotices: h.notices.filter(notice => notice.kind === AgentSystemNotificationKind.AgentMergeDisabled),
+				}, {
+					whileWriting: { enabled: true, turns: 1 },
+					enabled: false,
+					turns: 1,
+					disabledNotices: [{ chat: h.peerChat, kind: AgentSystemNotificationKind.AgentMergeDisabled, content: pendingNotice }],
+				});
+			}));
+		}
+
+		test('preserves ifUnchanged demotion across the pending handoff and re-enablement', () => {
+			let localCommit = 'before-repair';
+			return withReviewReply(async h => {
+				localCommit = 'agent-repair-commit';
+				await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+				h.completeTurn();
+				await timeout(1);
+				const stopped = h.folderState();
+				await h.controller.setEnabled(h.peerChat, true);
+				assert.deepStrictEqual({
+					stopped: { enabled: stopped?.enabled, merge: stopped?.overrides?.mergePullRequest },
+					reenabled: { enabled: h.folderState()?.enabled, merge: h.folderState()?.overrides?.mergePullRequest },
+				}, {
+					stopped: { enabled: false, merge: 'never' },
+					reenabled: { enabled: true, merge: 'never' },
+				});
+			}, h => {
+				h.configurationService.updateRootConfig({ [AgentMergeConfigKey.MergePullRequest]: 'ifUnchanged' });
+				h.gitService.getRepositoryRoot = async () => URI.parse(OTHER_REPOSITORY);
+				h.gitService.revParse = async () => localCommit;
+			});
+		});
+
+		test('does not let a late pending reply stop a newly enabled folder runtime', () => withReviewReply(async h => {
+			const response = new DeferredPromise<void>();
+			h.mutations.beforeReply = () => response.p;
+			const context = h.controller.getTurnContext(h.peerChat)!;
+			const reply = h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true);
+			h.stateManager.dispatchServerAction(h.peerChat, { type: ActionType.ChatTurnCancelled, turnId: context.turnId, duration: 0 });
+			await h.controller.setEnabled(h.peerChat, false);
+			await h.controller.setEnabled(h.peerChat, true);
+			await response.complete();
+			await reply;
+			await timeout(1);
+			assert.deepStrictEqual({
+				enabled: h.folderState()?.enabled,
+				pendingNotices: h.notices.filter(notice => notice.content === pendingNotice),
+			}, { enabled: true, pendingNotices: [] });
+		}));
+
+		test('releases turn completion after a rejected reply without a pending handoff', () => withReviewReply(async h => {
+			h.mutations.beforeReply = async () => { throw new Error('Reply rejected'); };
+			await assert.rejects(h.tools.replyToReviewThread(h.peerChat, 'T1', 'Fixed', true), /Reply rejected/);
+			h.completeTurn();
+			await timeout(11 * 60_000);
+			assert.deepStrictEqual({
+				enabled: h.folderState()?.enabled,
+				turns: h.startTurns.length,
+				pendingNotices: h.notices.filter(notice => notice.content === pendingNotice),
+			}, { enabled: true, turns: 2, pendingNotices: [] });
+		}));
+
+		test('keeps a pending handoff when another reply in the turn is published', () => withReviewReply(async h => {
+			await h.tools.replyToReviewThread(h.peerChat, 'T1', 'First reply', false);
+			h.mutations.outcome = 'succeeded';
+			await h.tools.replyToReviewThread(h.peerChat, 'T1', 'Second reply', false);
+			h.completeTurn();
+			await timeout(1);
+			assert.deepStrictEqual({
+				enabled: h.folderState()?.enabled,
+				pendingNotices: h.notices.filter(notice => notice.content === pendingNotice).length,
+			}, { enabled: false, pendingNotices: 1 });
+		}));
+
+		test('does not block future evaluations when a repair turn is rejected synchronously', () => withReviewReply(async h => {
+			h.turnStart.reject = false;
+			await timeout(11 * 60_000);
+			assert.deepStrictEqual({
+				enabled: h.folderState()?.enabled,
+				turns: h.startTurns.length,
+				active: h.controller.getTurnContext(h.peerChat) !== undefined,
+			}, { enabled: true, turns: 2, active: true });
+		}, h => { h.turnStart.reject = true; }));
 
 		for (const ending of ['complete', 'cancel', 'error'] as const) {
 			test(`stops after a pending reply when the turn ends with ${ending}, without backstop repairs`, () => withReviewReply(async h => {
@@ -1550,10 +1663,15 @@ suite('AgentMergeController', () => {
 		const otherKey = getWorkingDirectoryKey(OTHER_REPOSITORY);
 		const started = new DeferredPromise<void>();
 		const startTurns: string[] = [];
+		const turnStart = { reject: false };
 		const cancelledTurns: string[] = [];
 		const notices: { readonly chat: string; readonly kind: AgentSystemNotificationKind; readonly content: string }[] = [];
 		const refreshes = { count: 0 };
 		const snapshot = observableValue('pullRequestSnapshot', initialSnapshot);
+		const gitService = new class extends mock<IAgentHostGitService>() {
+			override getCurrentBranchName(directory: URI): Promise<string | undefined> { return noopGitService.getCurrentBranchName(directory); }
+			override async getRepositoryRoot(): Promise<URI | undefined> { return undefined; }
+		}();
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
@@ -1566,6 +1684,9 @@ suite('AgentMergeController', () => {
 				startTurn: (chat, turnId) => {
 					startTurns.push(chat);
 					stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(), message: { text: 'repair', origin: { kind: MessageKind.User } } });
+					if (turnStart.reject) {
+						stateManager.dispatchServerAction(chat, { type: ActionType.ChatError, turnId, duration: 0, part: createErrorResponsePart({ errorType: 'failed', message: 'Turn rejected synchronously' }) });
+					}
 					started.complete();
 					return true;
 				},
@@ -1575,7 +1696,7 @@ suite('AgentMergeController', () => {
 			stateManager,
 			configurationService,
 			gitStateService,
-			noopGitService,
+			gitService,
 			createTestGitHubService(new class extends mock<IGitHubClient>() {
 				override readonly mutations = mutations ?? new class extends mock<IPullRequestMutations>() { }();
 				override readonly credentials = new class extends mock<IGitHubCredentials>() {
@@ -1609,7 +1730,7 @@ suite('AgentMergeController', () => {
 			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
 			return started.p;
 		};
-		return { stateManager, configurationService, gitStateService, controller, session, peerChat, otherKey, startTurns, cancelledTurns, notices, snapshot, refreshes, start };
+		return { stateManager, configurationService, gitService, gitStateService, controller, session, peerChat, otherKey, startTurns, turnStart, cancelledTurns, notices, snapshot, refreshes, start };
 	}
 
 

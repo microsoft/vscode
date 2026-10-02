@@ -8,7 +8,7 @@ import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IGitHubClient } from '../../github/common/githubService.js';
-import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from '../../github/common/githubPullRequestMutationService.js';
+import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
@@ -33,8 +33,8 @@ export interface IAgentMergeTurnContext {
 	readonly snapshot: PullRequestSnapshot;
 	readonly signal: AbortSignal;
 	readonly commentWatermark: string;
-	/** Stops this folder's monitoring when the current turn ends after saving an unpublished reply. */
-	readonly onPendingReviewReply: () => void;
+	/** Keeps turn completion waiting for an in-flight reply's publication outcome. */
+	readonly trackReviewReply: (reply: Promise<PullRequestReplyAndResolveResult>) => void;
 	readonly deferredCheckIds: ReadonlySet<string>;
 	/** Keeps rerun authorization stable when diagnostics are suppressed mid-turn. */
 	readonly initialDeferredCheckIds: ReadonlySet<string>;
@@ -322,16 +322,15 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			? `${body}\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.`
 			: body;
 		this._logService.info(`[AgentMergeTools] Replying to authorized review thread: session=${session}, turn=${context.turnId}, resolve=${resolve}, attribution=${context.configuration.replyAttribution}`);
-		const result = await context.client.mutations.replyAndResolveThread(context.ref, {
+		const reply = context.client.mutations.replyAndResolveThread(context.ref, {
 			operationId: `agent-merge:${context.turnId}:${threadId}`,
 			threadId,
 			body: attributedBody,
 			resolve,
 		}, context.signal);
+		context.trackReviewReply(reply);
+		const result = await reply;
 		this._logService.info(`[AgentMergeTools] Review thread reply completed: session=${session}, turn=${context.turnId}, replyOutcome=${result.reply.outcome}, resolved=${result.resolved}`);
-		if (result.reply.outcome === 'pending') {
-			context.onPendingReviewReply();
-		}
 		const message = result.reply.outcome === 'pending'
 			? 'The reply was saved to a pending GitHub review and is not published. Agent Merge will stop monitoring this folder after the current turn. Resuming requires the user to explicitly re-enable Agent Merge.'
 			: result.reply.outcome === 'indeterminate'
