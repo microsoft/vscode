@@ -92,6 +92,7 @@
 	"command.fetch": "Fetch",
 	"command.fetchPrune": "Fetch (Prune)",
 	"command.fetchAll": "Fetch From All Remotes",
+	"command.fetchFrom": "Fetch From...",
 	"command.pull": "Pull",
 	"command.pullRebase": "Pull (Rebase)",
 	"command.pullFrom": "Pull from...",

@@ -633,6 +633,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.fetchFrom",
+        "title": "%command.fetchFrom%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.pull",
         "title": "%command.pull%",
         "category": "Git",
@@ -1570,6 +1576,10 @@
         },
         {
           "command": "git.fetchAll",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.fetchFrom",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -3095,6 +3105,10 @@
         {
           "command": "git.fetchAll",
           "group": "4_fetch@3"
+        },
+        {
+          "command": "git.fetchFrom",
+          "group": "4_fetch@4"
         }
       ],
       "git.branch": [
