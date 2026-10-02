@@ -182,19 +182,24 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 }
 
 function formatSchedule(schedule: IAutomationSchedule): string {
+	const time = schedule.timeZone === 'UTC'
+		? localize('automationsAccessibleView.utcTime', "{0} UTC", formatTime(schedule.scheduleHour, schedule.scheduleMinute))
+		: formatTime(schedule.scheduleHour, schedule.scheduleMinute);
 	switch (schedule.interval) {
+		case 'custom':
+			return localize('automationsAccessibleView.custom', "Custom schedule");
 		case 'manual':
 			return localize('automationsAccessibleView.manual', "Manual");
 		case 'hourly':
 			return localize('automationsAccessibleView.hourly', "Hourly");
 		case 'daily':
-			return localize('automationsAccessibleView.daily', "Daily at {0}", formatTime(schedule.scheduleHour, schedule.scheduleMinute));
+			return localize('automationsAccessibleView.daily', "Daily at {0}", time);
 		case 'weekly':
 			return localize(
 				'automationsAccessibleView.weekly',
 				"{0} at {1}",
 				DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7],
-				formatTime(schedule.scheduleHour, schedule.scheduleMinute),
+				time,
 			);
 	}
 }

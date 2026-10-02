@@ -718,6 +718,9 @@ class AutomationCardsSection extends Disposable {
 			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
 			switch (dispatch.kind) {
+				case 'accepted':
+					status(localize('automationAcceptedStatus', "Requested automation {0}; the provider has not returned a run.", automation.name));
+					break;
 				case 'started':
 					status(localize('automationStartedStatus', "Started automation {0}", automation.name));
 					break;
@@ -1557,7 +1560,9 @@ function isTemporaryAutomationRun(run: IAutomationRun): boolean {
 
 function formatSchedule(schedule: IAutomationSchedule): string {
 	const { interval, scheduleHour, scheduleMinute } = schedule;
-	const time = formatHourMinute(scheduleHour, scheduleMinute);
+	const time = schedule.timeZone === 'UTC'
+		? localize('scheduleUtcTime', "{0} UTC", formatHourMinute(scheduleHour, scheduleMinute))
+		: formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
@@ -1566,6 +1571,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 			return localize('scheduleWeeklyAt', "{0} at {1}", day, time);
 		}
 		case 'manual': return localize('scheduleManual', "Manual");
+		case 'custom': return localize('scheduleCustom', "Custom schedule");
 		default: return localize('scheduleManual', "Manual");
 	}
 }

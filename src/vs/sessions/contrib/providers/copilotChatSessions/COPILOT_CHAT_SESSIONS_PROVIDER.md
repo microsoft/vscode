@@ -44,6 +44,8 @@ Refresh failures retain the affected repository's last successful definitions wh
 
 History is an explicitly refreshed, bounded server-owned window. Active task details are fetched with bounded concurrency and cancellation. Manual dispatch acknowledges acceptance only; it does not create a local run or correlate an arbitrary history entry with that request. The store does not implement the shared Automation contract or initiate requests on construction, observation, or account changes.
 
+Only the default provider exposes `CloudAutomationProvider`, which adapts the store to the shared Automation contract. The sandbox-only provider is not an Automation authority. The adapter creates a store and refreshes it only while the cloud gate, parent Automations setting, AI visibility, and a GitHub.com account permit access. Each account or gate transition disposes the old store. Definition and history identities include provider, account, repository, and remote definition identity; native Cloud session adoption is a separate concern.
+
 ## Request lifecycle
 
 The provider separates chat creation from request sending:

@@ -137,6 +137,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
+			timeZone: automation.schedule.timeZone,
 		},
 		target,
 		sessionTemplate: automation.sessionTemplate,
@@ -149,6 +150,8 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 
 /** Result of requesting a manual run from its host, never a claim authorizing client-side execution. */
 export type IAutomationRunRequestResult =
+	/** The provider accepted dispatch without returning a correlated run. */
+	| { readonly kind: 'accepted' }
 	/** An existing run already occupies this Automation's active-run slot. */
 	| { readonly kind: 'alreadyRunning'; readonly run: IAutomationRun }
 	| {
@@ -166,6 +169,7 @@ export type IAutomationRunRequestResult =
  * Reads projected state and requests host mutations; it does not grant browser persistence or execution authority.
  */
 export interface IAutomationStore {
+	refresh?(): Promise<void>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 
@@ -194,6 +198,8 @@ export interface IAutomationStore {
 
 	/** Requests a manual run, forwarding supported cancellation after admission even while session creation is pending. */
 	runAutomation(automationId: string, token?: CancellationToken): Promise<IAutomationRunRequestResult>;
+	stopRun?(run: IAutomationRun): Promise<void>;
+	canStopRun?(run: IAutomationRun): boolean;
 
 	/** Most recent `pending`/`running` run for an automation, or `undefined`. */
 	getActiveRunFor(automationId: string): IAutomationRun | undefined;
