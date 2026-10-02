@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IHostService, IToastOptions, IToastResult } from './host.js';
+import { IWindowResizeAnchor, IWindowResizeDelta } from '../../../../platform/native/common/native.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService } from '../../editor/common/editorService.js';
@@ -579,6 +580,11 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async setWindowDimmed(_targetWindow: Window, _dimmed: boolean): Promise<void> {
 		// not supported in browser
+	}
+
+	async resizeMainWindow(_delta: IWindowResizeDelta, _anchor: IWindowResizeAnchor): Promise<undefined> {
+		// not supported in browser
+		return undefined;
 	}
 
 	async getCursorScreenPoint(): Promise<undefined> {

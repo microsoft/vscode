@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, IWindowResizeAnchor, IWindowResizeDelta, getResizedWindowBounds, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -35,7 +35,7 @@ import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow } from '../../window/electron-main/window.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext, WindowStateValidator } from '../../windows/electron-main/windows.js';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
@@ -411,6 +411,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			window.win.setBounds(position);
 		}
+	}
+
+	async resizeWindow(windowId: number | undefined, delta: IWindowResizeDelta, anchor: IWindowResizeAnchor, options?: INativeHostOptions): Promise<IRectangle | undefined> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		if (!window?.win || window.win.isFullScreen() || window.win.isMaximized()) {
+			return;
+		}
+
+		const currentBounds = window.win.getBounds();
+		const currentContentBounds = window.win.getContentBounds();
+		const [minWidth, minHeight] = window.win.getMinimumSize();
+		const workArea = WindowStateValidator.getWorkingArea(screen.getDisplayMatching(currentBounds));
+		if (!workArea) {
+			this.logService.warn('[nativeHostMainService] Cannot resize window without valid display bounds');
+			return;
+		}
+
+		const desiredBounds = getResizedWindowBounds(currentBounds, delta, anchor, { width: minWidth, height: minHeight }, workArea);
+
+		window.win.setBounds(desiredBounds);
+		const contentBounds = window.win.getContentBounds();
+		return contentBounds.width !== currentContentBounds.width || contentBounds.height !== currentContentBounds.height ? contentBounds : undefined;
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
