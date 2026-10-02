@@ -9641,6 +9641,10 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._providerService.getManagedSettingsDiagnostics();
 	}
 
+	get supportsRequiredPlugins(): boolean {
+		return this._providerService.getProvider('copilotcli')?.supportsRequiredPlugins === true;
+	}
+
 	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
 		const provider = this._providerService.getProvider('copilotcli');
 		if (!provider) {

@@ -47,7 +47,7 @@ suite('AgentHostManagementService', () => {
 			workspaceResult: result,
 			managedResult: result,
 			requests: [
-				{ workingDirectory: '/workspace' },
+				{ workingDirectory: URI.file('/workspace').fsPath },
 				{ managedSettings: { enabledPlugins: { 'managed@market': true } } },
 			],
 		});

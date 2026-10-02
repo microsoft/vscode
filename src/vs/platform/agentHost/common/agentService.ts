@@ -971,6 +971,7 @@ export interface IAgentService {
 
 	/** Resolve managed settings through each provider's native SDK/runtime implementation. */
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
+	readonly supportsRequiredPlugins: boolean;
 	ensureRequiredPlugins?(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult>;
 
 	/**

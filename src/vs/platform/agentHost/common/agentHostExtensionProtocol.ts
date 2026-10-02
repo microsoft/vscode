@@ -88,7 +88,7 @@ export interface IAgentHostExtensionInitializeResult extends InitializeResult {
 	readonly _meta?: IAgentHostExtensionInitializeResultMeta;
 }
 
-export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, canvases = false): IAgentHostExtensionInitializeResultMeta {
+export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true, devContainers = false, timing = false, sessionImport = false, canvases = false, requiredPlugins = true): IAgentHostExtensionInitializeResultMeta {
 	return {
 		[AgentHostChatStateFileCapabilityMetaKey]: true,
 		[AgentHostDetachedWorktreeCapabilityMetaKey]: true,
@@ -99,7 +99,7 @@ export function getAgentHostExtensionInitializeResultMeta(artifactRemoval = true
 		...(timing ? { [AgentHostTimingCapabilityMetaKey]: true as const } : {}),
 		...(timing ? { [ChatUserInteractionCapability]: true as const } : {}),
 		...(canvases ? { [AgentHostCanvasesCapabilityMetaKey]: true as const } : {}),
-		[AgentHostEnsureRequiredPluginsCapabilityMetaKey]: true,
+		[AgentHostEnsureRequiredPluginsCapabilityMetaKey]: requiredPlugins ? true : undefined,
 	};
 }
 

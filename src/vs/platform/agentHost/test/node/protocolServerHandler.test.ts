@@ -157,6 +157,7 @@ class TestTelemetryService implements ITelemetryService {
 
 class MockAgentService implements IAgentService {
 	declare readonly _serviceBrand: undefined;
+	readonly supportsRequiredPlugins = true;
 	readonly handledActions: (SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction | ClientAutomationAction | ClientAutomationRunAction)[] = [];
 	readonly handledClientTypes: (AgentHostClientType | undefined)[] = [];
 	readonly handledClientContexts: (IAgentHostClientTelemetryContext | undefined)[] = [];
@@ -1601,7 +1602,7 @@ suite('ProtocolServerHandler', () => {
 				},
 			},
 			calls: [{
-				workingDirectory: '/workspace',
+				workingDirectory: URI.file('/workspace').fsPath,
 				repositoryTrusted: true,
 				managedSettings: undefined,
 			}],
@@ -1810,7 +1811,7 @@ suite('ProtocolServerHandler', () => {
 				id: 5,
 				result: { fingerprint: 'test', plugins: [], warnings: [] },
 			},
-			ensureRequiredPluginsCalls: [{ workingDirectory: '/workspace', repositoryTrusted: true, managedSettings: undefined }],
+			ensureRequiredPluginsCalls: [{ workingDirectory: URI.file('/workspace').fsPath, repositoryTrusted: true, managedSettings: undefined }],
 		});
 	});
 

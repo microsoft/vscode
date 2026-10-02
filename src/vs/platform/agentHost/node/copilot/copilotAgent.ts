@@ -163,6 +163,9 @@ interface ICopilotRequiredPluginSdk {
 	};
 }
 
+type CopilotRequiredPluginSdkAvailable = CopilotClient extends ICopilotRequiredPluginSdk ? true : false;
+const copilotRequiredPluginSdkAvailable = false satisfies CopilotRequiredPluginSdkAvailable;
+
 function isCopilotRequiredPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRequiredPluginSdk {
 	const plugins: object = client.rpc.plugins;
 	return 'ensureRequired' in plugins && typeof plugins.ensureRequired === 'function';
@@ -778,6 +781,7 @@ class BackgroundWorkWatch extends Disposable {
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = COPILOT_CLI_AGENT_PROVIDER_ID;
 	readonly agentHostCapabilities = { workspaceConversion: true } as const;
+	readonly supportsRequiredPlugins = copilotRequiredPluginSdkAvailable;
 	protected readonly _now = Date.now;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());

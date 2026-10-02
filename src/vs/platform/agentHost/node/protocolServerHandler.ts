@@ -729,6 +729,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._otelService?.diagnosticsEnabled,
 					!!this._agentService.importSession,
 					this._supportsCanvases(client),
+					this._agentService.supportsRequiredPlugins,
 				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,

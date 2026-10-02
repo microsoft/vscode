@@ -38,7 +38,7 @@ suite('RuntimeRequiredPlugins', () => {
 		warnings: [],
 	};
 
-	function createHarness(trusted = true, managedRequired = false, pluginsEnabled = true) {
+	function createHarness(trusted = true, managedRequired = false, pluginsEnabled = true, capabilitySupported = true) {
 		const requests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		const remoteRequests: IAgentHostEnsureRequiredPluginsRequest[] = [];
 		let failure: Error | undefined;
@@ -48,7 +48,7 @@ suite('RuntimeRequiredPlugins', () => {
 			protocolVersion: '1.0.0',
 			serverSeq: 0,
 			snapshots: [],
-			_meta: getAgentHostExtensionInitializeResultMeta(),
+			_meta: capabilitySupported ? getAgentHostExtensionInitializeResultMeta() : {},
 		});
 		const connection = new class extends mock<IAgentConnection>() {
 			override readonly initializeResult = initializeResult;
@@ -271,6 +271,19 @@ suite('RuntimeRequiredPlugins', () => {
 			harness.requiredPluginService.ensure([workspace]),
 			/does not support required plugin enforcement/,
 		);
+	});
+
+	test('preserves pre-feature behavior when the host never advertised required plugins', async () => {
+		const harness = createHarness(true, true, true, false);
+		await timeout(150);
+
+		assert.deepStrictEqual({
+			requests: harness.requests,
+			snapshots: harness.runtimeService.snapshots.get(),
+		}, {
+			requests: [],
+			snapshots: [],
+		});
 	});
 
 	test('retains active session roots while pruning inactive snapshots', async () => {

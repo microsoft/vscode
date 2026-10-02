@@ -33,6 +33,7 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 	private readonly _retainedWorkingDirectories = new Map<string, { readonly uri: URI; count: number }>();
 	private readonly _snapshotGenerations = new Map<string, number>();
 	private _stateGeneration = 0;
+	private _requiredPluginCapabilityObserved = false;
 
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -104,12 +105,13 @@ export class RuntimeRequiredPluginService extends Disposable implements IRuntime
 			|| !supportsAgentHostEnsureRequiredPlugins(connection.initializeResult.get())) {
 			this._removeSnapshots(directories);
 			this._removeManagedSnapshot(authority);
-			if (this._hasManagedRequiredPlugins()) {
+			if (this._requiredPluginCapabilityObserved && this._hasManagedRequiredPlugins()) {
 				throw new Error('The Agent Host does not support required plugin enforcement.');
 			}
 			this._logService.warn('[RuntimeRequiredPlugins] Skipping repository auto-install: Agent Host capability unavailable');
 			return;
 		}
+		this._requiredPluginCapabilityObserved = true;
 
 		const managedSettings = this._managedSettings();
 		const managedKey = this._managedKey(authority);
