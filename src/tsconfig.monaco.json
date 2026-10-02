@@ -34,6 +34,7 @@
 		"node_modules/*",
 		"vs/platform/files/browser/htmlFileSystemProvider.ts",
 		"vs/platform/files/browser/webFileSystemAccess.ts",
+		"vs/platform/github/common/copilotApiService.ts",
 		"vs/platform/telemetry/*",
 		"vs/platform/assignment/*",
 		"vs/platform/terminal/*",

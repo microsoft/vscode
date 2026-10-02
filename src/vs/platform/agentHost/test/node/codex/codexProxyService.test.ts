@@ -13,7 +13,7 @@ import {
 	CopilotApiError,
 	type ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
-} from '../../../node/shared/copilotApiService.js';
+} from '../../../../github/common/copilotApiService.js';
 import { CodexProxyService, remapCodexReviewerModel } from '../../../node/codex/codexProxyService.js';
 import { extractForwardedErrorInfo } from '../../../node/shared/proxyChatError.js';
 

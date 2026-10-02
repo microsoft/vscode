@@ -18,7 +18,7 @@ import type { IAgentHostGitService, IBranch, IDefaultBranch } from '../../common
 import { AgentHostCommitOperationHandler } from '../../node/agentHostCommitOperationHandler.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../node/shared/copilotApiService.js';
+import { CopilotApiError, type ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest } from '../../../github/common/copilotApiService.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../common/agent.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ChangesSummary } from '../../common/state/protocol/state.js';
@@ -155,7 +155,9 @@ function createAuthenticationService(token: string | undefined): IAgentHostAuthe
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		onDidDiscardAuthToken: Event.None,
 		getAuthAccount: () => undefined,
+		getAuthAccountForToken: () => undefined,
 		getAuthToken: () => token,
 	};
 }
