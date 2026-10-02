@@ -5,7 +5,7 @@
 
 import { gitHubMcpServerUrl } from '../../../github/common/githubEndpoints.js';
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
-import type { ICopilotApiService } from '../../../copilot/common/copilotApiService.js';
+import type { ICopilotApiService } from '../../../github/common/copilotApiService.js';
 import { findExecutable } from '../../../../base/node/processes.js';
 
 export const GITHUB_MCP_SERVER_NAME = 'github-mcp-server';

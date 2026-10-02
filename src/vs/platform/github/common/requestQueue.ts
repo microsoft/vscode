@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { GitHubRequestAccount, GitHubRequestContext, GitHubRequestError, GitHubRequestPriority, GitHubRequestTimeoutError } from './githubTypes.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
-import { GitHubRequestOutcome, GitHubRequestTelemetry, gitHubRequestOutcome, IGitHubRequestTiming } from './githubRequestTelemetry.js';
+import { RequestAccount, RequestContext, RequestPriority, RequestOutcome, requestOutcome, IRequestTiming, RequestError, RequestTimeoutError, IRequestQueueTelemetry } from './types.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 
-const priorityOrder: Record<GitHubRequestPriority, number> = {
+const priorityOrder: Record<RequestPriority, number> = {
 	mutationReconciliation: 0,
 	mutation: 1,
 	interactive: 2,
@@ -18,7 +17,8 @@ const priorityOrder: Record<GitHubRequestPriority, number> = {
 	enrichment: 6,
 };
 
-export interface GitHubRequestQueueOptions {
+/** Hard admission/concurrency limits and reserved capacity for interactive callers. */
+export interface RequestQueueOptions {
 	/** Maximum active requests across the queue; excludes queued and cooldown-waiting requests. */
 	readonly maximumConcurrency: number;
 	/** Maximum active requests for one case-insensitive host, across accounts and callers. */
@@ -35,7 +35,7 @@ export interface GitHubRequestQueueOptions {
 	readonly reservedInteractiveRequests: number;
 }
 
-const defaultOptions: GitHubRequestQueueOptions = {
+const defaultOptions: RequestQueueOptions = {
 	maximumConcurrency: 4,
 	maximumHostConcurrency: 2,
 	maximumCallerConcurrency: 2,
@@ -45,60 +45,62 @@ const defaultOptions: GitHubRequestQueueOptions = {
 	reservedInteractiveRequests: 8,
 };
 
+/** Retained admission state and completion callbacks for one pending or active operation. */
 interface IQueuedRequest {
-	readonly context: GitHubRequestContext;
+	readonly context: RequestContext;
 	readonly accountKey: string;
 	readonly host: string;
 	readonly sequence: number;
-	readonly timing: IGitHubRequestTiming | undefined;
-	priority: GitHubRequestPriority;
+	readonly timing: IRequestTiming | undefined;
+	priority: RequestPriority;
 	readonly run: () => void;
 	readonly cancel: (reason: unknown) => void;
 	readonly expire: () => void;
 }
 
-export class GitHubRequestQueue extends Disposable {
+/** Fair bounded admission with domain-provided quota delays and optional timing diagnostics. */
+export class RequestQueue extends Disposable {
 
 	private readonly _pending: IQueuedRequest[] = [];
 	private readonly _active = new Set<IQueuedRequest>();
 	private readonly _lastServed = new Map<string, number>();
 	private readonly _wake = this._register(new MutableDisposable());
-	private readonly _options: GitHubRequestQueueOptions;
+	private readonly _options: RequestQueueOptions;
 	private _sequence = 0;
 	private _dispatchSequence = 0;
 	private _draining = false;
 
 	constructor(
-		private readonly _scheduler: IGitHubScheduler = systemGitHubScheduler,
-		private readonly _getDelay: (context: GitHubRequestContext) => number = () => 0,
-		options: Partial<GitHubRequestQueueOptions> = {},
-		private readonly _telemetry?: GitHubRequestTelemetry,
+		private readonly _scheduler: IRequestScheduler = systemRequestScheduler,
+		private readonly _getDelay: (context: RequestContext) => number = () => 0,
+		options: Partial<RequestQueueOptions> = {},
+		private readonly _telemetry?: IRequestQueueTelemetry,
 	) {
 		super();
 		this._options = { ...defaultOptions, ...options };
 		for (const [key, value] of Object.entries(this._options)) {
 			if (!Number.isSafeInteger(value) || value < (key === 'reservedInteractiveRequests' ? 0 : 1)) {
-				throw new GitHubRequestError(`Invalid GitHub queue option: ${key}`, 'validation');
+				throw new RequestError(`Invalid request queue option: ${key}`, 'validation');
 			}
 		}
 	}
 
 	/** Calls onAdmitted synchronously only after retaining a request slot. */
-	enqueue<T>(context: GitHubRequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>, onAdmitted?: () => void): Promise<T> {
+	enqueue<T>(context: RequestContext, task: (signal: AbortSignal, onDispatch: () => void) => Promise<T>, onAdmitted?: () => void): Promise<T> {
 		if (context.signal.aborted) {
 			return Promise.reject(context.signal.reason);
 		}
 		if (this._store.isDisposed) {
-			return Promise.reject(new GitHubRequestError('GitHub request queue was disposed', 'unknown'));
+			return Promise.reject(new RequestError('Request queue was disposed', 'unknown'));
 		}
 		if (!context.caller || !Number.isFinite(context.deadline)) {
-			return Promise.reject(new GitHubRequestError('Invalid GitHub request context', 'validation'));
+			return Promise.reject(new RequestError('Invalid Request context', 'validation'));
 		}
 		if (context.deadline <= this._scheduler.now()) {
-			return Promise.reject(new GitHubRequestTimeoutError());
+			return Promise.reject(new RequestTimeoutError());
 		}
 		this._drain();
-		const accountKey = GitHubRequestQueue.accountKey(context.account);
+		const accountKey = RequestQueue.accountKey(context.account);
 		const requests = [...this._pending, ...this._active];
 		const limit = (maximum: number) => maximum - (priorityOrder[context.priority] <= priorityOrder.interactive
 			? 0 : Math.min(this._options.reservedInteractiveRequests, Math.floor(maximum / 4)));
@@ -108,7 +110,7 @@ export class GitHubRequestQueue extends Disposable {
 					: undefined;
 		if (rejection) {
 			this._telemetry?.recordRejection(rejection);
-			return Promise.reject(new GitHubRequestError('GitHub request capacity exceeded', 'overloaded'));
+			return Promise.reject(new RequestError('Request capacity exceeded', 'overloaded'));
 		}
 
 		return new Promise<T>((resolve, reject) => {
@@ -117,7 +119,7 @@ export class GitHubRequestQueue extends Disposable {
 			const timing = this._telemetry?.startQueue(context);
 			let settled = false;
 			let dispatched = false;
-			const finish = (complete: () => void, outcome: GitHubRequestOutcome) => {
+			const finish = (complete: () => void, outcome: RequestOutcome) => {
 				if (settled) {
 					return;
 				}
@@ -163,15 +165,15 @@ export class GitHubRequestQueue extends Disposable {
 						},
 						error => {
 							checkDeadline();
-							finish(() => reject(error), gitHubRequestOutcome(error, controller.signal.aborted));
+							finish(() => reject(error), requestOutcome(error, controller.signal.aborted));
 						},
 					);
 				},
 				cancel: reason => {
 					controller.abort(reason);
-					finish(() => reject(reason), gitHubRequestOutcome(reason, true));
+					finish(() => reject(reason), requestOutcome(reason, true));
 				},
-				expire: () => request.cancel(new GitHubRequestTimeoutError(dispatched)),
+				expire: () => request.cancel(new RequestTimeoutError(dispatched)),
 			};
 			const onAbort = () => request.cancel(context.signal.reason);
 			store.add(toDisposable(() => context.signal.removeEventListener('abort', onAbort)));
@@ -187,7 +189,7 @@ export class GitHubRequestQueue extends Disposable {
 		});
 	}
 
-	promote(signal: AbortSignal, priority: GitHubRequestPriority): void {
+	promote(signal: AbortSignal, priority: RequestPriority): void {
 		for (const request of this._pending) {
 			if (request.context.signal === signal && priorityOrder[priority] < priorityOrder[request.priority]) {
 				request.priority = priority;
@@ -200,8 +202,8 @@ export class GitHubRequestQueue extends Disposable {
 		return this._pending.some(request => request.context.signal === signal);
 	}
 
-	cancelAccount(account: GitHubRequestAccount, reason: unknown = new GitHubRequestError('GitHub credential was invalidated', 'authentication'), owner?: object): void {
-		const accountKey = GitHubRequestQueue.accountKey(account);
+	cancelAccount(account: RequestAccount, reason: unknown = new RequestError('Request credential was invalidated', 'authentication'), owner?: object): void {
+		const accountKey = RequestQueue.accountKey(account);
 		for (const request of [...this._pending, ...this._active]) {
 			if (request.accountKey === accountKey && (owner === undefined || request.context.owner === owner)) {
 				request.cancel(reason);
@@ -212,14 +214,14 @@ export class GitHubRequestQueue extends Disposable {
 	cancelOwner(owner: object): void {
 		for (const request of [...this._pending, ...this._active]) {
 			if (request.context.owner === owner) {
-				request.cancel(new GitHubRequestError('GitHub client was disposed', 'unknown'));
+				request.cancel(new RequestError('Request client was disposed', 'unknown'));
 			}
 		}
 	}
 
 	clear(): void {
 		for (const request of [...this._pending, ...this._active]) {
-			request.cancel(new GitHubRequestError('GitHub request queue was cleared', 'unknown'));
+			request.cancel(new RequestError('Request queue was cleared', 'unknown'));
 		}
 		this._wake.clear();
 	}
@@ -310,7 +312,7 @@ export class GitHubRequestQueue extends Disposable {
 			|| left.sequence - right.sequence;
 	}
 
-	static accountKey(account: GitHubRequestAccount): string {
+	static accountKey(account: RequestAccount): string {
 		if (account.kind === 'anonymous') {
 			return `anonymous\x00${account.origin}`;
 		}

@@ -3,97 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js';
-import { Emitter } from '../../../base/common/event.js';
-import { GitHubRequestAccount } from './githubTypes.js';
-import { GitHubRequestQueue } from './githubRequestQueue.js';
-import { IGitHubScheduler, schedulerDelay } from './githubScheduler.js';
-
-export interface GitHubRateLimitState {
-	readonly limit?: number;
-	readonly remaining?: number;
-	readonly used?: number;
-	readonly resetAt?: number;
-	readonly blockedUntil?: number;
-}
+import { CooldownState } from './cooldownState.js';
+import { parseHeaderNumber, parseRetryAfter } from './httpHeaders.js';
+import { RequestQueue } from './requestQueue.js';
+import { RequestAccount } from './types.js';
 
 /** GitHub's documented floor for retrying a rate limit it gave no reset hint for. */
 const unhintedRateLimitCooldown = 60_000;
 
-export class GitHubRateLimitCoordinator extends Disposable {
+/** Interprets GitHub quota headers and GraphQL feedback using shared cooldown storage. */
+export class GitHubRateLimitCoordinator extends CooldownState {
 
-	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange = this._onDidChange.event;
-	private readonly _states = new Map<string, GitHubRateLimitState>();
-	private readonly _accountBlockedUntil = new Map<string, number>();
-	private readonly _inactiveAccounts = new Map<string, number>();
-	private readonly _accountOwners = new Map<string, Set<object>>();
-	private readonly _cleanup = this._register(new MutableDisposable());
-
-	constructor(
-		private readonly _scheduler: IGitHubScheduler,
-	) {
-		super();
-	}
-
-	getState(account: GitHubRequestAccount, resource: string): GitHubRateLimitState | undefined {
-		return this._states.get(this._key(account, resource));
-	}
-
-	getDelay(account: GitHubRequestAccount, resource: string): number {
-		const accountKey = GitHubRequestQueue.accountKey(account);
-		const state = this._states.get(this._key(account, resource));
-		const resourceBlockedUntil = state?.blockedUntil ?? (state?.remaining === 0 ? state.resetAt : undefined);
-		const accountBlockedUntil = this._accountBlockedUntil.get(accountKey);
-		const blockedUntil = resourceBlockedUntil === undefined
-			? accountBlockedUntil
-			: accountBlockedUntil === undefined ? resourceBlockedUntil : Math.max(resourceBlockedUntil, accountBlockedUntil);
-		const delay = blockedUntil === undefined ? 0 : Math.max(0, blockedUntil - this._scheduler.now());
-		return account.kind === 'bootstrap' && account.accountId !== undefined
-			? Math.max(delay, this.getDelay({ ...account, accountId: undefined }, resource))
-			: delay;
-	}
-
-	preserveCooldown(account: GitHubRequestAccount, resource: string, delay: number): void {
-		if (delay <= 0) {
-			return;
-		}
-		const key = this._key(account, resource);
-		const previous = this._states.get(key);
-		this._states.set(key, { ...previous, blockedUntil: Math.max(previous?.blockedUntil ?? 0, this._scheduler.now() + delay) });
-		this.releaseAccount(account);
-		this._onDidChange.fire();
-	}
-
-	updateRetryAfter(account: GitHubRequestAccount, resource: string, value: string | null, fallbackDelay = 0): void {
-		const now = this._scheduler.now();
-		const seconds = parseSeconds(value, now);
-		const delay = seconds !== undefined && seconds > 0 ? seconds * 1000 : fallbackDelay;
-		if (delay > 0) {
-			const key = this._key(account, resource);
-			const previous = this._states.get(key);
-			this._states.set(key, { ...previous, blockedUntil: Math.max(previous?.blockedUntil ?? 0, now + delay) });
-			this._onDidChange.fire();
-		}
-	}
-
-	async wait(account: GitHubRequestAccount, resource: string, signal: AbortSignal): Promise<void> {
-		const delay = this.getDelay(account, resource);
-		if (delay > 0) {
-			await schedulerDelay(this._scheduler, delay, signal);
-		}
-	}
-
-	updateFromResponse(account: GitHubRequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
+	updateFromResponse(account: RequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
 		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
 		const isGraphQL = resource === 'graphql';
 		const key = this._key(account, resource);
 		const previous = this._states.get(key);
 		const previousBlockedUntil = previous?.blockedUntil ?? (isGraphQL && previous?.remaining === 0 ? previous.resetAt : undefined);
 		const now = this._scheduler.now();
-		const retryAfter = parseSeconds(response.headers.get('retry-after'), now, isGraphQL);
-		const resetSeconds = parseNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
-		const remaining = parseNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), now, isGraphQL);
+		const resetSeconds = parseHeaderNumber(response.headers.get('x-ratelimit-reset'), isGraphQL);
+		const remaining = parseHeaderNumber(response.headers.get('x-ratelimit-remaining'), isGraphQL);
 		const rateLimited = isRateLimited(response.status, responseBody);
 		const secondaryLimited = rateLimited && isSecondaryRateLimit(responseBody);
 		// GitHub's documented order: honour `retry-after`; otherwise wait for the
@@ -116,16 +46,16 @@ export class GitHubRateLimitCoordinator extends Disposable {
 				? refusedUntil
 				: retryAfter !== undefined ? now + retryAfter * 1000 : undefined;
 		if (secondaryLimited) {
-			const accountKey = GitHubRequestQueue.accountKey(account);
+			const accountKey = RequestQueue.accountKey(account);
 			// GitHub asks clients that hit a secondary limit to wait at least a
 			// minute when it gives no usable hint, and the refusal parks the
 			// whole account rather than only the resource that observed it.
 			this._accountBlockedUntil.set(accountKey, Math.max(refusedUntil, this._accountBlockedUntil.get(accountKey) ?? 0));
 		}
 		this._states.set(key, {
-			limit: parseNumber(response.headers.get('x-ratelimit-limit'), isGraphQL) ?? previous?.limit,
+			limit: parseHeaderNumber(response.headers.get('x-ratelimit-limit'), isGraphQL) ?? previous?.limit,
 			remaining: remaining ?? previous?.remaining,
-			used: parseNumber(response.headers.get('x-ratelimit-used'), isGraphQL) ?? previous?.used,
+			used: parseHeaderNumber(response.headers.get('x-ratelimit-used'), isGraphQL) ?? previous?.used,
 			resetAt: resetSeconds !== undefined ? resetSeconds * 1000 : previous?.resetAt,
 			blockedUntil: previousBlockedUntil !== undefined && previousBlockedUntil > now
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
@@ -133,7 +63,7 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		this._onDidChange.fire();
 	}
 
-	updateFromGraphQL(account: GitHubRequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
+	updateFromGraphQL(account: RequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {
 		if (!rateLimit) {
 			return;
 		}
@@ -152,11 +82,11 @@ export class GitHubRateLimitCoordinator extends Disposable {
 	}
 
 	/** Records primary GraphQL exhaustion without shortening an existing server cooldown. */
-	markGraphQLRateLimited(account: GitHubRequestAccount, retryAfter: string | null = null): void {
+	markGraphQLRateLimited(account: RequestAccount, retryAfter: string | null = null): void {
 		const key = this._key(account, 'graphql');
 		const previous = this._states.get(key);
 		const now = this._scheduler.now();
-		const retryAfterSeconds = parseSeconds(retryAfter, now, true);
+		const retryAfterSeconds = parseRetryAfter(retryAfter, now, true);
 		const hinted = retryAfterSeconds !== undefined ? now + retryAfterSeconds * 1000 : previous?.resetAt;
 		const blockedUntil = hinted !== undefined && hinted > now ? hinted : now + unhintedRateLimitCooldown;
 		this._states.set(key, {
@@ -166,127 +96,6 @@ export class GitHubRateLimitCoordinator extends Disposable {
 		});
 		this._onDidChange.fire();
 	}
-
-	clearAccount(account: GitHubRequestAccount): void {
-		this._clearAccount(GitHubRequestQueue.accountKey(account));
-		this._scheduleCleanup();
-		this._onDidChange.fire();
-	}
-
-	retainAccount(account: GitHubRequestAccount, owner?: object): void {
-		const accountKey = GitHubRequestQueue.accountKey(account);
-		if (owner) {
-			let owners = this._accountOwners.get(accountKey);
-			if (!owners) {
-				owners = new Set();
-				this._accountOwners.set(accountKey, owners);
-			}
-			owners.add(owner);
-		}
-		if (this._inactiveAccounts.delete(accountKey)) {
-			this._scheduleCleanup();
-		}
-	}
-
-	/** Drops unused quota data once all server-required cooldowns for the account have elapsed. */
-	releaseAccount(account: GitHubRequestAccount, owner?: object): void {
-		if (this._store.isDisposed) {
-			return;
-		}
-		const accountKey = GitHubRequestQueue.accountKey(account);
-		const owners = this._accountOwners.get(accountKey);
-		if (owner) {
-			owners?.delete(owner);
-		}
-		if (owners?.size) {
-			return;
-		}
-		this._accountOwners.delete(accountKey);
-		const prefix = `${accountKey}\x00`;
-		let expiresAt = this._accountBlockedUntil.get(accountKey) ?? 0;
-		for (const [key, state] of this._states) {
-			if (key.startsWith(prefix)) {
-				expiresAt = Math.max(expiresAt, state.blockedUntil ?? (state.remaining === 0 ? state.resetAt ?? 0 : 0));
-			}
-		}
-		if (expiresAt > this._scheduler.now()) {
-			this._inactiveAccounts.set(accountKey, expiresAt);
-		} else {
-			this._clearAccount(accountKey);
-		}
-		this._scheduleCleanup();
-	}
-
-	private _clearAccount(accountKey: string): void {
-		const prefix = `${accountKey}\x00`;
-		for (const key of this._states.keys()) {
-			if (key.startsWith(prefix)) {
-				this._states.delete(key);
-			}
-		}
-		this._accountBlockedUntil.delete(accountKey);
-		this._inactiveAccounts.delete(accountKey);
-	}
-
-	private _scheduleCleanup(): void {
-		this._cleanup.clear();
-		if (this._inactiveAccounts.size === 0 || this._store.isDisposed) {
-			return;
-		}
-		let next = Infinity;
-		for (const expiresAt of this._inactiveAccounts.values()) {
-			next = Math.min(next, expiresAt);
-		}
-		this._cleanup.value = this._scheduler.schedule(() => {
-			for (const [accountKey, expiresAt] of this._inactiveAccounts) {
-				if (expiresAt <= this._scheduler.now()) {
-					this._clearAccount(accountKey);
-				}
-			}
-			this._scheduleCleanup();
-		}, Math.max(0, next - this._scheduler.now()));
-	}
-
-	override dispose(): void {
-		this._states.clear();
-		this._accountBlockedUntil.clear();
-		this._inactiveAccounts.clear();
-		this._accountOwners.clear();
-		super.dispose();
-	}
-
-	private _key(account: GitHubRequestAccount, resource: string): string {
-		return `${GitHubRequestQueue.accountKey(account)}\x00${resource}`;
-	}
-}
-
-function parseNumber(value: string | null, nonNegativeInteger = false): number | undefined {
-	if (value === null || (nonNegativeInteger && !/^\d+$/.test(value.trim()))) {
-		return undefined;
-	}
-	const parsed = Number(value);
-	return Number.isFinite(parsed) && (!nonNegativeInteger || (Number.isSafeInteger(parsed) && parsed >= 0)) ? parsed : undefined;
-}
-
-function parseSeconds(value: string | null, now: number, strict = false): number | undefined {
-	const parsed = parseNumber(value, strict);
-	if (parsed !== undefined) {
-		return Math.max(0, parsed);
-	}
-	if (value === null) {
-		return undefined;
-	}
-	if (strict) {
-		value = value.trim();
-		// Date.parse also accepts numeric lookalikes and treats asctime dates as local time.
-		if (/^[A-Z][a-z]{2} [A-Z][a-z]{2} (?:\d{2}| \d) \d{2}:\d{2}:\d{2} \d{4}$/.test(value)) {
-			value += ' GMT';
-		} else if (!/^(?:[A-Z][a-z]{2}, \d{2} [A-Z][a-z]{2} \d{4}|[A-Z][a-z]+, \d{2}-[A-Z][a-z]{2}-\d{2}) \d{2}:\d{2}:\d{2} GMT$/.test(value)) {
-			return undefined;
-		}
-	}
-	const date = Date.parse(value);
-	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - now) / 1000)) : undefined;
 }
 
 /**

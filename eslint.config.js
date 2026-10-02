@@ -1699,7 +1699,7 @@ export default defineConfig(
 					]
 				},
 				{
-					'target': 'src/vs/platform/copilot/~',
+					'target': 'src/vs/platform/github/~',
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~',

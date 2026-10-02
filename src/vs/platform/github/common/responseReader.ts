@@ -5,6 +5,7 @@
 
 import { ILogService } from '../../log/common/log.js';
 
+/** Reads at most the byte budget, cancelling incomplete bodies without blocking caller deadlines. */
 export async function readBoundedResponse(
 	response: Response,
 	maximumBytes: number,

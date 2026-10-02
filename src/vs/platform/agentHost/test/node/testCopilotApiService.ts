@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { FetchFunction } from '../../../copilot/common/copilotApiService.js';
+import { FetchFunction } from '../../../github/common/copilotApiService.js';
 import { GitHubService } from '../../../github/common/githubService.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';

@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { schedulerDelay } from '../../common/githubScheduler.js';
+import { schedulerDelay } from '../../common/scheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
-suite('FakeGitHubScheduler', () => {
+suite('FakeScheduler', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('runs due callbacks in time then insertion order', () => {
-		const scheduler = new FakeGitHubScheduler({ now: 100 });
+		const scheduler = new FakeScheduler({ now: 100 });
 		const events: string[] = [];
 
 		disposables.add(scheduler.schedule(() => events.push(`late@${scheduler.now()}`), 50));
@@ -36,7 +36,7 @@ suite('FakeGitHubScheduler', () => {
 	});
 
 	test('returns deterministic positive jitter', () => {
-		const scheduler = new FakeGitHubScheduler({ jitterValues: [7, 0, 99] });
+		const scheduler = new FakeScheduler({ jitterValues: [7, 0, 99] });
 
 		assert.deepStrictEqual([
 			scheduler.jitter(10),
@@ -49,7 +49,7 @@ suite('FakeGitHubScheduler', () => {
 	});
 
 	test('wall-clock jumps do not advance timer deadlines', () => {
-		const scheduler = disposables.add(new FakeGitHubScheduler());
+		const scheduler = disposables.add(new FakeScheduler());
 		const calls: number[] = [];
 		disposables.add(scheduler.schedule(() => calls.push(scheduler.now()), 100));
 		scheduler.advanceBy(10);
@@ -64,7 +64,7 @@ suite('FakeGitHubScheduler', () => {
 	});
 
 	test('schedulerDelay resolves only after time advances and honors abort', async () => {
-		const scheduler = new FakeGitHubScheduler({ now: 1_000 });
+		const scheduler = new FakeScheduler({ now: 1_000 });
 		const controller = new AbortController();
 		let resolved = false;
 

@@ -39,7 +39,7 @@ import { AgentHostTurnTracker } from '../../../node/agentHostTurnTracker.js';
 import { IAgentSdkDownloader } from '../../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../../node/codex/codexProxyService.js';
-import { CopilotApiError, ICopilotApiService, type FetchFunction } from '../../../../copilot/common/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService, type FetchFunction } from '../../../../github/common/copilotApiService.js';
 import { createTestCopilotApiService } from '../testCopilotApiService.js';
 import { authenticationAccountMeta } from '../../../common/meta/agentAuthenticationAccount.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';

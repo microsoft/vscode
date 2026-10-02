@@ -22,7 +22,7 @@ import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } fr
 import { FetchFunction, GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { PullRequestMutationService } from '../../common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../common/pullRequestResourceService.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubDisconnectResponse,
@@ -128,7 +128,7 @@ suite('PullRequestMutationService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeGitHubScheduler, fetch: FetchFunction = nodeFetch): {
+	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeScheduler, fetch: FetchFunction = nodeFetch): {
 		readonly ref: PullRequestRef;
 		readonly resources: TestResourceService;
 		readonly service: PullRequestMutationService;
@@ -409,7 +409,7 @@ suite('PullRequestMutationService', () => {
 	for (const operation of ['comment', 'reply'] as const) {
 		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
 			await withServers(async server => {
-				const scheduler = disposables.add(new FakeGitHubScheduler());
+				const scheduler = disposables.add(new FakeScheduler());
 				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 				const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
 				const credentials = disposables.add(new TestCredentialService(account));
@@ -1034,7 +1034,7 @@ suite('PullRequestMutationService', () => {
 
 	test('expires unused merge preparations without retaining a poller', async () => {
 		await withServers(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 0 });
+			const scheduler = new FakeScheduler({ now: 0 });
 			const { ref, service } = setup(server, completeSnapshot(server), scheduler);
 			const preparation = await service.prepareMerge(ref, 'head-1', signal());
 			scheduler.advanceBy(5 * 60_000);

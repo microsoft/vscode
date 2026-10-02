@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IAgentTelemetryContext } from '../../common/agent.js';
-import type { ICopilotApiService } from '../../../copilot/common/copilotApiService.js';
+import type { ICopilotApiService } from '../../../github/common/copilotApiService.js';
 
 /** Read late-arriving account metadata only while the captured authentication is still current. */
 export function captureCopilotTelemetryContext(apiService: ICopilotApiService, token: string | undefined, isCurrent: () => boolean): IAgentTelemetryContext {

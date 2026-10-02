@@ -9,7 +9,7 @@ import { join } from '../../../../base/common/path.js';
 import { SSEParser } from '../../../../base/common/sseParser.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { CopilotApiError, ICopilotApiService } from '../../../copilot/common/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService } from '../../../github/common/copilotApiService.js';
 import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
 import {

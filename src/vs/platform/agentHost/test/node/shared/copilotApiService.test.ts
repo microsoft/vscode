@@ -8,7 +8,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, type FetchFunction } from '../../../../copilot/common/copilotApiService.js';
+import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, type FetchFunction } from '../../../../github/common/copilotApiService.js';
 import { AgentHostCopilotApiService as CopilotApiService } from '../../../node/agentHostCopilotApiService.js';
 import { createTestCopilotApiService } from '../testCopilotApiService.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';

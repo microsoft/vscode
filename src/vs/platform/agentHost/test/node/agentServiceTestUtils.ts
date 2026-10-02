@@ -34,7 +34,7 @@ import { createAgentServiceComposition, type IAgentServiceComposition } from '..
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { registerAgentHostCoreServices } from '../../node/agentHostServices.js';
-import { ICopilotApiService } from '../../../copilot/common/copilotApiService.js';
+import { ICopilotApiService } from '../../../github/common/copilotApiService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostStartupPerformance } from '../../node/agentHostStartupPerformance.js';

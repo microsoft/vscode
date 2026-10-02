@@ -6,13 +6,14 @@
 import * as copilotApi from '@vscode/copilot-api';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDevDeviceId, getMachineId } from '../../../base/node/id.js';
-import { CopilotApiService, FetchFunction } from '../../copilot/common/copilotApiService.js';
+import { CopilotApiService, FetchFunction } from '../../github/common/copilotApiService.js';
 import { IGitHubService } from '../../github/common/githubService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 
+/** Supplies host endpoints, credential provenance and device metadata to the portable Copilot service. */
 export class AgentHostCopilotApiService extends CopilotApiService {
 	constructor(
 		fetchFn: FetchFunction | undefined,

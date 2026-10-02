@@ -10,13 +10,15 @@ import { Disposable, DisposableMap, IReference, MutableDisposable, toDisposable 
 import { Event } from '../../../base/common/event.js';
 import { getInternalOrg, isInternalAccount } from '../../assignment/common/assignment.js';
 import { COPILOT_LICENSE_AGREEMENT } from '../../endpoint/common/licenseAgreement.js';
-import { IGitHubBootstrapClient, IGitHubService } from '../../github/common/githubService.js';
-import { systemGitHubScheduler } from '../../github/common/githubScheduler.js';
-import { GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from '../../github/common/githubTypes.js';
+import { IGitHubBootstrapClient, IGitHubService } from './githubService.js';
+import { systemRequestScheduler } from './scheduler.js';
+import { GitHubRequestRateLimitError } from './githubTypes.js';
+import { RequestError, RequestRateLimitError, RequestTimeoutError } from './types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { ISharedRequest, updateSharedRequestCooldown, waitForSharedRequest } from '../../request/common/sharedRequest.js';
-import { CopilotControlTransport, copilotControlTimeout } from './copilotControlTransport.js';
+import { IInFlightOperation, OperationWaiters } from './operationWaiters.js';
+import { ControlTransport } from './controlTransport.js';
+import { parseRetryAfter } from './httpHeaders.js';
 
 // #region Types
 
@@ -99,6 +101,7 @@ interface ICopilotUserResponse {
 	readonly access_type_sku?: string;
 }
 
+/** Discovered Copilot routing, entitlement metadata and per-credential model selections. */
 interface ICachedClient {
 	readonly context: CopilotClientContext;
 	readonly capiClient: CAPIClient;
@@ -119,17 +122,19 @@ interface ICachedClient {
 	readonly isVscodeTeamMember: boolean;
 }
 
+/** Stable reader cell that follows same-credential refresh until permanently invalidated. */
 interface ICopilotSkuCacheCell {
 	valid: boolean;
 	value?: ICachedClient;
 }
 
+/** Token-specific discovery state and captured metadata, owned by the Copilot service. */
 class CopilotClientContext extends Disposable {
 	readonly id = generateUuid();
 	readonly controller = new AbortController();
 	readonly bootstrapClient = this._register(new MutableDisposable<IReference<IGitHubBootstrapClient>>());
 	readonly skuCell: ICopilotSkuCacheCell = { valid: true };
-	discovery: ISharedRequest<ICachedClient> | undefined;
+	discovery: IInFlightOperation<ICachedClient> | undefined;
 	telemetryCaptured = false;
 	expiresAt = Date.now() + CAPI_CONTEXT_TTL_SECONDS * 1000;
 
@@ -160,12 +165,14 @@ interface ICapiBase {
 	readonly extensionInfo: IExtensionInformation;
 }
 
+/** Hosting-owned GitHub discovery and enterprise routing endpoints for Copilot. */
 export interface ICopilotApiEndpointProvider {
 	readonly onDidChange: Event<void>;
 	getApiBaseUri(): string;
 	getEnterpriseUri(): string | undefined;
 }
 
+/** Protocol implementation and host integration required by the portable Copilot API service. */
 export interface ICopilotApiServiceOptions {
 	readonly api: typeof import('@vscode/copilot-api');
 	readonly fetch?: FetchFunction;
@@ -202,15 +209,16 @@ const CAPI_CONTEXT_REFRESH_BUFFER_SECONDS = 5 * 60;
 const CAPI_CONTEXT_TTL_SECONDS = 30 * 60;
 
 const USER_API_VERSION = '2025-04-01';
+const copilotControlTimeout = 30_000;
 
 function controlDeadline(value?: number): number {
 	if (value !== undefined && !Number.isFinite(value)) {
-		throw new GitHubRequestError('Invalid Copilot control deadline', 'validation');
+		throw new RequestError('Invalid Copilot control deadline', 'validation');
 	}
 	const now = Date.now();
 	const deadline = Math.min(value ?? Infinity, now + copilotControlTimeout);
 	if (deadline <= now) {
-		throw new GitHubRequestTimeoutError();
+		throw new RequestTimeoutError();
 	}
 	return deadline;
 }
@@ -438,6 +446,7 @@ export interface IRestrictedTelemetryContext {
 	readonly copilotIgnoreEnabled?: boolean;
 }
 
+/** Typed Copilot discovery, model catalog and inference operations with explicit credentials. */
 export interface ICopilotApiService {
 
 	readonly _serviceBrand: undefined;
@@ -559,16 +568,17 @@ export interface ICopilotApiService {
 	captureCopilotSku?(githubToken: string): () => string | undefined;
 }
 
+/** Owns Copilot protocol semantics while reusing common bounded request mechanisms. */
 export class CopilotApiService extends Disposable implements ICopilotApiService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _capiBase: ICapiBase | undefined;
-	private _capiBaseRequest: ISharedRequest<ICapiBase> | undefined;
+	private _capiBaseRequest: IInFlightOperation<ICapiBase> | undefined;
 	private readonly _clientsByToken = this._register(new DisposableMap<string, CopilotClientContext>());
 	private readonly _cacheExpiry = this._register(new MutableDisposable());
 	private readonly _lifetime = new AbortController();
-	private readonly _controlTransport: CopilotControlTransport;
+	private readonly _controlTransport: ControlTransport;
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -578,7 +588,18 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 	) {
 		super();
 		this._fetch = _options.fetch ?? globalThis.fetch;
-		this._controlTransport = this._register(new CopilotControlTransport(_logService));
+		this._controlTransport = this._register(new ControlTransport({
+			caller: 'copilot.models',
+			resource: 'copilot.models',
+			requestTimeout: copilotControlTimeout,
+			maximumResponseBytes: 16 * 1024 * 1024,
+			maximumSharedWaiters: 64,
+			getResponseCooldown: (response, now) => {
+				const seconds = parseRetryAfter(response.headers.get('retry-after'), now);
+				return seconds !== undefined && seconds > 0 ? seconds * 1000
+					: response.status === 429 || response.status === 529 ? 60_000 : 0;
+			},
+		}, _logService));
 		this._register(_options.endpoints.onDidChange(() => this._clearClients()));
 		this._register(toDisposable(() => {
 			this._lifetime.abort(new Error('Copilot API service was disposed'));
@@ -644,7 +665,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			},
 			{ type: this._options.api.RequestType.Models },
 		)).catch(error => {
-			if (error instanceof GitHubRequestRateLimitError) {
+			if (error instanceof RequestRateLimitError) {
 				throw copilotCooldownError(error.retryAfterMs);
 			}
 			throw error;
@@ -659,7 +680,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 		const json: { data?: CCAModel[] } | null = JSON.parse(response.body);
 		if (!json || !Array.isArray(json.data)) {
-			throw new GitHubRequestError('CAPI model discovery returned an invalid model list', 'malformedResponse');
+			throw new RequestError('CAPI model discovery returned an invalid model list', 'malformedResponse');
 		}
 		return json.data;
 	}
@@ -773,24 +794,20 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			return Promise.resolve(this._capiBase);
 		}
 		if (!this._capiBaseRequest) {
-			const shared: ISharedRequest<ICapiBase> = { controller: this._lifetime, deadline, waiters: new Set() };
+			const shared: IInFlightOperation<ICapiBase> = { controller: this._lifetime, deadline, waiters: new OperationWaiters() };
 			this._capiBaseRequest = shared;
 			void this._buildCapiBase().then(value => {
 				this._capiBaseRequest = undefined;
 				if (!this._store.isDisposed) {
 					this._capiBase = value;
 				}
-				for (const waiter of shared.waiters) {
-					waiter.resolve(value);
-				}
+				shared.waiters.resolve(value);
 			}, error => {
 				this._capiBaseRequest = undefined;
-				for (const waiter of shared.waiters) {
-					waiter.reject(error);
-				}
+				shared.waiters.reject(error);
 			});
 		}
-		return waitForSharedRequest(this._capiBaseRequest, signal, deadline, systemGitHubScheduler, () => new GitHubRequestTimeoutError());
+		return this._capiBaseRequest.waiters.wait(signal, deadline, systemRequestScheduler, () => new RequestTimeoutError());
 	}
 
 	private async _buildCapiBase(): Promise<ICapiBase> {
@@ -967,14 +984,14 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		}
 
 		if (!request.discovery) {
-			const shared: ISharedRequest<ICachedClient> = {
-				controller: new AbortController(), deadline: controlDeadline(), waiters: new Set(),
+			const shared: IInFlightOperation<ICachedClient> = {
+				controller: new AbortController(), deadline: controlDeadline(), waiters: new OperationWaiters(),
 			};
 			request.discovery = shared;
-			void this._buildClientForToken(githubToken, request, shared.controller.signal, shared.deadline, time => updateSharedRequestCooldown(shared, time)).then(entry => {
+			void this._buildClientForToken(githubToken, request, shared.controller.signal, shared.deadline, time => shared.waiters.setBlockedUntil(time)).then(entry => {
 				const current = request.discovery === shared;
 				const error = shared.controller.signal.aborted ? shared.controller.signal.reason
-					: shared.deadline <= Date.now() ? new GitHubRequestTimeoutError() : undefined;
+					: shared.deadline <= Date.now() ? new RequestTimeoutError() : undefined;
 				if (current) {
 					request.discovery = undefined;
 				}
@@ -983,21 +1000,17 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 					request.expiresAt = entry.expiresAt * 1000;
 					this._scheduleCacheExpiry();
 				}
-				for (const waiter of shared.waiters) {
-					if (error) {
-						waiter.reject(error);
-					} else {
-						waiter.resolve(entry);
-					}
+				if (error) {
+					shared.waiters.reject(error);
+				} else {
+					shared.waiters.resolve(entry);
 				}
 			}, error => {
 				const current = request.discovery === shared;
 				if (current) {
 					request.discovery = undefined;
 				}
-				for (const waiter of shared.waiters) {
-					waiter.reject(error);
-				}
+				shared.waiters.reject(error);
 				if (current && this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
 					if (error instanceof CopilotApiError && (error.status === 401 || error.status === 403)) {
 						this._invalidateClientRequest(githubToken, request);
@@ -1013,10 +1026,10 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		}
 		const shared = request.discovery;
 		if (shared.waiters.size >= 64) {
-			throw new GitHubRequestError('Copilot discovery waiter capacity exceeded', 'overloaded');
+			throw new RequestError('Copilot discovery waiter capacity exceeded', 'overloaded');
 		}
 		try {
-			return await waitForSharedRequest(shared, signal, deadline, systemGitHubScheduler, () => new GitHubRequestTimeoutError(), {
+			return await shared.waiters.wait(signal, deadline, systemRequestScheduler, () => new RequestTimeoutError(), {
 				error: copilotCooldownError,
 			});
 		} finally {
@@ -1032,7 +1045,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 
 	private _getOrCreateClientRequest(githubToken: string): CopilotClientContext {
 		if (!githubToken || this._store.isDisposed) {
-			throw new GitHubRequestError('A live Copilot credential context is required', 'authentication');
+			throw new RequestError('A live Copilot credential context is required', 'authentication');
 		}
 		const accountId = this._options.getAccountId?.(githubToken);
 		let request = this._clientsByToken.get(githubToken);
@@ -1045,7 +1058,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		}
 		if (!request) {
 			if (this._clientsByToken.size >= 64) {
-				throw new GitHubRequestError('Copilot credential context capacity exceeded', 'overloaded');
+				throw new RequestError('Copilot credential context capacity exceeded', 'overloaded');
 			}
 			request = new CopilotClientContext(accountId);
 			this._clientsByToken.set(githubToken, request);
@@ -1088,7 +1101,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		if (!Number.isFinite(nextExpiry)) {
 			return;
 		}
-		this._cacheExpiry.value = systemGitHubScheduler.schedule(() => {
+		this._cacheExpiry.value = systemRequestScheduler.schedule(() => {
 			for (const [token, request] of this._clientsByToken) {
 				if (request.expiresAt <= Date.now()) {
 					if (request.discovery) {
@@ -1110,7 +1123,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 		const { extensionInfo } = await this._getCapiBase(signal, deadline);
 		signal.throwIfAborted();
 		if (deadline <= Date.now()) {
-			throw new GitHubRequestTimeoutError();
+			throw new RequestTimeoutError();
 		}
 		const fetch = this._fetch;
 		const capiClient = new this._options.api.CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
@@ -1153,19 +1166,19 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			if (error instanceof GitHubRequestRateLimitError) {
 				throw copilotCooldownError(error.retryAfterMs);
 			}
-			if (error instanceof GitHubRequestError && error.statusCode !== undefined) {
+			if (error instanceof RequestError && error.statusCode !== undefined) {
 				throw buildCopilotApiHttpError(error.statusCode, error.statusText ?? '', error.responseBody ?? '', 'Copilot endpoint discovery failed');
 			}
 			throw error;
 		}
 		signal.throwIfAborted();
 		if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
-			throw new GitHubRequestError('Copilot endpoint discovery returned an invalid response', 'malformedResponse');
+			throw new RequestError('Copilot endpoint discovery returned an invalid response', 'malformedResponse');
 		}
 		if (envelope.endpoints?.api !== undefined) {
 			const api = new URL(envelope.endpoints.api);
 			if (api.protocol !== 'https:' || api.username || api.password || api.search || api.hash) {
-				throw new GitHubRequestError('Copilot endpoint discovery returned an unsafe API endpoint', 'validation');
+				throw new RequestError('Copilot endpoint discovery returned an unsafe API endpoint', 'validation');
 			}
 		}
 		const internalOrganization = getInternalOrg(envelope.organization_login_list);

@@ -73,7 +73,7 @@ import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { IAgentPluginManager } from '../../common/agentPluginManager.js';
 import { ClaudeProxyService, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../../copilot/common/copilotApiService.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../../github/common/copilotApiService.js';
 import { createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import {

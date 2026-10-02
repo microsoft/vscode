@@ -15,7 +15,7 @@ import {
 	CopilotApiError,
 	ICopilotApiService,
 	type ICopilotApiServiceRequestOptions,
-} from '../../../copilot/common/copilotApiService.js';
+} from '../../../github/common/copilotApiService.js';
 import { buildForwardedChatError, encodeForwardedChatError } from '../shared/proxyChatError.js';
 import {
 	IProxyInFlight,

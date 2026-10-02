@@ -9,22 +9,24 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { GitHubCredentialService, IGitHubCredentials } from './githubCredentialService.js';
-import { GitHubBackoffGate } from './githubBackoff.js';
+import { BackoffGate } from './backoff.js';
 import { GitHubHostCapabilitiesService, IGitHubCapabilities } from './githubHostCapabilitiesService.js';
 import { GitHubQueryService, IGitHubQuery } from './githubQueryServiceImpl.js';
 import { GitHubRequestMetadata } from './githubRequestMetadata.js';
 import { GitHubRequestTelemetry } from './githubRequestTelemetry.js';
-import { GitHubRequestQueue } from './githubRequestQueue.js';
+import { RequestQueue } from './requestQueue.js';
 import { GitHubRateLimitCoordinator } from './githubRateLimitCoordinator.js';
-import { systemGitHubScheduler } from './githubScheduler.js';
+import { systemRequestScheduler } from './scheduler.js';
 import { GitHubAnonymousReadOptions, GitHubBootstrapReadOptions, GitHubRestResponse, GitHubTransport, IGitHubTransport } from './githubTransport.js';
-import { GitHubAnonymousAccount, GitHubAnonymousClientOptions, GitHubAuthorizationContext, GitHubBootstrapAccount, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
+import { GitHubAnonymousClientOptions, GitHubAuthorizationContext, GitHubBootstrapClientOptions, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, GitHubServiceOptions, IGitHubCredentialProvider, IGitHubEndpointProvider } from './githubTypes.js';
+import { AnonymousAccount, BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
+/** Runtime-owned GitHub engine providing isolated clients with shared admission and quota state. */
 export interface IGitHubService {
 	readonly _serviceBrand: undefined;
 	acquireClient(options: GitHubClientOptions): IReference<IGitHubClient>;
@@ -32,17 +34,20 @@ export interface IGitHubService {
 	acquireBootstrapClient(options: GitHubBootstrapClientOptions): IReference<IGitHubBootstrapClient>;
 }
 
+/** Credential-free public JSON reads confined to an approved API base. */
 export interface IGitHubAnonymousClient {
 	readonly authorization: { readonly kind: 'anonymous' };
 	readonly apiBaseUri: string;
 	get<T>(path: string, signal: AbortSignal, options?: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<T>>;
 }
 
+/** Explicit-credential reads that do not depend on account selection or accepted-token publication. */
 export interface IGitHubBootstrapClient {
 	readonly apiBaseUri: string;
 	get<T>(path: string, signal: AbortSignal, options?: GitHubBootstrapReadOptions): Promise<GitHubRestResponse<T>>;
 }
 
+/** Authorization-scoped GitHub operations and resources shared by equivalent client leases. */
 export interface IGitHubClient {
 	readonly authorization: GitHubAuthorizationContext;
 	readonly onDidInvalidate: Event<void>;
@@ -55,15 +60,17 @@ export interface IGitHubClient {
 	readonly mutations: IPullRequestMutations;
 }
 
+/** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
 interface IClientEntry {
 	readonly context: GitHubClientOptions;
 	readonly store: DisposableStore;
 	readonly client: MutableDisposable<GitHubClient>;
-	readonly backoff: GitHubBackoffGate;
+	readonly backoff: BackoffGate;
 	readonly expiry: MutableDisposable<IDisposable>;
 	references: number;
 }
 
+/** Coordinates isolated GitHub clients using one runtime admission queue and quota owner. */
 export class GitHubService extends Disposable implements IGitHubService {
 
 	declare readonly _serviceBrand: undefined;
@@ -73,7 +80,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	private readonly _bootstrapClients = this._register(new DisposableMap<string, GitHubBootstrapClient>());
 	private readonly _telemetry: GitHubRequestTelemetry;
 	private readonly _rateLimits: GitHubRateLimitCoordinator;
-	private readonly _queue: GitHubRequestQueue;
+	private readonly _queue: RequestQueue;
 	private static readonly maximumClients = 64;
 	private static readonly unusedBackoffLifetime = 5 * 60_000;
 
@@ -83,9 +90,9 @@ export class GitHubService extends Disposable implements IGitHubService {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
-		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemGitHubScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
-		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemGitHubScheduler));
-		this._queue = this._register(new GitHubRequestQueue(systemGitHubScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
+		this._telemetry = this._register(new GitHubRequestTelemetry(_options.telemetrySource ?? 'other', systemRequestScheduler, telemetryService, _logService, _options.onDidChangeTelemetryLevel));
+		this._rateLimits = this._register(new GitHubRateLimitCoordinator(systemRequestScheduler));
+		this._queue = this._register(new RequestQueue(systemRequestScheduler, context => this._rateLimits.getDelay(context.account, context.resource), undefined, this._telemetry));
 		if (_options.credentialProvider) {
 			this._register(_options.credentialProvider.onDidChange(change => this._invalidateClients(change)));
 		}
@@ -132,7 +139,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const release = toDisposable(() => {
 			if (--retained.references === 0 && !retained.store.isDisposed) {
 				retained.client.clear();
-				retained.expiry.value = systemGitHubScheduler.schedule(() => {
+				retained.expiry.value = systemRequestScheduler.schedule(() => {
 					if (this._clients.get(key) === retained) {
 						this._clients.delete(key);
 					}
@@ -221,6 +228,7 @@ export class GitHubService extends Disposable implements IGitHubService {
 	}
 }
 
+/** Owns the credential, transport and domain resources for one selected GitHub grant. */
 class GitHubClient extends Disposable implements IGitHubClient {
 
 	private readonly _onDidInvalidate = this._register(new Emitter<void>());
@@ -238,10 +246,10 @@ class GitHubClient extends Disposable implements IGitHubClient {
 		context: GitHubClientOptions,
 		options: GitHubServiceOptions,
 		credentialProvider: IGitHubCredentialProvider,
-		queue: GitHubRequestQueue,
+		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
 		telemetry: GitHubRequestTelemetry,
-		backoff: GitHubBackoffGate,
+		backoff: BackoffGate,
 		logService: ILogService,
 	) {
 		super();
@@ -298,16 +306,17 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	}
 }
 
+/** Reference-counted public reader with no access to credential providers or private caches. */
 class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient {
 	readonly authorization = Object.freeze({ kind: 'anonymous' as const });
 	references = 0;
-	private readonly _account: GitHubAnonymousAccount;
+	private readonly _account: AnonymousAccount;
 	private readonly _transport: GitHubTransport;
 
 	constructor(
 		readonly apiBaseUri: string,
 		options: GitHubServiceOptions,
-		queue: GitHubRequestQueue,
+		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
 		telemetry: GitHubRequestTelemetry,
 		logService: ILogService,
@@ -332,16 +341,17 @@ class GitHubAnonymousClient extends Disposable implements IGitHubAnonymousClient
 	}
 }
 
+/** Reference-counted reader for a supplied bootstrap credential and its private request state. */
 class GitHubBootstrapClient extends Disposable implements IGitHubBootstrapClient {
 	references = 0;
-	private readonly _account: GitHubBootstrapAccount;
+	private readonly _account: BootstrapAccount;
 	private readonly _transport: GitHubTransport;
 
 	constructor(
 		readonly apiBaseUri: string,
 		private readonly _credential: GitHubBootstrapClientOptions,
 		options: GitHubServiceOptions,
-		queue: GitHubRequestQueue,
+		queue: RequestQueue,
 		rateLimits: GitHubRateLimitCoordinator,
 		telemetry: GitHubRequestTelemetry,
 		logService: ILogService,

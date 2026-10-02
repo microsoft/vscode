@@ -11,7 +11,7 @@ The portable implementation receives the `@vscode/copilot-api` module from its b
 
 ## Discovery and bootstrap
 
-GitHub `/copilot_internal/user` reads use the runtime's existing [GitHub service](../github/README.md) through an explicit bootstrap client. This internal read-only capability accepts the supplied credential before host authentication has published it. It does not call `/user`, select an account, prompt, read the accepted-token store, or make a token accepted.
+GitHub `/copilot_internal/user` reads use the runtime's existing [GitHub service](README.md) through an explicit bootstrap client. This internal read-only capability accepts the supplied credential before host authentication has published it. It does not call `/user`, select an account, prompt, read the accepted-token store, or make a token accepted.
 
 The authentication owner can supply account provenance for the exact pending or accepted token. Provenance affects quota accounting, never access checks or response sharing. Known account IDs share applicable GitHub account admission/cooldowns; unknown identities conservatively share an API-origin bucket. Learning an identity does not bypass an unresolved-origin cooldown. Token changes and client release do not erase server-required waits.
 
@@ -19,7 +19,7 @@ Bootstrap clients isolate private responses by token and API base, use the combi
 
 ## CAPI model/control requests
 
-[CopilotControlTransport](common/copilotControlTransport.ts) reuses the existing bounded queue, scheduler, response reader, and shared-waiter mechanisms. Its admission/cooldown state is separate from GitHub REST/GraphQL because CAPI throttling is not repository-core quota.
+[ControlTransport](common/controlTransport.ts) reuses the bounded queue, scheduler, response reader, and operation-waiter mechanisms. Copilot supplies its catalog limits and response cooldown policy; the transport does not interpret Copilot schemas or GitHub quota headers. Its admission/cooldown state is separate from GitHub REST/GraphQL because CAPI throttling is not repository-core quota.
 
 - Discovery plus a model read has a 30-second caller budget, including metadata initialization, queueing, cooldowns and body reads. An earlier caller deadline is preserved.
 - The model queue retains at most 256 operations, with 64 per account/caller; active work is capped at four globally, two per host/caller, and one per account identity. Model reads cannot hold GitHub repository request slots.

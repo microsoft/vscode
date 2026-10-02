@@ -9,8 +9,8 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubService } from '../../../github/common/githubService.js';
-import { GitHubFetch } from '../../../github/common/githubTypes.js';
+import { GitHubService } from '../../common/githubService.js';
+import { RequestFetch } from '../../common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiServiceOptions } from '../../common/copilotApiService.js';
@@ -22,7 +22,7 @@ suite('Copilot discovery and control', () => {
 	const user = (api = capiOrigin) => Response.json({ endpoints: { api }, access_type_sku: 'test-sku' });
 	const models = (id = 'test-model') => Response.json({ object: 'list', data: [{ id }] });
 
-	function create(fetch: GitHubFetch, options: Partial<ICopilotApiServiceOptions> = {}) {
+	function create(fetch: RequestFetch, options: Partial<ICopilotApiServiceOptions> = {}) {
 		const log = new NullLogService();
 		const github = store.add(new GitHubService({
 			fetch, credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Unexpected credential lookup'); } },

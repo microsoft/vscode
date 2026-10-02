@@ -11,13 +11,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { GitHubService } from '../../common/githubService.js';
-import { GitHubFetch } from '../../common/githubTypes.js';
+import { RequestFetch } from '../../common/types.js';
 
 suite('GitHub bootstrap clients', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const apiBaseUri = 'https://api.github.com';
 	const signal = () => new AbortController().signal;
-	const create = (fetch: GitHubFetch) => store.add(new GitHubService({
+	const create = (fetch: RequestFetch) => store.add(new GitHubService({
 		fetch,
 		credentialProvider: { onDidChange: Event.None, getToken: () => { throw new Error('Bootstrap must not look up an accepted credential'); } },
 	}, new NullLogService(), NullTelemetryService));

@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubFetch } from '../../../github/common/githubTypes.js';
+import { RequestFetch } from '../../../github/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
@@ -27,7 +27,7 @@ suite('Agent Host Copilot API binding', () => {
 	const authRequest = { resource: resource.resource, scopes: resource.scopes_supported };
 	const metadata = { _meta: authenticationAccountMeta(account) };
 
-	function create(fetch: GitHubFetch) {
+	function create(fetch: RequestFetch) {
 		const log = new NullLogService();
 		const authentication = store.add(new AgentHostAuthenticationService(log));
 		const github = store.add(new AgentHostGitHubService({ fetch }, authentication, endpoint, log, NullTelemetryService));

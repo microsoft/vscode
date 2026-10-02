@@ -16,7 +16,7 @@ import { AHP_AUTH_REQUIRED, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolEr
 import { type ISessionFileDiff, type SessionState } from '../common/state/sessionState.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { CopilotApiError, ICopilotApiService } from '../../copilot/common/copilotApiService.js';
+import { CopilotApiError, ICopilotApiService } from '../../github/common/copilotApiService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
 

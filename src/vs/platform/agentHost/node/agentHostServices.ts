@@ -25,7 +25,7 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
-import { ICopilotApiService } from '../../copilot/common/copilotApiService.js';
+import { ICopilotApiService } from '../../github/common/copilotApiService.js';
 import { AgentHostCopilotApiService } from './agentHostCopilotApiService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';

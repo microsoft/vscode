@@ -89,7 +89,7 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { PendingRequestRegistry } from '../../common/pendingRequestRegistry.js';
 import { ClaudeProxyService, IClaudeProxyCreditsReport, IClaudeProxyHandle, IClaudeProxyService } from '../../node/claude/claudeProxyService.js';
 import { resolvePromptToContentBlocks } from '../../node/claude/claudePromptResolver.js';
-import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../../copilot/common/copilotApiService.js';
+import { ICopilotApiService, type ICopilotApiServiceRequestOptions } from '../../../github/common/copilotApiService.js';
 import { createTestCopilotApiService } from './testCopilotApiService.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';

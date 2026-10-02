@@ -44,7 +44,7 @@ import {
 import { GitHubRequestTimeoutError, IGitHubEndpointProvider } from './githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from './githubCredentialService.js';
 import { arrayProperty, asArray, asObject, booleanProperty, idProperty, nextLink, normalizedEnumProperty, nullableStringProperty, numberProperty, objectAt, optionalObjectProperty, requiredId, requiredNumber, requiredString, stringProperty } from './githubResponse.js';
-import { IGitHubScheduler, systemGitHubScheduler } from './githubScheduler.js';
+import { IRequestScheduler, systemRequestScheduler } from './scheduler.js';
 import { GitHubGraphQLError, GitHubRequestError, IGitHubTransport } from './githubTransport.js';
 import { IPullRequestResources } from './pullRequestResourceService.js';
 import { PullRequestScheduler } from './pullRequestScheduler.js';
@@ -116,7 +116,7 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 	private readonly _preparationScheduler: PullRequestScheduler;
 
 	constructor(
-		scheduler: IGitHubScheduler | undefined,
+		scheduler: IRequestScheduler | undefined,
 		private readonly _credentials: IGitHubCredentials,
 		private readonly _transport: IGitHubTransport,
 		private readonly _resources: IPullRequestResources,
@@ -124,12 +124,12 @@ export class PullRequestMutationService extends Disposable implements IPullReque
 		private readonly _logService?: ILogService,
 	) {
 		super();
-		this._clock = scheduler ?? systemGitHubScheduler;
+		this._clock = scheduler ?? systemRequestScheduler;
 		this._preparationScheduler = this._register(new PullRequestScheduler(this._clock));
 		this._register(this._credentials.onDidInvalidate(event => this._handleCredentialInvalidation(event)));
 	}
 
-	private readonly _clock: IGitHubScheduler;
+	private readonly _clock: IRequestScheduler;
 
 	createPullRequest(
 		ref: GitHubRepositoryRef,
