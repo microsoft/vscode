@@ -298,7 +298,7 @@ export class SessionHeaderBar extends Disposable {
 		const activeChat = activeChatObservable.read(reader);
 		if (!activeChat) {
 			this._activeChat = undefined;
-			this._titleTextEl.textContent = getUntitledSessionTitle(true);
+			this._titleTextEl.textContent = this._getUntitledTitle(reader);
 			this._titleEl.classList.remove('editable');
 			return;
 		}
@@ -307,9 +307,15 @@ export class SessionHeaderBar extends Disposable {
 			this._cancelTitleEditing();
 			this._activeChat = activeChat;
 		}
-		this._titleTextEl.textContent = activeChat.title.read(reader) || getUntitledSessionTitle(true);
+		this._titleTextEl.textContent = activeChat.status.read(reader) === SessionStatus.Untitled
+			? this._getUntitledTitle(reader)
+			: activeChat.title.read(reader) || this._getUntitledTitle(reader);
 		this._titleEl.classList.toggle('editable', this._isTitleEditable(reader));
 		this._onDidChangeHeight.fire();
+	}
+
+	private _getUntitledTitle(reader?: IReader): string {
+		return getUntitledSessionTitle(this._session?.isQuickChat?.read(reader) ?? false);
 	}
 
 	private _applyVisibility(visible: boolean): void {
@@ -370,7 +376,7 @@ export class SessionHeaderBar extends Disposable {
 		// When the stored title is empty the header shows a localized fallback.
 		// Reflect that as a placeholder rather than seeding the input with it, so
 		// the user neither sees a blank field nor accidentally commits the fallback.
-		const fallbackTitle = getUntitledSessionTitle(true);
+		const fallbackTitle = this._getUntitledTitle();
 
 		const input = document.createElement('input');
 		input.type = 'text';

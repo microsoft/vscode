@@ -25,6 +25,7 @@ import { JsonRpcErrorCodes, ProtocolError } from '../../../../../../../platform/
 import { ResolveSessionConfigResult, SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Context } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService, type IPrompt, type IPromptResult } from '../../../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
@@ -35,11 +36,13 @@ import { IStorageService } from '../../../../../../../platform/storage/common/st
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IView } from '../../../../../../../workbench/common/views.js';
+import { ChatContextKeys } from '../../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IViewsService } from '../../../../../../../workbench/services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../../../../workbench/services/layout/browser/layoutService.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../../../browser/workbench.js';
 import { Menus } from '../../../../../../browser/menus.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../common/agentHostSessionsProvider.js';
+import { SessionUsesExperimentalComposerLayoutContext } from '../../../../../../common/contextkeys.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../../../common/devContainerAgentHostService.js';
 import { devContainerSamples, devContainerSampleUri } from '../../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { ISessionChangesService } from '../../../../../../contrib/changes/browser/sessionChangesService.js';
@@ -708,6 +711,42 @@ suite('Agent Host Session Config Picker', () => {
 				{ id: 'sessions.agentHost.runningSessionConfigPicker', order: 10 },
 				{ id: 'sessions.agentHost.runningSessionPermissionModePicker', order: 11 },
 			],
+		});
+	});
+
+	test('places running session controls from the scoped composer layout', () => {
+		const runningSessionIds = [
+			'sessions.agentHost.runningSessionModePicker',
+			'sessions.agentHost.runningSessionConfigPicker',
+			'sessions.agentHost.runningSessionPermissionModePicker',
+			'sessions.agentHost.runningSessionCodexApprovalsPicker',
+		];
+		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
+		const visible = (menu: MenuId) => MenuRegistry.getMenuItems(menu)
+			.filter(isIMenuItem)
+			.filter(item => runningSessionIds.includes(item.command.id))
+			.filter(item => item.when?.evaluate(context) ?? true)
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(item => item.command.id);
+
+		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true);
+		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true);
+		const legacy = {
+			primary: visible(MenuId.ChatInput),
+			secondary: visible(MenuId.ChatInputSecondary),
+		};
+		context.setValue(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, false);
+		context.setValue(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, false);
+		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, true);
+		const experimental = {
+			primary: visible(MenuId.ChatInput),
+			secondary: visible(MenuId.ChatInputSecondary),
+		};
+
+		assert.deepStrictEqual({ legacy, experimental }, {
+			legacy: { primary: [], secondary: runningSessionIds },
+			experimental: { primary: runningSessionIds, secondary: [] },
 		});
 	});
 

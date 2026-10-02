@@ -389,6 +389,7 @@ const chatValidator = plainObject(vObj({
 	archived: vOptionalProp(vBoolean()),
 	inheritedTurnId: vOptionalProp(boundedString(AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT)),
 	workingDirectories: vOptionalProp(workingDirectoriesValidator),
+	changes: vOptionalProp(agentHostCatalogChangesValidator),
 }));
 
 const chatsValidator = new RefinedValidator(
