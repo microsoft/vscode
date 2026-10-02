@@ -96,11 +96,13 @@ function toBridgeRole(role: string | undefined): 'system' | 'developer' | 'user'
  * Responses `input_file` parts. BYOK models are served through the LM API,
  * which has no capability declaring document input, so the file is replaced
  * with a note telling the model it was omitted rather than failing the turn.
+ * The note is wrapped in newlines because the renderer concatenates adjacent
+ * text parts verbatim.
  */
 function omittedFileText(part: IResponsesContentPart): string {
 	const mimeType = part.file_data ? /^data:(?<mimeType>[^;,]+)/.exec(part.file_data)?.groups?.mimeType : undefined;
 	const name = part.filename || part.file_id || 'file';
-	return `[${name}${mimeType ? ` (${mimeType})` : ''} omitted: this model does not accept file inputs]`;
+	return `\n[${name}${mimeType ? ` (${mimeType})` : ''} omitted: this model does not accept file inputs]\n`;
 }
 
 function toContentParts(content: string | IResponsesContentPart[] | undefined, itemIndex: number): IByokLmContentPart[] {

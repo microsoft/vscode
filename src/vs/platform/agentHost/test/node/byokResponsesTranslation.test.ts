@@ -73,7 +73,7 @@ suite('byokResponsesTranslation', () => {
 		]);
 	});
 
-	test('replaces input_file parts with an omission note', () => {
+	test('replaces input_file parts with a newline-delimited omission note', () => {
 		const body: IResponsesRequest = {
 			model: 'm',
 			input: [{
@@ -91,8 +91,8 @@ suite('byokResponsesTranslation', () => {
 				type: 'message', role: 'user', content: [
 					{ type: 'text', text: 'summarize this' },
 					{ type: 'text', text: 'Document file "spec.pdf" at path "/work/spec.pdf"' },
-					{ type: 'text', text: '[spec.pdf (application/pdf) omitted: this model does not accept file inputs]' },
-					{ type: 'text', text: '[file_123 omitted: this model does not accept file inputs]' },
+					{ type: 'text', text: '\n[spec.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: '\n[file_123 omitted: this model does not accept file inputs]\n' },
 				]
 			},
 		]);
