@@ -120,7 +120,7 @@ function getComparisonHasGitRemote(session: ISession | undefined, selectedWorksp
 	return getComparisonSessionFolder(session, selectedFolderUri)?.gitRepository?.hasGitRemote;
 }
 
-export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService, phoneLayout = false): boolean {
+export function isExperimentalSessionComposerLayoutEnabled(configurationService: IConfigurationService, phoneLayout: boolean): boolean {
 	return !phoneLayout
 		&& configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING)
 		&& configurationService.getValue<boolean>(EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING);

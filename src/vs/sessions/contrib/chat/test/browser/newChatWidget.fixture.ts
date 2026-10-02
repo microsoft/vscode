@@ -30,6 +30,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
@@ -129,6 +130,7 @@ interface INewChatWidgetFixtureOptions {
 	readonly experimentalComposerLayout?: boolean;
 	readonly unifiedWorkspacePicker?: boolean;
 	readonly collapsedSessionOptionsShowIcons?: boolean;
+	readonly testPhoneLayoutRotation?: boolean;
 }
 
 class FixturePickerActionViewItem extends BaseActionViewItem implements IChatInputPickerResponsiveState {
@@ -272,6 +274,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		experimentalComposerLayout = false,
 		unifiedWorkspacePicker = experimentalComposerLayout,
 		collapsedSessionOptionsShowIcons = false,
+		testPhoneLayoutRotation = false,
 	} = options;
 	const hasChatBackground = chatBackground !== undefined;
 	const feedbackItems: readonly IAgentFeedback[] = Array.from({ length: commentCount }, (_, index) => ({
@@ -314,6 +317,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		additionalServices: reg => {
 			registerChatFixtureServices(reg);
 			reg.defineInstance(IConfigurationService, configurationService);
+			if (testPhoneLayoutRotation) {
+				reg.defineInstance(IContextKeyService, disposableStore.add(new ContextKeyService(configurationService)));
+			}
 			reg.defineInstance(IAuthenticationService, new class extends mock<IAuthenticationService>() { }());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			if (migrationCount > 0) {
@@ -520,7 +526,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	}
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.classList.toggle('phone-layout', phoneLayout);
-	IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService)).set(phoneLayout);
+	const phoneLayoutContext = IsPhoneLayoutContext.bindTo(instantiationService.get(IContextKeyService));
+	phoneLayoutContext.set(phoneLayout);
 
 	const background = isHighContrast(context.theme.type)
 		? undefined
@@ -621,7 +628,30 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	await nextFrame();
 	const promptBox = view.element.querySelector<HTMLElement>('.new-chat-input-container');
 	assert(!!promptBox);
-	const experimentalComposerLayoutEnabled = view.element.querySelector('.new-chat-widget-content')?.classList.contains('experimental-new-session-composer') ?? false;
+	const widgetContent = view.element.querySelector<HTMLElement>('.new-chat-widget-content');
+	assert(!!widgetContent);
+	let experimentalComposerLayoutEnabled = widgetContent.classList.contains('experimental-new-session-composer');
+	if (testPhoneLayoutRotation) {
+		const sessionOptions = view.element.querySelector<HTMLElement>('.new-chat-session-options-details');
+		const repositoryControls = view.element.querySelector<HTMLElement>('.new-chat-repo-config-container');
+		assert(experimentalComposerLayoutEnabled && !!sessionOptions && !!repositoryControls && sessionOptions.contains(repositoryControls),
+			'The experimental desktop layout must initially place repository controls in the session options tray.');
+		container.classList.add('phone-layout');
+		phoneLayoutContext.set(true);
+		await nextFrame();
+		await nextFrame();
+		assert(!widgetContent.classList.contains('experimental-new-session-composer'),
+			'Switching to phone layout must remove the experimental composer class.');
+		assert(!sessionOptions.contains(repositoryControls),
+			'Switching to phone layout must restore repository controls to the mobile composer.');
+		container.classList.remove('phone-layout');
+		phoneLayoutContext.set(false);
+		await nextFrame();
+		await nextFrame();
+		experimentalComposerLayoutEnabled = widgetContent.classList.contains('experimental-new-session-composer');
+		assert(experimentalComposerLayoutEnabled && sessionOptions.contains(repositoryControls),
+			'Leaving phone layout must restore the experimental desktop composer.');
+	}
 	if (phoneLayout && experimentalComposerLayout) {
 		const workspacePicker = view.element.querySelector<HTMLElement>('.sessions-workspace-category-picker');
 		assert(!experimentalComposerLayoutEnabled && !!workspacePicker,
@@ -967,6 +997,10 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The experimental new-session composer places workspace, worktree, branch, and harness controls in one row above the chat input. Inside the input, the Agent picker appears before the model picker, and mode and permissions remain available.'],
 		render: context => renderNewChatWidget(context, { withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true }),
+	}),
+	NewSessionExperimentalComposerPhoneRotation: defineComponentFixture({
+		virtualTime: { enabled: false },
+		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, experimentalComposerLayout: true, testPhoneLayoutRotation: true }),
 	}),
 	NewSessionExperimentalComposerBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },

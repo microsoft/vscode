@@ -13,6 +13,7 @@ import { constObservable, IObservable, observableValue, transaction } from '../.
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -561,6 +562,7 @@ suite('Sessions - Chat View', () => {
 		disposables.add(new NewChatInSessionWidget(
 			{},
 			new TestConfigurationService(),
+			disposables.add(new MockContextKeyService()),
 			instantiationService,
 			new class extends mock<ILogService>() { }(),
 			new class extends mock<ISessionsManagementService>() { }(),

@@ -76,7 +76,7 @@ suite('New session composer layout', () => {
 		}
 
 		assert.deepStrictEqual(configurations.map(configurationService => ({
-			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService),
+			experimentalLayout: isExperimentalSessionComposerLayoutEnabled(configurationService, false),
 			welcomePhrases: areNewSessionWelcomePhrasesEnabled(configurationService),
 		})), [
 			{ experimentalLayout: true, welcomePhrases: false },
