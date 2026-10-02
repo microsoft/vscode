@@ -1398,7 +1398,7 @@ suite('CloudSandboxApiService task renaming', () => {
 			timeout: 10_000,
 			headers: {
 				Accept: 'application/json',
-				'Copilot-Integration-Id': 'code-oss',
+				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
 				'Content-Type': 'application/json',
 				Authorization: 'Bearer tok',
 			},
