@@ -78,6 +78,8 @@ suite('AgentHostCatalogListReader', () => {
 				branchName: 'feature',
 				baseBranchName: 'main',
 				upstreamBranchName: 'origin/feature',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 1,
 				outgoingChanges: 2,
 				uncommittedChanges: 3,
