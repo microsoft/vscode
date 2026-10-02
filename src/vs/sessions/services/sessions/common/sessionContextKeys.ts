@@ -243,7 +243,7 @@ export function setActiveSessionContextKeys(session: IActiveSession | undefined,
 		keys.activeChatResource.set(activeChat?.resource.toString() ?? '');
 		const isNonMainChat = !!activeChat && !!mainResource && !isEqual(mainResource, activeChat.resource);
 		keys.activeChatIsClosable.set(isNonMainChat);
-		keys.activeChatCanArchive.set(!!activeChat && getChatCapabilities(activeChat, session, reader).canArchive);
+		keys.activeChatCanArchive.set(!!activeChat && !(activeChat.isArchived?.read(reader) ?? false) && getChatCapabilities(activeChat, session, reader).canArchive);
 		// It can be permanently deleted only when its effective capabilities allow
 		// it: the main chat and worker (subagent) chats report `canDelete: false`,
 		// so they are closeable but not deletable.

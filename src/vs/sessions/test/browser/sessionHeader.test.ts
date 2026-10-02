@@ -14,9 +14,11 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
+import { SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
@@ -133,6 +135,7 @@ suite('Sessions - Headers', () => {
 
 	test('targets session actions at the session and chat actions at the represented chat', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const contextKeyService = instantiationService.get(IContextKeyService);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
 		chatHeader.setChat({
 			session,
@@ -149,16 +152,31 @@ suite('Sessions - Headers', () => {
 
 		const sessionArgs = describe(getMenuActionArgs(header));
 		const initialChatArgs = describe(getMenuActionArgs(chatHeader));
+		const mainChatContexts = {
+			headerShowsChat: SessionHeaderShowsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 		activeChat.set(secondChat, undefined);
+		const nestedSessionArgs = describe(getMenuActionArgs(header));
+		const nestedChatContexts = {
+			headerShowsChat: SessionHeaderShowsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 
 		assert.deepStrictEqual({
 			sessionArgs,
 			initialChatArgs,
+			nestedSessionArgs,
 			updatedChatArgs: describe(getMenuActionArgs(chatHeader)),
+			mainChatContexts,
+			nestedChatContexts,
 		}, {
 			sessionArgs: ['session'],
 			initialChatArgs: ['session', 'mainChat'],
+			nestedSessionArgs: ['session', 'secondChat'],
 			updatedChatArgs: ['session', 'secondChat'],
+			mainChatContexts: { headerShowsChat: false, toolbarShowsSession: true },
+			nestedChatContexts: { headerShowsChat: true, toolbarShowsSession: false },
 		});
 	});
 

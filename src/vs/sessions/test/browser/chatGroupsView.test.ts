@@ -102,8 +102,10 @@ class TestChat extends mock<IChat>() {
 	override readonly origin: IChat['origin'];
 	override readonly title: IObservable<string>;
 	override readonly status: ISettableObservable<SessionStatus>;
+	override readonly isArchived = observableValue(this, false);
 	override readonly isRead: IObservable<boolean> = constObservable(true);
 	override readonly interactivity: ISettableObservable<ChatInteractivity>;
+	override readonly capabilities = observableValue(this, { canRename: true, canArchive: false, canDelete: true });
 
 	constructor(id: string, status = SessionStatus.Completed, parentChat?: URI, originKind = ChatOriginKind.Tool) {
 		super();
@@ -451,6 +453,7 @@ suite('Sessions - ChatGroupsView', () => {
 		const { instantiationService, view, configurationService } = createHarness(disposables);
 		const main = createChat('main');
 		const secondary = createChat('secondary');
+		secondary.capabilities.set({ canRename: true, canArchive: true, canDelete: true }, undefined);
 		const sideChat = createChat('side', SessionStatus.Completed, main.resource, ChatOriginKind.SideChat);
 		const session = new TestActiveSession([main, secondary, sideChat], [main, secondary]);
 		view.setSession(session, options);
@@ -476,6 +479,9 @@ suite('Sessions - ChatGroupsView', () => {
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsDeletableContext.key));
 		const archiveActionContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		secondary.isArchived.set(true, undefined);
+		const archivedActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
 		const untitledChatContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsUntitledContext.key));
 		const headerShowsChatContexts = groups.map(group =>
@@ -490,6 +496,7 @@ suite('Sessions - ChatGroupsView', () => {
 			closeActionContexts,
 			deleteActionContexts,
 			archiveActionContexts,
+			archivedActionContexts,
 			untitledChatContexts,
 			headerShowsChatContexts,
 			activeChatResources,
@@ -509,9 +516,10 @@ suite('Sessions - ChatGroupsView', () => {
 			],
 			closeActionContexts: [true, true],
 			deleteActionContexts: [false, true],
-			archiveActionContexts: [false, false],
+			archiveActionContexts: [false, true],
+			archivedActionContexts: [false, false],
 			untitledChatContexts: [false, false],
-			headerShowsChatContexts: [true, true],
+			headerShowsChatContexts: [false, true],
 			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
 			activeChatHasSideChats: [true, false],
 		});

@@ -266,7 +266,6 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contextDisposables.add(autorun(reader => {
 			const visible = context.chatHeaderVisible.read(reader);
 			this._chatHeader.setVisible(visible);
-			this._headerShowsChatKey.set(visible);
 		}));
 		this._contextDisposables.add(autorun(reader => {
 			this._toolbarShowsSessionKey.set(context.showSessionActions.read(reader));
@@ -292,12 +291,13 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const isNonMainChat = activeResource !== mainResource;
 			this._activeChatIsClosableKey.set(isNonMainChat || context.chatHeaderVisible.read(reader));
 			const capabilities = chat && getChatCapabilities(chat, context.session, reader);
-			this._activeChatCanArchiveKey.set(capabilities?.canArchive ?? false);
+			this._activeChatCanArchiveKey.set(!!capabilities?.canArchive && !(chat?.isArchived?.read(reader) ?? false));
 			this._activeChatIsDeletableKey.set(capabilities?.canDelete ?? false);
 			this._activeChatIsUntitledKey.set(chat?.status.read(reader) === SessionStatus.Untitled);
 			this._activeChatIsPinnedKey.set(context.activeChatIsPinned.read(reader));
 			this._activeChatResourceKey.set(chat?.resource.toString() ?? '');
 			this._activeChatHasSideChatsKey.set(!!chat && context.session.chats.read(reader).some(candidate => isSideChatOf(candidate, chat.resource)));
+			this._headerShowsChatKey.set(context.chatHeaderVisible.read(reader) && isNonMainChat);
 			this._focusedChatIsRenameTargetKey.set(isNonMainChat);
 		}));
 		const currentView = observableValue<AbstractChatView | undefined>(this._contextDisposables, this._currentView.value);
