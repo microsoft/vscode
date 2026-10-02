@@ -8,6 +8,7 @@ import { mkdir, mkdtemp, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
+import { isWindows } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,6 +23,8 @@ import { fetchSessionWithChat, TestProtocolClient } from '../../serverIntegratio
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
+import { OtelConnectProxy } from '../harness/otelConnectProxy.js';
+import { startKerberosTestRealm } from '../harness/kerberosTestRealm.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
@@ -34,6 +37,119 @@ const clearedOtlpTlsEnv = {
 	OTEL_EXPORTER_OTLP_TRACES_CLIENT_CERTIFICATE: '',
 	OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY: '',
 };
+
+suite('Agent Host E2E — Copilot telemetry through a Negotiate proxy', function () {
+	const createdSessions: string[] = [];
+	const tempDirs: string[] = [];
+	let lease: AgentHostE2EServerLease | undefined;
+	let realm: Awaited<ReturnType<typeof startKerberosTestRealm>> | undefined;
+
+	teardown(async function () {
+		this.timeout(120_000);
+		try {
+			await lease?.release(createdSessions, this.currentTest?.state === 'failed');
+		} finally {
+			try {
+				await lease?.dispose();
+			} finally {
+				try {
+					await realm?.close();
+				} finally {
+					await removeTempDirs(tempDirs);
+				}
+			}
+		}
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	// Requires an isolated native KDC; see KNOWN_ISSUES.md for the expected exporter failure.
+	(!RECORD && !isWindows && process.env['AGENT_HOST_TEST_KERBEROS'] === '1' ? test : test.skip)('provider telemetry reconnects after a closing Negotiate challenge', async function () {
+		this.timeout(120_000);
+		const directory = await mkdtemp(join(tmpdir(), 'copilot-otel-proxy-'));
+		tempDirs.push(directory);
+		realm = await startKerberosTestRealm(join(directory, 'kerberos'));
+		const spans: ICompletedSpanData[] = [];
+		const decodeErrors: string[] = [];
+		const collector = store.add(await startLocalOtlpHttpReceiver({
+			onSpans: result => {
+				spans.push(...result.spans);
+				decodeErrors.push(...result.errors);
+			},
+		}, new NullLogService()));
+		const proxy = store.add(new OtelConnectProxy());
+		const { proxyUrl, endpoint, certificatePath } = await proxy.start(collector.port, directory);
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
+			env: {
+				...realm.env,
+				...clearedOtlpTlsEnv,
+				HTTPS_PROXY: proxyUrl,
+				https_proxy: proxyUrl,
+				HTTP_PROXY: '',
+				http_proxy: '',
+				ALL_PROXY: '',
+				all_proxy: '',
+				NO_PROXY: '127.0.0.1,localhost,::1',
+				no_proxy: '127.0.0.1,localhost,::1',
+				COPILOT_PROXY_KERBEROS_SPN: 'HTTP/proxy.vscode.test',
+				COPILOT_PROXY_KERBEROS: '1',
+				COPILOT_CACHE_HOME: join(directory, 'cache'),
+				COPILOT_MANAGED_SETTINGS_CACHE: 'true',
+				COPILOT_OTEL_ENABLED: 'false',
+				COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'false',
+				COPILOT_OTEL_EXPORTER_TYPE: 'otlp-http',
+				COPILOT_OTEL_FILE_EXPORTER_PATH: '',
+				OTEL_EXPORTER_OTLP_ENDPOINT: '',
+				OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: '',
+				OTEL_EXPORTER_OTLP_CERTIFICATE: certificatePath,
+				OTEL_EXPORTER_OTLP_TRACES_CERTIFICATE: certificatePath,
+				OTEL_EXPORTER_OTLP_HEADERS: '',
+				OTEL_EXPORTER_OTLP_TRACES_HEADERS: '',
+				OTEL_EXPORTER_OTLP_PROTOCOL: 'http/json',
+				OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/json',
+				OTEL_SERVICE_NAME: '',
+				OTEL_RESOURCE_ATTRIBUTES: '',
+				OTEL_BSP_SCHEDULE_DELAY: '100',
+				OTEL_METRICS_EXPORTER: 'none',
+			},
+		});
+		// Reuse the strict one-turn model capture; only the telemetry transport differs.
+		const { client, server } = await lease.acquire('provider turn exports SDK spans through the Agent Host file exporter');
+		assert.ok(server.capiReplay);
+		server.capiReplay.setManagedSettings({
+			forceRemoteSettingsRefresh: false,
+			telemetry: { enabled: true, endpoint, protocol: 'http/json', serviceName: 'otel-negotiate-proxy' },
+		});
+		const session = await createRealSession(client, COPILOT_CONFIG, 'otel-negotiate-proxy', createdSessions, URI.file(directory));
+		await driveTurnToCompletion(client, session, 'otel-proxy-turn', 'Reply exactly "traced".', 1);
+		const state = await fetchSessionWithChat(client, session);
+		const turn = state.turns.find(turn => turn.id === 'otel-proxy-turn');
+		assert.ok(turn?.usage, 'The completed turn must report model-call usage');
+		const diagnostics = readAgentModelCallDiagnostics(turn.usage);
+		assert.ok(diagnostics);
+		await assertExpectedFailure('github/copilot-agent-runtime#24730',
+			/^No inference span reached the collector \(challenges=[1-9]\d*, tunnels=0, errors=\)$/, async () => {
+				try {
+					await retry(async () => {
+						assert.ok(spans.some(span => span.attributes[GenAiAttr.OPERATION_NAME] === 'chat'
+							&& span.attributes[GenAiAttr.CONVERSATION_ID] === diagnostics.sdkSessionId),
+							`No inference span reached the collector (challenges=${proxy.challenges}, tunnels=${proxy.authenticatedTunnels}, errors=${proxy.transportErrors.join(', ')})`);
+					}, 100, 150);
+					assert.deepStrictEqual({
+						challenged: proxy.challenges > 0,
+						authenticated: proxy.authenticatedTunnels > 0,
+					}, { challenged: true, authenticated: true });
+				} finally {
+					assert.deepStrictEqual({
+						decodeErrors,
+						transportErrors: proxy.transportErrors,
+						// Optional GitHub probes are refused, never forwarded outside the fixture.
+						unexpectedTargets: proxy.deniedTargets.filter(target => target !== 'api.github.com:443'),
+					}, { decodeErrors: [], transportErrors: [], unexpectedTargets: [] });
+				}
+			});
+	});
+});
 
 suite('Agent Host E2E — Copilot managed telemetry', function () {
 	const createdSessions: string[] = [];

@@ -279,6 +279,44 @@ Copilot OTel leases clear inherited generic and trace-specific OTLP certificate/
 
 The file-export test also sets `OTEL_BSP_SCHEDULE_DELAY=100` in its child environment so native SDK batching does not race the ten-second span-polling budget. It still waits for the actual SDK and host spans in the exported file; neither the polling deadline nor the required spans are relaxed.
 
+### Authenticated telemetry proxy regression
+
+`AGENT_HOST_TEST_KERBEROS=1` enables the Copilot OTel closing-Negotiate-challenge
+regression on Linux and macOS. It uses Node TCP/TLS servers and a native temporary
+Kerberos KDC, not Docker. Linux requires `krb5-user`, `krb5-kdc`,
+`krb5-admin-server`, and `openssl`; the product pipeline installs them for
+Electron integration jobs when this variable is set. macOS uses the system
+Heimdal tools and OpenSSL. Windows SSPI cannot use this isolated file-cache
+realm, so this scenario is explicitly excluded there.
+Pipeline definition 111 defaults `VSCODE_RUN_AGENT_HOST_KERBEROS_TESTS` to true;
+it supplies the test environment variable and enables prerequisite installation,
+including in SDK adoption builds. Set it to false only for an explicit control run.
+
+```bash
+AGENT_HOST_TEST_KERBEROS=1 ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+  --grep "closing Negotiate"
+```
+
+The fixture puts its KDC database, keytab, configuration, credentials, and TLS
+certificate in a temporary directory. Only child processes receive its Kerberos
+and proxy environment; it never edits system configuration or the user's
+credential cache. The proxy closes each unauthenticated `407`, requires a
+Negotiate header on a fresh connection, and tunnels only the fixture's collector.
+It uses the real platform client to generate the token, but does not implement
+server-side SPNEGO token validation. It is a transport regression, not a complete
+Kerberos interoperability test. Optional GitHub probes are refused, not forwarded.
+
+Model traffic reuses the existing one-turn file-export capture in strict replay.
+The assertion requires a decoded inference span correlated with the completed
+turn's SDK session ID; a completed chat, proxy connection, or host-only span
+cannot satisfy it. Explicit OTLP trust keeps certificate inheritance separate
+from the proxy-authentication regression. See [KNOWN_ISSUES.md](./KNOWN_ISSUES.md)
+for the bundled failure and upstream candidate evidence. A run with this test
+pending is not proxy regression coverage.
+
+### Shared replay lifecycle
+
 The swap is what makes sharing cheap: the proxy is an `http.Server` running **inside the test process**, so `CapiReplayProxy.resetForReplay(fixturePath)` is a plain in-process method call — no IPC, no re-fork. It reloads the replay buckets and clears the cache-miss log while keeping the **same proxy URL**, so the long-lived agent host (forked against that URL) keeps talking to the same proxy and just receives the next fixture's recorded responses. Per-test state must be reset there rather than read from the proxy's constructor options, which belong to whichever test started the shared server. Teardown calls `assertNoReplayMismatches()` to verify a test's traffic *without* stopping the server (vs `stop()`, which verifies then closes); the suite's `suiteTeardown` closes it via `close()`.
 
 **The one invariant: a shared-server test must not leave a turn in flight.** Because one server serves multiple tests, each test's request/response traffic must land inside its own fixture window. If a test returns mid-turn, the SDK's continuation HTTP call fires *after* the fixture is swapped for the next test, landing in that test's window as an unrecorded call. In replay, failure to drain to `turnComplete` is fatal. Direct live recording may use an explicitly bounded best-effort drain because provider latency is not deterministic.

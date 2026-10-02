@@ -126,6 +126,10 @@ parameters:
     displayName: "Run sanity tests against this build's artifacts (for unpublished builds)"
     type: boolean
     default: false
+  - name: VSCODE_RUN_AGENT_HOST_KERBEROS_TESTS
+    displayName: "Run native Agent Host Kerberos proxy regression tests"
+    type: boolean
+    default: true
   # SDK -> VS Code integration: override Copilot dependencies with versions
   # already published to the private feed. 'none' = use the OSS SDK version.
   # See microsoft/vscode-engineering specs/sdk-vscode-integration.spec.md.
@@ -139,6 +143,11 @@ parameters:
     default: auto
 
 variables:
+  - name: AGENT_HOST_TEST_KERBEROS
+    ${{ if eq(parameters.VSCODE_RUN_AGENT_HOST_KERBEROS_TESTS, true) }}:
+      value: "1"
+    ${{ else }}:
+      value: "0"
   - name: VSCODE_BUILD_TITLE_PREFIX
     ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
       value: ""
