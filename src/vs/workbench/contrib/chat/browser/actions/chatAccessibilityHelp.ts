@@ -13,6 +13,7 @@ import { ChatSessionArchiveActionWording, getChatSessionArchiveActionWording } f
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICodexContinuationService } from '../../../../services/agentHost/browser/codexContinuationService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
@@ -67,8 +68,11 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false): string {
 	const content = [];
+	if (codexContinuationShown && type !== 'inlineChat' && type !== 'quickChat') {
+		content.push(localize('chat.codexContinuation', "A ChatGPT limit suggestion may offer Continue with Copilot. If the eligible Codex session is not active, the guide highlights its row in the Sessions list. Activate Open Session in the guide or open the row using the list's usual keyboard shortcut: by default, Command+Down Arrow on macOS or Enter on Windows and Linux. The next step opens its model picker with a matching Copilot model in the search. Activate Use Copilot in the guide or use Up and Down Arrow and Enter in the picker to select the Copilot model. Use Tab or Shift+Tab to reach the guide's buttons and Enter or Space to activate them. An already-active eligible session goes directly to the picker. End Tour or Escape cancels the remaining guidance; it does not undo a model selection."));
+	}
 	if (isSessionsWindow) {
 		content.push(localize('chat.sessionPreparation', "While a session is being prepared, a progress message appears in the transcript. Use Tab or Shift+Tab to reach Show Log, when available, and press Enter or Space to open the output log. Use Stop to cancel preparation. The chat input and attachment controls are disabled until preparation finishes."));
 	}
@@ -260,7 +264,7 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService));
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get());
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },

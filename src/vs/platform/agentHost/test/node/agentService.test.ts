@@ -57,6 +57,7 @@ import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../co
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { readRemoteSessionDepth, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY, withRemoteSessionOrigin } from '../../common/meta/agentRemoteSessionMeta.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY } from '../../common/meta/agentDevContainerWorktreeMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition } from '../../common/meta/agentSystemNotificationMeta.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -1488,6 +1489,83 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('catalog summary synchronization', () => {
+		test('a provisional Codex session seeds its provider-qualified model into live metadata', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('codex'));
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			agent.chatModel = model;
+			const createChat = agent.chats.createChat;
+			agent.chats.createChat = async (chat, context, options) => ({
+				...(await createChat(chat, context, options) ?? {}),
+				provisional: true,
+			});
+			registerTestAgentProvider(svc, agent);
+
+			const session = await svc.createSession({ provider: 'codex', model });
+
+			assert.deepStrictEqual(readCodexSessionModel(getStateManager(svc).getSessionSummary(session.toString())), model);
+		});
+
+		test('live Codex catalog writes retain the current model through turn and read-state transitions', async () => {
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			getConfigurationService(svc).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+			const agent = disposables.add(new MockAgent('codex'));
+			const initialModel = { id: '@provider=openai:gpt-5.6-sol' };
+			const nextModel = { id: '@provider=openai:gpt-6-astra' };
+			agent.chatModel = initialModel;
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'codex', model: initialModel });
+			const chat = buildDefaultChatUri(session);
+			const stateManager = getStateManager(svc);
+			const nextSummaryChange = () => Event.toPromise(Event.filter(stateManager.onDidChangeSessionSummary, event => event.session === session.toString()));
+			const snapshots: Array<{ stage: string; state: string | undefined; catalog: string | undefined; listing: string | undefined }> = [];
+			const capture = async (stage: string) => {
+				await svc.whenCatalogReconciliationIdle();
+				const [listed] = await svc.listSessions();
+				snapshots.push({
+					stage,
+					state: readCodexSessionModel(stateManager.getSessionSummary(session.toString()))?.id,
+					catalog: readCodexSessionModel(catalogDataOf(await catalogDatabase.getSessionV2(session.toString())))?.id,
+					listing: listed.model?.id,
+				});
+			};
+
+			await capture('created');
+			agent.chatModel = nextModel;
+			const sent = Event.toPromise(agent.onDidSendMessage);
+			const turnStarted = nextSummaryChange();
+			svc.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: nextModel },
+			}, 'client-1', 1);
+			await Promise.all([sent, turnStarted]);
+			await capture('turnStarted');
+			const readChanged = nextSummaryChange();
+			svc.dispatchAction(session.toString(), { type: ActionType.SessionIsReadChanged, isRead: true }, 'client-1', 2);
+			await readChanged;
+			await capture('read');
+			const turnCompleted = nextSummaryChange();
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1 });
+			await turnCompleted;
+			await capture('turnCompleted');
+
+			assert.deepStrictEqual(snapshots, [
+				{ stage: 'created', state: initialModel.id, catalog: initialModel.id, listing: initialModel.id },
+				...['turnStarted', 'read', 'turnCompleted'].map(stage => ({
+					stage,
+					state: nextModel.id,
+					catalog: nextModel.id,
+					listing: nextModel.id,
+				})),
+			]);
+		});
+
 		test('restricted pull-request associations replace the central payload without restoring removed links', async () => {
 			const database = new TestSessionDatabase();
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
@@ -10560,6 +10638,49 @@ suite('AgentService (node dispatcher)', () => {
 					currentMarker: true,
 					oldGlobalMarker: false,
 					oldProviderMarker: false,
+				});
+			});
+
+			test('ordinary Codex discovery backfills a missing catalog model without a recency change', async () => {
+				class CodexDiscoveryAgent extends DirectImportAgent {
+					latest: IAgentChatMetadata | undefined;
+
+					override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
+						return this.latest ?? super.getChatMetadata(chat, context);
+					}
+				}
+				const database = new TransientRegistryWriteDatabase();
+				const perSession = createPerSessionDataService();
+				const svc = createService(database, perSession.service);
+				const agent = disposables.add(new CodexDiscoveryAgent('codex'));
+				const session = AgentSession.uri('codex', 'model-metadata-backfill');
+				const modifiedTime = Date.now();
+				agent.catalog = [{ ...metadata(session), modifiedTime }];
+				registerTestAgentProvider(svc, agent);
+				await waitForInitialProviderMigration(svc, agent);
+				const before = readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString())));
+
+				const latest = {
+					...metadata(session, withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' })),
+					modifiedTime,
+				};
+				agent.latest = latest;
+				await (svc as unknown as {
+					_registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean>;
+				})._registerDiscoveredChats(agent, [{
+					...latest,
+					external: true,
+				}]);
+				await (svc as unknown as {
+					_catalogReconciliationService: { runPass(): Promise<unknown> };
+				})._catalogReconciliationService.runPass();
+
+				assert.deepStrictEqual({
+					before,
+					after: readCodexSessionModel(catalogDataOf(await database.getSessionV2(session.toString()))),
+				}, {
+					before: undefined,
+					after: { id: '@provider=openai:gpt-5.6-sol' },
 				});
 			});
 
@@ -24710,7 +24831,7 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent('codex');
-			const model = { id: 'codex-model:openai:gpt-5.6-sol' };
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -24728,10 +24849,16 @@ suite('AgentService (node dispatcher)', () => {
 
 			await localService.restoreSession(session);
 
-			assert.deepStrictEqual(getStateManager(localService).getDefaultChatState(session.toString())?.draft, {
-				text: 'unsent text',
-				origin: { kind: MessageKind.User },
-				model,
+			assert.deepStrictEqual({
+				draft: getStateManager(localService).getDefaultChatState(session.toString())?.draft,
+				sessionModel: readCodexSessionModel(getStateManager(localService).getSessionSummary(session.toString())),
+			}, {
+				draft: {
+					text: 'unsent text',
+					origin: { kind: MessageKind.User },
+					model,
+				},
+				sessionModel: model,
 			});
 		});
 
