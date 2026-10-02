@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/chatPullRequest.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
 
 export { getHighestPriorityPullRequestIcon };
 export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
@@ -181,6 +182,10 @@ export interface ISessionGitRepository {
 	readonly hasGitHubRemote?: boolean;
 	/** Upstream tracking branch name (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/** Default branch of the repository's `origin` remote (e.g. `main`). */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`). */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch is ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch is ahead of the upstream branch. */
@@ -706,6 +711,8 @@ export interface IChat {
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
 	/** Live model-opened canvases owned by this chat. */
 	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Active background shells, including commands started in earlier turns. */
+	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
 	readonly checkpoints: IObservable<IChatCheckpoints | undefined>;
 	/** Currently selected model identifier. */
@@ -1180,6 +1187,8 @@ export function sessionGitRepositoryEqual(a: ISessionGitRepository | undefined, 
 		&& a.hasGitRemote === b.hasGitRemote
 		&& a.hasGitHubRemote === b.hasGitHubRemote
 		&& a.upstreamBranchName === b.upstreamBranchName
+		&& a.defaultBranchName === b.defaultBranchName
+		&& a.defaultRemoteBranchName === b.defaultRemoteBranchName
 		&& a.incomingChanges === b.incomingChanges
 		&& a.outgoingChanges === b.outgoingChanges
 		&& a.uncommittedChanges === b.uncommittedChanges

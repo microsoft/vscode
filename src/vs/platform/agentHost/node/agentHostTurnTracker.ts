@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -85,6 +85,7 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	telemetryContext: IAgentTelemetryContext | undefined;
 	readonly providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
+	codexModelProvider?: CodexModelProvider;
 	readonly initiatorClientId: string | undefined;
 	readonly completedModelCallIds: Set<string>;
 	readonly finishedModelCallIds: Set<string>;
@@ -186,6 +187,14 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	private readonly _onDidStartTurn = this._register(new Emitter<string>());
 	readonly onDidStartTurn: Event<string> = this._onDidStartTurn.event;
+
+	private readonly _onDidDispatchTurn = this._register(new Emitter<{ readonly chat: string; readonly turnId: string }>());
+	/**
+	 * Fires once per turn when the send path hands it to the provider, after
+	 * the final pre-dispatch cancellation checks. A turn cancelled or failed
+	 * before this point never reached the provider.
+	 */
+	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }> = this._onDidDispatchTurn.event;
 
 	constructor(
 		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
@@ -367,12 +376,15 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	markSendDispatched(session: string, turnId: string): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (!timing || timing.sendDispatchedMs !== undefined) {
+		if (timing?.sendDispatchedMs !== undefined) {
 			return;
 		}
-		this._closeSendStage(timing);
-		timing.sendDispatchedMs = timing.stopWatch.elapsed();
-		timing.telemetryContext = timing.agent.getTelemetryContext?.();
+		if (timing) {
+			this._closeSendStage(timing);
+			timing.sendDispatchedMs = timing.stopWatch.elapsed();
+			timing.telemetryContext = timing.agent.getTelemetryContext?.();
+		}
+		this._onDidDispatchTurn.fire({ chat: session, turnId });
 	}
 
 	private _closeSendStage(timing: ITurnTiming): void {
@@ -628,6 +640,13 @@ export class AgentHostTurnTracker extends Disposable {
 		return this._turnTimings.get(this._key(session, turnId))?.telemetryContext;
 	}
 
+	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.agent.id === 'codex') {
+			timing.codexModelProvider = provider;
+		}
+	}
+
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.providerTelemetryContext;
 	}
@@ -682,6 +701,7 @@ export class AgentHostTurnTracker extends Disposable {
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,
+			codexModelProvider: timing.codexModelProvider,
 			provider: timing.agent.id,
 			session: timing.session,
 			turnId,

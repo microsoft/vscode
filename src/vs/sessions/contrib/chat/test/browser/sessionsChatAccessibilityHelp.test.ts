@@ -33,6 +33,7 @@ import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '
 import { SessionsListPromoteNewChatActionContext } from '../../../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../../remoteSessions/common/remoteSessions.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -73,6 +74,35 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(IContextKeyService, contextKeyService);
 	}
 
+	test('describes Dev Container samples only when all picker prerequisites are enabled', () => {
+		const variants = [
+			{},
+			{ [DevContainerSamplesEnabledSettingId]: false },
+			{ [DevContainerAgentHostEnabledSettingId]: false },
+			{ [RemoteAgentHostsEnabledSettingId]: false },
+			{ 'chat.disableAIFeatures': true },
+		];
+		const visible = variants.map(overrides => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+				...overrides,
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return content.includes('The workspace picker includes Dev Container Sample.');
+		});
+		assert.deepStrictEqual(visible, [true, false, false, false, false]);
+	});
+
 	test('describes welcome name editing only when welcome phrases are enabled', () => {
 		const snapshots = [false, true].map(enabled => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -86,7 +116,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 			return {
-				nameEditing: content.includes('Press Tab to reach Set Welcome Name'),
+				nameEditing: content.includes('Press Tab to reach Customize Welcome Message'),
 				announcementSetting: content.includes('set accessibility.verbosity.newSessionWelcome to false'),
 			};
 		});

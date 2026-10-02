@@ -29,7 +29,7 @@ The Agents window keeps a single active session but lets the user move between m
 | Existing Session Editor/Details profile | `sessions.singlePane.sidePaneVisibility` | Shared across Existing Sessions |
 | Side-pane and panel visibility | Workbench part visibility | Window |
 
-Draft Sessions do not persist a separate visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and otherwise preserve the workbench-restored composition.
+Draft Sessions do not persist a separate visibility profile. Quick Chats reuse the Existing Session profile when they have editor content and hide the side pane when their editor working set is empty.
 
 All state flows from the `activeSession` observable. The controller derives session and visibility state and reacts with observables; events remain notifications for part and editor changes rather than a second state model.
 

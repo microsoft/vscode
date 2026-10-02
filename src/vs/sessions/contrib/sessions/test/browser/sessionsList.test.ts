@@ -5,19 +5,17 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ExtUri } from '../../../../../base/common/resources.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { OS } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -37,9 +35,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
-import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IOpenerService, OpenExternalOptions, OpenInternalOptions } from '../../../../../platform/opener/common/opener.js';
@@ -88,7 +83,6 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../browser/automationsConstants.j
 import { AUTOMATIONS_NEW_BADGE_STYLE_SETTING, type AutomationsNewBadgeStyle } from '../../browser/automationsNewBadge.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../sessionComparison/common/sessionComparison.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { Menus } from '../../../../browser/menus.js';
 import { buildTestSession } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from './testSessionsList.js';
@@ -146,7 +140,6 @@ suite('Sessions - SessionsList', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const noHeaderStatusTrigger = { pending: constObservable(false), includeExpanded: constObservable(false), report: () => { } };
-	const noKeybindingService = new class extends mock<IKeybindingService>() { };
 
 	suite('SessionSectionRenderer', () => {
 
@@ -177,8 +170,6 @@ suite('Sessions - SessionsList', () => {
 				},
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -236,8 +227,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -299,8 +288,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly activeCustomView = constObservable(undefined);
 				},
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const container = document.createElement('div');
 			const template = renderer.renderTemplate(container);
@@ -437,16 +424,9 @@ suite('Sessions - SessionsList', () => {
 
 		test('switches the navigation treatment without disturbing Find focus', async () => {
 			const activeEditorChanged = disposables.add(new Emitter<void>());
-			const keybindingsChanged = disposables.add(new Emitter<void>());
 			const editorState: { activeEditor?: AICustomizationManagementEditorInput } = {};
 			const customizationsCount = observableValue(disposables, 7);
 			const customizationMigrationsAvailable = observableValue(disposables, true);
-			const createNewSessionKeybinding = (keybinding: number) => {
-				const resolved = createUSLayoutResolvedKeybinding(keybinding, OS);
-				assert.ok(resolved);
-				return resolved;
-			};
-			let newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN);
 			const harness = createListHarness(disposables, [], instantiationService => {
 				ChatAutomationsEnabledContext.bindTo(instantiationService.get(IContextKeyService)).set(true);
 				instantiationService.stub(IAutomationService, new class extends mock<IAutomationService>() {
@@ -461,12 +441,6 @@ suite('Sessions - SessionsList', () => {
 					override readonly onDidActiveEditorChange = activeEditorChanged.event;
 					override get activeEditor(): AICustomizationManagementEditorInput | undefined {
 						return editorState.activeEditor;
-					}
-				});
-				instantiationService.stub(IKeybindingService, new class extends MockKeybindingService {
-					override get onDidUpdateKeybindings() { return keybindingsChanged.event; }
-					override lookupKeybinding(commandId: string) {
-						return commandId === NEW_SESSION_ACTION_ID ? newSessionKeybinding : undefined;
 					}
 				});
 			});
@@ -507,7 +481,6 @@ suite('Sessions - SessionsList', () => {
 			const treatmentAriaLabels = Array.from(container.querySelectorAll('.monaco-list-rows > .monaco-list-row'), element => element.getAttribute('aria-label'));
 			const treatmentAriaLevels = Array.from(container.querySelectorAll('.monaco-list-rows > .monaco-list-row'), element => element.getAttribute('aria-level'));
 			const shortcutActionTargets = Array.from(container.querySelectorAll('.session-section-shortcut'), element => element.querySelectorAll('a, button').length);
-			const newSessionKeybindingVisible = container.querySelector('.session-section-new-session .session-section-keybinding')?.classList.contains('visible');
 			const shortcutCollapseStates = Array.from(container.querySelectorAll('.session-section-shortcut'), element => ({
 				ariaExpanded: element.closest('.monaco-list-row')?.getAttribute('aria-expanded'),
 				hasChevron: element.querySelector('.session-section-chevron.collapsible') !== null,
@@ -515,22 +488,21 @@ suite('Sessions - SessionsList', () => {
 			const headerInTreatment = container.querySelector('.sessions-list-header .test-sessions-header') !== null;
 			const customizationsSection = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'))
 				.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
-			const customizationsLabel = customizationsSection?.querySelector('.session-section-label');
-			const migrationIndicator = customizationsSection?.querySelector('.session-section-migration-indicator');
-			const countBadge = customizationsSection?.querySelector('.session-section-count-badge .monaco-count-badge');
+			const customizationsIcon = customizationsSection?.querySelector<HTMLElement>('.session-section-icon');
 			const customizationsPresentation = {
-				countBadge: countBadge?.textContent,
-				countBadgeNextToLabel: countBadge?.parentElement?.previousElementSibling === customizationsLabel,
-				migrationIndicatorVisible: migrationIndicator?.classList.contains('visible'),
-				migrationIndicatorOutsideLabel: !!migrationIndicator && !customizationsLabel?.contains(migrationIndicator),
-				hasExtensionsIcon: customizationsSection?.querySelector('.session-section-icon')?.classList.contains('codicon-extensions'),
+				hasTotalCountBadge: customizationsSection?.querySelector('.monaco-count-badge') !== null,
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
+			};
+			customizationMigrationsAvailable.set(false, undefined);
+			const customizationsPresentationWithoutMigration = {
+				hasMigrationIcon: customizationsIcon?.classList.contains('codicon-circle-filled'),
+				hasExtensionsIcon: customizationsIcon?.classList.contains('codicon-extensions'),
+				iconColor: customizationsIcon?.style.color,
 			};
 			const customizationsActiveBeforeOpen = customizationsSection?.classList.contains('active');
 			const customizationsAriaCurrentBeforeOpen = customizationsSection?.closest('.monaco-list-row')?.getAttribute('aria-current');
-			const initialNewSessionKeybindingAriaLabel = newSessionKeybinding.getAriaLabel();
-			newSessionKeybinding = createNewSessionKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN);
-			keybindingsChanged.fire();
-			const updatedNewSessionAriaLabel = container.querySelector('.session-section-new-session')?.closest('.monaco-list-row')?.getAttribute('aria-label');
 			editorState.activeEditor = disposables.add(AICustomizationManagementEditorInput.getOrCreate());
 			activeEditorChanged.fire();
 			const customizationsActiveWhileOpen = customizationsSection?.classList.contains('active');
@@ -553,11 +525,10 @@ suite('Sessions - SessionsList', () => {
 				treatmentAriaLabels,
 				treatmentAriaLevels,
 				shortcutActionTargets,
-				newSessionKeybindingVisible,
-				updatedNewSessionAriaLabel,
 				shortcutCollapseStates,
 				headerInTreatment,
 				customizationsPresentation,
+				customizationsPresentationWithoutMigration,
 				customizationsActive: [customizationsActiveBeforeOpen, customizationsActiveWhileOpen],
 				customizationsAriaCurrent: [customizationsAriaCurrentBeforeOpen, customizationsAriaCurrentWhileOpen],
 				stableFindHeaderUnmoved: findWidgetContainer.parentElement === sessionsHeader,
@@ -568,24 +539,25 @@ suite('Sessions - SessionsList', () => {
 				findInput,
 				focusBeforeSwitch: findInput,
 				focusInTreatment: findInput,
-				treatmentNavigationLabels: ['New', 'Automations', 'Customizations'],
-				treatmentAriaLabels: [`New Session (${initialNewSessionKeybindingAriaLabel})`, 'Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
-				treatmentAriaLevels: ['1', '1', '1', '1'],
-				shortcutActionTargets: [0, 0, 0],
-				newSessionKeybindingVisible: true,
-				updatedNewSessionAriaLabel: `New Session (${newSessionKeybinding.getAriaLabel()})`,
+				treatmentNavigationLabels: ['Automations', 'Customizations'],
+				treatmentAriaLabels: ['Automations', 'Customizations, 7 customizations, customization migrations available', 'Sessions'],
+				treatmentAriaLevels: ['1', '1', '1'],
+				shortcutActionTargets: [0, 0],
 				shortcutCollapseStates: [
-					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 					{ ariaExpanded: null, hasChevron: false },
 				],
 				headerInTreatment: true,
 				customizationsPresentation: {
-					countBadge: '7',
-					countBadgeNextToLabel: true,
-					migrationIndicatorVisible: true,
-					migrationIndicatorOutsideLabel: true,
+					hasTotalCountBadge: false,
+					hasMigrationIcon: true,
+					hasExtensionsIcon: false,
+					iconColor: 'var(--vscode-activityWarningBadge-background)',
+				},
+				customizationsPresentationWithoutMigration: {
+					hasMigrationIcon: false,
 					hasExtensionsIcon: true,
+					iconColor: '',
 				},
 				customizationsActive: [false, true],
 				customizationsAriaCurrent: [null, 'page'],
@@ -653,7 +625,7 @@ suite('Sessions - SessionsList', () => {
 					findInput,
 					headerInTree: true,
 					treeHeaderAriaHidden: 'true',
-					shortcutLabels: ['New', 'Automations', 'Customizations'],
+					shortcutLabels: ['Automations', 'Customizations'],
 					sessionRows: 0,
 				});
 			} finally {
@@ -711,7 +683,6 @@ suite('Sessions - SessionsList', () => {
 			const findSectionRow = (label: string) => Array.from(container.querySelectorAll<HTMLElement>('.session-section-label'))
 				.find(element => element.textContent === label)?.closest('.monaco-list-row');
 			const sourceAriaLevels = {
-				newSession: findSectionRow('New')?.getAttribute('aria-level'),
 				automations: findSectionRow('Automations')?.getAttribute('aria-level'),
 				customizations: findSectionRow('Customizations')?.getAttribute('aria-level'),
 				sessions: sourceHeader?.closest('.monaco-list-row')?.getAttribute('aria-level'),
@@ -777,7 +748,6 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				sourceHeaderRowHeight: '38px',
 				sourceAriaLevels: {
-					newSession: '1',
 					automations: '1',
 					customizations: '1',
 					sessions: '1',
@@ -787,7 +757,7 @@ suite('Sessions - SessionsList', () => {
 				stickyHeaderText: 'Sessions',
 				stickyHeaderOwnsDistinctDom: true,
 				stickyHeaderAriaLabel: 'Sessions',
-				stickySectionLabels: ['New', 'Recent'],
+				stickySectionLabels: ['Recent'],
 				navigationVisibleAfterScroll: false,
 				stickyHeaderRestoredAfterZeroHeight: 'Sessions',
 				stableFindHeaderUnmoved: true,
@@ -843,8 +813,6 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			const runResource = URI.parse('test-session:/workspace/automation');
 			const statuses: (SessionStatus | undefined)[] = [];
@@ -915,8 +883,6 @@ suite('Sessions - SessionsList', () => {
 				uriIdentityService,
 				new class extends mock<ICustomViewService>() { },
 				new class extends mock<IMenuService>() { },
-				noKeybindingService,
-				constObservable(false),
 			);
 			runs.set([
 				{
@@ -4085,6 +4051,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable(title),
 				updatedAt,
 				status: constObservable(status),
+				description: constObservable(undefined),
 				isArchived: constObservable(false),
 				changes: constObservable([]),
 				changesets: constObservable([]),
@@ -4147,6 +4114,69 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('matches the main chat row vertical layout in compact and regular views', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const base = createTestSession('Main chat').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const snapshot = (compact: boolean) => {
+				const { container } = renderSessionChatsList(session, undefined, false, true, compact);
+				const mainItem = container.querySelector<HTMLElement>('.session-item');
+				const peerItem = container.querySelector<HTMLElement>('.session-chat-item');
+				const mainRow = mainItem?.closest<HTMLElement>('.monaco-list-row');
+				const peerRow = peerItem?.closest<HTMLElement>('.monaco-list-row');
+				assert.ok(mainItem);
+				assert.ok(peerItem);
+				assert.ok(mainRow);
+				assert.ok(peerRow);
+
+				const mainTitleStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-title-row')!);
+				const peerTitleStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-title-row')!);
+				const mainDetailsStyle = mainWindow.getComputedStyle(mainItem.querySelector<HTMLElement>('.session-details-row')!);
+				const peerDetailsStyle = mainWindow.getComputedStyle(peerItem.querySelector<HTMLElement>('.session-chat-folder-row')!);
+
+				return {
+					mainHeight: mainRow.style.height,
+					peerHeight: peerRow.style.height,
+					mainTitleLineHeight: mainTitleStyle.lineHeight,
+					peerTitleLineHeight: peerTitleStyle.lineHeight,
+					mainDetailsLineHeight: mainDetailsStyle.lineHeight,
+					peerDetailsLineHeight: peerDetailsStyle.lineHeight,
+					peerDetailsDisplay: peerDetailsStyle.display,
+				};
+			};
+
+			assert.deepStrictEqual({
+				regular: snapshot(false),
+				compact: snapshot(true),
+			}, {
+				regular: {
+					mainHeight: '56px',
+					peerHeight: '56px',
+					mainTitleLineHeight: '17px',
+					peerTitleLineHeight: '17px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'flex',
+				},
+				compact: {
+					mainHeight: '30px',
+					peerHeight: '30px',
+					mainTitleLineHeight: '16px',
+					peerTitleLineHeight: '16px',
+					mainDetailsLineHeight: '15px',
+					peerDetailsLineHeight: '15px',
+					peerDetailsDisplay: 'none',
+				},
+			});
+		});
+
 		test('shows each resolved chat modified time independently and omits unresolved times', () => {
 			const built = buildTestSession({
 				id: 'chat-times',
@@ -4188,12 +4218,12 @@ suite('Sessions - SessionsList', () => {
 					mainAriaLabel: 'Main chat, updated now, State: Completed',
 					peerTime: undefined,
 					peerAriaLabel: 'Peer chat, chat, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 				after: {
 					peerTime: 'now',
 					peerAriaLabel: 'Peer chat, chat, updated now, State: Completed',
-					peerHeight: '46px',
+					peerHeight: '56px',
 				},
 			});
 		});
@@ -4453,7 +4483,7 @@ suite('Sessions - SessionsList', () => {
 					folderRow: 'second·now',
 					folderIcon: 'folder',
 					ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed',
-					height: '46px',
+					height: '56px',
 				},
 				worktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'worktree', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
 				pendingMainWorktree: { hasFolderLabel: true, folder: 'second', folderRow: 'second·now', folderIcon: 'folder', ariaLabel: 'Peer chat, chat in folder second, updated now, State: Completed' },
@@ -4990,7 +5020,7 @@ suite('Sessions - SessionsList', () => {
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
-			list.layout(300, 400);
+			list.layout(500, 400);
 
 			const initial = chatRowTitles(container).sort();
 			list.setExcludeArchived(false);
@@ -5147,7 +5177,73 @@ suite('Sessions - SessionsList', () => {
 					},
 				])
 			), {
-				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, updated now, State: In Progress' },
+				'Active chat': { hasProgress: true, hasDot: false, hasDiscussion: false, ariaLabel: 'Active chat, chat, State: In Progress, Working...' },
+			});
+		});
+
+		test('shows each chat activity instead of modified time while in progress', () => {
+			const firstStatus = observableValue('first-chat-status', SessionStatus.InProgress);
+			const firstDescription = observableValue<IMarkdownString | undefined>('first-chat-description', new MarkdownString('Reading files'));
+			const firstUpdatedAt = observableValue<Date | undefined>('first-chat-updatedAt', new Date());
+			const first = {
+				...createChat('First task', ChatOriginKind.User),
+				status: firstStatus,
+				description: firstDescription,
+				updatedAt: firstUpdatedAt,
+			};
+			const secondStatus = observableValue('second-chat-status', SessionStatus.InProgress);
+			const secondDescription = observableValue<IMarkdownString | undefined>('second-chat-description', new MarkdownString('Running tests'));
+			const second = {
+				...createChat('Second task', ChatOriginKind.User),
+				status: secondStatus,
+				description: secondDescription,
+			};
+			const main = createChat('Main chat');
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, first, second]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
+			const { container } = renderSessionChatsList(session, undefined, false, true, false, instantiationService => {
+				instantiationService.stub(IHoverService, {
+					...NullHoverService,
+					setupDelayedHover: (target, options) => {
+						hovers.set(target, typeof options === 'function' ? options : () => options);
+						return toDisposable(() => hovers.delete(target));
+					},
+				});
+			});
+			const snapshot = () => Object.fromEntries(
+				[...container.querySelectorAll<HTMLElement>('.session-chat-item')].map(item => {
+					const statusElement = item.querySelector<HTMLElement>('.session-chat-folder-row .session-description');
+					return [
+						item.querySelector('.session-chat-title')?.textContent,
+						{
+							message: statusElement?.textContent,
+							hover: statusElement ? hovers.get(statusElement)?.().content : undefined,
+							time: item.querySelector('.session-chat-time')?.textContent,
+							ariaLabel: item.closest('.monaco-list-row')?.getAttribute('aria-label'),
+						},
+					];
+				})
+			);
+
+			const whileActive = snapshot();
+			firstStatus.set(SessionStatus.Completed, undefined);
+			const afterFirstCompletes = snapshot();
+
+			assert.deepStrictEqual({ whileActive, afterFirstCompletes }, {
+				whileActive: {
+					'First task': { message: 'Reading files', hover: 'Reading files', time: undefined, ariaLabel: 'First task, chat, State: In Progress, Reading files' },
+					'Second task': { message: 'Running tests', hover: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
+				afterFirstCompletes: {
+					'First task': { message: undefined, hover: undefined, time: 'now', ariaLabel: 'First task, chat, updated now, State: Completed' },
+					'Second task': { message: 'Running tests', hover: 'Running tests', time: undefined, ariaLabel: 'Second task, chat, State: In Progress, Running tests' },
+				},
 			});
 		});
 
@@ -5232,6 +5328,7 @@ suite('Sessions - SessionsList', () => {
 				title: constObservable('Active chat'),
 				updatedAt: constObservable(new Date()),
 				status: observableFromEvent(disposables, childStatusEmitter.event, () => SessionStatus.InProgress),
+				description: constObservable(undefined),
 				isArchived: constObservable(false),
 				interactivity: constObservable(ChatInteractivity.Full),
 				origin: { kind: ChatOriginKind.User },
@@ -5542,6 +5639,24 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('does not repeat the fallback needs input message in a chat row aria label', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Needs input chat', ChatOriginKind.User, ChatInteractivity.Full, SessionStatus.NeedsInput);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+
+			const container = renderSessionChats(session);
+			const peerRow = [...container.querySelectorAll<HTMLElement>('.session-chat-item')]
+				.find(element => element.textContent?.includes('Needs input chat'));
+			assert.ok(peerRow);
+			assert.strictEqual(peerRow.closest('.monaco-list-row')?.getAttribute('aria-label'), 'Needs input chat, chat, updated now, State: Input Needed');
+		});
+
 		test('updates rendered chat row heights across phone layout changes', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Peer chat', ChatOriginKind.User);
@@ -5568,7 +5683,7 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(phoneChatRow);
 
 			assert.deepStrictEqual({ desktopHeight, phoneHeight: phoneChatRow.style.height }, {
-				desktopHeight: '46px',
+				desktopHeight: '56px',
 				phoneHeight: '62px',
 			});
 		});
@@ -6508,6 +6623,46 @@ suite('Sessions - SessionsList', () => {
 			assert.ok(heights.taskA && heights.taskB && parseInt(heights.taskA) > parseInt(heights.taskB), `expected Task A (${heights.taskA}) taller than Task B (${heights.taskB})`);
 		});
 
+		test('reserves approval rounding slack in phone chat rows', () => {
+			const main = createChat('Main chat');
+			const peer = createChat('Task A', ChatOriginKind.User);
+			const base = createTestSession('Session').session;
+			const session: ISession = {
+				...base,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const approvalModel = createApprovalModel(new Map([[peer.resource.toString(), terminalApproval(peer, 'npm run build')]]));
+			const harness = createListHarness(disposables, [session], instantiationService => {
+				instantiationService.stub(IContextKeyService, disposables.add(new ContextKeyService(new TestConfigurationService())));
+			});
+			IsPhoneLayoutContext.bindTo(harness.instantiationService.get(IContextKeyService)).set(true);
+			const container = harness.createContainer();
+			container.classList.add('agent-sessions-workbench', 'phone-layout');
+			container.style.setProperty('--vscode-spacing-size60', '6px');
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+				approvalModel,
+			}));
+			list.layout(400, 400);
+			setSessionChatsExpanded(container, true);
+
+			const approvalRow = approvalRowFor(container, 'Task A');
+			const chatRow = approvalRow?.closest<HTMLElement>('.monaco-list-row');
+			assert.ok(approvalRow);
+			assert.ok(chatRow);
+			assert.deepStrictEqual({
+				height: chatRow.style.height,
+				approvalBottomMargin: mainWindow.getComputedStyle(approvalRow).marginBottom,
+			}, {
+				height: '100px',
+				approvalBottomMargin: '6px',
+			});
+		});
+
 		test('confirms the chat approval when its Allow button is clicked', () => {
 			const main = createChat('Main chat');
 			const peer = createChat('Task A', ChatOriginKind.User);
@@ -7117,6 +7272,31 @@ suite('Sessions - SessionsList', () => {
 			for (let i = 0; i < 50; i++) {
 				await Promise.resolve();
 			}
+		}
+
+		for (const isExternal of [false, true]) {
+			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
+				const session = createTestSession('Guided session', { isExternal }).session;
+				const harness = createListHarness(disposables, [session]);
+				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
+				const completion = new DeferredPromise<void>();
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => completion.p,
+				}));
+				const opened: string[] = [];
+				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
+				list.layout(300, 400);
+				list.collapseAllSections();
+				harness.store.add(list.revealSessionForOnboarding(session));
+				clickRow(findSessionRow(container, 'Guided session'));
+				await settle();
+				assert.deepStrictEqual(opened, []);
+				await completion.complete();
+				await settle();
+				assert.deepStrictEqual(opened, [session.resource.toString()]);
+			});
 		}
 
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {

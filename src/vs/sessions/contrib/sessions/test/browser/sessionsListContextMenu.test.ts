@@ -38,9 +38,8 @@ import type { SessionView } from '../../../../browser/parts/sessionView.js';
 import { Menus } from '../../../../browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
-import { createListHarness, createSession, createTestSession, TestCommandService } from './sessionsListTestUtils.js';
+import { createListHarness, createSession, createTestSession } from './sessionsListTestUtils.js';
 import '../../browser/sessionsActions.js';
-import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 
 class TestContextMenuService extends mock<IContextMenuService>() {
 	override readonly onDidShowContextMenu = Event.None;
@@ -147,7 +146,7 @@ suite('Sessions list context menus', () => {
 			onSessionOpen: () => { },
 		}));
 		list.layout(300, 400);
-		return { container, contextMenuService, list, managementService: harness.managementService, commandService: harness.commandService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
+		return { container, contextMenuService, list, managementService: harness.managementService, deletedGroupIds: harness.deletedGroupIds, menuDisposed: () => menuDisposed };
 	}
 
 	test('empty area actions are transient non-disposable values', () => {
@@ -230,28 +229,18 @@ suite('Sessions list context menus', () => {
 		contextMenuService.delegate!.onHide?.(false);
 	});
 
-	test('New navigation shortcut runs the existing command and navigation rows have no context menus', async () => {
-		const { container, contextMenuService, commandService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
+	test('navigation rows and Sessions header have no context menus', () => {
+		const { container, contextMenuService } = createList(false, false, SessionsGrouping.Date, [createSession('Session').session], [], true);
 		const shortcutRows = Array.from(container.querySelectorAll<HTMLElement>('.session-section-shortcut'));
-		const newRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'New');
-		const customizationsRow = shortcutRows.find(element => element.querySelector('.session-section-label')?.textContent === 'Customizations');
 		const sessionsHeader = container.querySelector<HTMLElement>('.sessions-list-header');
-		assert.ok(newRow);
-		assert.ok(customizationsRow);
-		assert.ok(sessionsHeader);
+		assert.ok(shortcutRows.length && sessionsHeader);
 
-		selectRow(newRow);
-		await timeout(0);
-		dispatchContextMenu(customizationsRow);
+		for (const shortcutRow of shortcutRows) {
+			dispatchContextMenu(shortcutRow);
+		}
 		dispatchContextMenu(sessionsHeader);
 
-		assert.deepStrictEqual({
-			commands: (commandService as TestCommandService).calls,
-			contextMenu: contextMenuService.delegate,
-		}, {
-			commands: [{ commandId: NEW_SESSION_ACTION_ID, args: [undefined] }],
-			contextMenu: undefined,
-		});
+		assert.strictEqual(contextMenuService.delegate, undefined);
 	});
 
 	test('session and chat rename context menu actions start inline editing', async () => {
@@ -273,6 +262,7 @@ suite('Sessions list context menus', () => {
 			resource: URI.parse('test-chat:/main'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
 			changes: constObservable([]),
@@ -284,6 +274,7 @@ suite('Sessions list context menus', () => {
 			title: constObservable('Peer'),
 			updatedAt: constObservable(new Date()),
 			status: constObservable(SessionStatus.Completed),
+			description: constObservable(undefined),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
 			capabilities: constObservable({ canRename: true, canArchive: true, canDelete: true }),
@@ -462,7 +453,6 @@ suite('Sessions list context menus', () => {
 			toolbarLabels: ['Import', 'Mark as Done'],
 		});
 		contextMenuService.delegate!.onHide?.(false);
-
 		const importVisibility = [];
 		for (const variant of ['owned', 'unsupported', 'disabled', 'archived', 'external']) {
 			transaction(tx => {
@@ -477,6 +467,53 @@ suite('Sessions list context menus', () => {
 			importVisibility.push(!!updatedRow?.querySelector('[aria-label="Import"]'));
 		}
 		assert.deepStrictEqual(importVisibility, [false, false, false, false, true]);
+	});
+
+	test('Delete is enabled and executes for external sandbox sessions, including multi-selection', async () => {
+		const sandbox = createTestSession('Offline sandbox', { isExternal: true });
+		const second = createTestSession('Second sandbox', { isExternal: true });
+		for (const session of [sandbox, second]) {
+			session.capabilities.set({ ...session.capabilities.get(), supportsDelete: true }, undefined);
+		}
+		const harness = createListHarness(disposables, [sandbox.session, second.session]);
+		const { instantiationService, store, commandService, managementService } = harness;
+		const contextKeyService = store.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+		instantiationService.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async confirm() { return { confirmed: true }; }
+		}());
+		const contextMenuService = new TestContextMenuService();
+		instantiationService.stub(IContextMenuService, contextMenuService);
+		const container = harness.createContainer(400, 500);
+		const list = store.add(instantiationService.createInstance(SessionsList, container, {
+			grouping: () => SessionsGrouping.Workspace,
+			sorting: () => SessionsSorting.Created,
+			onSessionOpen: () => { },
+		}));
+		list.layout(500, 400);
+		await timeout(100);
+		const rows = [sandbox, second].map(session => {
+			const row = [...container.querySelectorAll<HTMLElement>('.session-item')]
+				.find(element => element.querySelector('.session-title')?.textContent === session.session.title.get());
+			assert.ok(row);
+			return row;
+		});
+		selectRow(rows[0]);
+		selectRow(rows[1], true);
+		dispatchContextMenu(rows[0]);
+		const action = contextMenuService.delegate!.getActions().find(action => action.id === 'sessionsViewPane.deleteSession');
+		assert.ok(action);
+		await action.run();
+		const call = commandService.calls.find(call => call.commandId === action.id)!;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(call.commandId)!.handler, ...call.args);
+		assert.deepStrictEqual({
+			enabled: action.enabled,
+			deleted: managementService.deleted.map(session => session.sessionId).sort(),
+		}, { enabled: true, deleted: ['Offline sandbox', 'Second sandbox'] });
+		contextMenuService.delegate!.onHide?.(false);
+
 	});
 
 	test('workspace and custom-group headers mark all unfiltered unread sessions as read', async () => {

@@ -562,10 +562,27 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	}
 
 	refreshSessionChangeset(session: ProtocolURI, strategy: ChangesetDiffStrategy = 'auto'): void {
-		if (isAhpChatChannel(session) || !this._hasWorkingDirectory(session)) {
+		if (isAhpChatChannel(session)) {
+			this._refreshChatSessionChangeset(session);
+			return;
+		}
+		if (!this._hasWorkingDirectory(session)) {
 			return;
 		}
 		this._scheduleStaticRecompute(session, 'session', undefined, false, undefined, strategy);
+	}
+
+	/**
+	 * Recomputes a chat's own Session Changes while a client observes them.
+	 * Git checkpoints capture the working tree shared by every chat of the
+	 * session and cannot attribute changes to a single chat, so chat-scoped
+	 * Session Changes always come from the chat's tracked edits.
+	 */
+	private _refreshChatSessionChangeset(chat: ProtocolURI, changedTurnId?: string, clientContext?: IAgentHostClientTelemetryContext): void {
+		if (!this._hasSubscription(chat, buildSessionChangesetUri(chat)) || !this._hasWorkingDirectory(chat)) {
+			return;
+		}
+		this._scheduleStaticRecompute(chat, 'session', changedTurnId, false, clientContext, 'fileEditTracker');
 	}
 
 	/**
@@ -1369,6 +1386,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._scheduleUncommittedRecompute(session, turnId, true, clientContext);
 		}
 
+		if (isAhpChatChannel(session)) {
+			this._refreshChatSessionChangeset(session, turnId, clientContext);
+		}
+
 		if (this._shouldScheduleBranchRecompute(session)) {
 			this._scheduleBranchRecompute(session, turnId, true, clientContext);
 		}
@@ -1379,6 +1400,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		// Turns were removed — recompute from scratch (no changedTurnId).
 		this._scheduleBranchRecompute(session, undefined, true);
 		this._scheduleStaticRecompute(session, 'session', undefined, true, undefined, 'fileEditTracker');
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._refreshChatSessionChangeset(chat.resource);
+		}
 	}
 
 	onChangesetOwnerRemoved(owner: ProtocolURI): void {
@@ -1417,6 +1441,12 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._debouncedSessionDiffTimers.deleteAndDispose(sessionChangesOwner);
 			this._scheduleStaticRecompute(sessionChangesOwner, 'session', turnId, false, clientContext, 'fileEditTracker');
 		}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+		if (isAhpChatChannel(session) && this._hasSubscription(session, buildSessionChangesetUri(session))) {
+			this._debouncedSessionDiffTimers.set(session, disposableTimeout(() => {
+				this._debouncedSessionDiffTimers.deleteAndDispose(session);
+				this._refreshChatSessionChangeset(session, turnId, clientContext);
+			}, AgentHostChangesetService._DIFF_DEBOUNCE_MS));
+		}
 	}
 
 	/**
@@ -1429,6 +1459,9 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			this._debouncedBranchDiffTimers.deleteAndDispose(branchChangesetOwner);
 		}
 		this._debouncedSessionDiffTimers.deleteAndDispose(containingSessionUri(session));
+		if (isAhpChatChannel(session)) {
+			this._debouncedSessionDiffTimers.deleteAndDispose(session);
+		}
 	}
 
 	private _shouldScheduleBranchRecompute(session: ProtocolURI): boolean {
@@ -1498,9 +1531,6 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * but do not fail the turn.
 	 */
 	private _scheduleStaticRecompute(session: ProtocolURI, kind: StaticChangesetKind, changedTurnId?: string, reportTelemetry: boolean = false, clientContext?: IAgentHostClientTelemetryContext, strategy: ChangesetDiffStrategy = 'auto'): void {
-		if (kind === 'session' && isAhpChatChannel(session)) {
-			session = containingSessionUri(session);
-		}
 		const key = `${session}\u0000${kind}`;
 		const statusBeforeRefresh = this._markChangesetComputing(staticChangesetUri(session, kind));
 		const existing = this._scheduledStaticRecomputes.get(key);

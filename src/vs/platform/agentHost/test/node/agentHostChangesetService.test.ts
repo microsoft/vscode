@@ -1973,7 +1973,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		});
 	});
 
-	test('does not register or compute Session Changes for chat owners', () => {
+	test('does not register or compute Session Changes for unsubscribed chat owners', () => {
 		const peer = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
 			workingDirectories: ['file:///repo'],
@@ -1987,6 +1987,53 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		svc.refreshSessionChangeset(peer);
 
 		assert.strictEqual(stateManager.getChangesetState(buildSessionChangesetUri(peer)), undefined);
+	});
+
+	test('subscribed chat-owned Session Changes include only the chat\'s tracked edits', async () => {
+		const peer = buildChatUri(sessionStr, 'peer');
+		const edit = (turnId: string, path: string) => ({ turnId, toolCallId: path, filePath: path, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a'), afterContent: encodeString('a\nb') });
+		const sessionDb = new TestSessionDatabase();
+		sessionDb.addEdit(edit('main-turn', '/repo/main.ts'));
+		const peerDb = new TestSessionDatabase();
+		peerDb.addEdit(edit('peer-turn', '/repo/peer.ts'));
+		const chatSessionChangeset = buildSessionChangesetUri(peer);
+		const sessionChangeset = buildSessionChangesetUri(sessionStr);
+		const git = createNoopGitService();
+		let gitDiffCalls = 0;
+		git.computeFileDiffsBetweenRefs = async () => {
+			gitDiffCalls++;
+			return [gitDiff('/repo/main.ts'), gitDiff('/repo/peer.ts')];
+		};
+		const { svc, stateManager } = build({
+			workingDirectories: ['file:///repo'],
+			git,
+			checkpoint: makeCheckpoint(() => ({ parent: 'parent', current: 'current' })),
+			db: sessionDb,
+			subscriptions: [chatSessionChangeset],
+			peer: { resource: peer, db: peerDb, turnId: 'peer-turn' },
+		});
+		const paths = (changeset: string) => stateManager.getChangesetState(changeset)?.files.map(file => URI.parse(file.id).path).sort();
+
+		svc.refreshSessionChangeset(peer, 'auto');
+		await waitForChangesetReady(stateManager, chatSessionChangeset);
+		const afterRefresh = paths(chatSessionChangeset);
+
+		peerDb.addEdit(edit('peer-turn-2', '/repo/peer-2.ts'));
+		svc.onTurnComplete(peer, 'peer-turn-2');
+		await waitForChangesetReady(stateManager, chatSessionChangeset);
+		await waitForChangesetReady(stateManager, sessionChangeset);
+
+		assert.deepStrictEqual({
+			afterRefresh,
+			afterTurnComplete: paths(chatSessionChangeset),
+			sessionAggregate: paths(sessionChangeset),
+			gitDiffCalls,
+		}, {
+			afterRefresh: ['/repo/peer.ts'],
+			afterTurnComplete: ['/repo/peer-2.ts', '/repo/peer.ts'],
+			sessionAggregate: ['/repo/main.ts', '/repo/peer-2.ts', '/repo/peer.ts'],
+			gitDiffCalls: 0,
+		});
 	});
 
 	test('turn-complete lifecycle computes Session Changes only for the containing session', async () => {
@@ -2225,8 +2272,8 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 				changeKind: 'session',
 			}],
 			defaultChatWithoutLiveGit: ['branch', 'uncommitted', 'turn', 'compare-turns'],
-			withoutChatGit: ['turn'],
-			withChatGit: ['branch', 'uncommitted', 'turn', 'compare-turns'],
+			withoutChatGit: ['session', 'turn'],
+			withChatGit: ['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
 			branchDescription: 'chat-feature → chat-main',
 		});
 	});
@@ -2253,7 +2300,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 
 		assert.deepStrictEqual(
 			stateManager.getChatState(peerResource)?.changesets?.map(changeset => changeset.changeKind),
-			['branch', 'uncommitted', 'turn', 'compare-turns'],
+			['branch', 'uncommitted', 'session', 'turn', 'compare-turns'],
 		);
 	});
 

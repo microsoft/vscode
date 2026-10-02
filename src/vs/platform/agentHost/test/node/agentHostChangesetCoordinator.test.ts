@@ -651,6 +651,28 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('subscribes chat-owned Session Changes and refreshes them without watching files', async () => {
+		const session = AgentSession.uri('mock', 'chat-session-changes').toString();
+		const chat = buildChatUri(session, 'peer');
+		const environment = createEnvironment();
+		createSession(environment.stateManager, session, 'file:///repo/worktree');
+		environment.stateManager.addChat(session, chat);
+		const changeset = buildSessionChangesetUri(chat);
+
+		environment.coordinator.onFirstSubscriber(URI.parse(changeset));
+		await tick();
+
+		assert.deepStrictEqual({
+			subscriptions: [...environment.subscriptions.getSessionSubscriptions(chat)],
+			sessionRefreshes: environment.changesets.sessionRefreshes,
+			rootLookups: environment.gitService.rootLookupCalls,
+		}, {
+			subscriptions: [changeset],
+			sessionRefreshes: [chat],
+			rootLookups: [],
+		});
+	});
+
 	test('does not attach root state when watcher acquisition fails', async () => {
 		const session = AgentSession.uri('mock', 'session-1').toString();
 		const environment = createEnvironment();

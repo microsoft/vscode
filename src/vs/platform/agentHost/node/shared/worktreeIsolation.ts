@@ -949,7 +949,7 @@ export class WorktreeIsolation extends Disposable implements IAgentHostWorktreeI
 
 	/**
 	 * All local branch names for the branch picker, ordered with the current and
-	 * default branches first. Pickers filter and limit the returned list.
+	 * default branches first. Pickers filter the returned list and cap how many rows they show.
 	 */
 	async branchCompletions(workingDirectory: URI | undefined): Promise<{ items: { value: string; label: string }[] }> {
 		if (!workingDirectory) {
