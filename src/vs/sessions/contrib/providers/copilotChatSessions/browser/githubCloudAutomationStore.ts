@@ -27,7 +27,7 @@ export interface ICloudAutomationEntry {
 }
 
 /** Provider-local read cache. Construction and account changes never initiate network requests. */
-export class CloudAutomationStore extends Disposable {
+export class GitHubCloudAutomationStore extends Disposable {
 	private readonly cachedEntries = observableValue<readonly ICloudAutomationEntry[]>(this, []);
 	readonly entries: IObservable<readonly ICloudAutomationEntry[]> = this.cachedEntries;
 	private readonly state = observableValue<AutomationCatalogueState>(this, 'ready');
