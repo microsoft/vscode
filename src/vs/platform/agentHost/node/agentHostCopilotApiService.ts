@@ -55,9 +55,9 @@ export class AgentHostCopilotApiService extends CopilotApiService {
 				return undefined;
 			},
 		}, logService, gitHubService);
-		this._register(authenticationService.onDidChangeAuthToken(event => {
-			if (event.resource === endpointService.getCopilotResource().resource && event.previousToken && event.previousToken !== event.token) {
-				this.invalidateCredential(event.previousToken);
+		this._register(authenticationService.onDidDiscardAuthToken(event => {
+			if (event.resource === endpointService.getCopilotResource().resource) {
+				this.invalidateCredential(event.token);
 			}
 		}));
 	}

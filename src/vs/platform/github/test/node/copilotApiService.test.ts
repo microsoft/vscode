@@ -218,6 +218,41 @@ suite('Copilot discovery and control', () => {
 		assert.strictEqual(attempts, 1);
 	});
 
+	for (const status of [429, 529]) {
+		test(`an unhinted CAPI ${status} preserves the one-minute cooldown`, () => runWithFakedTimers({}, async () => {
+			const attempts: number[] = [];
+			const { service } = create(async input => {
+				if (new URL(String(input)).pathname === '/copilot_internal/user') {
+					return user();
+				}
+				attempts.push(Date.now());
+				return attempts.length === 1 ? new Response(null, { status }) : models();
+			});
+			await assert.rejects(service.models('token'), { status });
+			await assert.rejects(service.models('token'), { status: 429, code: 'rate_limited', retryAfterMs: 60_000 });
+			await timeout(59_999);
+			assert.strictEqual(attempts.length, 1);
+			await service.models('token');
+			assert.deepStrictEqual(attempts, [0, 60_000]);
+		}));
+	}
+
+	for (const body of ['', '<html>upstream unavailable</html>', '{"data":', 'null', '{}', '{"data":{}}']) {
+		test(`malformed catalog responses fail explicitly without being retried: ${JSON.stringify(body)}`, async () => {
+			let attempts = 0;
+			const { service } = create(async input => {
+				if (new URL(String(input)).pathname === '/copilot_internal/user') {
+					return user();
+				}
+				attempts++;
+				return attempts === 1 ? new Response(body) : models();
+			});
+			await assert.rejects(service.models('token'), { kind: 'malformedResponse' });
+			assert.strictEqual(attempts, 1);
+			assert.deepStrictEqual((await service.models('token')).map(model => model.id), ['test-model']);
+		});
+	}
+
 	test('transient catalog failures retry once but inference POSTs are never replayed', async () => {
 		const requests: string[] = [];
 		let modelAttempts = 0;

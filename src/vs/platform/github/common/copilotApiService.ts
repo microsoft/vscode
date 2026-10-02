@@ -19,6 +19,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IInFlightOperation, OperationWaiters } from './operationWaiters.js';
 import { ControlTransport } from './controlTransport.js';
 import { parseRetryAfter } from './httpHeaders.js';
+import { getResponseError, parseResponseJson } from './responseReader.js';
 
 // #region Types
 
@@ -210,6 +211,8 @@ const CAPI_CONTEXT_TTL_SECONDS = 30 * 60;
 
 const USER_API_VERSION = '2025-04-01';
 const copilotControlTimeout = 30_000;
+/** Conservative wait for CAPI 429/529 responses without a usable Retry-After hint. */
+const copilotUnhintedRateLimitCooldown = 60_000;
 
 function controlDeadline(value?: number): number {
 	if (value !== undefined && !Number.isFinite(value)) {
@@ -312,25 +315,15 @@ function buildCopilotApiHttpError(status: number, statusText: string, bodyText: 
 	if (bodyText) {
 		try {
 			const parsed = JSON.parse(bodyText) as unknown;
-			const detail = parsed && typeof parsed === 'object' ? (parsed as { error?: unknown }).error : undefined;
-			if (detail && typeof detail === 'object') {
-				const value = (detail as { code?: unknown }).code;
-				if (typeof value === 'string') {
-					code = value;
-				}
-			}
+			const detail = getResponseError(parsed);
+			code = detail?.code;
 			if (
 				parsed && typeof parsed === 'object'
-				&& (parsed as { type?: unknown }).type === 'error'
+				&& Reflect.get(parsed, 'type') === 'error'
+				&& typeof detail?.type === 'string'
+				&& typeof detail.message === 'string'
 			) {
-				const err = (parsed as { error?: unknown }).error;
-				if (
-					err && typeof err === 'object'
-					&& typeof (err as { type?: unknown }).type === 'string'
-					&& typeof (err as { message?: unknown }).message === 'string'
-				) {
-					envelope = parsed as Anthropic.ErrorResponse;
-				}
+				envelope = parsed as Anthropic.ErrorResponse;
 			}
 		} catch {
 			// non-JSON body — fall through to synthesis
@@ -597,7 +590,7 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			getResponseCooldown: (response, now) => {
 				const seconds = parseRetryAfter(response.headers.get('retry-after'), now);
 				return seconds !== undefined && seconds > 0 ? seconds * 1000
-					: response.status === 429 || response.status === 529 ? 60_000 : 0;
+					: response.status === 429 || response.status === 529 ? copilotUnhintedRateLimitCooldown : 0;
 			},
 		}, _logService));
 		this._register(_options.endpoints.onDidChange(() => this._clearClients()));
@@ -678,7 +671,8 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			throw buildCopilotApiHttpError(response.status, response.statusText, response.body, 'CAPI models request failed');
 		}
 
-		const json: { data?: CCAModel[] } | null = JSON.parse(response.body);
+		const json = parseResponseJson<{ data?: CCAModel[] } | null>(response.body,
+			() => new RequestError('CAPI model discovery returned invalid JSON', 'malformedResponse'));
 		if (!json || !Array.isArray(json.data)) {
 			throw new RequestError('CAPI model discovery returned an invalid model list', 'malformedResponse');
 		}
@@ -1321,19 +1315,19 @@ export class CopilotApiService extends Disposable implements ICopilotApiService 
 			// passthrough proxy). Fall back to a clean api_error synthesis
 			// when fields are missing or `error` is unstructured.
 			const rawError = (parsed as { error?: unknown }).error;
+			const detail = getResponseError(parsed);
 			let envelope: Anthropic.ErrorResponse;
 			if (
-				rawError && typeof rawError === 'object'
-				&& typeof (rawError as { type?: unknown }).type === 'string'
-				&& typeof (rawError as { message?: unknown }).message === 'string'
+				typeof detail?.type === 'string'
+				&& typeof detail.message === 'string'
 			) {
 				envelope = parsed as Anthropic.ErrorResponse;
 			} else {
 				let errorMessage: string;
 				if (typeof rawError === 'string') {
 					errorMessage = rawError;
-				} else if (typeof (rawError as { message?: unknown } | undefined)?.message === 'string') {
-					errorMessage = (rawError as { message: string }).message;
+				} else if (typeof detail?.message === 'string') {
+					errorMessage = detail.message;
 				} else {
 					errorMessage = 'Unknown streaming error';
 				}

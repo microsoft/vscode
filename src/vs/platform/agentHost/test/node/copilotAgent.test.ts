@@ -3368,6 +3368,7 @@ suite('CopilotAgent', () => {
 			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku' });
 		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints, new class extends mock<IAgentHostAuthenticationService>() {
 			override readonly onDidChangeAuthToken = Event.None;
+			override readonly onDidDiscardAuthToken = Event.None;
 			override getAuthAccountForToken(_resource: string, token: string) {
 				return { providerId: 'github', accountId: token };
 			}

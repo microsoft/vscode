@@ -7,7 +7,7 @@ import { LRUCache } from '../../../base/common/map.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { ILogService } from '../../log/common/log.js';
-import { cancelResponseBody, readBoundedResponse } from './responseReader.js';
+import { cancelResponseBody, parseResponseJson, readBoundedResponse } from './responseReader.js';
 import { IInFlightOperation, OperationWaiters } from './operationWaiters.js';
 import { GitHubGraphQLError, GitHubRequestError, GitHubRequestRateLimitError, GitHubRequestTimeoutError } from './githubTypes.js';
 import { AccountHandle, AnonymousAccount, BootstrapAccount, RequestFetch, RequestAccount, RequestContext, RequestErrorKind, RequestKind, RequestOptions, RequestPriority, RequestOutcome, requestOutcome, RequestError, RequestTimeoutError, RequestRateLimitError } from './types.js';
@@ -885,11 +885,7 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 	}
 
 	private _parseJson<T>(body: string, message: string): T {
-		try {
-			return JSON.parse(body);
-		} catch {
-			throw new GitHubRequestError(message, 'malformedResponse');
-		}
+		return parseResponseJson(body, () => new GitHubRequestError(message, 'malformedResponse'));
 	}
 
 	private async _logRequest<T>(
@@ -923,11 +919,9 @@ export class GitHubTransport extends Disposable implements IGitHubTransport {
 			if (!signal.aborted && !(error instanceof GitHubRequestError)) {
 				if (error instanceof RequestTimeoutError) {
 					throw new GitHubRequestTimeoutError(error.requestDispatched);
-				}
-				if (error instanceof RequestRateLimitError) {
+				} else if (error instanceof RequestRateLimitError) {
 					throw new GitHubRequestRateLimitError(error.retryAfterMs);
-				}
-				if (error instanceof RequestError) {
+				} else if (error instanceof RequestError) {
 					throw new GitHubRequestError(`GitHub ${error.message.charAt(0).toLowerCase()}${error.message.slice(1)}`, error.kind, error.statusCode, error.responseBody, undefined, error.statusText);
 				}
 			}

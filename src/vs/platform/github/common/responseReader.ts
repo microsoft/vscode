@@ -5,6 +5,41 @@
 
 import { ILogService } from '../../log/common/log.js';
 
+/** String-valued details from a JSON error object, without interpreting a service's error envelope. */
+export interface IResponseError {
+	readonly code?: string;
+	readonly type?: string;
+	readonly message?: string;
+}
+
+/** Reads structured error details while leaving absent or malformed fields to the caller's policy. */
+export function getResponseError(value: unknown): IResponseError | undefined {
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const error: unknown = Reflect.get(value, 'error');
+	if (!error || typeof error !== 'object' || Array.isArray(error)) {
+		return undefined;
+	}
+	const code: unknown = Reflect.get(error, 'code');
+	const type: unknown = Reflect.get(error, 'type');
+	const message: unknown = Reflect.get(error, 'message');
+	return {
+		code: typeof code === 'string' ? code : undefined,
+		type: typeof type === 'string' ? type : undefined,
+		message: typeof message === 'string' ? message : undefined,
+	};
+}
+
+/** Parses JSON using the caller's domain error for invalid syntax, without exposing response content. */
+export function parseResponseJson<T>(body: string, errorFactory: () => Error): T {
+	try {
+		return JSON.parse(body);
+	} catch {
+		throw errorFactory();
+	}
+}
+
 /** Reads at most the byte budget, cancelling incomplete bodies without blocking caller deadlines. */
 export async function readBoundedResponse(
 	response: Response,

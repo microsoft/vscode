@@ -374,6 +374,7 @@ class FakeAgentHostAuthenticationService implements IAgentHostAuthenticationServ
 	private readonly _tokens = new Map<string, string>();
 	private readonly _onDidChangeAuthToken = new Emitter<IAgentHostAuthTokenChangeEvent>();
 	readonly onDidChangeAuthToken = this._onDidChangeAuthToken.event;
+	readonly onDidDiscardAuthToken = Event.None;
 
 	setToken(resource: string, token: string): void {
 		const previous = this._tokens.get(resource);

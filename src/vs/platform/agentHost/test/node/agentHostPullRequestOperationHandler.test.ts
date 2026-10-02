@@ -238,6 +238,7 @@ function createAuthenticationService(withCopilotToken = false): IAgentHostAuthen
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		onDidDiscardAuthToken: Event.None,
 		getAuthAccount: () => undefined,
 		getAuthAccountForToken: () => undefined,
 		getAuthToken: resource => {
