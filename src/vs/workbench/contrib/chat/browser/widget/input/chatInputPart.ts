@@ -3620,9 +3620,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			getOverflowAnchor: () => this.inputActionsToolbar.getElement(),
 			actionContext: { widget },
 			compact: getCompactState(inputPickerCompactStates, actionId),
-			minimal: actionId === OpenModelPickerAction.ID
-				? getCompactState(inputPickerMinimalStates, actionId)
-				: undefined,
+			minimal: actionId === OpenModelPickerAction.ID ? getCompactState(inputPickerMinimalStates, actionId) : undefined,
 		});
 		const getSecondaryPickerOptions = (actionId: string): IChatInputPickerOptions => ({
 			getOverflowAnchor: () => this.secondaryToolbar.getElement(),

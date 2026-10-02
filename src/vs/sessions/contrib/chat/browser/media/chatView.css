@@ -297,7 +297,7 @@
 }
 
 /* The single-row composer has no secondary toolbar row for the timestamp to share. */
-.agent-sessions-workbench .chat-view-chat.experimental-session-composer .interactive-request.editing .chat-request-timestamp-container {
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .interactive-request.editing .chat-request-timestamp-container {
 	margin-top: 0;
 }
 

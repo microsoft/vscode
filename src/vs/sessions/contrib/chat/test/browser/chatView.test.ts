@@ -38,12 +38,11 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isExperimentalRunningSessionComposerLayoutEnabled, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { NewChatWidget } from '../../browser/newChatWidget.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
 import '../../../../../workbench/browser/media/style.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatAgentMergeContent.css';
 import '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/media/chatRequestOrigin.css';
@@ -54,25 +53,11 @@ suite('Sessions - Chat View', () => {
 
 	teardown(() => sinon.restore());
 
-	test('keeps the standard running-session composer on phone', () => {
-		const configurationService = new TestConfigurationService({
-			[UNIFIED_WORKSPACE_PICKER_SETTING]: true,
-			[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: true,
-		});
-		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+	test('does not render the running-session secondary toolbar for the experimental composer', () => {
 		assert.deepStrictEqual([
-			isExperimentalRunningSessionComposerLayoutEnabled(configurationService, false),
-			isExperimentalRunningSessionComposerLayoutEnabled(configurationService, true),
+			shouldRenderRunningSessionSecondaryToolbar(false),
+			shouldRenderRunningSessionSecondaryToolbar(true),
 		], [true, false]);
-	});
-
-	test('keeps the running-session secondary toolbar only for standard or phone layouts', () => {
-		assert.deepStrictEqual([
-			shouldRenderRunningSessionSecondaryToolbar(false, false),
-			shouldRenderRunningSessionSecondaryToolbar(false, true),
-			shouldRenderRunningSessionSecondaryToolbar(true, false),
-			shouldRenderRunningSessionSecondaryToolbar(true, true),
-		], [true, true, false, true]);
 	});
 
 	test('forwards workspace acknowledgement only from a new-session widget', () => {
@@ -1370,7 +1355,7 @@ suite('Sessions - Chat View', () => {
 			}, {
 				legacyMargin: '-22px',
 				experimental: { margin: '0px', belowComposer: true, rightAligned: true, visible: true, focused: true, hasAccessibleLabel: true },
-				phoneMargin: '0px',
+				phoneMargin: '-22px',
 				restoredMargin: '-22px',
 			});
 		});

@@ -127,7 +127,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/3d0986b4f257a0896147a8b1f83e5ff50b907f5417559874b99fe611d08db27c)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneWelcomePhrase/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/20d292a561f2add5576ccedfe5d90af9d9c90fb37628719a5ff1514386729c5b)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6e2a521c5a31919e14909bc5a069fc76b11d9030a98ee7f2f2b629fc80c79dec)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionRemoteWorkspace/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/310fc08cf62e403c7d3e5edf9a4eb6123c85ba89823af0b1322283f643017417)

@@ -149,19 +149,12 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 
-export function getLabeledPickerResponsiveItems(container: HTMLElement, expandedPickerDescendantClass?: string): IChatInputPickerResponsiveLayoutItem[] {
+export function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPickerResponsiveLayoutItem[] {
 	const elements = new Map<HTMLElement, HTMLElement | undefined>();
 	const actionItemLabelCounts = new Map<HTMLElement, number>();
-	const expandedElements = new Set<HTMLElement>();
 	const visit = (element: HTMLElement, pickerSlot: HTMLElement | undefined, actionItem: HTMLElement | undefined): void => {
 		const currentPickerSlot = element.classList.contains('sessions-chat-picker-slot') ? element : pickerSlot;
 		const currentActionItem = element.classList.contains('action-item') ? element : actionItem;
-		if (expandedPickerDescendantClass && element.classList.contains(expandedPickerDescendantClass)) {
-			const pickerElement = currentPickerSlot ?? currentActionItem;
-			if (pickerElement) {
-				expandedElements.add(pickerElement);
-			}
-		}
 		if (element.classList.contains('sessions-chat-dropdown-label')) {
 			const pickerElement = currentPickerSlot ?? currentActionItem;
 			if (pickerElement) {
@@ -179,25 +172,16 @@ export function getLabeledPickerResponsiveItems(container: HTMLElement, expanded
 	};
 	visit(container, undefined, undefined);
 
-	const items: IChatInputPickerResponsiveLayoutItem[] = [];
-	for (const [element, actionItem] of elements) {
-		const item: IChatInputPickerResponsiveLayoutItem = {
-			element,
-			isCompact: () => element.classList.contains('compact-picker'),
-			setCompact: compact => {
-				element.classList.toggle('compact-picker', compact);
-				if (actionItem && actionItem !== element && actionItemLabelCounts.get(actionItem) === 1) {
-					actionItem.classList.toggle('compact-picker', compact);
-				}
-			},
-		};
-		if (expandedElements.has(element)) {
-			item.setCompact(false);
-		} else {
-			items.push(item);
-		}
-	}
-	return items;
+	return Array.from(elements, ([element, actionItem]) => ({
+		element,
+		isCompact: () => element.classList.contains('compact-picker'),
+		setCompact: compact => {
+			element.classList.toggle('compact-picker', compact);
+			if (actionItem && actionItem !== element && actionItemLabelCounts.get(actionItem) === 1) {
+				actionItem.classList.toggle('compact-picker', compact);
+			}
+		},
+	}));
 }
 
 /** True while focus is in an Agents window composer that supports dictation. */
@@ -993,14 +977,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
 			isCompactionEnabled: () => !isPhoneLayout(this.layoutService),
-			getItems: () => {
-				const preserveModePermissions = isPhoneLayout(this.layoutService)
-					&& !this.options.useExperimentalLayout?.get();
-				return getLabeledPickerResponsiveItems(
-					newChatBottomContainer,
-					preserveModePermissions ? 'agent-host-mode-permissions-trigger' : undefined,
-				);
-			},
+			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
 		this._register(autorun(reader => {

@@ -123,8 +123,6 @@ export interface IChatWidgetFixtureOptions {
 	readonly contentHorizontalPadding?: number;
 	/** Whether to render the main chat input. Defaults to `true`. */
 	readonly inputVisible?: boolean;
-	readonly inputToolbarMenuItems?: readonly IMenuItem[];
-	readonly secondaryToolbarActionViewItemProvider?: IChatInputPartOptions['secondaryToolbarActionViewItemProvider'];
 	/** Whether to populate the response footer with an action. */
 	readonly responseFooterAction?: boolean;
 	/** Whether to show request and response timing details. */
@@ -668,16 +666,10 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	// In production a chat widget always has an inputPart, so the fixture creates
 	// one unconditionally; `withInput` only controls whether it is rendered in DOM.
 	const menuService = instantiationService.get(IMenuService) as FixtureMenuService;
-	if (options.inputToolbarMenuItems) {
-		for (const item of options.inputToolbarMenuItems) {
-			menuService.addItem(MenuId.ChatInput, item);
-		}
-	} else {
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
-		menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
-	}
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.attachContext', title: '+', icon: Codicon.add }, group: 'navigation', order: -1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModePicker', title: 'Agent' }, group: 'navigation', order: 1 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.openModelPicker', title: 'GPT-5.3-Codex' }, group: 'navigation', order: 3 });
+	menuService.addItem(MenuId.ChatInput, { command: { id: 'workbench.action.chat.configureTools', title: '', icon: Codicon.settingsGear }, group: 'navigation', order: 100 });
 	menuService.addItem(MenuId.ChatExecute, { command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine }, group: 'navigation', order: 4 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openSessionTargetPicker', title: 'Local' }, group: 'navigation', order: 0 });
 	menuService.addItem(MenuId.ChatInputSecondary, { command: { id: 'workbench.action.chat.openPermissionPicker', title: 'Default Permissions' }, group: 'navigation', order: 10 });
@@ -688,7 +680,6 @@ export async function renderChatWidget(context: ComponentFixtureContext, options
 	const inputOptions: IChatInputPartOptions = {
 		renderFollowups: false,
 		renderInputToolbarBelowInput: false,
-		secondaryToolbarActionViewItemProvider: options.secondaryToolbarActionViewItemProvider,
 		renderWorkingSet: false,
 		menus: { executeToolbar: MenuId.ChatExecute, telemetrySource: 'fixture' },
 		widgetViewKindTag: 'view',
