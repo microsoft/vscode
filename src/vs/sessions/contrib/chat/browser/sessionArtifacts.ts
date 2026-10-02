@@ -35,6 +35,8 @@ import { openChatTurnFile, previewKind } from '../../../../workbench/contrib/cha
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import type { IImageCarouselCollection } from '../../../../workbench/contrib/imageCarousel/browser/imageCarouselTypes.js';
 import { createCommitResourceHover } from '../../../../workbench/contrib/github/browser/githubResourceHover.js';
+import { getLazyGitHubResourcePresentation, LazyGitHubResourceResolver, parseGitHubReferenceTarget } from '../../../../workbench/contrib/github/browser/lazyGitHubResourceHover.js';
+import { IWorkbenchGitHubService } from '../../../../workbench/services/github/common/githubService.js';
 import { SessionArtifactKind, type ISessionArtifact } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService, type IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
 import { logSessionArtifactOpen } from '../../../common/sessionsTelemetry.js';
@@ -186,7 +188,7 @@ function openArtifact(artifact: ISessionArtifact, actions: ISessionArtifactActio
 	actions.recordOpen(artifact);
 }
 
-function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit): IChatPillEntry | undefined {
+function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, commit?: GitHubCommit, gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): IChatPillEntry | undefined {
 	if (artifact.kind === SessionArtifactKind.File) {
 		if (!artifact.uri) {
 			return undefined;
@@ -306,7 +308,40 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
 			run: () => actions.copy(link.toString(true)),
 		}), chatPillCopyUrlHoverLabel)]
 		: [];
-	return withRemoveAction(artifact, { id: artifact.id, label: artifact.label, icon, toolbarActions: copyLinkAction, ...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), artifact.label), open: () => openArtifact(artifact, actions, () => actions.openExternal(link)) }, actions);
+	const gitHubKind = !artifact.isArtifact && artifact.isGitHub === true
+		? artifact.kind === SessionArtifactKind.PullRequest
+			? 'pullRequest'
+			: artifact.kind === SessionArtifactKind.Issue
+				? 'issue'
+				: undefined
+		: undefined;
+	const gitHubTarget = gitHubKind ? parseGitHubReferenceTarget(link, gitHubKind) : undefined;
+	const richHover = gitHubKind && gitHubTarget && gitHubResolver ? gitHubResolver.createHover(artifact, {
+		kind: gitHubKind,
+		target: gitHubTarget,
+		resource: link,
+		onDidClickRepository: () => actions.openExternal(URI.parse(`https://github.com/${gitHubTarget.owner}/${gitHubTarget.repo}`)),
+		onDidClickReference: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
+		onDidClickBaseBranch: actions.copy,
+		onDidClickHeadBranch: actions.copy,
+	}) : undefined;
+	const gitHubPresentation = gitHubKind && gitHubTarget && gitHubResolver
+		? gitHubKind === 'issue'
+			? getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getIssueState(gitHubTarget).read(reader), artifact.label, issue => issue.title)
+			: getLazyGitHubResourcePresentation(gitHubKind, gitHubTarget, gitHubResolver.getPullRequestState(gitHubTarget).read(reader), artifact.label, details => details.pullRequest.title)
+		: undefined;
+	const displayLabel = gitHubPresentation?.label ?? artifact.label;
+	return withRemoveAction(artifact, {
+		id: artifact.id,
+		label: displayLabel,
+		...(gitHubPresentation?.badge ? { badge: gitHubPresentation.badge } : {}),
+		...(gitHubPresentation?.className ? { className: gitHubPresentation.className } : {}),
+		icon,
+		toolbarActions: copyLinkAction,
+		...sessionArtifactLocation(sessionArtifactLocationText(link, labelService), displayLabel),
+		...richHover,
+		open: () => openArtifact(artifact, actions, () => actions.openExternal(link)),
+	}, actions);
 }
 
 /**
@@ -316,7 +351,7 @@ function toEntry(artifact: ISessionArtifact, actions: ISessionArtifactActions, l
  * what the session recorded last. Websites the browsers pill already lists are
  * left out, so the same page is offered once across the pills.
  */
-export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map()): readonly IChatPillSection[] {
+export function buildSessionArtifactSections(artifacts: readonly ISessionArtifact[], actions: ISessionArtifactActions, labelService: Pick<ILabelService, 'getUriLabel'>, imageCarouselEnabled: boolean, browserUrls: ReadonlySet<string>, commits: ReadonlyMap<string, GitHubCommit> = new Map(), gitHubResolver?: LazyGitHubResourceResolver, reader?: IReader): readonly IChatPillSection[] {
 	const entriesByKind = new Map<SessionArtifactKind, IChatPillEntry[]>();
 	const images: ISessionArtifactImage[] = [];
 	const seen = new Set<string>();
@@ -340,7 +375,7 @@ export function buildSessionArtifactSections(artifacts: readonly ISessionArtifac
 			}
 			continue;
 		}
-		const entry = toEntry(artifact, actions, labelService, commits.get(artifact.id));
+		const entry = toEntry(artifact, actions, labelService, commits.get(artifact.id), gitHubResolver, reader);
 		if (!entry || (artifact.isArtifact && seen.has(artifactValueKey(artifact)))) {
 			continue;
 		}
@@ -489,12 +524,14 @@ export class SessionArtifacts extends Disposable {
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@ISessionsGitHubService gitHubService: ISessionsGitHubService,
+		@IWorkbenchGitHubService workbenchGitHubService: IWorkbenchGitHubService,
 		@ILogService logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 
 		const commitResolver = this._register(new SessionGitHubCommitResolver(gitHubService, logService));
+		const gitHubResolver = this._register(new LazyGitHubResourceResolver(workbenchGitHubService, logService));
 		this._register(autorun(reader => {
 			const artifacts = session.read(reader)?.artifacts?.read(reader) ?? [];
 			const commitTargets = artifacts
@@ -535,6 +572,8 @@ export class SessionArtifacts extends Disposable {
 				imageCarouselEnabled.read(reader),
 				this._browserUrls.read(reader),
 				commits,
+				gitHubResolver,
+				reader,
 			);
 		});
 

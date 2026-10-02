@@ -79,6 +79,50 @@ suite('ChatPills', () => {
 		]);
 	});
 
+	test('prefetches at most five entries on open and exposes deferred prefetch for virtualized rows', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const prefetched: string[] = [];
+		let items: readonly IActionListItem<IChatPillEntry>[] = [];
+		instantiationService.stub(IActionWidgetService, {
+			isVisible: false,
+			show: (_user, _preview, shownItems) => { items = shownItems as readonly IActionListItem<IChatPillEntry>[]; },
+			hide: () => { },
+		});
+		const action = store.add(new Action('references', 'References'));
+		const entries = Array.from({ length: 8 }, (_, index): IChatPillEntry => ({
+			id: `reference-${index}`,
+			label: `Reference ${index}`,
+			prefetch: () => prefetched.push(`reference-${index}`),
+			open: () => { },
+		}));
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, constObservable([{
+			title: 'References',
+			entries,
+		}]), {
+			widgetId: 'references',
+			icon: Codicon.references,
+			title: 'References',
+			summaryLabel: count => `${count} References`,
+			summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
+		items.find(item => item.item?.id === 'reference-6')?.onDidBecomeVisible?.();
+
+		assert.deepStrictEqual(prefetched, [
+			'reference-0',
+			'reference-1',
+			'reference-2',
+			'reference-3',
+			'reference-4',
+			'reference-6',
+		]);
+	});
+
 	test('shell-style dropdowns prefer opening upward and route row activation to live details', () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		let options: IActionListOptions | undefined;

@@ -85,6 +85,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Starts resolving metadata for this entry without opening it. */
+	readonly prefetch?: () => void;
 	open(): void;
 }
 

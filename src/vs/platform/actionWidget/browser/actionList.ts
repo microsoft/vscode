@@ -185,6 +185,8 @@ export interface IActionListItem<T> {
 	 */
 	readonly iconClasses?: readonly string[];
 	readonly tooltip?: string;
+	/** Called after scrolling makes this item part of the visible virtualized range. */
+	readonly onDidBecomeVisible?: () => void;
 	/**
 	 * Optional toolbar actions shown when the item is focused or hovered.
 	 */
@@ -877,6 +879,7 @@ export class ActionListWidget<T> extends Disposable {
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
 	private _submenuShowTimeout: ReturnType<typeof setTimeout> | undefined;
+	private _pendingSubmenuElement: IActionListItem<T> | undefined;
 	private _currentSubmenuWidget: ActionListWidget<IAction> | undefined;
 	private _currentSubmenuElement: IActionListItem<T> | undefined;
 	private _submenuHoverActionElements: HTMLElement[] = [];
@@ -1166,9 +1169,18 @@ export class ActionListWidget<T> extends Disposable {
 			this.onFocus();
 		}));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
+		let canPrefetchVisibleItems = false;
+		this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => canPrefetchVisibleItems = true));
 		this._register(this._list.onDidScroll(() => {
 			if (!this._isMeasuringWidth) {
 				this._layoutSubmenu?.();
+			}
+			if (canPrefetchVisibleItems) {
+				const first = Math.max(0, this._list.firstVisibleIndex);
+				const last = Math.min(this._visibleMenuItems.length - 1, this._list.lastVisibleIndex);
+				for (let index = first; index <= last; index++) {
+					this._visibleMenuItems[index]?.onDidBecomeVisible?.();
+				}
 			}
 		}));
 
@@ -1781,6 +1793,17 @@ export class ActionListWidget<T> extends Disposable {
 	 * the number of visible rows changed.
 	 */
 	updateItems(items: readonly IActionListItem<T>[], focusItemId?: string, options?: IActionListUpdateOptions): void {
+		if (this._pendingSubmenuElement) {
+			const pendingId = (this._pendingSubmenuElement.item as { id?: string } | undefined)?.id;
+			const pendingItem = options?.preserveHover && pendingId
+				? items.find(item => (item.item as { id?: string } | undefined)?.id === pendingId)
+				: undefined;
+			if (pendingItem) {
+				this._pendingSubmenuElement = pendingItem;
+			} else {
+				this._cancelSubmenuShow();
+			}
+		}
 		const scrollTop = options?.preserveScrollPosition ? this._list.scrollTop : undefined;
 		const expandedItemId = (this._currentSubmenuElement?.item as { id?: string } | undefined)?.id;
 		const preservedItem = options?.preserveHover && expandedItemId
@@ -3089,6 +3112,7 @@ export class ActionListWidget<T> extends Disposable {
 
 	private _scheduleSubmenuShow(element: IActionListItem<T>, pointer: MouseEvent): void {
 		this._cancelSubmenuShow();
+		this._pendingSubmenuElement = element;
 		let delay = this._options?.submenuHoverDelay ?? 500;
 		if (this._usesSubmenuPointerIntent()) {
 			delay = 0;
@@ -3102,10 +3126,15 @@ export class ActionListWidget<T> extends Disposable {
 		}
 		const show = () => {
 			this._submenuShowTimeout = undefined;
-			const index = this._list.indexOf(element);
+			const pendingElement = this._pendingSubmenuElement;
+			this._pendingSubmenuElement = undefined;
+			if (!pendingElement) {
+				return;
+			}
+			const index = this._list.indexOf(pendingElement);
 			const rowElement = index >= 0 ? this._getRowElement(index) : null;
 			if (rowElement) {
-				this._showSubmenuForElement(element, rowElement);
+				this._showSubmenuForElement(pendingElement, rowElement);
 				if (this._usesSubmenuPointerIntent()) {
 					this._updateSubmenuPointer(pointer);
 				}
@@ -3133,6 +3162,7 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _cancelSubmenuShow(): void {
+		this._pendingSubmenuElement = undefined;
 		if (this._submenuShowTimeout !== undefined) {
 			clearTimeout(this._submenuShowTimeout);
 			this._submenuShowTimeout = undefined;

@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -49,7 +50,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
@@ -109,6 +110,7 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
+			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
 				override publicLog2(eventName?: string, data?: unknown): void {
@@ -286,6 +288,44 @@ suite('Session Artifacts', () => {
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['gitlab-pr', 'file'],
 			references: ['referenced-pr', 'referenced-promoted-pr', 'referenced-discovered-pr', 'foreign-pr-reference', 'referenced-issue', 'referenced-promoted-issue'],
+		});
+	});
+
+	test('attaches rich GitHub metadata lazily to references without promoting them', () => {
+		let acquisitions = 0;
+		const { presentation } = createPresentation([{
+			id: 'reference',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Related pull request',
+			isArtifact: false,
+			isGitHub: true,
+			link: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+		}], undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => {
+				acquisitions++;
+				return new Promise(() => { });
+			},
+		}));
+
+		const sections = presentation.referenceSections.get();
+		const entry = sections[0].entries[0];
+		assert.deepStrictEqual({
+			acquisitions,
+			sectionTitle: sections[0].title,
+			entryId: entry.id,
+			entryLabel: entry.label,
+			hasDropdownHover: typeof entry.hover?.content === 'function',
+			hasPillHover: typeof entry.pillHover === 'object',
+			hasPrefetch: typeof entry.prefetch === 'function',
+		}, {
+			acquisitions: 0,
+			sectionTitle: 'Pull Requests',
+			entryId: 'reference',
+			entryLabel: 'Pull Request #1',
+			hasDropdownHover: true,
+			hasPillHover: true,
+			hasPrefetch: true,
 		});
 	});
 

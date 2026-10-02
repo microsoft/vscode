@@ -373,12 +373,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
+			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
 			oldAction: content.includes('Remove Pull Request Artifact'),
 			immediateRemoval: content.includes('Removal is immediate'),
 		}, {
 			recordedArtifactsAndReferences: true,
 			singleItemActions: true,
+			copyActions: true,
 			persistence: true,
 			oldAction: false,
 			immediateRemoval: false,

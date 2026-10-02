@@ -290,12 +290,14 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	protected showDropdown(): void {
-		const sections = this._sections.get().filter(section => section.entries.length > 0);
+		let sections = this._sections.get().filter(section => section.entries.length > 0);
 		const trigger = this.button?.element;
 		if (!trigger || this._actionWidgetService.isVisible || sections.length === 0) {
 			return;
 		}
 
+		sections.flatMap(section => section.entries).filter(entry => entry.prefetch).slice(0, 5).forEach(entry => entry.prefetch?.());
+		sections = this._sections.get().filter(section => section.entries.length > 0);
 		const items = this._getDropdownItems(sections);
 		const delegate: IActionListDelegate<IChatPillEntry> = {
 			onSelect: entry => {
@@ -346,6 +348,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: this._getDropdownHover(entry),
+					onDidBecomeVisible: entry.prefetch,
 					...(this._pillOptions.openHoverOnSelect ? { openSubmenuOnClick: true } : {}),
 					item: entry,
 				});

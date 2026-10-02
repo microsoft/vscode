@@ -17,7 +17,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -237,10 +237,13 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local') {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService) {
 		const instantiationService = createInstantiationService();
 		if (gitHubService) {
 			instantiationService.stub(IGitHubService, gitHubService);
+		}
+		if (workbenchGitHubService) {
+			instantiationService.stub(IWorkbenchGitHubService, workbenchGitHubService);
 		}
 		const states = new Map<StateComponents, SessionState | ChatState>([[StateComponents.Session, initialSession]]);
 		if (initialChat) {
@@ -295,22 +298,25 @@ suite('AgentHostSessionInputPills', () => {
 				return undefined;
 			},
 		}));
-		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; select(): void }[] = [];
+		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; readonly hover: IActionListItem<object>['hover']; select(): void }[] = [];
 		let hideDropdown = () => { };
+		const toDropdownItems = <T>(items: readonly IActionListItem<T>[], delegate?: IActionListDelegate<T>) => items.map(item => ({
+			label: item.label,
+			description: item.ariaDescription,
+			hover: item.hover,
+			select: () => {
+				if (item.item) {
+					delegate?.onSelect(item.item);
+				}
+			},
+		}));
 		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			show: (_user, _supportsPreview, items, delegate) => {
 				hideDropdown = () => delegate.onHide();
-				dropdownItems = items.map(item => ({
-					label: item.label,
-					description: item.ariaDescription,
-					select: () => {
-						if (item.item) {
-							delegate.onSelect(item.item);
-						}
-					},
-				}));
+				dropdownItems = toDropdownItems(items, delegate);
 			},
+			updateItems: items => { dropdownItems = toDropdownItems(items); },
 			hide: () => hideDropdown(),
 		}));
 		let menuActions: readonly IAction[] = [];
@@ -324,6 +330,7 @@ suite('AgentHostSessionInputPills', () => {
 		return {
 			connection, sessionResource, persistentContent, visibility, commands, pills,
 			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+			dropdownItems: () => dropdownItems,
 			dropdown: (label: string) => {
 				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
 				assert.ok(button, `Missing ${label} pill`);
@@ -750,6 +757,49 @@ suite('AgentHostSessionInputPills', () => {
 			artifactIds: ['website'],
 			// Only artifacts are promoted; references stay listed newest first, even when the pull request pill shows their link.
 			referenceIds: ['resource', 'issue-reference', 'pr-reference', 'duplicate-pr'],
+		});
+	});
+
+	test('resolves rich GitHub reference metadata only after hover intent', async () => {
+		const credentialState = { fail: false, calls: 0 };
+		const activity = createActivityPills({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [{
+				id: 'reference',
+				type: SessionArtifactType.PullRequest,
+				label: 'Related pull request',
+				link: 'https://github.com/microsoft/vscode/pull/2',
+				isGitHub: true,
+				isArtifact: false,
+			}]),
+		} as unknown as SessionState, undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
+		await timeout(0);
+
+		const beforeHover = credentialState.calls;
+		const entry = activity.dropdown('Reference').find(item => item.label?.includes('pull request #2'));
+		const content = entry?.hover?.content;
+		const hoverElement = typeof content === 'function' ? content() : undefined;
+		await timeout(0);
+		const resolvedEntry = activity.dropdownItems().find(item => item.label === 'Live pull request 2');
+		const resolvedContent = resolvedEntry?.hover?.content;
+
+		assert.deepStrictEqual({
+			beforeHover,
+			afterHover: credentialState.calls,
+			resolvedLabel: resolvedEntry?.label,
+			preservedHover: typeof resolvedContent === 'function' && resolvedContent() === hoverElement,
+			className: hoverElement?.className,
+			text: hoverElement?.textContent,
+			labels: activity.labels(),
+		}, {
+			beforeHover: 0,
+			afterHover: 2,
+			resolvedLabel: 'Live pull request 2',
+			preservedHover: true,
+			className: 'sessions-pr-hover compact',
+			text: 'microsoft/vscodeon Sep 1Live pull request 2 #2OpenLive pull request bodymain←feature@pr-author opened this pull request',
+			labels: ['1 Reference'],
 		});
 	});
 

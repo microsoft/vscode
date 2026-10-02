@@ -3,11 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { Event } from '../../../../../base/common/event.js';
+import { timeout } from '../../../../../base/common/async.js';
+import { Disposable, IDisposable, ImmortalReference, IReference, ReferenceCollection } from '../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
+import { GitHubCommit, GitHubIssue, GitHubIssueRef } from '../../../../../platform/github/common/githubQueryService.js';
+import { FragmentState, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../../platform/github/common/githubPullRequestService.js';
+import { IGitHubClient } from '../../../../../platform/github/common/githubService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubPRFetcher } from '../../../../../sessions/contrib/github/browser/fetchers/githubPRFetcher.js';
@@ -27,6 +31,7 @@ import { IGitHubService } from '../../../../../sessions/contrib/github/browser/g
 import { IPullRequestIconCache } from '../../../../../sessions/contrib/github/browser/pullRequestIconCache.js';
 // eslint-disable-next-line local/code-import-patterns
 import { GitHubCIOverallStatus, IGitHubIssue, IGitHubPullRequest, IGitHubPullRequestReviewThread } from '../../../../../sessions/contrib/github/common/types.js';
+import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
 
 interface IFixturePullRequestEntry {
 	readonly owner: string;
@@ -166,6 +171,123 @@ export function createFixturePullRequestIconCache(): IPullRequestIconCache {
 		_serviceBrand: undefined,
 		get: link => icons.get(link),
 		set: (link, icon) => { icons.set(link, icon); },
+	};
+}
+
+interface IFixtureGitHubResources {
+	readonly delayMs?: number;
+	readonly pullRequests?: readonly PullRequestCore[];
+	readonly issues?: readonly GitHubIssue[];
+}
+
+export function createFixtureWorkbenchGitHubService(resources: IFixtureGitHubResources): IWorkbenchGitHubService {
+	const issues = new Map((resources.issues ?? []).map(issue => [issue.number, issue]));
+	const pullRequests = new Map((resources.pullRequests ?? []).map(pullRequest => [pullRequest.number, pullRequest]));
+	const issueStates = new Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>();
+	const pullRequestStates = new Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>();
+
+	const refresh = async (apply: () => void): Promise<void> => {
+		if (resources.delayMs) {
+			await timeout(resources.delayMs);
+		}
+		apply();
+	};
+	const client = new class extends mock<IGitHubClient>() {
+		override readonly credentials = upcastGitHubCredentials();
+		override readonly query = new class extends mock<IGitHubClient['query']>() {
+			override subscribeIssue(ref: GitHubIssueRef): ReturnType<IGitHubClient['query']['subscribeIssue']> {
+				let state = issueStates.get(ref.number);
+				if (!state) {
+					state = observableValue(`fixtureIssue.${ref.number}`, { status: 'missing', complete: false });
+					issueStates.set(ref.number, state);
+				}
+				const issueState = state;
+				return {
+					resource: { ref, state: issueState },
+					update: () => { },
+					refresh: () => refresh(() => {
+						const issue = issues.get(ref.number);
+						issueState.set(issue
+							? { status: 'ready', complete: true, value: issue }
+							: { status: 'error', complete: false }, undefined);
+					}),
+					dispose: () => { },
+				};
+			}
+		}();
+		override readonly pullRequests = new class extends mock<IGitHubClient['pullRequests']>() {
+			override subscribePullRequest(ref: PullRequestRef): ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']> {
+				let snapshot = pullRequestStates.get(ref.number);
+				if (!snapshot) {
+					snapshot = observableValue(`fixturePullRequest.${ref.number}`, createPullRequestSnapshot(ref));
+					pullRequestStates.set(ref.number, snapshot);
+				}
+				const pullRequestSnapshot = snapshot;
+				return {
+					resource: { ref, snapshot: pullRequestSnapshot },
+					update: () => { },
+					refresh: fragment => refresh(() => {
+						const pullRequest = pullRequests.get(ref.number);
+						const current = pullRequestSnapshot.get();
+						if (fragment === 'core') {
+							pullRequestSnapshot.set({
+								...current,
+								core: pullRequest
+									? { status: 'ready', complete: true, value: pullRequest }
+									: { status: 'error', complete: false },
+							}, undefined);
+						} else if (fragment === 'checks') {
+							pullRequestSnapshot.set({
+								...current,
+								checks: {
+									status: 'ready',
+									complete: true,
+									value: { headSha: pullRequest?.headSha ?? '', checks: [], requirednessComplete: true, expectedSuites: [], expectedSuitesComplete: true },
+								},
+							}, undefined);
+						}
+					}),
+					dispose: () => { },
+				};
+			}
+		}();
+	}();
+
+	return new class extends mock<IWorkbenchGitHubService>() {
+		override readonly onDidChangeDefaultClient = Event.None;
+		override async acquireDefaultAccountClient(): Promise<IReference<IGitHubClient>> {
+			return new ImmortalReference(client);
+		}
+	}();
+}
+
+function upcastGitHubCredentials(): IGitHubClient['credentials'] {
+	return new class extends mock<IGitHubClient['credentials']>() {
+		override readonly onDidInvalidate = Event.None;
+		override async getCredential(signal: AbortSignal) {
+			return {
+				account: { host: 'github.com', accountId: 'fixture' },
+				token: 'fixture',
+				generation: 1,
+				signal,
+			};
+		}
+	}();
+}
+
+function createPullRequestSnapshot(ref: PullRequestRef): PullRequestSnapshot {
+	return {
+		ref,
+		generation: 0,
+		headGeneration: 0,
+		core: { status: 'missing', complete: false },
+		topLevelComments: { status: 'missing', complete: false },
+		submittedReviews: { status: 'missing', complete: false },
+		inlineComments: { status: 'missing', complete: false },
+		reviewThreads: { status: 'missing', complete: false },
+		checks: { status: 'missing', complete: false },
+		mergeability: { status: 'missing', complete: false },
+		participants: { status: 'missing', complete: false },
 	};
 }
 
