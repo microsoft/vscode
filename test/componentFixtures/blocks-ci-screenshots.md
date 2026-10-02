@@ -124,7 +124,7 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/78513171d0e35bf21d8c0a3238d75a7594fa0c2d79f477d8867afc86dd25052a)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePicker/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d02a97977b786e5fe6d12efa75e8c54cd47fddae67d43ec78f601cbe8211b7c7)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/f47d092804f5c29714c0e2adcb88bba05e88e2329881fab5910269a7a25564f1)
 
 #### sessions/chat/newWidget/newChatWidget/NewSessionPhoneUnifiedWorkspacePickerOpen/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/a97cca7a67734fcafeb288cf2535ea7ed6b9224ed2a538d852b719d725c9e896)

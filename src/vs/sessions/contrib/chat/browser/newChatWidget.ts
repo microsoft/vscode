@@ -401,6 +401,7 @@ export class NewChatWidget extends Disposable {
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
 			loading,
+			useUnifiedWorkspacePicker: this._useConsolidatedRemoteWorkspaces,
 			useExperimentalLayout: this._useExperimentalComposerLayout,
 			historyKey: constObservable(undefined), // no persisted history for the new-session view
 			placeholder: NEW_SESSION_PROMPT_PLACEHOLDER,

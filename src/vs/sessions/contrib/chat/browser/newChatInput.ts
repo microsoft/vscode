@@ -149,12 +149,19 @@ const MIN_EDITOR_HEIGHT = 50;
 const MAX_EDITOR_HEIGHT = 200;
 const NEW_CHAT_INPUT_FONT_FAMILY = 'system-ui, -apple-system, sans-serif';
 
-export function getLabeledPickerResponsiveItems(container: HTMLElement): IChatInputPickerResponsiveLayoutItem[] {
+export function getLabeledPickerResponsiveItems(container: HTMLElement, expandedPickerDescendantClass?: string): IChatInputPickerResponsiveLayoutItem[] {
 	const elements = new Map<HTMLElement, HTMLElement | undefined>();
 	const actionItemLabelCounts = new Map<HTMLElement, number>();
+	const expandedElements = new Set<HTMLElement>();
 	const visit = (element: HTMLElement, pickerSlot: HTMLElement | undefined, actionItem: HTMLElement | undefined): void => {
 		const currentPickerSlot = element.classList.contains('sessions-chat-picker-slot') ? element : pickerSlot;
 		const currentActionItem = element.classList.contains('action-item') ? element : actionItem;
+		if (expandedPickerDescendantClass && element.classList.contains(expandedPickerDescendantClass)) {
+			const pickerElement = currentPickerSlot ?? currentActionItem;
+			if (pickerElement) {
+				expandedElements.add(pickerElement);
+			}
+		}
 		if (element.classList.contains('sessions-chat-dropdown-label')) {
 			const pickerElement = currentPickerSlot ?? currentActionItem;
 			if (pickerElement) {
@@ -172,16 +179,25 @@ export function getLabeledPickerResponsiveItems(container: HTMLElement): IChatIn
 	};
 	visit(container, undefined, undefined);
 
-	return Array.from(elements, ([element, actionItem]) => ({
-		element,
-		isCompact: () => element.classList.contains('compact-picker'),
-		setCompact: compact => {
-			element.classList.toggle('compact-picker', compact);
-			if (actionItem && actionItem !== element && actionItemLabelCounts.get(actionItem) === 1) {
-				actionItem.classList.toggle('compact-picker', compact);
-			}
-		},
-	}));
+	const items: IChatInputPickerResponsiveLayoutItem[] = [];
+	for (const [element, actionItem] of elements) {
+		const item: IChatInputPickerResponsiveLayoutItem = {
+			element,
+			isCompact: () => element.classList.contains('compact-picker'),
+			setCompact: compact => {
+				element.classList.toggle('compact-picker', compact);
+				if (actionItem && actionItem !== element && actionItemLabelCounts.get(actionItem) === 1) {
+					actionItem.classList.toggle('compact-picker', compact);
+				}
+			},
+		};
+		if (expandedElements.has(element)) {
+			item.setCompact(false);
+		} else {
+			items.push(item);
+		}
+	}
+	return items;
 }
 
 /** True while focus is in an Agents window composer that supports dictation. */
@@ -624,6 +640,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			canSubmitWithoutSession?: IObservable<boolean>;
 			hasAdditionalSendContent?: IObservable<boolean>;
 			loading: IObservable<boolean>;
+			useUnifiedWorkspacePicker?: IObservable<boolean>;
 			useExperimentalLayout?: IObservable<boolean>;
 			historyKey?: IObservable<string | undefined>;
 			minEditorHeight?: number;
@@ -897,6 +914,11 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._createInputToolbar(inputArea);
 
 		const newChatBottomContainer = dom.append(parent, dom.$('.new-chat-bottom-container'));
+		this._register(autorun(reader => newChatBottomContainer.classList.toggle(
+			'unified-workspace-picker-layout',
+			(this.options.useUnifiedWorkspacePicker?.read(reader) ?? false)
+				&& !(this.options.useExperimentalLayout?.read(reader) ?? false),
+		)));
 		const newChatControlsContainer = dom.append(newChatBottomContainer, dom.$('.new-chat-controls-container'));
 		if (this._sessionControlsContainer && this._inputToolbar && this._configContainer) {
 			const sessionControlsContainer = this._sessionControlsContainer;
@@ -972,9 +994,22 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		updateBottomContainerVisibility();
 
 		this._secondaryPickerResponsiveLayout = this._register(new ChatInputPickerResponsiveLayout('NewChatInput.secondaryPicker', newChatBottomContainer, {
-			getItems: () => getLabeledPickerResponsiveItems(newChatBottomContainer),
+			getItems: () => {
+				const preserveModePermissions = isPhoneLayout(this.layoutService)
+					&& this.options.useUnifiedWorkspacePicker?.get()
+					&& !this.options.useExperimentalLayout?.get();
+				return getLabeledPickerResponsiveItems(
+					newChatBottomContainer,
+					preserveModePermissions ? 'agent-host-mode-permissions-trigger' : undefined,
+				);
+			},
 		}));
 		this._secondaryPickerResponsiveLayout.layout();
+		this._register(autorun(reader => {
+			this.options.useUnifiedWorkspacePicker?.read(reader);
+			this.options.useExperimentalLayout?.read(reader);
+			this._secondaryPickerResponsiveLayout?.layout();
+		}));
 
 		// Restore draft input state from storage
 		this._restoreState();

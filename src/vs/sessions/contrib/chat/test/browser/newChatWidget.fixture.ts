@@ -884,6 +884,20 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 					&& targetWindow.getComputedStyle(bottomContainer).overflowX === 'auto'
 					&& (!separator || targetWindow.getComputedStyle(separator).display === 'none'),
 					'Phone controls must remain in a viewport-bounded scrollable row without a repository separator.');
+				if (unifiedWorkspacePicker && !experimentalComposerLayout) {
+					const modePermissions = bottomContainer.querySelector<HTMLElement>('.agent-host-mode-permissions-trigger');
+					const phoneControls = bottomContainer.querySelector<HTMLElement>('.new-chat-controls-container');
+					const permissionsLabel = modePermissions?.querySelector<HTMLElement>('.agent-host-mode-permission-summary');
+					const modePermissionsBounds = modePermissions?.getBoundingClientRect();
+					const phoneControlsBounds = phoneControls?.getBoundingClientRect();
+					const permissionsBounds = permissionsLabel?.getBoundingClientRect();
+					assert(!!modePermissions && !!permissionsLabel && !!modePermissionsBounds && !!phoneControlsBounds && !!permissionsBounds
+						&& permissionsLabel.checkVisibility()
+						&& !modePermissions.closest('.compact-picker')
+						&& permissionsBounds.right <= modePermissionsBounds.right
+						&& modePermissionsBounds.right <= phoneControlsBounds.right,
+						'The unified phone picker must keep the complete mode and permissions control visible.');
+				}
 			} else {
 				assert(promptBox.getBoundingClientRect().top - workspacePickerContainer.getBoundingClientRect().bottom === 8
 					&& targetWindow.getComputedStyle(bottomContainer).justifyContent === 'space-between'
@@ -1130,7 +1144,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/newWidget/' }, {
 	}),
 	NewSessionPhoneUnifiedWorkspacePicker: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
-		expectedVisualDescriptions: ['With only the unified workspace picker enabled, the phone keeps workspace and harness controls centered below the Sessions logo. Worktree and Branch remain available in the horizontally scrollable bottom row without an empty separator block.'],
+		expectedVisualDescriptions: ['With only the unified workspace picker enabled, the phone keeps workspace and harness controls centered below the Sessions logo. The bottom row starts with the complete Interactive and Allow all control, while Worktree and Branch remain available in the horizontally scrollable row without an empty separator block.'],
 		render: context => renderNewChatWidget(context, { width: 390, height: 760, withWorkspace: true, withControlPickers: true, unifiedWorkspacePicker: true, experimentalComposerLayout: false, phoneLayout: true }),
 	}),
 	NewSessionPhoneUnifiedWorkspacePickerOpen: defineComponentFixture({
