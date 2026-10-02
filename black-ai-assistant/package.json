@@ -1,0 +1,49 @@
+{
+  "name": "black-ai-assistant",
+  "displayName": "Black AI Assistant",
+  "description": "Independent AI coding assistant powered by Gemini",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:blackAiAssistant.openChat"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "blackAiAssistant.openChat",
+        "title": "Black AI: Open Chat"
+      }
+    ],
+    "configuration": {
+      "title": "Black AI Assistant",
+      "properties": {
+        "blackAiAssistant.apiKey": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "markdownDescription": "Gemini API key. Get one from Google AI Studio."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.1.0"
+  }
+}
