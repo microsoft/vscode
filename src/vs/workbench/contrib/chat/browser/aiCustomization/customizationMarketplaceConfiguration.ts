@@ -29,6 +29,18 @@ export function isCustomizationDiscoveryAvailable(configurationService: IConfigu
 	return getVisibleCustomizationMarketplaceSources(configurationService, marketplaceService.sources).length > 0;
 }
 
+export function isCustomizationMarketplaceValueFromDefault(configurationService: IConfigurationService): boolean {
+	const inspected = configurationService.inspect<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+	return inspected.applicationValue === undefined &&
+		inspected.userValue === undefined &&
+		inspected.userLocalValue === undefined &&
+		inspected.userRemoteValue === undefined &&
+		inspected.workspaceValue === undefined &&
+		inspected.workspaceFolderValue === undefined &&
+		inspected.memoryValue === undefined &&
+		inspected.policyValue === undefined;
+}
+
 export function affectsCustomizationDiscoveryAvailability(event: IConfigurationChangeEvent, marketplaceService: ICustomizationMarketplaceService): boolean {
 	return affectsCustomizationMarketplaceSources(event, marketplaceService.allSources ?? marketplaceService.sources);
 }

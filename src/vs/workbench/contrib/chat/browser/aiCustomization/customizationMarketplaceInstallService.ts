@@ -739,29 +739,29 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				operationDisposables.dispose();
 			}
 		}));
-		const operation = connector
-			? (async () => {
+		const operation = runCustomizationMarketplaceInstallWithTelemetry(
+			this.telemetryService,
+			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
+			async () => {
+				if (!connector) {
+					const record = await this.doInstall(resource, token);
+					await this.addRecord(record);
+					return;
+				}
 				await this.runConnectorOperation(resource.sourceId, operationToken => this.copilotConnectorsService.connect(connector.name, operationToken), token);
 				const account = this.copilotConnectorsService.account;
 				if (!account) {
 					throw new Error(localize('customizationMarketplace.connectorAccountUnavailable', "The GitHub account used to connect this resource is no longer available."));
 				}
 				await this.addRecord(await this.createConnectorRecord(resource, account));
-			})()
-			: (async () => {
-				const record = await this.doInstall(resource, token);
-				await this.addRecord(record);
-			})();
+			},
+			token,
+		);
 		this.pending.set(key, { promise: operation, cancel: () => operationDisposables.dispose() });
 		this.emitChange();
 		let didComplete = false;
 		try {
-			await runCustomizationMarketplaceInstallWithTelemetry(
-				this.telemetryService,
-				getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
-				() => operation,
-				token,
-			);
+			await operation;
 			didComplete = true;
 		} catch (error) {
 			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(resource.sourceId)) {

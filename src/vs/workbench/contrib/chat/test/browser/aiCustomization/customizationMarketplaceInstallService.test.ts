@@ -312,8 +312,13 @@ suite('CustomizationMarketplaceInstallService', () => {
 			onInstall: (() => Promise<IInstallPluginFromSourceResult>) | undefined;
 			autoMatch = true;
 			version = '1.0.0';
+			synchronousInstallDelayMs = 0;
 			readonly versions = new Map<string, string>();
 			override async installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult> {
+				const synchronousStart = performance.now();
+				while (performance.now() - synchronousStart < this.synchronousInstallDelayMs) {
+					// Simulate synchronous validation before the first suspension point.
+				}
 				this.calls.push({ source, options });
 				const result = this.onInstall ? await this.onInstall() : this.result;
 				if (!result.success || result.matchedPlugin || !this.autoMatch) {
@@ -666,6 +671,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('Marketplace visibility blocks installs without disabling the source', async () => {
 			const fixture = await createFixture();
+			fixture.pluginService.synchronousInstallDelayMs = 10;
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 			fireConfigurationChange(fixture.configurationService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
 			const state = fixture.service.getInstallState(pluginResource());
@@ -679,7 +685,11 @@ suite('CustomizationMarketplaceInstallService', () => {
 				sourceStillEnabled: fixture.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled),
 				telemetry: fixture.telemetryService.events.map(event => ({
 					...event,
-					data: { ...event.data, durationMs: typeof event.data.durationMs === 'number' },
+					data: {
+						...event.data,
+						durationMs: typeof event.data.durationMs === 'number',
+						durationIncludesSynchronousSetup: typeof event.data.durationMs === 'number' && event.data.durationMs >= fixture.pluginService.synchronousInstallDelayMs,
+					},
 				})),
 			}, {
 				state: { kind: 'unavailable', message: 'Enable the customization marketplace to install this resource.' },
@@ -693,6 +703,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 						installKind: 'plugin',
 						outcome: 'success',
 						durationMs: true,
+						durationIncludesSynchronousSetup: true,
 					},
 				}],
 			});
