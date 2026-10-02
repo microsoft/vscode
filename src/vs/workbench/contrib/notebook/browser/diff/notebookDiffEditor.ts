@@ -472,6 +472,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();
+		if (token.isCancellationRequested || this.input !== input) {
+			return;
+		}
+
 		if (this._model !== model) {
 			this._detachModel();
 			this._attachModel(model);
@@ -508,10 +512,18 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}));
 
 		await this._createOriginalWebview(generateUuid(), this._model.original.viewType, this._model.original.resource);
+		if (token.isCancellationRequested || this.input !== input || this._model !== model) {
+			return;
+		}
+
 		if (this._originalWebview) {
 			this._modifiedResourceDisposableStore.add(this._originalWebview);
 		}
 		await this._createModifiedWebview(generateUuid(), this._model.modified.viewType, this._model.modified.resource);
+		if (token.isCancellationRequested || this.input !== input || this._model !== model) {
+			return;
+		}
+
 		if (this._modifiedWebview) {
 			this._modifiedResourceDisposableStore.add(this._modifiedWebview);
 		}
@@ -542,6 +554,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._modifiedResourceDisposableStore.clear();
 		this._list.clear();
+		this._currentChangedIndex.set(-1, undefined);
 
 	}
 	private _attachModel(model: INotebookDiffEditorModel) {
