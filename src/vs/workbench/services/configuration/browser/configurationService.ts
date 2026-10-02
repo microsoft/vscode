@@ -1382,7 +1382,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		this.logService.trace('ConfigurationService#updateDefaults: begin');
 		try {
 			// Check for experiments
-			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()), false);
+			await this.processExperimentalSettings([
+				...Object.keys(this.configurationRegistry.getConfigurationProperties()),
+				...Object.keys(this.configurationRegistry.getExcludedConfigurationProperties()),
+			], false);
 		} finally {
 			// Invalidate defaults cache after extensions have registered
 			// and after the experiments have been resolved to prevent
@@ -1398,9 +1401,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		const addedDefaults: IConfigurationDefaults[] = [];
 		const assignmentUpdates: Promise<void>[] = [];
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
-			const schema = allProperties[property];
+			const schema = allProperties[property] ?? excludedProperties[property];
 			if (!schema?.experiment) {
 				this.assignmentRequests.delete(property);
 				this.experimentalSettingsService.setAssignment(property, false);
@@ -1440,7 +1444,7 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			try {
 				const { value, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(getConfigurationExperimentName(property, schema.experiment));
 				assignmentUpdates.push(hasAssignment.then(assigned => {
-					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && allProperties[property]?.experiment === schema.experiment) {
+					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && (allProperties[property] ?? excludedProperties[property])?.experiment === schema.experiment) {
 						this.experimentalSettingsService.setAssignment(property, assigned);
 					}
 				}, error => {
