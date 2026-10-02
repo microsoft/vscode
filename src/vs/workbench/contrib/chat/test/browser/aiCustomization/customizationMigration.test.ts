@@ -206,7 +206,7 @@ suite('customizationMigration', () => {
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
-		const warning = 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.';
+		const warning = 'Removes \'gallery\'. Registry updates will stop.';
 
 		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
 	});
