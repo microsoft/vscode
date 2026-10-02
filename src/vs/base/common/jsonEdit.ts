@@ -51,7 +51,43 @@ export function setProperty(text: string, originalPath: JSONPath, value: unknown
 				if (propertyIndex > 0) {
 					// remove the comma of the previous node
 					const previous = parent.children[propertyIndex - 1];
-					removeBegin = previous.offset + previous.length;
+					const previousEnd = previous.offset + previous.length;
+					const gap = text.substring(previousEnd, existing.parent.offset);
+					if (gap.includes('//') || gap.includes('/*')) {
+						// Comments exist between properties — preserve them by using separate edits
+						const isLast = propertyIndex === parent.children.length - 1;
+						const edits: Edit[] = [];
+						if (isLast) {
+							// Remove trailing comma from previous property
+							const commaIdx = text.indexOf(',', previousEnd);
+							if (commaIdx >= 0 && commaIdx < existing.parent.offset) {
+								edits.push({ offset: commaIdx, length: 1, content: '' });
+							}
+						}
+						// Remove the property line (expand to full line boundaries)
+						let lineStart = existing.parent.offset;
+						while (lineStart > 0 && !isEOL(text, lineStart - 1)) {
+							lineStart--;
+						}
+						let lineEnd = removeEnd;
+						if (!isLast) {
+							// Include trailing comma for non-last properties
+							while (lineEnd < text.length && text[lineEnd] !== ',' && !isEOL(text, lineEnd)) { lineEnd++; }
+							if (lineEnd < text.length && text[lineEnd] === ',') { lineEnd++; }
+						}
+						// Extend to include the line ending
+						while (lineEnd < text.length && !isEOL(text, lineEnd)) { lineEnd++; }
+						if (lineEnd < text.length) {
+							if (text[lineEnd] === '\r' && lineEnd + 1 < text.length && text[lineEnd + 1] === '\n') {
+								lineEnd += 2;
+							} else {
+								lineEnd++;
+							}
+						}
+						edits.push({ offset: lineStart, length: lineEnd - lineStart, content: '' });
+						return edits;
+					}
+					removeBegin = previousEnd;
 				} else {
 					removeBegin = parent.offset + 1;
 					if (parent.children.length > 1) {
