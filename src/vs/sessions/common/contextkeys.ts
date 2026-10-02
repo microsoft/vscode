@@ -38,6 +38,8 @@ export const SessionActiveChatHasSideChatsContext = new RawContextKey<boolean>('
 export const SessionShouldShowChatTabsContext = new RawContextKey<boolean>('sessionShouldShowChatTabs', false, localize('sessionShouldShowChatTabs', "Whether the session view's chat tab strip is shown, i.e. the session has more than one chat actually showing as a tab. A single visible tab always hides the strip"));
 export const SessionHasMultipleOpenChatsContext = new RawContextKey<boolean>('sessionHasMultipleOpenChats', false, localize('sessionHasMultipleOpenChats', "Whether the session view's session has more than one open chat (the tabs shown in the strip, including in-composer drafts). Used to scope chat-to-chat navigation (next/previous chat, the Ctrl+Tab chat switcher)"));
 export const SessionActiveChatIsClosableContext = new RawContextKey<boolean>('sessionActiveChatIsClosable', false, localize('sessionActiveChatIsClosable', "Whether the active chat surface can be closed, either by hiding a non-main chat or by removing a side-by-side chat group"));
+export const SessionActiveChatCanArchiveContext = new RawContextKey<boolean>('sessionActiveChatCanArchive', false, localize('sessionActiveChatCanArchive', "Whether the active chat can be archived or marked as done"));
+export const SessionActiveChatIsUntitledContext = new RawContextKey<boolean>('sessionActiveChatIsUntitled', false, localize('sessionActiveChatIsUntitled', "Whether the active chat is an untitled nested session draft"));
 export const SessionToolbarShowsSessionContext = new RawContextKey<boolean>('sessionToolbarShowsSession', false, localize('sessionToolbarShowsSession', "Whether the session toolbar represents the whole session rather than a side-by-side chat group"));
 export const SessionHeaderShowsChatContext = new RawContextKey<boolean>('sessionHeaderShowsChat', false, localize('sessionHeaderShowsChat', "Whether the session-style header represents one chat in a side-by-side chat group rather than the whole session"));
 export const SessionHeaderActiveChatIsPinnedContext = new RawContextKey<boolean>('sessionHeaderActiveChatIsPinned', false, localize('sessionHeaderActiveChatIsPinned', "Whether the chat represented by a side-by-side chat group header is pinned"));
@@ -117,7 +119,7 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 //#region < --- Experiments --- >
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
-export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Chat in This Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
 
 //#endregion
 

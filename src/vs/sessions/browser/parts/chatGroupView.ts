@@ -16,10 +16,10 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ServiceCollection } from '../../../platform/instantiation/common/serviceCollection.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording } from '../../../platform/chat/common/sessionArchiveActions.js';
-import { ChatInteractivity, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
+import { ChatInteractivity, getChatCapabilities, IChat, isSideChatOf, SessionStatus } from '../../services/sessions/common/session.js';
 import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
 import { UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
 import { ChatCompositeBar, IChatCompositeBarDelegate } from './chatCompositeBar.js';
 import { type IRemoteHostUnavailableEmptyStateContent, RemoteHostUnavailableEmptyState } from './remoteHostUnavailableEmptyState.js';
@@ -113,6 +113,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
+	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
+	private readonly _activeChatIsDeletableKey: IContextKey<boolean>;
+	private readonly _activeChatIsUntitledKey: IContextKey<boolean>;
 	private readonly _activeChatIsPinnedKey: IContextKey<boolean>;
 	private readonly _activeChatResourceKey: IContextKey<string>;
 	private readonly _activeChatHasSideChatsKey: IContextKey<boolean>;
@@ -150,6 +153,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
+		this._activeChatCanArchiveKey = SessionActiveChatCanArchiveContext.bindTo(scopedContextKeyService);
+		this._activeChatIsDeletableKey = SessionActiveChatIsDeletableContext.bindTo(scopedContextKeyService);
+		this._activeChatIsUntitledKey = SessionActiveChatIsUntitledContext.bindTo(scopedContextKeyService);
 		this._activeChatIsPinnedKey = SessionHeaderActiveChatIsPinnedContext.bindTo(scopedContextKeyService);
 		this._activeChatResourceKey = SessionActiveChatResourceContext.bindTo(scopedContextKeyService);
 		this._activeChatHasSideChatsKey = SessionActiveChatHasSideChatsContext.bindTo(scopedContextKeyService);
@@ -231,6 +237,9 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		if (!context) {
 			this._activeChatIsClosableKey.reset();
+			this._activeChatCanArchiveKey.reset();
+			this._activeChatIsDeletableKey.reset();
+			this._activeChatIsUntitledKey.reset();
 			this._activeChatIsPinnedKey.reset();
 			this._activeChatResourceKey.reset();
 			this._activeChatHasSideChatsKey.reset();
@@ -282,6 +291,10 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			const chat = activeChat.read(reader);
 			const isNonMainChat = activeResource !== mainResource;
 			this._activeChatIsClosableKey.set(isNonMainChat || context.chatHeaderVisible.read(reader));
+			const capabilities = chat && getChatCapabilities(chat, context.session, reader);
+			this._activeChatCanArchiveKey.set(capabilities?.canArchive ?? false);
+			this._activeChatIsDeletableKey.set(capabilities?.canDelete ?? false);
+			this._activeChatIsUntitledKey.set(chat?.status.read(reader) === SessionStatus.Untitled);
 			this._activeChatIsPinnedKey.set(context.activeChatIsPinned.read(reader));
 			this._activeChatResourceKey.set(chat?.resource.toString() ?? '');
 			this._activeChatHasSideChatsKey.set(!!chat && context.session.chats.read(reader).some(candidate => isSideChatOf(candidate, chat.resource)));

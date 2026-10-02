@@ -200,6 +200,20 @@ suite('Sessions - Headers', () => {
 		});
 	});
 
+	test('shows New Session for an untitled nested session', () => {
+		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
+		secondChat.title.set('', undefined);
+		activeChat.set(secondChat, undefined);
+		const header = store.add(instantiationService.createInstance(ChatHeader));
+		header.setChat({
+			session,
+			chat: activeChat,
+			activate: () => { },
+		});
+
+		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent, 'New Session');
+	});
+
 	test('uses a full-width backing surface with centered content and no separator', () => {
 		const { header } = createHarness(disposables);
 		const container = header.element.parentElement!;

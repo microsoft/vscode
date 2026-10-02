@@ -29,7 +29,7 @@ import { AbstractChatView, ChatViewKind, IChatViewOptions } from '../../browser/
 import { ChatGroupsView } from '../../browser/parts/chatGroupsView.js';
 import { SessionDropTarget } from '../../browser/parts/sessionDropTarget.js';
 import { DraggedSessionIdentifier, SessionsDataTransfers } from '../../browser/dnd.js';
-import { SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
+import { SessionActiveChatCanArchiveContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionActiveChatResourceContext, SessionFocusedChatIsRenameTargetContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../common/sessionConfig.js';
 import { type IAgentHostAutoConnect, type IAgentHostConnectProgress, type IAgentHostConnectionLabels, IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
 import { IChatViewFactory } from '../../services/chatView/browser/chatViewFactory.js';
@@ -472,6 +472,12 @@ suite('Sessions - ChatGroupsView', () => {
 		const contextKeyService = instantiationService.get(IContextKeyService);
 		const closeActionContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsClosableContext.key));
+		const deleteActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsDeletableContext.key));
+		const archiveActionContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatCanArchiveContext.key));
+		const untitledChatContexts = groups.map(group =>
+			contextKeyService.getContext(group).getValue<boolean>(SessionActiveChatIsUntitledContext.key));
 		const headerShowsChatContexts = groups.map(group =>
 			contextKeyService.getContext(group).getValue<boolean>(SessionHeaderShowsChatContext.key));
 		const activeChatResources = groups.map(group =>
@@ -482,6 +488,9 @@ suite('Sessions - ChatGroupsView', () => {
 		assert.deepStrictEqual({
 			groups: readGroups(),
 			closeActionContexts,
+			deleteActionContexts,
+			archiveActionContexts,
+			untitledChatContexts,
 			headerShowsChatContexts,
 			activeChatResources,
 			activeChatHasSideChats,
@@ -499,6 +508,9 @@ suite('Sessions - ChatGroupsView', () => {
 				},
 			],
 			closeActionContexts: [true, true],
+			deleteActionContexts: [false, true],
+			archiveActionContexts: [false, false],
+			untitledChatContexts: [false, false],
 			headerShowsChatContexts: [true, true],
 			activeChatResources: [main.resource.toString(), secondary.resource.toString()],
 			activeChatHasSideChats: [true, false],

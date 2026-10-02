@@ -8,6 +8,7 @@ import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { IAction, SubmenuAction } from '../../../../../base/common/actions.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { isDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, transaction } from '../../../../../base/common/observable.js';
@@ -551,12 +552,12 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('chat rows expose capability-gated rename, side-open, and deletion', async () => {
-		const createChat = (title: string, canRename: boolean, canDelete: boolean): IChat => upcastPartial<IChat>({
+		const createChat = (title: string, canRename: boolean, canDelete: boolean, status = SessionStatus.Completed): IChat => upcastPartial<IChat>({
 			resource: URI.parse(`test-chat:/${title}`),
 			workspace: constObservable(undefined),
 			title: constObservable(title),
 			updatedAt: constObservable(new Date()),
-			status: constObservable(SessionStatus.Completed),
+			status: constObservable(status),
 			interactivity: constObservable(ChatInteractivity.Full),
 			isArchived: constObservable(false),
 			capabilities: constObservable({ canRename, canArchive: true, canDelete }),
@@ -565,11 +566,12 @@ suite('Sessions list context menus', () => {
 		});
 		const main = createChat('Session', true, true);
 		const peer = createChat('Peer', true, true);
+		const untitled = createChat('New Chat', true, true, SessionStatus.Untitled);
 		const nonDeletable = createChat('Read Only', false, false);
 		const { session: baseSession } = createSession('Session');
 		const session: ISession = {
 			...baseSession,
-			chats: constObservable([main, peer, nonDeletable]),
+			chats: constObservable([main, peer, untitled, nonDeletable]),
 			mainChat: constObservable(main),
 		};
 		const renameInputs: string[] = [];
@@ -621,11 +623,28 @@ suite('Sessions list context menus', () => {
 			{ id: 'sessions.list.openChatToSide', title: 'Open to the Side', group: '1_chat', order: 2, when: undefined },
 			{ id: 'sessions.list.deleteChat', title: 'Delete...', group: '2_delete', order: 1, when: 'sessionChatItem.canDelete' },
 		]);
+		const deleteToolbarItem = MenuRegistry.getMenuItems(Menus.SessionChatItemToolbar)
+			.filter(isIMenuItem)
+			.find(item => item.command.id === 'sessions.list.deleteChat');
+		assert.deepStrictEqual({
+			title: deleteToolbarItem && (typeof deleteToolbarItem.command.title === 'string' ? deleteToolbarItem.command.title : deleteToolbarItem.command.title.value),
+			icon: deleteToolbarItem?.command.icon,
+			group: deleteToolbarItem?.group,
+			order: deleteToolbarItem?.order,
+			when: deleteToolbarItem?.when?.serialize(),
+		}, {
+			title: 'Delete...',
+			icon: Codicon.trash,
+			group: 'navigation',
+			order: 1,
+			when: 'sessionChatItem.canDelete && sessionChatItem.isUntitled',
+		});
 		const chatContext = { session, chat: peer };
 		for (const actionId of [RENAME_CHAT_COMMAND_ID, 'sessions.list.openChatToSide', 'sessions.list.deleteChat']) {
 			await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(actionId)!.handler, chatContext);
 		}
 		const readOnlyContext = { session, chat: nonDeletable };
+		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, { session, chat: untitled });
 		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand(RENAME_CHAT_COMMAND_ID)!.handler, readOnlyContext);
 		await harness.instantiationService.invokeFunction(CommandsRegistry.getCommand('sessions.list.deleteChat')!.handler, readOnlyContext);
 
@@ -639,8 +658,8 @@ suite('Sessions list context menus', () => {
 			renameInputs: ['Peer'],
 			renamedChats: [{ session, chatResource: peer.resource, title: 'Renamed Peer' }],
 			openedToSide: [peer],
-			deletedChats: [{ session, chatResource: peer.resource }],
-			deleteChatOptions: [undefined],
+			deletedChats: [{ session, chatResource: peer.resource }, { session, chatResource: untitled.resource }],
+			deleteChatOptions: [undefined, { skipConfirmation: true }],
 		});
 	});
 });
