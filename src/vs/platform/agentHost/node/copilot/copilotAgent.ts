@@ -71,6 +71,7 @@ import { isCustomizationEnabled } from '../../common/customizationEnablement.js'
 import { ActiveClientToolSet, structuralToolsEqual } from '../activeClientState.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostManagedSettingsService } from '../agentHostManagedSettingsService.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../../common/requiredPlugins.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../shared/persistSessionMetadata.js';
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
@@ -141,6 +142,22 @@ function setCopilotTgrepEnvironment(env: Record<string, string | undefined>, ena
 	} else {
 		env['USE_TGREP'] = 'false';
 	}
+}
+
+interface ICopilotRequiredPluginSdk {
+	readonly rpc: {
+		readonly plugins: {
+			ensureRequired(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult>;
+		};
+	};
+}
+
+type CopilotRequiredPluginSdkAvailable = CopilotClient extends ICopilotRequiredPluginSdk ? true : false;
+const copilotRequiredPluginSdkAvailable = false satisfies CopilotRequiredPluginSdkAvailable;
+
+function isCopilotRequiredPluginSdk(client: CopilotClient): client is CopilotClient & ICopilotRequiredPluginSdk {
+	const plugins: object = client.rpc.plugins;
+	return 'ensureRequired' in plugins && typeof plugins.ensureRequired === 'function';
 }
 
 export async function getCopilotManagedSettingsDiagnostics(
@@ -707,6 +724,7 @@ class BackgroundWorkWatch extends Disposable {
 export class CopilotAgent extends Disposable implements IAgent {
 	readonly id = COPILOT_CLI_AGENT_PROVIDER_ID;
 	readonly agentHostCapabilities = { workspaceConversion: true } as const;
+	readonly supportsRequiredPlugins = copilotRequiredPluginSdkAvailable;
 	protected readonly _now = Date.now;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
@@ -1559,6 +1577,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			layers: result.layers,
 			diagnostics: result.diagnostics,
 		};
+	}
+
+	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		const client = await this._ensureClientForSession();
+		if (!isCopilotRequiredPluginSdk(client)) {
+			throw new Error(`The installed Copilot SDK does not support required plugin enforcement. Available plugin methods: ${Object.keys(client.rpc.plugins).join(', ')}`);
+		}
+		return client.rpc.plugins.ensureRequired(request);
 	}
 
 	getCustomizations(): readonly Customization[] {

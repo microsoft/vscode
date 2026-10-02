@@ -77,7 +77,7 @@ suite('AgentPlugin enablement', () => {
 		});
 	}
 
-	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin): IAgentPlugin {
+	function makePlugin(uri: URI, label: string, fromMarketplace?: IMarketplacePlugin, externalIdentity?: IAgentPlugin['externalIdentity']): IAgentPlugin {
 		return {
 			uri,
 			format: PluginFormat.Copilot,
@@ -91,6 +91,7 @@ suite('AgentPlugin enablement', () => {
 			mcpServerDefinitions: observableValue('testPluginMcpServerDefinitions', []),
 			automations: observableValue('testPluginAutomations', []),
 			fromMarketplace,
+			externalIdentity,
 		};
 	}
 
@@ -224,6 +225,31 @@ suite('AgentPlugin enablement', () => {
 			storedBlocked: ContributionEnablementState.EnabledProfile,
 		});
 
+		test('repository enablement overlays runtime-owned global state', () => {
+			const key = URI.file('/plugins/repository').toString();
+			const base = makeTestEnablementModel();
+			const sourceProfile = observableValue<ReadonlyMap<string, boolean>>('sourceProfile', new Map([[key, false]]));
+			const workspace = observableValue<ReadonlyMap<string, boolean>>('workspace', new Map([[key, true]]));
+			const enablementModel = new AgentPluginCollisionEnablementModel(
+				base,
+				observableValue('emptyCollisionGroups', new Map()),
+				undefined,
+				sourceProfile,
+				workspace,
+			);
+
+			assert.deepStrictEqual({
+				effective: enablementModel.readEnabled(key),
+				profile: enablementModel.readProfileEnabled(key),
+			}, {
+				effective: ContributionEnablementState.EnabledWorkspace,
+				profile: false,
+			});
+
+			workspace.set(new Map(), undefined);
+			assert.strictEqual(enablementModel.readEnabled(key), ContributionEnablementState.DisabledProfile);
+		});
+
 		policy.set(new Map(), undefined);
 
 		assert.deepStrictEqual({
@@ -317,6 +343,28 @@ suite('AgentPlugin enablement', () => {
 			plugins: [sharedUri.toString()],
 			collisionGroupCount: 0,
 		});
+	});
+
+	test('runtime identity collides a live repository source with the same globally installed plugin', () => {
+		const liveUri = URI.file('/workspace/plugins/model-council');
+		const installedUri = URI.file('/Users/test/.copilot/installed-plugins/team/model-council');
+		const discoveries: IDiscoveredAgentPlugins[] = [
+			{
+				priority: AgentPluginDiscoveryPriority.Configured,
+				order: 0,
+				plugins: [makePlugin(liveUri, 'model-council', undefined, { name: 'model-council', marketplace: 'team' })],
+			},
+			{
+				priority: AgentPluginDiscoveryPriority.CopilotCli,
+				order: 1,
+				plugins: [makePlugin(installedUri, 'model-council')],
+			},
+		];
+
+		assert.deepStrictEqual(getCanonicalAgentPluginCollisionGroups(discoveries).get(liveUri.toString()), [
+			liveUri.toString(),
+			installedUri.toString(),
+		]);
 	});
 
 	suite('isAgentPluginBlockedByPolicy', () => {

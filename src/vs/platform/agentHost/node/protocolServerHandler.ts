@@ -24,7 +24,7 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { AgentHostCanvasesChangedNotification, ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, EnsureAgentHostRequiredPluginsExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, isValidAgentHostCanvasesChangedParams, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, resolveAgentHostCanvasSourceParamsValidator, ResolveAgentHostCanvasSourceExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostCanvasesChangedParams, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -74,6 +74,7 @@ import {
 	type OtlpLogLevelName,
 } from '../common/otlp/otlpLogEmitter.js';
 import { isFileResourceRead } from '../common/resourceReadLogging.js';
+import { toRequiredPluginRuntimeWorkingDirectory } from '../common/requiredPlugins.js';
 import type { Implementation } from '../common/state/protocol/common/commands.js';
 import { AGENT_HOST_CLIENT_CONNECTION_HISTORY_RETENTION, IAgentHostClientConnectionService, type IAgentHostClientConnectionSource } from './agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
@@ -728,6 +729,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					this._otelService?.diagnosticsEnabled,
 					!!this._agentService.importSession,
 					this._supportsCanvases(client),
+					this._agentService.supportsRequiredPlugins,
 				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
@@ -2090,7 +2092,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (method === ResolveAgentHostCanvasSourceExtensionMethod) {
 			return this._handleResolveCanvasSourceRequest(client, params);
 		}
-		if (this._config.allowExtensionMethods === false) {
+		if (this._config.allowExtensionMethods === false && method !== EnsureAgentHostRequiredPluginsExtensionMethod) {
 			return undefined;
 		}
 
@@ -2229,6 +2231,39 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'activeHandles must contain valid worktree handles'));
 				}
 				return this._agentService.reconcileDetachedWorktrees(scope, activeHandles);
+			}
+			case EnsureAgentHostRequiredPluginsExtensionMethod: {
+				if (!this._agentService.ensureRequiredPlugins) {
+					return undefined;
+				}
+				if (!isParamsObject(params)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'params must be an object'));
+				}
+				const workingDirectoryParam = params['workingDirectory'];
+				const repositoryTrusted = params['repositoryTrusted'];
+				const managedSettings = params['managedSettings'];
+				if (workingDirectoryParam !== undefined && (typeof workingDirectoryParam !== 'string' || !workingDirectoryParam)) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a non-empty URI string when provided'));
+				}
+				if (repositoryTrusted !== undefined && typeof repositoryTrusted !== 'boolean') {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'repositoryTrusted must be a boolean when provided'));
+				}
+				if (managedSettings !== undefined && (!managedSettings || typeof managedSettings !== 'object' || Array.isArray(managedSettings))) {
+					return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'managedSettings must be an object'));
+				}
+				let workingDirectory: string | undefined;
+				if (workingDirectoryParam !== undefined) {
+					try {
+						workingDirectory = toRequiredPluginRuntimeWorkingDirectory(workingDirectoryParam);
+					} catch {
+						return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workingDirectory must be a valid URI string'));
+					}
+				}
+				return this._agentService.ensureRequiredPlugins({
+					...(workingDirectory ? { workingDirectory } : {}),
+					...(repositoryTrusted !== undefined ? { repositoryTrusted } : {}),
+					managedSettings: managedSettings as Record<string, unknown> | undefined,
+				});
 			}
 			case CollectAgentHostDebugLogsExtensionMethod: {
 				if (!this._agentService.collectDebugLogs) {

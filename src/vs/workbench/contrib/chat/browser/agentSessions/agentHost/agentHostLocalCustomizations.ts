@@ -255,15 +255,25 @@ export async function resolveCustomizationRefs(
 					// ignored, sync will probably fail later though...
 				}
 
+				let enablement = withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
+					kind: CustomizationEnablementKind.Global,
+					enabled: agentPluginService.enablementModel.readProfileEnabled(key),
+				});
+				const workspaceConfiguredEnablement = agentPluginService.getWorkspaceConfiguredEnablement?.(plugin, workingDirectories[0]);
+				if (workspaceConfiguredEnablement !== undefined && workingDirectories[0]) {
+					enablement = withCustomizationEnablement(enablement, CustomizationEnablementKind.Workspace, {
+						kind: CustomizationEnablementKind.Workspace,
+						uri: workingDirectories[0].toString() as ProtocolURI,
+						enabled: workspaceConfiguredEnablement,
+					});
+				}
+
 				const ref: ClientPluginCustomization = {
 					type: CustomizationType.Plugin,
 					id: customizationId(key),
 					uri: key as ProtocolURI,
 					name: plugin.label,
-					enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
-						kind: CustomizationEnablementKind.Global,
-						enabled: agentPluginService.enablementModel.readProfileEnabled(key),
-					}),
+					enablement,
 				};
 				if (nonce !== undefined) {
 					ref.nonce = nonce.toString(16);

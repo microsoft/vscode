@@ -85,11 +85,16 @@ function globalEnablement(enabled: boolean): CustomizationEnablement[] {
 	return [{ kind: CustomizationEnablementKind.Global, enabled }];
 }
 
-function makeAgentPluginService(plugins: readonly IAgentPlugin[] = [], profileEnablement = new Map<string, boolean>()): IAgentPluginService {
+function makeAgentPluginService(
+	plugins: readonly IAgentPlugin[] = [],
+	profileEnablement = new Map<string, boolean>(),
+	workspaceEnablement = new Map<string, boolean>(),
+): IAgentPluginService {
 	return {
 		_serviceBrand: undefined,
 		plugins: observableValue('plugins', plugins),
 		enablementModel: { readProfileEnabled: (key: string) => profileEnablement.get(key) ?? true },
+		getWorkspaceConfiguredEnablement: (plugin: IAgentPlugin) => workspaceEnablement.get(plugin.uri.toString()),
 	} as unknown as IAgentPluginService;
 }
 
@@ -736,6 +741,34 @@ suite('resolveCustomizationRefs - built-in skills', () => {
 
 		assert.deepStrictEqual(refs.map(ref => ref.enablement), [globalEnablement(true), globalEnablement(true)]);
 		assert.deepStrictEqual(bundler.receivedMcp[0].map(entry => entry.enablement), [globalEnablement(true)]);
+	});
+
+	test('publishes runtime repository enablement for the session workspace', async () => {
+		const pluginUri = URI.file('/plugins/repository');
+		const workingDirectory = URI.file('/workspace');
+		const plugin = makePlugin(pluginUri, { enabled: false, agents: 1 });
+
+		const refs = await resolveCustomizationRefs(
+			makeFileService(),
+			makePromptsService(new Map()),
+			new FakeSyncProvider(),
+			makeAgentPluginService(
+				[plugin],
+				new Map([[pluginUri.toString(), false]]),
+				new Map([[pluginUri.toString(), true]]),
+			),
+			makeMcpService(),
+			makeConfigurationResolverService(),
+			new FakeBundler() as unknown as SyncedCustomizationBundler,
+			SessionType.CopilotCLI,
+			undefined,
+			[workingDirectory],
+		);
+
+		assert.deepStrictEqual(refs.map(ref => ref.enablement), [[
+			{ kind: CustomizationEnablementKind.Workspace, uri: workingDirectory.toString(), enabled: true },
+			{ kind: CustomizationEnablementKind.Global, enabled: false },
+		]]);
 	});
 
 	test('excludes workspace-discovered `.mcp.json` servers (the agent host discovers those itself)', async () => {

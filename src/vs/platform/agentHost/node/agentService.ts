@@ -29,6 +29,7 @@ import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SES
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from '../common/requiredPlugins.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
@@ -9638,6 +9639,21 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]> {
 		return this._providerService.getManagedSettingsDiagnostics();
+	}
+
+	get supportsRequiredPlugins(): boolean {
+		return this._providerService.getProvider('copilotcli')?.supportsRequiredPlugins === true;
+	}
+
+	async ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		const provider = this._providerService.getProvider('copilotcli');
+		if (!provider) {
+			throw new Error(`The Copilot provider is unavailable. Registered providers: ${this._providerService.getProviders().map(provider => provider.id).join(', ')}`);
+		}
+		if (!provider.ensureRequiredPlugins) {
+			throw new Error('The registered Copilot provider does not support required plugin enforcement.');
+		}
+		return provider.ensureRequiredPlugins(request);
 	}
 
 	async diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult> {

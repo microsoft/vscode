@@ -70,6 +70,7 @@ import { IChatWidgetService } from '../../../browser/chat.js';
 import { IChatInputNotification, IChatInputNotificationService } from '../../../browser/widget/input/chatInputNotificationService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
+import { IRuntimeRequiredPluginService } from '../../../common/plugins/runtimeRequiredPluginService.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -99,6 +100,7 @@ suite('AgentHostClientTools', () => {
 		tools: IObservable<readonly IToolData[]> = constObservable([]),
 		toolSets: IObservable<Iterable<IToolSet>> = constObservable([]),
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
+		requiredPluginState?: { error?: Error },
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		let semanticSearchEnabled = false;
@@ -131,8 +133,16 @@ suite('AgentHostClientTools', () => {
 				return [];
 			}
 		}());
-		instantiationService.stub(IAgentPluginService, {
-			plugins: observableValue('plugins', []),
+		const plugins = observableValue('plugins', []);
+		instantiationService.stub(IAgentPluginService, { plugins });
+		instantiationService.stub(IRuntimeRequiredPluginService, {
+			ensure: async () => {
+				if (requiredPluginState?.error) {
+					throw requiredPluginState.error;
+				}
+			},
+			whenDiscoverySettled: async () => { },
+			retainWorkingDirectories: () => toDisposable(() => { }),
 		});
 		instantiationService.stub(IMcpService, {
 			servers: observableValue('mcpServers', mcpOptions?.servers ?? []),
@@ -168,8 +178,22 @@ suite('AgentHostClientTools', () => {
 					}
 				});
 			},
+			refreshPlugins: () => plugins.set([], undefined),
 		};
 	}
+
+	test('rejects required plugin failures and recovers after successful reconciliation', async () => {
+		const failure = new Error('Managed plugins could not be ensured: managed@market');
+		const requiredPluginState = { error: failure as Error | undefined };
+		const { service, refreshPlugins } = createActiveClientService(constObservable([]), constObservable([]), undefined, requiredPluginState);
+		const scope = disposables.add(service.acquireScope('agent-host-claude', [URI.file('/workspace')]));
+
+		await assert.rejects(scope.whenResolved(), failure);
+		requiredPluginState.error = undefined;
+		refreshPlugins();
+		await scope.whenResolved();
+		assert.strictEqual(scope.isResolved.get(), true);
+	});
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
 		const { service } = createActiveClientService();
@@ -915,6 +939,11 @@ suite('AgentHostClientTools', () => {
 			});
 			instantiationService.stub(IAgentPluginService, {
 				plugins: observableValue('plugins', []),
+			});
+			instantiationService.stub(IRuntimeRequiredPluginService, {
+				ensure: async () => { },
+				whenDiscoverySettled: async () => { },
+				retainWorkingDirectories: () => toDisposable(() => { }),
 			});
 			// Acquiring a customization scope is now infallible, so the handler
 			// constructs a real one — which reads these on its first autorun.

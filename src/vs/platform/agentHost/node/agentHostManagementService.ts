@@ -9,6 +9,7 @@ import { ILogService } from '../../log/common/log.js';
 import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { toRequiredPluginRuntimeWorkingDirectory, type IAgentHostEnsureRequiredPluginsRequest, type IAgentHostEnsureRequiredPluginsResult } from '../common/requiredPlugins.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -70,6 +71,18 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 			throw new Error('Agent Host detached worktrees are unavailable');
 		}
 		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
+	}
+
+	ensureRequiredPlugins(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult> {
+		if (!this._agentService.ensureRequiredPlugins) {
+			throw new Error('Required plugin enforcement is unavailable');
+		}
+		return this._runMutation(() => this._agentService.ensureRequiredPlugins!({
+			...request,
+			...(request.workingDirectory
+				? { workingDirectory: toRequiredPluginRuntimeWorkingDirectory(request.workingDirectory) }
+				: {}),
+		}));
 	}
 
 	refreshCopilotConnectorSessions(): Promise<void> {

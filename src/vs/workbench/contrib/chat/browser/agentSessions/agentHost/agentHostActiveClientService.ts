@@ -5,7 +5,7 @@
 
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
-import { onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -40,6 +40,7 @@ import { IAgentHostToolSetEnablementService, isCopilotCliSessionType, isToolEnab
 import { AgentHostMcpServerSupportScope, IAgentHostMcpServerSupportScope } from './agentHostMcpServerSupportScope.js';
 import { type ISyncedCustomizationOrigin, SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { IRuntimeRequiredPluginService } from '../../../common/plugins/runtimeRequiredPluginService.js';
 
 export const IAgentHostActiveClientService = createDecorator<IAgentHostActiveClientService>('agentHostActiveClientService');
 
@@ -92,6 +93,8 @@ class AgentCustomizationScope extends Disposable {
 	private _refCount = 0;
 	private _updateSeq = 0;
 	private _isDisposed = false;
+	private _resolutionError: unknown;
+	private _pendingResolution: Promise<void> | undefined;
 
 	get customizations(): IObservable<readonly ClientPluginCustomization[]> {
 		return this._customizations;
@@ -124,15 +127,19 @@ class AgentCustomizationScope extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMcpService private readonly _mcpService: IMcpService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IRuntimeRequiredPluginService private readonly _runtimeRequiredPluginService: IRuntimeRequiredPluginService,
 	) {
 		super();
+		this._register(this._runtimeRequiredPluginService.retainWorkingDirectories(this._roots));
 		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
 			const seq = ++this._updateSeq;
-			let completedInitialResolution = false;
+			this._isResolved.set(false, undefined);
 			try {
+				await this._runtimeRequiredPluginService.ensure(this._roots, this._sessionType);
+				await this._runtimeRequiredPluginService.whenDiscoverySettled();
 				const [refs, agents] = await Promise.all([
 					resolveCustomizationRefs(
 						this._fileService,
@@ -152,6 +159,7 @@ class AgentCustomizationScope extends Disposable {
 				if (seq !== this._updateSeq) {
 					return;
 				}
+				this._resolutionError = undefined;
 				transaction(tx => {
 					if (!equals(this._customizations.get(), refs)) {
 						this._customizations.set(refs, tx);
@@ -161,21 +169,31 @@ class AgentCustomizationScope extends Disposable {
 					}
 					this._isResolved.set(true, tx);
 				});
-				completedInitialResolution = true;
 			} catch (err) {
-				onUnexpectedError(err);
+				if (seq !== this._updateSeq) {
+					return;
+				}
+				this._resolutionError = err;
+				if (this._initialResolution.isSettled) {
+					onUnexpectedError(err);
+				}
 				if (seq === this._updateSeq) {
 					transaction(tx => this._isResolved.set(true, tx));
-					completedInitialResolution = true;
 				}
 			} finally {
-				if (completedInitialResolution && !this._initialResolution.isSettled) {
+				if (!this._initialResolution.isSettled) {
 					this._initialResolution.complete();
 				}
 			}
 		};
 		const scheduleUpdate = () => {
-			this._updateDelayer.trigger(() => updateCustomizations()).catch(() => { /* delayer disposed */ });
+			const pendingResolution = this._updateDelayer.trigger(() => updateCustomizations());
+			this._pendingResolution = pendingResolution;
+			pendingResolution.finally(() => {
+				if (this._pendingResolution === pendingResolution) {
+					this._pendingResolution = undefined;
+				}
+			}).catch(() => { /* delayer disposed */ });
 		};
 
 		this._register(this._syncProvider.onDidChange(() => scheduleUpdate()));
@@ -214,7 +232,7 @@ class AgentCustomizationScope extends Disposable {
 			customAgents: this.customAgents,
 			tools: this.tools,
 			isResolved: this.isResolved,
-			whenResolved: () => this._initialResolution.p,
+			whenResolved: () => this._whenResolved(),
 			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
@@ -224,6 +242,23 @@ class AgentCustomizationScope extends Disposable {
 				}
 			},
 		};
+	}
+
+	private async _whenResolved(): Promise<void> {
+		await this._initialResolution.p;
+		while (this._pendingResolution) {
+			try {
+				await this._pendingResolution;
+			} catch (error) {
+				if (this._isDisposed && isCancellationError(error)) {
+					return;
+				}
+				throw error;
+			}
+		}
+		if (this._resolutionError) {
+			throw this._resolutionError;
+		}
 	}
 
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {

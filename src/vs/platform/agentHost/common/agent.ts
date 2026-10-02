@@ -20,6 +20,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction } from './state/sessionActions.js';
 import { ChatInputResponseKind, ChatOriginKind, SessionStatus, buildSubagentChatUri, parseRequiredSessionUriFromChatUri, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import type { IAgentHostEnsureRequiredPluginsRequest, IAgentHostEnsureRequiredPluginsResult } from './requiredPlugins.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -1477,6 +1478,10 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+
+	/** Auto-install repository plugins and enforce managed plugins through the provider-owned runtime. */
+	readonly supportsRequiredPlugins?: boolean;
+	ensureRequiredPlugins?(request: IAgentHostEnsureRequiredPluginsRequest): Promise<IAgentHostEnsureRequiredPluginsResult>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
