@@ -53,8 +53,8 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		lintOptions: undefined,
 	};
 
-	private static readonly COPILOT_NES_OCT: ModelConfigurationWithSource = {
-		modelName: 'copilot-nes-oct',
+	private static readonly COPILOT_NES_LYSITHEA_24: ModelConfigurationWithSource = {
+		modelName: 'copilot-nes-lysithea-24',
 		promptingStrategy: PromptingStrategy.Xtab275,
 		includeTagsInCurrentFile: false,
 		source: ModelSource.HardCodedDefault,
@@ -336,7 +336,7 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		} else if (copilotToken?.isFreeUser || copilotToken?.isNoAuthUser) {
 			return InlineEditsModelService.COPILOT_NES_CALLISTO;
 		} else {
-			return InlineEditsModelService.COPILOT_NES_OCT;
+			return InlineEditsModelService.COPILOT_NES_LYSITHEA_24;
 		}
 	}
 
