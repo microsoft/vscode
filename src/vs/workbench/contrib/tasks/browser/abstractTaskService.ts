@@ -2314,7 +2314,15 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const contributedTaskSets = await new Promise<ITaskSet[]>(resolve => {
 			const result: ITaskSet[] = [];
 			let counter: number = 0;
-			const error = (error: unknown, done: () => void) => {
+			const done = (value: ITaskSet | undefined) => {
+				if (value) {
+					result.push(value);
+				}
+				if (--counter === 0) {
+					resolve(result);
+				}
+			};
+			const error = (error: unknown) => {
 				try {
 					if (!isCancellationError(error)) {
 						if (error && Types.isString((error as { message?: string }).message)) {
@@ -2326,7 +2334,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 				} finally {
-					done();
+					if (--counter === 0) {
+						resolve(result);
+					}
 				}
 			};
 			if (this._isProvideTasksEnabled() && (this.schemaVersion === JsonSchemaVersion.V2_0_0) && (this._providers.size > 0)) {
@@ -2339,19 +2349,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 						foundAnyProviders = true;
 						counter++;
-						let completed = false;
-						const done = (value: ITaskSet | undefined) => {
-							if (value) {
-								result.push(value);
-							}
-							// A provider can settle after its timeout, but must only finish its own accounting once.
-							if (!completed) {
-								completed = true;
-								if (--counter === 0) {
-									resolve(result);
-								}
-							}
-						};
 						raceTimeout(provider.provideTasks(validTypes).then((taskSet: ITaskSet) => {
 							// Check that the tasks provided are of the correct type
 							for (const task of taskSet.tasks) {
@@ -2364,7 +2361,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								}
 							}
 							return done(taskSet);
-						}, err => error(err, () => done(undefined))), 5000, () => {
+						}, error), 5000, () => {
 							// onTimeout
 							done(undefined);
 						});
