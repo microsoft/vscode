@@ -941,6 +941,8 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly connection: IAgentConnection;
 	/** Sanitized connection authority for constructing vscode-agent-host:// URIs. */
 	readonly connectionAuthority: string;
+	/** Whether sending a message requires workspace trust. Defaults to true. */
+	readonly requiresWorkspaceTrust?: boolean;
 	/** Extension identifier for the registered agent. Defaults to 'vscode.agent-host'. */
 	readonly extensionId?: string;
 	/** Extension display name for the registered agent. Defaults to 'Agent Host'. */
@@ -1897,23 +1899,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				rendererRootInvocationOrdinal = nextRendererRootInvocationOrdinal();
 			}
 
-			// Gate spawning an agent on workspace trust. Viewing chat and the
-			// agent list does not require trust, but sending a message does, since
-			// the agent reads files, runs commands, and makes changes in the
-			// session's folders. Mirrors how extension-host chat is gated. Verify
-			// every local folder the session will run in — an existing session's
-			// persisted working directories, or a new session's requested ones — so
-			// resuming a session whose folder is no longer trusted re-prompts instead
-			// of running untrusted. A workspace-less session (quick chat) resolves to
-			// `undefined` and skips the gate entirely: its only cwd is an internal
-			// scratch dir, not a user workspace. If the user declines, abort without
-			// starting a session.
-			const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
-			if (this._isInvocationAbandoned(cancellationToken)) {
-				return {};
-			}
-			if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
-				return {};
+			if (this._config.requiresWorkspaceTrust !== false) {
+				const trustFolders = await this._resolveSessionTrustFolders(request.sessionResource, cancellationToken);
+				if (this._isInvocationAbandoned(cancellationToken)) {
+					return {};
+				}
+				if (trustFolders !== undefined && !await this._ensureFoldersTrusted(trustFolders, () => trustInteractionRequired = true)) {
+					return {};
+				}
 			}
 			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
