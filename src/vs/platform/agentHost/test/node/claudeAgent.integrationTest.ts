@@ -129,6 +129,7 @@ function createTestAuthenticationService(): IAgentHostAuthenticationService {
 	return {
 		_serviceBrand: undefined,
 		onDidChangeAuthToken: Event.None,
+		onDidDiscardAuthToken: Event.None,
 		getAuthAccount: () => undefined,
 		getAuthAccountForToken: () => undefined,
 		getAuthToken: request => request.resource === GITHUB_COPILOT_PROTECTED_RESOURCE.resource ? 'gh-int-test-token' : undefined,
