@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { getZoomFactor, setZoomFactor } from '../../../base/browser/browser.js';
 import { $, append } from '../../../base/browser/dom.js';
-import { Direction, Grid, IView, Orientation, Sizing } from '../../../base/browser/ui/grid/grid.js';
+import { Direction, Grid, IView, Sizing } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
@@ -66,7 +66,7 @@ suite('Sessions - Titlebar Part', () => {
 			onDidChange: Event.None,
 			layout: () => { },
 		};
-		const grid = store.add(new Grid(titleView, { orientation: Orientation.VERTICAL }));
+		const grid = store.add(new Grid(titleView));
 		grid.addView(content, Sizing.Distribute, titleView, Direction.Down);
 		grid.layout(800, 600);
 		const changes: number[] = [];

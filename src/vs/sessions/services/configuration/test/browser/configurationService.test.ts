@@ -106,6 +106,12 @@ suite('Sessions ConfigurationService', () => {
 					'default': 'defaultValue',
 					scope: ConfigurationScope.RESOURCE
 				},
+				'sessionsConfigurationService.arraySetting': {
+					type: 'array',
+					items: { type: 'string' },
+					default: [],
+					scope: ConfigurationScope.RESOURCE,
+				},
 				'sessionsConfigurationService.machineSetting': {
 					'type': 'string',
 					'default': 'defaultValue',
@@ -331,6 +337,31 @@ suite('Sessions ConfigurationService', () => {
 			restored: { value: ModernUIDensity.Default, user: ModernUIDensity.Compact, agentsWindow: ModernUIDensity.Default },
 			reset: { value: ModernUIDensity.Compact, user: ModernUIDensity.Compact, agentsWindow: undefined },
 			changes: [ModernUIDensity.Compact, ModernUIDensity.Default],
+		});
+	}));
+
+	test('persists an empty Agents array override without changing User settings', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const key = 'sessionsConfigurationService.arraySetting';
+		const userValue = ['inherited-command'];
+		await testObject.updateValue(key, userValue, ConfigurationTarget.USER);
+		await testObject.updateValue(key, [], ConfigurationTarget.WORKSPACE);
+		const workspaceContent = (await fileService.readFile(workspaceConfigResource)).value.toString();
+
+		testObject.dispose();
+		testObject = createConfigurationService(new NullPolicyService());
+		await testObject.initialize();
+		const restored = testObject.inspect<string[]>(key);
+		await testObject.updateValue(key, undefined, ConfigurationTarget.WORKSPACE);
+		const reset = testObject.inspect<string[]>(key);
+
+		assert.deepStrictEqual({
+			saved: JSON.parse(workspaceContent).settings[key],
+			restored: { value: restored.value, user: restored.userValue, agentsWindow: restored.workspaceValue },
+			reset: { value: reset.value, user: reset.userValue, agentsWindow: reset.workspaceValue },
+		}, {
+			saved: [],
+			restored: { value: [], user: userValue, agentsWindow: [] },
+			reset: { value: userValue, user: userValue, agentsWindow: undefined },
 		});
 	}));
 
