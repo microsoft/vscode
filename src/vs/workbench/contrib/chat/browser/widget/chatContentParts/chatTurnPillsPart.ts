@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
@@ -106,7 +107,8 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		const removedLabel = counts.appendChild($('span.deletions'));
 
 		const hoverDisposable = this._hoverService.setupDelayedHover(counts, () => ({
-			content: localize2('chat.viewTurnFileChangesSummary', 'View All File Changes')
+			content: localize2('chat.viewTurnFileChangesSummary', 'View Turn Changes'),
+			style: HoverStyle.Pointer,
 		}));
 		const clickDisposable = dom.addDisposableListener(counts, 'click', (e) => {
 			this._openChanges();
