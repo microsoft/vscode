@@ -121,6 +121,29 @@ suite('JSON - edits', () => {
 		assertEdit(content, edits, '{\n  "x": "y"\n}');
 	});
 
+	for (const comment of ['// preserved', '/* preserved */', '/* preserved,\n     across lines */']) {
+		for (const eol of ['\n', '\r\n']) {
+			test(`remove first property preserves following comment ${JSON.stringify(comment)} with ${JSON.stringify(eol)}`, () => {
+				const content = [
+					'{',
+					'  // removed',
+					'  "x": "y" /* removed, too */,',
+					`  ${comment}`,
+					'  "a": [],',
+					'}'
+				].join('\n').replace(/\n/g, eol);
+				const expected = [
+					'{',
+					`  ${comment}`,
+					'  "a": [],',
+					'}'
+				].join('\n').replace(/\n/g, eol);
+				const edits = removeProperty(content, ['x'], { ...formatterOptions, eol });
+				assertEdit(content, edits, expected);
+			});
+		}
+	}
+
 	test('insert item at 0', () => {
 		const content = '[\n  2,\n  3\n]';
 		const edits = setProperty(content, [0], 1, formatterOptions);

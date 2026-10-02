@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment } from './json.js';
+import { createScanner, findNodeAtLocation, JSONPath, Node, ParseError, parseTree, Segment, SyntaxKind } from './json.js';
 import { Edit, format, FormattingOptions, isEOL } from './jsonFormatter.js';
 
 
@@ -55,9 +55,12 @@ export function setProperty(text: string, originalPath: JSONPath, value: unknown
 				} else {
 					removeBegin = parent.offset + 1;
 					if (parent.children.length > 1) {
-						// remove the comma of the next node
-						const next = parent.children[1];
-						removeEnd = next.offset;
+						// Remove the following comma without removing comments belonging to the next property.
+						const scanner = createScanner(text, true);
+						scanner.setPosition(removeEnd);
+						if (scanner.scan() === SyntaxKind.CommaToken) {
+							removeEnd = scanner.getPosition();
+						}
 					}
 				}
 				return withFormatting(text, { offset: removeBegin, length: removeEnd - removeBegin, content: '' }, formattingOptions);
