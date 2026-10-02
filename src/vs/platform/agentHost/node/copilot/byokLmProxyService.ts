@@ -21,9 +21,9 @@ import {
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	endsWithUserMessage,
 	hasVisibleBridgeOutput,
 	IResponsesRequest,
-	isUserTurnStart,
 	responsesErrorBody,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
@@ -94,8 +94,9 @@ const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
 
 /**
- * Status for a turn's first model call that produced no text or tool calls. The
- * runtime retries 5xx responses but surfaces 4xx messages to the user directly.
+ * Status for a model call that answered a user message with no text or tool
+ * calls. The runtime retries 5xx responses but surfaces 4xx messages to the
+ * user directly.
  */
 const EMPTY_RESPONSE_STATUS = 422;
 
@@ -280,12 +281,12 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, 502, result.error, 'api_error');
 				return;
 			}
-			if (isUserTurnStart(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
+			if (endsWithUserMessage(bridgeRequest.input) && !hasVisibleBridgeOutput(result.output)) {
 				// The runtime would accept an empty 200 and then fail the turn with a
 				// generic "No response was returned" error. Report why instead, using a
 				// 4xx status so the runtime doesn't retry a deterministic outcome.
 				const outputTypes = result.output.map(item => item.type).join(', ') || 'none';
-				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls for the turn (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
+				this._logService.warn(`[${PROXY_USER_FACING_NAME}] Session ${sessionId}: ${vendor}/${bridgeRequest.modelId} returned no text or tool calls in reply to a user message (output items: ${outputTypes}; output tokens: ${result.usage?.outputTokens ?? 'unknown'})`);
 				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
 				return;
 			}

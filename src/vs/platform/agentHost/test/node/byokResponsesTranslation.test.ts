@@ -11,9 +11,9 @@ import {
 	bridgeResultToResponsesBody,
 	bridgeResultToResponsesSseFrames,
 	capBridgeTools,
+	endsWithUserMessage,
 	hasVisibleBridgeOutput,
 	IResponsesRequest,
-	isUserTurnStart,
 	responsesRequestToBridge,
 	ResponsesTranslationError,
 } from '../../node/copilot/byokResponsesTranslation.js';
@@ -115,27 +115,29 @@ suite('byokResponsesTranslation', () => {
 
 	});
 
-	test('detects the first model call of a user turn', () => {
+	test('detects input that ends with a user message', () => {
 		const user: IByokLmInputItem = { type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] };
 		const developer: IByokLmInputItem = { type: 'message', role: 'developer', content: [{ type: 'text', text: 'reminder' }] };
 		const assistant: IByokLmInputItem = { type: 'message', role: 'assistant', content: [{ type: 'text', text: 'hello' }] };
 		const call: IByokLmInputItem = { type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' };
 		const callOutput: IByokLmInputItem = { type: 'function_call_output', callId: 'c1', output: 'ok' };
 		assert.deepStrictEqual({
-			empty: isUserTurnStart([]),
-			firstTurn: isUserTurnStart([user]),
-			userThenDeveloper: isUserTurnStart([user, developer]),
-			laterTurn: isUserTurnStart([user, call, callOutput, assistant, user]),
-			afterToolResult: isUserTurnStart([user, call, callOutput]),
-			userAfterToolResult: isUserTurnStart([user, call, callOutput, user]),
-			afterAssistant: isUserTurnStart([user, assistant]),
+			empty: endsWithUserMessage([]),
+			firstTurn: endsWithUserMessage([user]),
+			userThenDeveloper: endsWithUserMessage([user, developer]),
+			developerOnly: endsWithUserMessage([developer]),
+			laterTurn: endsWithUserMessage([user, call, callOutput, assistant, user]),
+			replacementTurnAfterRetainedToolResult: endsWithUserMessage([user, call, callOutput, user]),
+			afterToolResult: endsWithUserMessage([user, call, callOutput]),
+			afterAssistant: endsWithUserMessage([user, assistant]),
 		}, {
 			empty: false,
 			firstTurn: true,
 			userThenDeveloper: true,
+			developerOnly: false,
 			laterTurn: true,
+			replacementTurnAfterRetainedToolResult: true,
 			afterToolResult: false,
-			userAfterToolResult: false,
 			afterAssistant: false,
 		});
 	});
@@ -148,6 +150,7 @@ suite('byokResponsesTranslation', () => {
 			emptyText: hasVisibleBridgeOutput([text('')]),
 			whitespaceText: hasVisibleBridgeOutput([text('\n\n')]),
 			encryptedReasoningOnly: hasVisibleBridgeOutput([reasoning([]), reasoning([''])]),
+			whitespaceReasoning: hasVisibleBridgeOutput([reasoning([' ', '\n'])]),
 			text: hasVisibleBridgeOutput([text('hi')]),
 			reasoningSummary: hasVisibleBridgeOutput([reasoning(['thinking'])]),
 			functionCall: hasVisibleBridgeOutput([{ type: 'function_call', callId: 'c1', name: 'tool', argumentsJson: '{}' }]),
@@ -157,6 +160,7 @@ suite('byokResponsesTranslation', () => {
 			emptyText: false,
 			whitespaceText: false,
 			encryptedReasoningOnly: false,
+			whitespaceReasoning: false,
 			text: true,
 			reasoningSummary: true,
 			functionCall: true,

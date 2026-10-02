@@ -415,25 +415,40 @@ suite('ByokLmProxyService', () => {
 		);
 	});
 
-	test('reports a turn\'s empty first response as a non-retryable error instead of an empty completion', async () => {
+	test('reports an empty response to a user message as a non-retryable error instead of an empty completion', async () => {
+		const userMessage = (text: string) => ({ type: 'message', role: 'user', content: [{ type: 'input_text', text }] });
 		await withProxy(
 			async () => ({
 				output: [
-					{ type: 'reasoning', id: 'rs_1', summary: [], encryptedContent: 'opaque' },
+					{ type: 'reasoning', id: 'rs_1', summary: [' '], encryptedContent: 'opaque' },
 					{ type: 'message', content: [{ type: 'text', text: '\n\n' }] },
 				],
 			}),
 			async (handle) => {
-				const response = await fetch(responsesUrl(handle, 'acme'), {
-					method: 'POST',
-					headers: authHeaders(handle),
-					body: JSON.stringify({ model: 'qwen', stream: true, input: [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'hi' }] }] }),
-				});
-				const body = await response.json() as { error?: { message?: string } };
-				assert.deepStrictEqual({ status: response.status, message: body.error?.message }, {
+				const results: Array<{ status: number; message?: string }> = [];
+				for (const input of [
+					[userMessage('hi')],
+					// A replacement turn after a cancelled turn keeps that turn's tool results.
+					[
+						userMessage('weather?'),
+						{ type: 'function_call', call_id: 'call_1', name: 'getWeather', arguments: '{}' },
+						{ type: 'function_call_output', call_id: 'call_1', output: 'cancelled' },
+						userMessage('replacement'),
+					],
+				]) {
+					const response = await fetch(responsesUrl(handle, 'acme'), {
+						method: 'POST',
+						headers: authHeaders(handle),
+						body: JSON.stringify({ model: 'qwen', stream: true, input }),
+					});
+					const body = await response.json() as { error?: { message?: string } };
+					results.push({ status: response.status, message: body.error?.message });
+				}
+				const expected = {
 					status: 422,
 					message: 'The model \'qwen\' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model\'s context window or output token limit. Try again, start a new session, or choose a different model.',
-				});
+				};
+				assert.deepStrictEqual(results, [expected, expected]);
 			},
 		);
 	});
