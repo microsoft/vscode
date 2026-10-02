@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { generateKeyPairSync, sign, type JsonWebKey } from 'crypto';
+import { generateKeyPairSync, randomUUID, sign, type JsonWebKey } from 'crypto';
 import { EventEmitter } from 'events';
-import { mkdtemp, readFile, rm } from 'fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'fs/promises';
+import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
@@ -433,7 +434,7 @@ suite('Experimental Mission Control WPS', () => {
 			await clock.tickAsync(60_000);
 			sockets[0].emit('close');
 			await clock.tickAsync(60_000);
-			const persisted = (await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')).trim();
+			const persisted = (JSON.parse(await readFile(join(path, 'agent-host-mission-control-id'), 'utf8')) as { id: string }).id;
 			const rebind = await service.configure({ ...options, accountId: 'other' }).then(() => 'accepted', () => 'rejected');
 			await service.configure(undefined);
 			assert.deepStrictEqual({
@@ -477,8 +478,15 @@ suite('Experimental Mission Control WPS', () => {
 				options: { baseUrl: string; live: boolean; accountId: string; credential: string; roots: string[] };
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
+				directory: string;
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[] }[];
+				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
+				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
+				delayIdentity: () => { started: Promise<void>; complete: (response: Response) => Promise<void> };
+				changePolicy: (policy: Record<string, unknown> | undefined) => Promise<void>;
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
+			openWorkspace = false,
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -489,6 +497,13 @@ suite('Experimental Mission Control WPS', () => {
 				const errors: string[] = [];
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
+				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[] }[] = [];
+				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
+				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
+				let policy: Record<string, unknown> | undefined;
+				let policyReported: DeferredPromise<void> | undefined;
+				const policyChanged = store.add(new Emitter<void>());
 				let identityApiBase = 'https://api.github.com';
 				const identityAuthorityChanged = store.add(new Emitter<void>());
 				const environment = {
@@ -499,6 +514,17 @@ suite('Experimental Mission Control WPS', () => {
 					path,
 					async (input, init) => {
 						const url = new URL(input.toString());
+						requests.push({ path: url.pathname, credential: new Headers(init?.headers).get('Authorization'), body: init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined });
+						if (url.pathname.endsWith('/register')) {
+							await policyReported?.complete();
+							policyReported = undefined;
+						}
+						if (url.pathname === '/user' && delayedIdentity) {
+							const delayed = delayedIdentity;
+							delayedIdentity = undefined;
+							await delayed.started.complete();
+							return delayed.response.p;
+						}
 						if (url.pathname.endsWith('/token')) {
 							tokens.push(clock.now - Date.UTC(2026, 9, 2));
 							return Response.json({ ...environment.webpubsub, wps_endpoint: environment.webpubsub.url, expires_at: new Date(clock.now + 120_000).toISOString() });
@@ -506,12 +532,21 @@ suite('Experimental Mission Control WPS', () => {
 						if (url.pathname.endsWith('/heartbeat')) {
 							const reply = replies[heartbeats.length];
 							heartbeats.push({ time: clock.now - Date.UTC(2026, 9, 2), status: (JSON.parse(String(init?.body)) as { status: string }).status });
+							if (delayedHeartbeat) {
+								const delayed = delayedHeartbeat;
+								delayedHeartbeat = undefined;
+								await delayed.started.complete();
+								return delayed.response.p;
+							}
 							const responseOptions: ResponseInit = { status: reply?.status ?? 200, headers: reply?.retryAfter === undefined ? {} : { 'rEtRy-AfTeR': reply.retryAfter } };
 							return reply?.body === undefined ? Response.json(environment, responseOptions) : new Response(reply.body, responseOptions);
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					() => ({ dispose() { } }),
+					(_server, initialRoots, getRoots) => {
+						attachments.push({ initialRoots, getRoots });
+						return { dispose() { } };
+					},
 					error => errors.push(error instanceof Error ? error.message : String(error)),
 					() => {
 						const socket = new FakeWpsSocket();
@@ -520,15 +555,36 @@ suite('Experimental Mission Control WPS', () => {
 						return socket;
 					},
 					undefined,
-					async () => undefined,
+					async () => policy,
 					undefined,
 					() => identityApiBase,
 					identityAuthorityChanged.event,
+					undefined,
+					policyChanged.event,
 				));
-				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] };
+				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [] };
 				await service.configure(options);
 				await run({
-					service, clock, heartbeats, errors, sockets, options, tokens,
+					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests,
+					delayHeartbeat: () => {
+						const started = new DeferredPromise<void>();
+						const response = new DeferredPromise<Response>();
+						delayedHeartbeat = { started, response };
+						return { started: started.p, complete: value => response.complete(value ?? Response.json(environment)) };
+					},
+					delayIdentity: () => {
+						const started = new DeferredPromise<void>();
+						const response = new DeferredPromise<Response>();
+						delayedIdentity = { started, response };
+						return { started: started.p, complete: value => response.complete(value) };
+					},
+					changePolicy: value => {
+						policy = value;
+						const reported = new DeferredPromise<void>();
+						policyReported = reported;
+						policyChanged.fire();
+						return reported.p;
+					},
 					changeIdentityAuthority: base => {
 						identityApiBase = base;
 						identityAuthorityChanged.fire();
@@ -655,34 +711,245 @@ suite('Experimental Mission Control WPS', () => {
 				});
 			});
 		});
+
+		for (const status of [401, 403, 503]) {
+			test(`credential refresh fences an old in-flight ${status} without losing Retry-After or suspending the new configuration`, async () => {
+				await withEnvironment([], async ({ service, clock, options, errors, sockets, heartbeats, delayHeartbeat, requests }) => {
+					const delayed = delayHeartbeat();
+					await clock.tickAsync(60_000);
+					await delayed.started;
+					await service.configure({ ...options, credential: 'refreshed-token' });
+					const beforeOldReply = { sockets: sockets.length, closed: sockets.map(socket => socket.closed) };
+					await delayed.complete(new Response('{}', { status, headers: { 'Retry-After': '240' } }));
+					await clock.tickAsync(239_999);
+					const beforeDeadline = heartbeats.length;
+					await clock.tickAsync(1);
+					assert.deepStrictEqual({
+						beforeOldReply, beforeDeadline, heartbeats, errors,
+						latestCredential: requests.filter(request => request.path.endsWith('/heartbeat')).at(-1)?.credential,
+						active: service.isEnabled && !sockets.at(-1)?.closed,
+					}, {
+						beforeOldReply: { sockets: 2, closed: [true, false] },
+						beforeDeadline: 3,
+						heartbeats: [{ time: 0, status: 'online' }, { time: 60_000, status: 'online' }, { time: 60_000, status: 'online' }, { time: 300_000, status: 'online' }],
+						errors: [`Mission Control request failed (${status})`],
+						latestCredential: 'Bearer refreshed-token',
+						active: true,
+					});
+				});
+			});
+		}
+
+		test('a successful stale check-in cannot replace or stop the refreshed relay', async () => {
+			await withEnvironment([], async ({ service, clock, options, sockets, delayHeartbeat, requests, errors }) => {
+				const delayed = delayHeartbeat();
+				await clock.tickAsync(60_000);
+				await delayed.started;
+				await service.configure({ ...options, credential: 'refreshed-token' });
+				await delayed.complete();
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual({
+					sockets: sockets.length, closed: sockets.map(socket => socket.closed), errors,
+					latestCredential: requests.filter(request => request.path.endsWith('/heartbeat')).at(-1)?.credential,
+				}, {
+					sockets: 2, closed: [true, false], errors: [], latestCredential: 'Bearer refreshed-token',
+				});
+			});
+		});
+
+		for (const openWorkspace of [false, true]) {
+			test(`adds trusted same-owner roots without rebinding the ${openWorkspace ? 'initial workspace' : 'empty-window'} default`, async () => {
+				await withEnvironment([], async ({ service, options, directory, attachments, sockets, requests }) => {
+					const additional = await mkdtemp(join(directory, 'additional-'));
+					await service.configure({ ...options, roots: [additional] });
+					await service.configure({ ...options, roots: [additional] });
+					const initial = openWorkspace ? [realpathSync(directory)] : [];
+					assert.deepStrictEqual({
+						initialRoots: attachments[0].initialRoots,
+						currentRoots: attachments[0].getRoots(),
+						sockets: sockets.length,
+						registrations: requests.filter(request => request.path.endsWith('/register')).length,
+					}, {
+						initialRoots: initial, currentRoots: [...initial, realpathSync(additional)], sockets: 1, registrations: 1,
+					});
+				}, undefined, openWorkspace);
+			});
+		}
+
+		test('withdrawal clears explicit grants and re-enables with a new registration default', async () => {
+			await withEnvironment([], async ({ service, options, directory, attachments, sockets }) => {
+				const workspaceA = realpathSync(directory);
+				const workspaceB = realpathSync(await mkdtemp(join(directory, 'workspace-b-')));
+				await service.configure({ ...options, roots: [workspaceB] });
+				const whileActive = { initialRoots: attachments[0].initialRoots, roots: attachments[0].getRoots() };
+				await service.configure({ ...options, roots: [workspaceB], credential: 'refreshed-token' });
+				const afterCredentialRefresh = { initialRoots: attachments[1].initialRoots, roots: attachments[1].getRoots() };
+				const disabling = service.configure(undefined, options.accountId);
+				const withdrawnRoots = attachments[1].getRoots();
+				await disabling;
+				await service.configure({ ...options, roots: [workspaceB], credential: 'refreshed-token' });
+				assert.deepStrictEqual({
+					whileActive, afterCredentialRefresh, withdrawnRoots,
+					reenabled: { initialRoots: attachments[2].initialRoots, roots: attachments[2].getRoots() },
+					closed: sockets.map(socket => socket.closed),
+				}, {
+					whileActive: { initialRoots: [workspaceA], roots: [workspaceA, workspaceB] },
+					afterCredentialRefresh: { initialRoots: [workspaceA], roots: [workspaceA, workspaceB] },
+					withdrawnRoots: [],
+					reenabled: { initialRoots: [workspaceB], roots: [workspaceB] },
+					closed: [true, true, false],
+				});
+			}, undefined, true);
+		});
+
+		test('withdraws immediately during identity refresh and allows the pinned owner to reconfigure after signout', async () => {
+			await withEnvironment([], async ({ service, options, sockets, delayIdentity, requests }) => {
+				const delayed = delayIdentity();
+				const refreshing = service.configure({ ...options, credential: 'refreshed-token' });
+				await delayed.started;
+				const disabling = service.configure(undefined);
+				const withdrawn = { enabled: service.isEnabled, closed: sockets.every(socket => socket.closed) };
+				await delayed.complete(Response.json({ id: 123, type: 'User' }));
+				await Promise.all([refreshing, disabling]);
+				const attachmentsBeforeReenable = sockets.length;
+				await service.configure(options);
+				assert.deepStrictEqual({
+					withdrawn, attachmentsBeforeReenable, sockets: sockets.length,
+					enabled: service.isEnabled,
+					registrations: requests.filter(request => request.path.endsWith('/register')).length,
+				}, {
+					withdrawn: { enabled: false, closed: true }, attachmentsBeforeReenable: 1, sockets: 2, enabled: true, registrations: 2,
+				});
+			});
+		});
+
+		test('settings/consent disable closes ingress synchronously while the offline request is pending', async () => {
+			await withEnvironment([], async ({ service, options, sockets, delayHeartbeat, clock, heartbeats }) => {
+				const delayed = delayHeartbeat();
+				const disabling = service.configure(undefined);
+				const withdrawn = { enabled: service.isEnabled, closed: sockets.every(socket => socket.closed) };
+				await delayed.started;
+				await delayed.complete(new Response('{}', { headers: { 'Retry-After': '300' } }));
+				await disabling;
+				await service.configure(options);
+				await clock.tickAsync(299_999);
+				const beforeDeadline = heartbeats.length;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ withdrawn, beforeDeadline, heartbeats }, {
+					withdrawn: { enabled: false, closed: true },
+					beforeDeadline: 2,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 0, status: 'offline' }, { time: 300_000, status: 'online' }],
+				});
+			});
+		});
+
+		test('a rejected foreign account cannot withdraw the pinned owner or close its relay', async () => {
+			await withEnvironment([{ retryAfter: '300' }], async ({ service, options, sockets, clock, heartbeats, requests, errors }) => {
+				await assert.rejects(service.configure({ ...options, accountId: 'other' }), /another local account/);
+				const requestCount = requests.length;
+				await assert.rejects(service.configure(undefined, 'other'), /Only the Agent Host owner/);
+				const immediatelyAfterRefusal = {
+					enabled: service.isEnabled, environmentId: service.environmentId,
+					closed: sockets[0].closed, extraRequests: requests.length - requestCount,
+				};
+				await clock.tickAsync(299_999);
+				const beforeDeadline = heartbeats.length;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ immediatelyAfterRefusal, beforeDeadline, heartbeats, sockets: sockets.length, errors }, {
+					immediatelyAfterRefusal: { enabled: true, environmentId: 'environment', closed: false, extraRequests: 0 },
+					beforeDeadline: 1,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
+					sockets: 1, errors: [],
+				});
+			});
+		});
+
+		test('account-bound owner withdrawal is immediate and preserves Retry-After across re-enable', async () => {
+			await withEnvironment([{ retryAfter: '300' }], async ({ service, options, sockets, clock, heartbeats, errors }) => {
+				const disabling = service.configure(undefined, options.accountId);
+				const withdrawn = { enabled: service.isEnabled, closed: sockets[0].closed };
+				await disabling;
+				await service.configure(options, 'other');
+				await clock.tickAsync(299_999);
+				const beforeDeadline = heartbeats.length;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({ withdrawn, beforeDeadline, heartbeats, sockets: sockets.length, errors }, {
+					withdrawn: { enabled: false, closed: true },
+					beforeDeadline: 1,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
+					sockets: 2, errors: [],
+				});
+			});
+		});
+
+		test('rejects owner and live scope conflicts without replacing the first grant', async () => {
+			await withEnvironment([], async ({ service, options, sockets, attachments, directory }) => {
+				for (const conflicting of [
+					{ ...options, accountId: 'other', roots: [directory] },
+					{ ...options, baseUrl: 'https://other.test', roots: [directory] },
+					{ ...options, requireConnectionBinding: true, roots: [directory] },
+				]) {
+					await assert.rejects(service.configure(conflicting), /another local account|already configured/);
+				}
+				assert.deepStrictEqual({ enabled: service.isEnabled, sockets: sockets.length, closed: sockets[0].closed, roots: attachments[0].getRoots() }, {
+					enabled: true, sockets: 1, closed: false, roots: [],
+				});
+				await service.configure(undefined);
+				await assert.rejects(service.configure({ ...options, accountId: 'other' }), /another local account/);
+			});
+		});
+
+		test('reports changed and removed managed policy immediately without parsing it or losing heartbeat Retry-After', async () => {
+			await withEnvironment([{ retryAfter: '300' }], async ({ changePolicy, clock, requests, heartbeats, sockets, errors }) => {
+				await changePolicy({ mode: 'disabled' });
+				await clock.tickAsync(1000);
+				await changePolicy(undefined);
+				await clock.tickAsync(298_999);
+				const beforeDeadline = heartbeats.length;
+				await clock.tickAsync(1);
+				assert.deepStrictEqual({
+					policies: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.managed_settings),
+					beforeDeadline, heartbeats, sockets: sockets.length, errors,
+				}, {
+					policies: [undefined, { remoteControl: { mode: 'disabled' } }, undefined],
+					beforeDeadline: 1,
+					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
+					sockets: 1, errors: [],
+				});
+			});
+		});
 	});
+
+	function createIdentityService(userData: string, computeIds: string[]): ExperimentalMissionControlEnvironment {
+		const { key } = signingFixture();
+		return store.add(new ExperimentalMissionControlEnvironment(
+			userData,
+			async (input, init) => {
+				const url = new URL(input.toString());
+				if (url.pathname.endsWith('/register')) {
+					computeIds.push((JSON.parse(String(init?.body)) as { compute_id: string }).compute_id);
+				}
+				return Response.json(url.pathname.endsWith('/jwks.json') ? { keys: [key] } : {
+					id: 'environment', user_id: 'owner', owner_id: 'owner', owner_type: 'user', kind: 'user-local',
+					webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
+				});
+			},
+			() => ({ dispose() { } }),
+			error => { throw error; },
+			() => {
+				const socket = new FakeWpsSocket();
+				queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
+				return socket;
+			},
+		));
+	}
 
 	test('reuses compute identity across windows and restarts, but not different user-data directories', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-identity-'));
 		try {
-			const { key } = signingFixture();
 			const computeIds: string[] = [];
 			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
-			const createService = (userData: string) => store.add(new ExperimentalMissionControlEnvironment(
-				userData,
-				async (input, init) => {
-					const url = new URL(input.toString());
-					if (url.pathname.endsWith('/register')) {
-						computeIds.push((JSON.parse(String(init?.body)) as { compute_id: string }).compute_id);
-					}
-					return Response.json(url.pathname.endsWith('/jwks.json') ? { keys: [key] } : {
-						id: 'environment', user_id: 'owner', owner_id: 'owner', owner_type: 'user', kind: 'user-local',
-						webpubsub: { url: 'ws://127.0.0.1/fake', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: `${prefix}.control` } },
-					});
-				},
-				() => ({ dispose() { } }),
-				error => { throw error; },
-				() => {
-					const socket = new FakeWpsSocket();
-					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
-					return socket;
-				},
-			));
+			const createService = (userData: string) => createIdentityService(userData, computeIds);
 			const first = createService(join(path, 'normal'));
 			await Promise.all([first.configure(options), first.configure(options)]);
 			const registrationsForTwoWindows = computeIds.length;
@@ -699,6 +966,87 @@ suite('Experimental Mission Control WPS', () => {
 				registrations: computeIds.length,
 			}, {
 				registrationsForTwoWindows: 1, restartIdentityMatches: true, isolatedIdentityDiffers: true, registrations: 3,
+			});
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
+	test('copied identity records rotate only the copy and preserve both identities across restart', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-copy-'));
+		try {
+			const originalDirectory = join(path, 'original');
+			const copiedDirectory = join(path, 'copy');
+			const filename = 'agent-host-mission-control-id';
+			const computeIds: string[] = [];
+			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
+			const original = createIdentityService(originalDirectory, computeIds);
+			await original.configure(options);
+			const originalRecord = await readFile(join(originalDirectory, filename), 'utf8');
+			await mkdir(copiedDirectory);
+			await copyFile(join(originalDirectory, filename), join(copiedDirectory, filename));
+			const copied = createIdentityService(copiedDirectory, computeIds);
+			await copied.configure(options);
+			const copiedRecord: object = JSON.parse(await readFile(join(copiedDirectory, filename), 'utf8'));
+			original.dispose();
+			copied.dispose();
+			await createIdentityService(originalDirectory, computeIds).configure(options);
+			await createIdentityService(copiedDirectory, computeIds).configure(options);
+			assert.deepStrictEqual({
+				originalUnchanged: await readFile(join(originalDirectory, filename), 'utf8') === originalRecord,
+				copyIsDistinct: computeIds[0] !== computeIds[1],
+				stableOriginal: computeIds[0] === computeIds[2],
+				stableCopy: computeIds[1] === computeIds[3],
+				copiedRecord,
+			}, {
+				originalUnchanged: true, copyIsDistinct: true, stableOriginal: true, stableCopy: true,
+				copiedRecord: { version: 1, id: computeIds[1], userDataDirectory: realpathSync(copiedDirectory) },
+			});
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
+	test('migrates a legacy compute UUID in place without changing its identity', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-legacy-'));
+		try {
+			const filename = join(path, 'agent-host-mission-control-id');
+			const legacyId = randomUUID();
+			await writeFile(filename, legacyId, { mode: 0o600, flag: 'wx' });
+			const computeIds: string[] = [];
+			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
+			const first = createIdentityService(path, computeIds);
+			await first.configure(options);
+			first.dispose();
+			await createIdentityService(path, computeIds).configure(options);
+			assert.deepStrictEqual({
+				computeIds,
+				record: JSON.parse(await readFile(filename, 'utf8')),
+			}, {
+				computeIds: [legacyId, legacyId],
+				record: { version: 1, id: legacyId, userDataDirectory: realpathSync(path) },
+			});
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
+	test('canonical directory aliases reuse the same compute identity', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-canonical-'));
+		try {
+			const originalDirectory = join(path, 'original');
+			const alias = join(path, 'alias');
+			const computeIds: string[] = [];
+			const options = { baseUrl: 'http://127.0.0.1:9999/', accountId: 'owner', credential: 'fake-token', roots: [path] };
+			await createIdentityService(originalDirectory, computeIds).configure(options);
+			await symlink(originalDirectory, alias, 'junction');
+			await createIdentityService(alias, computeIds).configure(options);
+			assert.deepStrictEqual({
+				sameIdentity: computeIds[0] === computeIds[1],
+				record: JSON.parse(await readFile(join(alias, 'agent-host-mission-control-id'), 'utf8')),
+			}, {
+				sameIdentity: true,
+				record: { version: 1, id: computeIds[0], userDataDirectory: realpathSync(originalDirectory) },
 			});
 		} finally {
 			await rm(path, { recursive: true });

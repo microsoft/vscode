@@ -75,12 +75,14 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	private readonly _onDidRootStateChange = new Emitter<RootState>();
 	private _rootStateValue: RootState = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo] };
 	override readonly rootState: IAgentSubscription<RootState>;
-	override readonly initializeResult = constObservable({
+	readonly handshakeState = observableValue(this, {
 		protocolVersion: '1',
 		serverSeq: 0,
 		snapshots: [],
+		_meta: {} as Record<string, unknown>,
 		automations: { create: {}, schedules: {}, runCancellation: {} },
 	});
+	override readonly initializeResult: IAgentConnection['initializeResult'] = this.handshakeState;
 
 	override readonly clientId = 'test-client-1';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
@@ -719,6 +721,18 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				{ kind: 'incompatible' },
 			],
 		});
+	});
+
+	test('relay passive metadata keeps chats read-only and updates when the handshake changes', () => {
+		const provider = createProvider(disposables, connection);
+		provider.seedSessions([createSession('passive-session')]);
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connected);
+		const chat = provider.getSessions()[0].mainChat.get();
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { 'copilot.passive': true } }, undefined);
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.ReadOnly);
+		connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: { 'copilot.passive': false } }, undefined);
+		assert.strictEqual(chat.interactivity.get(), ChatInteractivity.Full);
 	});
 
 	test('keeps initial connections read-only but permits self-healing reconnects', () => {
@@ -3065,8 +3079,8 @@ suite('CloudSandboxSessionsProvider archiving', () => {
 			archived: true,
 			unarchived: false,
 			actions: [
-				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
-				{ channel: 'copilotcli:/remote-session', action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
+				{ channel: AgentSession.uri('copilotcli', 'remote-session').toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: true } },
+				{ channel: AgentSession.uri('copilotcli', 'remote-session').toString(), action: { type: ActionType.SessionIsArchivedChanged, isArchived: false } },
 			],
 		});
 	}));

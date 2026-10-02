@@ -8,6 +8,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -75,7 +77,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
 	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Connect to Mission Control Environment..."), icon: Codicon.cloud },
-	when: IsDevelopmentContext,
+	when: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled),
 	group: '1_add',
 	order: 5,
 });

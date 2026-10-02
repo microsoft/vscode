@@ -474,7 +474,7 @@ async function startAgentHost(): Promise<void> {
 		? protocolIngressDisposables.add(instantiationService.createInstance(ExperimentalMissionControlEnvironment,
 			environmentService.userDataPath,
 			(input, init) => proxyResolver.fetch(input, init),
-			(relay, roots) => {
+			(relay, roots, getRoots) => {
 				const handler = instantiationService.createInstance(
 					ProtocolServerHandler,
 					agentService,
@@ -489,7 +489,7 @@ async function startAgentHost(): Promise<void> {
 							const summaries = stateManager.getOverlaySessionSummaries();
 							const workspaces = summaries.flatMap(summary => summary.workingDirectories ?? []).map(directory => URI.parse(directory)).filter(directory => directory.scheme === Schemas.file).map(directory => directory.fsPath);
 							const contentRoots = readOnly ? summaries.map(summary => sessionDataService.getSessionDataDir(URI.parse(summary.resource)).fsPath) : [];
-							return [...roots, ...workspaces, ...contentRoots];
+							return [...getRoots(), ...workspaces, ...contentRoots];
 						},
 						defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
 						otlpLogEmitter,

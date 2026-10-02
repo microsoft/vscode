@@ -2950,7 +2950,7 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnectTransport?: () => Promise<void>): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[] } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
 				const t = disposables.add(new TestClientProtocolTransport());
@@ -2959,7 +2959,7 @@ suite('AgentHostProtocolClient', () => {
 			};
 			const workspaceTrust = createWorkspaceTrustServices();
 			const client = disposables.add(new AgentHostProtocolClient(
-				'test.example:1234', factory, clientInfo !== undefined || reconnectPolicy !== undefined || loadEstimator !== undefined ? { clientInfo, reconnectPolicy, loadEstimator } : undefined, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
+				'test.example:1234', factory, { clientInfo, reconnectPolicy, loadEstimator, prepareReconnectTransport }, new NullLogService(), permissionService, new TestConfigurationService(), telemetryService, workspaceTrustEnablementService, workspaceTrust.management, workspaceTrust.request,
 			));
 			return { client, transports };
 		}
@@ -2976,6 +2976,42 @@ suite('AgentHostProtocolClient', () => {
 			});
 			await connectPromise;
 		}
+
+		test('refreshes the brokered ticket before opening a replacement transport', async () => {
+			const prepared = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 }, undefined, async () => {
+				await prepared.complete();
+				await release.p;
+			});
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			await prepared.p;
+			assert.strictEqual(transports.length, 1);
+			await release.complete();
+			const recovered = await waitForTransport(transports, 1);
+			recovered.connectDeferred.complete();
+			const request = await waitForRequest(recovered, 'reconnect');
+			recovered.fireMessage({ jsonrpc: '2.0', id: request.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
+			await waitForConnectedWithin(client);
+			assert.strictEqual(transports.length, 2);
+		});
+
+		test('disposing during ticket preparation cannot create another transport', async () => {
+			const prepared = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const { client, transports } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 }, undefined, async () => {
+				await prepared.complete();
+				await release.p;
+			});
+			await completeHandshake(transports[0], client.connect());
+			transports[0].fireClose();
+			await prepared.p;
+			client.dispose();
+			await release.complete();
+			await timeout(0);
+			assert.strictEqual(transports.length, 1);
+		});
 
 		test('Dev Container facade survives parent reconnection and closes its old relay', async function () {
 			this.timeout(10_000);

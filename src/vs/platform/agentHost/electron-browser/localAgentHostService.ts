@@ -605,8 +605,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		);
 	}
 
-	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
-		return this._getManagementService().configureExperimentalMissionControl(options);
+	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		return this._getManagementService().configureExperimentalMissionControl(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {

@@ -13,6 +13,8 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IsDevelopmentContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { type ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, type IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -29,12 +31,12 @@ registerAction2(class extends Action2 {
 			id: ConnectMissionControlEnvironmentCommand,
 			title: localize2('connectMissionControlEnvironment', "Connect to Mission Control Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(IsDevelopmentContext, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(IsDevelopmentContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		if (accessor.get(IEnvironmentService).isBuilt) {
+		if (accessor.get(IEnvironmentService).isBuilt || accessor.get(IChatEntitlementService).sentiment.hidden) {
 			throw new Error('User-local Mission Control connections are development-only.');
 		}
 		const api = accessor.get(ICloudSandboxApiService);
@@ -52,6 +54,7 @@ registerAction2(class extends Action2 {
 				title: localize('missionControlEnvironments', "Mission Control Environments"),
 				placeHolder: localize('selectMissionControlEnvironment', "Select an existing user-local host; no replacement compute is provisioned"),
 				matchOnDescription: true,
+				matchOnDetail: true,
 			});
 			if (!selection) {
 				return;

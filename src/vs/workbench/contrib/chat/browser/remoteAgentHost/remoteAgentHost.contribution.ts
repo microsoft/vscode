@@ -37,6 +37,9 @@ const experimentalMissionControlRequireBinding = 'chat.agentHost.experimentalMis
 class ExperimentalMissionControlContribution extends Disposable {
 	static readonly ID = 'workbench.contrib.experimentalMissionControl';
 	private _configured = false;
+	private _generation = 0;
+	private _accountId: string | undefined;
+	private _accountSessionIds = new Set<string>();
 	private readonly _updates = new Throttler();
 	private readonly _update = this._register(new RunOnceScheduler(() => {
 		void this._updates.queue(() => this._configure()).catch(error => this._logService.error('Experimental Mission Control configuration failed', error));
@@ -59,48 +62,102 @@ class ExperimentalMissionControlContribution extends Disposable {
 		}
 		this._register(this._configuration.onDidChangeConfiguration(e => {
 			if ([experimentalMissionControlEndpoint, experimentalMissionControlEnabled, experimentalMissionControlLiveEndpoint, experimentalMissionControlRequireBinding].some(setting => e.affectsConfiguration(setting))) {
+				this._withdraw();
 				this._update.schedule();
 			}
 		}));
-		this._register(this._workspace.onDidChangeWorkspaceFolders(() => this._update.schedule()));
-		this._register(this._authentication.onDidChangeSessions(() => this._update.schedule()));
-		this._register(this._entitlement.onDidChangeSentiment(() => this._update.schedule()));
-		this._register(this._agentHost.onAgentHostStart(() => this._update.schedule()));
+		this._register(this._workspace.onDidChangeWorkspaceFolders(() => {
+			this._generation++;
+			this._update.schedule();
+		}));
+		this._register(this._authentication.onDidChangeSessions(e => {
+			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
+			if (e.providerId !== providerId) {
+				return;
+			}
+			const removed = e.event.removed?.filter(session => session.account.id === this._accountId) ?? [];
+			for (const session of removed) {
+				this._accountSessionIds.delete(session.id);
+			}
+			for (const session of e.event.added ?? []) {
+				if (session.account.id === this._accountId && this._getScopes().every(scope => session.scopes.includes(scope))) {
+					this._accountSessionIds.add(session.id);
+				}
+			}
+			if (removed.length && !this._accountSessionIds.size) {
+				this._withdraw();
+			} else {
+				this._generation++;
+			}
+			this._update.schedule();
+		}));
+		this._register(this._entitlement.onDidChangeSentiment(() => {
+			if (this._entitlement.sentiment.hidden) {
+				this._withdraw();
+			}
+			this._update.schedule();
+		}));
+		this._register(this._agentHost.onAgentHostStart(() => {
+			this._generation++;
+			this._configured = false;
+			this._update.schedule();
+		}));
 		this._update.schedule();
 	}
 
+	private _withdraw(): void {
+		this._generation++;
+		this._configured = false;
+		this._accountSessionIds.clear();
+		if (this._accountId !== undefined) {
+			void this._agentHost.configureExperimentalMissionControl?.(undefined, this._accountId).catch(error => this._logService.error('Experimental Mission Control withdrawal failed', error));
+		}
+	}
+
+	private _getScopes(): readonly string[] {
+		return this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
+	}
+
 	private async _configure(): Promise<void> {
+		const generation = this._generation;
 		const live = this._configuration.getValue<boolean>(experimentalMissionControlEnabled);
 		const endpoint = this._configuration.getValue<string>(live ? experimentalMissionControlLiveEndpoint : experimentalMissionControlEndpoint);
 		if (live && this._configuration.getValue<string>(experimentalMissionControlEndpoint)) {
+			this._withdraw();
 			throw new Error('Disable the fake endpoint before enabling live Mission Control');
 		}
 		if (!endpoint || this._entitlement.sentiment.hidden) {
 			if (this._configured) {
-				await this._agentHost.configureExperimentalMissionControl?.(undefined);
-				this._configured = false;
+				this._withdraw();
 			}
 			return;
 		}
 		const roots = this._workspace.getWorkspace().folders.filter(folder => folder.uri.scheme === Schemas.file).map(folder => folder.uri.fsPath);
 		if (!roots.length && !live) {
 			if (this._configured) {
-				await this._agentHost.configureExperimentalMissionControl?.(undefined);
-				this._configured = false;
+				this._withdraw();
 			}
 			throw new Error('Experimental Mission Control requires an open local workspace');
 		}
 		const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
-		const scopes = this._product.defaultChatAgent?.providerScopes?.[0] ?? ['read:user', 'user:email', 'repo', 'workflow'];
+		const scopes = this._getScopes();
 		const sessions = await this._authentication.getSessions(providerId, [...scopes], undefined, true);
-		if (sessions.length !== 1) {
+		if (generation !== this._generation || this._store.isDisposed) {
+			return;
+		}
+		if (new Set(sessions.map(session => session.account.id)).size !== 1) {
 			if (this._configured) {
-				await this._agentHost.configureExperimentalMissionControl?.(undefined);
-				this._configured = false;
+				this._withdraw();
 			}
 			throw new Error('Experimental Mission Control requires exactly one local GitHub account with Copilot scopes');
 		}
 		this._agentHost.startAgentHost();
+		if (generation !== this._generation) {
+			return;
+		}
+		this._accountId = sessions[0].account.id;
+		this._accountSessionIds = new Set(sessions.map(session => session.id));
+		this._configured = true;
 		await this._agentHost.configureExperimentalMissionControl?.({
 			baseUrl: endpoint,
 			accountId: sessions[0].account.id,
@@ -109,7 +166,6 @@ class ExperimentalMissionControlContribution extends Disposable {
 			live,
 			requireConnectionBinding: this._configuration.getValue<boolean>(experimentalMissionControlRequireBinding),
 		});
-		this._configured = true;
 	}
 }
 

@@ -13,6 +13,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { readRelayKeepAliveTimeout } from '../common/meta/relayConnectionMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../files/common/files.js';
@@ -197,6 +198,8 @@ export interface IAgentHostProtocolClientOptions {
 	readonly reconnectPolicy?: IRemoteAgentHostReconnectPolicy;
 	/** Resolves authentication to restore immediately after every fresh initialize. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
+	/** Refreshes brokered connection tickets before a replacement transport is created. */
+	readonly prepareReconnectTransport?: () => Promise<void>;
 }
 
 /** An initial authentication resolver failed after a successful initialize. */
@@ -386,6 +389,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private readonly _clientInfo: Implementation | undefined;
 	private readonly _reconnectPolicy: IRemoteAgentHostReconnectPolicy;
 	private readonly _resolveInitialAuthentication: (() => Promise<AuthenticateParams | undefined>) | undefined;
+	private readonly _prepareReconnectTransport: (() => Promise<void>) | undefined;
 
 	/**
 	 * URIs we have already granted implicit read access for on this connection.
@@ -451,6 +455,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		this._clientInfo = options?.clientInfo;
 		this._reconnectPolicy = options?.reconnectPolicy ?? DEFAULT_RECONNECT_POLICY;
 		this._resolveInitialAuthentication = options?.resolveInitialAuthentication;
+		this._prepareReconnectTransport = options?.prepareReconnectTransport;
 
 		if (typeof transportOrFactory === 'function') {
 			this._transportFactory = transportOrFactory;
@@ -846,10 +851,17 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		const reconnect = this._state.reconnect;
 		reconnect.attempt++;
+		const attempt = reconnect.attempt;
 		this._diagnosticAttemptId = generateUuid();
 		this._diagnostic('reconnect.started', `attempt=${reconnect.attempt}; clientId=${this._clientId}`);
 		let transport: IProtocolTransport | undefined;
 		try {
+			if (this._prepareReconnectTransport) {
+				await this._traceConnection('transport.ticket', this._prepareReconnectTransport);
+				if (this._store.isDisposed || this._state.kind !== AgentHostClientState.Reconnecting || this._state.reconnect !== reconnect || reconnect.attempt !== attempt) {
+					return;
+				}
+			}
 			transport = this._transportFactory();
 			this._installTransport(transport);
 			if (isClientTransport(transport)) {
@@ -923,6 +935,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._logService.info(`[RemoteAgentHostProtocol] Reconnected to ${this._address}.`);
 			this._diagnostic('reconnect.succeeded', `attempt=${reconnect.attempt}`);
 		} catch (err) {
+			if (this._state.kind === AgentHostClientState.Reconnecting && (this._state.reconnect !== reconnect || reconnect.attempt !== attempt)) {
+				return;
+			}
 			this._onDidConnectionDiagnostic.fire({ operationId: this._clientId, attemptId: this._diagnosticAttemptId, phase: 'reconnect', outcome: 'failed', timestamp: Date.now(), error: getConnectionDiagnosticError(err) });
 			this._logService.warn(`[RemoteAgentHostProtocol] Reconnect attempt failed for ${this._address}: ${err instanceof Error ? err.message : String(err)}`);
 			reconnect.transportConnected = false;
@@ -2478,9 +2493,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	private _startRelayKeepAlive(meta: Record<string, unknown> | undefined): void {
 		this._relayKeepAliveTimer.cancel();
-		const window = meta?.['copilot.keepAliveTimeoutMs'];
+		const window = readRelayKeepAliveTimeout({ _meta: meta });
 		if (this._transport.clientConnectionKind !== AgentHostClientConnectionKind.WebPubSub
-			|| typeof window !== 'number' || !Number.isSafeInteger(window) || window < 1) {
+			|| window === undefined) {
 			return;
 		}
 		this._relayKeepAliveTimer.cancelAndSet(() => {

@@ -124,6 +124,10 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 		this._entries.set([...this._entries.get(), entry], undefined);
 	}
 
+	withdrawEntry(entry: IRemoteAgentHostEntry): void {
+		this._entries.set(this._entries.get().filter(value => getEntryAddress(value) !== getEntryAddress(entry)), undefined);
+	}
+
 	getConnectionObserver(): RemoteAgentHostConnectionObserver {
 		return state => this.observations.push({ state, time: Date.now() });
 	}
@@ -1187,6 +1191,27 @@ suite('RemoteAgentHostService', () => {
 				reconnectNowCalls: 1,
 			});
 		});
+
+		test('withdrawing a permanently refused broker entry prevents the outer service from redialing cached credentials', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Missing brokered host', 'cloud:missing');
+			const client = new MockProtocolClient(getEntryAddress(entry));
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const connected = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await connected;
+			factory.withdrawEntry(entry);
+			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				configured: service.configuredEntries.filter(value => getEntryAddress(value) === getEntryAddress(entry)).length,
+				creations: factory.createdConnectionCount,
+				connected: service.getConnection(getEntryAddress(entry)) !== undefined,
+			}, { configured: 0, creations: 1, connected: false });
+			service.dispose();
+		}));
 
 		test('falls back to a fresh dial when a retained entry has no client', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);

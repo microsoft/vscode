@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { randomUUID } from 'crypto';
-import { mkdir, open, readFile } from 'fs/promises';
+import { mkdir, open, readFile, rename, unlink } from 'fs/promises';
 import { realpathSync } from 'fs';
 import { join } from '../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../base/common/async.js';
@@ -89,9 +89,14 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	private _identityApiBase: string | undefined;
 	private _policy: string | undefined;
 	private _options: IExperimentalMissionControlOptions | undefined;
+	private _roots: readonly string[] = [];
+	private _initialRoots: readonly string[] | undefined;
 	private _environment: IEnvironmentResponse | undefined;
-	private _currentCheckIn: Promise<void> | undefined;
+	private _currentCheckIn: { readonly generation: number; readonly operation: Promise<void> } | undefined;
 	private _generation = 0;
+	private _configurationEpoch = 0;
+	private _policyRefresh = 0;
+	private _appliedPolicyRefresh = 0;
 	private _retryDelay = 500;
 	private _credentialRejected = false;
 	private _signingKeys: readonly IMissionControlSigningKey[] | undefined;
@@ -103,7 +108,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	constructor(
 		private readonly _userDataPath: string,
 		private readonly _fetch: typeof fetch,
-		private readonly _attach: (server: MissionControlProtocolServer, roots: readonly string[]) => IDisposable,
+		private readonly _attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable,
 		private readonly _onError: (error: unknown) => void,
 		private readonly _socketFactory?: (url: string, protocol: string) => IMissionControlSocket,
 		private readonly _getSessionCount: () => Promise<number> = async () => 0,
@@ -112,60 +117,80 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		private readonly _getIdentityApiBase: () => string = () => 'https://api.github.com',
 		onDidChangeIdentityAuthority?: Event<void>,
 		private readonly _createMirror?: (environmentId: string) => { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable },
+		onDidChangeRemoteControlPolicy?: Event<void>,
 	) {
 		super();
 		this._register(toDisposable(() => {
-			this._generation++;
-			this._options = undefined;
+			this._withdraw();
 		}));
 		if (onDidChangeIdentityAuthority) {
 			this._register(onDidChangeIdentityAuthority(() => {
 				if (this._options?.live && this._identityApiBase !== this._getIdentityApiBase()) {
-					this._generation++;
-					this._handler.clear();
-					this._mirrorAttachment.clear();
-					this._server.clear();
 					void this.configure(undefined).catch(this._onError);
+				}
+			}));
+		}
+		if (onDidChangeRemoteControlPolicy) {
+			this._register(onDidChangeRemoteControlPolicy(() => {
+				this._policyRefresh++;
+				if (this._options?.live) {
+					void this._checkIn().catch(this._onError);
 				}
 			}));
 		}
 	}
 
-	configure(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
-		return this._configuration.queue(() => this._configure(options));
+	/** Renderer withdrawals identify their requested account; unbound withdrawal is reserved for process-owned cleanup. */
+	configure(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		if (!options) {
+			if (withdrawingAccountId !== undefined && this._ownerAccount !== undefined && withdrawingAccountId !== this._ownerAccount) {
+				return Promise.reject(new Error('Only the Agent Host owner can withdraw Mission Control registration'));
+			}
+			const registered = this._environment;
+			const previous = this._options;
+			this._withdraw();
+			return this._configuration.queue(async () => {
+				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
+					await this._request(
+						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
+						{ status: 'offline' },
+						previous,
+					);
+				}
+			});
+		}
+		const epoch = this._configurationEpoch;
+		return this._configuration.queue(() => this._configure(options, epoch));
 	}
 
 	get environmentId(): string | undefined { return this._environment?.id; }
 	get isEnabled(): boolean { return this._options?.live === true; }
 
-	private async _configure(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
+	private _withdraw(): void {
+		this._configurationEpoch++;
+		this._generation++;
+		this._options = undefined;
+		this._environment = undefined;
+		this._roots = [];
+		this._initialRoots = undefined;
+		this._heartbeat.clear();
+		this._handler.clear();
+		this._mirrorAttachment.clear();
+		this._server.clear();
+		this._sealing.clear();
+		this._mirror.value?.detach();
+		this._verifier = undefined;
+		this._signingKeys = undefined;
+		this._tokenExpiresAt = undefined;
+		this._requiresBootstrap = false;
+		this._nextHeartbeatAt = 0;
+	}
+
+	private async _configure(options: IExperimentalMissionControlOptions, epoch: number): Promise<void> {
 		if (this._store.isDisposed) {
 			throw new Error('Mission Control environment service is disposed');
 		}
-		if (!options) {
-			const registered = this._environment;
-			const previous = this._options;
-			this._generation++;
-			this._heartbeat.clear();
-			this._handler.clear();
-			this._mirrorAttachment.clear();
-			this._server.clear();
-			this._sealing.clear();
-			this._mirror.value?.detach();
-			this._options = undefined;
-			this._environment = undefined;
-			this._verifier = undefined;
-			this._signingKeys = undefined;
-			this._tokenExpiresAt = undefined;
-			this._requiresBootstrap = false;
-			this._nextHeartbeatAt = 0;
-			if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
-				await this._request(
-					`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
-					{ status: 'offline' },
-					previous,
-				);
-			}
+		if (epoch !== this._configurationEpoch) {
 			return;
 		}
 		const endpoint = new URL(options.baseUrl);
@@ -182,6 +207,9 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			throw new Error('Mission Control requires a stable HTTPS GitHub identity authority');
 		}
 		const owner = options.live ? await resolveMissionControlOwner(this._fetch, identityApiBase, options.credential) : options.accountId;
+		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
+			return;
+		}
 		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
 			throw new Error('GitHub identity authority changed during Mission Control configuration');
 		}
@@ -194,11 +222,17 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		}
 		if (this._options) {
 			if (this._options.baseUrl !== options.baseUrl || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
-				|| (!options.live && JSON.stringify(this._options.roots) !== JSON.stringify(roots))) {
-				throw new Error('Mission Control is already configured; disable it before changing project grants');
+				|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots))) {
+				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
-			this._options = { ...options, roots: options.live ? this._options.roots : roots };
-			if (this._credentialRejected) {
+			this._roots = [...new Set([...this._roots, ...roots])];
+			if (this._options.credential !== options.credential || this._credentialRejected) {
+				this._generation++;
+				this._handler.clear();
+				this._mirrorAttachment.clear();
+				this._server.clear();
+				this._heartbeat.clear();
+				this._options = { ...options, roots: this._roots };
 				this._credentialRejected = false;
 				await this._checkIn();
 			}
@@ -208,17 +242,30 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		this._canonicalOwner = owner;
 		this._identityApiBase = identityApiBase;
 		this._generation++;
-		this._options = { ...options, roots };
+		this._initialRoots ??= roots;
+		this._roots = [...new Set([...this._roots, ...roots])];
+		this._options = { ...options, roots: this._roots };
 		this._credentialRejected = false;
 		try {
 			if (options.live) {
 				await MissionControlSealing.ready();
+				if (epoch !== this._configurationEpoch || this._store.isDisposed) {
+					return;
+				}
 				this._sealing.value = new MissionControlSealing();
 			}
 			await this._checkIn();
 		} catch (error) {
+			if (epoch !== this._configurationEpoch || this._store.isDisposed) {
+				throw error;
+			}
 			try {
-				await this._configure(undefined);
+				const registered = this._environment;
+				const previous = this._options;
+				this._withdraw();
+				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
+					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, { status: 'offline' }, previous);
+				}
 			} catch (offlineError) {
 				this._onError(offlineError);
 			}
@@ -226,26 +273,56 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		}
 	}
 
+	/** The native Agent Host owns profile writes; atomic replacement keeps the location-bound identity record complete. */
 	private async _computeId(): Promise<string> {
-		const path = join(this._userDataPath, 'agent-host-mission-control-id');
 		await mkdir(this._userDataPath, { recursive: true });
+		const directory = realpathSync(this._userDataPath);
+		const path = join(directory, 'agent-host-mission-control-id');
+		let contents: string | undefined;
 		try {
-			const file = await open(path, 'wx', 0o600);
-			try {
-				const id = randomUUID();
-				await file.writeFile(id);
-				return id;
-			} finally {
-				await file.close();
-			}
+			contents = (await readFile(path, 'utf8')).trim();
 		} catch (error) {
-			if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 				throw error;
 			}
 		}
-		const id = (await readFile(path, 'utf8')).trim();
-		if (!/^[0-9a-f-]{36}$/.test(id)) {
-			throw new Error('Invalid persisted Mission Control compute identity');
+		const legacyId = contents !== undefined && /^[0-9a-f-]{36}$/.test(contents) ? contents : undefined;
+		if (contents !== undefined && legacyId === undefined) {
+			let record: { version?: number; id?: string; userDataDirectory?: string } | null;
+			try {
+				record = JSON.parse(contents);
+			} catch (error) {
+				if (error instanceof SyntaxError) {
+					throw new Error('Invalid persisted Mission Control compute identity');
+				}
+				throw error;
+			}
+			if (!record || typeof record !== 'object'
+				|| record.version !== 1 || typeof record.id !== 'string' || !/^[0-9a-f-]{36}$/.test(record.id)
+				|| typeof record.userDataDirectory !== 'string' || !record.userDataDirectory) {
+				throw new Error('Invalid persisted Mission Control compute identity');
+			}
+			if (record.userDataDirectory === directory) {
+				return record.id;
+			}
+		}
+		const id = legacyId ?? randomUUID();
+		const temporaryPath = join(directory, `agent-host-mission-control-id.${randomUUID()}.tmp`);
+		const file = await open(temporaryPath, 'wx', 0o600);
+		try {
+			try {
+				await file.writeFile(JSON.stringify({ version: 1, id, userDataDirectory: directory }));
+				await file.sync();
+			} finally {
+				await file.close();
+			}
+			await rename(temporaryPath, path);
+		} finally {
+			await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
+				if (error.code !== 'ENOENT') {
+					throw error;
+				}
+			});
 		}
 		return id;
 	}
@@ -279,6 +356,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			if ((response.status === 401 || response.status === 403) && generation === this._generation && this._options === options) {
 				this._credentialRejected = true;
 				this._handler.clear();
+				this._mirrorAttachment.clear();
 				this._server.clear();
 			}
 			throw new Error(`Mission Control request failed (${response.status})`);
@@ -294,32 +372,40 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	}
 
 	private async _checkIn(): Promise<void> {
-		if (this._currentCheckIn) {
-			const generation = this._generation;
-			await this._currentCheckIn;
-			if (generation !== this._generation && this._options) {
+		const generation = this._generation;
+		if (this._currentCheckIn?.generation === generation) {
+			await this._currentCheckIn.operation;
+			if (generation === this._generation && this._options && this._appliedPolicyRefresh !== this._policyRefresh) {
 				return this._checkIn();
 			}
 			return;
 		}
 		const operation = this._doCheckIn();
-		this._currentCheckIn = operation;
+		const current = { generation, operation };
+		this._currentCheckIn = current;
 		try {
 			await operation;
-			this._retryDelay = 500;
+			if (generation === this._generation) {
+				this._retryDelay = 500;
+			}
 		} catch (error) {
-			this._retryDelay = Math.min(30_000, this._retryDelay * 2);
+			if (generation === this._generation) {
+				this._retryDelay = Math.min(30_000, this._retryDelay * 2);
+			}
 			throw error;
 		} finally {
-			this._currentCheckIn = undefined;
-			if (this._options && !this._store.isDisposed && !this._credentialRejected) {
+			if (this._currentCheckIn === current) {
+				this._currentCheckIn = undefined;
+			}
+			if (generation === this._generation && this._options && !this._store.isDisposed && !this._credentialRejected) {
 				const recovering = this._environment !== undefined && (!this._server.value || this._server.value.isClosed);
 				const heartbeatDelay = Math.max(1000, this._nextHeartbeatAt - Date.now(), this._heartbeatNotBefore - Date.now());
 				const tokenDelay = this._tokenExpiresAt === undefined ? heartbeatDelay : Math.max(1000, this._tokenExpiresAt - Date.now() - 30_000);
+				const refreshingPolicy = this._options.live && this._appliedPolicyRefresh !== this._policyRefresh;
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._heartbeat.clear();
 					this._checkIn().catch(this._onError);
-				}, this._requiresBootstrap ? Math.max(this._retryDelay, heartbeatDelay) : recovering ? this._retryDelay : Math.min(heartbeatDelay, tokenDelay));
+				}, refreshingPolicy ? this._retryDelay : this._requiresBootstrap ? Math.max(this._retryDelay, heartbeatDelay) : recovering ? this._retryDelay : Math.min(heartbeatDelay, tokenDelay));
 			}
 		}
 	}
@@ -327,13 +413,14 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 	private async _doCheckIn(): Promise<void> {
 		const options = this._options;
 		const generation = this._generation;
+		const policyRefresh = this._policyRefresh;
 		if (!options || this._credentialRejected) {
 			return;
 		}
 		const waiting = this._environment && Date.now() < Math.max(this._heartbeatNotBefore, this._nextHeartbeatAt);
 		const recovering = this._environment && (!this._server.value || this._server.value.isClosed);
 		const refreshToken = !this._requiresBootstrap && this._environment && (recovering || (this._tokenExpiresAt !== undefined && Date.now() >= this._tokenExpiresAt - 30_000));
-		if (waiting && !refreshToken) {
+		if (waiting && !refreshToken && this._appliedPolicyRefresh === policyRefresh) {
 			return;
 		}
 		if (refreshToken && this._environment) {
@@ -357,7 +444,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			}
 			this._tokenExpiresAt = Date.parse(token.expires_at);
 			this._environment = { ...this._environment, webpubsub: bootstrap };
-			if (waiting || recovering) {
+			if ((waiting || recovering) && this._appliedPolicyRefresh === policyRefresh) {
 				if (recovering) {
 					await this._connectRelay(options, generation);
 				}
@@ -377,6 +464,13 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		}
 		const policy = JSON.stringify(remoteControl ?? null);
 		const register = !this._environment || (options.live && policy !== this._policy);
+		if (waiting && !register) {
+			this._appliedPolicyRefresh = policyRefresh;
+			if (recovering) {
+				await this._connectRelay(options, generation);
+			}
+			return;
+		}
 		const encryptionKeys = this._sealing.value?.advertisedKeys;
 		const path = !register && this._environment
 			? `cmc_internal/api/agents/environments/${encodeURIComponent(this._environment.id)}/heartbeat`
@@ -384,8 +478,11 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		const body = !register
 			? { status: options.live && (!this._server.value || this._server.value.isClosed) ? 'offline' : 'online', capabilities, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}) }
 			: { name: 'VS Code Agent Host (Development)', kind: 'user-local', compute_id: await this._computeId(), capabilities, labels: { embedder: 'vscode' }, ...(encryptionKeys ? { encryption_keys: encryptionKeys } : {}), ...(remoteControl ? { managed_settings: { remoteControl } } : {}) };
+		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
+			return;
+		}
 		const reply = await this._request(path, body, options);
-		if (generation !== this._generation || this._store.isDisposed) {
+		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
 		}
 		const response = parseEnvironment(reply);
@@ -422,6 +519,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			this._tokenExpiresAt = expiry;
 		}
 		this._policy = policy;
+		this._appliedPolicyRefresh = policyRefresh;
 		await this._connectRelay(options, generation);
 	}
 
@@ -431,7 +529,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			return;
 		}
 		if (!this._signingKeys || Date.now() - this._signingKeysFetchedAt >= 5 * 60_000) {
-			const jwks = await this._request('cmc_internal/api/agents/environments/.well-known/jwks.json');
+			const jwks = await this._request('cmc_internal/api/agents/environments/.well-known/jwks.json', undefined, options);
 			if (generation !== this._generation || this._store.isDisposed) {
 				return;
 			}
@@ -473,7 +571,7 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 			this._mirror.value,
 		);
 		this._server.value = server;
-		this._handler.value = combinedDisposable(this._attach(server, options.roots), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
 				this._heartbeat.value = disposableLongTimeout(() => {
 					this._checkIn().catch(this._onError);
@@ -482,8 +580,10 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		}));
 		await server.connect();
 		if (generation !== this._generation) {
-			this._handler.clear();
-			this._server.clear();
+			if (this._server.value === server) {
+				this._handler.clear();
+				this._server.clear();
+			}
 			return;
 		}
 		if (this._mirror.value) {
@@ -501,7 +601,9 @@ export class ExperimentalMissionControlEnvironment extends Disposable {
 		if (options.live && Date.now() >= this._heartbeatNotBefore) {
 			await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(response.id)}/heartbeat`, { status: 'online', encryption_keys: sealing?.advertisedKeys }, options);
 		}
-		this._onReady?.(response.id);
+		if (generation === this._generation && this._options === options && !this._store.isDisposed) {
+			this._onReady?.(response.id);
+		}
 	}
 
 	private async _boundedRegistrationWork<T>(operation: Promise<T>): Promise<T> {

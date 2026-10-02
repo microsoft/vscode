@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -70,7 +71,7 @@ class RecordingTelemetry extends mock<ICloudSandboxTelemetryService>() {
 class ScriptedCredentialsService {
 	callCount = 0;
 
-	constructor(private readonly _step: () => CloudSandboxConnectResult | Promise<never>) { }
+	constructor(private readonly _step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>) { }
 
 	async reconnect(): Promise<CloudSandboxConnectResult> {
 		this.callCount++;
@@ -235,6 +236,32 @@ suite('CloudSandboxCredentialRefresher', () => {
 			{ callsBeforeDispose, callsAfterDispose: credentials.callCount, stops: telemetry.stops },
 			{ callsBeforeDispose: 1, callsAfterDispose: 1, stops: [] },
 		);
+	}));
+
+	test('a late periodic refresh cannot replace a newer host-recovery credential', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const response = new DeferredPromise<CloudSandboxConnectResult>();
+		const started = new DeferredPromise<void>();
+		const creds: ICloudSandboxCreds = { token: tokenExpiringIn(2, START_TIME) };
+		const replacement = tokenExpiringIn(40, START_TIME, { access_token: 'recovery-token', host_encryption_key: REPLACEMENT_HOST_KEY });
+		const telemetry = new RecordingTelemetry();
+		const api = new class extends mock<ICloudSandboxApiService>() {
+			override reconnect(): Promise<CloudSandboxConnectResult> {
+				started.complete();
+				return response.p;
+			}
+		}();
+		const owner = new DisposableStore();
+		try {
+			owner.add(new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, api, telemetry, new NullLogService()));
+			await started.p;
+			creds.token = replacement;
+			response.complete({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { access_token: 'stale-token' }) });
+			await timeout(1);
+			assert.strictEqual(creds.token, replacement);
+			assert.deepStrictEqual(telemetry.stops, []);
+		} finally {
+			owner.dispose();
+		}
 	}));
 
 	test('a refreshed token without a sealed GitHub token keeps the previous one', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {

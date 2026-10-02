@@ -766,7 +766,7 @@ export interface IMissionControlCredentialSealingRequest {
 export interface IAgentHostManagementService {
 	readonly _serviceBrand: undefined;
 	/** Development-only Mission Control ingress; never enabled in builds. */
-	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void>;
+	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getExperimentalMissionControlEnvironmentId(): Promise<string | undefined>;
 
@@ -1246,7 +1246,7 @@ export interface IAgentHostService extends IAgentConnection {
 
 	readonly _serviceBrand: undefined;
 	/** Available only in the local, development Agent Host. */
-	configureExperimentalMissionControl?(options: IExperimentalMissionControlOptions | undefined): Promise<void>;
+	configureExperimentalMissionControl?(options: IExperimentalMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void>;
 	sealMissionControlCredential?(request: IMissionControlCredentialSealingRequest): Promise<string>;
 	getExperimentalMissionControlEnvironmentId?(): Promise<string | undefined>;
 
