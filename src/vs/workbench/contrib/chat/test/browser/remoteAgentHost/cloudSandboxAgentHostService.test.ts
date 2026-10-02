@@ -82,6 +82,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	const started = new DeferredPromise<void>();
 	let ready = new DeferredPromise<IRemoteAgentHostConnectionInfo>();
 	const events: { eventName: string; data?: ITelemetryData }[] = [];
+	const warnings: string[] = [];
 	const removed: string[] = [];
 	const instantiationService = store.add(new TestInstantiationService());
 	const telemetry = store.add(new CloudSandboxTelemetryService(new class extends mock<ITelemetryService>() {
@@ -153,7 +154,11 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		override readonly logsHome = URI.file('/logs');
 		override readonly isSessionsWindow = isSessionsWindow;
 	}());
-	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(ILogService, new class extends NullLogService {
+		override warn(message: string): void {
+			warnings.push(message);
+		}
+	}());
 
 	return {
 		service: store.add(instantiationService.createInstance(TestCloudSandboxAgentHostService)),
@@ -165,6 +170,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		requestCalls: () => calls,
 		requests,
 		events,
+		warnings,
 		removed,
 		started: started.p,
 		setState(state: 'reconnecting' | 'connected'): void {
@@ -243,6 +249,9 @@ suite('CloudSandboxAgentHostService', () => {
 			const failed = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
 			await timeout(600_000);
 			await failed;
+			assert.deepStrictEqual(fixture.warnings, [
+				`[CloudSandboxAgentHost] Connection timeout: environmentId=env-1 sessionId=none clientId=${stage === 'credentials' ? 'none' : 'client-1'} stage=${stage} durationMs=600000`,
+			]);
 			await tokenResponse.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.late') });
 			await ready.complete({ address: cloudSandboxAddress('env-1'), name: 'Sandbox', status: RemoteAgentHostConnectionStatus.connected });
 			await timeout(0);

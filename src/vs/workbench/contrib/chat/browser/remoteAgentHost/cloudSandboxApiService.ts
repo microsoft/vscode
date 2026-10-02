@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -620,6 +621,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		searchParams: Record<string, string>,
 		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<CloudSandboxConnectResult> {
+		const watch = StopWatch.create(false);
 		const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
 
 		if (context.res.statusCode === 202) {
@@ -629,7 +631,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'waking', waking: { retryAfterSeconds } };
 		}
 		if (!isSuccess(context)) {
-			await this._throwForStatus(action, context);
+			const header = context.res.headers['x-github-request-id'];
+			const requestId = typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
+			const status = context.res.statusCode;
+			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}`);
+			throw new CloudSandboxRequestError(status, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, retryAfter);
 		}
 		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
 		if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
