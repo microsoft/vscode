@@ -4,15 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { INativeHostService } from '../../../native/common/native.js';
 import product from '../../../product/common/product.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { SharedProcessGitHubService } from '../../electron-utility/githubService.js';
+import { createFetch } from '../../../request/electron-utility/fetch.js';
 
 suite('SharedProcessGitHubService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves system proxy routing without a renderer window', async () => {
+		const proxyUrls: string[] = [];
+		const configuration = new TestConfigurationService({ 'http.systemCertificates': false, 'http.noProxy': [] });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const nativeHost = new class extends mock<INativeHostService>() {
+			override async resolveProxy(): Promise<never> {
+				assert.fail('Shared-process networking must not use a window-scoped proxy session');
+			}
+			override async resolveProxyForUtilityProcess(url: string): Promise<string> {
+				proxyUrls.push(url);
+				return 'DIRECT';
+			}
+		}();
+		const fetch = createFetch(nativeHost, configuration, new NullLogService(), {}, async () => new Response('fixture'));
+		const response = await fetch('https://api.test/resource');
+		assert.deepStrictEqual({ proxyUrls, body: await response.text() }, { proxyUrls: ['https://api.test/resource'], body: 'fixture' });
+	});
 
 	test('initializes a local engine with node egress without fetching or adding authentication', async () => {
 		const requests: Request[] = [];
