@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IObservableSignal, IReader, ISettableObservable, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, IObservableSignal, IReader, ISettableObservable, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -72,6 +73,18 @@ export interface PromptTick {
 	readonly ariaLabel: string;
 	/** Diff summary of the edits this tick produced, if any. */
 	readonly stat?: PromptDiffStat;
+}
+
+export function promptTickEquals(a: PromptTick, b: PromptTick): boolean {
+	return a === b || a.requestId === b.requestId
+		&& equals(a.allRequestIds, b.allRequestIds)
+		&& a.text === b.text
+		&& a.timestamp === b.timestamp
+		&& a.count === b.count
+		&& a.ariaLabel === b.ariaLabel
+		&& a.stat?.added === b.stat?.added
+		&& a.stat?.removed === b.stat?.removed
+		&& a.stat?.fileCount === b.stat?.fileCount;
 }
 
 const MAX_PREVIEW_LENGTH = 80;
@@ -163,36 +176,41 @@ export class PromptTimelineModel extends Disposable {
 	});
 
 	/** Ticks decorated with per-prompt diff stats (server per-turn changeset, else editing session). */
-	private readonly _ticks = derived<readonly PromptTick[]>(this, reader => {
-		const base = this._baseTicks.read(reader);
-		return base.map(tick => {
-			const stat = this._statForRequests(tick.allRequestIds, reader);
-			return stat ? { ...tick, stat } : tick;
-		});
-	});
+	private readonly _ticks = this._withDiffStats(this._baseTicks);
 	get ticks(): IObservable<readonly PromptTick[]> { return this._ticks; }
 
 	/**
-	 * One tick per user prompt — unbucketed and uncapped, decorated with per-prompt diff stats. The
+	 * One tick per user prompt — unbucketed and uncapped. The
 	 * gutter rail lists every prompt as its own entry (no recency bucketing/sampling), so it needs the
 	 * raw prompt list rather than the capped {@link ticks} the overview ruler uses.
 	 */
-	private readonly _promptTicks = derived<readonly PromptTick[]>(this, reader => {
+	private readonly _basePromptTicks = derived<readonly PromptTick[]>(this, reader => {
 		const prompts = this._prompts.read(reader);
-		return prompts.map((prompt): PromptTick => {
-			const base: PromptTick = {
-				requestId: prompt.requestId,
-				allRequestIds: [prompt.requestId],
-				text: prompt.text,
-				timestamp: prompt.timestamp,
-				count: 1,
-				ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
-			};
-			const stat = this._statForRequests(base.allRequestIds, reader);
-			return stat ? { ...base, stat } : base;
-		});
+		return prompts.map((prompt): PromptTick => ({
+			requestId: prompt.requestId,
+			allRequestIds: [prompt.requestId],
+			text: prompt.text,
+			timestamp: prompt.timestamp,
+			count: 1,
+			ariaLabel: localize('promptTimeline.tick', "Prompt: {0}", prompt.text),
+		}));
 	});
+	private readonly _promptTicks = this._withDiffStats(this._basePromptTicks);
 	get promptTicks(): IObservable<readonly PromptTick[]> { return this._promptTicks; }
+
+	private _withDiffStats(ticks: IObservable<readonly PromptTick[]>): IObservable<readonly PromptTick[]> {
+		const ticksWithStats = mapObservableArrayCached(this, ticks, tick => derivedOpts<PromptTick>({
+			owner: this,
+			equalsFn: promptTickEquals,
+		}, reader => {
+			const stat = this._statForRequests(tick.allRequestIds, reader);
+			return stat ? { ...tick, stat } : tick;
+		}));
+		return derivedOpts<readonly PromptTick[]>({
+			owner: this,
+			equalsFn: (a, b) => equals(a, b, promptTickEquals),
+		}, reader => ticksWithStats.read(reader).map(tick => tick.read(reader)));
+	}
 
 	private readonly _activeRequestId: ISettableObservable<string | undefined> = observableValue<string | undefined>(this, undefined);
 	get activeRequestId(): IObservable<string | undefined> { return this._activeRequestId; }
