@@ -317,9 +317,13 @@ suite('aiCustomizationManagementEditor', () => {
 		setVisible(visible: boolean): void;
 	};
 
+	type MutableConfigurationInspection = {
+		-readonly [Key in keyof IConfigurationValue<boolean>]?: IConfigurationValue<boolean>[Key];
+	};
+
 	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService & {
 		setValue(key: string, value: unknown): void;
-		inspectValues: Partial<IConfigurationValue<boolean>>;
+		inspectValues: MutableConfigurationInspection;
 	} {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
@@ -328,7 +332,7 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
-		const inspectValues: Partial<IConfigurationValue<boolean>> = {};
+		const inspectValues: MutableConfigurationInspection = {};
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
@@ -343,7 +347,7 @@ suite('aiCustomizationManagementEditor', () => {
 			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
 		} as unknown as IConfigurationService & {
 			setValue(key: string, value: unknown): void;
-			inspectValues: Partial<IConfigurationValue<boolean>>;
+			inspectValues: MutableConfigurationInspection;
 		};
 	}
 
