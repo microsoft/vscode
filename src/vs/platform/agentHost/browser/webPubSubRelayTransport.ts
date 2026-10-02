@@ -15,7 +15,7 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../base/common/async.js';
-import { isObject } from '../../../base/common/types.js';
+import { hasKey, isObject } from '../../../base/common/types.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
@@ -92,6 +92,7 @@ export interface IWebPubSubRelayTransportOptions {
 	 * `vscode/collectAgentHostDebugLogs`, so this is the only way to see their frames.
 	 */
 	readonly ahpLogger?: AhpJsonlLogger;
+	readonly requiresSealedAuthentication?: boolean;
 }
 
 /**
@@ -336,6 +337,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	send(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest): void {
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
+		}
+		if (this._options.requiresSealedAuthentication && hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
+			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
+			throw new Error('Refusing to send plaintext authentication over Web PubSub');
 		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
 		// relay frames they were split into.

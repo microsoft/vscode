@@ -51,6 +51,7 @@ import {
 	IAgentHostNetworkFetchResult,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	type IExperimentalMissionControlOptions,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -602,6 +603,11 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			getDelayedChannel(this._managementConnection.client().then(client => client.getChannel(AgentHostIpcChannels.Management)))
 		);
 	}
+
+	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
+		return this._getManagementService().configureExperimentalMissionControl(options);
+	}
+
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {

@@ -1713,6 +1713,7 @@ export default defineConfig(
 						'@modelcontextprotocol/sdk/**/*', // used by agentHost for Claude client-tool MCP result types (Phase 10)
 						'@github/copilot-sdk',
 						'zod', // used by agentHost for Claude client-tool MCP input schemas
+						{ 'when': 'hasNode', 'pattern': 'libsodium-wrappers' },
 						{
 							'when': 'test',
 							'pattern': 'events'

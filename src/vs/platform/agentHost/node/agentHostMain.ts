@@ -32,6 +32,7 @@ import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -111,6 +112,7 @@ async function startAgentHost(): Promise<void> {
 	let fileService!: IFileService;
 	let stateManager!: AgentHostStateManager;
 	let completionTriggerCharacters!: readonly string[];
+	let getRemoteControlPolicy: (() => Promise<Record<string, unknown> | undefined>) | undefined;
 	// Hoisted out of the `try` below so the protocol handlers (constructed
 	// after the block) can forward agent-SDK download progress to clients.
 	let sdkDownloadProgress: Event<IAgentSdkDownloadProgress> | undefined;
@@ -152,6 +154,13 @@ async function startAgentHost(): Promise<void> {
 		const providerService = runtimeServices.providerService;
 		sdkDownloadProgress = runtime.sdkDownloadProgress;
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
+		getRemoteControlPolicy = async () => {
+			const provider = providerService.getProvider('copilotcli');
+			if (!provider?.getRemoteControlManagedSettings) {
+				throw new Error('Copilot runtime cannot read device remote-control policy');
+			}
+			return provider.getRemoteControlManagedSettings();
+		};
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
 		//     forwarded as an env var by the starters). Claude defaults to on.
@@ -446,15 +455,48 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+	const missionControl = !environmentService.isBuilt && server instanceof UtilityProcessServer
+		? protocolIngressDisposables.add(instantiationService.createInstance(ExperimentalMissionControlEnvironment,
+			environmentService.userDataPath,
+			(input, init) => proxyResolver.fetch(input, init),
+			(relay, roots) => {
+				const handler = instantiationService.createInstance(
+					ProtocolServerHandler,
+					agentService,
+					stateManager,
+					relay,
+					{ hostLaunchKind, allowExtensionMethods: false, relayRoots: relay.rootMeta ? undefined : roots, relayRootMeta: relay.rootMeta, defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined, otlpLogEmitter },
+					clientFileSystemProvider,
+				);
+				protocolHandlers.push(handler);
+				return toDisposable(() => {
+					protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
+					handler.dispose();
+				});
+			},
+			error => logService.error('[AgentHost] Experimental Mission Control failure', error),
+			undefined,
+			async () => (await agentService.listSessions()).length,
+			getRemoteControlPolicy,
+			environmentId => logService.info(`[AgentHost] Experimental Mission Control ready; environmentId=${environmentId}`),
+		))
+		: undefined;
+	const management = instantiationService.createInstance(
 		AgentHostManagementService,
 		agentService,
 		connectionTrackerService,
 		async () => {
+			try {
+				await missionControl?.configure(undefined);
+			} catch (error) {
+				logService.error('[AgentHost] Failed to unregister experimental Mission Control environment', error);
+			}
 			protocolIngressDisposables.dispose();
 			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
 		},
-	), disposables));
+	);
+	management.setExperimentalMissionControl(missionControl);
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}

@@ -388,6 +388,16 @@ suite('WebPubSubRelayTransport', () => {
 		});
 	}
 
+	test('refuses plaintext credentials before publishing when sealed authentication is required', async () => {
+		const socket = new FakeWebSocket();
+		const transport = createTransport(socket, { requiresSealedAuthentication: true });
+		await connectHandshake(transport, socket);
+		assert.throws(() => transport.send({
+			jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'plaintext-test-credential' },
+		}), /Refusing to send plaintext/);
+		assert.deepStrictEqual(socket.sentOfType('sendToGroup'), []);
+	});
+
 	test('publishes outbound messages to the to_host lane as sendToGroup frames', async () => {
 		const fake = new FakeWebSocket();
 		const transport = createTransport(fake);

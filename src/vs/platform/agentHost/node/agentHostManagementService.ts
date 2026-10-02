@@ -7,7 +7,8 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
-import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IExperimentalMissionControlOptions } from '../common/agentService.js';
+import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -16,6 +17,7 @@ const SHUTDOWN_FLUSH_TIMEOUT_MS = 2500;
 
 export class AgentHostManagementService implements IAgentHostManagementService {
 	declare readonly _serviceBrand: undefined;
+	private _missionControl: ExperimentalMissionControlEnvironment | undefined;
 
 	private _shutdownPromise: Promise<void> | undefined;
 	private _shuttingDown = false;
@@ -28,6 +30,17 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
+
+	setExperimentalMissionControl(service: ExperimentalMissionControlEnvironment | undefined): void {
+		this._missionControl = service;
+	}
+
+	configureExperimentalMissionControl(options: IExperimentalMissionControlOptions | undefined): Promise<void> {
+		if (!this._missionControl) {
+			throw new Error('Experimental Mission Control is unavailable in this Agent Host');
+		}
+		return this._missionControl.configure(options);
+	}
 
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession(config));

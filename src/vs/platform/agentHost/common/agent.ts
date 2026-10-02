@@ -1073,10 +1073,10 @@ export namespace AgentSession {
 
 	/**
 	 * Creates a session URI from a provider name and raw session ID.
-	 * The URI scheme is the provider name (e.g., `copilot:/<rawId>`).
+	 * Copilot CLI temporarily uses `ahp-session` for the MC desktop-client experiment.
 	 */
 	export function uri(provider: AgentProvider, rawSessionId: string): URI {
-		return URI.from({ scheme: provider, path: `/${rawSessionId}` });
+		return URI.from({ scheme: provider === 'copilotcli' ? 'ahp-session' : provider, path: `/${rawSessionId}` });
 	}
 
 	/**
@@ -1094,7 +1094,7 @@ export namespace AgentSession {
 	 */
 	export function provider(session: URI | string): AgentProvider | undefined {
 		const parsed = typeof session === 'string' ? URI.parse(session) : session;
-		return parsed.scheme || undefined;
+		return parsed.scheme === 'ahp-session' ? 'copilotcli' : parsed.scheme || undefined;
 	}
 }
 
@@ -1392,6 +1392,8 @@ export interface IAgent {
 
 	/** Optional managed-settings snapshot for providers with an enterprise policy surface. */
 	getManagedSettingsDiagnostics?(): Promise<IAgentHostManagedSettingsSnapshot>;
+	/** Canonical device remote-control policy; absence is distinct from a failed read. */
+	getRemoteControlManagedSettings?(): Promise<Record<string, unknown> | undefined>;
 
 	/** Return the provider-owned state file for a session, when one exists. */
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;

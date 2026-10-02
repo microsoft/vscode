@@ -38,6 +38,27 @@ suite('AgentSession namespace', () => {
 		const session = AgentSession.uri('copilot', 'sess-1');
 		assert.strictEqual(AgentSession.provider(session), 'copilot');
 	});
+
+	test('temporary Copilot CLI session scheme round-trips through AHP session URIs', () => {
+		const session = AgentSession.uri('copilotcli', 'mc-test');
+		assert.deepStrictEqual({
+			session: session.toString(),
+			id: AgentSession.id(session),
+			provider: AgentSession.provider(session),
+			stringProvider: AgentSession.provider(session.toString()),
+			legacyProvider: AgentSession.provider('copilotcli:/existing-session'),
+			claude: AgentSession.uri('claude', 'unchanged').toString(),
+			codex: AgentSession.uri('codex', 'unchanged').toString(),
+		}, {
+			session: 'ahp-session:/mc-test',
+			id: 'mc-test',
+			provider: 'copilotcli',
+			stringProvider: 'copilotcli',
+			legacyProvider: 'copilotcli',
+			claude: 'claude:/unchanged',
+			codex: 'codex:/unchanged',
+		});
+	});
 });
 
 suite('isAgentEnabled', () => {
