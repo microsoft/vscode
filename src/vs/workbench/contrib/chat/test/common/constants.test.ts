@@ -72,7 +72,6 @@ suite('ChatConfiguration defaults', () => {
 			{ policy: 'ChatPluginsEnabled', setting: 'chat.plugins.enabled', value: false },
 			{ policy: 'ChatToolsEligibleForAutoApproval', setting: 'chat.tools.eligibleForAutoApproval', value: { tool: false } },
 			{ policy: 'ChatAgentSandboxEnabled', setting: 'chat.agent.sandbox.enabled', value: 'on' },
-			{ policy: 'ChatAgentSandboxAllowAutoApprove', setting: 'chat.agent.sandbox.allowAutoApprove', value: false },
 		];
 		setup(() => {
 			sinon.stub(Registry.as<IConfigurationRegistry>(Extensions.Configuration), 'getPolicyConfigurations')

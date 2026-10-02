@@ -42,8 +42,6 @@ export function getAgentHostPolicyGapImpact(policyName: string): string {
 			return localize('policyGap.terminalApproval', "Native shell commands require approval through the bridge. Custom terminal tools do not have equivalent managed-ask coverage in every approval mode.");
 		case 'ChatAgentSandboxEnabled':
 			return localize('policyGap.sandbox', "Policy-required sandboxing blocks direct session Off overrides on supported platforms. Verify delayed policy loading and loss/reapplication of the last client's requirement across disconnect-grace expiry.");
-		case 'ChatAgentSandboxAllowAutoApprove':
-			return localize('policyGap.sandboxApproval', "Sandboxed commands can be approved automatically even when this policy requires confirmation.");
 		case 'ChatAgentNetworkFilter':
 		case 'ChatAgentAllowedNetworkDomains':
 		case 'ChatAgentDeniedNetworkDomains':
@@ -87,7 +85,6 @@ function hasPolicyRequirement(policyName: string, value: unknown, configurationS
 	switch (policyName) {
 		case 'ChatAgentMode':
 		case 'ChatToolsTerminalEnableAutoApprove':
-		case 'ChatAgentSandboxAllowAutoApprove':
 		case 'ChatPluginsEnabled':
 		case 'ChatHooks':
 		case 'CopilotOtelEnabled':

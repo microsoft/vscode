@@ -475,7 +475,6 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		config.values[SessionConfigKey.SandboxEnabled] = 'default';
 		provider.sessionConfigs.set(SESSION_ID, config);
 		const configurationService = new TestConfigurationService();
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const settingId = AgentSandboxSettingId.AgentSandboxEnabled;
 		await configurationService.setUserConfiguration(settingId, 'on');
 		let toggle: IActionListItemInlineToggle | undefined;

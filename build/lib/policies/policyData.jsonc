@@ -129,24 +129,6 @@
             }
         },
         {
-            "key": "chat.agent.sandbox.allowAutoApprove",
-            "name": "ChatAgentSandboxAllowAutoApprove",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowAutoApprove",
-                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "agentHost": {
-                "status": "notEnforced"
-            }
-        },
-        {
             "key": "chat.agent.sandbox.allowUnsandboxedCommands",
             "name": "ChatAgentSandboxAllowUnsandboxedCommands",
             "category": "IntegratedTerminal",
@@ -154,7 +136,7 @@
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command."
                 }
             },
             "type": "boolean",
@@ -172,7 +154,7 @@
             "localization": {
                 "description": {
                     "key": "agentSandbox.enabledSetting",
-                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use `#chat.agent.sandbox.network.allowNetwork#` to allow all network domains."
+                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."
                 },
                 "enumDescriptions": [
                     {
@@ -204,7 +186,7 @@
             "localization": {
                 "description": {
                     "key": "agentSandbox.allowNetwork",
-                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow outbound connections to all network domains in the sandbox while preserving file system restrictions. Agent Host Copilot local-network access is controlled separately by `#chat.agent.sandbox.network.allowLocalNetwork#`."
+                    "value": "Allow the sandboxed process to reach the Internet."
                 }
             },
             "type": "boolean",

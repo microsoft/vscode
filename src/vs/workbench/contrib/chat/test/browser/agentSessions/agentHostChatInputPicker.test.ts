@@ -111,7 +111,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
 			[ChatConfiguration.GlobalAutoApprove]: false,
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -456,9 +455,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			const checked = toggle.checked;
 			toggle.onChange(!checked);
 			await timeout(0);
-			await configuration.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, false);
-			const hiddenWhenDisabled = permissionPicker['_getSandboxStandaloneToggle']() === undefined;
-			await configuration.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
+			const visibleWithoutFeatureSetting = permissionPicker['_getSandboxStandaloneToggle']() !== undefined;
 			delete config.schema.properties[SessionConfigKey.SandboxEnabled];
 
 			assert.deepStrictEqual({
@@ -467,7 +464,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				remoteRequests: remote.diagnosticsRequests,
 				remoteWrites: remote.writes,
 				localWrites: dispatches,
-				hiddenWhenDisabled,
+				visibleWithoutFeatureSetting,
 				hiddenWithoutSchema: permissionPicker['_getSandboxStandaloneToggle']() === undefined,
 			}, {
 				checked: false,
@@ -475,7 +472,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				remoteRequests: 0,
 				remoteWrites: [{ channel: backendSession.toString(), action: { type: ActionType.SessionConfigChanged, config: { [SessionConfigKey.SandboxEnabled]: checked ? 'off' : 'on' } } }],
 				localWrites: [],
-				hiddenWhenDisabled: true,
+				visibleWithoutFeatureSetting: true,
 				hiddenWithoutSchema: true,
 			});
 		});
@@ -1347,7 +1344,6 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		let allowBypass: boolean | undefined;
 		const managedSettingsChanged = store.add(new Emitter<void>());

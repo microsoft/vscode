@@ -103,8 +103,8 @@ suite('Terminal chat agent tools configuration', () => {
 				return [legacy.markdownDeprecationMessage, legacy.deprecationMessageShowInSettings];
 			}),
 		}, {
-			description: 'Customize file path permissions',
-			type: 'object',
+			description: 'Customize file path permissions in the sandbox.',
+			type: ['object'],
 			properties: ['readwritePaths', 'readonlyPaths', 'deniedPaths'].map(key => [key, 'array', { type: 'string' }]),
 			default: { readwritePaths: [], readonlyPaths: [], deniedPaths: [] },
 			restricted: true,
@@ -136,8 +136,8 @@ suite('Terminal chat agent tools configuration', () => {
 
 	test('warns about upcoming sandbox setting deprecation without changing defaults', () => {
 		const settingIds = [
-			AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
 			AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
+			AgentSandboxSettingId.AgentSandboxAdvancedRuntime,
 		];
 		assert.deepStrictEqual(settingIds.map(id => {
 			const setting = terminalChatAgentToolsConfiguration[id];
@@ -148,11 +148,11 @@ suite('Terminal chat agent tools configuration', () => {
 				default: setting.default,
 				restricted: setting.restricted,
 			};
-		}), settingIds.map(() => ({
+		}), [true, { enableWeakerNestedSandbox: false }].map(defaultValue => ({
 			deprecated: undefined,
-			deprecationMessage: 'This setting will be deprecated soon.',
+			deprecationMessage: 'This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox.',
 			showInSettings: true,
-			default: true,
+			default: defaultValue,
 			restricted: true,
 		})));
 	});
@@ -183,7 +183,7 @@ suite('Terminal chat agent tools configuration', () => {
 			assert.deepStrictEqual({
 				values, type: setting.type, restricted: setting.restricted, tags: setting.tags,
 				placeholder: setting.markdownDescription?.includes('This setting has no effect yet.'),
-			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: ['preview'], placeholder: false });
+			}, { values: [defaultValue, false, true], type: 'boolean', restricted: true, tags: undefined, placeholder: false });
 		});
 	}
 

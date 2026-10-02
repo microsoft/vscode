@@ -59,8 +59,6 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	ChatAgentSandboxAllowNetwork: { status: 'enforced' },
 	// Forwarded as the SDK sandbox `allowBypass`. Copilot only.
 	ChatAgentSandboxAllowUnsandboxedCommands: { status: 'enforced' },
-	// Not read by Agent Host; Copilot auto-approves every sandboxed shell command. Not yet tracked.
-	ChatAgentSandboxAllowAutoApprove: { status: 'notEnforced' },
 	// The default-on bridge covers supported denies and empty-list deny-all, but not allowlists
 	// or every VS Code domain pattern. #337538, #337539
 	ChatAgentNetworkFilter: { status: 'partial' },

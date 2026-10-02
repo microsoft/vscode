@@ -202,7 +202,7 @@ suite('SettingsTree renderer', () => {
 		const template = renderer.renderTemplate(document.createElement('div'));
 		const element = store.add(createSettingElement('warning'));
 		store.add(element.parent!);
-		const setting = terminalContribConfiguration?.[AgentSandboxSettingId.AgentSandboxAllowAutoApprove];
+		const setting = terminalContribConfiguration?.[AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests];
 		assert.ok(setting);
 		element.setting.deprecationMessage = setting.markdownDeprecationMessage;
 		element.setting.deprecationMessageShowInSettings = setting.deprecationMessageShowInSettings;
@@ -217,7 +217,7 @@ suite('SettingsTree renderer', () => {
 				iconAriaLabel: icon?.getAttribute('aria-label'),
 				isInfo: template.containerElement.classList.contains('is-deprecated-info'),
 			}, {
-				text: 'This setting will be deprecated soon.',
+				text: 'This setting will be deprecated soon. It does not apply to the Copilot Agent Host sandbox.',
 				iconClasses: 'codicon codicon-error',
 				iconRole: 'img',
 				iconAriaLabel: 'Warning',
