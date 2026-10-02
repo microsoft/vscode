@@ -3792,6 +3792,36 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			});
 		});
 
+		test('an empty aggregate is only announced once a chat has reported changes', async () => {
+			class RevertableDatabase extends TestSessionDatabase {
+				reverted = false;
+				override async getAllFileEdits() {
+					return this.reverted ? [] : super.getAllFileEdits();
+				}
+			}
+			const db = new RevertableDatabase();
+			const { svc, stateManager } = build({ workingDirectories: ['file:///wd'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE, db });
+			const sessionChanges = buildSessionChangesetUri(sessionStr);
+
+			svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
+			await waitForChangesetReady(stateManager, sessionChanges);
+			const beforeChanges = chatSummaries(stateManager);
+
+			addCreatedFile(db, 'turn-1', '/wd/main.ts', 'a');
+			svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
+			const withChanges = await waitFor(() => stateManager.getChatState(defaultChat)?.changes);
+
+			db.reverted = true;
+			svc.refreshSessionChangeset(sessionStr, 'fileEditTracker');
+			const afterRevert = await waitFor(() => stateManager.getChatState(defaultChat)?.changes?.files === 0 ? stateManager.getChatState(defaultChat)?.changes : undefined);
+
+			assert.deepStrictEqual({ beforeChanges, withChanges, afterRevert }, {
+				beforeChanges: [{ resource: defaultChat, changes: undefined }],
+				withChanges: { additions: 1, deletions: 0, files: 1 },
+				afterRevert: { additions: 0, deletions: 0, files: 0 },
+			});
+		});
+
 		test('a single-chat session reuses its Session Changes for the default chat', async () => {
 			const db = new TestSessionDatabase();
 			addCreatedFile(db, 'turn-1', '/wd/main.ts', 'a\nb');

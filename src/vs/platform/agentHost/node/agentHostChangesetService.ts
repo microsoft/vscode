@@ -1546,7 +1546,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Publishes a chat's aggregate and persists it in the containing session's database. */
 	private _setChatChangesSummary(chat: ProtocolURI, diffs: readonly ISessionFileDiff[]): void {
 		const summary = summariseDiffs(diffs);
-		if (summary && this._stateManager.setChatSummaryChanges(chat, summary)) {
+		if (!summary) {
+			return;
+		}
+		// A chat without an aggregate already reads as unchanged; announcing an empty one
+		// would only add a `session/chatUpdated` whose timing depends on when compute finishes.
+		const current = this._stateManager.getSessionState(containingSessionUri(chat))?.chats.find(candidate => candidate.resource === chat)?.changes;
+		if (current === undefined && summary.files === 0) {
+			return;
+		}
+		if (this._stateManager.setChatSummaryChanges(chat, summary)) {
 			this._persistSessionFlag(containingSessionUri(chat), getChatChangesSummaryMetadataKey(chat), JSON.stringify(summary));
 		}
 	}
