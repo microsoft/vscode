@@ -15,7 +15,7 @@ import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } fr
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh, isIOS } from '../../base/common/platform.js';
-import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
+import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString, LayoutSettings, ModernUIDensity } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
 import { Direction, ISerializableView, ISerializedGrid, ISerializedLeafNode, ISerializedNode, IViewSize, Orientation, SerializableGrid } from '../../base/browser/ui/grid/grid.js';
@@ -109,6 +109,7 @@ export interface IWorkbenchOptions {
 //#region Layout Classes
 
 enum LayoutClasses {
+	MODERN_UI_COMPACT = 'modern-ui-compact',
 	MODERN_UI_TABS = 'modern-ui-tabs',
 	MODERN_UI_NOTIFICATIONS_DIALOGS = 'modern-ui-notifications-dialogs',
 	SIDEBAR_HIDDEN = 'nosidebar',
@@ -403,6 +404,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	//#region State
 
 	private readonly parts = new Map<string, Part>();
+	private layoutDensity = ModernUIDensity.Default;
 	protected workbenchGrid!: SerializableGrid<ISerializableView>;
 
 	private titleBarPartView!: ISerializableView;
@@ -684,7 +686,13 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		}));
 
 		// Configuration changes
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
+		this.updateLayoutDensity(configurationService);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.updateFontAliasing(e, configurationService);
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				this.updateLayoutDensity(configurationService);
+			}
+		}));
 
 		// Font Info
 		if (isNative) {
@@ -722,6 +730,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 	//#region Font Aliasing and Caching
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
+
 	private updateFontAliasing(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService) {
 		if (!isMacintosh) {
 			return; // macOS only
@@ -1810,6 +1819,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			? getMobileViewportDimension(layoutViewportDimension, getWindow(this.parent).visualViewport)
 			: layoutViewportDimension;
 		this.mainContainer.classList.toggle(LayoutClasses.PHONE_LAYOUT, currentClass === 'phone');
+		this.mainContainer.classList.toggle(LayoutClasses.MODERN_UI_COMPACT, this.isModernUICompact());
 
 		// When viewport class changes at runtime (e.g., device emulation toggle),
 		// update part visibility and create/destroy mobile components
@@ -1884,8 +1894,8 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		const mobileTopBarHeight = this.mobileTopBarElement?.offsetHeight ?? 0;
 		// Keep the desktop grid margin stable when sidebar visibility changes.
 		const isPhone = this.layoutPolicy.viewportClass.get() === 'phone';
-		const gridGutterW = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
-		const gridGutterH = isPhone ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gridGutterW = isPhone || this.isModernUICompact() ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		const gridGutterH = gridGutterW;
 		this.workbenchGrid.layout(
 			this._mainContainerDimension.width - gridGutterW,
 			this._mainContainerDimension.height - mobileTopBarHeight - gridGutterH
@@ -1963,8 +1973,18 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return false; // the agents window has its own floating card design
 	}
 
+	private updateLayoutDensity(configurationService: IConfigurationService): void {
+		const density = configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY);
+		if (this.layoutDensity !== density) {
+			this.layoutDensity = density;
+			if (this.workbenchGrid) {
+				this.layout();
+			}
+		}
+	}
+
 	isModernUICompact(): boolean {
-		return false;
+		return this.layoutDensity === ModernUIDensity.Compact && this.layoutPolicy.viewportClass.get() !== 'phone';
 	}
 
 	getLayoutClasses(): string[] {
@@ -1979,6 +1999,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 			LayoutClasses.STATUSBAR_HIDDEN, // agents window never has a status bar
 			this.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
 			this.layoutPolicy.viewportClass.get() === 'phone' ? LayoutClasses.PHONE_LAYOUT : undefined,
+			this.isModernUICompact() ? LayoutClasses.MODERN_UI_COMPACT : undefined,
 		]);
 	}
 

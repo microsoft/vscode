@@ -37,6 +37,26 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('documents layout density only on desktop', () => {
+		const densityHelp = [false, true].map(phone => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiationService, configuration);
+			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+			const mainContainer = mainWindow.document.createElement('div');
+			mainContainer.classList.toggle('phone-layout', phone);
+			instantiationService.stub(IWorkbenchLayoutService, { mainContainer });
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+			return content.includes('Choose Default or Compact from View > Layout Density');
+		});
+
+		assert.deepStrictEqual(densityHelp, [true, false]);
+	});
+
 	for (const { name, hostsEnabled, toolsEnabled, aiDisabled, enabled } of [
 		{ name: 'default', hostsEnabled: true, toolsEnabled: undefined, aiDisabled: false, enabled: false },
 		{ name: 'enabled', hostsEnabled: true, toolsEnabled: true, aiDisabled: false, enabled: true },
