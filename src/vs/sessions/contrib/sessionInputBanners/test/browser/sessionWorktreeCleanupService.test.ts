@@ -11,8 +11,8 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -514,10 +514,17 @@ suite('SessionWorktreeCleanupService', () => {
 			session => session === stalled ? stalledMeasurement.p : ByteSize.GB,
 		));
 
+		const startedAt = Date.now();
 		const worktrees = await service.getWorktrees(14);
 		stalledMeasurement.complete(ByteSize.GB);
 
-		assert.deepStrictEqual(worktrees.map(worktree => worktree.session.sessionId), ['measured']);
+		assert.deepStrictEqual({
+			elapsed: Date.now() - startedAt,
+			sessionIds: worktrees.map(worktree => worktree.session.sessionId),
+		}, {
+			elapsed: 10_000,
+			sessionIds: ['measured'],
+		});
 	}));
 
 	test('retries when the worktree session set changes during measurement', async () => {
