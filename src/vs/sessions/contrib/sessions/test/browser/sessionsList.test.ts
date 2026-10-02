@@ -439,7 +439,7 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('clears the New active state when Automations opens', () => {
+		test('keeps New Session inactive when Automations opens', () => {
 			const activeCustomView = observableValue<ICustomViewDescriptor | undefined>(disposables, undefined);
 			const draftSession = createTestSession('draft').session;
 			const activeSession = observableValue<IActiveSession | undefined>(disposables, upcastPartial<IActiveSession>({
@@ -495,8 +495,8 @@ suite('Sessions - SessionsList', () => {
 				},
 			}, {
 				before: {
-					newActive: true,
-					newAriaCurrent: 'page',
+					newActive: false,
+					newAriaCurrent: null,
 					automationsActive: false,
 				},
 				after: {

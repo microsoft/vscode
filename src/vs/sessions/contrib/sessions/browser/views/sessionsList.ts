@@ -2157,7 +2157,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 		private readonly customViewService: ICustomViewService,
 		private readonly menuService: IMenuService,
 		private readonly keybindingService: IKeybindingService,
-		private readonly newSessionActive: IObservable<boolean>,
 		private readonly customizationsActive: IObservable<boolean> = constObservable(false),
 		private readonly customizationMigrationsAvailable: IObservable<boolean> = constObservable(false),
 		readonly templateId = SessionSectionRenderer.TEMPLATE_ID,
@@ -2290,16 +2289,6 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 			const updateKeybinding = () => template.keybindingLabel.set(this.keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService));
 			updateKeybinding();
 			template.elementDisposables.add(this.keybindingService.onDidUpdateKeybindings(updateKeybinding));
-			template.elementDisposables.add(autorun(reader => {
-				const active = this.newSessionActive.read(reader);
-				template.container.classList.toggle('active', active);
-				const row = template.container.closest('.monaco-list-row');
-				if (active) {
-					row?.setAttribute('aria-current', 'page');
-				} else {
-					row?.removeAttribute('aria-current');
-				}
-			}));
 		}
 		if (element.id === CUSTOMIZATIONS_SECTION_ID) {
 			template.container.classList.add('session-section-customizations');
@@ -3842,11 +3831,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		));
 		const customizationsActive = observableFromEvent(this, editorService.onDidActiveEditorChange, () => editorService.activeEditor instanceof AICustomizationManagementEditorInput);
 		const newSessionKeybindingAriaLabel = observableFromEvent(this, keybindingService.onDidUpdateKeybindings, () => keybindingService.lookupKeybinding(NEW_SESSION_ACTION_ID, this.contextKeyService)?.getAriaLabel() ?? undefined);
-		const newSessionActive = derived(this, reader =>
-			this._sessionsService.activeSession.read(reader)?.isCreated.read(reader) === false
-			&& this.customViewService.activeCustomView.read(reader)?.id !== AUTOMATIONS_CUSTOM_VIEW_ID
-			&& !customizationsActive.read(reader)
-		);
 		const customizationsCount = this.options.customizationsCount ?? constObservable(0);
 		const customizationMigrationsAvailable = this.options.customizationMigrationsAvailable ?? constObservable(false);
 		const createSectionRenderer = (templateId?: string, rowClassName?: string) => new SessionSectionRenderer(
@@ -3864,7 +3848,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 			this.customViewService,
 			this.menuService,
 			this.keybindingService,
-			newSessionActive,
 			customizationsActive,
 			customizationMigrationsAvailable,
 			templateId,
