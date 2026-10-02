@@ -103,6 +103,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	}
 
 	private _dropdownVisible = false;
+	private readonly _prefetchedEntries = new Set<string>();
 	private _entries: readonly IChatPillEntry[] = [];
 	private _summaryIcon: ThemeIcon | undefined;
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
@@ -304,7 +305,8 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			return;
 		}
 
-		sections.flatMap(section => section.entries).filter(entry => entry.prefetch).slice(0, 5).forEach(entry => entry.prefetch?.());
+		this._prefetchedEntries.clear();
+		sections.flatMap(section => section.entries).filter(entry => entry.prefetch).slice(0, 5).forEach(entry => this._prefetchEntry(entry));
 		sections = this._sections.get().filter(section => section.entries.length > 0);
 		const items = this._getDropdownItems(sections);
 		const delegate: IActionListDelegate<IChatPillEntry> = {
@@ -314,6 +316,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 			},
 			onHide: () => {
 				this._dropdownVisible = false;
+				this._prefetchedEntries.clear();
 				this._updatePopupState();
 				if (trigger.isConnected) {
 					trigger.focus();
@@ -356,7 +359,7 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 					...((entry.toolbarActions?.length || entry.promotedAction) ? { toolbarActions: [...getChatPillEntryToolbarActions(entry)] } : {}),
 					ariaDescription: entry.ariaDescription,
 					hover: this._getDropdownHover(entry),
-					onDidBecomeVisible: entry.prefetch,
+					onDidBecomeVisible: entry.prefetch ? () => this._prefetchEntry(entry) : undefined,
 					...(this._pillOptions.openHoverOnSelect ? { openSubmenuOnClick: true } : {}),
 					item: entry,
 				});
@@ -439,6 +442,13 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		};
 		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;
+	}
+
+	private _prefetchEntry(entry: IChatPillEntry): void {
+		if (!this._prefetchedEntries.has(entry.id)) {
+			this._prefetchedEntries.add(entry.id);
+			entry.prefetch?.();
+		}
 	}
 
 	override dispose(): void {

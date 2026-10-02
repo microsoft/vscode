@@ -345,7 +345,9 @@ suite('Session Artifacts', () => {
 			entry.prefetch?.();
 		}
 		await timeout(0);
-		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => entry.label)), links.map(link => link.toString(true)));
+		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => ({
+			label: entry.label, description: entry.ariaDescription,
+		}))), links.map(link => ({ label: link.toString(true), description: undefined })));
 	});
 
 	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {

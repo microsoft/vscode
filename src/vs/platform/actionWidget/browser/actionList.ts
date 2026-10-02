@@ -1186,7 +1186,6 @@ export class ActionListWidget<T> extends Disposable {
 		};
 		const visibleItemsUpdate = this._register(new MutableDisposable());
 		this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
-			visibleItems = new Set(getVisibleItems().map(identity));
 			canPrefetchVisibleItems = true;
 		}));
 		this._register(this._list.onDidScroll(event => {

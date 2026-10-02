@@ -111,16 +111,22 @@ suite('ChatPills', () => {
 		store.add(toDisposable(() => container.remove()));
 		viewItem.render(container);
 		container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!.click();
-		items.find(item => item.item?.id === 'reference-6')?.onDidBecomeVisible?.();
+		const initial = [...prefetched];
+		for (let scroll = 0; scroll < 2; scroll++) {
+			for (const item of items) {
+				item.onDidBecomeVisible?.();
+			}
+		}
 
-		assert.deepStrictEqual(prefetched, [
-			'reference-0',
-			'reference-1',
-			'reference-2',
-			'reference-3',
-			'reference-4',
-			'reference-6',
-		]);
+		assert.deepStrictEqual({ initial, prefetched }, {
+			initial: [
+				'reference-0',
+				'reference-1',
+				'reference-2',
+				'reference-3',
+				'reference-4',
+			], prefetched: entries.map(entry => entry.id)
+		});
 	});
 
 	test('shell-style dropdowns prefer opening upward and route row activation to live details', () => {

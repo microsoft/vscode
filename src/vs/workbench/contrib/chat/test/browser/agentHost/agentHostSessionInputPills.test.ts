@@ -869,7 +869,9 @@ suite('AgentHostSessionInputPills', () => {
 		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
 		activity.dropdown('Reference');
 		await timeout(0);
-		assert.deepStrictEqual(activity.dropdownItems().map(item => item.label).filter(label => label?.startsWith('https://')), links);
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label?.startsWith('https://')).map(item => ({
+			label: item.label, description: item.description,
+		})), links.map(label => ({ label, description: undefined })));
 	});
 
 	test('lists each pill newest first, within the section it belongs to', () => {

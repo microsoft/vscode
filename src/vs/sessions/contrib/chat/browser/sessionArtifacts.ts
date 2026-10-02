@@ -125,7 +125,7 @@ export function sessionArtifactLocationText(uri: URI, labelService: Pick<ILabelS
  */
 export function sessionArtifactLocation(location: string, label: string): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	return {
-		ariaDescription: location,
+		ariaDescription: location === label ? undefined : location,
 		ariaLabel: localize('sessionArtifacts.open', "Open {0}", label),
 		hover: getChatPillLocationHover(location),
 		tooltip: location,

@@ -2402,7 +2402,7 @@ suite('ActionListWidget', () => {
 		}, { panelVisible: true, layouts: 1 });
 	}));
 
-	test('does not prefetch initially visible rows on the first small scroll', async () => {
+	test('notifies initially visible rows once when scrolling begins', async () => {
 		const visible: string[] = [];
 		const widget = createActionListWidget(disposables, {
 			items: Array.from({ length: 20 }, (_, index): IActionListItem<ITestActionItem> => ({
@@ -2416,7 +2416,9 @@ suite('ActionListWidget', () => {
 		const list = (widget as unknown as { _list: { scrollTop: number } })._list;
 		list.scrollTop = 1;
 		await settleLayout();
-		assert.deepStrictEqual(visible, []);
+		list.scrollTop = 0;
+		await settleLayout();
+		assert.deepStrictEqual(visible, ['item-0', 'item-1']);
 	});
 
 	test('notifies virtualized items when scrolling makes them visible', async () => {
