@@ -291,6 +291,29 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without replaying or accepting a refused mutation`, async () => {
+			await withServers(async server => {
+				const errors = [{ type, message: 'Mutation rate limited', path: ['markPullRequestReadyForReview'] }];
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
+					response: gitHubGraphQLResponse({ markPullRequestReadyForReview: null }, errors),
+				}));
+				const { ref, resources, service } = setup(server);
+				let refreshes = 0;
+				resources.refreshHandler = () => { refreshes++; };
+
+				await assert.rejects(() => service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal()), {
+					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
+				});
+				assert.deepStrictEqual({ requests: server.requests.length, refreshes, invalidations: resources.invalidations }, {
+					requests: 1, refreshes: 0, invalidations: [],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('retries only after a complete refresh proves a comment marker absent', async () => {
 		await withServers(async server => {
 			server.enqueue(

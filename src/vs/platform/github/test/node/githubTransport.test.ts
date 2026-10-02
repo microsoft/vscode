@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubAccountHandle } from '../../common/githubTypes.js';
+import { GitHubAccountHandle, GitHubGraphQLError } from '../../common/githubTypes.js';
 import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
@@ -592,42 +592,238 @@ suite('GitHubTransport', () => {
 		});
 	});
 
-	test('GraphQL RATE_LIMITED errors establish shared account backoff', async () => {
-		await withServer(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 1_000 });
-			const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler));
-			server.enqueue(
-				gitHubGraphQLStep({
-					queryIncludes: 'repository',
-					response: gitHubGraphQLResponse(undefined, [{ message: 'rate limited', type: 'RATE_LIMITED' }]),
-				}),
-				gitHubGraphQLStep({
-					queryIncludes: 'viewer',
-					response: gitHubGraphQLResponse({ viewer: { id: 'U1' } }),
-				}),
-			);
+	const primaryErrors = [{ type: 'RATE_LIMIT', code: 'graphql_rate_limit', message: 'API rate limit already exceeded for user ID 1.' }];
+	const resourceErrors = [{ type: 'RATE_LIMITED', message: 'Too many requests', path: ['resolveReviewThread'] }];
+	const graphQLHeaders = {
+		'x-ratelimit-resource': 'graphql',
+		'x-ratelimit-limit': '5000',
+		'x-ratelimit-remaining': '4999',
+		'x-ratelimit-used': '1',
+		'x-ratelimit-reset': '4600',
+	};
+	const graphQLThrottlingCases: {
+		readonly name: string;
+		readonly errors: readonly GitHubGraphQLError[];
+		readonly headers: Readonly<Record<string, string>>;
+		readonly data?: object;
+		readonly mutation?: boolean;
+		readonly remaining?: number;
+		readonly delay: number;
+	}[] = [
+			{
+				name: 'resource-local RATE_LIMITED with healthy quota',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { resolveReviewThread: null }, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'cost-exceeds-remaining RATE_LIMITED with points left for cheaper queries',
+				errors: [{ type: 'RATE_LIMITED', message: 'API rate limit exceeded for user ID 1.' }],
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '100' }, remaining: 100, delay: 0,
+			},
+			{
+				name: 'unscoped RATE_LIMITED with healthy quota',
+				errors: [{ type: 'RATE_LIMITED', message: 'Too many requests' }],
+				headers: graphQLHeaders, mutation: true, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED without quota feedback',
+				errors: resourceErrors, headers: {}, mutation: true, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed quota feedback',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with an empty remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': ' ' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with a non-decimal remaining header',
+				errors: resourceErrors, headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0x0' }, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with malformed data and healthy headers',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 4999, delay: 0,
+			},
+			{
+				name: 'RATE_LIMITED with invalid quota numbers',
+				errors: resourceErrors,
+				headers: { 'x-ratelimit-remaining': '-1', 'x-ratelimit-reset': 'Infinity' },
+				data: { rateLimit: { remaining: -1, limit: 0.5, used: -1 } }, delay: 0,
+			},
+			{
+				name: 'primary RATE_LIMIT with an authoritative reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with independently exhausted quota',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota but no reset',
+				errors: resourceErrors, headers: { 'x-ratelimit-remaining': '0' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT without quota feedback',
+				errors: primaryErrors, headers: {}, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with malformed feedback',
+				errors: primaryErrors,
+				headers: { 'x-ratelimit-remaining': 'invalid', 'x-ratelimit-reset': 'invalid', 'retry-after': 'invalid' },
+				data: { rateLimit: { remaining: 'invalid', resetAt: 'invalid' } }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a stale reset',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '1' }, remaining: 0, delay: 60_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with a reset but no remaining header',
+				errors: primaryErrors, headers: { 'x-ratelimit-reset': '4600' }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with partial quota data',
+				errors: primaryErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'RATE_LIMITED with exhausted quota in partial data',
+				errors: resourceErrors, headers: graphQLHeaders,
+				data: { rateLimit: { remaining: 0 } }, remaining: 0, delay: 3_600_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After before the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '7' }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with HTTP-date Retry-After',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'retry-after': new Date(1_007_000).toUTCString() }, remaining: 0, delay: 7_000,
+			},
+			{
+				name: 'primary RATE_LIMIT with Retry-After beyond the primary reset',
+				errors: primaryErrors,
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1060', 'retry-after': '120' }, remaining: 0, delay: 120_000,
+			},
+			{
+				name: 'resource-local RATE_LIMITED with explicit Retry-After',
+				errors: resourceErrors,
+				headers: { ...graphQLHeaders, 'retry-after': '7' }, remaining: 4999, delay: 7_000,
+			},
+		];
 
-			const limited = await transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { repository(owner: "o", name: "r") { id } }', {}, signal());
-			let settled = false;
-			const after = transport.graphql(accountA, 'token-a', server.graphQlUrl, 'query { viewer { id } }', {}, signal()).then(() => settled = true);
-			await Promise.resolve();
+	for (const scenario of graphQLThrottlingCases) {
+		test(`classifies GraphQL throttling: ${scenario.name}`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const dispatchTimes: number[] = [];
+			const transport = disposables.add(new GitHubTransport(async () => {
+				dispatchTimes.push(scheduler.now());
+				assert.ok(dispatchTimes.length <= 2, 'A GraphQL failure must not replay the operation');
+				return dispatchTimes.length === 1
+					? new Response(JSON.stringify({ data: scenario.data, errors: scenario.errors }), { headers: scenario.headers })
+					: new Response('{"data":{"viewer":{"id":"U1"}}}');
+			}, scheduler, false, undefined, { requestTimeout: 4_000_000 }));
+			const query = scenario.mutation
+				? 'mutation { resolveReviewThread(input: { threadId: "T1" }) { thread { id } } }'
+				: 'query Limited { viewer { id } rateLimit { limit remaining used resetAt } }';
 
-			scheduler.advanceBy(59_999);
-			await Promise.resolve();
-			assert.strictEqual(settled, false);
-			scheduler.advanceBy(1);
-			await after;
+			const limited = await transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', query, {}, signal());
+			const remaining = transport.rateLimits.getState(accountA, 'graphql')?.remaining;
+			const delay = transport.rateLimits.getDelay(accountA, 'graphql');
+			const after = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query After { viewer { id } }', {}, signal());
+			scheduler.advanceBy(delay);
+			const unrelated = await after;
 
 			assert.deepStrictEqual({
-				errors: limited.errors,
-				requestCount: server.requests.length,
+				response: { data: limited.data, errors: limited.errors },
+				remaining, delay, dispatchTimes,
+				unrelated: unrelated.data,
+				pending: scheduler.pendingCount,
 			}, {
-				errors: [{ message: 'rate limited', type: 'RATE_LIMITED' }],
-				requestCount: 2,
+				response: { data: scenario.data, errors: scenario.errors },
+				remaining: scenario.remaining, delay: scenario.delay,
+				dispatchTimes: [1_000_000, 1_000_000 + scenario.delay],
+				unrelated: { viewer: { id: 'U1' } },
+				pending: 0,
 			});
-			server.assertSatisfied();
 		});
-	});
+	}
+
+	for (const source of ['primary error', 'primary headers', 'secondary error'] as const) {
+		for (const locallyThrottled of [false, true]) {
+			test(`preserves a GraphQL cooldown from ${source} when an older response reports healthy quota (RATE_LIMITED: ${locallyThrottled})`, async () => {
+				const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+				const started = new DeferredPromise<void>();
+				const delayedResponse = new DeferredPromise<Response>();
+				let requests = 0;
+				const transport = disposables.add(new GitHubTransport(async () => {
+					requests++;
+					await started.complete();
+					return delayedResponse.p;
+				}, scheduler));
+				const older = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query Older { viewer { id } }', {}, signal());
+				await started.p;
+				const body = source === 'secondary error' ? '{"message":"You have exceeded a secondary rate limit."}' : JSON.stringify({ errors: primaryErrors });
+				transport.rateLimits.updateFromResponse(accountA, new Response(body, {
+					status: source === 'secondary error' ? 403 : 200,
+					headers: source === 'secondary error'
+						? { ...graphQLHeaders, 'retry-after': '5' }
+						: { ...graphQLHeaders, 'x-ratelimit-remaining': '0' },
+				}), body);
+				if (source === 'primary error') {
+					transport.rateLimits.markGraphQLRateLimited(accountA);
+				}
+				const before = transport.rateLimits.getDelay(accountA, 'graphql');
+				scheduler.advanceBy(1_000);
+				await delayedResponse.complete(new Response(JSON.stringify({
+					data: { viewer: { id: 'U1' }, rateLimit: { remaining: 4999, resetAt: new Date(8_200_000).toISOString() } },
+					...(locallyThrottled ? { errors: resourceErrors } : {}),
+				}), { headers: graphQLHeaders }));
+				await older;
+
+				const expected = source === 'secondary error' ? 5_000 : 3_600_000;
+				assert.deepStrictEqual({
+					before,
+					after: transport.rateLimits.getDelay(accountA, 'graphql'),
+					core: transport.rateLimits.getDelay(accountA, 'core'),
+					requests,
+				}, { before: expected, after: expected - 1_000, core: source === 'secondary error' ? 4_000 : 0, requests: 1 });
+			});
+		}
+	}
+
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`GraphQL ${type} with shorter Retry-After does not shorten an existing cooldown`, async () => {
+			const scheduler = disposables.add(new FakeGitHubScheduler({ now: 1_000_000 }));
+			const started = new DeferredPromise<void>();
+			const response = new DeferredPromise<Response>();
+			const transport = disposables.add(new GitHubTransport(async () => {
+				await started.complete();
+				return response.p;
+			}, scheduler));
+			const pending = transport.graphql(accountA, 'token-a', 'https://api.example.test/graphql', 'query { viewer { id } }', {}, signal());
+			await started.p;
+			transport.rateLimits.updateFromResponse(accountA, new Response(null, {
+				headers: { ...graphQLHeaders, 'x-ratelimit-remaining': '0', 'retry-after': '90' },
+			}));
+			scheduler.advanceBy(1_000);
+			await response.complete(new Response(JSON.stringify({ errors: [{ type, message: 'Rate limited' }] }), {
+				headers: { ...graphQLHeaders, 'retry-after': '7' },
+			}));
+			await pending;
+
+			assert.deepStrictEqual({
+				delay: transport.rateLimits.getDelay(accountA, 'graphql'),
+				remaining: transport.rateLimits.getState(accountA, 'graphql')?.remaining,
+			}, { delay: 89_000, remaining: type === 'RATE_LIMIT' ? 0 : 4999 });
+		});
+	}
 
 	test('does not apply GraphQL primary-rate-limit state to the REST core bucket', async () => {
 		await withServer(async server => {
