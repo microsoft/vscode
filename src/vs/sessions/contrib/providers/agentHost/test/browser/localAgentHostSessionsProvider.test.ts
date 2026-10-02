@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { resolveSignedOutWindowGate, SignedOutWindowGate } from '../../../../../browser/sessionsAuthGate.js';
 import { withSessionSandboxPolicy } from '../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import { spy, stub } from 'sinon';
 import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
@@ -959,32 +960,42 @@ suite('LocalAgentHostSessionsProvider', () => {
 		configurationService.setUserConfiguration(AgentHostCodexAgentEnabledSettingId, true);
 		const codexAgent = { provider: CODEX_AGENT_PROVIDER_ID, displayName: 'Codex', description: '', models: [] } as AgentInfo;
 		const setup = { download: 'ready' as const, signInProviderName: 'ChatGPT' };
-		const rootState = (accountStatus: 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
+		const rootState = (accountStatus: 'unknown' | 'signedIn' | 'signedOut', hasSetup = true): RootState => ({
 			agents: [codexAgent],
 			_meta: {
 				...(hasSetup ? { [agentSdkSetupStatusKey(CODEX_AGENT_PROVIDER_ID)]: setup } : {}),
 				[CODEX_ACCOUNT_META_KEY]: { status: accountStatus },
 			},
 		});
-		agentHost.setRootState(rootState('signedIn'));
+		agentHost.setRootState(rootState('unknown'));
 		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionTypes(() => changes++));
 
 		const initialization = () => provider.sessionTypes[0]?.initializationOnSelection;
+		const windowGate = () => resolveSignedOutWindowGate(false, provider.sessionTypes.map(type => type.authRequirement), initialization()?.canInitializeWithoutGitHub);
 		const states = [initialization()];
+		const windowGates = [windowGate()];
+		agentHost.setRootState(rootState('signedIn'));
+		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut'));
 		states.push(initialization());
+		windowGates.push(windowGate());
 		agentHost.setRootState(rootState('signedOut', false));
 		states.push(initialization());
+		windowGates.push(windowGate());
 
-		assert.deepStrictEqual({ states, changes }, {
+		assert.deepStrictEqual({ states, windowGates, changes, configRequests: agentHost.resolveSessionConfigRequests }, {
 			states: [
+				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: true },
 				{ canInitializeWithoutGitHub: false },
 				undefined,
 			],
+			windowGates: [SignedOutWindowGate.Proceed, SignedOutWindowGate.Proceed, SignedOutWindowGate.ForceGitHubSignIn, SignedOutWindowGate.ForceGitHubSignIn],
 			changes: 2,
+			configRequests: [],
 		});
 	});
 
