@@ -6,7 +6,6 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../base/common/map.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostCheckpointService, buildCheckpointRefName } from '../common/agentHostCheckpointService.js';
@@ -67,7 +66,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 
 		const sanitized = this._sanitizedSessionId(sessionUri);
 		const baselineRefName = buildCheckpointRefName(sanitized, 0);
-		const completedRepositories = new ResourceSet(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
+		const completedRepositories = new ResourceSet();
 
 		for (const workingDirectoryUri of workingDirectories) {
 			try {
@@ -138,7 +137,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 				return;
 			}
 
-			const completedRepositories = new ResourceSet(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
+			const completedRepositories = new ResourceSet();
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					const repositoryRootUri = await this._gitService.getRepositoryRoot(workingDirectoryUri);
@@ -231,7 +230,7 @@ export class AgentHostCheckpointService extends Disposable implements IAgentHost
 			}
 
 			let capturedCheckpointRef = false;
-			const completedRepositories = new ResourceSet(resource => extUriBiasedIgnorePathCase.getComparisonKey(resource));
+			const completedRepositories = new ResourceSet();
 			for (const workingDirectoryUri of workingDirectories) {
 				try {
 					// Check that the working directory has a git repository

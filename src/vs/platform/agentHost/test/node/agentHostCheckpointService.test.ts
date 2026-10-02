@@ -172,6 +172,73 @@ suite('AgentHostCheckpointService', () => {
 		assert.deepStrictEqual(capturedRoots, ['/checkout', '/linked-checkout', '/checkout', '/linked-checkout']);
 	});
 
+	test('preserves case-distinct repository roots in every checkpoint phase', async () => {
+		const capturedRoots: string[] = [];
+		const writtenRoots: string[] = [];
+		const refs = new Map<string, Map<string, string>>();
+		const { chat, gitService, session, service } = createTestService(async root => {
+			capturedRoots.push(root.path);
+			return `tree-${root.path}`;
+		}, { baseline: false, previous: false });
+		gitService.getRepositoryRoot = async directory => directory;
+		gitService.revParse = async (root, expression) => refs.get(root.toString())?.get(expression);
+		gitService.updateRef = async (root, ref, oid) => {
+			let repositoryRefs = refs.get(root.toString());
+			if (!repositoryRefs) {
+				repositoryRefs = new Map();
+				refs.set(root.toString(), repositoryRefs);
+			}
+			repositoryRefs.set(ref, oid);
+			writtenRoots.push(root.path);
+		};
+		const directories = [URI.file('/Repo'), URI.file('/repo'), URI.file('/Repo')];
+
+		await service.captureBaselineCheckpoint(session, directories);
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-1', directories);
+		await service.captureTurnCheckpoint(session, chat, 'turn-1', directories);
+
+		assert.deepStrictEqual({ capturedRoots, writtenRoots }, {
+			capturedRoots: ['/Repo', '/repo', '/Repo', '/repo', '/Repo', '/repo'],
+			writtenRoots: ['/Repo', '/repo', '/Repo', '/repo'],
+		});
+	});
+
+	test('retries turn end through a differently cased root when the first root lookup fails', async () => {
+		const capturedRoots: string[] = [];
+		const writtenRoots: string[] = [];
+		const { chat, database, gitService, session, service } = createTestService(async root => {
+			capturedRoots.push(root.path);
+			return `tree-${root.path}`;
+		});
+		let ending = false;
+		gitService.getRepositoryRoot = async directory => {
+			if (ending && directory.path === '/Repo') {
+				throw new Error('root lookup failed');
+			}
+			return directory;
+		};
+		const updateRef = gitService.updateRef;
+		gitService.updateRef = async (root, ref, oid) => {
+			await updateRef(root, ref, oid);
+			writtenRoots.push(root.path);
+		};
+		const directories = [URI.file('/Repo'), URI.file('/repo')];
+
+		await service.captureTurnStartCheckpoint(session, chat, 'turn-5', directories);
+		ending = true;
+		await service.captureTurnCheckpoint(session, chat, 'turn-5', directories);
+
+		assert.deepStrictEqual({
+			capturedRoots,
+			writtenRoots,
+			checkpointPresent: !!await database.getTurnCheckpointRef('turn-5'),
+		}, {
+			capturedRoots: ['/Repo', '/repo', '/repo'],
+			writtenRoots: ['/repo'],
+			checkpointPresent: true,
+		});
+	});
+
 	for (const phase of ['baseline', 'turn start', 'turn end'] as const) {
 		for (const failure of ['root error', 'missing tree', 'capture error', 'missing commit', 'ref error'] as const) {
 			test(`${phase} retries ${failure} through another folder before deduplicating`, async () => {

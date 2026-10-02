@@ -23,7 +23,7 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
  * terminal-tool edits that are invisible to the FileEditTracker pipeline).
  * Each capture processes a checkout root once after success. Additional folders
  * in that checkout can retry failed work; later captures take fresh snapshots.
- * Linked worktrees remain separate checkout roots.
+ * Linked worktrees and roots with different path casing remain separate.
  *
  * Each checkpoint is a parentless or parent-chained commit (commit-tree)
  * pointing at a tree captured via the temp-index trick, anchored under
