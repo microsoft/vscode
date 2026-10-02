@@ -427,12 +427,12 @@ export function decodeBase64(encoded: string) {
 const base64Alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const base64UrlSafeAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
-/** Encodes a buffer to a base64 string. */
+/** Encodes a buffer to a base64 string without retaining a per-character string chain. */
 export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = false) {
 	const dictionary = urlSafe ? base64UrlSafeAlphabet : base64Alphabet;
-	let output = '';
-
 	const remainder = buffer.byteLength % 3;
+	const output = VSBuffer.alloc(Math.ceil(buffer.byteLength / 3) * 4 - (!padded && remainder > 0 ? 3 - remainder : 0));
+	let outputIndex = 0;
 
 	let i = 0;
 	for (; i < buffer.byteLength - remainder; i += 3) {
@@ -440,27 +440,32 @@ export function encodeBase64({ buffer }: VSBuffer, padded = true, urlSafe = fals
 		const b = buffer[i + 1];
 		const c = buffer[i + 2];
 
-		output += dictionary[a >>> 2];
-		output += dictionary[(a << 4 | b >>> 4) & 0b111111];
-		output += dictionary[(b << 2 | c >>> 6) & 0b111111];
-		output += dictionary[c & 0b111111];
+		output.buffer[outputIndex++] = dictionary.charCodeAt(a >>> 2);
+		output.buffer[outputIndex++] = dictionary.charCodeAt((a << 4 | b >>> 4) & 0b111111);
+		output.buffer[outputIndex++] = dictionary.charCodeAt((b << 2 | c >>> 6) & 0b111111);
+		output.buffer[outputIndex++] = dictionary.charCodeAt(c & 0b111111);
 	}
 
 	if (remainder === 1) {
 		const a = buffer[i + 0];
-		output += dictionary[a >>> 2];
-		output += dictionary[(a << 4) & 0b111111];
-		if (padded) { output += '=='; }
+		output.buffer[outputIndex++] = dictionary.charCodeAt(a >>> 2);
+		output.buffer[outputIndex++] = dictionary.charCodeAt((a << 4) & 0b111111);
+		if (padded) {
+			output.buffer[outputIndex++] = 61; // '='
+			output.buffer[outputIndex++] = 61;
+		}
 	} else if (remainder === 2) {
 		const a = buffer[i + 0];
 		const b = buffer[i + 1];
-		output += dictionary[a >>> 2];
-		output += dictionary[(a << 4 | b >>> 4) & 0b111111];
-		output += dictionary[(b << 2) & 0b111111];
-		if (padded) { output += '='; }
+		output.buffer[outputIndex++] = dictionary.charCodeAt(a >>> 2);
+		output.buffer[outputIndex++] = dictionary.charCodeAt((a << 4 | b >>> 4) & 0b111111);
+		output.buffer[outputIndex++] = dictionary.charCodeAt((b << 2) & 0b111111);
+		if (padded) {
+			output.buffer[outputIndex++] = 61;
+		}
 	}
 
-	return output;
+	return output.toString();
 }
 
 const hexChars = '0123456789abcdef';
