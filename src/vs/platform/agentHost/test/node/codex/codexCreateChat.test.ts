@@ -256,7 +256,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	agent['_refreshSkillHookCustomizations'] = async () => { };
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
@@ -3904,7 +3903,6 @@ suite('CodexAgent chat backing durability', () => {
 			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
 			agent['_activated'] = false;
 			agent['_connection'] = { kind: 'idle' };
-			await agent['_startupAccountProbe'].p;
 
 			const peers = [archivePeer, unarchivePeer];
 			const disposed: string[] = [];
@@ -3959,7 +3957,6 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'cold-discovered-thread');
 		agent['_activated'] = false;
 		agent['_connection'] = { kind: 'idle' };
-		await agent['_startupAccountProbe'].p;
 		let connectionStarts = 0;
 		agent['_startRawConnection'] = async () => {
 			connectionStarts++;
