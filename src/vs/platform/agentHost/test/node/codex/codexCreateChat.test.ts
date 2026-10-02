@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
@@ -25,7 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, chatStorageUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -219,6 +220,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
+		hostPluginsPath: URI.file('/plugins/.host'),
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ISessionDataService, options.sessionStore?.service ?? { _serviceBrand: undefined });
@@ -226,6 +228,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
 	instantiationService.stub(IAgentSdkDownloader, {
@@ -253,7 +256,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	agent['_refreshSkillHookCustomizations'] = async () => { };
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
@@ -2087,13 +2089,16 @@ suite('CodexAgent createChat', () => {
 			const entry = agent['_sessions'].get('session-prewarm')!;
 			await entry.materializePromise;
 
+			const dispatchedProviders: string[] = [];
 			const sending = agent.chats.sendMessage(chat, 'hello', [folder], undefined, 'turn-1', undefined, {
 				configurationResource: sessionUri,
 				resource: chat,
 				hostInstructions: ['Rename with exact casing'],
+				reportCodexModelProvider: provider => dispatchedProviders.push(provider),
 			});
 			const turn = await readNextRequest(peer.outbound);
 			assert.strictEqual(turn.method, 'turn/start');
+			assert.deepStrictEqual(dispatchedProviders, ['copilot']);
 			assert.strictEqual(turn.params.threadId, 'prewarmed-thread');
 			assert.deepStrictEqual(turn.params.input, [{ type: 'text', text: 'hello', text_elements: [] }]);
 			assert.deepStrictEqual(turn.params.additionalContext?.['vscode.agentHost'], { kind: 'application', value: 'Rename with exact casing' });
@@ -2884,7 +2889,7 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('truncateChat rolls back the thread of the addressed chat', async () => {
+	test('truncateChat reverts the thread of the addressed chat', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true });
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
@@ -2917,25 +2922,25 @@ suite('CodexAgent exact chat routing', () => {
 			const read = await readNextRequest(peer.outbound);
 			peer.push({
 				id: read.id,
-				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } },
+				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
 			});
 			const historyRead = await readNextRequest(peer.outbound);
 			peer.push({
 				id: historyRead.id,
-				result: { thread: { id: 'peer-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }] } },
+				result: { data: [{ id: 'turn-1' }, { id: 'turn-2' }, { id: 'turn-3' }], nextCursor: null },
 			});
-			const rollback = await readNextRequest(peer.outbound);
-			peer.push({ id: rollback.id, result: {} });
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
 			await truncating;
 
 			assert.deepStrictEqual([
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: historyRead.method, threadId: historyRead.params.threadId },
-				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
+				{ method: revert.method, threadId: revert.params.threadId, beforeTurnId: revert.params.beforeTurnId },
 			], [
 				{ method: 'thread/read', threadId: 'peer-thread' },
-				{ method: 'thread/read', threadId: 'peer-thread' },
-				{ method: 'thread/rollback', threadId: 'peer-thread', numTurns: 1 },
+				{ method: 'thread/turns/list', threadId: 'peer-thread' },
+				{ method: 'thread/revert', threadId: 'peer-thread', beforeTurnId: 'turn-3' },
 			]);
 		} finally {
 			peer.dispose();
@@ -2988,7 +2993,113 @@ suite('CodexAgent exact chat routing', () => {
 		}
 	});
 
-	test('truncateChat resumes a replacement app-server before reading or rolling back', async () => {
+	test('truncateChat rejects legacy history without removing retained output', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'legacy-truncate');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/legacy-truncate');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('legacy-truncate')!.materializePromise;
+			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const output = VSBuffer.fromString('retained output').buffer;
+			await database.createTurn('drop-turn');
+			await database.storeTerminalOutput('drop-turn', 'cmd-legacy', output);
+
+			const truncating = assert.rejects(agent.truncateChat(chat, 'keep-turn', { configurationResource: session, resource: chat }), /cannot remove messages from legacy chats/);
+			const read = await readNextRequest(peer.outbound);
+			peer.push({ id: read.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			const historyRead = await readNextRequest(peer.outbound);
+			peer.push({
+				id: historyRead.id,
+				result: {
+					thread: {
+						id: 'legacy-thread', cwd: folder.fsPath, historyMode: 'legacy',
+						turns: [{ id: 'keep-turn' }, { id: 'drop-turn', items: [{ type: 'commandExecution', id: 'cmd-legacy' }] }],
+					},
+				},
+			});
+			await truncating;
+
+			assert.deepStrictEqual({
+				unexpectedRequest: peer.outbound.read(),
+				retainedOutputSize: await database.getTerminalOutputSize('cmd-legacy'),
+			}, {
+				unexpectedRequest: null,
+				retainedOutputSize: output.byteLength,
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('truncateChat removes output retained for commands in reverted turns', async () => {
+		const sessionStore = createTestSessionStore();
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
+		const peer = disposables.add(createTestPeer());
+		connectPeer(agent, peer);
+
+		try {
+			const session = AgentSession.uri('codex', 'retained-truncate');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const folder = URI.file('/repo/retained-truncate');
+			await createSessionBackedChat(agent, chat, { configurationResource: session, resource: chat }, {
+				workingDirectories: [folder],
+				model: { id: COPILOT_TEST_MODEL },
+			});
+			const start = await readNextRequest(peer.outbound);
+			peer.push({ id: start.id, result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath } } });
+			await agent['_sessions'].get('retained-truncate')!.materializePromise;
+			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const output = VSBuffer.fromString('full output').buffer;
+			for (const [turnId, toolCallId] of [['turn-1', 'cmd-kept'], ['turn-2', 'cmd-reverted']]) {
+				await database.createTurn(turnId);
+				await database.storeTerminalOutput(turnId, toolCallId, output);
+			}
+			const command = (id: string) => ({
+				type: 'commandExecution', id,
+				command: 'build', cwd: folder.fsPath, processId: null,
+				source: 'agent', status: 'completed',
+				commandActions: [], aggregatedOutput: 'full output', exitCode: 0, durationMs: 5,
+			});
+
+			const truncating = agent.truncateChat(chat, 'turn-1', { configurationResource: session, resource: chat });
+			const read = await readNextRequest(peer.outbound);
+			peer.push({
+				id: read.id,
+				result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath, historyMode: 'paginated', turns: [] } },
+			});
+			const turns = await readNextRequest(peer.outbound);
+			peer.push({
+				id: turns.id,
+				result: { data: [{ id: 'turn-1', items: [command('cmd-kept')] }, { id: 'turn-2', items: [command('cmd-reverted')] }], nextCursor: null },
+			});
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
+			await truncating;
+
+			assert.deepStrictEqual({
+				kept: await database.getTerminalOutputSize('cmd-kept'),
+				reverted: await database.getTerminalOutputSize('cmd-reverted'),
+			}, {
+				kept: output.byteLength,
+				reverted: undefined,
+			});
+		} finally {
+			peer.dispose();
+		}
+	});
+
+	test('truncateChat resumes a replacement app-server before reading or reverting', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
 		connectPeer(agent, peer);
@@ -3012,11 +3123,11 @@ suite('CodexAgent exact chat routing', () => {
 			const inventory = await readNextRequest(peer.outbound);
 			peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
 			const read = await readNextRequest(peer.outbound);
-			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [] } } });
+			peer.push({ id: read.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'paginated', turns: [] } } });
 			const historyRead = await readNextRequest(peer.outbound);
-			peer.push({ id: historyRead.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath, historyMode: 'legacy', turns: [{ id: 'keep-turn' }, { id: 'drop-turn' }] } } });
-			const rollback = await readNextRequest(peer.outbound);
-			peer.push({ id: rollback.id, result: {} });
+			peer.push({ id: historyRead.id, result: { data: [{ id: 'keep-turn' }, { id: 'drop-turn' }], nextCursor: null } });
+			const revert = await readNextRequest(peer.outbound);
+			peer.push({ id: revert.id, result: {} });
 			await truncating;
 
 			assert.deepStrictEqual([
@@ -3024,13 +3135,13 @@ suite('CodexAgent exact chat routing', () => {
 				{ method: inventory.method, threadId: inventory.params.threadId },
 				{ method: read.method, threadId: read.params.threadId },
 				{ method: historyRead.method, threadId: historyRead.params.threadId },
-				{ method: rollback.method, threadId: rollback.params.threadId, numTurns: rollback.params.numTurns },
+				{ method: revert.method, threadId: revert.params.threadId, beforeTurnId: revert.params.beforeTurnId },
 			], [
 				{ method: 'thread/resume', threadId: 'resume-before-truncate-thread' },
 				{ method: 'mcpServerStatus/list', threadId: 'resume-before-truncate-thread' },
 				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
-				{ method: 'thread/read', threadId: 'resume-before-truncate-thread' },
-				{ method: 'thread/rollback', threadId: 'resume-before-truncate-thread', numTurns: 1 },
+				{ method: 'thread/turns/list', threadId: 'resume-before-truncate-thread' },
+				{ method: 'thread/revert', threadId: 'resume-before-truncate-thread', beforeTurnId: 'drop-turn' },
 			]);
 		} finally {
 			peer.dispose();
@@ -3792,7 +3903,6 @@ suite('CodexAgent chat backing durability', () => {
 			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
 			agent['_activated'] = false;
 			agent['_connection'] = { kind: 'idle' };
-			await agent['_startupAccountProbe'].p;
 
 			const peers = [archivePeer, unarchivePeer];
 			const disposed: string[] = [];
@@ -3847,7 +3957,6 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'cold-discovered-thread');
 		agent['_activated'] = false;
 		agent['_connection'] = { kind: 'idle' };
-		await agent['_startupAccountProbe'].p;
 		let connectionStarts = 0;
 		agent['_startRawConnection'] = async () => {
 			connectionStarts++;
@@ -3914,6 +4023,207 @@ suite('CodexAgent chat backing durability', () => {
 			missingPeer: undefined,
 			corruptDefault: undefined,
 			sessions: [],
+		});
+	});
+
+	for (const { name, code, message, errorType, lateResume } of [
+		{ name: 'writer lock', code: -32600, message: 'thread locked-thread already has an active writer', errorType: 'CodexThreadInUse' },
+		{ name: 'late writer lock', code: -32600, message: 'thread locked-thread already has an active writer', errorType: 'CodexThreadInUse', lateResume: true },
+		{ name: 'unrelated invalid request', code: -32600, message: 'thread not found: locked-thread', errorType: 'CodexResumeFailed' },
+		{ name: 'different error code', code: -32603, message: 'thread locked-thread already has an active writer', errorType: 'CodexResumeFailed' },
+		{ name: 'different thread', code: -32600, message: 'thread another-thread already has an active writer', errorType: 'CodexResumeFailed' },
+		{ name: 'changed error wording', code: -32600, message: 'thread locked-thread already has an active writer; retry later', errorType: 'CodexResumeFailed' },
+	]) {
+		test(`classifies a resume failure (${name}) without starting or replacing the thread`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'resume-error-session');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			const folder = URI.file('/repo/resume-error');
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'locked-thread';
+			entry.needsResume = true;
+			entry.firstTurnSent = true;
+			entry.codexTurnIdByHostTurnId.set('prior-host-turn', 'prior-codex-turn');
+			agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+			const signals: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+			const requests: string[] = [];
+			peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+
+			const sending = agent.chats.sendMessage(chat, 'continue', [folder], undefined, 'blocked-turn', undefined, undefined, context);
+			const unsubscribe = await readNextRequest(peer.outbound);
+			peer.push({ id: unsubscribe.id, result: {} });
+			let resume = await readNextRequest(peer.outbound);
+			if (lateResume) {
+				peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+				const inventory = await readNextRequest(peer.outbound);
+				entry.materializedCustomizationsSig = 'changed-before-turn';
+				peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+				const unsubscribe = await readNextRequest(peer.outbound);
+				peer.push({ id: unsubscribe.id, result: {} });
+				resume = await readNextRequest(peer.outbound);
+			}
+			peer.push({ id: resume.id, error: { code, message } });
+			await sending;
+
+			assert.deepStrictEqual({
+				requests,
+				threadId: resume.params.threadId,
+				backingThread: entry.threadId,
+				needsResume: entry.needsResume,
+				turnMappings: [...entry.codexTurnIdByHostTurnId],
+				actions: signals.flatMap(signal => signal.kind === 'action'
+					? [{ chat: signal.resource.toString(), action: signal.action }]
+					: []),
+			}, {
+				requests: lateResume ? ['thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'thread/unsubscribe', 'thread/resume'] : ['thread/unsubscribe', 'thread/resume'],
+				threadId: 'locked-thread',
+				backingThread: 'locked-thread',
+				needsResume: true,
+				turnMappings: [['prior-host-turn', 'prior-codex-turn']],
+				actions: [
+					{ chat: chat.toString(), action: { type: ActionType.ChatError, turnId: 'blocked-turn', duration: 0, part: { kind: ResponsePartKind.Error, error: { errorType, message } } } },
+					{ chat: chat.toString(), action: { type: ActionType.ChatTurnComplete, turnId: 'blocked-turn', duration: 0 } },
+				],
+			});
+		});
+	}
+
+	test('chat preparation detects a writer lock before sending and retries without starting a turn', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'prepare-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'locked-thread';
+		entry.needsResume = true;
+		entry.firstTurnSent = true;
+		entry.hasNativeHistory = false;
+		const actions: AgentSignal[] = [];
+		disposables.add(agent.onDidChatProgress(signal => actions.push(signal)));
+		const requests: string[] = [];
+		peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+		const preparing = agent.chats.prepareChat!(chat, context);
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, error: { code: -32600, message: 'thread locked-thread already has an active writer' } });
+		const blocked = await preparing;
+		const stillNeedsResume = entry.needsResume;
+		const retry = agent.chats.prepareChat!(chat, context);
+		const resumed = await readNextRequest(peer.outbound);
+		peer.push({ id: resumed.id, result: { thread: { id: entry.threadId, cwd: '/repo' }, cwd: '/repo' } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const ready = await retry;
+		assert.deepStrictEqual({ blocked, stillNeedsResume, ready, requests, actions, threadId: entry.threadId, needsResume: entry.needsResume }, {
+			blocked: { error: { errorType: 'CodexThreadInUse', message: 'thread locked-thread already has an active writer' } },
+			stillNeedsResume: true, ready: {}, requests: ['thread/resume', 'thread/resume', 'mcpServerStatus/list'], actions: [], threadId: 'locked-thread', needsResume: false,
+		});
+	});
+
+	for (const loaded of [true, false]) {
+		test(`preparing a chat with pending customization changes ${loaded ? 'keeps its loaded thread' : 'checks writer ownership when unloaded'}`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'prepare-pending-customizations');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'existing-thread';
+			entry.firstTurnSent = true;
+			entry.hasNativeHistory = false;
+			agent['_markSessionForReload'](entry);
+			const requests: string[] = [];
+			const error = { code: -32600, message: 'thread existing-thread already has an active writer' };
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+				requests.push(request.method);
+				if (request.method === 'thread/read') {
+					peer.push({ id: request.id, result: { thread: { id: entry.threadId, status: { type: loaded ? 'idle' : 'notLoaded' } } } });
+				} else if (request.method === 'thread/resume') {
+					peer.push({ id: request.id, error });
+				} else {
+					peer.push({ id: request.id, result: {} });
+				}
+			});
+
+			const result = await agent.chats.prepareChat!(chat, context);
+
+			assert.deepStrictEqual({ result, requests, needsResume: entry.needsResume, unsubscribeBeforeResume: entry.unsubscribeBeforeResume }, {
+				result: loaded ? {} : { error: { errorType: 'CodexThreadInUse', message: error.message } },
+				requests: loaded ? ['thread/read'] : ['thread/read', 'thread/unsubscribe', 'thread/resume'],
+				needsResume: true,
+				unsubscribeBeforeResume: true,
+			});
+		});
+	}
+
+	test('preparing a fresh chat leaves its native backing lazy', async () => {
+		const agent = await createAgent(disposables);
+		const session = AgentSession.uri('codex', 'prepare-new-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		await createSessionBackedChat(agent, chat, context);
+		const result = await agent.chats.prepareChat!(chat, context);
+		assert.deepStrictEqual({ result, threadId: agent['_sessions'].get(AgentSession.id(session))?.threadId }, { result: {}, threadId: undefined });
+	});
+
+	test('a new send after a writer lock resumes the same thread and submits the prompt once', async () => {
+		const agent = await createAgent(disposables);
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'handoff-session');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		const folder = URI.file('/repo/handoff');
+		await createSessionBackedChat(agent, chat, context, { workingDirectories: [folder], model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = 'handoff-thread';
+		entry.needsResume = true;
+		entry.firstTurnSent = true;
+		entry.codexTurnIdByHostTurnId.set('prior-host-turn', 'prior-codex-turn');
+		agent['_sessionIdByThreadId'].set(entry.threadId, entry.sessionId);
+		const requests: string[] = [];
+		peer.outbound.on('data', chunk => requests.push((JSON.parse(chunk.toString()) as ITestWireRequest).method));
+		const attachments = [{ type: MessageAttachmentKind.Simple, label: 'Context', modelRepresentation: 'Keep this context' }] as const;
+
+		const blocked = agent.chats.sendMessage(chat, 'continue', [folder], attachments, 'blocked-turn', undefined, undefined, context);
+		const blockedUnsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: blockedUnsubscribe.id, result: {} });
+		const blockedResume = await readNextRequest(peer.outbound);
+		peer.push({ id: blockedResume.id, error: { code: -32600, message: 'thread handoff-thread already has an active writer' } });
+		await blocked;
+		const sending = agent.chats.sendMessage(chat, 'continue', [folder], attachments, 'new-turn', undefined, undefined, context);
+		const unsubscribe = await readNextRequest(peer.outbound);
+		peer.push({ id: unsubscribe.id, result: {} });
+		const resume = await readNextRequest(peer.outbound);
+		peer.push({ id: resume.id, result: { thread: { id: entry.threadId, cwd: folder.fsPath }, cwd: folder.fsPath } });
+		const inventory = await readNextRequest(peer.outbound);
+		peer.push({ id: inventory.id, result: { data: [], nextCursor: null } });
+		const turn = await readNextRequest(peer.outbound);
+		peer.push({ id: turn.id, result: {} });
+		await sending;
+
+		assert.deepStrictEqual({
+			requests,
+			threadIds: [blockedResume.params.threadId, resume.params.threadId, turn.params.threadId],
+			input: turn.params.input,
+			needsResume: entry.needsResume,
+			priorTurn: entry.codexTurnIdByHostTurnId.get('prior-host-turn'),
+		}, {
+			requests: ['thread/unsubscribe', 'thread/resume', 'thread/unsubscribe', 'thread/resume', 'mcpServerStatus/list', 'turn/start'],
+			threadIds: ['handoff-thread', 'handoff-thread', 'handoff-thread'],
+			input: [{ type: 'text', text: 'continue\n\nKeep this context', text_elements: [] }],
+			needsResume: false,
+			priorTurn: 'prior-codex-turn',
 		});
 	});
 
@@ -4038,6 +4348,72 @@ suite('CodexAgent chat backing durability', () => {
 		}
 	});
 
+	for (const sdkResolvableWithoutDownload of [false, true]) {
+		test(`materializeChat without a saved model does not start Codex (SDK local: ${sdkResolvableWithoutDownload})`, async () => {
+			const agent = await createAgent(disposables, { sdkResolvableWithoutDownload, sessionStore: createTestSessionStore() });
+			const session = AgentSession.uri('codex', 'lazy-model-restore');
+			const chat = URI.parse(buildDefaultChatUri(session));
+
+			await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+
+			assert.deepStrictEqual({
+				connection: agent['_connection'].kind,
+				needsResume: agent['_sessions'].get('lazy-model-restore')?.needsResume,
+			}, {
+				connection: 'idle',
+				needsResume: true,
+			});
+		});
+	}
+
+	test('materializeChat reuses a discovered native model without another app-server request', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'discovered-model');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const listing = agent['_listCodexChats']('discovery');
+		const list = await readNextRequest(peer.outbound);
+		assert.strictEqual(list.method, 'thread/list');
+		peer.push({ id: list.id, result: { data: [{ id: 'discovered-model', cwd: '/repo/discovered', modelProvider: 'openai', model: 'gpt-test' }], nextCursor: null } });
+		await listing;
+
+		await agent.materializeChat(chat, { configurationResource: session, resource: chat }, undefined);
+
+		assert.deepStrictEqual({
+			model: agent['_sessions'].get('discovered-model')?.model?.id,
+			pendingAppServerBytes: peer.outbound.readableLength,
+		}, {
+			model: '@provider=openai:gpt-test',
+			pendingAppServerBytes: 0,
+		});
+	});
+
+	test('restores an external thread using its persisted provider and model before the default', async () => {
+		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });
+		const peer = disposables.add(createTestPeer());
+		connect(agent, peer);
+		const session = AgentSession.uri('codex', 'external-model');
+		const chat = URI.parse(buildDefaultChatUri(session));
+		const context = { configurationResource: session, resource: chat };
+		// The host reads authoritative metadata before materializing the backing.
+		const restoring = agent.getChatMetadata(chat, context, undefined, { activation: 'restore' });
+		const read = await readNextRequest(peer.outbound);
+		assert.strictEqual(read.method, 'thread/read');
+		peer.push({ id: read.id, result: { thread: { id: 'external-model', cwd: '/repo/external', modelProvider: 'openai', model: 'gpt-test' } } });
+		const metadata = await restoring;
+		await agent.materializeChat(chat, context, undefined);
+		assert.deepStrictEqual({
+			metadataModel: metadata?.model?.id,
+			runtimeModel: agent['_sessions'].get('external-model')?.model?.id,
+			pendingAppServerBytes: peer.outbound.readableLength,
+		}, {
+			metadataModel: '@provider=openai:gpt-test',
+			runtimeModel: '@provider=openai:gpt-test',
+			pendingAppServerBytes: 0,
+		});
+	});
+
 	test('materializeChat rolls back a newly restored runtime when server-tool advertisement fails', async () => {
 		const agent = await createAgent(disposables);
 		const session = AgentSession.uri('codex', 'restore-fail-advertise');
@@ -4045,7 +4421,7 @@ suite('CodexAgent chat backing durability', () => {
 		agent.setServerToolHost(createThrowingAdvertiseServerToolHost('restore advertise boom'));
 
 		await assert.rejects(
-			agent.materializeChat(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'restored-backing' })),
+			agent.materializeChat(chat, { configurationResource: session, resource: chat }, JSON.stringify({ sessionId: 'restored-backing', model: { id: 'gpt-test' } })),
 			/restore advertise boom/,
 		);
 
@@ -4346,15 +4722,15 @@ suite('CodexAgent chat backing durability', () => {
 		const session = AgentSession.uri('codex', 'metadata-owner');
 		const defaultChat = URI.parse(buildDefaultChatUri(session));
 		const peerChat = URI.parse(buildChatUri(session, 'metadata-peer'));
-		await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, JSON.stringify({ sessionId: 'default-runtime' }));
-		await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sessionId: 'peer-runtime' }));
+		await agent.materializeChat(defaultChat, { configurationResource: session, resource: defaultChat }, JSON.stringify({ sessionId: 'default-runtime', model: { id: 'gpt-test' } }));
+		await agent.materializeChat(peerChat, { configurationResource: session, resource: peerChat }, JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }));
 		agent['_sessions'].get('default-runtime')!.workingDirectory = URI.file('/repo/default');
 		agent['_sessions'].get('peer-runtime')!.workingDirectory = URI.file('/repo/peer');
 
 		const metadata = await agent.getChatMetadata(
 			peerChat,
 			{ configurationResource: session, resource: peerChat },
-			JSON.stringify({ sessionId: 'peer-runtime' }),
+			JSON.stringify({ sessionId: 'peer-runtime', model: { id: 'gpt-test' } }),
 		);
 
 		assert.deepStrictEqual({

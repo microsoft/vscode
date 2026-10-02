@@ -24,10 +24,10 @@ import {
 	ICloudSandboxDiscoveryResult,
 	ICloudSandboxEnvironment,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IReplayedTaskHistory, parseTaskEventsResponse, replayTaskAhpEvents, TaskEventReplayError } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { SessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
+import { GITHUB_DOT_COM_COPILOT_API_BASE_URI, deriveGitHubEndpoints } from '../../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestContext } from '../../../../../base/parts/request/common/request.js';
@@ -41,6 +41,7 @@ type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
 /** The subset of a Mission Control task the sandbox discovery path reads. */
 interface ITaskSummary {
 	readonly id: string;
+	readonly event_type?: string;
 	readonly name?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
@@ -56,7 +57,14 @@ interface ITaskSummary {
 
 /** A full task, which additionally carries the sessions bound to sandbox environments. */
 interface ITaskDetail extends ITaskSummary {
-	readonly sessions?: readonly { readonly id: string; readonly environment_id?: string; readonly state?: string }[];
+	readonly sessions?: readonly {
+		readonly id: string;
+		readonly environment_id?: string;
+		readonly state?: string;
+		readonly created_at?: string;
+		readonly updated_at?: string;
+		readonly ahp_resource_uri?: string | null;
+	}[];
 }
 
 interface ICachedSandboxTask {
@@ -64,6 +72,8 @@ interface ICachedSandboxTask {
 	readonly session?: ICloudSandboxDiscoveredSession;
 	readonly repositoryId?: number;
 	readonly needsRefresh?: boolean;
+	/** An unchanged, default-titled queued session with no AHP resource; recheck its age on every scan. */
+	readonly unstartedSince?: number;
 }
 
 const LOG_PREFIX = '[CloudSandboxApi]';
@@ -135,6 +145,8 @@ const DISCOVERY_TASK_PAGE_LIMIT = 10;
 const DISCOVERY_TASK_FETCH_CONCURRENCY = 5;
 
 const DISCOVERY_OVERLAP_MS = 60_000;
+
+const STALLED_SESSION_GRACE_MS = 60 * 60_000;
 
 /** HTTP status GitHub answers a rate-limited request with. */
 const HTTP_TOO_MANY_REQUESTS = 429;
@@ -335,11 +347,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const scannedTaskIds = new Set(tasks.keys());
 		if (since) {
 			for (const [id, cached] of cache) {
-				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || (cached.repositoryId !== undefined && !cached.session.repoName))) {
+				if (!tasks.has(id) && (cached.needsRefresh || !cached.session || cached.unstartedSince !== undefined || (cached.repositoryId !== undefined && !cached.session.repoName))) {
 					tasks.set(id, cached.summary);
 				}
 			}
 		}
+		const discoveryTime = checkpoint ?? Date.now();
 		const removedTaskIds: string[] = [];
 		const sandboxTasks: ITaskSummary[] = [];
 		for (const task of tasks.values()) {
@@ -378,17 +391,29 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							removedTaskIds.push(task.id);
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
+						const eventType = full.event_type || task.event_type;
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
+							unstartedSince: getUnstartedSessionCreatedAt(full),
 							session: binding ? {
 								...binding,
 								taskId: task.id,
+								...(eventType ? { eventType } : {}),
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),
 							} : undefined,
 						};
+					}
+					if (cached.unstartedSince !== undefined && discoveryTime - cached.unstartedSince >= STALLED_SESSION_GRACE_MS) {
+						cache.set(task.id, cached);
+						// An unread page may contain this candidate's recovery update.
+						if (!truncated || scannedTaskIds.has(task.id)) {
+							removedTaskIds.push(task.id);
+							this._logService.trace(`${LOG_PREFIX} Hiding stalled queued sandbox task ${task.id} with no AHP resource.`);
+						}
+						return undefined;
 					}
 					if (cached.session && cached.repositoryId !== undefined && !cached.session.repoName) {
 						const repoName = await this._resolveRepositoryName(cached.repositoryId, token);
@@ -414,7 +439,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			throw new CancellationError();
 		}
 		if (generation !== this._discoveryGeneration) {
-			return { kind: 'failed', reason: 'Authentication changed during discovery' };
+			return { kind: 'failed', reason: 'Sandbox discovery was invalidated while listing sessions' };
 		}
 		const partial = unresolved > 0 || truncated;
 		if (!partial) {
@@ -438,6 +463,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const sessions = discovered.filter((session): session is ICloudSandboxDiscoveredSession => session !== undefined);
 		const unnamed = sessions.filter(session => !session.repoName).length;
 		this._logService.info(`${LOG_PREFIX} ${since ? 'Incremental discovery' : 'Discovery'} found ${sessions.length} sandbox session(s) from ${sandboxTasks.length} sandbox task(s) out of ${scannedTaskIds.size} scanned${truncated ? ' (scan truncated)' : ''}${unresolved > 0 ? `; ${unresolved} unresolved` : ''}${unnamed > 0 ? `; ${unnamed} without a repository name (they group under "Unknown")` : ''}.`);
+		for (const session of sessions) {
+			this._logService.debug(`${LOG_PREFIX} Discovered sandbox session ${JSON.stringify({
+				taskId: session.taskId, sessionId: session.sessionId, environmentId: session.environmentId,
+				name: session.name, repoName: session.repoName, updatedAt: session.updatedAt, status: session.status,
+			})}`);
+		}
 		if (partial) {
 			return { kind: 'partial', sessions, removedTaskIds };
 		}
@@ -491,6 +522,39 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		return { taskId, sessionId: binding.sessionId, environmentId: binding.environmentId };
 	}
 
+	async deleteTask(taskId: string, token: CancellationToken): Promise<void> {
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
+		if (!isSuccess(context) && context.res.statusCode !== 404) {
+			await this._throwForStatus('task delete', context);
+		}
+		this._discoveredTasks.delete(taskId);
+		// Discard discovery responses that started before the deletion.
+		this._discoveryGeneration++;
+	}
+
+	async renameTask(taskId: string, title: string, token: CancellationToken): Promise<void> {
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.update', 'renameTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, { name: title }, 'PATCH');
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task rename', context);
+		}
+		const cached = this._discoveredTasks.get(taskId);
+		if (cached) {
+			this._discoveredTasks.set(taskId, {
+				...cached,
+				summary: { ...cached.summary, name: title },
+				session: cached.session ? { ...cached.session, name: title } : undefined,
+				needsRefresh: true,
+			});
+		}
+		this._discoveryGeneration++;
+	}
+
 	/**
 	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
 	 * failed cleanup must not replace the error that explains why.
@@ -502,18 +566,10 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 */
 	private async _deleteTaskBestEffort(taskId: string): Promise<void> {
 		try {
-			const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.delete', 'deleteTask', {
-				'Accept': 'application/json',
-				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-			}, CancellationToken.None, REQUEST_TIMEOUT_MS, undefined, 'DELETE');
-			// A rejected delete resolves rather than throwing, so the status decides.
-			if (!isSuccess(context)) {
-				this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}. It remains and can only be removed server-side.`);
-				return;
-			}
-			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}: HTTP ${context.res.statusCode ?? 'none'}`);
+			await this.deleteTask(taskId, CancellationToken.None);
+			this._logService.info(`${LOG_PREFIX} Cleaned up unusable sandbox task ${taskId}.`);
 		} catch (error) {
-			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}`);
+			this._logService.warn(`${LOG_PREFIX} Could not clean up sandbox task ${taskId}: ${toErrorMessage(error)}. It remains and can only be removed server-side.`);
 		}
 	}
 
@@ -666,7 +722,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
 		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.
@@ -906,4 +962,16 @@ function getTaskEnvironmentBinding(task: ITaskDetail): { environmentId: string; 
 		}
 	}
 	return undefined;
+}
+
+function getUnstartedSessionCreatedAt(task: ITaskDetail): number | undefined {
+	if (task.name !== 'New remote session' || task.state !== 'queued' || task.sessions?.length !== 1) {
+		return undefined;
+	}
+	const session = task.sessions[0];
+	if (session.state !== 'queued' || session.ahp_resource_uri || !session.created_at || session.updated_at !== session.created_at) {
+		return undefined;
+	}
+	const createdAt = Date.parse(session.created_at);
+	return Number.isFinite(createdAt) ? createdAt : undefined;
 }

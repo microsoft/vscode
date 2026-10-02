@@ -13,7 +13,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathS
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
-import { join } from '../../../../../../base/common/path.js';
+import { basename, join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import {
@@ -40,6 +40,7 @@ import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
 import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
+import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
 
 // #region Record/replay
 
@@ -897,14 +898,20 @@ export class AgentHostE2EServerLease {
 
 	constructor(
 		private readonly _config: IAgentHostE2EProviderConfig,
-		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget } = {},
+		startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly target?: IAgentHostTarget; readonly env?: Readonly<Record<string, string>> } = {},
 	) {
 		this._target = startOptions.target ?? defaultAgentHostTarget;
 		this._startOptions = {
 			claudeSdkRoot: startOptions.claudeSdkRoot,
 			codexSdkRoot: startOptions.codexSdkRoot,
 			...this._createDataDirectories(),
-			env: { [AgentHostSessionResidencyLimitEnvVar]: '0' },
+			env: {
+				[AgentHostSessionResidencyLimitEnvVar]: '0',
+				// Keep replay deterministic when tests run inside a Copilot app process
+				// that has local experimental CLI tools enabled.
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: '',
+				...startOptions.env,
+			},
 		};
 		// Server reuse is a replay-only optimization: recording writes one fixture
 		// per proxy and so needs a fresh proxy (hence a fresh server) per test.
@@ -1073,6 +1080,12 @@ export class AgentHostE2EServerLease {
 	 * output. Best-effort: never throws because it runs during failed-test teardown.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
+		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `agent-host-e2e-${process.pid}-${basename(this._startOptions.homeDir)}`);
+		try {
+			preserveAgentHostE2ELogs(this._startOptions.userDataDir, this._startOptions.homeDir, destination, label);
+		} catch (error) {
+			process.stdout.write(`[agent-host-e2e] Failed to preserve logs for "${label}": ${error}\n`);
+		}
 		this._dumpAgentHostLogOnFailure(label);
 		if (!this._isCopilotProvider) {
 			return;
@@ -1151,6 +1164,13 @@ export class AgentHostE2EServerLease {
 	async release(createdSessions: string[], forceRestart = false): Promise<void> {
 		const client = this._client;
 		const cleanupErrors: Error[] = [];
+		const recordCleanupError = (error: unknown) => {
+			const cleanupError = error instanceof Error ? error : new Error(String(error));
+			cleanupErrors.push(cleanupError);
+			if (cleanupErrors.length === 1) {
+				this.dumpRuntimeLogsOnFailure(`resource cleanup: ${cleanupError.message}`);
+			}
+		};
 		if (client) {
 			// A session left unrestored after a host restart is restored on subscribe.
 			const restoreTimeout = getAgentHostE2ETestTimeout(10_000, 30_000);
@@ -1182,7 +1202,7 @@ export class AgentHostE2EServerLease {
 					}
 					await client.call('disposeSession', { channel: session }, disposeTimeout);
 				} catch (error) {
-					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+					recordCleanupError(error);
 				}
 			}
 			client.close();
@@ -1197,16 +1217,16 @@ export class AgentHostE2EServerLease {
 			try {
 				this._server?.capiReplay?.assertNoReplayMismatches();
 			} catch (error) {
-				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				recordCleanupError(error);
 				try {
 					await this._server?.capiReplay?.close();
 				} catch (stopError) {
-					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+					recordCleanupError(stopError);
 				}
 				try {
 					await stopServer(this._server);
 				} catch (stopError) {
-					cleanupErrors.push(stopError instanceof Error ? stopError : new Error(String(stopError)));
+					recordCleanupError(stopError);
 				}
 				this._server = undefined;
 				this._modelBackedTestsOnCurrentServer = 0;
@@ -1224,12 +1244,12 @@ export class AgentHostE2EServerLease {
 					await this._server?.capiReplay?.stop();
 				}
 			} catch (error) {
-				cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+				recordCleanupError(error);
 			} finally {
 				try {
 					await stopServer(this._server);
 				} catch (error) {
-					cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
+					recordCleanupError(error);
 				}
 				this._server = undefined;
 				this._modelBackedTestsOnCurrentServer = 0;
@@ -1238,6 +1258,7 @@ export class AgentHostE2EServerLease {
 		}
 		if (forceRestart || cleanupErrors.length > 0) {
 			this._needsFreshDataDirectory = true;
+			this.dumpRuntimeLogsOnFailure('resource cleanup after shutdown');
 		}
 		if (cleanupErrors.length > 0) {
 			if (forceRestart) {
@@ -1262,6 +1283,9 @@ export class AgentHostE2EServerLease {
 					this._server = undefined;
 				}
 			}
+		} catch (error) {
+			this.dumpRuntimeLogsOnFailure(`suite cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			throw error;
 		} finally {
 			await removeTempDirs(this._dataDirs);
 		}

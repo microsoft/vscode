@@ -13,7 +13,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../../base/common/network.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
-import { dirname, joinPath } from '../../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { TokenizationRegistry } from '../../../../../editor/common/languages.js';
@@ -40,7 +40,7 @@ import { IAgentPlugin, IAgentPluginService } from '../../common/plugins/agentPlu
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
+import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem } from './agentPluginItems.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EnablementStatusWidget, pluginEnablementLabels } from '../enablementStatusWidget.js';
 import { InstallPluginAction, createUninstallPluginAction, createEnablePluginDropDown, createDisablePluginDropDown, createPolicyManagedEnablementAction, getPluginPolicyEnablement, EnablementDropDownAction, EnablementDropdownActionViewItem } from '../agentPluginActions.js';
@@ -232,13 +232,13 @@ export class AgentPluginEditor extends EditorPane {
 					marketplaceReference: item.marketplaceReference,
 					marketplaceType: item.marketplaceType,
 				});
-				const installedPlugin = allPlugins.find(p => p.uri.toString() === expectedUri.toString());
+				const installedPlugin = findInstalledPlugin(allPlugins, expectedUri, item);
 				if (installedPlugin) {
 					currentItem = this.installedPluginToItem(installedPlugin);
 				}
 			} else {
 				// If this was an installed item, check if it got uninstalled
-				const stillInstalled = allPlugins.find(p => p.uri.toString() === item.plugin.uri.toString());
+				const stillInstalled = findInstalledPlugin(allPlugins, item.plugin.uri, item.plugin.fromMarketplace);
 				if (!stillInstalled) {
 					// Plugin was uninstalled — show as marketplace if we have the info
 					if (item.plugin.fromMarketplace) {
@@ -332,8 +332,8 @@ export class AgentPluginEditor extends EditorPane {
 			const livePlugin = cachedMarketplace.find(mp =>
 				`${mp.marketplaceReference.canonicalId}::${mp.name}` === key
 			);
-			if (livePlugin && hasSourceChanged(storedPlugin.sourceDescriptor, livePlugin.sourceDescriptor)) {
-				actions.push(this.instantiationService.createInstance(UpdatePluginEditorAction, item.plugin, livePlugin));
+			if (livePlugin && (hasSourceChanged(storedPlugin.sourceDescriptor, livePlugin.sourceDescriptor) || !isEqual(item.plugin.uri, this.pluginInstallService.getPluginInstallUri(livePlugin)))) {
+				actions.push(this.instantiationService.createInstance(UpdatePluginEditorAction, livePlugin));
 			}
 		}
 
@@ -588,18 +588,14 @@ class UpdatePluginEditorAction extends Action {
 	static readonly ID = 'agentPlugin.editor.update';
 
 	constructor(
-		private readonly plugin: IAgentPlugin,
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 	) {
 		super(UpdatePluginEditorAction.ID, localize('update', "Update"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
-			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
-		}
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
 	}
 }
 

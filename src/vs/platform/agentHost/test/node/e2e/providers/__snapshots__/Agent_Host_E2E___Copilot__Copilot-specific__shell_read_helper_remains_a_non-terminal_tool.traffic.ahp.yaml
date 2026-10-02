@@ -69,6 +69,7 @@ rounds:
             content:
               - type: text
                 text: '<command started in background with shellId: read-shell-e2e>'
+              - type: terminal
       - channel: ${chat_0}
         action:
           type: chat/toolCallStart

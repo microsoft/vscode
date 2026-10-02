@@ -20,7 +20,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
@@ -29,19 +29,13 @@ import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defa
 import product from '../../../../platform/product/common/product.js';
 import { URI } from '../../../../base/common/uri.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
-import { IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
+import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueSource, IssueType } from '../common/issue.js';
 import { IssueReporterModel } from './issueReporterModel.js';
 import { RecordingState } from './recordingService.js';
 import { IAnnotationEditorState, ScreenshotAnnotationEditor } from './screenshotAnnotation.js';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_SIMILAR_ISSUES = 5;
-
-interface ISimilarIssue {
-	readonly html_url: string;
-	readonly title: string;
-	readonly state?: string;
-}
 
 const enum WizardStep {
 	Attachments = 0,
@@ -103,6 +97,7 @@ export class IssueReporterOverlay {
 	private didAttemptDescribeSubmit = false;
 	private similarIssuesContainer!: HTMLElement;
 	private similarIssuesRequest = 0;
+	private readonly similarIssuesOperation = this.disposables.add(new MutableDisposable());
 	private extensionDataRequest = 0;
 	private similarIssuesHandle: ReturnType<typeof setTimeout> | undefined;
 	private typeButtonGroup!: HTMLElement;
@@ -165,6 +160,7 @@ export class IssueReporterOverlay {
 		private readonly recordingSupported: boolean = false,
 		private readonly container: HTMLElement,
 		private readonly contextViewService: IContextViewService,
+		private readonly searchGitHubIssues: IIssueFormService['searchGitHubIssues'],
 		private readonly contextMenuProvider?: IContextMenuProvider,
 		private readonly markdownRendererService?: IMarkdownRendererService,
 		initialHideToolbar: boolean = true,
@@ -178,7 +174,7 @@ export class IssueReporterOverlay {
 		this._hideToolbarInScreenshots = initialHideToolbar;
 		const hasStandaloneExtensionData = !!data.data && !data.extensionId;
 		this.includeExtensionData = hasStandaloneExtensionData;
-		this.model = new IssueReporterModel({
+		this.model = this.disposables.add(new IssueReporterModel({
 			...data,
 			issueType: data.issueType || IssueType.Bug,
 			allExtensions: data.enabledExtensions,
@@ -189,7 +185,7 @@ export class IssueReporterOverlay {
 			includeExtensions: true,
 			includeExperiments: true,
 			includeExtensionData: hasStandaloneExtensionData,
-		});
+		}));
 		this.selectedIssueType = data.issueType;
 		this.selectedIssueSource = data.issueSource ?? (data.extensionId ? IssueSource.Extension : undefined);
 
@@ -1106,17 +1102,26 @@ export class IssueReporterOverlay {
 	}
 
 	private searchSimilarIssues(): void {
+		this.similarIssuesRequest++;
+		this.similarIssuesOperation.clear();
+		if (this.similarIssuesHandle !== undefined) {
+			clearTimeout(this.similarIssuesHandle);
+			this.similarIssuesHandle = undefined;
+		}
 		if (this.currentStep !== WizardStep.Review || !this.similarIssuesContainer) {
 			return;
 		}
-		if (this.similarIssuesHandle) {
-			clearTimeout(this.similarIssuesHandle);
-		}
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
-		this.similarIssuesHandle = setTimeout(() => this.doSearchSimilarIssues(), 300);
+		this.similarIssuesHandle = setTimeout(() => {
+			this.similarIssuesHandle = undefined;
+			void this.doSearchSimilarIssues();
+		}, 300);
 	}
 
 	private async doSearchSimilarIssues(): Promise<void> {
+		if (this.disposables.isDisposed || this.currentStep !== WizardStep.Review) {
+			return;
+		}
 		const title = this.titleInput.value.trim();
 		const request = ++this.similarIssuesRequest;
 		if (!title || !this.selectedIssueSource) {
@@ -1125,58 +1130,55 @@ export class IssueReporterOverlay {
 		}
 
 		this.renderSimilarIssuesMessage(localize('searchingSimilarIssues', "Searching similar issues..."));
+		const controller = new AbortController();
+		this.similarIssuesOperation.value = toDisposable(() => controller.abort());
 		try {
-			let results: ISimilarIssue[] = [];
+			let results: readonly ISimilarIssue[] = [];
 			if (this.selectedIssueSource === IssueSource.Extension) {
 				const extensionIssueUrl = this.getSelectedExtensionIssueUrl();
 				const repo = extensionIssueUrl && this.parseGitHubUrl(extensionIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
 			} else if (this.selectedIssueSource === IssueSource.Marketplace) {
 				const marketplaceIssueUrl = product.reportMarketplaceIssueUrl ?? product.reportIssueUrl;
 				const repo = marketplaceIssueUrl && this.parseGitHubUrl(marketplaceIssueUrl);
-				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+				results = repo ? await this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, controller.signal) : [];
 			} else {
-				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim());
+				results = await this.searchVSCodeSimilarIssues(title, this.descriptionTextarea.value.trim(), controller.signal);
 			}
 			if (request === this.similarIssuesRequest) {
 				this.renderSimilarIssues(results);
 			}
 		} catch {
-			if (request === this.similarIssuesRequest) {
+			if (!controller.signal.aborted && request === this.similarIssuesRequest) {
 				this.renderSimilarIssuesMessage(localize('similarIssuesSearchFailed', "Unable to search for similar issues."));
 			}
 		}
 	}
 
-	private async searchGitHubIssues(repo: string, title: string): Promise<ISimilarIssue[]> {
-		const query = `is:issue repo:${repo} ${title}`;
-		const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}`);
-		const result = await response.json();
-		return Array.isArray(result?.items) ? result.items : [];
-	}
-
-	private async searchVSCodeDuplicates(title: string, body: string): Promise<ISimilarIssue[]> {
+	private async searchVSCodeDuplicates(title: string, body: string, signal: AbortSignal): Promise<ISimilarIssue[]> {
 		const response = await fetch('https://vscode-probot.westus.cloudapp.azure.com:7890/duplicate_candidates', {
 			method: 'POST',
 			body: JSON.stringify({ title, body }),
 			headers: new Headers({ 'Content-Type': 'application/json' }),
+			signal,
 		});
 		const result = await response.json();
 		return Array.isArray(result?.candidates) ? result.candidates : [];
 	}
 
-	private async searchVSCodeSimilarIssues(title: string, body: string): Promise<ISimilarIssue[]> {
+	private async searchVSCodeSimilarIssues(title: string, body: string, signal: AbortSignal): Promise<readonly ISimilarIssue[]> {
 		try {
-			const duplicates = await this.searchVSCodeDuplicates(title, body);
+			const duplicates = await this.searchVSCodeDuplicates(title, body, signal);
 			if (duplicates.length) {
 				return duplicates;
 			}
 		} catch {
+			signal.throwIfAborted();
 			// Fall back to GitHub search below.
 		}
 
 		const repo = this.getIssueTargetRepo();
-		return repo ? this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title) : [];
+		return repo ? this.searchGitHubIssues(`${repo.owner}/${repo.repositoryName}`, title, signal) : [];
 	}
 
 	private renderSimilarIssuesMessage(message: string): void {
@@ -1185,7 +1187,7 @@ export class IssueReporterOverlay {
 		status.textContent = message;
 	}
 
-	private renderSimilarIssues(results: ISimilarIssue[]): void {
+	private renderSimilarIssues(results: readonly ISimilarIssue[]): void {
 		if (!results.length) {
 			this.renderSimilarIssuesMessage(localize('noSimilarIssues', "No similar issues found."));
 			return;
@@ -1376,12 +1378,12 @@ export class IssueReporterOverlay {
 			this.descriptionTextarea.focus();
 		} else if (step === WizardStep.Review) {
 			this.updateReviewDetails();
-			this.searchSimilarIssues();
 			this.wizardPanel.focus();
 		} else {
 			// Attachments: focus the panel so keyboard shortcuts work
 			this.wizardPanel.focus();
 		}
+		this.searchSimilarIssues();
 	}
 
 	private updateStepUI(): void {

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../../../base/common/cancellation.js';
+import { fuzzyScore, FuzzyScoreOptions } from '../../../../../../../../base/common/filters.js';
 import { DisposableStore, IDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
@@ -18,7 +19,7 @@ import { createTextModel } from '../../../../../../../../editor/test/common/test
 import { AgentHostInputCompletionsBase } from '../../../../../browser/widget/input/editor/agentHostInputCompletionsBase.js';
 import { AgentHostInputCompletions } from '../../../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
-import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
+import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
 import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
@@ -148,6 +149,28 @@ suite('AgentHostInputCompletionsBase', () => {
 		});
 	});
 
+	test('requests nested slash command completions after a space', async () => {
+		const languageFeaturesService = new LanguageFeaturesService();
+		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new TestChatSessionsService('server-name'), CompletionItemKind.Text, ['/', ' ']));
+		store.add(completions.register());
+		const model = store.add(createTextModel('/mcp enable ', null, undefined, URI.parse('test:input')));
+		const provider = languageFeaturesService.completionProvider.ordered(model)[0];
+
+		const result = await provider.provideCompletionItems(model, new Position(1, 13), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: ' ' }, CancellationToken.None);
+
+		assert.deepStrictEqual(result, {
+			suggestions: [{
+				label: 'server-name',
+				insertText: 'server-name',
+				filterText: 'server-name',
+				sortText: '000000',
+				range: new Range(1, 13, 1, 13),
+				kind: CompletionItemKind.Text,
+			}],
+			incomplete: true,
+		});
+	});
+
 	test('uses a common current-token filter score to preserve host order', async () => {
 		const languageFeaturesService = new LanguageFeaturesService();
 		const completions = store.add(new TestAgentHostInputCompletions(languageFeaturesService, new OrderedTestChatSessionsService()));
@@ -221,6 +244,143 @@ suite('AgentHostInputCompletions #chat references', () => {
 	});
 });
 
+suite('AgentHostInputCompletions plain text', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds a Monaco text completion without an accept command', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 13), {
+			insertText: 'microsoft/playwright-mcp',
+			start: { lineNumber: 1, column: 13 },
+			end: { lineNumber: 1, column: 13 },
+			attachment: { kind: 'text' },
+		}, upcastPartial<IChatWidget>({}));
+
+		assert.deepStrictEqual(built, {
+			label: 'microsoft/playwright-mcp',
+			insertText: 'microsoft/playwright-mcp',
+			filterText: 'microsoft/playwright-mcp',
+			range: {
+				insert: new Range(1, 13, 1, 13),
+				replace: new Range(1, 13, 1, 13),
+			},
+			kind: CompletionItemKind.Text,
+		});
+	});
+});
+
+suite('AgentHostInputCompletions skills', () => {
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('ranks matches on later words without changing the inserted skill', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+		const built = completions.buildItem(new Position(1, 8), {
+			insertText: '/daily-hiring-summary ',
+			attachment: {
+				kind: 'skill',
+				uri: URI.parse('example:/skills/daily-hiring-summary'),
+				displayName: 'daily-hiring-summary',
+			},
+		}, upcastPartial<IChatWidget>({}));
+
+		assert.deepStrictEqual({
+			label: built?.label,
+			insertText: built?.insertText,
+			filterText: built?.filterText,
+		}, {
+			label: { label: '/daily-hiring-summary', description: undefined },
+			insertText: '/daily-hiring-summary ',
+			filterText: '/hiring-summary /summary /daily-hiring-summary',
+		});
+	});
+});
+
+suite('AgentHostInputCompletions follow-up suggestions', () => {
+
+	const store = new DisposableStore();
+
+	teardown(() => store.clear());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('carries the retrigger hint into the command accept handler', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 12), {
+			insertText: 'enable ',
+			start: { lineNumber: 1, column: 6 },
+			end: { lineNumber: 1, column: 12 },
+			attachment: {
+				kind: 'command',
+				command: 'mcp',
+				description: 'Enable an MCP server',
+				retriggerSuggestions: true,
+			},
+		}, upcastPartial<IChatWidget>({}));
+		const acceptArgument = built?.command?.arguments?.[0] as { retriggerSuggestions?: boolean } | undefined;
+
+		assert.deepStrictEqual({
+			command: built?.command?.id,
+			retriggerSuggestions: acceptArgument?.retriggerSuggestions,
+		}, {
+			command: '_chatAgentHostAddReferenceCmd',
+			retriggerSuggestions: true,
+		});
+	});
+
+	test('carries the submit hint into the command accept handler', () => {
+		const completions = store.add(new TestableAgentHostInputCompletions(
+			new LanguageFeaturesService(),
+			new MockChatWidgetService(),
+			new TestChatSessionsService(),
+			new TestConfigurationService(),
+		));
+
+		const built = completions.buildItem(new Position(1, 14), {
+			insertText: 'list ',
+			start: { lineNumber: 1, column: 9 },
+			end: { lineNumber: 1, column: 14 },
+			attachment: {
+				kind: 'command',
+				command: 'skills',
+				description: 'List skills',
+				submitOnAccept: true,
+			},
+		}, upcastPartial<IChatWidget>({}));
+		const acceptArgument = built?.command?.arguments?.[0] as { submitOnAccept?: boolean } | undefined;
+
+		assert.deepStrictEqual({
+			command: built?.command?.id,
+			submitOnAccept: acceptArgument?.submitOnAccept,
+		}, {
+			command: '_chatAgentHostAddReferenceCmd',
+			submitOnAccept: true,
+		});
+	});
+});
+
 suite('escapeForCharClass', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -259,6 +419,29 @@ suite('escapeForCharClass', () => {
 		assert.ok(re.test('@'));
 		assert.ok(!re.test('a'));
 		assert.ok(!re.test('/'));
+	});
+});
+
+suite('prompt slash command matching', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('matches later words in hyphenated skill names', () => {
+		const filterText = getPromptSlashCommandFilterText('daily-hiring-summary');
+		const matches = ['/daily', '/hiring', '/hiring-sum', '/summary', '/missing'].map(pattern =>
+			!!fuzzyScore(pattern, pattern.toLowerCase(), 0, filterText!, filterText!.toLowerCase(), 0, FuzzyScoreOptions.default));
+		assert.deepStrictEqual(matches, [true, true, true, true, false]);
+		const score = (word: string) => fuzzyScore('/hiring', '/hiring', 0, word, word.toLowerCase(), 0, FuzzyScoreOptions.default)?.[0];
+		assert.ok(score(filterText!)! > score('/daily-hiring-summary')!);
+	});
+
+	test('preserves colon and space forms for plugin commands', () => {
+		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:daily-hiring-summary'),
+			'/hiring-summary /summary /my-plugin:daily-hiring-summary /my-plugin daily-hiring-summary');
+		assert.strictEqual(getPromptSlashCommandFilterText('my-plugin:review'), '/my-plugin:review /my-plugin review');
+	});
+
+	test('uses the label for commands without word separators', () => {
+		assert.strictEqual(getPromptSlashCommandFilterText('summary'), undefined);
 	});
 });
 
@@ -630,6 +813,19 @@ suite('isAtTriggerCharacterToken', () => {
 
 	test('cursor in token whose first char is not a trigger char', () => {
 		check('abc@def', 8, false); // first char of token is 'a', not '@'
+	});
+
+	test('cursor in slash command arguments', () => {
+		const slashTriggerChars = ['/', ' '];
+		assert.deepStrictEqual(([
+			['/mcp enable ', 13],
+			['/mcp enable ser', 16],
+			['  /mcp enable server', 21],
+			['say /mcp enable server', 23],
+		] as const).map(([text, column]) => {
+			const model = store.add(createTextModel(text, null, undefined, URI.parse('test:input')));
+			return isAtTriggerCharacterToken(model, new Position(1, column), slashTriggerChars);
+		}), [true, true, true, false]);
 	});
 
 	test('returns false when no trigger characters are configured', () => {

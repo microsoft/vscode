@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ConfirmedReason, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -390,6 +390,36 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual({ result, confirmations }, {
 			result: { ok: false, reason: 'unsupported' },
 			confirmations: [],
+		});
+	});
+
+	test('a spoken rejection preserves explicit human provenance', async () => {
+		const confirmations: ConfirmedReason[] = [];
+		const tool = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = 'testTool';
+			override readonly toolCallId = 'voice-manual-rejection';
+			override readonly state = observableValue<IChatToolInvocation.State>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: {},
+				confirmationMessages: { title: 'Run the build?', message: 'Runs the visible build task.' },
+				confirm: reason => confirmations.push(reason),
+			});
+		}();
+		const service = serviceFor(tool);
+		const response = approvalCall(tool, 'reject');
+		const result = await service.respondToSession(response);
+		const repeated = await service.respondToSession(response);
+		tool.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Denied,
+			source: 'user',
+			parameters: {},
+		}, undefined);
+		assert.deepStrictEqual({ result, repeated, confirmations }, {
+			result: { ok: true },
+			repeated: { ok: false, reason: 'stale_pending' },
+			confirmations: [{ type: ToolConfirmKind.Denied, source: 'user' }],
 		});
 	});
 
