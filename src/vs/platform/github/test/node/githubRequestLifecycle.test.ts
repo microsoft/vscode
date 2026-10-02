@@ -6,14 +6,15 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { GitHubAccountHandle, GitHubRequestError, GitHubRequestOptions } from '../../common/githubTypes.js';
+import { GitHubRequestError } from '../../common/githubTypes.js';
+import { AccountHandle, RequestOptions } from '../../common/types.js';
 import { GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { FakeScheduler } from './fakeScheduler.js';
 
-const account: GitHubAccountHandle = { host: 'github.example.test', accountId: '1' };
+const account: AccountHandle = { host: 'github.example.test', accountId: '1' };
 const url = 'https://github.example.test/repos/owner/repo';
 
-function request(transport: GitHubTransport, kind: 'rest' | 'graphql', options: GitHubRequestOptions = {}, signal = new AbortController().signal) {
+function request(transport: GitHubTransport, kind: 'rest' | 'graphql', options: RequestOptions = {}, signal = new AbortController().signal) {
 	return kind === 'rest'
 		? transport.rest<{ value: string }>(account, 'token', { method: 'GET', url, ...options }, signal)
 		: transport.graphql<{ value: string }>(account, 'token', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal, 'interactive', options);
@@ -25,7 +26,7 @@ suite('GitHub request lifecycle', () => {
 	for (const kind of ['rest', 'graphql'] as const) {
 		for (const boundary of ['task', 'payload'] as const) {
 			test(`${kind}: rejects a mutation whose deadline expires before ${boundary === 'task' ? 'its task starts' : 'wire dispatch'}`, async () => {
-				const scheduler = store.add(new FakeGitHubScheduler());
+				const scheduler = store.add(new FakeScheduler());
 				let calls = 0;
 				const transport = store.add(new GitHubTransport(async () => {
 					calls++;
@@ -53,7 +54,7 @@ suite('GitHub request lifecycle', () => {
 		}
 
 		test(`${kind}: rechecks the physical deadline before a delayed retry`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler({ jitterValues: [50] }));
+			const scheduler = store.add(new FakeScheduler({ jitterValues: [50] }));
 			let calls = 0;
 			const transport = store.add(new GitHubTransport(async () => {
 				calls++;
@@ -68,7 +69,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: rejects an expired shared waiter when completion beats its overdue timer`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const started = new DeferredPromise<AbortSignal>();
 			const response = new DeferredPromise<Response>();
 			let calls = 0;
@@ -91,7 +92,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: bounds retained timers during a synchronous rejected-request burst`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const transport = store.add(new GitHubTransport(async () => new Promise<Response>(() => { }), scheduler, false, undefined, {
 				queue: { maximumRequests: 4, maximumAccountRequests: 4, maximumCallerRequests: 4, reservedInteractiveRequests: 0 },
 			}));
@@ -118,7 +119,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: detaches cancelled waiters while keeping a shared peer alive`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const response = new DeferredPromise<Response>();
 			let calls = 0;
 			const transport = store.add(new GitHubTransport(async () => {
@@ -145,7 +146,7 @@ suite('GitHub request lifecycle', () => {
 
 		for (const phase of ['queued', 'headers', 'body'] as const) {
 			test(`${kind}: timeout records whether a mutation reached network dispatch (${phase})`, async () => {
-				const scheduler = store.add(new FakeGitHubScheduler());
+				const scheduler = store.add(new FakeScheduler());
 				const started = new DeferredPromise<void>();
 				const transport = store.add(new GitHubTransport(async () => {
 					await started.complete();
@@ -177,7 +178,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: expires a hanging body and cancels the reader`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const started = new DeferredPromise<void>();
 			const cancelled = new DeferredPromise<void>();
 			const body = new ReadableStream<Uint8Array>({
@@ -194,7 +195,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: a waiter's deadline does not cancel another coalesced reader`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const started = new DeferredPromise<AbortSignal>();
 			const response = new DeferredPromise<Response>();
 			let calls = 0;
@@ -219,7 +220,7 @@ suite('GitHub request lifecycle', () => {
 		});
 
 		test(`${kind}: a fresh reader does not join queued work expired by a wall-clock jump`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const started = new DeferredPromise<void>();
 			const release = new DeferredPromise<Response>();
 			const calls: string[] = [];
@@ -252,7 +253,7 @@ suite('GitHub request lifecycle', () => {
 
 	for (const kind of ['rest', 'download'] as const) {
 		test(`${kind}: rejects a redirect hop after the retained deadline expires`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			let calls = 0;
 			const transport = store.add(new GitHubTransport(async () => {
 				calls++;
@@ -272,7 +273,7 @@ suite('GitHub request lifecycle', () => {
 	}
 
 	test('expires stalled headers and discards a late response', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const response = new DeferredPromise<Response>();
 		const started = new DeferredPromise<AbortSignal>();
 		const cancelled = new DeferredPromise<void>();
@@ -292,7 +293,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('bounds coalesced consumers without issuing extra requests', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const response = new DeferredPromise<Response>();
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return response.p; }, scheduler, false, undefined, { maximumSharedWaiters: 2 }));
@@ -307,7 +308,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('an interactive coalesced reader promotes an already queued background request', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const release = new DeferredPromise<Response>();
 		const started = new DeferredPromise<void>();
 		const paths: string[] = [];
@@ -336,7 +337,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('download timeout includes its cooldown wait', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return new Response('log'); }, scheduler));
 		transport.rateLimits.updateFromResponse(account, new Response('', { status: 429, headers: { 'Retry-After': '30' } }));
@@ -350,7 +351,7 @@ suite('GitHub request lifecycle', () => {
 
 	for (const hinted of [false, true]) {
 		test(`download secondary rate limits park the account ${hinted ? 'with' : 'without'} Retry-After`, async () => {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			const calls: number[] = [];
 			const transport = store.add(new GitHubTransport(async () => {
 				calls.push(scheduler.now());
@@ -384,7 +385,7 @@ suite('GitHub request lifecycle', () => {
 	}
 
 	test('download same-origin redirects respect a newly established cooldown', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const calls: { path: string; at: number }[] = [];
 		let discardedRedirects = 0;
 		const transport = store.add(new GitHubTransport(async input => {
@@ -412,7 +413,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('download errors use a bounded diagnostic prefix without exposing its contents', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let chunks = 0;
 		let cancelled = false;
 		const body = new ReadableStream<Uint8Array>({
@@ -435,7 +436,7 @@ suite('GitHub request lifecycle', () => {
 	test('download authorization failures and storage-origin limits do not park GitHub traffic', async () => {
 		const outcomes: { storage: boolean; calls: number; core: number; graphql: number }[] = [];
 		for (const storage of [false, true]) {
-			const scheduler = store.add(new FakeGitHubScheduler());
+			const scheduler = store.add(new FakeScheduler());
 			let calls = 0;
 			const transport = store.add(new GitHubTransport(async (_input, options) => {
 				calls++;
@@ -463,7 +464,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('download error-body inspection remains cancellable and sanitized', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const started = new DeferredPromise<void>();
 		const cancelled = new DeferredPromise<void>();
 		const body = new ReadableStream<Uint8Array>({
@@ -480,7 +481,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('rechecks cooldowns between admission and network dispatch', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return new Response('{}'); }, scheduler));
 		const pending = request(transport, 'rest');
@@ -490,7 +491,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('account invalidation reclaims quota state after its last cooldown expires', () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const transport = store.add(new GitHubTransport(undefined, scheduler));
 		transport.rateLimits.updateFromResponse(account, new Response(null, { headers: { 'x-ratelimit-resource': 'graphql' } }));
 		transport.rateLimits.updateFromResponse(account, new Response(null, { status: 403, headers: { 'retry-after': '1' } }), 'secondary rate limit');
@@ -507,7 +508,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('account invalidation immediately reclaims quota state without a cooldown', () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const transport = store.add(new GitHubTransport(undefined, scheduler));
 		transport.rateLimits.updateFromResponse(account, new Response(null, { headers: { 'x-ratelimit-remaining': '10' } }));
 		transport.invalidateAccount(account);
@@ -517,7 +518,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('account reuse cancels expiry cleanup without discarding its cooldown', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const transport = store.add(new GitHubTransport(async () => new Response('{}'), scheduler));
 		transport.rateLimits.updateFromResponse(account, new Response(null, { status: 429, headers: { 'retry-after': '1' } }));
 		transport.invalidateAccount(account);
@@ -532,7 +533,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('rejected reuse does not cancel inactive cooldown cleanup', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const release = new DeferredPromise<Response>();
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {
@@ -557,7 +558,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('many inactive accounts share one expiry timer and release all quota state', () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const transport = store.add(new GitHubTransport(undefined, scheduler));
 		const accounts = Array.from({ length: 100 }, (_, i) => ({ ...account, accountId: String(i) }));
 		for (const inactive of accounts) {
@@ -595,7 +596,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('rejects expired or cancelled requests before network access', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => { calls++; return new Response('{}'); }, scheduler));
 		const controller = new AbortController();
@@ -607,7 +608,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('honors search cooldowns before dispatch without blocking the core bucket', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const requests: string[] = [];
 		const transport = store.add(new GitHubTransport(async input => {
 			requests.push(String(input));
@@ -627,7 +628,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('preserves cooldowns from a failed response instead of immediately retrying', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {
 			return ++calls === 1
@@ -645,7 +646,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('GraphQL quota data does not erase a header cooldown', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {
 			calls++;
@@ -661,7 +662,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('retries a read only once and never retries a mutation', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler({ jitterValues: [50] }));
+		const scheduler = store.add(new FakeScheduler({ jitterValues: [50] }));
 		let reads = 0;
 		const readStarted = new DeferredPromise<void>();
 		const transport = store.add(new GitHubTransport(async () => {
@@ -684,7 +685,7 @@ suite('GitHub request lifecycle', () => {
 	});
 
 	test('does not retry a read after its deadline', async () => {
-		const scheduler = store.add(new FakeGitHubScheduler());
+		const scheduler = store.add(new FakeScheduler());
 		const started = new DeferredPromise<void>();
 		let calls = 0;
 		const transport = store.add(new GitHubTransport(async () => {
