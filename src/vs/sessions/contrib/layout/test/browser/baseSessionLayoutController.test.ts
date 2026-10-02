@@ -335,6 +335,39 @@ suite('BaseLayoutController', () => {
 		);
 	});
 
+	test('[B6] a cross-resource promotion\'s blacklist marker is consumed on the draft\'s own switch-away even though it is Untitled, so it cannot later block an unrelated session reusing that resource', async () => {
+		const workspaceFolders = [{ uri: URI.file('/repo') }];
+		createController({ useModal: 'some', workspaceFolders });
+
+		const draftResource = URI.parse('session:draft');
+		const draft = makeSession(draftResource, { status: SessionStatus.Untitled, isCreated: false });
+		const committed = makeSession(URI.parse('session:committed'));
+
+		harness.activeSessionObs.set(draft, undefined);
+		await timeout(0);
+
+		harness.onDidReplaceSession.fire({ from: draft, to: committed });
+		harness.activeSessionObs.set(committed, undefined);
+		await timeout(0);
+
+		const laterReuse = makeSession(draftResource, { status: SessionStatus.Completed });
+		const unrelated = makeSession(URI.parse('session:unrelated'));
+
+		harness.visibleEditorsList = [{}];
+		harness.activeSessionObs.set(laterReuse, undefined);
+		await timeout(0);
+
+		harness.saveWorkingSetCalls = [];
+		harness.activeSessionObs.set(unrelated, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			harness.saveWorkingSetCalls,
+			[`session-working-set:${draftResource.toString()}`],
+			'a later, unrelated session reusing the promoted draft\'s resource must still have its own outgoing working set saved, not suppressed by a leftover blacklist marker'
+		);
+	});
+
 	test('[R5] same-session A/B/A keeps each chat\'s own editor working set and panel view distinct', async () => {
 		const workspaceFolders = [{ uri: URI.file('/repo') }];
 		createWorkbenchPanelController({ useModal: 'some', chatLayoutEnabled: true, desktopLayout: true, workspaceFolders });

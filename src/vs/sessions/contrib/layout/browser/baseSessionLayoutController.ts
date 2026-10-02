@@ -469,7 +469,8 @@ export abstract class BaseLayoutController extends Disposable {
 		this._register(runOnChange(this._sessionsService.activeSession, (session, previousSession) => {
 			if (previousSession && !isEqual(previousSession.resource, session?.resource)) {
 				this._onActiveSessionSwitched(previousSession, session);
-				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !this._replacedSessionResources.delete(previousSession.resource)) {
+				const wasReplaced = this._replacedSessionResources.delete(previousSession.resource);
+				if (previousSession.status.read(undefined) !== SessionStatus.Untitled && !this._isRestoringSessionLayout && !wasReplaced) {
 					const ownerKey = this._ownerKeyFor(previousSession);
 					if (ownerKey) {
 						this._saveWorkingSet(ownerKey);
