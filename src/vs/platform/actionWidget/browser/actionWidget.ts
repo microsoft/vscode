@@ -63,12 +63,6 @@ export interface IActionWidgetService {
 	focusItemById(itemId: string): void;
 	setFilter(value: string, focusItemId?: string): void;
 
-	/** Collapses the section of the focused item in the currently shown widget. */
-	collapseSection(): void;
-
-	/** Expands the section of the focused item in the currently shown widget. */
-	expandSection(): void;
-
 	hide(didCancel?: boolean): void;
 
 	readonly isVisible: boolean;

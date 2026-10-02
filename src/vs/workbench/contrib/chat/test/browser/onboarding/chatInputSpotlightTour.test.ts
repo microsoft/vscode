@@ -13,11 +13,12 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { resolveOnboardingTarget } from '../../../../onboarding/browser/spotlight/onboardingTarget.js';
 import { onboardingScenarioRegistry } from '../../../../onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../onboarding/common/onboardingScenarioService.js';
-import { AgentHostChatInputPicker, AgentHostPickerSection } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
+import { AgentHostChatInputPicker } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { CHAT_INPUT_TOUR_ID, ChatInputSpotlightTour, ChatInputTourTarget, createChatInputTour } from '../../../browser/onboarding/chatInputSpotlightTour.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
@@ -49,13 +50,6 @@ suite('ChatInputSpotlightTour', () => {
 					open = true;
 					opened.push(`${label}${openPermissions ? ':permissions' : ''}`);
 				}
-				override setSectionExpanded(section: AgentHostPickerSection, expanded: boolean) {
-					if (!open || !combinesPermissions) {
-						return false;
-					}
-					sections.push(`${section}:${expanded ? 'expand' : 'collapse'}`);
-					return true;
-				}
 			}();
 		};
 		const combined = options.combinedPermissions ?? true;
@@ -83,9 +77,16 @@ suite('ChatInputSpotlightTour', () => {
 		const actionWidgetService = new class extends mock<IActionWidgetService>() {
 			override readonly isVisible = false;
 			override hide() { }
+			override focusItemById(itemId: string) { sections.push(`focus:${itemId}`); }
+		}();
+		const commandService = new class extends mock<ICommandService>() {
+			override async executeCommand<R>(commandId: string): Promise<R | undefined> {
+				sections.push(commandId);
+				return undefined;
+			}
 		}();
 
-		const tour = disposables.add(new ChatInputSpotlightTour({ eligibleChat }, onboardingService, contextViewService, actionWidgetService));
+		const tour = disposables.add(new ChatInputSpotlightTour({ eligibleChat }, onboardingService, contextViewService, actionWidgetService, commandService));
 		return {
 			tour,
 			chat,
@@ -149,7 +150,7 @@ suite('ChatInputSpotlightTour', () => {
 			modePickerIsShared: true,
 			modelPicker: true,
 			opened: ['mode'],
-			sections: ['mode:collapse', 'permissions:expand'],
+			sections: ['focus:agentHostModePicker.mode', 'collapseSectionCodeAction', 'focus:agentHostModePicker.permissions', 'expandSectionCodeAction'],
 			popupsBeforeOpen: [undefined, undefined, undefined],
 			popupsAreMenu: [true, true, false],
 			steps: [
