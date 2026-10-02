@@ -279,7 +279,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
 		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
-		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
+		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined, isNoFolderSelected: () => false });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
 			onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => undefined,
 			refreshResolvedConfig: async (...args) => { refreshes.push(args); },

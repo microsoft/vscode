@@ -22,7 +22,14 @@ import { ICustomizationMarketplaceInstallService } from '../../../common/customi
 suite('EmbeddedMarketplaceDetail', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function render(resource: ICustomizationMarketplaceResource, readmeContent?: string) {
+	function render(
+		resource: ICustomizationMarketplaceResource,
+		readmeContent?: string,
+		actions: {
+			readonly install?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
+			readonly runPrompt?: (prompt: string) => Promise<void>;
+		} = {},
+	) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
 		store.add({ dispose: () => parent.remove() });
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -44,7 +51,8 @@ suite('EmbeddedMarketplaceDetail', () => {
 		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
 			getSourceLabel: () => 'Marketplace',
-			install: async () => { },
+			install: actions.install ?? (async () => { }),
+			runPrompt: actions.runPrompt ?? (async () => { }),
 			openExternal: async () => { },
 		}));
 		detail.setInput(resource);
@@ -77,7 +85,8 @@ suite('EmbeddedMarketplaceDetail', () => {
 			heading: parent.querySelector('h2')?.textContent,
 			icon: parent.querySelector<HTMLImageElement>('.marketplace-detail-icon img')?.getAttribute('src'),
 			facts: [...parent.querySelectorAll('dt, dd')].map(element => element.textContent),
-			queries: [...parent.querySelectorAll('.marketplace-detail-query-list li')].map(element => element.textContent),
+			queries: [...parent.querySelectorAll('.marketplace-detail-query-text')].map(element => element.textContent),
+			queryActionIcons: [...parent.querySelectorAll('.marketplace-detail-query-action .codicon')].map(element => element.className),
 			links: [...parent.querySelectorAll('.embedded-detail-fact-link')].map(element => element.textContent),
 			actions: [...parent.querySelectorAll('.embedded-detail-title-actions .monaco-button')].map(element => element.textContent),
 			accessible: detail.getAccessibilityContent(),
@@ -86,9 +95,43 @@ suite('EmbeddedMarketplaceDetail', () => {
 			icon: 'https://example.com/review.svg',
 			facts: ['Type', 'Skill', 'Publisher', 'Example', 'Version', '1.2.0', 'Source', 'Marketplace', 'Tags', 'review', 'Repository', 'example/review'],
 			queries: ['Review this change'],
+			queryActionIcons: ['codicon codicon-arrow-up-compact'],
 			links: ['Marketplace', 'example/review'],
 			actions: ['Install'],
 			accessible: 'Repository review\n\nAvailable to install\n\nReviews pull requests.\n\nTry this: Review this change\n\nType: Skill\n\nPublisher: Example\n\nVersion: 1.2.0\n\nSource: Marketplace\n\nTags: review\n\nRepository: example/review',
+		});
+	});
+
+	test('installs the item before running a representative query', async () => {
+		const calls: string[] = [];
+		const resource: ICustomizationMarketplaceResource = {
+			sourceId: 'test',
+			identifier: 'review',
+			displayName: 'Repository review',
+			description: 'Reviews pull requests.',
+			mediaType: CustomizationMarketplaceMediaType.Skill,
+			tags: [],
+			capabilities: [],
+			representativeQueries: ['Review this change'],
+		};
+		const { parent } = render(resource, undefined, {
+			install: async installedResource => { calls.push(`install:${installedResource.identifier}`); },
+			runPrompt: async prompt => { calls.push(`prompt:${prompt}`); },
+		});
+
+		parent.querySelector<HTMLButtonElement>('.marketplace-detail-query-button')?.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			calls,
+			label: parent.querySelector('.marketplace-detail-query-text')?.textContent,
+			ariaLabel: parent.querySelector('.marketplace-detail-query-button')?.getAttribute('aria-label'),
+			ariaBusy: parent.querySelector('.marketplace-detail-query-button')?.getAttribute('aria-busy'),
+		}, {
+			calls: ['install:review', 'prompt:Review this change'],
+			label: 'Review this change',
+			ariaLabel: 'Install Repository review and run prompt: Review this change',
+			ariaBusy: null,
 		});
 	});
 

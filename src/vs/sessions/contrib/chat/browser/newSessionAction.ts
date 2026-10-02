@@ -5,7 +5,7 @@
 
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -59,10 +59,27 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean }): Promise<void> {
+	override async run(accessor: ServicesAccessor, options?: { toSide?: boolean; prompt?: string; noWorkspace?: boolean }): Promise<void> {
 		accessor.get(INewSessionComposerService).notifyUserNavigation();
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsPartService = options?.prompt ? accessor.get(ISessionsPartService) : undefined;
+		const sendPrompt = (): void => {
+			if (!options?.prompt) {
+				return;
+			}
+			let sessionId = sessionsService.activeSession.get()?.sessionId;
+			let sessionView = sessionsPartService?.getSessionView(sessionId);
+			if (!sessionView) {
+				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
+			}
+			if (options.noWorkspace) {
+				sessionView.selectNoWorkspace({ userSelection: false, preserveNavigation: true });
+				sessionId = sessionsService.activeSession.get()?.sessionId;
+				sessionView = sessionsPartService?.getSessionView(sessionId) ?? sessionView;
+			}
+			sessionView.sendQuery(options.prompt);
+		};
 		const activeSession = sessionsService.activeSession.get();
 		// Clear the no-workspace latch before unsetNewSession(), or the replacement composer recreates the quick chat.
 		const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
@@ -74,6 +91,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			sessionsService.unsetNewSession();
 			const replacementSessionId = sessionsService.activeSession.get()?.sessionId;
 			accessor.get(ISessionsPartService).getSessionView(replacementSessionId)?.focusWorkspacePicker();
+			sendPrompt();
 			return;
 		}
 		const activeFolderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
@@ -99,5 +117,6 @@ export class NewChatInSessionsWindowAction extends Action2 {
 			...inheritedTarget,
 			...(containerSourceProviderId ? { requireDevContainer: true } : {}),
 		});
+		sendPrompt();
 	}
 }

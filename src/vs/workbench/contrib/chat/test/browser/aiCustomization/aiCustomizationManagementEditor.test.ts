@@ -205,7 +205,10 @@ suite('aiCustomizationManagementEditor', () => {
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
+			isSessionsWindow: boolean;
 		};
+		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
+		viewsService: { openView(viewId: string, focus?: boolean): Promise<{ prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined> };
 		editorDisplayMode: 'preview' | 'raw';
 		currentCustomizationDetail: boolean;
 		currentEditingUri: URI | undefined;
@@ -315,6 +318,7 @@ suite('aiCustomizationManagementEditor', () => {
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
+		runMarketplacePrompt(prompt: string): Promise<void>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -395,7 +399,10 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.workspaceService = {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
+			isSessionsWindow: false,
 		};
+		editor.commandService = { executeCommand: async () => undefined };
+		editor.viewsService = { openView: async () => undefined };
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
@@ -464,6 +471,43 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.setVisible(false);
 		return editor;
 	}
+
+	test('runs marketplace prompts in a new Agents Window chat', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		editor.workspaceService.isSessionsWindow = true;
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+			},
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual(calls, [{
+			commandId: 'workbench.action.sessions.newChat',
+			args: [{ prompt: 'Review this change', noWorkspace: true }],
+		}]);
+	});
+
+	test('runs marketplace prompts in a new Copilot sidebar session outside the Agents Window', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+			},
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual(calls, [{
+			commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+			args: [{ prompt: 'Review this change', noWorkspace: true }],
+		}]);
+	});
 
 	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
 		const editor = createTestEditor();
