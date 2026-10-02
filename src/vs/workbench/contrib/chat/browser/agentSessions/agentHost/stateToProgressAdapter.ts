@@ -68,7 +68,7 @@ function getToolKind(call: ToolCallState) {
 }
 
 const agentHostAskUserToolNames = new Set(['ask_user', 'AskUserQuestion', 'request_user_input']);
-const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation', 'generate_image_mock']);
+const imageGenerationToolNames = new Set(['image_gen.imagegen', 'image_generation']);
 
 function isAgentHostAskUserTool(toolName: string): boolean {
 	return agentHostAskUserToolNames.has(toolName);

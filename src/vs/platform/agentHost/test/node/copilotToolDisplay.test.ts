@@ -72,7 +72,6 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['report_progress', 'Progress update'],
 			['web_fetch', 'Fetch Web Content'],
 			['web_search', 'Web Search'],
-			['generate_image_mock', 'Generate Mock Image'],
 			['update_todo', 'Update Todo'],
 			['show_file', 'Show File'],
 			['fetch_copilot_cli_documentation', 'Fetch Documentation'],
@@ -111,20 +110,6 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
-	});
-
-	test('labels mock image generation distinctly from real generation', () => {
-		const name = 'generate_image_mock';
-		const displayName = getToolDisplayName(name);
-		assert.deepStrictEqual({
-			displayName,
-			invocation: getInvocationMessage(name, displayName, { prompt: 'Draw a puppy' }),
-			completed: getPastTenseMessage(name, displayName, { prompt: 'Draw a puppy' }, true),
-		}, {
-			displayName: 'Generate Mock Image',
-			invocation: 'Generating mock image',
-			completed: 'Generated mock image',
-		});
 	});
 
 	test('uses requested image identity rather than the conversation model', () => {

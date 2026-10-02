@@ -2395,7 +2395,7 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
-	for (const toolName of ['image_generation', 'image_gen.imagegen', 'generate_image_mock']) {
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
 		test(`${toolName} uses the final glyph preset and hands its loader into the reveal without replaying history`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 			const backendSession = URI.parse('remote-provider:/image-session');
@@ -2600,7 +2600,7 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
-	for (const [toolId, width] of [['image_generation', 760], ['image_gen.imagegen', 320.5], ['generate_image_mock', 280]] as const) {
+	for (const [toolId, width] of ['image_generation', 'image_gen.imagegen'].flatMap(toolId => [760, 320.5, 280].map(width => [toolId, width] as const))) {
 		test(`image tool icon alignment survives the reveal and restore (${toolId}, width=${width})`, async () => {
 			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
 			configurePersistentProgressTypography(container, 13);
@@ -8773,7 +8773,7 @@ suite('ChatListRenderer', () => {
 		disposables.dispose();
 	});
 
-	for (const toolId of ['image_gen.imagegen', 'image_generation', 'generate_image_mock']) {
+	for (const toolId of ['image_gen.imagegen', 'image_generation']) {
 		for (const thinkingStyle of Object.values(ThinkingDisplayMode)) {
 			for (const collapsedTools of Object.values(CollapsedToolsDisplayMode)) {
 				for (const [progress, progressVerbosity] of [

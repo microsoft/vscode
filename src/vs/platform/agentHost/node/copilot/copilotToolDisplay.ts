@@ -72,7 +72,6 @@ export const enum CopilotToolName {
 	WebSearch = 'web_search',
 	WebFetch = 'web_fetch',
 	ImageGeneration = 'image_generation',
-	ImageGenerationMock = 'generate_image_mock',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
 	Think = 'think',
@@ -628,7 +627,6 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.fetchWebContent', "Fetch Web Content");
 		case CopilotToolName.ImageGeneration: return localize('toolName.imageGeneration', "Generate Image");
-		case CopilotToolName.ImageGenerationMock: return localize('toolName.imageGenerationMock', "Generate Mock Image");
 		case CopilotToolName.UpdateTodo: return localize('toolName.updateTodo', "Update Todo");
 		case CopilotToolName.ShowFile: return localize('toolName.showFile', "Show File");
 		case CopilotToolName.FetchCopilotCliDocumentation: return localize('toolName.fetchCopilotCliDocumentation', "Fetch Documentation");
@@ -685,8 +683,6 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	switch (toolName) {
 		case CopilotToolName.ImageGeneration:
 			return localize('toolInvoke.imageGeneration', "Generating image");
-		case CopilotToolName.ImageGenerationMock:
-			return localize('toolInvoke.imageGenerationMock', "Generating mock image");
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
 			if (typeof args?.path === 'string' && args.path) {
@@ -928,8 +924,6 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			return imageGeneration
 				? localize('toolComplete.imageGenerationModel', "Generated image with {0}", imageGeneration.requestedModel.name ?? imageGeneration.requestedModel.id)
 				: localize('toolComplete.imageGeneration', "Generated image");
-		case CopilotToolName.ImageGenerationMock:
-			return localize('toolComplete.imageGenerationMock', "Generated mock image");
 		case CopilotToolName.WebFetch: {
 			const args = parameters as ICopilotWebFetchToolArgs | undefined;
 			if (args?.url) {

@@ -15,8 +15,7 @@ export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocat
 	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
 		|| (toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.imageGeneration)
 		|| toolInvocation.toolId === 'image_gen.imagegen'
-		|| toolInvocation.toolId === 'image_generation'
-		|| toolInvocation.toolId === 'generate_image_mock';
+		|| toolInvocation.toolId === 'image_generation';
 }
 
 export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {

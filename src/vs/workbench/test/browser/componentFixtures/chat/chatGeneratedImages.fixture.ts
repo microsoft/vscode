@@ -132,7 +132,7 @@ const previewInput = z.object({
 
 const loadingLifecycleInput = z.object({
 	enableAnimations: z.boolean().default(false),
-	harness: z.enum(['Copilot', 'Codex', 'Mock']).default('Copilot'),
+	harness: z.enum(['Copilot', 'Codex']).default('Copilot'),
 	source: z.enum(['Embedded', 'Referenced']).default('Embedded'),
 	viewportHeight: z.number().min(240).max(900).default(300),
 	sampleImage: z.boolean().default(false),
@@ -178,7 +178,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 		}
 	}, true));
 	const image = input.sampleImage
-		? encodeBase64(VSBuffer.wrap(new Uint8Array(await readFixtureBinaryResource(fixtureResourceUri('src/vs/platform/agentHost/node/copilot/media/imageGenerationMock.png')))))
+		? encodeBase64(VSBuffer.wrap(new Uint8Array(await readFixtureBinaryResource(fixtureResourceUri('src/vs/workbench/test/browser/componentFixtures/chat/media/generated-image.png')))))
 		: createImage(800, 1200);
 	const mimeType = 'image/png';
 	const imageResource = URI.file('/fixture/generated-image.png');
@@ -222,7 +222,7 @@ async function renderImageLoadingLifecycle(context: ComponentFixtureContext): Pr
 			responseComplete: false,
 			assistant: [{ kind: 'thinking', text: 'Planning the composition.' }, {
 				kind: 'tool',
-				toolId: input.harness === 'Mock' ? 'generate_image_mock' : input.harness === 'Copilot' ? 'image_generation' : 'image_gen.imagegen',
+				toolId: input.harness === 'Copilot' ? 'image_generation' : 'image_gen.imagegen',
 				displayName: 'Generate Image',
 				invocationMessage: 'Generating image',
 				complete: false,

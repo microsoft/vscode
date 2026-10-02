@@ -56,11 +56,6 @@ suite('Chat Accessibility Help', () => {
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
-	test('does not advertise development-only tools in production chat help', () => {
-		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
-		assert.strictEqual(help.includes('generate_image_mock'), false);
-	});
-
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);
