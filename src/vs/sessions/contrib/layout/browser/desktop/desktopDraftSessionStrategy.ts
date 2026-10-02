@@ -80,14 +80,9 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			return undefined;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
-		if (!activeSession) {
-			return undefined;
-		}
-		const isQuickChat = activeSession.isQuickChat?.get() ?? false;
-		if (!isQuickChat && activeSession.isCreated.get()) {
-			return undefined;
-		}
-		return this._ctx.ownerKeyFor(activeSession);
+		return activeSession && !activeSession.isCreated.get() && !activeSession.isQuickChat?.get()
+			? this._ctx.ownerKeyFor(activeSession)
+			: undefined;
 	}
 
 	private _readOwnerComposition(): { readonly editor: boolean; readonly auxiliaryBar: boolean } | undefined {
@@ -259,14 +254,10 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				this._activeQuickChatKey = sessionKey;
 				const hasSavedWorkingSet = this._ctx.hasSavedWorkingSet(activeSession.resource);
 				const isRestoringSessionLayout = this._ctx.isRestoringSessionLayout;
-				const storedComposition = this._readOwnerComposition();
 				this._pendingEditorRestoreKey = !multipleSessionsVisible
 					? sessionKey
 					: undefined;
-				if (storedComposition) {
-					this._pendingEditorRestoreKey = undefined;
-					this._applyOwnerComposition(storedComposition);
-				} else if (!multipleSessionsVisible && hasSavedWorkingSet) {
+				if (!multipleSessionsVisible && hasSavedWorkingSet) {
 					this._applyQuickChatSharedVisibility();
 				} else if (!multipleSessionsVisible && !isRestoringSessionLayout && isMainPartEmpty(this._editorGroupsService)) {
 					this._pendingEditorRestoreKey = undefined;
@@ -292,12 +283,6 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._pendingEditorRestoreKey = undefined;
 			if (isMainPartEmpty(this._editorGroupsService)) {
 				this._hideQuickChatSidePaneTransiently();
-				return;
-			}
-
-			const storedComposition = this._readOwnerComposition();
-			if (storedComposition) {
-				this._applyOwnerComposition(storedComposition);
 				return;
 			}
 
