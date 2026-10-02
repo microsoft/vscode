@@ -22,6 +22,7 @@ import { createImageGenerationMockTool } from '../../node/copilot/copilotImageGe
 suite('Copilot image generation mock tool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const imageUri = FileAccess.asFileUri('vs/platform/agentHost/node/copilot/media/imageGenerationMock.png');
+	const storedImageUri = imageUri.with({ scheme: Schemas.inMemory });
 	let fileService: FileService;
 	let reads: URI[];
 	let errors: (string | Error)[];
@@ -37,13 +38,13 @@ suite('Copilot image generation mock tool', () => {
 		fileService = store.add(new class extends FileService {
 			override readFile(resource: URI) {
 				reads.push(resource);
-				return super.readFile(resource);
+				return super.readFile(resource.with({ scheme: Schemas.inMemory }));
 			}
 		}(logService));
-		store.add(fileService.registerProvider(Schemas.file, store.add(new InMemoryFileSystemProvider())));
+		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
 		image = VSBuffer.wrap(await readFile(imageUri.fsPath));
-		await fileService.createFolder(dirname(imageUri));
-		await fileService.writeFile(imageUri, image);
+		await fileService.createFolder(dirname(storedImageUri));
+		await fileService.writeFile(storedImageUri, image);
 	});
 
 	function invoke(args: Record<string, unknown>, token = CancellationToken.None, signal?: AbortSignal) {
@@ -117,7 +118,7 @@ suite('Copilot image generation mock tool', () => {
 	});
 
 	test('surfaces a missing bundled image as a failed tool result', () => runWithFakedTimers({}, async () => {
-		await fileService.del(imageUri);
+		await fileService.del(storedImageUri);
 		const result = await invoke({ prompt: 'Draw a puppy' });
 		const message = errors[0] instanceof Error ? errors[0].message : errors[0];
 		assert.deepStrictEqual({ result, hasError: typeof message === 'string' && message.length > 0, errors: errors.length }, {

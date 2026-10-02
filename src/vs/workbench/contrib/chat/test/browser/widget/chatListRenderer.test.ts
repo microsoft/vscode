@@ -19,6 +19,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
+import { ITextResourcePropertiesService } from '../../../../../../editor/common/services/textResourceConfiguration.js';
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -2667,6 +2668,8 @@ suite('ChatListRenderer', () => {
 			restored.renderer.renderElement(restored.node, 0, restored.template);
 			const restoredImage = restored.template.value.querySelector<HTMLImageElement>('.chat-generated-image-result img')!;
 			await restoredImage.decode();
+			await retry(async () => assert.strictEqual(restoredImage.closest('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+			const restoredSize = restoredImage.getBoundingClientRect();
 			assert.deepStrictEqual({
 				runningOffset,
 				revealOffsets,
@@ -2674,7 +2677,9 @@ suite('ChatListRenderer', () => {
 				restoredOffset: offset(restored.template.value, '.chat-generated-image-result img'),
 				titleUnchanged: template.value.querySelector('.chat-confirmation-widget-title')!.getBoundingClientRect().left === titleLeft,
 				sizeUnchanged: imageSize(),
-				restoredSize: [restoredImage.getBoundingClientRect().width, restoredImage.getBoundingClientRect().height],
+				// Wrapped and bare images can differ by one CSS layout unit in intrinsic width.
+				restoredWidthMatches: Math.abs(restoredSize.width - finalFrameSize[0]) <= 1 / 64,
+				restoredHeight: restoredSize.height,
 				saveOffset: saveOffset(),
 				restoredReveal: !!restored.template.value.querySelector('.chat-image-loading-glyphs'),
 			}, {
@@ -2684,63 +2689,72 @@ suite('ChatListRenderer', () => {
 				restoredOffset: 0,
 				titleUnchanged: true,
 				sizeUnchanged: finalFrameSize,
-				restoredSize: finalFrameSize,
+				restoredWidthMatches: true,
+				restoredHeight: finalFrameSize[1],
 				saveOffset: finalSaveOffset,
 				restoredReveal: false,
 			});
 		});
 	}
 
-	test('image prompt streaming and execution keep the dropdown expanded without restarting the canvas', async () => {
-		const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
-		const tool = ChatToolInvocation.createStreaming({
-			toolId: 'image_generation',
-			toolCallId: 'streaming-image',
-			toolData: { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+	for (const eol of ['\n', '\r\n']) {
+		test(`image prompt streaming and execution keep the dropdown expanded without restarting the canvas (EOL=${JSON.stringify(eol)})`, async () => {
+			const { disposables, instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const getEol = sinon.stub(instantiationService.get(ITextResourcePropertiesService), 'getEOL').returns(eol);
+			disposables.add(toDisposable(() => getEol.restore()));
+			const tool = ChatToolInvocation.createStreaming({
+				toolId: 'image_generation',
+				toolCallId: 'streaming-image',
+				toolData: { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			});
+			tool.updatePartialInput({ prompt: 'Draw a' });
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const canvas = template.value.querySelector('canvas.chat-image-loading-glyphs');
+			const dropdown = () => template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
+			const editors = () => instantiationService.get(ICodeEditorService).listCodeEditors()
+				.filter(editor => template.value.contains(editor.getDomNode()));
+			const input = () => editors().map(editor => editor.getValue({ preserveBOM: false, lineEnding: '\n' }));
+			dropdown()?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			const streamingEol = editors()[0]?.getModel()?.getEOL();
+			const streamingInput = input();
+			tool.updatePartialInput({ prompt: 'Draw a puppy' });
+			const updatedInput = input();
+			const running: ToolCallRunningState = {
+				toolCallId: tool.toolCallId,
+				toolName: tool.toolId,
+				displayName: 'Generate Image',
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+				_meta: { 'vscode.imageGeneration': { requestedModel: { id: 'image-model', name: 'Image Model' } } },
+			};
+			const backend = URI.parse('remote-images:/opaque-session');
+			tool.transitionFromStreaming(toolCallStateToPreparedInvocation(running, backend, 'remote'), { prompt: 'Draw a puppy' }, { type: ToolConfirmKind.ConfirmationNotNeeded });
+			updateRunningToolSpecificData(tool, running, backend, 'remote');
+			assert.deepStrictEqual({
+				streamingEol,
+				streamingInput,
+				updatedInput,
+				runningInput: input(),
+				expanded: dropdown()?.getAttribute('aria-expanded'),
+				title: dropdown()?.textContent?.replace(/\u00a0/g, ' ').trim(),
+				sameCanvas: canvas === template.value.querySelector('canvas.chat-image-loading-glyphs'),
+				shimmer: !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress'),
+			}, {
+				streamingEol: eol,
+				streamingInput: [JSON.stringify({ prompt: 'Draw a' }, null, 2)],
+				updatedInput: [JSON.stringify({ prompt: 'Draw a puppy' }, null, 2)],
+				runningInput: [running.toolInput],
+				expanded: 'true',
+				title: 'Using Image Model to generate an image',
+				sameCanvas: true,
+				shimmer: false,
+			});
+			request.response?.complete();
 		});
-		tool.updatePartialInput({ prompt: 'Draw a' });
-		model.acceptResponseProgress(request, tool);
-		renderer.renderElement(node, 0, template);
-		const canvas = template.value.querySelector('canvas.chat-image-loading-glyphs');
-		const dropdown = () => template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title');
-		const input = () => instantiationService.get(ICodeEditorService).listCodeEditors()
-			.filter(editor => template.value.contains(editor.getDomNode())).map(editor => editor.getValue());
-		dropdown()?.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
-		const streamingInput = input();
-		tool.updatePartialInput({ prompt: 'Draw a puppy' });
-		const updatedInput = input();
-		const running: ToolCallRunningState = {
-			toolCallId: tool.toolCallId,
-			toolName: tool.toolId,
-			displayName: 'Generate Image',
-			invocationMessage: 'Generating image',
-			status: ToolCallStatus.Running,
-			confirmed: ToolCallConfirmationReason.NotNeeded,
-			toolInput: '{"prompt":"Draw a puppy"}',
-			_meta: { 'vscode.imageGeneration': { requestedModel: { id: 'image-model', name: 'Image Model' } } },
-		};
-		const backend = URI.parse('remote-images:/opaque-session');
-		tool.transitionFromStreaming(toolCallStateToPreparedInvocation(running, backend, 'remote'), { prompt: 'Draw a puppy' }, { type: ToolConfirmKind.ConfirmationNotNeeded });
-		updateRunningToolSpecificData(tool, running, backend, 'remote');
-		assert.deepStrictEqual({
-			streamingInput,
-			updatedInput,
-			runningInput: input(),
-			expanded: dropdown()?.getAttribute('aria-expanded'),
-			title: dropdown()?.textContent?.replace(/\u00a0/g, ' ').trim(),
-			sameCanvas: canvas === template.value.querySelector('canvas.chat-image-loading-glyphs'),
-			shimmer: !!template.value.querySelector('.chat-tool-invocation-part .shimmer-progress'),
-		}, {
-			streamingInput: [JSON.stringify({ prompt: 'Draw a' }, null, 2)],
-			updatedInput: [JSON.stringify({ prompt: 'Draw a puppy' }, null, 2)],
-			runningInput: [running.toolInput],
-			expanded: 'true',
-			title: 'Using Image Model to generate an image',
-			sameCanvas: true,
-			shimmer: false,
-		});
-		request.response?.complete();
-	});
+	}
 
 	for (const success of [true, false]) {
 		test(`image generation shows its ${success ? 'completed' : 'failed'} dropdown instead of the last progress message`, async () => {

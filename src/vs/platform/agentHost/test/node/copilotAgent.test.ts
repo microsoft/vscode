@@ -51,6 +51,7 @@ import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { CodexAgent } from '../../node/codex/codexAgent.js';
 import { CodexProxyService, ICodexProxyService } from '../../node/codex/codexProxyService.js';
 import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
+import { CopilotToolName } from '../../node/copilot/copilotToolDisplay.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
@@ -13414,7 +13415,7 @@ suite('CopilotAgent', () => {
 
 				await agent.chats.sendMessage(defaultChatUri(result.session), 'hello', undefined, undefined, undefined, undefined, exactChatContext(result.session, defaultChatUri(result.session), result.session));
 
-				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), []);
+				assert.deepStrictEqual(capturedConfig?.tools?.map(tool => tool.name), [CopilotToolName.ImageGenerationMock]);
 			} finally {
 				await disposeAgent(agent);
 			}
