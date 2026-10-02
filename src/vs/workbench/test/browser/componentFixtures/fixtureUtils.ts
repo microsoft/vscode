@@ -1032,7 +1032,13 @@ export function registerFixtureHoverService(container: HTMLElement, service: IHo
 	if (!restoreFixtureHoverDelegate) {
 		const fallback = getBaseLayerHoverDelegate();
 		const delegate: typeof fallback = {
-			...fallback,
+			showInstantHover: (...args) => fallback.showInstantHover(...args),
+			showDelayedHover: (...args) => fallback.showDelayedHover(...args),
+			setupDelayedHover: (...args) => fallback.setupDelayedHover(...args),
+			setupDelayedHoverAtMouse: (...args) => fallback.setupDelayedHoverAtMouse(...args),
+			hideHover: (...args) => fallback.hideHover(...args),
+			showAndFocusLastHover: () => fallback.showAndFocusLastHover(),
+			showManagedHover: target => fallback.showManagedHover(target),
 			setupManagedHover: (options, target, content, hoverOptions) => {
 				for (let element: HTMLElement | null = target; element; element = element.parentElement) {
 					const owner = fixtureHoverServices.get(element);

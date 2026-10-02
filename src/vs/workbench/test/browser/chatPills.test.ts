@@ -27,7 +27,7 @@ import { IFileContent, IFileService } from '../../../platform/files/common/files
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -408,7 +408,7 @@ suite('ChatPills', () => {
 		});
 	});
 
-	test('disposes a rebuilt image preview candidate with the same entry id', () => {
+	test('preserves image content through metadata updates and disposes changed or removed resources', () => {
 		const tokens: CancellationToken[] = [];
 		const fileService = upcastPartial<IFileService>({
 			readFile: (_resource, _options, token) => {
@@ -444,20 +444,47 @@ suite('ChatPills', () => {
 		const replacementHover = getDropdownPillItems.call(viewItem)[1].hover!;
 		const replacementContent = typeof replacementHover.content === 'function' ? replacementHover.content() : undefined;
 
-		if (replacementContent instanceof HTMLElement) {
-			replacementHover.disposeContent?.(replacementContent);
-		}
-
-		assert.deepStrictEqual({
-			contentRebuilt: replacementContent !== firstContent,
-			firstCancelled: tokens[0]?.isCancellationRequested,
-			replacementCancelled: tokens[1]?.isCancellationRequested,
-		}, {
-			contentRebuilt: true,
-			firstCancelled: false,
-			replacementCancelled: true,
+		const preserved = { sameContent: replacementContent === firstContent, reads: tokens.length, canceled: tokens[0]?.isCancellationRequested };
+		const nextResource = URI.file('/repo/updated.png');
+		sections.set([{ title: 'Images', entries: [{ ...createEntry(), imagePreview: { resource: nextResource, mimeType: 'image/png' } }] }], undefined);
+		const nextHover = getDropdownPillItems.call(viewItem)[1].hover!;
+		const nextContent = typeof nextHover.content === 'function' ? nextHover.content() : undefined;
+		const changed = { sameContent: nextContent === firstContent, reads: tokens.length, canceled: tokens.map(token => token.isCancellationRequested) };
+		const container = mainWindow.document.createElement('div');
+		viewItem.render(container);
+		sections.set([], undefined);
+		assert.deepStrictEqual({ preserved, changed, removed: tokens.map(token => token.isCancellationRequested) }, {
+			preserved: { sameContent: true, reads: 1, canceled: false },
+			changed: { sameContent: false, reads: 2, canceled: [true, false] },
+			removed: [true, true],
 		});
-		firstHover.disposable?.dispose();
+	});
+
+	test('preserves location content but refreshes actions and changed paths', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const copied: string[] = [];
+		const entry = (path: string, value: string): IChatPillEntry => ({
+			id: 'file', label: 'plan.md', ariaDescription: path, hover: getChatPillLocationHover(path),
+			hoverActions: [store.add(new Action('copy', 'Copy Path', undefined, true, () => { copied.push(value); }))],
+			open: () => { },
+		});
+		const sections = observableValue<readonly IChatPillSection[]>('locations', [{ title: 'Files', entries: [entry('/repo/plan.md', 'old')] }]);
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('references', 'References')), {}, sections, {
+			widgetId: 'references', icon: Codicon.references, title: 'References',
+			summaryLabel: count => `${count} References`, summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const first = getDropdownPillItems.call(viewItem)[1].hover!;
+		sections.set([{ title: 'Files', entries: [entry('/repo/plan.md', 'new')] }], undefined);
+		const replacement = getDropdownPillItems.call(viewItem)[1].hover!;
+		await replacement.actions?.[0].run(mainWindow.document.createElement('div'));
+		sections.set([{ title: 'Files', entries: [entry('/elsewhere/plan.md', 'changed')] }], undefined);
+		const changed = getDropdownPillItems.call(viewItem)[1].hover!;
+		assert.deepStrictEqual({
+			preserved: first.content === replacement.content,
+			changed: first.content !== changed.content,
+			copied,
+		}, { preserved: true, changed: true, copied: ['new'] });
 	});
 
 	test('uses the main DOM realm and target auxiliary window', () => {

@@ -11,6 +11,7 @@ import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { AnchorPosition } from '../../base/common/layout.js';
 import { IObservable, autorun, derived } from '../../base/common/observable.js';
+import { isEqual } from '../../base/common/resources.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { asCssVariable } from '../../platform/theme/common/colorUtils.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem, type IActionListItemHover } from '../../platform/actionWidget/browser/actionList.js';
@@ -106,12 +107,19 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 	private _summaryIcon: ThemeIcon | undefined;
 	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 	private readonly _dropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
-	private readonly _imageDropdownHovers = new WeakMap<IChatPillEntry, IActionListItemHover>();
+	private readonly _resourceDropdownHovers = new Map<string, { readonly entry: IChatPillEntry; readonly hover: IActionListItemHover }>();
 
 	protected override renderContent(): void {
 		this._register(autorun(reader => {
 			const previous = this._getPresentation();
 			this._entries = getChatPillEntries(this._sections.read(reader));
+			for (const [id, cached] of this._resourceDropdownHovers) {
+				const entry = this._entries.find(entry => entry.id === id);
+				if (!entry || !sameResourceHover(cached.entry, entry)) {
+					cached.hover.disposable?.dispose();
+					this._resourceDropdownHovers.delete(id);
+				}
+			}
 			this._summaryIcon = ThemeIcon.isThemeIcon(this._pillOptions.icon) ? this._pillOptions.icon : this._pillOptions.icon.read(reader);
 			const current = this._getPresentation();
 			if (previous.label !== current.label || previous.summarized !== current.summarized || !iconsEqual(previous.icon, current.icon)) {
@@ -377,37 +385,59 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 				this._dropdownHovers.set(entry, baseHover);
 			}
 		}
+		const cacheable = !!entry.imagePreview || entry.hover?.panelClassName === 'chat-pill-location-hover-panel';
+		const cached = this._resourceDropdownHovers.get(entry.id);
+		if (cacheable && cached && sameResourceHover(cached.entry, entry)) {
+			if (cached.entry === entry) {
+				return cached.hover;
+			}
+			const hover: IActionListItemHover = {
+				...baseHover,
+				content: cached.hover.content,
+				disposeContent: cached.hover.disposeContent,
+				disposable: cached.hover.disposable,
+				contentOwnsPadding: cached.hover.contentOwnsPadding,
+				alignToAnchorTop: cached.hover.alignToAnchorTop,
+				preserveVerticalPosition: cached.hover.preserveVerticalPosition,
+			};
+			this._resourceDropdownHovers.set(entry.id, { entry, hover });
+			return hover;
+		}
+		if (cached) {
+			cached.hover.disposable?.dispose();
+			this._resourceDropdownHovers.delete(entry.id);
+		}
 		if (!entry.imagePreview) {
+			if (cacheable && baseHover) {
+				this._resourceDropdownHovers.set(entry.id, { entry, hover: baseHover });
+			}
 			return baseHover;
 		}
-		let hover = this._imageDropdownHovers.get(entry);
-		if (!hover) {
-			const imagePreview = entry.imagePreview;
-			let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
-			hover = {
-				...baseHover,
-				content: () => {
-					preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
-					return preview.element;
+		const imagePreview = entry.imagePreview;
+		let preview: ReturnType<typeof createChatPillImagePreview> | undefined;
+		const hover: IActionListItemHover = {
+			...baseHover,
+			content: () => {
+				preview ??= createChatPillImagePreview({ ...entry, imagePreview }, this._fileService);
+				return preview.element;
+			},
+			disposeContent: content => {
+				if (preview?.element === content) {
+					preview.disposable.dispose();
+					preview = undefined;
+				}
+			},
+			disposable: {
+				dispose: () => {
+					preview?.disposable.dispose();
+					preview = undefined;
 				},
-				disposeContent: content => {
-					if (preview?.element === content) {
-						preview.disposable.dispose();
-						preview = undefined;
-					}
-				},
-				disposable: {
-					dispose: () => {
-						preview?.disposable.dispose();
-						preview = undefined;
-					},
-				},
-				contentOwnsPadding: true,
-				alignToAnchorTop: true,
-				preserveVerticalPosition: true,
-			};
-			this._imageDropdownHovers.set(entry, hover);
-		}
+			},
+			contentOwnsPadding: true,
+			alignToAnchorTop: true,
+			preserveVerticalPosition: true,
+		};
+		this._resourceDropdownHovers.set(entry.id, { entry, hover });
 		return hover;
 	}
 
@@ -415,8 +445,22 @@ export class ChatDropdownPillActionViewItem extends ChatPillActionViewItem {
 		if (this._dropdownVisible) {
 			this._actionWidgetService.hide(true);
 		}
+		for (const cached of this._resourceDropdownHovers.values()) {
+			cached.hover.disposable?.dispose();
+		}
+		this._resourceDropdownHovers.clear();
 		super.dispose();
 	}
+}
+
+function sameResourceHover(first: IChatPillEntry, second: IChatPillEntry): boolean {
+	return first.label === second.label
+		&& first.ariaDescription === second.ariaDescription
+		&& first.tooltip === second.tooltip
+		&& isEqual(first.resource, second.resource)
+		&& isEqual(first.imagePreview?.resource, second.imagePreview?.resource)
+		&& first.imagePreview?.mimeType === second.imagePreview?.mimeType
+		&& first.hover?.panelClassName === second.hover?.panelClassName;
 }
 
 function iconsEqual(first: ThemeIcon | undefined, second: ThemeIcon | undefined): boolean {
