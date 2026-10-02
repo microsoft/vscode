@@ -13,6 +13,7 @@ import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost
 import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextViewService } from '../../../../../../platform/contextview/browser/contextViewService.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
+import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IViewsService } from '../../../../../../workbench/services/views/common/viewsService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { IAgentWorkbenchLayoutService } from '../../../../../browser/workbench.js';
@@ -76,6 +77,7 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.stub(IAgentWorkbenchLayoutService, { mainContainer: container });
 	instantiationService.stub(ISessionChangesService, {});
 	instantiationService.stub(IViewsService, {});
+	instantiationService.set(IQuickInputService, new class extends mock<IQuickInputService>() { }());
 	instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
 		override readonly mainContainer = container;
 		override readonly activeContainer = container;

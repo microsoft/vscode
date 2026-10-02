@@ -947,6 +947,13 @@ function createEmptyCustomizationMarketplaceInstallService(): ICustomizationMark
 	}();
 }
 
+function createEmptyCustomizationMarketplaceService(): ICustomizationMarketplaceService {
+	return new class extends mock<ICustomizationMarketplaceService>() {
+		override readonly sources = [];
+		override readonly onDidChangeSources = Event.None;
+	}();
+}
+
 function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMarketplaceInstallState | undefined): state is RecordedCustomizationMarketplaceInstallState {
 	return state?.kind === 'checking'
 		|| state?.kind === 'installed'
@@ -1753,7 +1760,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-search')?.offsetHeight === 24, 'Discover must use the standard compact search control height.');
 		assert(ctx.container.querySelector('.customization-discovery-search-actions .codicon-filter') !== null, 'Discover must expose Marketplace-style search filters.');
 		assert(ctx.container.querySelector('.customization-discovery-filters') === null, 'Discover must keep filters in the search toolbar instead of rendering quick-filter pills.');
-		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All sources') === true, 'Discover must default to all customization sources.');
+		assert(ctx.container.querySelector<HTMLElement>('.customization-discovery-source')?.textContent?.includes('All Sources') === true, 'Discover must default to all customization sources.');
 		const description = ctx.container.querySelector<HTMLElement>('.customization-discovery-description');
 		const descriptionLinks = [...description?.querySelectorAll('a') ?? []].map(link => link.textContent);
 		assert(
@@ -1772,6 +1779,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& featuredDescription.getBoundingClientRect().top > featuredName.getBoundingClientRect().top,
 			'Featured cards must place source metadata beside the name and the description on the next line.',
 		);
+		const browsePrimaryAction = featuredCard?.querySelector<HTMLElement>(':scope > .customization-discovery-card-primary');
+		assert(
+			!featuredCard || !browsePrimaryAction
+			|| Math.abs(featuredCard.getBoundingClientRect().width - browsePrimaryAction.getBoundingClientRect().width) <= 1
+			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
+			'The Discover card primary action must cover the entire card behind its independent action.',
+		);
+		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
+		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
 		const searchRow = ctx.container.querySelector<HTMLElement>('.customization-discovery-search-row');
 		const browse = ctx.container.querySelector<HTMLElement>('.customization-discovery-browse');
@@ -1869,10 +1885,34 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		if (availableRows[0] && availablePrimaryAction) {
 			availablePrimaryAction.focus();
 			const targetWindow = DOM.getWindow(availableRows[0]);
-			assert(targetWindow.getComputedStyle(availableRows[0]).outlineStyle === 'solid', 'Focused Discover results must outline the entire item, including its actions.');
-			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'none', 'Focused Discover results must not retain an inner primary-action outline.');
+			const rowBounds = availableRows[0].getBoundingClientRect();
+			const primaryActionBounds = availablePrimaryAction.getBoundingClientRect();
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).outlineStyle === 'solid', 'Focused Discover results must outline the entire item.');
+			assert(targetWindow.getComputedStyle(availablePrimaryAction).borderRadius !== '0px', 'Focused Discover results must retain rounded corners for both pointer and keyboard focus.');
+			assert(
+				Math.abs(primaryActionBounds.left - rowBounds.left) <= 1
+				&& Math.abs(primaryActionBounds.top - rowBounds.top) <= 1
+				&& Math.abs(primaryActionBounds.right - rowBounds.right) <= 1
+				&& Math.abs(primaryActionBounds.bottom - rowBounds.bottom) <= 1,
+				'The Discover result primary action must cover the entire item behind its independent actions.',
+			);
+			const resultAction = availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-actions .monaco-button');
+			if (resultAction) {
+				const pointerTransparentContent = [
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-icon'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-identity'),
+					availableRows[0].querySelector<HTMLElement>('.customization-discovery-result-aside'),
+				];
+				assert(
+					pointerTransparentContent.every(element => !element || targetWindow.getComputedStyle(element).pointerEvents === 'none')
+					&& targetWindow.getComputedStyle(resultAction).pointerEvents === 'auto',
+					'The Discover result must keep the primary action clickable around an independently clickable item action.',
+				);
+			}
 			availablePrimaryAction.blur();
 		}
+		const resultIcon = availableRows[0]?.querySelector<HTMLElement>('.customization-discovery-result-icon');
+		assert(!resultIcon || resultIcon.offsetWidth === 40 && resultIcon.offsetHeight === 40, 'Discover results must use the compact marketplace icon size.');
 		if (options.selectDiscoveryResult) {
 			const resultRows = ctx.container.querySelectorAll<HTMLElement>('.customization-discovery-result-row');
 			const selectedRow = resultRows[resultRows.length - 1];
@@ -2164,7 +2204,8 @@ async function renderMcpErrorActions(ctx: ComponentFixtureContext): Promise<void
 	const row = [...ctx.container.querySelectorAll('.mcp-server-item')]
 		.find(row => row.querySelector('.mcp-server-state-icon.error')) as HTMLElement | undefined;
 	assert(!!row, 'The fixture must render an installed error row.');
-	assert(row.querySelector('.mcp-server-description')?.textContent === 'Component fixtures and screenshot tooling', 'Error rows retain their ordinary description.');
+	assert(!!row.querySelector('.mcp-server-source-path')?.textContent, 'Error rows retain their configuration path.');
+	assert(!row.querySelector('.mcp-server-description')?.textContent, 'Error rows hide their ordinary description when a configuration path is available.');
 	assert(!row.querySelector('.mcp-server-issue')?.textContent, 'Error rows must not show an inline error snippet.');
 	assert(row.querySelector('.mcp-server-show-output')?.textContent === 'Show Output', 'Error rows must show the output action.');
 	assert(!row.querySelector('.mcp-server-error-toggle'), 'Error rows must not expose an inline expansion control.');
@@ -2183,6 +2224,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
@@ -2395,6 +2437,7 @@ async function renderPluginCatalog(ctx: ComponentFixtureContext, browse: boolean
 				}
 			}());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2484,6 +2527,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 			reg.define(IListService, ListService);
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
 			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(false));
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
@@ -2570,6 +2614,7 @@ function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): 
 			}());
 			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
+			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
 			reg.defineInstance(IAICustomizationItemsModel, createMockAICustomizationItemsModel());
 		},
 	});
@@ -2943,13 +2988,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersTabCopilotCompatibility: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'lightHighContrast'],
-		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported uses a red error icon and red message while Partially supported uses a yellow warning icon and yellow message. Both messages include a Migrations link; configuration file paths and compatibility badges do not appear.'],
+		expectedVisualDescriptions: ['With the Copilot harness selected, Unsupported begins its red message with a compact red error icon while Partially supported begins its yellow message with a compact yellow warning icon. Both messages include a Migrations link; compatibility icons do not appear beside the row actions, and configuration file paths and compatibility badges do not appear.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.McpServers,
 			mcpServerCompatibility: [
 				{ id: 'component-explorer', kind: 'partiallySupported' },
-				{ id: 'mcp-postgres', kind: 'unsupported' },
+				{ id: 'mcp-github', kind: 'unsupported' },
 			],
 		}),
 	}),
@@ -2957,7 +3002,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	McpServersAllStates: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
-		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported uses a red error treatment, and Partially supported uses a yellow warning treatment. Compatibility messages include a Migrations link; no state badges or inline error snippets appear.'],
+		expectedVisualDescriptions: ['Every installed MCP row has the same height as the default running row. The tree presents all states without configuration file paths: running has no indicator, starting has a spinner, authentication shows Sign In without an auth icon, error retains the ordinary description and shows a red error icon plus Show Output before the switch, stopped shows a Start button styled like Sign In, disabled rows are dimmed with switches off and labels for Globally, Workspace, and Session scopes, Unsupported begins its red message with a compact error icon, and Partially supported begins its yellow message with a compact warning icon. Compatibility messages include a Migrations link; compatibility icons do not appear beside row actions, and no state badges or inline error snippets appear.'],
 		render: async ctx => {
 			await renderEditor(ctx, {
 				sessionResource: agentHostCopilotSessionResource,
@@ -3364,7 +3409,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	DiscoverClearedSearch: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All sources.'],
+		expectedVisualDescriptions: ['Clearing the search restores the featured customization cards immediately and the source picker defaults to All Sources.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: localSessionResource,
 			marketplaceVisibilityEnabled: true,

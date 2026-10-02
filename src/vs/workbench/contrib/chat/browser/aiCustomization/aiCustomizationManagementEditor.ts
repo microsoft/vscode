@@ -8,6 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CustomizationMarketplaceIcon, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
@@ -27,6 +28,7 @@ import { localize } from '../../../../../nls.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -91,7 +93,7 @@ import { createTextBufferFactoryFromSnapshot } from '../../../../../editor/commo
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { isCustomizationDiscoveryAvailable, isCustomizationMarketplaceValueFromDefault } from './customizationMarketplaceConfiguration.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -114,7 +116,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { EmbeddedExtensionToolsDetail } from './embeddedExtensionToolsDetail.js';
 import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary } from './aiCustomizationWelcomePage.js';
+import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
@@ -343,6 +345,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private sectionsList!: WorkbenchList<ISectionItem>;
 	private contentContainer!: HTMLElement;
 	private listWidget!: AICustomizationListWidget;
+	private listWidgetSectionLoad: Promise<void> = Promise.resolve();
 	private mcpListWidget: McpListWidget | undefined;
 	private pluginListWidget: PluginListWidget | undefined;
 	private modelsWidget: ChatModelsWidget | undefined;
@@ -954,19 +957,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			{
 				selectSection: (section) => this.selectSection(section),
 				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
-				openInstalled: target => {
-					const origin: CustomizationDetailBaseOrigin = { kind: 'discover' };
-					this.selectSection(target.section);
-					if (target.promptDetail) {
-						void this.openCustomizationItem(target.promptDetail, origin);
-					} else if (target.pluginDetail) {
-						void this.showEmbeddedPluginDetail(target.pluginDetail, origin);
-					} else if (target.mcpDetail) {
-						void this.showEmbeddedMcpDetail(target.mcpDetail, origin);
-					} else if (target.uri) {
-						void this.revealCustomizationByUri(target.uri);
-					}
-				},
+				openInstalled: target => void this.revealInstalledCustomization(target),
 				openMarketplaceItem: (resource, origin) => {
 					this.showMarketplaceDetail(resource, origin);
 				},
@@ -1143,6 +1134,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.listWidget.onDidRequestCreateManual(({ type, target, rootFileName }) => {
 			this.createNewItemManual(type, target, rootFileName);
 		}));
+		this.editorDisposables.add(this.listWidget.onDidRequestBrowse(() => {
+			this.selectSection(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		}));
 
 		// Container for Models content (only in sessions)
 		const hasSections = new Set(this.workspaceService.managementSections);
@@ -1191,6 +1185,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.editorDisposables.add(this.mcpListWidget.onDidRequestOpenMigrations(() => {
 				void this.startCustomizationMigration(CustomizationMigrationCategoryId.McpServers);
 			}));
+			this.editorDisposables.add(this.mcpListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+			}));
 		}
 
 		// Container for Plugins content
@@ -1205,6 +1202,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 			this.editorDisposables.add(this.pluginListWidget.onDidSelectPlugin(item => {
 				this.showEmbeddedPluginDetail(item);
+			}));
+			this.editorDisposables.add(this.pluginListWidget.onDidRequestBrowse(() => {
+				this.selectSection(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 			}));
 		}
 
@@ -3058,8 +3058,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.updateContentVisibility();
 
 		// Load items for the new section (only for prompts-based sections)
+		this.listWidgetSectionLoad = Promise.resolve();
 		if (this.isPromptsSection(section)) {
-			void this.listWidget.setSection(section);
+			this.listWidgetSectionLoad = this.listWidget.setSection(section);
 		}
 
 		// Re-layout after visibility change so the newly-visible widget can
@@ -3145,6 +3146,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 			const welcomeVisible = isWelcome && !isEditorMode && !isMigrationMode && !isDetailMode;
 			this.welcomePage.container.style.display = welcomeVisible ? '' : 'none';
 			this.welcomePage.setVisible(this.isVisible() && welcomeVisible);
+			this.homeButton?.classList.toggle('selected', welcomeVisible);
+			if (welcomeVisible) {
+				this.homeButton?.setAttribute('aria-current', 'page');
+			} else {
+				this.homeButton?.removeAttribute('aria-current');
+			}
 		}
 		if (this.promptsContentContainer) {
 			this.promptsContentContainer.style.display = !isEditorMode && !isMigrationMode && !isDetailMode && isPromptsSection ? '' : 'none';
@@ -3388,6 +3395,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		input.setSaveHandler(() => this.handleBuiltinSave());
 
+		if (isCustomizationMarketplaceValueFromDefault(this.configurationService)) {
+			logSettingExperimentTrigger(this.telemetryService, CustomizationMarketplaceConfiguration.MarketplaceEnabled);
+		}
 		this.telemetryService.publicLog2<CustomizationEditorOpenedEvent, CustomizationEditorOpenedClassification>('chatCustomizationEditor.opened', {
 			section: this.selectedSection ?? 'welcome',
 		});
@@ -3582,12 +3592,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private showMarketplaceInDiscover(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): boolean {
 		if (!options?.showMarketplace ||
-			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) !== true) {
+			!isCustomizationDiscoveryAvailable(this.configurationService, this.marketplaceService)) {
 			return false;
 		}
-		const type = section === AICustomizationManagementSection.Plugins ? 'plugin'
-			: section === AICustomizationManagementSection.McpServers ? 'mcp'
-				: undefined;
+		const type = section === AICustomizationManagementSection.Skills ? 'skill'
+			: section === AICustomizationManagementSection.Plugins ? 'plugin'
+				: section === AICustomizationManagementSection.McpServers ? 'mcp'
+					: undefined;
 		if (!type) {
 			return false;
 		}
@@ -3666,6 +3677,26 @@ export class AICustomizationManagementEditor extends EditorPane {
 			}
 			if (attempt === 0) {
 				this.listWidget.clearSearch();
+			}
+			await timeout(100);
+		}
+	}
+
+	public async revealInstalledCustomization(target: IInstalledCustomizationTarget): Promise<void> {
+		this.selectSection(target.section);
+		await this.listWidgetSectionLoad;
+		if (this.isPromptsSection(target.section) && target.uri) {
+			await this.revealCustomizationByUri(target.uri);
+			return;
+		}
+		for (let attempt = 0; attempt < 10; attempt++) {
+			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
+				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
+				: target.section === AICustomizationManagementSection.McpServers
+					? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
+					: true;
+			if (revealed !== false) {
+				return;
 			}
 			await timeout(100);
 		}

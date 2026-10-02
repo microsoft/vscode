@@ -10,6 +10,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
 import {
 	PullRequestFragment,
 	PullRequestRef,
@@ -21,8 +22,9 @@ import {
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { FetchFunction, GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
 import { PullRequestMutationService } from '../../common/pullRequestMutationService.js';
-import { IPullRequestResources } from '../../common/pullRequestResourceService.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { PullRequestQueryService } from '../../common/pullRequestQueryService.js';
+import { IPullRequestResources, PullRequestResourceService } from '../../common/pullRequestResourceService.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubDisconnectResponse,
@@ -128,7 +130,7 @@ suite('PullRequestMutationService', () => {
 		}
 	}
 
-	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeGitHubScheduler, fetch: FetchFunction = nodeFetch): {
+	function setup(server: ProgrammableGitHubServer, snapshot = completeSnapshot(server), scheduler?: FakeScheduler, fetch: FetchFunction = nodeFetch): {
 		readonly ref: PullRequestRef;
 		readonly resources: TestResourceService;
 		readonly service: PullRequestMutationService;
@@ -140,6 +142,21 @@ suite('PullRequestMutationService', () => {
 		const resources = new TestResourceService(ref, { ...snapshot, ref });
 		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
 		return { ref, resources, service };
+	}
+
+	function setupWithQuery(server: ProgrammableGitHubServer) {
+		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
+		const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
+		const scheduler = disposables.add(new FakeScheduler());
+		const credentials = disposables.add(new TestCredentialService(account));
+		const transport = disposables.add(new GitHubTransport(nodeFetch, scheduler, true));
+		const query = new PullRequestQueryService(transport, {
+			getCapabilities: async () => ({ graphql: true, reviewThreads: true, mergeQueue: false, internalMergeStatus: false, checkContextRequiredness: false }),
+			clear: () => { },
+		}, server.createEndpointService());
+		const resources = disposables.add(new PullRequestResourceService(scheduler, undefined, credentials, query, new NullLogService()));
+		const service = disposables.add(new PullRequestMutationService(scheduler, credentials, transport, resources, server.createEndpointService()));
+		return { ref, service };
 	}
 
 	test('reconciles an ambiguous top-level comment without duplicating it', async () => {
@@ -291,6 +308,29 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without replaying or accepting a refused mutation`, async () => {
+			await withServers(async server => {
+				const errors = [{ type, message: 'Mutation rate limited', path: ['markPullRequestReadyForReview'] }];
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostMarkPullRequestReadyForReview',
+					response: gitHubGraphQLResponse({ markPullRequestReadyForReview: null }, errors),
+				}));
+				const { ref, resources, service } = setup(server);
+				let refreshes = 0;
+				resources.refreshHandler = () => { refreshes++; };
+
+				await assert.rejects(() => service.markReadyForReview(ref, { pullRequestId: 'PR7' }, signal()), {
+					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
+				});
+				assert.deepStrictEqual({ requests: server.requests.length, refreshes, invalidations: resources.invalidations }, {
+					requests: 1, refreshes: 0, invalidations: [],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('retries only after a complete refresh proves a comment marker absent', async () => {
 		await withServers(async server => {
 			server.enqueue(
@@ -386,7 +426,7 @@ suite('PullRequestMutationService', () => {
 	for (const operation of ['comment', 'reply'] as const) {
 		test(`does not reconcile a ${operation} that times out before dispatch`, async () => {
 			await withServers(async server => {
-				const scheduler = disposables.add(new FakeGitHubScheduler());
+				const scheduler = disposables.add(new FakeScheduler());
 				const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 				const ref = { ...account, owner: 'octo', repo: 'repo', number: 7 };
 				const credentials = disposables.add(new TestCredentialService(account));
@@ -444,7 +484,210 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
-	test('resolves only after an ambiguous reply is reconciled as successful', async () => {
+	test('keeps a reply in an existing pending human review unpublished and unresolved', async () => {
+		await withServers(async server => {
+			const humanComment = { id: 'C1', body: 'Unrelated human feedback', state: 'PENDING' };
+			const pendingReview = { id: 'R1', state: 'PENDING', comments: [humanComment] };
+			const reply = { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}`, state: 'PENDING' };
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+				assert: request => {
+					assert.deepStrictEqual({
+						variables: request.graphQl?.variables,
+						selectsState: /\bstate\b/.test(request.graphQl?.query ?? ''),
+						changesReview: /submit|delete|dismiss|pullRequestReviewId/i.test(request.graphQl?.query ?? ''),
+					}, {
+						variables: { threadId: 'T1', body: reply.body },
+						selectsState: true,
+						changesReview: false,
+					});
+					pendingReview.comments.push(reply);
+				},
+				response: gitHubGraphQLResponse({ addPullRequestReviewThreadReply: { comment: reply } }),
+			}));
+			const { ref, service } = setup(server);
+
+			const result = await service.replyAndResolveThread(ref, {
+				operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
+			}, signal());
+
+			assert.deepStrictEqual({
+				reply: result.reply.outcome,
+				commentId: result.reply.value?.id,
+				resolved: result.resolved,
+				review: pendingReview,
+				requestCount: server.requests.length,
+			}, {
+				reply: 'pending',
+				commentId: '2',
+				resolved: false,
+				review: { id: 'R1', state: 'PENDING', comments: [humanComment, reply] },
+				requestCount: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	for (const resolve of [true, false]) {
+		test(`reports a published reply and respects resolve=${resolve}`, async () => {
+			await withServers(async server => {
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+					response: gitHubGraphQLResponse({
+						addPullRequestReviewThreadReply: { comment: { id: 'C2', state: 'SUBMITTED' } },
+					}),
+				}));
+				if (resolve) {
+					server.enqueue(gitHubGraphQLStep({
+						queryIncludes: 'AgentHostResolvePullRequestReviewThread',
+						response: gitHubGraphQLResponse({ resolveReviewThread: { thread: { id: 'T1', isResolved: true } } }),
+					}));
+				}
+				const { ref, service } = setup(server);
+
+				const result = await service.replyAndResolveThread(ref, {
+					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve,
+				}, signal());
+
+				assert.deepStrictEqual({
+					reply: result.reply.outcome,
+					resolved: result.resolved,
+					requestCount: server.requests.length,
+				}, { reply: 'succeeded', resolved: resolve, requestCount: resolve ? 2 : 1 });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const state of [undefined, null, 'UNKNOWN', 'submitted', 1, { state: 'SUBMITTED' }]) {
+		test(`does not resolve or replay a reply with unconfirmed publication state ${JSON.stringify(state)}`, async () => {
+			await withServers(async server => {
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+					response: gitHubGraphQLResponse({
+						addPullRequestReviewThreadReply: { comment: { id: 'C2', state } },
+					}),
+				}));
+				const { ref, service } = setup(server);
+
+				const result = await service.replyAndResolveThread(ref, {
+					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
+				}, signal());
+
+				assert.deepStrictEqual({
+					reply: result.reply.outcome,
+					commentId: result.reply.value?.id,
+					resolved: result.resolved,
+					requestCount: server.requests.length,
+				}, { reply: 'indeterminate', commentId: 'C2', resolved: false, requestCount: 1 });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'pending', state: 'PENDING', outcome: 'pending' },
+		{ name: 'published', state: 'SUBMITTED', outcome: 'reconciled' },
+		{ name: 'missing state', state: undefined, outcome: 'indeterminate' },
+		{ name: 'null state', state: null, outcome: 'indeterminate' },
+		{ name: 'unknown state', state: 'UNKNOWN', outcome: 'indeterminate' },
+		{ name: 'malformed state', state: true, outcome: 'indeterminate' },
+		{ name: 'duplicate marker', state: 'PENDING', outcome: 'indeterminate', duplicateMarker: true },
+	]) {
+		test(`reconciles an ambiguous reply through paginated queries as ${scenario.name} without replay`, async () => {
+			await withServers(async server => {
+				server.enqueue(
+					gitHubGraphQLStep({
+						queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
+						response: gitHubDisconnectResponse(),
+					}),
+					gitHubRestStep({
+						path: '/repos/octo/repo/pulls/7',
+						response: gitHubJsonResponse({
+							node_id: 'PR7', number: 7, title: 'PR', html_url: 'https://example.test/pr/7', state: 'open',
+							head: { sha: 'head-1', ref: 'feature' },
+							base: { sha: 'base-1', ref: 'main', repo: { full_name: 'octo/repo' } },
+						}),
+					}),
+					gitHubGraphQLStep({
+						queryIncludes: ['AgentHostPullRequestReviewThreads', 'state'],
+						response: gitHubGraphQLResponse({
+							repository: {
+								pullRequest: {
+									headRefOid: 'head-1',
+									reviewThreads: {
+										nodes: [{
+											id: 'T1', isResolved: false,
+											comments: {
+												nodes: [{ id: 'C1', body: scenario.duplicateMarker ? operationMarker : 'Original feedback', state: 'SUBMITTED' }],
+												pageInfo: { hasNextPage: true, endCursor: 'comments-1' },
+											},
+										}],
+										pageInfo: { hasNextPage: false, endCursor: null },
+									},
+								},
+							},
+						}),
+					}),
+					gitHubGraphQLStep({
+						queryIncludes: ['AgentHostPullRequestReviewThreadComments', 'state'],
+						assert: request => assert.deepStrictEqual(request.graphQl?.variables, { threadId: 'T1', after: 'comments-1' }),
+						response: gitHubGraphQLResponse({
+							node: {
+								comments: {
+									nodes: [{ id: 'C2', body: `reply\n\n${operationMarker}`, state: scenario.state }],
+									pageInfo: { hasNextPage: false, endCursor: null },
+								},
+							},
+						}),
+					}),
+				);
+				const published = scenario.outcome === 'reconciled';
+				if (published) {
+					server.enqueue(gitHubGraphQLStep({
+						queryIncludes: 'AgentHostResolvePullRequestReviewThread',
+						response: gitHubGraphQLResponse({ resolveReviewThread: { thread: { id: 'T1', isResolved: true } } }),
+					}));
+				}
+				const { ref, service } = setupWithQuery(server);
+
+				const result = await service.replyAndResolveThread(ref, {
+					operationId: 'operation-1', threadId: 'T1', body: 'reply', resolve: true,
+				}, signal());
+
+				assert.deepStrictEqual({
+					reply: result.reply.outcome,
+					commentId: result.reply.value?.id,
+					resolved: result.resolved,
+					requestCount: server.requests.length,
+					replies: server.requests.filter(request => request.graphQl?.query?.includes('AgentHostAddPullRequestReviewThreadReply')).length,
+				}, {
+					reply: scenario.outcome,
+					commentId: scenario.duplicateMarker ? undefined : 'C2',
+					resolved: published,
+					requestCount: published ? 5 : 4,
+					replies: 1,
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('allows intentional standalone resolution without posting or publishing a reply', async () => {
+		await withServers(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'AgentHostResolvePullRequestReviewThread',
+				assert: request => assert.deepStrictEqual(request.graphQl?.variables, { threadId: 'T1' }),
+				response: gitHubGraphQLResponse({ resolveReviewThread: { thread: { id: 'T1', isResolved: true } } }),
+			}));
+			const { ref, service } = setup(server);
+			await service.resolveThread(ref, 'T1', signal());
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('resolves only after an ambiguous reply is reconciled as published', async () => {
 		await withServers(async server => {
 			server.enqueue(
 				gitHubGraphQLStep({
@@ -470,7 +713,7 @@ suite('PullRequestMutationService', () => {
 						value: [{
 							id: 'T1',
 							isResolved: false,
-							comments: [{ id: '2', body: `reply\n\n${operationMarker}` }],
+							comments: [{ id: '2', body: `reply\n\n${operationMarker}`, state: 'SUBMITTED' }],
 						}],
 					},
 				});
@@ -492,7 +735,7 @@ suite('PullRequestMutationService', () => {
 				invalidations: resources.invalidations,
 			}, {
 				result: {
-					reply: { outcome: 'reconciled', value: { id: '2', body: `reply\n\n${operationMarker}` } },
+					reply: { outcome: 'reconciled', value: { id: '2', body: `reply\n\n${operationMarker}`, state: 'SUBMITTED' } },
 					resolved: true,
 				},
 				operations: [
@@ -508,16 +751,16 @@ suite('PullRequestMutationService', () => {
 		});
 	});
 
-	for (const outcome of ['succeeded', 'indeterminate'] as const) {
+	for (const outcome of ['succeeded', 'pending', 'indeterminate'] as const) {
 		test(`retries a proven-absent thread reply once and returns ${outcome}`, async () => {
 			await withServers(async server => {
 				server.enqueue(
 					gitHubGraphQLStep({ queryIncludes: 'AgentHostAddPullRequestReviewThreadReply', response: gitHubDisconnectResponse() }),
 					gitHubGraphQLStep({
 						queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
-						response: outcome === 'succeeded'
-							? gitHubGraphQLResponse({ addPullRequestReviewThreadReply: { comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}` } } })
-							: gitHubDisconnectResponse(),
+						response: outcome === 'indeterminate'
+							? gitHubDisconnectResponse()
+							: gitHubGraphQLResponse({ addPullRequestReviewThreadReply: { comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}`, state: outcome === 'pending' ? 'PENDING' : 'SUBMITTED' } } }),
 					}),
 				);
 				const { ref, resources, service } = setup(server);
@@ -537,7 +780,7 @@ suite('PullRequestMutationService', () => {
 					outcome: result.outcome, commentId: result.value?.id, refreshes,
 					requests: server.requests.map(request => request.graphQl?.variables),
 				}, {
-					outcome, commentId: outcome === 'succeeded' ? '2' : undefined, refreshes: 1,
+					outcome, commentId: outcome === 'indeterminate' ? undefined : '2', refreshes: 1,
 					requests: [
 						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
 						{ threadId: 'T1', body: `reply\n\n${operationMarker}` },
@@ -555,7 +798,7 @@ suite('PullRequestMutationService', () => {
 					queryIncludes: 'AgentHostAddPullRequestReviewThreadReply',
 					response: gitHubGraphQLResponse({
 						addPullRequestReviewThreadReply: {
-							comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}` },
+							comment: { id: 'C2', databaseId: 2, body: `reply\n\n${operationMarker}`, state: 'SUBMITTED' },
 						},
 					}),
 				}),
@@ -604,6 +847,7 @@ suite('PullRequestMutationService', () => {
 							createdAt: undefined,
 							updatedAt: undefined,
 							author: undefined,
+							state: 'SUBMITTED',
 						},
 					},
 					resolved: false,
@@ -1011,7 +1255,7 @@ suite('PullRequestMutationService', () => {
 
 	test('expires unused merge preparations without retaining a poller', async () => {
 		await withServers(async server => {
-			const scheduler = new FakeGitHubScheduler({ now: 0 });
+			const scheduler = new FakeScheduler({ now: 0 });
 			const { ref, service } = setup(server, completeSnapshot(server), scheduler);
 			const preparation = await service.prepareMerge(ref, 'head-1', signal());
 			scheduler.advanceBy(5 * 60_000);

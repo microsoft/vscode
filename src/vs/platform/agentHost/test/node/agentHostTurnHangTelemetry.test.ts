@@ -86,6 +86,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(): void { }
 	onTurnComplete(): void { }
 	onSessionTruncated(): void { }
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class CapturingTelemetryService implements ITelemetryService {
@@ -222,6 +224,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: clientId => clientId === 'test',
 			isClientConnected: clientId => clientId === 'test',
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => new Map([['test', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,
@@ -595,6 +598,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		disposables.add(clientConnections.registerSource({
 			hasSeenClient: clientId => clientId === 'connected-client',
 			isClientConnected: clientId => clientId === 'connected-client',
+			isLocalClient: () => false,
 			getConnectedClientTransportCounts: () => new Map([['connected-client', 1]]),
 			requestWorkspaceTrust: async () => true,
 			requestMcpAuthentication: async () => false,

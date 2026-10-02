@@ -17,6 +17,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCanvasSnapshot, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
@@ -526,6 +527,17 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				this._handleRequest(client, msg.method, msg.params, msg.id);
 			} else if (isJsonRpcNotification(msg)) {
 				this._logService.trace(`[ProtocolServer] notification: method=${msg.method}`);
+				if ((msg as { method: string }).method === 'setClientSandboxRequired') {
+					if (client) {
+						const required = ((msg as { params?: { required?: unknown } }).params)?.required;
+						if (typeof required === 'boolean') {
+							this._managedSettingsService.setClientSandboxRequired(this._managedSettingsContributionId(client.clientId), required);
+						} else {
+							this._logService.warn('[ProtocolServer] Ignoring invalid sandbox policy contribution.');
+						}
+					}
+					return;
+				}
 				if ((msg as { method: string }).method === 'setClientManagedSettingsPermissions') {
 					if (client) {
 						const permissions = ((msg as { params?: { permissions?: unknown } }).params)?.permissions;
@@ -1128,7 +1140,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -1390,6 +1402,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& record.connections.some(connection => connection.telemetryConnectionActive);
 	}
 
+	isLocalClient(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			&& record.connections.some(connection => connection.telemetryConnectionActive && this._supportsCanvases(connection));
+	}
+
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
 		const result = new Map<string, number>();
 		for (const [clientId, record] of this._clients) {
@@ -1636,7 +1654,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					_meta: params._meta,
+					_meta: _client.clientInfo ? withSessionInitiator(params._meta, _client.clientInfo) : params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					config: params.config,
@@ -1739,6 +1757,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 						...(chat.archived === true ? { archived: true } : {}),
+						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 					})),
 					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
@@ -2517,7 +2536,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
-			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

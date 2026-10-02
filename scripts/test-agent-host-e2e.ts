@@ -62,6 +62,11 @@ const suites: readonly ISuite[] = [
 		label: 'Copilot',
 		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts',
 	},
+	{
+		id: 'copilot-otel',
+		label: 'Copilot OTel',
+		file: 'src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts',
+	},
 ];
 
 async function main(): Promise<void> {
