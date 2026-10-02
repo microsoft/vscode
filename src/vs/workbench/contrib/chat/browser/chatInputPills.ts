@@ -18,7 +18,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../browser/labels.js';
 import { ChatChangesPillActionViewItem, type IChatChangesStats } from '../../../browser/chatChangesPill.js';
-import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, type ChatPillsCompactMode, type IChatPill, type IChatPillSection } from '../../../browser/chatPills.js';
+import { ChatPillsRow, ChatPillsWidget, getChatPillEntries, getChatPillEntryHoverActions, type ChatPillsCompactMode, type IChatPill, type IChatPillSection } from '../../../browser/chatPills.js';
 import { createChatSectionPill, type IChatDropdownPillOptions } from '../../../browser/chatDropdownPill.js';
 import { getSessionChatPillLabel, getSessionChatPillMenu, ISessionChatPillVisibilityService, type ISessionChatPillMenuEntry, SessionChatPillKind } from '../common/sessionChatPills.js';
 import { chatArtifactPillOptions } from './widget/chatTurnPills.js';
@@ -148,7 +148,7 @@ export class StandardChatInputPillSources extends Disposable {
 						return source.getContextMenuPrimaryActions();
 					}
 					const entries = getChatPillEntries(source.sections.get());
-					return entries.length === 1 && entries[0].promotedAction ? [entries[0].promotedAction] : [];
+					return entries.length === 1 ? getChatPillEntryHoverActions(entries[0]) : [];
 				},
 			});
 		};

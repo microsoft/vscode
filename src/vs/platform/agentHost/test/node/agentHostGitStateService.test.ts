@@ -340,6 +340,8 @@ suite('AgentHostGitStateService', () => {
 				hasGitRemote: true,
 				hasGitHubRemote: true,
 				upstreamBranchName: 'origin/main',
+				defaultBranchName: 'main',
+				defaultRemoteBranchName: 'origin/main',
 				incomingChanges: 1,
 				outgoingChanges: 2,
 				uncommittedChanges: 3,
@@ -355,6 +357,8 @@ suite('AgentHostGitStateService', () => {
 		assert.deepStrictEqual(readSessionGitState(materializedMeta), {
 			branchName: 'agents/feature',
 			baseBranchName: 'main',
+			defaultBranchName: 'main',
+			defaultRemoteBranchName: 'origin/main',
 			hasGitRemote: true,
 			hasGitHubRemote: true,
 			githubOwner: 'microsoft',

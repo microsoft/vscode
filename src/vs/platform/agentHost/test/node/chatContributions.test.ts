@@ -1363,6 +1363,106 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
+	test('queue drain forwards server-dispatched steering to the provider', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.Agent } },
+		});
+		const steering: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'server-steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.Agent } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steering));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['server-steering'],
+			senders: [undefined],
+		});
+	});
+
+	test('queue drain does not consume queued work when server steering cleanup follows cancellation', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const queued = queuedMessage('queued', 'stay paused');
+		queue.stateManager.dispatchServerAction(queue.chat, queued);
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, queued));
+		const steering: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.Agent } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steering));
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnCancelled,
+			turnId: 'active-turn',
+			duration: 1,
+		});
+		const removed: IDispatchedAction['action'] = {
+			type: ActionType.ChatPendingMessageRemoved,
+			kind: PendingMessageKind.Steering,
+			id: 'steering',
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, removed);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, removed));
+
+		assert.deepStrictEqual({
+			admitted: queue.admitted,
+			queued: queue.stateManager.getChatState(queue.chat)?.queuedMessages?.map(message => message.message.text),
+			pendingMessages: queue.pendingMessages.map(message => message?.id),
+		}, {
+			admitted: [],
+			queued: ['stay paused'],
+			pendingMessages: [undefined, 'steering', undefined],
+		});
+	});
+
+	test('queue drain does not forward client-dispatched steering twice', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const steering: IAppliedClientAction['action'] = {
+			type: ActionType.ChatPendingMessageSet,
+			kind: PendingMessageKind.Steering,
+			id: 'client-steering',
+			message: { text: 'change direction', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steering);
+		queue.service.didDispatchAction({
+			...dispatchedAction(queue.chat, queue.session, steering),
+			origin: { clientId: 'client', clientSeq: 1 },
+		});
+		queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, steering));
+
+		assert.deepStrictEqual({
+			messages: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+		}, {
+			messages: ['client-steering'],
+			senders: ['client'],
+		});
+	});
+
 	test('queue drain defers stale queued actions until a resumable turn completes', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {

@@ -110,7 +110,8 @@ export function isSessionConfigWritable(schema: SessionConfigPropertySchema | un
 
 function getSessionConfigWriteError(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>>, key: string, value: unknown, isNewSession: boolean): string | undefined {
 	const property = schema.properties[key];
-	if (!isSessionConfigWritable(property, isNewSession)
+	// readOnly controls picker edits, not settings-derived values forwarded to the host.
+	if (!property || (!isNewSession && property.sessionMutable !== true)
 		|| (key === 'approvalMode' && Object.hasOwn(schema.properties, SessionConfigKey.AutoApprove))
 		|| ((key === 'target' || key === 'baseBranch') && usesVSCodeWorkspaceProperties(schema))) {
 		return `Session configuration '${key}' is not writable.`;
@@ -130,7 +131,7 @@ export function validateSessionConfigWrite(schema: SessionConfigSchema, values: 
 	}
 }
 
-/** Retains advertised writable values without inventing defaults or renaming aliases. */
+/** Retains advertised values without inventing defaults, renaming aliases, or enforcing UI readOnly hints. */
 export function filterSessionConfigValues(schema: SessionConfigSchema, values: Readonly<Record<string, unknown>> | undefined, isNewSession = true): Record<string, unknown> {
 	return Object.fromEntries(Object.entries(values ?? {}).filter(([key, value]) =>
 		value !== undefined && !getSessionConfigWriteError(schema, values ?? {}, key, value, isNewSession)

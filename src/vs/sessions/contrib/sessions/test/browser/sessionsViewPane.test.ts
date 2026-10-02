@@ -38,20 +38,8 @@ const updateHeaderLayout = Reflect.get(SessionsView.prototype, 'updateHeaderLayo
 		readonly row: HTMLElement;
 		readonly label: HTMLElement;
 		readonly actions: HTMLElement;
-		readonly treeHeader: boolean;
 	}>;
-	readonly sessionsContent: HTMLElement | undefined;
-	readonly customizationsPresentation: string;
 	readonly layoutService: { readonly mainContainer: HTMLElement };
-	readonly isFindWidgetOpen: boolean;
-	updateFindHeaderPosition(): void;
-}) => void;
-const updateFindHeaderPosition = Reflect.get(SessionsView.prototype, 'updateFindHeaderPosition') as (this: {
-	readonly sessionsHeaders: ReadonlySet<{ readonly row: HTMLElement; readonly treeHeader: boolean }>;
-	readonly sessionsContent: HTMLElement | undefined;
-	readonly sessionsHeaderContainer: HTMLElement | undefined;
-	readonly sessionsControlContainer: HTMLElement | undefined;
-	readonly customizationsPresentation: string;
 	readonly isFindWidgetOpen: boolean;
 }) => void;
 
@@ -95,9 +83,11 @@ suite('Sessions - SessionsViewPane', () => {
 				focusAutomations: () => calls.push('focusControlAutomations'),
 				focus: () => calls.push('focusSessions'),
 			};
+			const rearrangeContextValues: boolean[] = [];
 			const host = {
 				customizationsPresentation: presentation,
 				customizationsNavigationVisible: { set: () => { } },
+				sessionsListRearrangeContext: { set: (value: boolean) => rearrangeContextValues.push(value) },
 				_customizationsWidget: presentation === 'control' ? widget : undefined,
 				sessionsControl,
 				updateHeaderLayout: () => calls.push('updateHeader'),
@@ -111,6 +101,7 @@ suite('Sessions - SessionsViewPane', () => {
 				},
 				layoutSidebarSplitView: () => calls.push('layout'),
 				calls,
+				rearrangeContextValues,
 			};
 			return host;
 		}
@@ -126,6 +117,11 @@ suite('Sessions - SessionsViewPane', () => {
 			controlCustomizations: controlCustomizations.calls,
 			treatmentAutomations: treatmentAutomations.calls,
 			hiddenCustomizations: hiddenCustomizations.calls,
+			rearrangeContextValues: [
+				controlCustomizations.rearrangeContextValues,
+				treatmentAutomations.rearrangeContextValues,
+				hiddenCustomizations.rearrangeContextValues,
+			],
 		}, {
 			controlCustomizations: [
 				'updateHeader',
@@ -149,6 +145,7 @@ suite('Sessions - SessionsViewPane', () => {
 				'focusSessions',
 				'layout',
 			],
+			rearrangeContextValues: [[true], [false], [false]],
 		});
 	});
 
@@ -350,12 +347,11 @@ suite('Sessions - SessionsViewPane', () => {
 		assert.strictEqual(hideSidePaneCalls, 2);
 	});
 
-	test('keeps the Sessions title visible during a zero-width sticky header handoff', () => {
+	test('keeps the Sessions title visible while measuring a narrow header', () => {
 		const mainContainer = mainWindow.document.createElement('div');
 		const headerRow = mainWindow.document.createElement('div');
 		const headerLabel = mainWindow.document.createElement('div');
 		const headerActions = mainWindow.document.createElement('div');
-		const sessionsContent = mainWindow.document.createElement('div');
 		headerLabel.style.display = 'none';
 		headerRow.append(headerLabel, headerActions);
 		Object.defineProperty(headerRow, 'clientWidth', { configurable: true, value: 0 });
@@ -366,13 +362,9 @@ suite('Sessions - SessionsViewPane', () => {
 				label: headerLabel,
 				actions: headerActions,
 				toolbar: undefined,
-				treeHeader: true,
 			}]),
-			sessionsContent,
-			customizationsPresentation: 'treatment',
 			layoutService: { mainContainer },
 			isFindWidgetOpen: false,
-			updateFindHeaderPosition: () => { },
 		};
 
 		updateHeaderLayout.call(host);
@@ -387,84 +379,5 @@ suite('Sessions - SessionsViewPane', () => {
 			transientDisplay: '',
 			narrowDisplay: 'none',
 		});
-	});
-
-	test('aligns Find with the visible Sessions header and follows the sticky handoff', () => {
-		const sessionsContent = mainWindow.document.createElement('div');
-		const sessionsHeaderContainer = mainWindow.document.createElement('div');
-		const sessionsControlContainer = mainWindow.document.createElement('div');
-		const stableHeaderRow = mainWindow.document.createElement('div');
-		const sourceHeader = mainWindow.document.createElement('div');
-		const stickyRow = mainWindow.document.createElement('div');
-		const stickyHeader = mainWindow.document.createElement('div');
-		stickyRow.classList.add('monaco-tree-sticky-row');
-		stickyRow.appendChild(stickyHeader);
-		sessionsHeaderContainer.appendChild(stableHeaderRow);
-
-		const setVerticalBounds = (element: HTMLElement, top: number, bottom: number) => {
-			Object.defineProperty(element, 'getBoundingClientRect', {
-				configurable: true,
-				value: () => ({ top, bottom, height: bottom - top }),
-			});
-		};
-		setVerticalBounds(sessionsContent, 100, 600);
-		setVerticalBounds(sessionsHeaderContainer, 100, 140);
-		setVerticalBounds(stableHeaderRow, 101, 133);
-		setVerticalBounds(sessionsControlContainer, 110, 500);
-		setVerticalBounds(sourceHeader, 180, 212);
-		setVerticalBounds(stickyHeader, 120, 152);
-
-		const host = {
-			sessionsContent,
-			sessionsHeaderContainer,
-			sessionsControlContainer,
-			sessionsHeaders: new Set([
-				{ row: stableHeaderRow, treeHeader: false },
-				{ row: sourceHeader, treeHeader: true },
-				{ row: stickyHeader, treeHeader: true },
-			]),
-			customizationsPresentation: 'treatment',
-			isFindWidgetOpen: true,
-		};
-
-		updateFindHeaderPosition.call(host);
-		const stickyPosition = sessionsHeaderContainer.style.top;
-		setVerticalBounds(stickyHeader, 600, 632);
-		updateFindHeaderPosition.call(host);
-		const sourcePosition = sessionsHeaderContainer.style.top;
-		setVerticalBounds(sourceHeader, 600, 632);
-		updateFindHeaderPosition.call(host);
-
-		assert.deepStrictEqual({
-			stickyPosition,
-			sourcePosition,
-			retainedPositionWithoutVisibleHeader: sessionsHeaderContainer.style.top,
-		}, {
-			stickyPosition: '19px',
-			sourcePosition: '79px',
-			retainedPositionWithoutVisibleHeader: '79px',
-		});
-	});
-
-	test('positions the Find header only while open in treatment', () => {
-		const sessionsContent = mainWindow.document.createElement('div');
-		const host = {
-			sessionsHeaders: new Set<{ readonly row: HTMLElement; readonly label: HTMLElement; readonly actions: HTMLElement; readonly treeHeader: boolean }>(),
-			sessionsContent,
-			customizationsPresentation: 'treatment',
-			layoutService: { mainContainer: mainWindow.document.createElement('div') },
-			isFindWidgetOpen: true,
-			updateFindHeaderPosition: () => { },
-		};
-
-		updateHeaderLayout.call(host);
-		const findOpen = sessionsContent.classList.contains('sessions-find-header-open');
-		host.isFindWidgetOpen = false;
-		updateHeaderLayout.call(host);
-
-		assert.deepStrictEqual([
-			findOpen,
-			sessionsContent.classList.contains('sessions-find-header-open'),
-		], [true, false]);
 	});
 });

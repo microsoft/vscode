@@ -1565,6 +1565,122 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('streams an attached shell into its returned tool call terminal and the shell entry until it completes', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-bg');
+			const terminal = defaultNonPtyShellTerminalUri('tc-bg');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-bg',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run bg', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.backgroundTasks = [shell('bg')];
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-bg',
+				success: true,
+				result: { content: '<command started in background with shellId: bg>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\ntick 2\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+			mockSession.fire('system.notification', {
+				content: '<system_notification>\nShell command completed\n</system_notification>',
+				kind: { type: 'shell_completed', shellId: 'bg', exitCode: 0, description: 'npm test' },
+			} as SessionEventPayload<'system.notification'>['data']);
+			mockSession.fire('tool.execution_partial_result', { toolCallId: 'tc-bg', partialOutput: 'tick 1\ntick 2\ntick 3\n' } as SessionEventPayload<'tool.execution_partial_result'>['data']);
+
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
+			assert.deepStrictEqual({
+				toolCallTerminal: completed.result.content?.find(part => part.type === ToolResultContentType.Terminal),
+				work: workActions(signals),
+				data: terminalManager.outputTerminalData,
+				finalized: terminalManager.outputTerminalsFinalized,
+				disposed: terminalManager.disposedTerminals,
+			}, {
+				toolCallTerminal: { type: ToolResultContentType.Terminal, resource: terminal, title: 'Run Shell Command', isPty: false },
+				work: [{
+					type: ActionType.ChatBackgroundWorkSet,
+					work: {
+						kind: BackgroundWorkKind.Shell, id: 'shell:bg', label: 'Run bg', command: 'npm test',
+						startedAt: new Date(0).toISOString(), terminal,
+						_meta: toCopilotBackgroundShellMeta('bg', 'attached'),
+					},
+				}],
+				data: [{ uri: terminal, data: 'tick 1\n' }, { uri: terminal, data: 'tick 2\n' }],
+				finalized: [{ uri: terminal, exitCode: 0 }],
+				disposed: [],
+			});
+		});
+
+		test('settles a background shell from a read_bash result when the runtime sends no shell_completed', async () => {
+			const { session, mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			session.resetTurnState('turn-poll');
+			const terminal = defaultNonPtyShellTerminalUri('tc-poll');
+			mockSession.backgroundTasks = [shell('poll')];
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-poll',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run poll', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-poll',
+				success: true,
+				result: { content: '<command started in background with shellId: poll>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-read',
+				toolName: 'read_bash',
+				arguments: { shellId: 'poll', delay: 5 },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-read',
+				success: true,
+				result: { content: 'tick\n<shellId: poll completed with exit code 0>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete) && (signal.action as ChatToolCallCompleteAction).toolCallId === 'tc-read');
+
+			const read = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete && action.toolCallId === 'tc-read') as ChatToolCallCompleteAction;
+			assert.deepStrictEqual({
+				finalized: terminalManager.outputTerminalsFinalized,
+				created: terminalManager.outputTerminalsCreated.map(created => created.uri),
+				readContent: read.result.content?.map(content => content.type),
+			}, {
+				finalized: [{ uri: terminal, exitCode: 0 }],
+				created: [terminal],
+				readContent: [ToolResultContentType.Text],
+			});
+		});
+
+		test('settles a background shell from a task read that a newer read superseded', async () => {
+			const { mockSession, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			const terminal = defaultNonPtyShellTerminalUri('tc-gone');
+			mockSession.backgroundTasks = [shell('gone')];
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-gone',
+				toolName: 'bash',
+				arguments: { command: 'npm test', description: 'Run gone', mode: 'async' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-gone',
+				success: true,
+				result: { content: '<command started in background with shellId: gone>' },
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
+			await waitForSignal(signal => isAction(signal, ActionType.ChatBackgroundWorkSet));
+
+			// The first read sees the shell gone but is superseded; the newer read fails, so only the first can settle it.
+			const gate = new DeferredPromise<void>();
+			mockSession.backgroundTaskListResults.push([]);
+			mockSession.backgroundTaskListGates.push(gate.p);
+			mockSession.fire('session.background_tasks_changed', {});
+			await timeout(0);
+			mockSession.backgroundTaskListError = new Error('temporary task-list failure');
+			mockSession.fire('session.background_tasks_changed', {});
+			await gate.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual(terminalManager.outputTerminalsFinalized, [{ uri: terminal, exitCode: undefined }]);
+		});
+
 		test('publishes attached and detached active shells but not foreground or finished tasks', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.backgroundTasks = [
@@ -9371,7 +9487,7 @@ suite('CopilotAgentSession', () => {
 		for (const platform of ['darwin', 'win32'] as const) {
 			test(`queries and publishes SDK sandbox diagnostics on ${platform}`, async () => {
 				let queries = 0;
-				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On, [AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On };
+				const sandbox = { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On };
 				const { session, mockSession, dispatchedActions, fireRootConfigChange } = await createAgentSession(disposables, {
 					platform,
 					rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
@@ -9475,7 +9591,6 @@ suite('CopilotAgentSession', () => {
 					const resource = peerChat ? URI.parse(buildChatUri(sessionUri, 'sandbox-peer')) : undefined;
 					const sandbox = {
 						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 					};
 					const results = [];
 					for (const selection of ['off', 'on', 'default']) {
@@ -9754,7 +9869,6 @@ suite('CopilotAgentSession', () => {
 					rootValues: {
 						[AgentHostSandboxConfigKey.Sandbox]: {
 							[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
-							[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 							[AgentHostSandboxKey.AllowNetwork]: true,
 							[AgentHostSandboxKey.AllowUnsandboxedCommands]: false,
 						},
@@ -9764,17 +9878,49 @@ suite('CopilotAgentSession', () => {
 				const denied = mockSession.sandboxConfigUpdates.at(-1);
 				sandboxPolicy.allowOutbound = true;
 				await session.send('second', undefined, 'turn-2');
+				const attachmentsPath = platform === 'win32' ? TEST_SESSION_ATTACHMENTS_DIR.replace(/\//g, '\\') : TEST_SESSION_ATTACHMENTS_DIR;
 				assert.deepStrictEqual({ denied, allowed: mockSession.sandboxConfigUpdates.at(-1) }, {
-					denied: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: false } } },
-					allowed: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [TEST_SESSION_ATTACHMENTS_DIR] }, network: { allowOutbound: true } } },
+					denied: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [attachmentsPath] }, network: { allowOutbound: false } } },
+					allowed: { enabled: true, allowBypass: false, auth: { git: true, gh: true }, userPolicy: { filesystem: { readonlyPaths: [attachmentsPath] }, network: { allowOutbound: true } } },
 				});
 			});
+
+			for (const [key, managedValue] of [
+				[AgentHostSandboxKey.SandboxMcpServers, true],
+				[AgentHostSandboxKey.SandboxLspServers, true],
+				[AgentHostSandboxKey.AllowDevToolAccess, false],
+				[AgentHostSandboxKey.AllowLocalNetwork, false],
+			] as const) {
+				test(`per-request sandbox: enforces ${key} and restores local choices on ${platform}`, async () => {
+					for (const local of [false, true]) {
+						const sandboxPolicy: { enabled: boolean; sandboxMcpServers?: boolean; sandboxLspServers?: boolean; allowDevToolAccess?: boolean; allowLocalNetwork?: boolean } = { enabled: true };
+						const { session, mockSession } = await createAgentSession(disposables, {
+							platform,
+							sandboxPolicy,
+							rootValues: {
+								[AgentHostSandboxConfigKey.Sandbox]: {
+									[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+									[key]: local,
+								},
+							},
+						});
+						const values = [];
+						for (const [index, managed] of [managedValue, !managedValue, undefined].entries()) {
+							sandboxPolicy[key] = managed;
+							await session.send('hello', undefined, `turn-${index}`);
+							const applied = mockSession.sandboxConfigUpdates.at(-1) as SandboxConfig;
+							values.push(key === AgentHostSandboxKey.AllowLocalNetwork ? applied.userPolicy?.network?.allowLocalNetwork : applied[key]);
+						}
+						assert.deepStrictEqual(values, [managedValue, local, local]);
+					}
+				});
+			}
 		}
 
 		test('per-request sandbox: applies the configured policy on Windows', async () => {
 			const sandbox = {
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:/src3/'], allowRead: ['C:\\src3\\'] },
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+				[AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: ['C:/src3/'], readonlyPaths: ['C:\\src3\\'] },
 			};
 			const { session, mockSession } = await createAgentSession(disposables, {
 				rootValues: { [AgentHostSandboxConfigKey.Sandbox]: sandbox },
@@ -9785,7 +9931,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates.at(-1), expectedSessionSandboxConfig('win32', {
 				...sandbox,
-				[AgentHostSandboxKey.WindowsFileSystem]: { denyRead: ['C:\\src3\\'] },
+				[AgentHostSandboxKey.UserConfiguredPaths]: { deniedPaths: ['C:\\src3\\'] },
 			}));
 		});
 
@@ -9827,7 +9973,6 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.sandboxConfigUpdates, [
 				expectedSessionSandboxConfig('linux', {
 					[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-					[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
 				}),
 				{ enabled: false },
 			]);
@@ -12797,8 +12942,9 @@ Use the attached image as context.
 			));
 		});
 
-		test('background shell does not create an output-only terminal', async () => {
+		test('background shell without early output gets an output-only terminal that streams until shell_completed', async () => {
 			const { mockSession, signals, waitForSignal, terminalManager } = await createAgentSession(disposables);
+			const terminalUri = defaultNonPtyShellTerminalUri('tc-background');
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-background',
 				toolName: 'bash',
@@ -12811,24 +12957,27 @@ Use the attached image as context.
 			} as SessionEventPayload<'tool.execution_complete'>['data']);
 			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
 
-			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
-			assert.ok(!completed.result.content?.some(content => content.type === ToolResultContentType.Terminal));
-			assert.deepStrictEqual(terminalManager.outputTerminalsCreated, []);
-
 			mockSession.fire('tool.execution_partial_result', {
 				toolCallId: 'tc-background',
 				partialOutput: 'late output\n',
 			} as SessionEventPayload<'tool.execution_partial_result'>['data']);
-
 			mockSession.fire('system.notification', {
 				content: '<system_notification>Shell command completed</system_notification>',
 				kind: { type: 'shell_completed', shellId: 'shell-bg', exitCode: 7, description: 'long-running-command' },
 			} as SessionEventPayload<'system.notification'>['data']);
+
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete) as ChatToolCallCompleteAction;
 			assert.deepStrictEqual({
-				created: terminalManager.outputTerminalsCreated,
+				terminal: completed.result.content?.find(content => content.type === ToolResultContentType.Terminal),
+				created: terminalManager.outputTerminalsCreated.map(terminal => terminal.uri),
 				data: terminalManager.outputTerminalData,
 				finalized: terminalManager.outputTerminalsFinalized,
-			}, { created: [], data: [], finalized: [] });
+			}, {
+				terminal: { type: ToolResultContentType.Terminal, resource: terminalUri, title: 'Run Shell Command', isPty: false },
+				created: [terminalUri],
+				data: [{ uri: terminalUri, data: 'late output\n' }],
+				finalized: [{ uri: terminalUri, exitCode: 7 }],
+			});
 		});
 
 		test('background shell output remains live until its session is disposed', async () => {
