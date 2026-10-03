@@ -120,6 +120,10 @@ export class WorkingCopyHistoryModel {
 	}
 
 	async addEntry(source = WorkingCopyHistoryModel.FILE_SAVED_SOURCE, sourceDescription: string | undefined = undefined, timestamp = Date.now(), token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
+
+		// Make sure to await resolving when adding an entry
+		await this.resolveEntriesOnce();
+
 		let entryToReplace: IWorkingCopyHistoryEntry | undefined = undefined;
 
 		// Figure out if the last entry should be replaced based
