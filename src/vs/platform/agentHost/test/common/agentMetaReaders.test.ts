@@ -12,7 +12,7 @@ import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerSource, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerDisplayName, readMcpServerSource, withMcpServerDisplayNameMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -111,8 +111,8 @@ suite('Agent host _meta readers', () => {
 		})?.role, 'judge');
 	});
 
-	test('validates MCP configuration sources and merges them into open metadata', () => {
-		const read = (meta: Record<string, unknown> | undefined) => readMcpServerSource({
+	test('validates MCP presentation metadata and preserves opaque entries', () => {
+		const server = (meta: Record<string, unknown> | undefined) => ({
 			type: CustomizationType.McpServer,
 			id: 'server',
 			uri: 'mcp-top-level:server',
@@ -121,18 +121,21 @@ suite('Agent host _meta readers', () => {
 			_meta: meta,
 		} satisfies McpServerCustomization);
 		const opaque = { 'test.opaque': 'kept' };
+		const merged = withMcpServerDisplayNameMeta(withMcpServerSourceMeta(opaque, 'user'), ' Mail ');
 
 		assert.deepStrictEqual({
 			sources: [
-				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => read(withMcpServerSourceMeta(undefined, source))),
-				...[undefined, 'unknown', 1, {}, ['user']].map(source => read({ 'agentHost.mcpServerSource': source })),
-				read(undefined),
+				...(['user', 'workspace', 'plugin', 'builtin', 'managed'] as const).map(source => readMcpServerSource(server(withMcpServerSourceMeta(undefined, source)))),
+				...[undefined, 'unknown', 1, {}, ['user']].map(source => readMcpServerSource(server({ 'agentHost.mcpServerSource': source }))),
+				readMcpServerSource(server(undefined)),
 			],
-			replaced: withMcpServerSourceMeta(withMcpServerSourceMeta(opaque, 'user'), 'workspace'),
+			displayNames: [' Mail ', '', 'x'.repeat(513), 1].map(displayName => readMcpServerDisplayName(server({ 'vscode.mcpServerDisplayName': displayName }))),
+			merged,
 			unchanged: withMcpServerSourceMeta(opaque, undefined) === opaque,
 		}, {
 			sources: ['user', 'workspace', 'plugin', 'builtin', 'managed', undefined, undefined, undefined, undefined, undefined, undefined],
-			replaced: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' },
+			displayNames: ['Mail', undefined, undefined, undefined],
+			merged: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user', 'vscode.mcpServerDisplayName': 'Mail' },
 			unchanged: true,
 		});
 	});
