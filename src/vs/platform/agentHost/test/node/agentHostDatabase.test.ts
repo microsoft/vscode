@@ -330,6 +330,48 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	test('recovery atomically excludes current foreign ownership and preserves source membership', async () => {
+		database = new AgentHostDatabase(':memory:');
+		const source = 'copilotcli:/source';
+		const target = 'copilotcli:/target';
+		for (const session of [source, target]) {
+			await database.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		await database.replaceSessionChatCatalog(source, [{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' }], undefined);
+		await database.replaceSessionChatCatalog(target, [], undefined);
+		const claim = database.replaceSessionChatCatalog(target, [
+			{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' },
+		], 1);
+		const recovery = database.recoverSessionChatCatalog(source, [
+			{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
+			{ chat: 'ahp-chat://moved', order: 1, providerData: 'historical' },
+			{ chat: 'ahp-chat://missing', order: 2, providerData: 'recovered' },
+		], 1);
+		await Promise.all([claim, recovery]);
+		const sourceAfter = await database.getSessionChatCatalog(source);
+		const targetAfter = await database.getSessionChatCatalog(target);
+		const staleRecovery = await database.recoverSessionChatCatalog(source, [], 1);
+		await database.tombstoneAndUnregisterSession(source);
+		const deletedRecovery = await database.recoverSessionChatCatalog(source, [], 2);
+
+		assert.deepStrictEqual({
+			source: sourceAfter?.chats,
+			target: targetAfter?.chats,
+			staleRecovery,
+			deletedRecovery,
+			sourceAfterDeletion: await database.getSessionChatCatalog(source),
+		}, {
+			source: [
+				{ chat: 'ahp-chat://existing', order: 0, archived: true, providerData: 'current' },
+				{ chat: 'ahp-chat://missing', order: 1, providerData: 'recovered' },
+			],
+			target: [{ chat: 'ahp-chat://moved', order: 0, providerData: 'target-current' }],
+			staleRecovery: { status: 'conflict' },
+			deletedRecovery: { status: 'tombstoned' },
+			sourceAfterDeletion: undefined,
+		});
+	});
+
 	test('sequences chat catalog reads behind queued replacements', async () => {
 		const sequencedDatabase = new AgentHostDatabase(':memory:');
 		database = sequencedDatabase;

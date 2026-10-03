@@ -8,7 +8,6 @@ import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService
 import { supportsAgentHostTiming } from '../../common/meta/agentHostTimingMeta.js';
 import { supportsAgentHostSessionImport } from '../../common/meta/agentHostSessionImportMeta.js';
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
-import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { readSessionInitiator, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { type IAgentHostFirstResponseDiagnostic } from '../../common/otel/agentHostTiming.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
@@ -2324,26 +2323,6 @@ suite('ProtocolServerHandler', () => {
 
 		const result = (resp as unknown as { result: ListSessionsResult }).result;
 		assert.deepStrictEqual(result.items.map(item => readSessionExternal(item._meta)), [true]);
-	});
-
-	test('listSessions carries the provider-qualified Codex model on namespaced _meta', async () => {
-		agentService.listedSessions.push({
-			session: URI.parse(sessionUri),
-			startTime: 1000,
-			modifiedTime: 2000,
-			summary: 'Codex Session',
-			model: { id: '@provider=openai:gpt-5.6-sol' },
-			_meta: withCodexSessionModel(undefined, { id: '@provider=openai:gpt-5.6-sol' }),
-		});
-
-		const transport = connectClient('client-list-codex-model');
-		transport.sent.length = 0;
-		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'listSessions'));
-		const response = await responsePromise;
-		const result = (response as unknown as { result: ListSessionsResult }).result;
-
-		assert.deepStrictEqual(result.items.map(item => readCodexSessionModel(item)), [{ id: '@provider=openai:gpt-5.6-sol' }]);
 	});
 
 	test('listSessions carries ordered lightweight chats and default chat identity', async () => {

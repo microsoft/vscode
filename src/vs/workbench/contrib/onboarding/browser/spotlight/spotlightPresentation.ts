@@ -320,10 +320,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 	private async _showStep(overlay: SpotlightOverlay, context: IOnboardingRunContext, step: ISpotlightStep, target: IOnboardingTarget, index: number, stepCount: number, canGoBack: boolean, isLastStep: boolean): Promise<StepEnd> {
 		const stepStore = new DisposableStore();
-		const cancellation = new CancellationTokenSource();
-		stepStore.add(toDisposable(() => cancellation.dispose(true)));
 		let ended = false;
-		let actionStarted = false;
 		let resolveStep: (end: StepEnd) => void;
 		const result = new Promise<StepEnd>(resolve => resolveStep = resolve);
 		const done = (end: StepEnd) => {
@@ -335,25 +332,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			resolveStep(end);
 		};
 
-		stepStore.add(overlay.onDidClickNext(async via => {
-			if (!step.primaryAction || via !== 'button') {
-				done({ action: 'next', via });
-				return;
-			}
-			if (ended || actionStarted) {
-				return;
-			}
-			actionStarted = true;
-			overlay.setPrimaryActionEnabled(false);
-			try {
-				await step.primaryAction.run(cancellation.token);
-			} catch (error) {
-				if (!ended) {
-					onUnexpectedError(error);
-					done({ action: 'abort' });
-				}
-			}
-		}));
+		stepStore.add(overlay.onDidClickNext(via => done({ action: 'next', via })));
 		stepStore.add(overlay.onDidClickPrevious(() => done({ action: 'back' })));
 		stepStore.add(overlay.onDidSkip(reason => done({ action: 'skip', reason })));
 		stepStore.add(overlay.onDidLoseTarget(() => done({ action: 'missingTarget' })));
@@ -362,17 +341,16 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 		const content: ISpotlightContent = {
 			title: step.title,
 			description: step.description,
-			nextButtonLabel: step.primaryAction?.label ?? step.nextButtonLabel,
+			nextButtonLabel: step.nextButtonLabel,
 			stepIndex: index,
 			stepCount,
 			canGoBack,
 			isLastStep,
-			showEndTour: !!step.primaryAction,
 		};
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasOnboardingTargetSelection(target.element) : step.openTarget;
 		if (step.advanceOnTargetSelection) {
-			stepStore.add((target.onDidSelect ?? onDidSelectOnboardingTarget(target.element))(async accepted => {
+			stepStore.add(onDidSelectOnboardingTarget(target.element)(async accepted => {
 				try {
 					if (await accepted) {
 						done({ action: 'next', via: 'condition' });
@@ -388,12 +366,11 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			placement: step.placement,
 			allowTargetInteraction: step.allowTargetInteraction,
 			advanceOnTargetClick: step.advanceOnTargetClick,
-			hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
+			hideNext: step.advanceWhen ? true : step.hideNext,
 			targetOverlayVisible: openTarget,
 			padding: step.padding,
 		});
 		context.onDidShow?.();
-		step.onDidShow?.();
 
 		if (step.advanceWhen) {
 			const keys = new Set(step.advanceWhen.keys());
