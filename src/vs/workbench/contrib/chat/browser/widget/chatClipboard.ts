@@ -16,6 +16,21 @@ export function getLinkTarget(element: Element): string {
 	return (element.getAttribute('data-href') || element.getAttribute('href') || '').trim();
 }
 
+/** Removes transcript implementation details that are not rendered to the user. */
+export function removeUnrenderedChatClipboardContent(fragment: DocumentFragment): string[] {
+	const removedText: string[] = [];
+
+	// eslint-disable-next-line no-restricted-syntax -- operating on a detached fragment
+	for (const element of Array.from(fragment.querySelectorAll('style, [hidden], [style]'))) {
+		if (element.tagName === 'STYLE' || element.hasAttribute('hidden') || (element as HTMLElement).style.display === 'none') {
+			removedText.push(element.textContent ?? '');
+			element.remove();
+		}
+	}
+
+	return removedText;
+}
+
 /** Replaces an element with the text a reader saw, marked up as code. */
 function replaceWithLabel(element: Element, label: string): void {
 	if (!label.trim()) {
