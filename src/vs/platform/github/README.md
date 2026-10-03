@@ -40,6 +40,23 @@ At most 64 clients are retained across authorization, anonymous and bootstrap co
 
 Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
 
+### Cloud API domains
+
+Authorization-scoped clients also expose [automations](common/githubAutomations.ts), [cloud tasks](common/githubCloudTasks.ts), and [environments](common/githubEnvironments.ts). They are inert until called. No existing automation or cloud-sandbox consumer is migrated to them.
+
+The hosting binding must explicitly supply `GitHubClientOptions.cloud`: the complete approved agents API base, its `Copilot-Integration-Id`, and an API version only if that endpoint requires one. For the current Copilot gateway, the base is `https://api.githubcopilot.com/agents`. There is no automatic GitHub REST/internal-proxy fallback, enterprise endpoint derivation, or endpoint discovery. REST identification headers are not inherited, even on a shared origin. Cloud endpoint and header selections participate in lease identity alongside provider, session, account provenance, scopes and issuer. The selected grant supplies the bearer credential; choosing compatible scopes, consent and account-specific enterprise endpoints remains the binding's responsibility.
+
+- Automation definitions support bounded, ordered list/detail hydration, CRUD (including `disabled`), and dispatch requiring HTTP 202. Repository privacy is data, not an engine-enforced eligibility policy. Create and PATCH forward the caller's fields; permission and trigger policy remain caller-owned. PATCH uses `application/merge-patch+json`.
+- Automation run history delegates to the task domain. Task operations expose list/detail, creation, deletion, steering/abort and raw events. Creating an environment-bound task does not send a first turn. AHP history selects `application/vnd.github.ahp+json` and validates completeness without replaying events or projecting session state.
+- Lists fetch at most ten pages of at most 100 items each, hydrating definitions in batches of five. A capped result explicitly reports `complete: false` and `nextPage`; failed or malformed pages reject rather than appear empty or complete. One credential generation is captured for the entire operation.
+- Connect/reconnect return either a validated connection token or a waking result. HTTP 202 `Retry-After` is returned to the caller, not treated as a rate limit. An absent header remains `undefined`; reconnect timing belongs to the caller.
+
+All domains use the existing client transport, runtime admission queue and telemetry. Agents quota feedback is isolated from ordinary REST/GraphQL quotas and uses explicit HTTP 429/rate-limited 403 refusals, not assumed REST quota headers. Cloud requests never follow redirects. Connection-credential GETs are non-coalesced, non-cached, and non-retried; connection material and cloud error bodies are never retained in diagnostics. Ordinary reads retain authorization-scoped conditional caching and bounded transient retries.
+
+Writes, including credential-minting GETs, are never automatically replayed. Definite pre-dispatch failures and HTTP 4xx refusals reject normally; unconfirmed post-dispatch outcomes throw `GitHubCloudMutationUncertainError`. Callers own reconciliation and any subsequent decision to retry. UI/provider registration, scheduling, policy, relay/WebSocket/AHP lifecycle and shared-process authentication are outside these capabilities.
+
+These contracts are covered by offline tests; mocks do not establish deployed gateway parity, token-scope support or live CRUD success.
+
 ### Anonymous public reads
 
 `acquireAnonymousClient` is an explicit, read-only capability for an approved HTTPS API base. It does not select an account, invoke a credential provider, resolve `/user`, or acquire scopes. Anonymous-only hosts can construct the engine without a credential provider; attempting to acquire an authenticated client then fails explicitly.

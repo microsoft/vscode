@@ -14,6 +14,20 @@ const unhintedRateLimitCooldown = 60_000;
 /** Interprets GitHub quota headers and GraphQL feedback using shared cooldown storage. */
 export class GitHubRateLimitCoordinator extends CooldownState {
 
+	/** Agents quotas are independent of REST/GraphQL; successful Retry-After responses can mean waking. */
+	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
+		if (!isRateLimited(response.status, responseBody)) {
+			return;
+		}
+		const now = this._scheduler.now();
+		const delay = (parseRetryAfter(response.headers.get('retry-after'), now, true) ?? 0) * 1000;
+		const key = this._key(account, 'agents');
+		this._states.set(key, {
+			blockedUntil: Math.max(this._states.get(key)?.blockedUntil ?? 0, now + (delay > 0 ? delay : unhintedRateLimitCooldown)),
+		});
+		this._onDidChange.fire();
+	}
+
 	updateFromResponse(account: RequestAccount, response: Response, responseBody?: string, fallbackResource = 'core'): void {
 		const resource = response.headers.get('x-ratelimit-resource') ?? fallbackResource;
 		const isGraphQL = resource === 'graphql';
