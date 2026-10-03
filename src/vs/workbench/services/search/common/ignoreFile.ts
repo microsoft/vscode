@@ -9,10 +9,11 @@ import { startsWithIgnoreCase } from '../../../../base/common/strings.js';
 export class IgnoreFile {
 
 	private isPathIgnored: (path: string, isDir: boolean, parent?: IgnoreFile) => boolean;
+	private readonly location: string;
 
 	constructor(
 		contents: string,
-		private readonly location: string,
+		location: string,
 		private readonly parent?: IgnoreFile,
 		private readonly ignoreCase = false) {
 		if (location[location.length - 1] === '\\') {
@@ -21,6 +22,11 @@ export class IgnoreFile {
 		if (location[location.length - 1] !== '/') {
 			location += '/';
 		}
+		// Assign the field after normalization. Using a parameter property
+		// would capture the value before the trailing slash is appended,
+		// which causes patterns to be tested against an unanchored path
+		// (see #226136).
+		this.location = location;
 		this.isPathIgnored = this.parseIgnoreFile(contents, this.location, this.parent);
 	}
 
