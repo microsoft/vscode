@@ -37,7 +37,11 @@ function isDropIntoEditorEnabledGlobally(configurationService: IConfigurationSer
 }
 
 function isDragIntoEditorEvent(e: DragEvent): boolean {
-	return e.shiftKey;
+	if (e.dataTransfer?.types.includes(DataTransfers.INTERNAL_URI_LIST)) {
+		return e.shiftKey;
+	} else {
+		return true;
+	}
 }
 
 class DropOverlay extends Themable {
