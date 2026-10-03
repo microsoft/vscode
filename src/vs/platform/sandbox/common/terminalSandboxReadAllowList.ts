@@ -5,7 +5,7 @@
 
 import { OperatingSystem } from '../../../base/common/platform.js';
 import type { ITerminalSandboxCommand } from './terminalSandboxService.js';
-import { type ITerminalSandboxCommandRule, matchesTerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
+import { getTerminalSandboxCommandRuleValuesForAllCommands, type ITerminalSandboxCommandRule } from './terminalSandboxCommandRules.js';
 
 export const enum TerminalSandboxReadAllowListOperation {
 	Git = 'git',
@@ -27,7 +27,6 @@ export const enum TerminalSandboxReadAllowListOperation {
 const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandboxReadAllowListOperation> = new Map([
 	['git', TerminalSandboxReadAllowListOperation.Git],
 	['gh', TerminalSandboxReadAllowListOperation.Git],
-	['gpg', TerminalSandboxReadAllowListOperation.GnuPG],
 	['node', TerminalSandboxReadAllowListOperation.Node],
 	['npm', TerminalSandboxReadAllowListOperation.Node],
 	['npx', TerminalSandboxReadAllowListOperation.Node],
@@ -339,16 +338,8 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 }
 
 function getTerminalSandboxReadAllowListForCommandDetails(os: OperatingSystem, commandDetails: readonly ITerminalSandboxCommand[]): readonly string[] {
-	const operations = new Set<TerminalSandboxReadAllowListOperation>();
-	for (const command of commandDetails) {
-		for (const rule of terminalSandboxReadAllowListCommandDetailRules) {
-			if (matchesTerminalSandboxCommandRule(command, rule, { os })) {
-				operations.add(rule.value);
-			}
-		}
-	}
-
-	const paths = [...operations].flatMap(operation => getTerminalSandboxReadAllowListForOperation(operation, os));
+	const operations = getTerminalSandboxCommandRuleValuesForAllCommands(commandDetails, terminalSandboxReadAllowListCommandDetailRules, { os });
+	const paths = operations.flatMap(operation => getTerminalSandboxReadAllowListForOperation(operation, os));
 	return [...new Set(paths)];
 }
 
