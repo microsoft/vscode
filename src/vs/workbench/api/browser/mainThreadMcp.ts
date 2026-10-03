@@ -162,8 +162,11 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 	}
 
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, serversDto: McpServerDefinition.Serialized[]): void {
+		const extAuthority = this._extHostContext.remoteAuthority || '';
+		const uniqueId = extAuthority ? `${collection.id}.${extAuthority}` : collection.id;
+
 		const servers = serversDto.map(McpServerDefinition.fromSerialized);
-		const existing = this._collectionDefinitions.get(collection.id);
+		const existing = this._collectionDefinitions.get(uniqueId);
 		if (existing) {
 			existing.servers.set(servers, undefined);
 		} else {
@@ -174,6 +177,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const register = () => {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,
+					id: uniqueId,
 					provenance: McpCollectionProvenance.Extension,
 					source: extensionId,
 					order: McpCollectionSortOrder.Extension,
