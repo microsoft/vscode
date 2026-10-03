@@ -423,6 +423,12 @@ export class SCMService implements ISCMService {
 		return repository;
 	}
 
+	dispose(): void {
+		this.inputHistory.dispose();
+		this._onDidAddProvider.dispose();
+		this._onDidRemoveProvider.dispose();
+	}
+
 	getRepository(id: string): ISCMRepository | undefined;
 	getRepository(resource: URI): ISCMRepository | undefined;
 	getRepository(idOrResource: string | URI): ISCMRepository | undefined {
