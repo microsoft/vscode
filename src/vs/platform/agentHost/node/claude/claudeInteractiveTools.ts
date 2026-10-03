@@ -93,7 +93,10 @@ function askUserQuestionId(header: string, idx: number): string {
 /**
  * Project the parsed SDK questions into the workbench's
  * {@link ChatInputQuestion} shape. `multiSelect` flips the question
- * kind; the rest of the fields map 1:1.
+ * kind; the rest of the fields map 1:1. `allowFreeformInput` defaults
+ * to `true`: the SDK's tool schema tells the model not to offer an
+ * "Other" option because the harness UI provides one automatically,
+ * so an absent flag must surface the freeform field.
  */
 export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestionInput): ChatInputQuestion[] {
 	return askInput.questions.map((q, idx) => {
@@ -110,7 +113,7 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 				title: q.header,
 				message: q.question,
 				options: opts,
-				allowFreeformInput: q.allowFreeformInput ?? false,
+				allowFreeformInput: q.allowFreeformInput ?? true,
 			}
 			: {
 				id,
@@ -118,7 +121,7 @@ export function buildAskUserSessionInputQuestions(askInput: ParsedAskUserQuestio
 				title: q.header,
 				message: q.question,
 				options: opts,
-				allowFreeformInput: q.allowFreeformInput ?? false,
+				allowFreeformInput: q.allowFreeformInput ?? true,
 			};
 	});
 }
