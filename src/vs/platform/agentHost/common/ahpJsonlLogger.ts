@@ -11,6 +11,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AHP_CANVAS_SCHEME } from './canvasUri.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -56,7 +57,11 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // When trimming an oversized entry, individual string values are capped to this
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
+const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
 
 export class AhpJsonlLogger extends Disposable {
 
@@ -251,6 +256,17 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  * would otherwise be required to find every URI in a message payload.
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
+	if (isRecord(value)) {
+		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
+			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
+		}
+		const isCanvasResource = typeof value.resource === 'string'
+			? value.resource.toLowerCase().startsWith(`${AHP_CANVAS_SCHEME}:`)
+			: URI.isUri(value.resource) && value.resource.scheme === AHP_CANVAS_SCHEME;
+		if (isCanvasResource && isRecord(value.state) && value.state.url !== undefined) {
+			return { ...value, state: { ...value.state, url: REDACTED_CANVAS_SOURCE } };
+		}
+	}
 	if (
 		value
 		&& typeof value === 'object'

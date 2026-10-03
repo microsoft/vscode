@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -15,13 +15,15 @@ import { GitHubHostCapabilities } from '../../common/githubTypes.js';
 import { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../common/githubCredentialService.js';
 import { IGitHubCapabilities } from '../../common/githubHostCapabilitiesService.js';
 import { GitHubEntityPollingPolicy, GitHubQueryService } from '../../common/githubQueryServiceImpl.js';
-import { GitHubTransport } from '../../common/githubTransport.js';
-import { FakeGitHubScheduler } from './fakeGitHubScheduler.js';
+import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
+import { FakeScheduler } from './fakeScheduler.js';
 import { nodeFetch } from './nodeFetch.js';
 import {
 	gitHubGraphQLResponse,
 	gitHubGraphQLStep,
 	gitHubJsonResponse,
+	gitHubNotModifiedResponse,
+	gitHubRawResponse,
 	gitHubRestStep,
 	ProgrammableGitHubServer,
 } from './programmableGitHubServer.js';
@@ -124,13 +126,13 @@ suite('GitHubQueryService', () => {
 	function setup(server: ProgrammableGitHubServer, capabilities: GitHubHostCapabilities | IGitHubCapabilities = availableCapabilities): {
 		readonly account: { readonly host: string; readonly accountId: string };
 		readonly ref: GitHubRepositoryRef;
-		readonly clock: FakeGitHubScheduler;
+		readonly clock: FakeScheduler;
 		readonly credentials: TestCredentialService;
 		readonly service: GitHubQueryService;
 	} {
 		const account = { host: new URL(server.apiBaseUrl).host, accountId: '101' };
 		const ref = { ...account, owner: 'octo', repo: 'repo' };
-		const clock = new FakeGitHubScheduler({ now: 0 });
+		const clock = new FakeScheduler({ now: 0 });
 		const credentials = disposables.add(new TestCredentialService(account));
 		const transport = disposables.add(new GitHubTransport(nodeFetch));
 		const capabilityService = hasKey(capabilities, { getCapabilities: true }) ? capabilities : new TestCapabilitiesService(capabilities);
@@ -247,6 +249,100 @@ suite('GitHubQueryService', () => {
 					updatedAt: '2026-08-18T01:00:00Z',
 					closedAt: '2026-08-18T02:00:00Z',
 				},
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	for (const failure of ['batch', 'entry'] as const) {
+		test(`recovers an observed repository after ${failure}-level hydration failure`, async () => {
+			await withServer(async server => {
+				server.enqueue(
+					gitHubGraphQLStep({
+						queryIncludes: 'HydrateGitHubResources',
+						response: failure === 'batch'
+							? gitHubGraphQLResponse(undefined, [{ message: 'denied', type: 'FORBIDDEN' }])
+							: gitHubGraphQLResponse({ r0: {} }),
+					}),
+					gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+				);
+				const { ref, clock, service } = setup(server);
+				const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
+				const hydration = service.hydrateResources([{ kind: 'repository', ref }], signal());
+				if (failure === 'batch') {
+					await assert.rejects(hydration, { kind: 'authorization' });
+				} else {
+					await hydration;
+				}
+				const failed = repository.resource.state.get();
+				const retryAt = clock.nextDueTime;
+				clock.flushDue();
+				await repository.refresh();
+				assert.deepStrictEqual({
+					status: failed.status, complete: failed.complete, error: failed.error?.kind, retryAt,
+					recovered: repository.resource.state.get().value?.nameWithOwner,
+					requests: server.requests.map(request => request.graphQl ? 'graphql' : request.servicePath),
+				}, {
+					status: 'error', complete: false, error: failure === 'batch' ? 'authorization' : 'malformedResponse', retryAt: 0,
+					recovered: 'octo/repo', requests: ['graphql', '/repos/octo/repo'],
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('marks missing repository and issue hydration results incomplete without polling them', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubGraphQLStep({
+				queryIncludes: 'HydrateGitHubResources',
+				response: gitHubGraphQLResponse({ r0: null, r1: { issue: null } }),
+			}));
+			const { ref, clock, service } = setup(server);
+			const issueRef = { ...ref, number: 7 };
+			const repository = disposables.add(service.subscribeRepository(ref, { priority: 'visible' }));
+			const issue = disposables.add(service.subscribeIssue(issueRef, { priority: 'visible' }));
+			await service.hydrateResources([{ kind: 'repository', ref }, { kind: 'issue', ref: issueRef }], signal());
+			assert.deepStrictEqual({
+				states: [repository.resource.state.get(), issue.resource.state.get()].map(state => ({
+					status: state.status, complete: state.complete, error: state.error?.kind, value: state.value,
+				})),
+				issueRef: issue.resource.ref,
+				timers: clock.pendingCount,
+				requests: server.requests.length,
+			}, {
+				states: [
+					{ status: 'error', complete: false, error: 'notFound', value: undefined },
+					{ status: 'error', complete: false, error: 'notFound', value: undefined },
+				],
+				issueRef, timers: 0, requests: 1,
+			});
+			server.assertSatisfied();
+		});
+	});
+
+	test('updates entity polling cadence and rejects updates after disposal', async () => {
+		await withServer(async server => {
+			server.enqueue(
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+				gitHubRestStep({ method: 'GET', path: '/repos/octo/repo', response: gitHubJsonResponse(repositoryResponse('octo/repo')) }),
+			);
+			const { ref, clock, service } = setup(server);
+			const repository = disposables.add(service.subscribeRepository(ref, { priority: 'background' }));
+			await repository.refresh();
+			const dueTimes = [clock.nextDueTime];
+			repository.update({ priority: 'visible' });
+			dueTimes.push(clock.nextDueTime);
+			clock.advanceBy(10);
+			await repository.refresh();
+			dueTimes.push(clock.nextDueTime);
+			repository.update({ priority: 'background' });
+			dueTimes.push(clock.nextDueTime);
+			clock.advanceBy(10);
+			repository.dispose();
+			assert.throws(() => repository.update({ priority: 'visible' }), /disposed/);
+			clock.advanceBy(20);
+			assert.deepStrictEqual({ dueTimes, requests: server.requests.length, timers: clock.pendingCount }, {
+				dueTimes: [100, 10, 20, 110], requests: 2, timers: 0,
 			});
 			server.assertSatisfied();
 		});
@@ -799,10 +895,238 @@ suite('GitHubQueryService', () => {
 					id: undefined,
 					url: 'https://example.test/pull/1',
 					createdAt: undefined,
+					state: 'closed',
 				},
 			});
 			server.assertSatisfied();
 		});
+	});
+
+	for (const lookup of ['branch', 'sha'] as const) {
+		for (const selection of [
+			{ name: 'prefers open candidates in caller order, not response order', allowed: [2, 4, 3], selected: 4 },
+			{ name: 'accepts a closed candidate when no allowed candidate is open', allowed: [2], selected: 2 },
+			{ name: 'does not substitute an unapproved candidate', allowed: [9], selected: undefined },
+		]) {
+			test(`${lookup} lookup ${selection.name}`, async () => {
+				await withServer(async server => {
+					server.enqueue(gitHubRestStep({
+						method: 'GET',
+						path: lookup === 'branch' ? '/repos/octo/repo/pulls' : '/repos/octo/repo/commits/sha/pulls',
+						query: lookup === 'branch'
+							? { head: 'fork:feature/test', state: 'all', sort: 'updated', direction: 'desc', per_page: 100 }
+							: { per_page: 100 },
+						response: gitHubJsonResponse([lookupResponse(1), lookupResponse(3), lookupResponse(2, 'closed'), lookupResponse(4)]),
+					}));
+					const { ref, service } = setup(server);
+					const options = { allowedPullRequestUrls: selection.allowed.map(number => ` HTTPS://EXAMPLE.TEST/OCTO/REPO/PULL/${number}/// `) };
+					const result = lookup === 'branch'
+						? await service.findPullRequestByHeadBranch(ref, 'feature/test', 'fork', signal(), options)
+						: await service.findPullRequestByHeadSha(ref, 'sha', signal(), options);
+					const number = selection.selected;
+					assert.deepStrictEqual({ result, requests: server.requests.length }, {
+						result: number === undefined ? undefined : {
+							ref: { ...ref, number },
+							id: `PR${number}`,
+							url: `https://example.test/octo/repo/pull/${number}`,
+							title: `Title ${number}`,
+							createdAt: '2026-01-01T00:00:00Z',
+							state: number === 2 ? 'closed' : 'open',
+						},
+						requests: 1,
+					});
+					server.assertSatisfied();
+				});
+			});
+		}
+	}
+
+	test('an empty approved URL list performs no lookup', async () => {
+		await withServer(async server => {
+			const { ref, service } = setup(server);
+			const options = { allowedPullRequestUrls: [] };
+			assert.deepStrictEqual({
+				branch: await service.findPullRequestByHeadBranch(ref, 'branch', undefined, signal(), options),
+				sha: await service.findPullRequestByHeadSha(ref, 'sha', signal(), options),
+				requests: server.requests.length,
+			}, { branch: undefined, sha: undefined, requests: 0 });
+		});
+	});
+
+	for (const scenario of [
+		{ name: 'does not match a contained commit even when its PR is approved', values: [lookupResponse(1, 'open', 'other')], allowed: [1], selected: undefined },
+		{ name: 'prefers the unique open exact head over closed heads', values: [lookupResponse(1, 'closed'), lookupResponse(2)], selected: 2 },
+		{ name: 'rejects ambiguous open heads', values: [lookupResponse(1), lookupResponse(2)], selected: undefined },
+		{ name: 'rejects ambiguous closed heads', values: [lookupResponse(1, 'closed'), lookupResponse(2, 'closed')], selected: undefined },
+	]) {
+		test(`head-SHA lookup ${scenario.name}`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({
+					path: '/repos/octo/repo/commits/sha/pulls',
+					query: { per_page: 100 },
+					response: gitHubJsonResponse(scenario.values),
+				}));
+				const { ref, service } = setup(server);
+				const result = await service.findPullRequestByHeadSha(ref, 'sha', signal(), {
+					allowedPullRequestUrls: scenario.allowed?.map(number => `https://example.test/octo/repo/pull/${number}`),
+				});
+				assert.deepStrictEqual({ number: result?.ref.number, requests: server.requests.length }, { number: scenario.selected, requests: 1 });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const response of [
+		{ name: 'missing commit', body: '{"message":"No commit found for SHA: sha"}', status: 422, missing: true },
+		{ name: 'different validation failure', body: '{"message":"Validation Failed"}', status: 422, missing: false },
+		{ name: 'unrelated field containing the missing-commit text', body: '{"message":"Validation Failed","detail":"No commit found for SHA: sha"}', status: 422, missing: false },
+		{ name: 'non-JSON response', body: 'No commit found for SHA: sha', status: 422, missing: false },
+		{ name: 'missing repository', body: '{"message":"No commit found for SHA: sha"}', status: 404, missing: false },
+	]) {
+		test(`head-SHA lookup classifies ${response.name} without retrying`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({
+					path: '/repos/octo/repo/commits/sha/pulls',
+					query: { per_page: 100 },
+					response: gitHubRawResponse(response.body, { status: response.status }),
+				}));
+				const { ref, service } = setup(server);
+				const result = service.findPullRequestByHeadSha(ref, 'sha', signal());
+				if (response.missing) {
+					assert.strictEqual(await result, undefined);
+				} else {
+					await assert.rejects(result, error => error instanceof GitHubRequestError && error.statusCode === response.status);
+				}
+				assert.strictEqual(server.requests.length, 1);
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('approved lookups share one read with independent cancellation and reuse its ETag', async () => {
+		await withServer(async server => {
+			const started = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			server.enqueue(
+				gitHubRestStep({
+					path: '/repos/octo/repo/pulls',
+					assert: () => started.complete(),
+					waitFor: release.p,
+					response: gitHubJsonResponse([lookupResponse(3), lookupResponse(4)], { etag: '"lookup"' }),
+				}),
+				gitHubRestStep({
+					path: '/repos/octo/repo/pulls',
+					assert: request => assert.strictEqual(request.headers['if-none-match'], '"lookup"'),
+					response: gitHubNotModifiedResponse(),
+				}),
+			);
+			const { ref, service } = setup(server);
+			const controller = new AbortController();
+			const firstOptions = { allowedPullRequestUrls: ['https://example.test/octo/repo/pull/3'] };
+			const rejected = assert.rejects(service.findPullRequestByHeadBranch(ref, 'branch', undefined, controller.signal, firstOptions));
+			const peer = service.findPullRequestByHeadBranch(ref, 'branch', undefined, signal(), { allowedPullRequestUrls: ['https://example.test/octo/repo/pull/4'] });
+			await started.p;
+			controller.abort();
+			await rejected;
+			await release.complete();
+			const result = await peer;
+			const revalidated = await service.findPullRequestByHeadBranch(ref, 'branch', undefined, signal(), firstOptions);
+			assert.deepStrictEqual({ peer: result?.ref.number, revalidated: revalidated?.ref.number, requests: server.requests.length }, { peer: 4, revalidated: 3, requests: 2 });
+			server.assertSatisfied();
+		});
+	});
+
+	for (const body of ['Issue body', null]) {
+		test(`reads issue or PR context with ${body === null ? 'a null' : 'a string'} body`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({
+					path: '/repos/octo/repo/issues/7',
+					response: gitHubJsonResponse({ title: 'Context', body, ...(body === null ? { pull_request: {} } : {}) }),
+				}));
+				const { ref, service } = setup(server);
+				assert.deepStrictEqual(await service.getIssueOrPullRequest({ ...ref, number: 7 }, signal()), { title: 'Context', body: body ?? '' });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const body of [{ title: 'Missing body' }, { title: 1, body: '' }, { title: 'Wrong body', body: [] }]) {
+		test(`rejects malformed issue or PR context ${JSON.stringify(body)}`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({ path: '/repos/octo/repo/issues/7', response: gitHubJsonResponse(body) }));
+				const { ref, service } = setup(server);
+				await assert.rejects(service.getIssueOrPullRequest({ ...ref, number: 7 }, signal()), { kind: 'malformedResponse' });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const settings of [
+		{ auto: true, merge: true, squash: true, rebase: true, methods: ['MERGE', 'SQUASH', 'REBASE'] },
+		{ auto: false, merge: false, squash: false, rebase: false, methods: [] },
+		{ auto: true, merge: false, squash: true, rebase: false, methods: ['SQUASH'] },
+	]) {
+		test(`reads explicit repository merge settings ${JSON.stringify(settings)}`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({
+					path: '/repos/octo/repo',
+					response: gitHubJsonResponse({
+						allow_auto_merge: settings.auto, allow_merge_commit: settings.merge,
+						allow_squash_merge: settings.squash, allow_rebase_merge: settings.rebase,
+					}),
+				}));
+				const { ref, service } = setup(server);
+				assert.deepStrictEqual(await service.getRepositoryMergeCapabilities(ref, signal()), { autoMergeAllowed: settings.auto, mergeMethods: settings.methods });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	for (const settings of [{}, { allow_auto_merge: true }, { allow_auto_merge: true, allow_merge_commit: 'true', allow_squash_merge: false, allow_rebase_merge: false }]) {
+		test(`rejects incomplete repository merge settings ${JSON.stringify(settings)}`, async () => {
+			await withServer(async server => {
+				server.enqueue(gitHubRestStep({ path: '/repos/octo/repo', response: gitHubJsonResponse(settings) }));
+				const { ref, service } = setup(server);
+				await assert.rejects(service.getRepositoryMergeCapabilities(ref, signal()), { kind: 'malformedResponse' });
+				server.assertSatisfied();
+			});
+		});
+	}
+
+	test('propagates repository authorization failures without retrying', async () => {
+		await withServer(async server => {
+			server.enqueue(gitHubRestStep({ path: '/repos/octo/repo', response: gitHubJsonResponse({ message: 'Forbidden' }, { status: 403 }) }));
+			const { ref, service } = setup(server);
+			await assert.rejects(service.getRepositoryMergeCapabilities(ref, signal()), { kind: 'authorization', statusCode: 403 });
+			assert.strictEqual(server.requests.length, 1);
+			server.assertSatisfied();
+		});
+	});
+
+	test('context reads honor the governed transport deadline and release its timers', async () => {
+		const clock = disposables.add(new FakeScheduler());
+		const account = { host: 'github.example.test', accountId: '1' };
+		const credentials = disposables.add(new TestCredentialService(account));
+		const started = new DeferredPromise<AbortSignal>();
+		const response = new DeferredPromise<Response>();
+		let requests = 0;
+		const transport = disposables.add(new GitHubTransport(async (_input, init) => {
+			requests++;
+			assert.ok(init?.signal);
+			await started.complete(init.signal);
+			return response.p;
+		}, clock, false, undefined, { requestTimeout: 50 }));
+		const service = disposables.add(new GitHubQueryService(clock, policy, credentials, transport, {
+			onDidChange: Event.None,
+			getApiBaseUri: () => 'https://github.example.test',
+			getGraphQlUri: () => 'https://github.example.test/graphql',
+		}, new TestCapabilitiesService(), new NullLogService()));
+		const rejected = assert.rejects(service.getIssueOrPullRequest({ ...account, owner: 'octo', repo: 'repo', number: 7 }, signal()), { kind: 'timeout' });
+		const requestSignal = await started.p;
+		clock.advanceBy(50);
+		await rejected;
+		await response.complete(new Response('{"title":"Late","body":""}'));
+		assert.deepStrictEqual({ requests, aborted: requestSignal.aborted, timers: clock.pendingCount }, { requests: 1, aborted: true, timers: 0 });
 	});
 
 	test('returns no head-SHA lookup when the first page is full', async () => {
@@ -952,6 +1276,24 @@ suite('GitHubQueryService', () => {
 		});
 	});
 
+	for (const type of ['RATE_LIMIT', 'RATE_LIMITED']) {
+		test(`surfaces GraphQL ${type} without accepting partial query data`, async () => {
+			await withServer(async server => {
+				const errors = [{ type, message: 'Query rate limited' }];
+				server.enqueue(gitHubGraphQLStep({
+					queryIncludes: 'AgentHostRecentAssignedIssues',
+					response: gitHubGraphQLResponse({ search: { nodes: [] } }, errors),
+				}));
+				const { service, ref } = setup(server);
+
+				await assert.rejects(() => service.getRecentAssignedIssues(ref, signal()), {
+					name: 'GitHubRequestError', kind: 'rateLimit', statusCode: 200, graphQLErrors: errors,
+				});
+				server.assertSatisfied();
+			});
+		});
+	}
+
 	test('retries transient capability and untyped GraphQL failures', async () => {
 		await withServer(async server => {
 			server.enqueue(
@@ -1031,7 +1373,7 @@ suite('GitHubQueryService', () => {
 			// so the cadence wins. It still has to be spread: credential
 			// invalidation and rate-limit releases fail whole batches at the very
 			// same instant, and an unjittered retry keeps them phase-locked.
-			const jittered = disposables.add(new FakeGitHubScheduler({ now: 0, jitterValues: [7] }));
+			const jittered = disposables.add(new FakeScheduler({ now: 0, jitterValues: [7] }));
 			const credentials = disposables.add(new TestCredentialService({ host: new URL(server.apiBaseUrl).host, accountId: '101' }));
 			const transport = disposables.add(new GitHubTransport(nodeFetch));
 			const service = disposables.add(new GitHubQueryService(
@@ -1062,6 +1404,14 @@ suite('GitHubQueryService', () => {
 
 function signal(): AbortSignal {
 	return new AbortController().signal;
+}
+
+function lookupResponse(number: number, state: 'open' | 'closed' = 'open', sha = 'sha') {
+	return {
+		number, state, head: { sha }, node_id: `PR${number}`,
+		html_url: `https://example.test/octo/repo/pull/${number}`,
+		title: `Title ${number}`, created_at: '2026-01-01T00:00:00Z',
+	};
 }
 
 function repositoryResponse(nameWithOwner: string): object {

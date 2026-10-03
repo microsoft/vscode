@@ -12,8 +12,8 @@ import { URI, uriToFsPath } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import type { IValidator } from '../../../base/common/validation.js';
 import { ILogService } from '../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
-import { IDevContainerAgentHostMainService, type IDevContainerAgentHostConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectParamsValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, devContainerWorkspaceParamsValidator, type IAgentHostExtensionNotificationMap } from '../common/agentHostExtensionProtocol.js';
+import { IDevContainerAgentHostMainService, type IDevContainerAgentHostWorkspaceConfig, type IDevContainerAgentHostConnectResult } from '../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 interface IConnection {
@@ -63,6 +63,8 @@ export class DevContainerAgentHostProtocol extends Disposable {
 			case DevContainerIsDockerAvailableExtensionMethod:
 			case DevContainerConnectExtensionMethod:
 			case DevContainerDisconnectExtensionMethod:
+			case DevContainerStopExtensionMethod:
+			case DevContainerRemoveExtensionMethod:
 			case DevContainerRelaySendExtensionMethod:
 				return this._handleRequest(method, params);
 			default:
@@ -86,7 +88,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0') || !config.name.trim() || config.name.includes('\0')) {
 					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path and name must be non-empty');
 				}
-				return this._connect({ ...config, workspaceFolder });
+				return this._connect({ connectionId: config.connectionId, name: config.name, ...(config.resume !== undefined ? { resume: config.resume } : {}), workspaceFolder });
 			}
 			case DevContainerDisconnectExtensionMethod: {
 				const { connectionId } = this._validate(devContainerConnectionParamsValidator, params);
@@ -94,6 +96,17 @@ export class DevContainerAgentHostProtocol extends Disposable {
 				this._release(connection);
 				await this._service.disconnect(connection.id);
 				return;
+			}
+			case DevContainerStopExtensionMethod:
+			case DevContainerRemoveExtensionMethod: {
+				const { workspaceFolder: path } = this._validateWorkspace(params);
+				if (!await this._requestTrust(path)) {
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Workspace trust is required to manage a Dev Container');
+				}
+				if (this._disposed) {
+					throw new CancellationError();
+				}
+				return method === DevContainerStopExtensionMethod ? this._service.stopContainer(path) : this._service.removeContainer(path);
 			}
 			case DevContainerRelaySendExtensionMethod: {
 				const { connectionId, data } = this._validate(devContainerRelayMessageValidator, params);
@@ -120,6 +133,18 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		return result.content;
 	}
 
+	private _validateWorkspace(params: unknown): { workspaceFolder: string } {
+		const result = devContainerWorkspaceParamsValidator.validate(params);
+		if (result.error) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, result.error.message);
+		}
+		const workspaceFolder = normalizeDevContainerWorkspaceFolder(result.content.workspaceFolder, OS);
+		if (!isAbsolute(workspaceFolder) || workspaceFolder.includes('\0')) {
+			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'workspaceFolder must be an absolute host path');
+		}
+		return { workspaceFolder };
+	}
+
 	private _getConnection(id: string): IConnection {
 		const connection = this._connections.get(id);
 		if (!connection) {
@@ -128,7 +153,7 @@ export class DevContainerAgentHostProtocol extends Disposable {
 		return connection;
 	}
 
-	private async _connect(config: IDevContainerAgentHostConfig): Promise<IDevContainerAgentHostConnectResult> {
+	private async _connect(config: IDevContainerAgentHostWorkspaceConfig): Promise<IDevContainerAgentHostConnectResult> {
 		if (this._connections.has(config.connectionId)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'Dev Container connectionId is already in use');
 		}

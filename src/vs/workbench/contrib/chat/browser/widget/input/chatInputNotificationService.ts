@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -37,6 +38,8 @@ interface IChatInputNotificationActionBase {
 	readonly iconOnly?: boolean;
 	/** Whether the action anchors to the leading edge of a split action row. */
 	readonly leading?: boolean;
+	/** Whether a secondary action uses the standard filled button style instead of a ghost button. */
+	readonly filled?: boolean;
 	/** Whether a secondary action keeps a theme-aware border. */
 	readonly outlined?: boolean;
 	readonly tooltip?: string;
@@ -107,6 +110,8 @@ export interface IChatInputNotification {
 	readonly inputUri?: URI;
 	readonly telemetryId?: string;
 	readonly severity: ChatInputNotificationSeverity;
+	/** Optional header icon. Defaults to the severity icon. */
+	readonly icon?: ThemeIcon;
 	readonly message: string | IMarkdownString;
 	readonly description: string | IMarkdownString | undefined;
 	readonly actions: readonly IChatInputNotificationAction[];

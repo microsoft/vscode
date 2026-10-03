@@ -6,10 +6,11 @@
 import type { IDisposable } from '../../../base/common/lifecycle.js';
 import type { ISettableObservable } from '../../../base/common/observable.js';
 import type { StopWatch } from '../../../base/common/stopwatch.js';
+import type { URI } from '../../../base/common/uri.js';
 import { createDecorator, type BrandedService } from '../../instantiation/common/instantiation.js';
 import type { IAgent } from './agent.js';
 import type { AgentHostLaunchKind, AgentHostTurnFailureStage, IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
-import type { StateAction } from './state/sessionActions.js';
+import type { ActionOrigin, StateAction } from './state/sessionActions.js';
 import type { ErrorInfo, Message, Turn, URI as ProtocolURI } from './state/sessionState.js';
 
 export const IAgentHostChatContributions = createDecorator<IAgentHostChatContributions>('agentHostChatContributions');
@@ -46,6 +47,15 @@ export interface IOutgoingTurn {
 	readonly chat: ProtocolURI;
 	readonly message: Message;
 	readonly turnId: string;
+	/**
+	 * The directories the provider runs this turn in, after host-owned
+	 * resolution: an isolated worktree created on the first send, the worktree
+	 * a resumed session maps to, or the picked folder. Session state can still
+	 * name the original folder until the provider materializes, so prefer this
+	 * over state when a contribution needs the turn's actual file system.
+	 * `undefined` for workspace-less turns.
+	 */
+	readonly workingDirectories?: readonly URI[];
 }
 
 /**
@@ -148,6 +158,8 @@ export interface IDispatchedAction {
 	/** The owning session URI, or the channel itself when it is not a chat channel. */
 	readonly session: ProtocolURI;
 	readonly action: StateAction;
+	/** Identifies a client-dispatched action; absent for server-dispatched actions. */
+	readonly origin?: ActionOrigin;
 	/** Set when the action was rejected and never reached state. */
 	readonly rejectionReason?: string;
 }

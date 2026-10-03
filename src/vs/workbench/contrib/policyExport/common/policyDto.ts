@@ -40,6 +40,14 @@ export interface PolicyDto {
 	 * this to hide the setting from their UI. Defaults to `true`.
 	 */
 	included?: boolean;
+
+	/**
+	 * How completely Agent Host enforces this policy. Downstream consumers
+	 * (e.g. the docs website) can use this to show Agent Host support.
+	 */
+	agentHost?: {
+		status: 'enforced' | 'partial' | 'notEnforced' | 'notApplicable';
+	};
 }
 
 export interface ExportedPolicyDataDto {

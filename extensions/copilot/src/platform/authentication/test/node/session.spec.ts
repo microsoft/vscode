@@ -256,6 +256,29 @@ describe('Copilot session provenance', () => {
 		});
 	});
 
+	test('an issuer-only identity change emits an authentication event even when the token is unchanged', async () => {
+		const initial = api.selected!;
+		api.sessions.splice(0, api.sessions.length, initial);
+		const service = createService();
+		await service.refreshAuthentication();
+		const issuers: Array<string | undefined> = [];
+		disposables.add(service.onDidAuthenticationChange(() => issuers.push(service.anyGitHubSession?.authorizationServer?.toString())));
+		const next = { ...initial, authorizationServer: URI.parse('https://first.ghe.com/login/oauth') };
+		api.sessions[0] = next;
+		api.selected = next;
+		await service.refreshAuthentication();
+		await service.refreshAuthentication();
+		expect({
+			issuers,
+			accessToken: service.anyGitHubSession?.accessToken,
+			enterpriseUri: tokenStore.githubEnterpriseUri?.toString()
+		}).toEqual({
+			issuers: ['https://first.ghe.com/login/oauth'],
+			accessToken: initial.accessToken,
+			enterpriseUri: 'https://first.ghe.com/'
+		});
+	});
+
 	test('permissive lookups do not clear or retarget the selected any-session URI', async () => {
 		const manager = new TestCopilotTokenManager();
 		const service = createService(manager);
@@ -386,6 +409,19 @@ describe('Copilot session provenance', () => {
 		expect([current.token, api.selected?.authorizationServer?.toString()]).toEqual([
 			'copilot-api.first.ghe.com', next.authorizationServer.toString(),
 		]);
+	});
+
+	test('a token minted for an account the user switched away from on the same issuer is not published', async () => {
+		const fetcher = new TestFetcherService();
+		fetcher.pendingToken = new DeferredPromise<Response>();
+		tokenStore.githubEnterpriseUri = URI.parse('https://second.ghe.com');
+		const rejected = expect(createTokenManager(fetcher).getCopilotToken()).rejects.toThrow('account changed');
+		await vi.waitFor(() => expect(fetcher.requests).toHaveLength(2));
+		const next = { ...api.selected!, account: { id: 'account-other', label: 'other-login' }, accessToken: 'github-other' };
+		api.sessions.splice(0, api.sessions.length, next);
+		api.selected = next;
+		await fetcher.pendingToken.complete(createFakeResponse(200, createTestExtendedTokenInfo({ token: 'stale-second' })));
+		await rejected;
 	});
 
 	test.each([undefined, 'https://first.ghe.com'])('does not send credentials before authentication publishes the matching URI (%s)', async storedUri => {

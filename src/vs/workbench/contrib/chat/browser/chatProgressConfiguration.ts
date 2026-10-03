@@ -5,6 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from '../common/constants.js';
@@ -12,25 +13,21 @@ import { ChatConfiguration, ChatProgressAnimation, ChatProgressVerbosity } from 
 export const chatProgressConfigurationProperties = {
 	[ChatConfiguration.PersistentProgress]: {
 		type: 'string',
-		default: ChatProgressAnimation.Off,
+		default: product.quality === 'insider' ? ChatProgressAnimation.Draw : ChatProgressAnimation.Off,
 		enum: Object.values(ChatProgressAnimation),
 		enumItemLabels: [
 			localize('chat.progressAnimation.off.label', "Off"),
-			localize('chat.progressAnimation.weave.label', "Weave"),
 			localize('chat.progressAnimation.draw.label', "Draw"),
-			localize('chat.progressAnimation.orbit.label', "Orbit and Lock"),
-			localize('chat.progressAnimation.accordion.label', "Accordion"),
-			localize('chat.progressAnimation.dial.label', "Dial Rotation"),
+			localize('chat.progressAnimation.drawMonochrome.label', "Draw (Monochrome)"),
+			localize('chat.progressAnimation.drawMonochromeNoIcon.label', "Draw (Monochrome, No Icon)"),
 		],
 		enumDescriptions: [
 			localize('chat.progressAnimation.off', "Keep the original thinking, tool, and working progress rendering without a persistent indicator or VS Code logo."),
-			localize('chat.progressAnimation.weave', "Move the three logo pieces in quick beats, then reset them together."),
-			localize('chat.progressAnimation.draw', "Draw the right-slanting ribbon, right edge, and left-slanting ribbon in sequence, then erase them in the same counterclockwise direction and order."),
-			localize('chat.progressAnimation.orbit', "Loop the diagonal ribbons around the moving right edge, then lock the logo back together."),
-			localize('chat.progressAnimation.accordion', "Compress the logo pieces toward the center, then open them back up."),
-			localize('chat.progressAnimation.dial', "Rotate the logo in three steps, then pause upright."),
+			localize('chat.progressAnimation.draw', "Tie the VS Code mark with fast parabolic ribbon motion, hold it, then unravel it before a brief rest."),
+			localize('chat.progressAnimation.drawMonochrome', "Use the Draw animation with the same grayscale treatment as the VS Code icon in the Agents window. High contrast themes retain their contrast color."),
+			localize('chat.progressAnimation.drawMonochromeNoIcon', "Keep the same persistent progress text and tool rendering as Draw (Monochrome), but hide the VS Code icon."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator with an animated VS Code logo at the bottom until the response finishes. Off is the default without an experiment; choose an animation to enable the indicator explicitly. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgress', "Keep a working progress indicator at the bottom until the response finishes, with a colored or monochrome Draw animation, or without an icon. The indicator reports running subagents and background commands from the current or earlier requests, even while the main response progresses. The default is Draw in VS Code Insiders and Off in Stable. Experiments can override either default; an explicit setting takes precedence. Tool calls follow {0}, and reasoning is separated into collapsible previews that break the tool chain. Standalone tools retain their icons. Completed responses still follow {1}. This replaces inner working progress; terminal activity animations and rich subagent pills are unchanged. Changes apply immediately; reduced motion keeps the indicator visible without animation.", `\`#${ChatConfiguration.PersistentProgressVerbosity}#\``, `\`#${ChatConfiguration.CollapseCompletedResponses}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
@@ -53,6 +50,9 @@ export const chatProgressConfigurationProperties = {
 } satisfies Record<string, IConfigurationPropertySchema>;
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).registerConfigurationMigrations([{
+	key: ChatConfiguration.PersistentProgress,
+	migrateFn: value => ['weave', 'orbit', 'accordion', 'dial', 'ribbon'].includes(value) ? { value: ChatProgressAnimation.Draw } : [],
+}, {
 	key: ChatConfiguration.PersistentProgressVerbosity,
 	migrateFn: value => value === 'notVerbose' ? { value: ChatProgressVerbosity.Compact } : [],
 }]);

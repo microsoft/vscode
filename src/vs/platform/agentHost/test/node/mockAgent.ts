@@ -133,14 +133,17 @@ export class MockAgent implements IAgent {
 		readonly id: AgentProvider = 'mock',
 		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
 		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
+		autoDiscover = true,
 	) {
-		queueMicrotask(() => {
-			void this.listExternalChats().then(chats => {
-				if (chats) {
-					this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
-				}
-			}, () => { });
-		});
+		if (autoDiscover) {
+			queueMicrotask(() => {
+				void this.listExternalChats().then(chats => {
+					if (chats) {
+						this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
+					}
+				}, () => { });
+			});
+		}
 	}
 
 	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {

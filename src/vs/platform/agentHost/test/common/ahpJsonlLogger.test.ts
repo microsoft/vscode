@@ -186,6 +186,56 @@ suite('AhpJsonlLogger', () => {
 		});
 	});
 
+	test('redacts canvas URLs in actions and snapshots without mutating live state', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'canvas-source', connectionId: 'canvas-source', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		const canvas = { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://secret.example/path?token=sensitive' };
+		const action = { type: 'canvas/stateChanged', canvas };
+		logger.log({ jsonrpc: '2.0', method: 'action', params: { channel: 'ahp-canvas:/preview', action } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 7, result: { snapshot: { resource: 'ahp-canvas:/preview', state: canvas, fromSeq: 1 } } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 8, result: { snapshots: [{ resource: URI.parse('ahp-canvas:/preview'), state: canvas, fromSeq: 1 }] } }, 's2c');
+		await logger.flush();
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			urls: [entries[0].params.action.canvas.url, entries[1].result.snapshot.state.url, entries[2].result.snapshots[0].state.url],
+			liveSource: canvas.url,
+		}, { urls: Array(3).fill('<redacted canvas source>'), liveSource: 'https://secret.example/path?token=sensitive' });
+	});
+
+	test('redacts replayed canvas actions and incomplete canvas state fail closed', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'canvas-source-saturated', connectionId: 'canvas-source-saturated', transport: 'websocket' },
+			fileService,
+			new NullLogService(),
+		));
+
+		logger.log({
+			jsonrpc: '2.0', id: 1, result: {
+				type: 'replay', actions: [{
+					channel: 'ahp-canvas:/preview', action: { type: 'canvas/stateChanged', canvas: { url: 'https://secret.example/replay' } },
+				}]
+			}
+		}, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 2, result: { snapshot: { resource: 'ahp-canvas:/preview', state: { url: 'https://secret.example/snapshot' } } } }, 's2c');
+		logger.log({ jsonrpc: '2.0', id: 3, result: { url: 'https://example.test/unrelated' } }, 's2c');
+		await logger.flush();
+
+		const entries = (await fileService.readFile(logger.resource)).value.toString().split('\n').filter(Boolean).map(line => JSON.parse(line));
+		assert.deepStrictEqual([
+			entries[0].result.actions[0].action.canvas.url,
+			entries[1].result.snapshot.state.url,
+			entries[2].result.url,
+		], ['<redacted canvas source>', '<redacted canvas source>', 'https://example.test/unrelated']);
+	});
+
 	test('flush waits for batched writes and ordering is preserved across drains', async () => {
 		const fileService = store.add(new FileService(new NullLogService()));
 		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
