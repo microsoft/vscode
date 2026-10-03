@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { getSessionChatPillMenu, SessionChatPillKind, SessionChatPillVisibility } from '../../common/sessionChatPills.js';
 
@@ -28,6 +29,7 @@ suite('SessionChatPills', () => {
 				{ kind: SessionChatPillKind.References, label: 'References', checked: true },
 				{ kind: SessionChatPillKind.Customizations, label: 'Customizations', checked: true },
 				{ kind: SessionChatPillKind.Browsers, label: 'Browsers', checked: true },
+				{ kind: SessionChatPillKind.BackgroundShells, label: 'Background Shells', checked: true },
 			],
 		});
 	});
@@ -71,12 +73,14 @@ suite('SessionChatPills', () => {
 		assert.deepStrictEqual({
 			customizations: visibility.isVisible(SessionChatPillKind.Customizations, undefined),
 			subagents: visibility.isVisible(SessionChatPillKind.Subagents, undefined),
+			backgroundShells: visibility.isVisible(SessionChatPillKind.BackgroundShells, undefined),
 			artifacts: visibility.isVisible(SessionChatPillKind.Artifacts, undefined),
 			references: visibility.isVisible(SessionChatPillKind.References, undefined),
 			changes: visibility.isVisible(SessionChatPillKind.Changes, undefined),
 		}, {
 			customizations: false,
 			subagents: false,
+			backgroundShells: true,
 			artifacts: true,
 			references: true,
 			changes: true,
@@ -119,6 +123,41 @@ suite('SessionChatPills', () => {
 		}, {
 			visible: true,
 			hiddenKinds: [SessionChatPillKind.Customizations, SessionChatPillKind.Subagents],
+		});
+	});
+
+	test('persists independent subagent and pull request filters without changing pill visibility', () => {
+		const storageService = disposables.add(new TestStorageService());
+		const visibility = disposables.add(new SessionChatPillVisibility(storageService));
+		visibility.toggle(SessionChatPillKind.Subagents);
+		const initiallyShowAll = visibility.subagents.showAll.get();
+		visibility.subagents.setShowAll(false);
+		const restored = disposables.add(new SessionChatPillVisibility(storageService));
+		const filtered = {
+			subagents: restored.subagents.showAll.get(),
+			pullRequests: restored.pullRequests.showAll.get(),
+			pillVisible: restored.isVisible(SessionChatPillKind.Subagents, undefined),
+			application: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.APPLICATION),
+			profile: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.PROFILE),
+			workspace: storageService.getBoolean('sessions.chatPills.subagents.showAll', StorageScope.WORKSPACE),
+		};
+		visibility.hide(SessionChatPillKind.Subagents);
+		visibility.pullRequests.setShowAll(false);
+		visibility.subagents.setShowAll(true);
+		const after = disposables.add(new SessionChatPillVisibility(storageService));
+
+		assert.deepStrictEqual({
+			initiallyShowAll,
+			filtered,
+			after: {
+				subagents: after.subagents.showAll.get(),
+				pullRequests: after.pullRequests.showAll.get(),
+				pillVisible: after.isVisible(SessionChatPillKind.Subagents, undefined),
+			},
+		}, {
+			initiallyShowAll: true,
+			filtered: { subagents: false, pullRequests: true, pillVisible: true, application: false, profile: undefined, workspace: undefined },
+			after: { subagents: true, pullRequests: false, pillVisible: false },
 		});
 	});
 

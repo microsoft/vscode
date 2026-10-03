@@ -12,11 +12,18 @@
 
 import { distinct } from '../../../../base/common/arrays.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { hasKey, type Mutable } from '../../../../base/common/types.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI as ResourceURI } from '../../../../base/common/uri.js';
+import { getPullRequestUrlKey } from '../../../github/common/githubUrls.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../agentHostWorkingDirectories.js';
 import { isAgentWorkspaceContinuationMessage } from '../meta/agentWorkspaceContinuationMeta.js';
 import { readToolCallMeta } from '../meta/agentToolCallMeta.js';
+import { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+import { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript } from '../meta/agentMessageMeta.js';
+export { readUsageInfoMeta, type UsageInfoMeta } from '../meta/agentUsageMeta.js';
+export { getInlineToolInput } from '../partialToolInput.js';
+export { isMessageHiddenFromTranscript, isMessageRequestHiddenFromTranscript, readMessageSystemInitiatedLabel, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel } from '../meta/agentMessageMeta.js';
 import { readLegacyTurnError } from './legacyProtocolCompatibility.js';
 import {
 	MessageKind,
@@ -34,6 +41,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -50,7 +58,6 @@ import {
 	type ToolCallCompletedState,
 	type ToolCallResult,
 	type ToolCallState,
-	type ToolInput,
 	type ToolResultContent,
 	type ToolResultSubagentContent,
 	type ToolResultTextContent,
@@ -71,7 +78,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -184,72 +191,6 @@ function mergeTurnTokenTotals(previous: UsageInfoMeta['turnTokenTotals'], curren
 }
 
 /**
- * Well-known keys that may appear on {@link UsageInfo._meta}.
- * Clients MAY read these to provide enhanced UI (e.g. credit cost display).
- */
-export interface UsageInfoMeta {
-	/** Per-turn credit cost reported by the backend. */
-	cost?: number;
-	/** The concrete model selected by Copilot Auto and the routing explanation. */
-	autoModeResolved?: IAutoModeResolvedInfo;
-	/** Copilot-specific usage breakdown, including nano-AIU totals. */
-	copilotUsage?: {
-		/** This turn's nano-AIU cost. */
-		totalNanoAiu?: number;
-		/**
-		 * The whole session's accumulated nano-AIU cost, as reported by the
-		 * backend rather than summed from the turns. Clients SHOULD prefer this
-		 * over adding up per-turn totals: it is authoritative, and it also
-		 * covers work billed outside any turn (e.g. an out-of-turn compaction).
-		 */
-		sessionTotalNanoAiu?: number;
-		[key: string]: unknown;
-	};
-	/**
-	 * Per-category account quota snapshots from the model-call usage event. Keyed by quota type:
-	 * `premium_models` (or `premium_interactions` on older backends), `chat`, `session`, `weekly`.
-	 */
-	quotaSnapshots?: {
-		[quotaType: string]: {
-			readonly isUnlimitedEntitlement?: boolean;
-			readonly entitlementRequests?: number;
-			readonly usedRequests?: number;
-			readonly remainingPercentage?: number;
-			readonly overage?: number;
-			readonly overageAllowedWithExhaustedQuota?: boolean;
-			/** ISO 8601 date when the quota resets, if applicable. */
-			readonly resetDate?: string;
-			/** Whether this snapshot is billed against an AI-credits allocation. */
-			readonly tokenBasedBilling?: boolean;
-			/** Additional-usage budget cap in AI credits, when the backend reports one. */
-			readonly overageEntitlement?: number;
-		} | undefined;
-	};
-	/**
-	 * Per-source context-window attribution breakdown reported by the SDK's
-	 * `session.rpc.metadata.getContextAttribution()`. Populated asynchronously
-	 * after each usage event and piped to the context-usage widget as
-	 * `promptTokenDetails`.
-	 */
-	contextAttribution?: IContextAttributionData;
-	/**
-	 * Per-model token totals accumulated across every model call in the turn,
-	 * including calls made by subagents and the summarization call a compaction
-	 * performs. Unlike {@link UsageInfo.inputTokens}, which describes only the
-	 * most recent model call, these are whole-turn sums, so clients can report
-	 * what a completed turn consumed in aggregate.
-	 */
-	turnTokenTotals?: readonly ITurnTokenTotal[];
-	/** Per-model token totals for this turn only, excluding descendant sub-agents (sum a tree without double-counting). */
-	directTurnTokenTotals?: readonly ITurnTokenTotal[];
-	/** Copilot usage for this turn only. The root's {@link copilotUsage} stays inclusive of descendants. */
-	directCopilotUsage?: {
-		readonly totalNanoAiu?: number;
-	};
-	[key: string]: unknown;
-}
-
-/**
  * Singleton channel containing the host-owned automation catalogue.
  */
 export const AHP_AUTOMATIONS_SCHEME = 'ahp-automations';
@@ -277,77 +218,6 @@ export function isAhpAutomationRunChannel(uri: string): boolean {
 	} catch {
 		return false;
 	}
-}
-
-const MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.hiddenFromTranscript';
-const MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-hidden-from-transcript -->\n';
-const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY = 'vscode.chat.requestHiddenFromTranscript';
-const MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX = '<!-- vscode-request-hidden-from-transcript -->\n';
-const MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY = 'vscode.chat.systemInitiatedLabel';
-
-function readMessageMeta(message: Message): { readonly hiddenFromTranscript: boolean; readonly requestHiddenFromTranscript: boolean; readonly systemInitiatedLabel: string | undefined } {
-	const meta = message._meta;
-	const systemInitiatedLabel = meta?.[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY];
-	const hiddenFromTranscript = meta?.[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
-		|| message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX);
-	return {
-		hiddenFromTranscript,
-		requestHiddenFromTranscript: meta?.[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY] === true
-			|| message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX),
-		systemInitiatedLabel: typeof systemInitiatedLabel === 'string' ? systemInitiatedLabel : undefined,
-	};
-}
-
-export function isMessageHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).hiddenFromTranscript;
-}
-
-/** Whether only the message's request row is hidden while its response remains visible. */
-export function isMessageRequestHiddenFromTranscript(message: Message): boolean {
-	return readMessageMeta(message).requestHiddenFromTranscript;
-}
-
-export function readMessageSystemInitiatedLabel(message: Message): string | undefined {
-	return readMessageMeta(message).systemInitiatedLabel;
-}
-
-export function withMessageHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
-	if (!hidden) {
-		return message;
-	}
-	return {
-		...message,
-		text: message.text.startsWith(MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
-		_meta: {
-			...message._meta,
-			[MESSAGE_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
-		},
-	};
-}
-
-/** Marks only the message's request row as hidden while preserving its response. */
-export function withMessageRequestHiddenFromTranscript(message: Message, hidden: boolean | undefined): Message {
-	if (!hidden || isMessageHiddenFromTranscript(message)) {
-		return message;
-	}
-	return {
-		...message,
-		text: message.text.startsWith(MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX) ? message.text : MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_PREFIX + message.text,
-		_meta: {
-			...message._meta,
-			[MESSAGE_REQUEST_HIDDEN_FROM_TRANSCRIPT_META_KEY]: true,
-		},
-	};
-}
-
-export function withMessageSystemInitiatedLabel(message: Message, label: string): Message {
-	return {
-		...message,
-		_meta: {
-			...message._meta,
-			[MESSAGE_SYSTEM_INITIATED_LABEL_META_KEY]: label,
-		},
-	};
 }
 
 /**
@@ -415,117 +285,6 @@ export interface IContextAttributionEntry {
 	readonly attributes?: Readonly<Record<string, string | undefined>>;
 }
 
-type AccountQuotaSnapshot = NonNullable<NonNullable<UsageInfoMeta['quotaSnapshots']>[string]>;
-
-function readAccountQuotaSnapshot(value: unknown): AccountQuotaSnapshot | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	const snapshot: Mutable<AccountQuotaSnapshot> = {};
-	if (typeof raw['isUnlimitedEntitlement'] === 'boolean') { snapshot.isUnlimitedEntitlement = raw['isUnlimitedEntitlement']; }
-	if (typeof raw['entitlementRequests'] === 'number') { snapshot.entitlementRequests = raw['entitlementRequests']; }
-	if (typeof raw['usedRequests'] === 'number') { snapshot.usedRequests = raw['usedRequests']; }
-	if (typeof raw['remainingPercentage'] === 'number') { snapshot.remainingPercentage = raw['remainingPercentage']; }
-	if (typeof raw['overage'] === 'number') { snapshot.overage = raw['overage']; }
-	if (typeof raw['overageAllowedWithExhaustedQuota'] === 'boolean') { snapshot.overageAllowedWithExhaustedQuota = raw['overageAllowedWithExhaustedQuota']; }
-	if (typeof raw['resetDate'] === 'string') { snapshot.resetDate = raw['resetDate']; }
-	if (typeof raw['tokenBasedBilling'] === 'boolean') { snapshot.tokenBasedBilling = raw['tokenBasedBilling']; }
-	if (typeof raw['overageEntitlement'] === 'number') { snapshot.overageEntitlement = raw['overageEntitlement']; }
-	return snapshot;
-}
-
-/**
- * Reads the well-known {@link UsageInfoMeta} keys from a usage report's open
- * `_meta` bag, ignoring unrelated provider-specific keys and validating each
- * field's type. Always read {@link UsageInfo._meta} through this helper rather
- * than casting the bag to {@link UsageInfoMeta}, so a malformed or partial bag
- * degrades to absent fields instead of producing values of the wrong runtime
- * type. Returns an empty object when the bag is absent.
- */
-export function readUsageInfoMeta(usage: UsageInfo | undefined): UsageInfoMeta {
-	const meta = usage?._meta;
-	if (!meta) {
-		return {};
-	}
-	const result: Mutable<UsageInfoMeta> = {};
-	if (typeof meta['cost'] === 'number') { result.cost = meta['cost']; }
-	const autoModeResolved = readAutoModeResolvedInfo(meta['autoModeResolved']);
-	if (autoModeResolved) { result.autoModeResolved = autoModeResolved; }
-	const copilotUsage = meta['copilotUsage'];
-	if (copilotUsage && typeof copilotUsage === 'object' && !Array.isArray(copilotUsage)) {
-		const rawUsage = copilotUsage as Record<string, unknown>;
-		const usage: Mutable<NonNullable<UsageInfoMeta['copilotUsage']>> = {};
-		if (typeof rawUsage['totalNanoAiu'] === 'number') { usage.totalNanoAiu = rawUsage['totalNanoAiu']; }
-		if (typeof rawUsage['sessionTotalNanoAiu'] === 'number') { usage.sessionTotalNanoAiu = rawUsage['sessionTotalNanoAiu']; }
-		result.copilotUsage = usage;
-	}
-	const quotaSnapshots = meta['quotaSnapshots'];
-	if (quotaSnapshots && typeof quotaSnapshots === 'object' && !Array.isArray(quotaSnapshots)) {
-		const snapshots: Mutable<NonNullable<UsageInfoMeta['quotaSnapshots']>> = {};
-		for (const [quotaType, value] of Object.entries(quotaSnapshots as Record<string, unknown>)) {
-			snapshots[quotaType] = readAccountQuotaSnapshot(value);
-		}
-		result.quotaSnapshots = snapshots;
-	}
-	const contextAttribution = readContextAttribution(meta['contextAttribution']);
-	if (contextAttribution) {
-		result.contextAttribution = contextAttribution;
-	}
-	const turnTokenTotals = readTurnTokenTotals(meta['turnTokenTotals']);
-	if (turnTokenTotals) {
-		result.turnTokenTotals = turnTokenTotals;
-	}
-	const directTurnTokenTotals = readTurnTokenTotals(meta['directTurnTokenTotals']);
-	if (directTurnTokenTotals) {
-		result.directTurnTokenTotals = directTurnTokenTotals;
-	}
-	const directCopilotUsage = meta['directCopilotUsage'];
-	if (directCopilotUsage && typeof directCopilotUsage === 'object' && !Array.isArray(directCopilotUsage)) {
-		const totalNanoAiu = (directCopilotUsage as Record<string, unknown>)['totalNanoAiu'];
-		if (typeof totalNanoAiu === 'number') {
-			result.directCopilotUsage = { totalNanoAiu };
-		}
-	}
-	return result;
-}
-
-/**
- * Reads whole-turn per-model token totals, dropping rows that are not fully
- * formed. Returns `undefined` when no usable row survives, so callers can treat
- * "absent" and "present but meaningless" identically.
- */
-function readTurnTokenTotals(value: unknown): readonly ITurnTokenTotal[] | undefined {
-	if (!Array.isArray(value)) {
-		return undefined;
-	}
-	const totals: ITurnTokenTotal[] = [];
-	for (const item of value) {
-		if (!item || typeof item !== 'object' || Array.isArray(item)) {
-			continue;
-		}
-		const raw = item as Record<string, unknown>;
-		if (typeof raw['model'] !== 'string' || !raw['model']
-			|| !isTokenCount(raw['inputTokens'])
-			|| !isTokenCount(raw['cachedTokens'])
-			|| !isTokenCount(raw['outputTokens'])
-		) {
-			continue;
-		}
-		totals.push({
-			model: raw['model'],
-			inputTokens: raw['inputTokens'],
-			cachedTokens: raw['cachedTokens'],
-			outputTokens: raw['outputTokens'],
-		});
-	}
-	return totals.length > 0 ? totals : undefined;
-}
-
-function isTokenCount(value: unknown): value is number {
-	return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-}
-
 /**
  * Whether a usage report actually records consumption, as opposed to merely
  * existing.
@@ -552,84 +311,6 @@ export function hasReportedUsage(usage: UsageInfo | undefined): boolean {
 		// still consumption worth showing.
 		|| (typeof meta.copilotUsage?.sessionTotalNanoAiu === 'number' && meta.copilotUsage.sessionTotalNanoAiu >= 0)
 		|| (typeof meta.cost === 'number' && meta.cost >= 0);
-}
-
-function readAutoModeResolvedInfo(value: unknown): IAutoModeResolvedInfo | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	if (typeof raw['chosenModel'] !== 'string') {
-		return undefined;
-	}
-	const result: Mutable<IAutoModeResolvedInfo> = { chosenModel: raw['chosenModel'] };
-	const reasoningBucket = raw['reasoningBucket'];
-	if (reasoningBucket === 'low' || reasoningBucket === 'medium' || reasoningBucket === 'high') {
-		result.reasoningBucket = reasoningBucket;
-	}
-	const categoryScores = raw['categoryScores'];
-	if (categoryScores && typeof categoryScores === 'object' && !Array.isArray(categoryScores)) {
-		const scores: Record<string, number> = {};
-		for (const [category, score] of Object.entries(categoryScores as Record<string, unknown>)) {
-			if (typeof score === 'number') {
-				scores[category] = score;
-			}
-		}
-		result.categoryScores = scores;
-	}
-	if (typeof raw['predictedLabel'] === 'string') { result.predictedLabel = raw['predictedLabel']; }
-	if (typeof raw['confidence'] === 'number') { result.confidence = raw['confidence']; }
-	if (Array.isArray(raw['candidateModels']) && raw['candidateModels'].every(candidate => typeof candidate === 'string')) {
-		result.candidateModels = raw['candidateModels'];
-	}
-	return result;
-}
-
-function readContextAttribution(value: unknown): IContextAttributionData | undefined {
-	if (!value || typeof value !== 'object' || Array.isArray(value)) {
-		return undefined;
-	}
-	const raw = value as Record<string, unknown>;
-	if (typeof raw['totalTokens'] !== 'number' || !Array.isArray(raw['entries'])) {
-		return undefined;
-	}
-	const entries: IContextAttributionEntry[] = [];
-	for (const item of raw['entries']) {
-		if (!item || typeof item !== 'object' || Array.isArray(item)) {
-			continue;
-		}
-		const entry = item as Record<string, unknown>;
-		if (typeof entry['kind'] !== 'string' || typeof entry['id'] !== 'string'
-			|| typeof entry['label'] !== 'string' || typeof entry['tokens'] !== 'number') {
-			continue;
-		}
-		entries.push({
-			kind: entry['kind'],
-			id: entry['id'],
-			label: entry['label'],
-			tokens: entry['tokens'],
-			parentId: typeof entry['parentId'] === 'string' ? entry['parentId'] : undefined,
-			attributes: entry['attributes'] && typeof entry['attributes'] === 'object' && !Array.isArray(entry['attributes'])
-				? filterStringAttributes(entry['attributes'] as Record<string, unknown>)
-				: undefined,
-		});
-	}
-	const compactionsRaw = raw['compactions'];
-	const compactions = compactionsRaw && typeof compactionsRaw === 'object' && !Array.isArray(compactionsRaw)
-		&& typeof (compactionsRaw as Record<string, unknown>)['count'] === 'number'
-		? { count: (compactionsRaw as Record<string, unknown>)['count'] as number }
-		: { count: 0 };
-	return { totalTokens: raw['totalTokens'] as number, entries, compactions };
-}
-
-function filterStringAttributes(raw: Record<string, unknown>): Record<string, string | undefined> {
-	const result: Record<string, string | undefined> = {};
-	for (const [key, value] of Object.entries(raw)) {
-		if (typeof value === 'string' || value === undefined) {
-			result[key] = value;
-		}
-	}
-	return result;
 }
 
 export {
@@ -832,11 +513,6 @@ export function getToolOutputText(result: ToolCallResult): string | undefined {
 	return textParts.map(p => p.text).join('\n');
 }
 
-/** Returns inline tool input, leaving referenced content to asynchronous consumers. */
-export function getInlineToolInput(toolInput: ToolInput | undefined): string | undefined {
-	return typeof toolInput === 'string' ? toolInput : undefined;
-}
-
 /**
  * Extracts file edit content entries from a tool call result's `content` array.
  * Returns an empty array if there are no file edit content parts.
@@ -975,6 +651,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -983,7 +660,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 /**
  * Derives the default-chat {@link ChatSummary} for a session from its
  * {@link SessionSummary}. The default chat inherits the session's title,
- * status, activity and working directory, and is marked as a
+ * activity status and activity, and is marked as a
  * {@link ChatOriginKind.User | user-originated} chat. Both the session and
  * chat `modifiedAt` are ISO-8601 strings, so it is carried over directly.
  */
@@ -991,7 +668,7 @@ export function createDefaultChatSummary(session: SessionSummary, chatUri: Proto
 	const summary: ChatSummary = {
 		resource: chatUri,
 		title: session.title,
-		status: session.status,
+		status: session.status & STATUS_ACTIVITY_MASK,
 		modifiedAt: session.modifiedAt,
 		origin: { kind: ChatOriginKind.User },
 	};
@@ -1075,6 +752,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
 	return summary;
 }
 
@@ -1137,6 +815,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -1148,6 +827,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -1393,12 +1073,21 @@ export type SessionSummaryMeta = Record<string, unknown>;
  */
 export const SESSION_META_GIT_KEY = 'git';
 
+/** Reserved key for Git state keyed by normalized working-directory scope. */
+export const SESSION_META_GIT_DATA_KEY = 'gitData';
+
+/** Host-authored scope ids keyed by their exact backend working-directory list. */
+export const SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY = 'workingDirectoryScopeIds';
+
 /**
- * Reserved key under {@link SessionMeta} for the well-known GitHub-state
- * payload. Value at this key, when present, MUST be shaped like
- * {@link ISessionGitHubState}. This is a VS Code-specific convention layered
- * on top of the protocol's generic `_meta` bag — the protocol itself does
- * not know about GitHub state.
+ * Reserved key under {@link SessionMeta} for a single {@link ISessionGitHubState}
+ * describing the session folder. It is never written to session state: clients
+ * pass it in a new session's configuration to seed the session folder's state
+ * (see {@link readSessionGitHubStateInput}), and sessions recorded before each
+ * folder had its own state are migrated from it into
+ * {@link SESSION_META_GITHUB_DATA_KEY} (see {@link withMigratedSessionGitHubState}).
+ * This is a VS Code-specific convention layered on top of the protocol's generic
+ * `_meta` bag — the protocol itself does not know about GitHub state.
  */
 export const SESSION_META_GITHUB_KEY = 'github';
 
@@ -1409,7 +1098,7 @@ export const SESSION_META_PROMPT_CACHE_KEY = 'vscode.promptCache';
 
 export const SESSION_META_MULTI_ROOT_KEY = 'multiRoot';
 
-/** Reserved key for whether a session was first discovered in a provider-native catalog. */
+/** Reserved key for whether a provider-native session has not yet been adopted. */
 export const SESSION_META_EXTERNAL_KEY = 'vscode.external';
 
 const MAX_WORKSPACE_FILE_LENGTH = 4096;
@@ -1582,6 +1271,8 @@ export function withSessionFolderPickerDecision(meta: SessionMeta | undefined, d
  * "unknown" from "known to be zero".
  */
 export interface ISessionGitState {
+	/** Whether the working directory has any Git remote. */
+	readonly hasGitRemote?: boolean;
 	/** Whether the working directory has a `github.com` git remote. */
 	readonly hasGitHubRemote?: boolean;
 	/** Current branch name. */
@@ -1596,6 +1287,14 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Default branch of the `origin` remote (e.g. `main`), read from
+	 * `refs/remotes/origin/HEAD`. Unlike {@link baseBranchName}, it is never
+	 * replaced by a configured base branch.
+	 */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`), present only when that ref exists. */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
@@ -1723,11 +1422,6 @@ export function getSessionRelatedPullRequestUrls(gitHubState: ISessionGitHubStat
 /** Maximum pull requests retained for a session. */
 export const MAX_SESSION_PULL_REQUEST_REFERENCES = 10;
 
-/** Normalized key for comparing pull request URLs irrespective of case and trailing slashes. */
-export function getSessionPullRequestUrlKey(url: string): string {
-	return url.trim().replace(/\/+$/, '').toLowerCase();
-}
-
 function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 	const normalizedUrls = urls.map(url => {
 		const match = /^https:\/\/(?<host>[^/]+)\/(?<owner>[^/]+)\/(?<repo>[^/]+)\/pull\/(?<number>\d+)\/?$/.exec(url);
@@ -1736,7 +1430,7 @@ function normalizeSessionPullRequestUrls(urls: readonly string[]): string[] {
 			? `https://${groups['host'].toLowerCase()}/${groups['owner']}/${groups['repo']}/pull/${groups['number']}`
 			: url;
 	});
-	return distinct(normalizedUrls, getSessionPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
+	return distinct(normalizedUrls, getPullRequestUrlKey).slice(0, MAX_SESSION_PULL_REQUEST_REFERENCES);
 }
 
 /** Returns GitHub state with `pullRequestUrl` moved to the front of its bounded history. */
@@ -1785,29 +1479,21 @@ export function withInitialSessionPullRequest(gitHubState: ISessionGitHubState |
 	};
 }
 
-/**
- * Reads the well-known git-state payload from {@link SessionMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at
- * the git key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
- *
- * Unlike the other typed readers, this takes the raw {@link SessionMeta} value
- * rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
- */
-export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
-	const value = meta?.[SESSION_META_GIT_KEY];
+/** Parses a Git state payload, dropping fields with invalid types. */
+export function parseSessionGitState(value: unknown): ISessionGitState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
 	const raw = value as Record<string, unknown>;
 	const result: {
+		hasGitRemote?: boolean;
 		hasGitHubRemote?: boolean;
 		branchName?: string;
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		defaultBranchName?: string;
+		defaultRemoteBranchName?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
@@ -1816,11 +1502,14 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 		githubHeadOwner?: string;
 		githubRepo?: string;
 	} = {};
+	if (typeof raw['hasGitRemote'] === 'boolean') { result.hasGitRemote = raw['hasGitRemote']; }
 	if (typeof raw['hasGitHubRemote'] === 'boolean') { result.hasGitHubRemote = raw['hasGitHubRemote']; }
 	if (typeof raw['branchName'] === 'string') { result.branchName = raw['branchName']; }
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
+	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }
@@ -1829,6 +1518,11 @@ export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitS
 	if (typeof raw['githubHeadOwner'] === 'string') { result.githubHeadOwner = raw['githubHeadOwner']; }
 	if (typeof raw['githubRepo'] === 'string') { result.githubRepo = raw['githubRepo']; }
 	return result;
+}
+
+/** Reads the well-known Git state payload from {@link SessionMeta}. */
+export function readSessionGitState(meta: SessionMeta | undefined): ISessionGitState | undefined {
+	return parseSessionGitState(meta?.[SESSION_META_GIT_KEY]);
 }
 
 /**
@@ -1863,19 +1557,106 @@ export function withSessionGitState(meta: SessionMeta | undefined, gitState: ISe
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/** Parses Git state keyed by normalized working-directory scope. */
+export function parseSessionGitData(value: unknown): ReadonlyMap<string, ISessionGitState> {
+	const states = new Map<string, ISessionGitState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+
+	for (const [scopeId, raw] of Object.entries(value)) {
+		const state = parseSessionGitState(raw);
+		if (state) {
+			states.set(scopeId, state);
+		}
+	}
+	return states;
+}
+
+function parseStringMap(value: unknown): ReadonlyMap<string, string> {
+	const entries = new Map<string, string>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return entries;
+	}
+	for (const [key, raw] of Object.entries(value)) {
+		if (typeof raw === 'string') {
+			entries.set(key, raw);
+		}
+	}
+	return entries;
+}
+
+/** Reads Git state keyed by normalized working-directory scope. */
+export function readSessionGitData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitState> {
+	return parseSessionGitData(meta?.[SESSION_META_GIT_DATA_KEY]);
+}
+
+export function readWorkingDirectoryScopeIds(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY]);
+}
+
+function workingDirectoryScopeKey(workingDirectories: readonly string[]): string {
+	return JSON.stringify(workingDirectories);
+}
+
+export function readWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[]): string {
+	return readWorkingDirectoryScopeIds(meta).get(workingDirectoryScopeKey(workingDirectories)) ?? getWorkingDirectoryScopeId(workingDirectories);
+}
+
+export function withWorkingDirectoryScopeId(meta: SessionSummaryMeta | undefined, workingDirectories: readonly string[], scopeId = getWorkingDirectoryScopeId(workingDirectories)): SessionSummaryMeta | undefined {
+	const scopes = new Map(readWorkingDirectoryScopeIds(meta));
+	scopes.set(workingDirectoryScopeKey(workingDirectories), scopeId);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_SCOPE_IDS_KEY] = Object.fromEntries(scopes);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reads the Git state recorded for one normalized working-directory scope. */
+export function readFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string): ISessionGitState | undefined {
+	return readSessionGitData(meta).get(scopeId);
+}
+
+/** Returns `meta` with the Git state for one normalized working-directory scope replaced. */
+export function withFolderScopeGitState(meta: SessionSummaryMeta | undefined, scopeId: string, gitState: ISessionGitState | undefined, workingDirectories?: readonly string[]): SessionSummaryMeta | undefined {
+	const scopes = new Map(readSessionGitData(meta));
+	if (gitState !== undefined) {
+		scopes.set(scopeId, gitState);
+	} else {
+		scopes.delete(scopeId);
+	}
+	const next = withSessionGitData(meta, scopes);
+	return workingDirectories ? withWorkingDirectoryScopeId(next, workingDirectories, scopeId) : next;
+}
+
+/** Returns `meta` with all normalized working-directory Git states replaced. */
+export function withSessionGitData(meta: SessionSummaryMeta | undefined, scopes: ReadonlyMap<string, ISessionGitState>): SessionSummaryMeta | undefined {
+	const next: SessionSummaryMeta = { ...meta };
+	if (scopes.size > 0) {
+		next[SESSION_META_GIT_DATA_KEY] = Object.fromEntries(scopes);
+	} else {
+		delete next[SESSION_META_GIT_DATA_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
 /**
- * Reads the well-known GitHub state payload from {@link SessionSummaryMeta}, if
- * present. Returns `undefined` when the meta bag is absent or the value at the
- * GitHub key is not a plain object (e.g. an array or a primitive).
- * Individual fields with wrong types are silently dropped so partial state
- * still propagates.
- *
- * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
- * value rather than its parent {@link SessionState}: the sessions provider stores and
- * reads a detached meta snapshot without retaining the owning state.
+ * Reserved key under {@link SessionSummaryMeta} holding the GitHub and pull
+ * request state of each session folder, keyed by working-directory key (see
+ * `getWorkingDirectoryKey`). The session folder is the session's first working
+ * directory. A session without working directories has no GitHub state. VS
+ * Code-specific convention layered on top of the protocol's generic `_meta` bag.
  */
-export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
-	const value = meta?.[SESSION_META_GITHUB_KEY];
+export const SESSION_META_GITHUB_DATA_KEY = 'githubData';
+
+/** Host-authored folder keys keyed by their exact backend working directory. */
+export const SESSION_META_WORKING_DIRECTORY_KEYS_KEY = 'workingDirectoryKeys';
+
+/**
+ * Parses a GitHub state payload. Returns `undefined` when the value is not a
+ * plain object (e.g. an array or a primitive). Individual fields with wrong
+ * types are silently dropped so partial state still propagates.
+ */
+export function parseSessionGitHubState(value: unknown): ISessionGitHubState | undefined {
 	if (!value || typeof value !== 'object' || Array.isArray(value)) {
 		return undefined;
 	}
@@ -1918,12 +1699,120 @@ export function readSessionGitHubState(meta: SessionSummaryMeta | undefined): IS
 	return result;
 }
 
+/** Parses a {@link SESSION_META_GITHUB_DATA_KEY} payload into the GitHub state of each folder, keyed by working-directory key. */
+export function parseSessionGitHubData(value: unknown): ReadonlyMap<string, ISessionGitHubState> {
+	const states = new Map<string, ISessionGitHubState>();
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		return states;
+	}
+	for (const [folderKey, raw] of Object.entries(value)) {
+		const state = parseSessionGitHubState(raw);
+		if (state) {
+			states.set(folderKey, state);
+		}
+	}
+	return states;
+}
+
 /**
- * Returns a new {@link SessionSummaryMeta} with the GitHub-state payload set to
- * `gitHubState`, or with the GitHub slot removed if `gitHubState` is `undefined`.
- * Returns `undefined` if the result would be empty.
+ * Reads the GitHub state recorded for each folder, keyed by working-directory key.
+ *
+ * Unlike the other typed readers, this takes the raw {@link SessionSummaryMeta}
+ * value rather than its parent {@link SessionState}: the sessions provider stores and
+ * reads a detached meta snapshot without retaining the owning state.
  */
-export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+export function readSessionGitHubData(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, ISessionGitHubState> {
+	return parseSessionGitHubData(meta?.[SESSION_META_GITHUB_DATA_KEY]);
+}
+
+export function readWorkingDirectoryKeys(meta: SessionSummaryMeta | undefined): ReadonlyMap<string, string> {
+	return parseStringMap(meta?.[SESSION_META_WORKING_DIRECTORY_KEYS_KEY]);
+}
+
+export function readWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string): string {
+	return readWorkingDirectoryKeys(meta).get(workingDirectory) ?? getWorkingDirectoryKey(workingDirectory);
+}
+
+export function withWorkingDirectoryKey(meta: SessionSummaryMeta | undefined, workingDirectory: string, folderKey = getWorkingDirectoryKey(workingDirectory)): SessionSummaryMeta | undefined {
+	const folders = new Map(readWorkingDirectoryKeys(meta));
+	folders.set(workingDirectory, folderKey);
+	const next: SessionSummaryMeta = { ...meta };
+	next[SESSION_META_WORKING_DIRECTORY_KEYS_KEY] = Object.fromEntries(folders);
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/** Reads the GitHub state of the folder with working-directory key `folderKey`. */
+export function readFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined): ISessionGitHubState | undefined {
+	return folderKey === undefined ? undefined : readSessionGitHubData(meta).get(folderKey);
+}
+
+/** Reads the GitHub state of the session folder, the session's first working directory. */
+export function readSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined): ISessionGitHubState | undefined {
+	return readFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : readWorkingDirectoryKey(meta, sessionWorkingDirectory));
+}
+
+/**
+ * Returns `meta` with the GitHub state of the folder with working-directory key
+ * `folderKey` replaced, removing the entry when `gitHubState` is `undefined`.
+ * Returns `meta` unchanged when `folderKey` is `undefined`, and `undefined` if
+ * the result would be empty.
+ */
+export function withFolderGitHubState(meta: SessionSummaryMeta | undefined, folderKey: string | undefined, gitHubState: ISessionGitHubState | undefined, workingDirectory?: string): SessionSummaryMeta | undefined {
+	if (folderKey === undefined) {
+		return meta;
+	}
+	const folders = new Map(readSessionGitHubData(meta));
+	if (gitHubState !== undefined) {
+		folders.set(folderKey, gitHubState);
+	} else {
+		folders.delete(folderKey);
+	}
+	const next = withSessionGitHubData(meta, folders);
+	return workingDirectory ? withWorkingDirectoryKey(next, workingDirectory, folderKey) : next;
+}
+
+/**
+ * Reads the GitHub state of the session folder of a session state or summary:
+ * its first working directory. Agent Merge and the pull request lifecycle
+ * follow this folder's pull request.
+ */
+export function readSessionFolderGitHubState(session: { readonly _meta?: SessionSummaryMeta; readonly workingDirectories?: readonly string[] } | undefined): ISessionGitHubState | undefined {
+	return readSessionGitHubState(session?._meta, session?.workingDirectories?.[0]);
+}
+
+/** Returns `meta` with the GitHub state of the session folder, the session's first working directory, replaced. */
+export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
+	return withFolderGitHubState(meta, sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory), gitHubState);
+}
+
+/**
+ * Returns `meta` with the GitHub state of every folder replaced by `folders`,
+ * keyed by working-directory key. Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubData(meta: SessionSummaryMeta | undefined, folders: ReadonlyMap<string, ISessionGitHubState>): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	if (folders.size > 0) {
+		next[SESSION_META_GITHUB_DATA_KEY] = Object.fromEntries(folders);
+	} else {
+		delete next[SESSION_META_GITHUB_DATA_KEY];
+	}
+	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Reads the GitHub state a client supplies under {@link SESSION_META_GITHUB_KEY}
+ * in a new session's configuration for the session folder.
+ */
+export function readSessionGitHubStateInput(meta: SessionSummaryMeta | undefined): ISessionGitHubState | undefined {
+	return parseSessionGitHubState(meta?.[SESSION_META_GITHUB_KEY]);
+}
+
+/**
+ * Returns `meta` with the GitHub state a new session's folder starts with (see
+ * {@link readSessionGitHubStateInput}), or with it removed if `gitHubState` is
+ * `undefined`. Returns `undefined` if the result would be empty.
+ */
+export function withSessionGitHubStateInput(meta: SessionSummaryMeta | undefined, gitHubState: ISessionGitHubState | undefined): SessionSummaryMeta | undefined {
 	const next: { [key: string]: unknown } = { ...meta };
 	if (gitHubState !== undefined) {
 		next[SESSION_META_GITHUB_KEY] = gitHubState;
@@ -1931,6 +1820,63 @@ export function withSessionGitHubState(meta: SessionSummaryMeta | undefined, git
 		delete next[SESSION_META_GITHUB_KEY];
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
+}
+
+/**
+ * Migrates the single GitHub state of a session recorded before each folder had
+ * its own state: records `legacyState` (by default the one under
+ * {@link SESSION_META_GITHUB_KEY} in `meta`) as the state of the session folder
+ * unless that folder already has one, and removes the original entry. The state
+ * is dropped for a session without working directories.
+ */
+export function withMigratedSessionGitHubState(meta: SessionSummaryMeta | undefined, sessionWorkingDirectory: string | undefined, legacyState = readSessionGitHubStateInput(meta)): SessionSummaryMeta | undefined {
+	const next: { [key: string]: unknown } = { ...meta };
+	delete next[SESSION_META_GITHUB_KEY];
+	const folderKey = sessionWorkingDirectory === undefined ? undefined : getWorkingDirectoryKey(sessionWorkingDirectory);
+	const withoutLegacy = Object.keys(next).length > 0 ? next : undefined;
+	if (!legacyState || folderKey === undefined || readFolderGitHubState(withoutLegacy, folderKey)) {
+		return withoutLegacy;
+	}
+	return withFolderGitHubState(withoutLegacy, folderKey, legacyState);
+}
+
+/**
+ * Moves the GitHub state recorded for working directory `directory` to
+ * `replacement`, for a folder whose checkout moved (for example into a
+ * worktree). An existing entry for `replacement` is kept.
+ */
+export function withReplacedFolderGitHubState(meta: SessionSummaryMeta | undefined, directory: string, replacement: string): SessionSummaryMeta | undefined {
+	const fromKey = getWorkingDirectoryKey(directory);
+	const toKey = getWorkingDirectoryKey(replacement);
+	const folders = readSessionGitHubData(meta);
+	const state = folders.get(fromKey);
+	if (fromKey === toKey || !state) {
+		return meta;
+	}
+	const next = new Map(folders);
+	next.delete(fromKey);
+	if (!next.has(toKey)) {
+		next.set(toKey, state);
+	}
+	return withWorkingDirectoryKey(withSessionGitHubData(meta, next), replacement, toKey);
+}
+
+/**
+ * Every pull request URL related to the session across all of its folders,
+ * deduplicated, including those of an original single-folder entry that was not
+ * migrated yet (see {@link withMigratedSessionGitHubState}).
+ */
+export function getAllSessionRelatedPullRequestUrls(meta: SessionSummaryMeta | undefined): readonly string[] {
+	const urls = new Map<string, string>();
+	for (const state of [readSessionGitHubStateInput(meta), ...readSessionGitHubData(meta).values()]) {
+		for (const url of getSessionRelatedPullRequestUrls(state)) {
+			const key = getPullRequestUrlKey(url);
+			if (!urls.has(key)) {
+				urls.set(key, url);
+			}
+		}
+	}
+	return [...urls.values()];
 }
 
 /**
@@ -1999,6 +1945,43 @@ export function parseSessionCreationReference(value: string | undefined): ISessi
 
 export function withSessionCreationReference(meta: SessionSummaryMeta | undefined, creationReference: ISessionCreationReference): SessionSummaryMeta {
 	return { ...meta, [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference };
+}
+
+export const SESSION_META_COMPARISON_KEY = 'agentHost/sessionComparison';
+
+export type AgentSessionComparisonRole = 'attempt' | 'judge' | 'synthesis';
+
+export interface IAgentSessionComparisonMetadata {
+	readonly id: string;
+	readonly role: AgentSessionComparisonRole;
+	readonly attemptIndex?: number;
+	readonly attemptCount: number;
+}
+
+export function readSessionComparisonMetadata(meta: SessionSummaryMeta | undefined): IAgentSessionComparisonMetadata | undefined {
+	const value = meta?.[SESSION_META_COMPARISON_KEY];
+	if (!value || typeof value !== 'object') {
+		return undefined;
+	}
+	const candidate = value as { [key: string]: unknown };
+	if (typeof candidate.id !== 'string' || candidate.id.length === 0 || candidate.id.length > 128
+		|| (candidate.role !== 'attempt' && candidate.role !== 'judge' && candidate.role !== 'synthesis')
+		|| !Number.isInteger(candidate.attemptCount) || (candidate.attemptCount as number) < 2
+		|| (candidate.attemptIndex !== undefined && (!Number.isInteger(candidate.attemptIndex) || (candidate.attemptIndex as number) < 0 || (candidate.attemptIndex as number) >= (candidate.attemptCount as number)))
+		|| (candidate.role === 'attempt') !== (candidate.attemptIndex !== undefined)
+	) {
+		return undefined;
+	}
+	return {
+		id: candidate.id,
+		role: candidate.role,
+		attemptIndex: candidate.attemptIndex as number | undefined,
+		attemptCount: candidate.attemptCount as number,
+	};
+}
+
+export function withSessionComparisonMetadata(meta: SessionSummaryMeta | undefined, comparison: IAgentSessionComparisonMetadata): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_COMPARISON_KEY]: comparison };
 }
 
 /**
@@ -2106,20 +2089,14 @@ export function withSessionHasWorkspaceTransitions(meta: SessionSummaryMeta | un
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-/** Whether the session was first discovered in a provider-native catalog. */
+/** Whether a provider-native session has not yet been adopted by the host. */
 export function readSessionExternal(meta: SessionSummaryMeta | undefined): boolean {
 	return meta?.[SESSION_META_EXTERNAL_KEY] === true;
 }
 
-/** Returns a copy of `meta` with the external-session provenance marker updated. */
-export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta | undefined {
-	const next: { [key: string]: unknown } = { ...meta };
-	if (external) {
-		next[SESSION_META_EXTERNAL_KEY] = true;
-	} else {
-		delete next[SESSION_META_EXTERNAL_KEY];
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
+/** Writes an explicit external flag so clearing it survives serialization and metadata-only refreshes. */
+export function withSessionExternal(meta: SessionSummaryMeta | undefined, external: boolean): SessionSummaryMeta {
+	return { ...meta, [SESSION_META_EXTERNAL_KEY]: external };
 }
 
 /**

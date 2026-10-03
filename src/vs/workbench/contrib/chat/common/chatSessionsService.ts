@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -93,6 +94,7 @@ export interface IChatSessionProviderOptionModelMetadata {
 	};
 	readonly maxInputTokens?: number;
 	readonly maxOutputTokens?: number;
+	readonly maxContextWindowTokens?: number;
 	readonly capabilities?: {
 		readonly vision?: boolean;
 		readonly toolCalling?: boolean;
@@ -156,6 +158,11 @@ export interface IChatSessionsExtensionPoint {
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
+	/** Groups session-list filters without changing this type's resource or content routing. */
+	readonly sessionListGroup?: string;
+	/** Hides this type from the Editor harness picker and automatic new-chat selection without affecting existing sessions. */
+	// TODO: @osortega remove this hack once we have a final UI/UX for cloud sandboxes
+	readonly hideFromSessionTypePicker?: boolean;
 	readonly when?: string;
 	readonly icon?: string | { light: string; dark: string };
 	readonly order?: number;
@@ -232,6 +239,11 @@ export interface IChatSessionsExtensionPoint {
 export interface IChatSessionItem {
 	readonly resource: URI;
 	readonly label: string;
+	/**
+	 * Child chats to present under this session. The parent remains openable as
+	 * the session's routing or default chat.
+	 */
+	readonly children?: readonly IChatSessionItem[];
 	readonly iconPath?: ThemeIcon;
 	readonly badge?: string | IMarkdownString;
 	readonly description?: string | IMarkdownString;
@@ -306,9 +318,11 @@ export type IChatSessionHistoryItem = {
 	type: 'request';
 	prompt: string;
 	participant: string;
+	metadata?: Record<string, unknown>;
 	command?: string;
 	variableData?: IChatRequestVariableData;
 	modelId?: string;
+	modelConfiguration?: IStringDictionary<unknown>;
 	timestamp?: number;
 	modeInstructions?: IChatRequestModeInstructions;
 	isSystemInitiated?: boolean;
@@ -337,12 +351,15 @@ export type IChatSessionHistoryItem = {
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
 export interface IChatSessionServerRequest {
+	readonly metadata?: Record<string, unknown>;
 	/**
 	 * Identifier of the backing provider turn.
 	 */
 	readonly id: string;
 	readonly prompt: string;
 	readonly variableData?: IChatRequestVariableData;
+	readonly modelId?: string;
+	readonly modelConfiguration?: IStringDictionary<unknown>;
 	readonly timestamp?: number;
 	readonly isSystemInitiated?: boolean;
 	/** The feature that submitted this request on the user's behalf. */
@@ -412,6 +429,15 @@ export function isAgentHostSessionResource(resource: URI): boolean {
 	return isAgentHostTarget(resource.scheme);
 }
 
+/** Returns the registered agent implementation handling the session. */
+export function getAgentHostProviderForTelemetry(sessionType: string | undefined, chatSessionsService: IChatSessionsService): string | undefined {
+	if (!sessionType) {
+		return 'unknown';
+	}
+	const provider = chatSessionsService.getChatSessionContribution(sessionType)?.agentHostProviderId;
+	return provider !== undefined ? provider || 'unknown' : (isAgentHostTarget(sessionType) ? 'unknown' : undefined);
+}
+
 /**
  * The session type used for local agent chat sessions.
  */
@@ -425,6 +451,8 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** Updated persisted transcript; applying it must preserve the current draft and locally running requests. */
+	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
@@ -432,7 +460,13 @@ export interface IChatSession extends IDisposable {
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
 	readonly isReadOnly?: IObservable<boolean>;
+	/** Temporarily prevents sending while keeping the draft visible and editable. */
+	readonly isInputBlocked?: IObservable<boolean>;
+	/** Recheck a temporary input restriction without sending a message. */
+	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+	/** Claims this client's tools before an approved background request is queued directly on the host. */
+	prepareForClientTools?: (token: CancellationToken) => Promise<void>;
 
 	/**
 	 * Event fired when the server initiates a new request (e.g. from a consumed
@@ -542,7 +576,14 @@ export interface IChatInputCompletionItem {
 	readonly start?: IPosition;
 	readonly end?: IPosition;
 	/** Attachment associated with the item. */
-	readonly attachment: IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+	readonly attachment: IChatInputCompletionTextAttachment | IChatInputCompletionResourceAttachment | IChatInputCompletionCommandAttachment | IChatInputCompletionSkillAttachment | IChatInputCompletionChatAttachment;
+}
+
+/**
+ * Plain text associated with a completion item.
+ */
+export interface IChatInputCompletionTextAttachment {
+	readonly kind: 'text';
 }
 
 /**
@@ -570,6 +611,8 @@ export interface IChatInputCompletionCommandAttachment {
 	readonly command: string;
 	readonly isSkill?: true;
 	readonly description: string;
+	readonly retriggerSuggestions?: true;
+	readonly submitOnAccept?: true;
 	/**
 	 * Implementation-defined metadata that MUST be preserved by the
 	 * workbench when the accepted completion is sent back as part of a

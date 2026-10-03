@@ -35,8 +35,8 @@ import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IMicCaptureService } from '../../../browser/voiceClient/micCaptureService.js';
 import { ITtsPlaybackService } from '../../../browser/voiceClient/ttsPlaybackService.js';
 import { isVoiceSessionActiveForInput, VoiceNewSessionPreparationResult, VoiceSessionController } from '../../../browser/voiceClient/voiceSessionController.js';
-import { IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { ChatSendResult, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IVoiceToolDispatchDelegate, IVoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
+import { ChatSendResult, ConfirmedReason, ElicitationState, IChatConfirmation, IChatModelReference, IChatSendRequestOptions, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
 import { derivePendingId, isPendingIdResolved, IVoiceAudioResponse, IVoiceBargeIn, IVoiceCheckpointNarrationMetadata, IVoiceClientService, IVoiceDispatchResult, IVoiceFatalDisconnect, IVoiceNarrationAck, IVoiceNarrationSignal, IVoicePttStartOptions, IVoiceSessionContext, IVoiceSpeechStarted, IVoiceToolCall, IVoiceTranscription, markPendingIdResolved, peekPendingId, VoiceConfirmationType, VoiceNarrationKind, VOICE_AGENT_PROGRESS_SETTING } from '../../../common/voiceClient/voiceClientService.js';
 import { IChatModel, IChatProgressResponseContent, IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -533,6 +533,70 @@ class RefCountingChatService extends mock<IChatService>() {
 	}
 }
 
+class NonVisibleTargetChatService extends mock<IChatService>() {
+	override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+	private readonly _resource = URI.parse('chat-session://existing/1');
+	readonly responseEmitter = new Emitter<void>();
+	readonly response = {
+		id: 'held-response',
+		requestId: 'held-request',
+		isComplete: false,
+		isCanceled: false,
+		onDidChange: this.responseEmitter.event,
+		response: {
+			value: [] as readonly IChatProgressResponseContent[],
+			getMarkdown: () => '',
+		},
+	} as unknown as IChatResponseModel;
+	private readonly _model = {
+		sessionResource: this._resource,
+		onDidChange: Event.None,
+		lastRequest: { id: 'held-request', response: this.response },
+		getRequests: () => [{ id: 'held-request', response: this.response }],
+	} as unknown as IChatModel;
+	private _retainedRefs = 0;
+
+	get retainedRefs(): number {
+		return this._retainedRefs;
+	}
+
+	override getSession(resource: URI): IChatModel | undefined {
+		return resource.toString() === this._resource.toString() ? this._model : undefined;
+	}
+
+	override async acquireOrLoadSession(resource: URI): Promise<IChatModelReference | undefined> {
+		if (resource.toString() !== this._resource.toString()) {
+			return undefined;
+		}
+		this._retainedRefs++;
+		let disposed = false;
+		return {
+			object: { sessionResource: this._resource } as unknown as IChatModelReference['object'],
+			dispose: () => {
+				if (disposed) {
+					return;
+				}
+				disposed = true;
+				this._retainedRefs--;
+			},
+		};
+	}
+
+	override async sendRequest(resource: URI): Promise<ChatSendResult> {
+		if (resource.toString() !== this._resource.toString()) {
+			return { kind: 'rejected', reason: 'wrong-target' };
+		}
+		return {
+			kind: 'sent',
+			data: {
+				agent: {} as never,
+				responseCreatedPromise: Promise.resolve(this.response),
+				responseCompletePromise: Promise.resolve(),
+			},
+		};
+	}
+}
+
 /**
  * Chat service whose tracked models can be driven from a test, so the
  * controller's always-on pending-confirmation tracker can be exercised.
@@ -736,6 +800,18 @@ class RejectingAcceptCommandService extends TestCommandService {
 	}
 }
 
+class NoVisibleSessionCommandService extends TestCommandService {
+	override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T> {
+		if (commandId === '_chat.voice.getCurrentSession') {
+			return undefined as T;
+		}
+		if (commandId === '_chat.voice.switchToSession') {
+			return false as T;
+		}
+		return super.executeCommand<T>(commandId, ...args);
+	}
+}
+
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { name: string; data: unknown }[] = [];
 
@@ -778,6 +854,10 @@ suite('VoiceSessionController', () => {
 			override notifyPlaybackEnd(): void { }
 		}(),
 		chatWidgetService: IChatWidgetService = new TestChatWidgetService(),
+		toolDispatchService: IVoiceToolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(): void { }
+			override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
+		}(),
 	): VoiceSessionController {
 		store.add({ dispose: () => voiceClientService.dispose() });
 		store.add(ttsPlaybackService);
@@ -788,10 +868,7 @@ suite('VoiceSessionController', () => {
 			voiceClientService,
 			micCaptureService,
 			ttsPlaybackService,
-			new class extends mock<IVoiceToolDispatchService>() {
-				override setDelegate(): void { }
-				override async respondToSession(): Promise<IVoiceDispatchResult> { return { ok: true }; }
-			}(),
+			toolDispatchService,
 			voicePlaybackService,
 			agentSessionsService,
 			chatService,
@@ -2612,7 +2689,7 @@ suite('VoiceSessionController', () => {
 
 	test('auto-approve ignores questionnaire backing tools', () => {
 		const controller = createController(new TestVoiceClientService());
-		const confirmed: ToolConfirmKind[] = [];
+		const confirmed: ConfirmedReason[] = [];
 		const toolInvocation = new class extends mock<IChatToolInvocation>() {
 			override readonly kind = 'toolInvocation' as const;
 			override readonly state = observableValue<IChatToolInvocation.State>('toolState', {
@@ -2622,7 +2699,7 @@ suite('VoiceSessionController', () => {
 					title: 'Submit questionnaire?',
 					message: 'Submits the questionnaire answers.',
 				},
-				confirm: reason => confirmed.push(reason.type),
+				confirm: reason => confirmed.push(reason),
 			});
 			override readonly invocationMessage = 'Submit questionnaire';
 		}();
@@ -2654,7 +2731,60 @@ suite('VoiceSessionController', () => {
 		autoApprovePendingTools.call(controller, modelWithQuestionnaire);
 		autoApprovePendingTools.call(controller, modelWithTool);
 
-		assert.deepStrictEqual(confirmed, [ToolConfirmKind.UserAction]);
+		assert.deepStrictEqual(confirmed, [{ type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' }]);
+	});
+
+	test('distinguishes manual and approve-all voice decisions from subsequent automatic approvals', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new ControllableChatService();
+		const session = agentSessionEntry('agent-host-copilot:/voice-auto-approval', 'Voice session', AgentSessionStatus.InProgress);
+		const confirmed: { toolCallId: string; reason: ConfirmedReason }[] = [];
+		const setPendingTool = (toolCallId: string) => {
+			const tool = waitingTerminalTool(toolCallId);
+			const state = tool.state.get();
+			assert.ok(state.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			tool.state.set({ ...state, confirm: reason => confirmed.push({ toolCallId, reason }) }, undefined);
+			chatService.setModels([pendingResponsePartModel(session.resource, tool)]);
+		};
+		const captured: { delegate?: IVoiceToolDispatchDelegate } = {};
+		const toolDispatchService = new class extends mock<IVoiceToolDispatchService>() {
+			override setDelegate(value: IVoiceToolDispatchDelegate): void { captured.delegate = value; }
+		}();
+		const controller = createController(
+			voiceClientService, undefined, undefined, undefined, undefined, undefined,
+			chatService, undefined, new TestAgentSessionsService([session]),
+			undefined, undefined, undefined, undefined, toolDispatchService,
+		);
+		assert.ok(captured.delegate);
+
+		setPendingTool('manual');
+		controller.pendingToolConfirmations.get()[0].approve();
+		setPendingTool('manual-reject');
+		controller.pendingToolConfirmations.get()[0].deny();
+		const fallbackTool = waitingTerminalTool('fallback-reject');
+		const fallbackState = fallbackTool.state.get();
+		assert.ok(fallbackState.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+		fallbackTool.state.set({ ...fallbackState, confirm: reason => confirmed.push({ toolCallId: 'fallback-reject', reason }) }, undefined);
+		chatService.setModels([pendingResponsePartModel(session.resource, fallbackTool, 'Needs input', false)]);
+		controller.pendingToolConfirmations.get()[0].deny();
+		setPendingTool('approve-all');
+		captured.delegate.addAllAutoApprovedSessions();
+		setPendingTool('automatic-sweep');
+		captured.delegate.triggerAutoApproveCheck();
+		setPendingTool('automatic-observer');
+		await controller.connect(mainWindow);
+		voiceClientService.fireConnectionState(true);
+		await voiceClientService.sessionCommandSent.p;
+		voiceClientService.fireSessionInit();
+
+		assert.deepStrictEqual(confirmed, [
+			{ toolCallId: 'manual', reason: { type: ToolConfirmKind.UserAction } },
+			{ toolCallId: 'manual-reject', reason: { type: ToolConfirmKind.Denied, source: 'user' } },
+			{ toolCallId: 'fallback-reject', reason: { type: ToolConfirmKind.Denied, source: 'user' } },
+			{ toolCallId: 'approve-all', reason: { type: ToolConfirmKind.UserAction } },
+			{ toolCallId: 'automatic-sweep', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
+			{ toolCallId: 'automatic-observer', reason: { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'auto-approve-all' } },
+		]);
 	});
 
 	test('handles freeform and defers empty questionnaire data', () => {
@@ -3260,6 +3390,46 @@ suite('VoiceSessionController', () => {
 		}
 
 		assert.deepStrictEqual(results, [false, false, false]);
+	});
+
+	test('categorizes invalid confirmation narration rejection reasons without changing accepted or busy acknowledgements', () => {
+		const cases: readonly {
+			disposition: IVoiceNarrationAck['disposition'];
+			reason?: string;
+		}[] = [
+				{ disposition: 'invalid', reason: 'stale_pending' },
+				{ disposition: 'invalid' },
+				{ disposition: 'invalid', reason: '' },
+				{ disposition: 'invalid', reason: 'backend details that must not be logged' },
+				{ disposition: 'accepted', reason: 'stale_pending' },
+				{ disposition: 'busy', reason: 'speaking' },
+			];
+		const events = cases.map(({ disposition, reason }, index) => {
+			const voiceClientService = new TestVoiceClientService();
+			const telemetryService = new TestTelemetryService();
+			const controller = createController(voiceClientService, undefined, undefined, telemetryService);
+			const sessionId = `chat-session:/confirmation-ack-${index}`;
+			const narrate = Reflect.get(controller, '_narrate') as (sessionId: string, kind: VoiceNarrationKind, text: string, reuseId?: string, checkpoint?: IVoiceCheckpointNarrationMetadata, confirmationType?: VoiceConfirmationType, pending?: { pendingId: string }) => boolean;
+			const handleAck = Reflect.get(controller, '_handleNarrationAck') as (event: IVoiceNarrationAck) => void;
+
+			narrate.call(controller, sessionId, 'confirmation', 'Allow this command?', undefined, undefined, 'tool', { pendingId: `pending-${index}` });
+			handleAck.call(controller, {
+				narrationId: voiceClientService.requests[0].narrationId,
+				codingSessionId: sessionId,
+				disposition,
+				reason,
+			});
+			return telemetryService.events;
+		});
+
+		assert.deepStrictEqual(events, [
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'stale_pending' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'missing' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'unknown' } }],
+			[{ name: 'voiceNarrationDropped', data: { kind: 'confirmation', reason: 'invalid', rejectionReason: 'unknown' } }],
+			[],
+			[{ name: 'voiceNarrationDeferred', data: { kind: 'confirmation', reason: 'busy' } }],
+		]);
 	});
 
 	test('active checkpoint playback is preempted when final response audio starts', async () => {
@@ -5716,6 +5886,34 @@ suite('VoiceSessionController', () => {
 
 		// The pane holds its own reference, so voice must not keep one too.
 		assert.strictEqual(chatService.refCount('chat-session://new/1'), 0);
+	});
+
+	test('send_to_chat releases hidden-session watchers on disconnect', async () => {
+		const voiceClientService = new TestVoiceClientService();
+		const chatService = new NonVisibleTargetChatService();
+		store.add({ dispose: () => chatService.responseEmitter.dispose() });
+		const controller = createController(voiceClientService, undefined, new NoVisibleSessionCommandService(), undefined, undefined, undefined, chatService);
+
+		controller.setTargetSession(URI.parse('chat-session://existing/1'));
+		await Reflect.get(controller, '_sendTranscriptionToChat').call(controller, 'review the indexing flow');
+
+		assert.deepStrictEqual({
+			retainedRefsBeforeDisconnect: chatService.retainedRefs,
+			hasResponseListenerBeforeDisconnect: chatService.responseEmitter.hasListeners(),
+		}, {
+			retainedRefsBeforeDisconnect: 1,
+			hasResponseListenerBeforeDisconnect: true,
+		});
+
+		controller.disconnect();
+
+		assert.deepStrictEqual({
+			retainedRefsAfterDisconnect: chatService.retainedRefs,
+			hasResponseListenerAfterDisconnect: chatService.responseEmitter.hasListeners(),
+		}, {
+			retainedRefsAfterDisconnect: 0,
+			hasResponseListenerAfterDisconnect: false,
+		});
 	});
 
 	test('send_to_chat with new_session outranks a pinned submit session', async () => {

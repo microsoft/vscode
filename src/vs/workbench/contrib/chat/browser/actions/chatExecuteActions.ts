@@ -33,7 +33,8 @@ import { ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, 
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/tools/languageModelToolsService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../chat.js';
 import { getAgentSessionProvider, AgentSessionProviders, AgentSessionTarget } from '../agentSessions/agentSessions.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
@@ -58,6 +59,10 @@ abstract class SubmitAction extends Action2 {
 		const telemetryService = accessor.get(ITelemetryService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+
+		if (widget?.isTranscriptProgressActive) {
+			return;
+		}
 
 		// Check if there's a pending delegation target
 		const pendingDelegationTarget = widget?.input.pendingDelegationTarget;
@@ -183,8 +188,8 @@ abstract class SubmitAction extends Action2 {
 	}
 }
 
-const whenNoActiveRequest = ChatContextKeys.hasActiveRequest.negate();
-const whenNotInProgress = ChatContextKeys.requestInProgress.negate();
+const whenNoActiveRequest = ContextKeyExpr.and(ChatContextKeys.hasActiveRequest.negate(), ChatContextKeys.transcriptProgressActive.negate());
+const whenNotInProgress = ContextKeyExpr.and(ChatContextKeys.requestInProgress.negate(), ChatContextKeys.transcriptProgressActive.negate());
 
 export class ChatSubmitAction extends SubmitAction {
 	static readonly ID = 'workbench.action.chat.submit';
@@ -193,6 +198,8 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
+			ChatContextKeys.transcriptProgressActive.negate(),
 			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
@@ -277,6 +284,7 @@ class ToggleChatModeAction extends Action2 {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		const chatSessionsService = accessor.get(IChatSessionsService);
 		let widget: IChatWidget | undefined;
 		if (arg?.sessionResource) {
 			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
@@ -303,7 +311,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount);
+		reportChatModeChange(telemetryService, currentMode, switchToMode, requestCount, getAgentHostProviderForTelemetry(chatSession ? getChatSessionType(chatSession.sessionResource) : undefined, chatSessionsService));
 
 		widget.input.setChatMode(switchToMode.id, true, true);
 
@@ -740,6 +748,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 
 	constructor() {
 		const notInProgressOrEditing = ContextKeyExpr.and(
+			ChatContextKeys.transcriptProgressActive.negate(),
 			ContextKeyExpr.or(whenNoActiveRequest, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Queue),
 			ChatContextKeys.editingRequestType.notEqualsTo(ChatContextKeys.EditingRequestType.Steer)
@@ -748,6 +757,7 @@ export class ChatEditingSessionSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasSendableContent,
+			ChatContextKeys.inputBlocked.negate(),
 			notInProgressOrEditing,
 			ChatContextKeys.chatSessionOptionsValid
 		);
@@ -836,7 +846,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -923,7 +933,7 @@ export class CancelAction extends Action2 {
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.hasActiveRequest,
+					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate(),
 					ChatContextKeys.currentlyEditing.negate(),
 				),
@@ -933,7 +943,7 @@ export class CancelAction extends Action2 {
 				id: MenuId.ChatEditorInlineExecute,
 				when: ContextKeyExpr.and(
 					ctxIsGlobalEditingSession.negate(),
-					ctxHasRequestInProgress,
+					ContextKeyExpr.or(ctxHasRequestInProgress, ChatContextKeys.transcriptProgressActive),
 				),
 				order: 4,
 				group: 'navigation',
@@ -943,7 +953,7 @@ export class CancelAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.hasActiveRequest,
+					ContextKeyExpr.or(ChatContextKeys.hasActiveRequest, ChatContextKeys.transcriptProgressActive),
 					ChatContextKeys.remoteJobCreating.negate()
 				),
 				win: { primary: KeyMod.Alt | KeyCode.Backspace },
@@ -965,6 +975,10 @@ export class CancelAction extends Action2 {
 				pendingRequests: 0,
 			});
 			logService.info('ChatCancelAction#run: No focused chat widget was found');
+			return;
+		}
+
+		if (widget.cancelTranscriptProgress?.()) {
 			return;
 		}
 

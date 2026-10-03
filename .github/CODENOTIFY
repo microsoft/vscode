@@ -13,10 +13,10 @@ src/vs/base/browser/ui/tree/** @benibenj
 
 # Platform
 src/vs/platform/agentHost/node/claude/** @TylerLeonhardt
-src/vs/platform/agentHost/**/*Automation* @ulugbekna
-src/vs/platform/agentHost/**/*automation* @ulugbekna
-src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna
-src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna
+src/vs/platform/agentHost/**/*Automation* @ulugbekna @benvillalobos
+src/vs/platform/agentHost/**/*automation* @ulugbekna @benvillalobos
+src/vs/platform/agentHost/common/state/protocol/channels-automation-run/** @ulugbekna @benvillalobos
+src/vs/platform/agentHost/common/state/protocol/channels-automation/** @ulugbekna @benvillalobos
 src/vs/platform/browserView/** @kycutler @jruales
 src/vs/platform/quickinput/** @TylerLeonhardt
 src/vs/platform/secrets/** @TylerLeonhardt
@@ -42,12 +42,12 @@ src/vs/workbench/services/views/** @sandy081 @benibenj
 # Workbench Contributions
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/browserView/** @kycutler @jruales
-src/vs/workbench/contrib/chat/**/*Automation* @ulugbekna
-src/vs/workbench/contrib/chat/**/*automation* @ulugbekna
+src/vs/workbench/contrib/chat/**/*Automation* @ulugbekna @benvillalobos
+src/vs/workbench/contrib/chat/**/*automation* @ulugbekna @benvillalobos
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
-src/vs/workbench/contrib/chat/common/automations/** @ulugbekna
+src/vs/workbench/contrib/chat/common/automations/** @ulugbekna @benvillalobos
 src/vs/workbench/contrib/chat/electron-browser/builtInTools/fetchPageTool.ts @TylerLeonhardt
-src/vs/workbench/contrib/chat/test/common/automations/** @ulugbekna
+src/vs/workbench/contrib/chat/test/common/automations/** @ulugbekna @benvillalobos
 src/vs/workbench/contrib/localization/** @TylerLeonhardt
 src/vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts @TylerLeonhardt
 src/vs/workbench/contrib/scm/** @lszomoru

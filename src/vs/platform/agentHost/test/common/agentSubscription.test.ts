@@ -4,16 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
-import { ActionType, type ActionEnvelope, type ClientChangesetAction } from '../../common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
-import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import { ActionType, type ActionEnvelope, type ChatTurnStartedAction, type ClientChangesetAction } from '../../common/state/sessionActions.js';
+import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, ChangesetStatus, ChatInteractivity, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TerminalClaimKind, TerminalLifecycleStatus, TurnState, type AnnotationsState, type AutomationRunState, type AutomationState, type ChangesetState, type ErrorInfo, type RootState, type SessionState, type SessionSummary, type TerminalState, type Turn } from '../../common/state/protocol/state.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, createChatState, createDefaultChatSummary, getTurnError, ROOT_STATE_URI, StateComponents, type ChatState } from '../../common/state/sessionState.js';
+import { AgentSubscriptionManager, AutomationCatalogSubscription, AutomationRunSubscription, CanvasStateSubscription, ChangesetStateSubscription, ChatStateSubscription, isActionEnvelopeRelevantToSubscriptionUris, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
+import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
+import { chatReducer } from '../../common/state/sessionReducers.js';
+import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
+import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
+import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
 
 // Helpers
 
@@ -86,6 +94,41 @@ const chatUri = buildDefaultChatUri(sessionUri);
 const changesetUri = `${sessionUri}/changeset/session`;
 const automationUri = 'ahp-automation:/test-automation';
 const automationRunUri = 'ahp-automation-run:/test-run';
+
+suite('resolveAgentHostSession', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves peer chats and folder changeset owners to their containing session', () => {
+		const peer = buildChatUri(sessionUri, 'peer');
+		const folderOwner = buildFolderChangesetOwnerUri(sessionUri, 'folder');
+		const terminal = buildNonPtyShellTerminalUri(sessionUri, sessionUri, peer, 'tool');
+
+		assert.deepStrictEqual({
+			peer: resolveAgentHostSession(URI.parse(peer)).toString(),
+			folder: resolveAgentHostSession(URI.parse(folderOwner)).toString(),
+			terminal: resolveAgentHostSession(URI.parse(terminal)).toString(),
+		}, {
+			peer: sessionUri,
+			folder: sessionUri,
+			terminal: sessionUri,
+		});
+	});
+
+	test('pins local canvases to their owning session without interpreting other hosts', () => {
+		const chat = URI.parse(buildChatUri(sessionUri, 'peer'));
+		const canvas = buildCanvasUri(chat, 'preview');
+		const remote = canvas.with({ authority: 'another-host' });
+		assert.deepStrictEqual({
+			owner: parseCanvasChatUri(canvas)?.toString(),
+			session: resolveAgentHostSession(canvas).toString(),
+			remoteOwner: parseCanvasChatUri(remote),
+			extraPath: parseCanvasChatUri(canvas.with({ path: canvas.path + '/extra' })),
+			query: parseCanvasChatUri(canvas.with({ query: 'source=other' })),
+		}, {
+			owner: chat.toString(), session: sessionUri, remoteOwner: undefined, extraPath: undefined, query: undefined,
+		});
+	});
+});
 
 function makeAutomationCatalogState(): AutomationState {
 	return { entries: [] };
@@ -239,6 +282,25 @@ suite('ChangesetStateSubscription', () => {
 		});
 	});
 
+});
+
+suite('CanvasStateSubscription', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('buffers new canvas source state across initial and reconnect snapshots', () => {
+		const resource = 'ahp-canvas://another-host/documents/preview';
+		const subscription = disposables.add(new CanvasStateSubscription(resource, 'c1', noop));
+		const initial: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/old' };
+		const replacement: CanvasState = { ...initial, url: 'https://example.test/new' };
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: replacement }, 2, undefined, undefined, resource));
+		subscription.handleSnapshot(initial, 1);
+		const ready = subscription.value;
+		subscription.beginSnapshotRefresh();
+		const { url: _url, ...unavailable } = replacement;
+		subscription.receiveEnvelope(makeEnvelope({ type: ActionType.CanvasStateChanged, canvas: unavailable }, 4, undefined, undefined, resource));
+		subscription.handleSnapshot(replacement, 3);
+		assert.deepStrictEqual({ ready, unavailable: subscription.value }, { ready: replacement, unavailable });
+	});
 });
 
 // RootStateSubscription
@@ -644,6 +706,17 @@ suite('SessionStateSubscription', () => {
 // ChatStateSubscription
 
 suite('ChatStateSubscription', () => {
+	test('session catalog interactivity updates the live chat without changing its draft', () => {
+		const sub = new ChatStateSubscription(chatUri, 'c1', () => 1, noop);
+		try {
+			const draft = { text: 'Draft', origin: { kind: MessageKind.User } };
+			sub.handleSnapshot({ ...createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri)), draft }, 0);
+			sub.receiveEnvelope(makeEnvelope({ type: ActionType.SessionChatUpdated, chat: chatUri, changes: { interactivity: ChatInteractivity.ReadOnly } }, 1));
+			assert.deepStrictEqual({ interactivity: (sub.value as ChatState).interactivity, draft: (sub.value as ChatState).draft }, { interactivity: ChatInteractivity.ReadOnly, draft });
+		} finally {
+			sub.dispose();
+		}
+	});
 
 	let disposables: DisposableStore;
 	let seq: number;
@@ -737,6 +810,107 @@ suite('ChatStateSubscription', () => {
 			error,
 			responseParts: [{ kind: ResponsePartKind.Error, error }],
 			legacyField: undefined,
+		});
+	});
+
+	for (const bufferedAcknowledgement of [false, true]) {
+		test(`initial snapshot confirms an optimistic turn start (${bufferedAcknowledgement ? 'buffered' : 'missing'} acknowledgement)`, () => {
+			const sub = createSub();
+			const start: ChatTurnStartedAction = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User } },
+			};
+			const clientSeq = sub.applyOptimistic(start);
+			if (bufferedAcknowledgement) {
+				sub.receiveEnvelope(makeEnvelope(start, 1, { clientId: 'c1', clientSeq }));
+			}
+			const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+			sub.handleSnapshot(snapshot, 1);
+			const progress = {
+				type: ActionType.ChatToolCallStart,
+				turnId: start.turnId,
+				toolCallId: 'tool-1',
+				toolName: 'reply',
+				displayName: 'Reply',
+			} as const;
+			sub.receiveEnvelope(makeEnvelope(progress, 2));
+
+			assert.deepStrictEqual({
+				value: sub.value,
+				pending: sub.getPendingActions(),
+			}, {
+				value: chatReducer(snapshot, progress, noop),
+				pending: [],
+			});
+		});
+	}
+
+	test('snapshot confirms a completed optimistic turn without restarting it', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const snapshot = chatReducer(chatReducer(makeChatState(chatUri), start, noop), {
+			type: ActionType.ChatTurnComplete,
+			turnId: start.turnId,
+			duration: 1000,
+		}, noop);
+		sub.handleSnapshot(snapshot, 2);
+
+		assert.deepStrictEqual({ value: sub.value, pending: sub.getPendingActions() }, { value: snapshot, pending: [] });
+	});
+
+	test('snapshot confirming a turn start preserves its pending cancellation', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		sub.applyOptimistic(start);
+		const cancellation = {
+			type: ActionType.ChatTurnCancelled,
+			turnId: start.turnId,
+			duration: 1000,
+		} as const;
+		const clientSeq = sub.applyOptimistic(cancellation);
+		const snapshot = chatReducer(makeChatState(chatUri), start, noop);
+		sub.handleSnapshot(snapshot, 1);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, cancellation, noop),
+			pending: [{ channel: chatUri, clientSeq, action: cancellation }],
+		});
+	});
+
+	test('snapshot without the optimistic turn preserves its pending start', () => {
+		const sub = createSub();
+		const start: ChatTurnStartedAction = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		};
+		const clientSeq = sub.applyOptimistic(start);
+		const snapshot = makeChatState(chatUri);
+		sub.handleSnapshot(snapshot, 0);
+
+		assert.deepStrictEqual({
+			value: sub.value,
+			pending: sub.getPendingActions(),
+		}, {
+			value: chatReducer(snapshot, start, noop),
+			pending: [{ channel: chatUri, clientSeq, action: start }],
 		});
 	});
 
@@ -889,7 +1063,7 @@ suite('AgentSubscriptionManager', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createManager(subscribe: (resource: URI) => Promise<{ resource: string; state: SessionState | TerminalState | ChangesetState | AnnotationsState | AutomationState; fromSeq: number }> = async resource => {
+	function createManager(subscribe: (resource: URI) => Promise<IStateSnapshot> = async resource => {
 		const key = resource.toString();
 		subscribedResources.push(key);
 		if (key.endsWith('/annotations')) {
@@ -915,6 +1089,133 @@ suite('AgentSubscriptionManager', () => {
 		const mgr = createManager();
 		assert.ok(mgr.rootState);
 		assert.strictEqual(mgr.rootState.value, undefined);
+	});
+
+	test('routes catalog updates to opaque host-advertised chat URIs', async () => {
+		const remoteSessionUri = 'ahp-session:/remote-session';
+		const remoteChatUri = 'ahp-chat:/remote-chat';
+		const siblingChatUri = 'ahp-chat:/sibling-chat';
+		const remoteChat = makeChatState(remoteChatUri, makeSessionSummary(remoteSessionUri), { interactivity: ChatInteractivity.Full });
+		const siblingChat = makeChatState(siblingChatUri, makeSessionSummary(remoteSessionUri), { interactivity: ChatInteractivity.Full });
+		const snapshots = new Map<string, SessionState | ChatState>([
+			[remoteSessionUri, makeSessionState(remoteSessionUri, { chats: [remoteChat, siblingChat], defaultChat: remoteChatUri })],
+			[remoteChatUri, remoteChat],
+			[siblingChatUri, siblingChat],
+		]);
+		const mgr = createManager(async resource => ({ resource: resource.toString(), state: snapshots.get(resource.toString())!, fromSeq: 0 }));
+		const session = disposables.add(mgr.getSubscription<SessionState>(StateComponents.Session, URI.parse(remoteSessionUri), 'remote-session'));
+		const chat = disposables.add(mgr.getSubscription<ChatState>(StateComponents.Chat, URI.parse(remoteChatUri), 'remote-chat'));
+		const sibling = disposables.add(mgr.getSubscription<ChatState>(StateComponents.Chat, URI.parse(siblingChatUri), 'sibling-chat'));
+		await Promise.all([Event.toPromise(session.object.onDidChange), Event.toPromise(chat.object.onDidChange), Event.toPromise(sibling.object.onDidChange)]);
+		const draft = { text: 'Keep this unsent draft', origin: { kind: MessageKind.User } };
+		mgr.dispatchOptimistic(remoteChatUri, { type: ActionType.ChatDraftChanged, draft });
+		mgr.receiveEnvelope(makeEnvelope({
+			type: ActionType.SessionChatUpdated,
+			chat: remoteChatUri,
+			changes: { interactivity: ChatInteractivity.ReadOnly },
+		}, 1, undefined, undefined, remoteSessionUri));
+
+		assert.deepStrictEqual({
+			catalog: session.object.verifiedValue?.chats.map(chat => chat.interactivity),
+			chat: chat.object.verifiedValue?.interactivity,
+			sibling: sibling.object.verifiedValue?.interactivity,
+			draft: (chat.object.value as ChatState).draft,
+		}, {
+			catalog: [ChatInteractivity.ReadOnly, ChatInteractivity.Full],
+			chat: ChatInteractivity.ReadOnly,
+			sibling: ChatInteractivity.Full,
+			draft,
+		});
+	});
+
+	test('refresh preserves unacknowledged drafts and live updates without unsubscribing', async () => {
+		const snapshot = createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri));
+		const response = new DeferredPromise<{ resource: string; state: ChatState; fromSeq: number }>();
+		let reads = 0;
+		const mgr = createManager(async resource => ++reads === 1 ? { resource: resource.toString(), state: snapshot, fromSeq: 0 } : response.p);
+		const resource = URI.parse(chatUri);
+		const ref = mgr.getSubscription<ChatState>(StateComponents.Chat, resource, 'draft-test');
+		await Event.toPromise(ref.object.onDidChange);
+		await Promise.resolve();
+		const draft = { text: 'Keep this draft', origin: { kind: MessageKind.User } };
+		mgr.dispatchOptimistic(chatUri, { type: ActionType.ChatDraftChanged, draft });
+		const refreshing = mgr.refreshSubscription(resource);
+		const coalesced = mgr.refreshSubscription(resource) === refreshing;
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.ChatActivityChanged, activity: 'Fresh activity' }, 3));
+		await response.complete({ resource: chatUri, state: snapshot, fromSeq: 1 });
+		await refreshing;
+		assert.deepStrictEqual({ coalesced, reads, draft: ref.object.verifiedValue?.draft, visibleDraft: (ref.object.value as ChatState).draft, activity: (ref.object.value as ChatState).activity, pending: mgr.getPendingActions().length, unsubscribedResources }, {
+			coalesced: true, reads: 2, draft: undefined, visibleDraft: draft, activity: 'Fresh activity', pending: 1, unsubscribedResources: [],
+		});
+		ref.dispose();
+	});
+
+	test('refresh retires draft acknowledgements already included in the snapshot', async () => {
+		const snapshot = createChatState(createDefaultChatSummary(makeSessionSummary(sessionUri), chatUri));
+		const response = new DeferredPromise<{ resource: string; state: ChatState; fromSeq: number }>();
+		let reads = 0;
+		const mgr = createManager(async resource => ++reads === 1 ? { resource: resource.toString(), state: snapshot, fromSeq: 0 } : response.p);
+		const resource = URI.parse(chatUri);
+		const ref = mgr.getSubscription<ChatState>(StateComponents.Chat, resource, 'draft-test');
+		await Event.toPromise(ref.object.onDidChange);
+		await Promise.resolve();
+		const draft = { text: 'Older draft', origin: { kind: MessageKind.User } };
+		const action = { type: ActionType.ChatDraftChanged, draft } as const;
+		const clientSeq = mgr.dispatchOptimistic(chatUri, action);
+		const refreshing = mgr.refreshSubscription(resource);
+		mgr.receiveEnvelope(makeEnvelope(action, 2, { clientId: 'c1', clientSeq }));
+		await response.complete({ resource: chatUri, state: { ...snapshot, draft: { ...draft, text: 'Newer shared draft' } }, fromSeq: 3 });
+		await refreshing;
+		assert.deepStrictEqual({ draft: (ref.object.value as ChatState).draft?.text, pending: mgr.getPendingActions(), unsubscribedResources }, {
+			draft: 'Newer shared draft', pending: [], unsubscribedResources: [],
+		});
+		ref.dispose();
+	});
+
+	test('failed refresh retains the subscription and applies buffered updates', async () => {
+		const response = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let reads = 0;
+		const mgr = createManager(async resource => ++reads === 1 ? { resource: resource.toString(), state: makeSessionState(sessionUri), fromSeq: 0 } : response.p);
+		const resource = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'refresh-test');
+		await Event.toPromise(ref.object.onDidChange);
+		await Promise.resolve();
+		const refreshing = mgr.refreshSubscription(resource);
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'Fresh title' }, 3));
+		const rejected = assert.rejects(refreshing, /offline/);
+		await response.error(new Error('offline'));
+		await rejected;
+		assert.deepStrictEqual({ title: (ref.object.value as SessionState).title, unsubscribedResources }, { title: 'Fresh title', unsubscribedResources: [] });
+		ref.dispose();
+	});
+
+	test('reconnect supersedes an older subscription refresh', async () => {
+		const response = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		let reads = 0;
+		const mgr = createManager(async resource => ++reads === 1 ? { resource: resource.toString(), state: makeSessionState(sessionUri), fromSeq: 0 } : response.p);
+		const resource = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'refresh-test');
+		await Event.toPromise(ref.object.onDidChange);
+		await Promise.resolve();
+		const refreshing = mgr.refreshSubscription(resource);
+		mgr.applyReconnectSnapshot(sessionUri, makeSessionState(sessionUri, { title: 'Reconnected' }), 5, true);
+		mgr.receiveEnvelope(makeEnvelope({ type: ActionType.SessionTitleChanged, title: 'After reconnect' }, 6));
+		await response.complete({ resource: sessionUri, state: makeSessionState(sessionUri, { title: 'Stale' }), fromSeq: 1 });
+		await refreshing;
+		assert.strictEqual((ref.object.value as SessionState).title, 'After reconnect');
+		ref.dispose();
+	});
+
+	test('refresh joining an initial subscription propagates its failure', async () => {
+		const response = new DeferredPromise<{ resource: string; state: SessionState; fromSeq: number }>();
+		const mgr = createManager(() => response.p);
+		const resource = URI.parse(sessionUri);
+		const ref = mgr.getSubscription<SessionState>(StateComponents.Session, resource, 'refresh-test');
+		const rejected = assert.rejects(mgr.refreshSubscription(resource), /offline/);
+		await response.error(new Error('offline'));
+		await rejected;
+		assert.ok(ref.object.value instanceof Error);
+		ref.dispose();
 	});
 
 	test('handleRootSnapshot initializes root state', () => {
@@ -1043,6 +1344,24 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(subscribedResources.includes(terminalUri));
 
 		ref.dispose();
+	});
+
+	test('shares and releases the exact advertised canvas subscription', async () => {
+		const resource = URI.parse('ahp-canvas://another-host/documents/preview');
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview' };
+		const mgr = createManager(async uri => {
+			subscribedResources.push(uri.toString());
+			return { resource: uri.toString(), state: canvas, fromSeq: 0 };
+		});
+		const first = mgr.getSubscription<CanvasState>(StateComponents.Canvas, resource, 'first');
+		const second = mgr.getSubscription<CanvasState>(StateComponents.Canvas, resource, 'second');
+		await Event.toPromise(first.object.onDidChange);
+		first.dispose();
+		const retained = mgr.currentSubscriptionUris().map(uri => uri.toString());
+		second.dispose();
+		assert.deepStrictEqual({ subscribedResources, retained, unsubscribedResources }, {
+			subscribedResources: [resource.toString()], retained: [resource.toString()], unsubscribedResources: [resource.toString()],
+		});
 	});
 
 	test('uses the normalized automation catalogue URI internally', async () => {

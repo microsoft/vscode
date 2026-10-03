@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Action, IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,6 +48,20 @@ export function hasSignedInCodexChatGPTAccount(account: ICodexAccountInfo, visib
 	return visible && account.status === 'signedIn';
 }
 
+/**
+ * An unknown account may already be signed in. Let explicit Codex selection
+ * resolve it without requiring GitHub first; this is not proof of sign-in.
+ */
+export function canInitializeCodexWithoutGitHub(account: Pick<ICodexAccountInfo, 'status'>): boolean {
+	return account.status === 'unknown' || account.status === 'signedIn';
+}
+
+export function getCodexAccountPlanName(account: Pick<ICodexAccountInfo, 'planType'>): string {
+	return account.planType
+		? localize('chatGPTPlan', "ChatGPT {0}", account.planType.charAt(0).toUpperCase() + account.planType.slice(1))
+		: localize('chatGPTSubscription', "ChatGPT subscription");
+}
+
 export function shouldShowCodexAccount(configurationService: ICodexAccountVisibilityConfiguration, isSessionsWindow: boolean): boolean {
 	return configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true
 		&& configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
@@ -73,14 +87,31 @@ export function createCodexAccountMenuActions(service: ICodexAccountService, vis
 	if (account.status === 'downloading') {
 		return [new Action('codex.downloadingAgent', localize('downloadingCodexAgent', "Downloading Codex Agent…"), undefined, false)];
 	}
-	if (account.status === 'unknown' || account.status === 'signedOut' || account.status === 'error') {
+	// Unknown is passive until explicit Codex use resolves the account.
+	if (account.status === 'signedOut' || account.status === 'error') {
 		return [new Action('codex.signInToChatGPT', localize('signInToChatGPT', "Sign in to ChatGPT"), undefined, true, () => service.signIn())];
 	}
 	return [];
 }
 
 export function openCodexAuthUrl(openerService: Pick<IOpenerService, 'open'>, authUrl: string): Promise<boolean> {
-	return openerService.open(authUrl, { openExternal: true, skipValidation: true });
+	let parsedAuthUrl: URL;
+	try {
+		parsedAuthUrl = new URL(authUrl);
+	} catch {
+		return Promise.resolve(false);
+	}
+	if (parsedAuthUrl.protocol !== 'https:' || !isTrustedCodexAuthHost(parsedAuthUrl.hostname)) {
+		return Promise.resolve(false);
+	}
+	return openerService.open(parsedAuthUrl.href, { openExternal: true, skipValidation: true });
+}
+
+function isTrustedCodexAuthHost(hostname: string): boolean {
+	const normalizedHostname = hostname.toLowerCase();
+	return ['openai.com', 'chatgpt.com'].some(domain =>
+		normalizedHostname === domain || normalizedHostname.endsWith(`.${domain}`)
+	);
 }
 
 export async function readCodexProfileImageDataUri(
@@ -125,11 +156,18 @@ export class CodexAccountService extends Disposable implements ICodexAccountServ
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
-		const initialState = this._agentHostService.rootState.value;
-		this._rootAccount = readCodexAccountInfo(initialState instanceof Error ? undefined : initialState);
+		this._rootAccount = { status: 'unknown' };
 		this._account = this._rootAccount;
-		this._updateProfileImage(this._rootAccount.profileImage);
-		this._register(this._agentHostService.rootState.onDidChange(state => this._updateAccount(readCodexAccountInfo(state))));
+		const rootStateListeners = this._register(new DisposableStore());
+		const bindRootState = () => {
+			rootStateListeners.clear();
+			rootStateListeners.add(this._agentHostService.rootState.onDidChange(state => this._updateAccount(readCodexAccountInfo(state))));
+			this._pendingSignInRequests.clear();
+			const state = this._agentHostService.rootState.value;
+			this._updateAccount(readCodexAccountInfo(state instanceof Error ? undefined : state));
+		};
+		bindRootState();
+		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 	}
 
 	signIn(): void {

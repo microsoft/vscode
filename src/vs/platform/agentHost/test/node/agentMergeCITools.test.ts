@@ -13,12 +13,14 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { GitHubWorkflowJob, GitHubWorkflowLog, GitHubWorkflowRun } from '../../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../../github/common/githubPullRequestService.js';
-import { IGitHubService } from '../../../github/common/githubService.js';
+import { IGitHubClient } from '../../../github/common/githubService.js';
 import { IPullRequestMutations } from '../../../github/common/pullRequestMutationService.js';
 import { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { GitHubRequestError } from '../../../github/common/githubTransport.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { defaultAgentMergeConfiguration } from '../../common/agentMerge.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from '../../node/agentMergeCIEvidence.js';
 import { AgentMergeTools, IAgentMergeTurnContext } from '../../node/agentMergeTools.js';
 import { AgentMergeCIRequest } from '../../node/shared/agentMergeServerTools.js';
@@ -144,6 +146,16 @@ suite('Agent Merge CI diagnostics', () => {
 		assert.deepStrictEqual({ matches, downloads: h.mutations.downloads }, { matches: Array.from({ length: 14 }, (_, i) => i * 3 + 1), downloads: 1 });
 	});
 
+	test('revalidates CI authorization in the owning peer chat, not its session', async () => {
+		const h = store.add(new CIHarness());
+		h.context = { ...h.context, chat: 'peer-chat' };
+		h.mutations.log = { text: 'Peer chat failure', truncated: false };
+		const evidenceId = await h.evidenceId();
+		const result = await h.read({ mode: 'tail', evidenceId });
+		await assert.rejects(h.read({}, h.context.session), /not authorized/);
+		assert.deepStrictEqual(result.lines.map(line => line.text), ['Peer chat failure']);
+	});
+
 	test('rejects malformed, cross-session, cross-repository, and stale head or attempt evidence', async () => {
 		const h = store.add(new CIHarness());
 		const evidenceId = await h.evidenceId();
@@ -224,7 +236,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('serializes authorized reads from different sessions without sharing evidence', async () => {
 		const h = store.add(new CIHarness());
-		h.peerContexts.set('peer', { ...h.context, session: 'peer' });
+		h.peerContexts.set('peer', { ...h.context, session: 'peer', chat: 'peer' });
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		let active = 0;
@@ -251,8 +263,8 @@ suite('Agent Merge CI diagnostics', () => {
 		const h = store.add(new CIHarness());
 		const abort = new AbortController();
 		store.add(toDisposable(() => abort.abort()));
-		h.peerContexts.set('cancelled', { ...h.context, session: 'cancelled', signal: abort.signal });
-		h.peerContexts.set('next', { ...h.context, session: 'next' });
+		h.peerContexts.set('cancelled', { ...h.context, session: 'cancelled', chat: 'cancelled', signal: abort.signal });
+		h.peerContexts.set('next', { ...h.context, session: 'next', chat: 'next' });
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		h.mutations.beforeDownload = async () => {
@@ -278,7 +290,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('rechecks authorization before starting a queued read', async () => {
 		const h = store.add(new CIHarness());
-		h.peerContexts.set('peer', { ...h.context, session: 'peer' });
+		h.peerContexts.set('peer', { ...h.context, session: 'peer', chat: 'peer' });
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		h.mutations.beforeDownload = async () => {
@@ -297,7 +309,7 @@ suite('Agent Merge CI diagnostics', () => {
 
 	test('includes queue waiting in the call deadline without starting cancelled work', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = store.add(new CIHarness());
-		h.peerContexts.set('peer', { ...h.context, session: 'peer' });
+		h.peerContexts.set('peer', { ...h.context, session: 'peer', chat: 'peer' });
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		h.mutations.beforeDownload = async () => {
@@ -541,17 +553,12 @@ class CIHarness extends Disposable {
 		this.snapshot = observableValue(this, makeSnapshot(count));
 		const abort = new AbortController();
 		this._register(toDisposable(() => abort.abort()));
-		this.context = {
-			session: 'session', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
-			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
-			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
-		};
 		this.mutations.jobs = Array.from({ length: count }, (_, index) => ({
 			id: `job-${index}`, checkRunId: `check-${index}`, runId: '1', name: `CI ${index}`, conclusion: 'FAILURE',
 			headSha: 'head', runAttempt: 1, steps: [{ number: 1, name: 'Run tests', conclusion: 'FAILURE' }],
 		}));
 		const harness = this;
-		const service = new class extends mock<IGitHubService>() {
+		const client = new class extends mock<IGitHubClient>() {
 			override readonly mutations = harness.mutations;
 			override readonly pullRequests = new class extends mock<IPullRequestResources>() {
 				override subscribePullRequest() {
@@ -564,11 +571,20 @@ class CIHarness extends Disposable {
 				}
 			}();
 		}();
-		this.tools = this._register(new AgentMergeTools(() => this.enabled, session => session === this.context.session ? this.context : this.peerContexts.get(session), service, new NullLogService()));
+		this.context = {
+			client, session: 'session', chat: 'session', folderKey: 'folder', turnId: 'turn', ref, headSha: 'head', actions: ['fixCI'],
+			configuration: { ...defaultAgentMergeConfiguration, fixCI: true }, snapshot: this.snapshot.get(), signal: abort.signal,
+			commentWatermark: '', deferredCheckIds: this.deferred, initialDeferredCheckIds: new Set(), deferWorkflowRerun: () => false,
+			trackReviewReply: () => { assert.fail('Unexpected review reply in a CI turn'); },
+		};
+		const logService = new NullLogService();
+		const stateManager = this._register(new AgentHostStateManager(logService));
+		const configurationService = this._register(new AgentConfigurationService(stateManager, logService));
+		this.tools = this._register(new AgentMergeTools(() => this.enabled, chat => chat === this.context.chat ? this.context : this.peerContexts.get(chat), async () => { assert.fail('Unexpected enablement call'); }, logService, stateManager, configurationService));
 	}
 
-	async read(request: AgentMergeCIRequest = {}, session = this.context.session): Promise<CIResult> {
-		return JSON.parse(await this.tools.readFailedCI(session, request));
+	async read(request: AgentMergeCIRequest = {}, chat = this.context.chat): Promise<CIResult> {
+		return JSON.parse(await this.tools.readFailedCI(chat, request));
 	}
 
 	async evidenceId(): Promise<string> {

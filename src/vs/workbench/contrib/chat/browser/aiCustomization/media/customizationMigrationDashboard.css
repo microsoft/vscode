@@ -5,6 +5,7 @@
 
 .customization-migration-dashboard {
 	container-type: inline-size;
+	height: 100%;
 	color: var(--vscode-foreground);
 	font-size: var(--vscode-fontSize-body1);
 	line-height: 1.4;
@@ -12,9 +13,24 @@
 
 .customization-migration-dashboard .migration-page {
 	box-sizing: border-box;
-	max-width: 920px;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	height: 100%;
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin: 0 auto;
-	padding: var(--vscode-spacing-size400);
+	padding-block: var(--vscode-spacing-size400);
+}
+
+.customization-migration-dashboard .migration-page-header {
+	flex: 0 0 auto;
+}
+
+.customization-migration-dashboard .migration-page-title-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size160);
 }
 
 .customization-migration-dashboard h1,
@@ -27,7 +43,8 @@
 }
 
 .customization-migration-dashboard h1 {
-	font-size: var(--vscode-fontSize-heading1);
+	font-size: var(--vscode-fontSize-heading2);
+	line-height: normal;
 }
 
 .customization-migration-dashboard h2,
@@ -36,13 +53,10 @@
 }
 
 .customization-migration-dashboard .migration-intro {
-	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size240);
+	margin: var(--vscode-spacing-size60) 0 var(--vscode-spacing-size240);
 	color: var(--vscode-descriptionForeground);
 }
 
-.customization-migration-dashboard .migration-section-header,
-.customization-migration-dashboard .migration-scope-header,
-.customization-migration-dashboard .migration-category,
 .customization-migration-dashboard .migration-result,
 .customization-migration-dashboard .migration-activity-item-header {
 	display: flex;
@@ -51,78 +65,16 @@
 	gap: var(--vscode-spacing-size160);
 }
 
-.customization-migration-dashboard .migration-section-header,
-.customization-migration-dashboard .migration-scope-header,
 .customization-migration-dashboard .migration-result,
 .customization-migration-dashboard .migration-activity-item-header {
 	flex-wrap: wrap;
 }
 
-.customization-migration-dashboard .migration-checklist-progress,
-.customization-migration-dashboard .migration-scope-description,
-.customization-migration-dashboard .migration-category-description,
 .customization-migration-dashboard .migration-empty {
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label1);
 }
 
-.customization-migration-dashboard .migration-checklist {
-	list-style: none;
-	margin: var(--vscode-spacing-size80) 0 0;
-	padding: 0;
-}
-
-.customization-migration-dashboard .migration-scope {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size120);
-	padding: var(--vscode-spacing-size160) 0;
-}
-
-.customization-migration-dashboard .migration-scope-info,
-.customization-migration-dashboard .migration-category-info {
-	flex: 1;
-	min-width: 0;
-}
-
-.customization-migration-dashboard .migration-scope-title {
-	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size80);
-	font-size: var(--vscode-fontSize-body1);
-}
-
-.customization-migration-dashboard .migration-scope-label {
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.customization-migration-dashboard .migration-scope-state {
-	flex-shrink: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-label2);
-	font-weight: var(--vscode-fontWeight-regular);
-}
-
-.customization-migration-dashboard .is-complete .migration-scope-state {
-	color: var(--vscode-charts-green);
-	background: color-mix(in srgb, var(--vscode-charts-green) 12%, transparent);
-	border-radius: var(--vscode-cornerRadius-circle);
-	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
-}
-
-.customization-migration-dashboard .is-progress .migration-scope-state {
-	color: var(--vscode-textLink-foreground);
-}
-
-.customization-migration-dashboard .migration-scope-description,
-.customization-migration-dashboard .migration-category-description {
-	margin: var(--vscode-spacing-size40) 0 0;
-}
-
-.customization-migration-dashboard .migration-scope-actions,
 .customization-migration-dashboard .migration-result-actions {
 	display: flex;
 	align-items: center;
@@ -130,31 +82,16 @@
 	gap: var(--vscode-spacing-size120);
 }
 
-.customization-migration-dashboard .migration-categories,
 .customization-migration-dashboard .migration-activity-entry {
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
-.customization-migration-dashboard .migration-category {
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
-}
-
-.customization-migration-dashboard .migration-category + .migration-category,
 .customization-migration-dashboard .migration-activity-item,
 .customization-migration-dashboard .migration-activity-item + .migration-activity-item {
 	border-top: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-widget-border));
 }
 
-.customization-migration-dashboard .migration-category-heading {
-	display: flex;
-	align-items: center;
-	flex-wrap: wrap;
-	gap: var(--vscode-spacing-size80);
-}
-
-.customization-migration-dashboard .migration-count,
-.customization-migration-dashboard .migration-risk,
 .customization-migration-dashboard .migration-operation {
 	border-radius: var(--vscode-cornerRadius-circle);
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
@@ -163,15 +100,9 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
 }
 
-.customization-migration-dashboard .migration-count,
 .customization-migration-dashboard .migration-operation {
 	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 	color: var(--vscode-descriptionForeground);
-}
-
-.customization-migration-dashboard .migration-risk {
-	background: var(--vscode-inputValidation-errorBackground);
-	color: var(--vscode-errorForeground);
 }
 
 .customization-migration-dashboard .monaco-button {
@@ -189,10 +120,6 @@
 	padding: 0;
 }
 
-.customization-migration-dashboard .migration-scope-actions .migration-link-button {
-	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
-}
-
 .customization-migration-dashboard .migration-icon-button {
 	box-sizing: border-box;
 	display: inline-flex;
@@ -208,7 +135,161 @@
 	font-size: var(--vscode-codiconFontSize);
 }
 
+.customization-migration-dashboard .migration-tree {
+	flex: 1 1 auto;
+	min-height: 0;
+	width: 100%;
+	margin-top: var(--vscode-spacing-size160);
+	overflow: hidden;
+}
+
+.customization-migration-dashboard .migration-tree .monaco-list-row {
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.customization-migration-dashboard .migration-tree .ai-customization-group-header {
+	gap: var(--vscode-spacing-size80);
+}
+
+.customization-migration-dashboard .migration-tree .group-label-group {
+	flex: 0 1 auto;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size20);
+}
+
+.customization-migration-dashboard .migration-tree .group-title-row {
+	max-width: 100%;
+}
+
+.customization-migration-dashboard .migration-tree .group-label {
+	line-height: normal;
+}
+
+.customization-migration-dashboard .migration-tree .group-description {
+	min-width: 0;
+	max-width: 100%;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: normal;
+}
+
+.customization-migration-dashboard .migration-tree-group-destination {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-migration-dashboard .migration-tree-group-destination.monaco-button {
+	display: block;
+	padding: 0;
+	text-align: left;
+}
+
+.customization-migration-dashboard .migration-tree .group-actions {
+	margin-left: auto;
+}
+
+.customization-migration-dashboard .migration-tree-group-actions {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.customization-migration-dashboard .migration-tree-group-actions .migration-secondary-button {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.customization-migration-dashboard .migration-tree-item {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+	width: 100%;
+	height: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	overflow: hidden;
+	line-height: 1.4;
+}
+
+.customization-migration-dashboard .migration-tree-item-checkbox {
+	flex: 0 0 auto;
+}
+
+.customization-migration-dashboard .migration-tree-item.manual-review {
+	padding-left: var(--vscode-spacing-size40);
+}
+
+.customization-migration-dashboard .migration-tree-item.manual-review .migration-tree-item-checkbox {
+	display: none;
+}
+
+.customization-migration-dashboard .migration-tree-item-content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+}
+
+.customization-migration-dashboard .migration-tree-item-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
+.customization-migration-dashboard .migration-tree-item-label,
+.customization-migration-dashboard .migration-tree-item-source,
+.customization-migration-dashboard .migration-tree-item-changes {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.customization-migration-dashboard .migration-tree-item-label {
+	flex: 1;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.customization-migration-dashboard .migration-tree-item-more.monaco-button {
+	flex: 0 0 auto;
+	width: var(--vscode-spacing-size240);
+	min-width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	padding: 0;
+	border-color: transparent;
+	background: transparent;
+}
+
+.customization-migration-dashboard .migration-tree-item-review.monaco-button {
+	flex: 0 0 auto;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.customization-migration-dashboard .migration-tree-item-metadata {
+	min-width: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label2);
+}
+
+.customization-migration-dashboard .migration-tree-item-changes {
+	margin-top: var(--vscode-spacing-size20);
+	color: var(--vscode-editorWarning-foreground);
+	font-size: var(--vscode-fontSize-body2);
+	overflow-wrap: anywhere;
+	white-space: pre-line;
+}
+
 .customization-migration-dashboard .migration-result {
+	flex: 0 0 auto;
 	margin: var(--vscode-spacing-size240) 0;
 	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
 	background: color-mix(in srgb, var(--vscode-charts-green) 10%, var(--vscode-editor-background));
@@ -225,6 +306,10 @@
 }
 
 .customization-migration-dashboard .migration-activity {
+	flex: 0 1 auto;
+	min-height: 0;
+	max-height: 40%;
+	overflow-y: auto;
 	margin-top: var(--vscode-spacing-size240);
 }
 
@@ -311,8 +396,7 @@
 	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120);
 }
 
-.customization-migration-dashboard .migration-activity-item-header strong,
-.customization-migration-dashboard .migration-category-info {
+.customization-migration-dashboard .migration-activity-item-header strong {
 	overflow-wrap: anywhere;
 }
 
@@ -337,18 +421,7 @@
 }
 
 @container (max-width: 520px) {
-	.customization-migration-dashboard .migration-page {
-		padding: var(--vscode-spacing-size240) var(--vscode-spacing-size200);
+	.customization-migration-dashboard .migration-tree-group-actions .migration-secondary-button {
+		padding-inline: var(--vscode-spacing-size60);
 	}
-
-	.customization-migration-dashboard .migration-category {
-		align-items: stretch;
-		flex-direction: column;
-		gap: var(--vscode-spacing-size120);
-	}
-
-	.customization-migration-dashboard .migration-category > .monaco-button {
-		align-self: flex-end;
-	}
-
 }

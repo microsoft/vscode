@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -45,6 +45,8 @@ export interface ISpotlightContent {
 	readonly canGoBack: boolean;
 	/** Whether this is the final step (the primary button becomes "Done"). */
 	readonly isLastStep: boolean;
+	/** Keeps cancellation available when the final primary button performs an action. */
+	readonly showEndTour?: boolean;
 }
 
 /** Options controlling how a step is shown. */
@@ -92,6 +94,9 @@ export class SpotlightOverlay extends Disposable {
 
 	private readonly _onDidSkip = this._register(new Emitter<SpotlightSkipReason>());
 	readonly onDidSkip: Event<SpotlightSkipReason> = this._onDidSkip.event;
+
+	private readonly _onDidLoseTarget = this._register(new Emitter<void>());
+	readonly onDidLoseTarget: Event<void> = this._onDidLoseTarget.event;
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
@@ -170,6 +175,7 @@ export class SpotlightOverlay extends Disposable {
 
 		this._target = target;
 		this._options = options;
+		this.setPrimaryActionEnabled(true);
 		this._renderContent(content);
 		const externalUiParticipates = !!options.targetOverlayVisible || !!options.allowTargetInteraction || !!options.advanceOnTargetClick || !!options.hideNext;
 		this._root.classList.toggle('target-overlay-visible', externalUiParticipates);
@@ -188,6 +194,28 @@ export class SpotlightOverlay extends Disposable {
 
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
+		if (externalUiParticipates) {
+			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
+				const eventTarget = event.target;
+				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget)) {
+					return;
+				}
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Escape)) {
+					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
+				}
+			}, true));
+		}
+
+		// ResizeObserver does not report position-only shifts caused by surrounding content.
+		let previousRect = target.getBoundingClientRect();
+		this._stepListeners.add(animate(targetWindow, () => {
+			const rect = target.getBoundingClientRect();
+			if (rect.x !== previousRect.x || rect.y !== previousRect.y || rect.width !== previousRect.width || rect.height !== previousRect.height) {
+				previousRect = rect;
+				this.layout();
+			}
+		}));
 
 		// Cancel any pending scheduled frame when the step changes. Registered
 		// once here (not per schedule) so high-frequency scroll/resize events
@@ -206,9 +234,15 @@ export class SpotlightOverlay extends Disposable {
 				if (advanceOnly) {
 					event.preventDefault();
 					event.stopImmediatePropagation();
+					this._onDidClickNext.fire('target');
+					return;
 				}
-				this._onDidClickNext.fire('target');
-			}, advanceOnly));
+				const handle = targetWindow.setTimeout(() => {
+					this._previousFocus = undefined;
+					this._onDidClickNext.fire('target');
+				});
+				this._stepListeners.add(toDisposable(() => targetWindow.clearTimeout(handle)));
+			}, true));
 		}
 		if (advanceOnly) {
 			const onTargetKey = (event: KeyboardEvent) => {
@@ -236,6 +270,11 @@ export class SpotlightOverlay extends Disposable {
 		(hideNext ? target : this._nextButton.element).focus();
 	}
 
+	/** Prevents duplicate activation while waiting for an action to be accepted. */
+	setPrimaryActionEnabled(enabled: boolean): void {
+		this._nextButton.enabled = enabled;
+	}
+
 	/** Hide the current step while another target is being resolved. */
 	hide(): void {
 		this._stepListeners.clear();
@@ -257,6 +296,11 @@ export class SpotlightOverlay extends Disposable {
 		const viewportHeight = targetWindow.document.documentElement.clientHeight;
 
 		const rect = target.getBoundingClientRect();
+		if (!target.isConnected || rect.width === 0 || rect.height === 0) {
+			this._root.style.display = 'none';
+			this._onDidLoseTarget.fire();
+			return;
+		}
 		const padding = this._options.padding ?? DEFAULT_HOLE_PADDING;
 		const holeLeft = Math.max(0, rect.left - padding);
 		const holeTop = Math.max(0, rect.top - padding);
@@ -398,7 +442,7 @@ export class SpotlightOverlay extends Disposable {
 			? localize('spotlight.counter', "{0} of {1}", content.stepIndex + 1, content.stepCount)
 			: '';
 
-		this._skipButton.element.style.display = content.isLastStep ? 'none' : '';
+		this._skipButton.element.style.display = content.isLastStep && !content.showEndTour ? 'none' : '';
 		this._backButton.element.style.display = content.canGoBack ? '' : 'none';
 		this._nextButton.label = content.nextButtonLabel ?? (content.isLastStep
 			? localize('spotlight.done', "Done")

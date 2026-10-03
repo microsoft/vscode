@@ -11,18 +11,22 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from '../../../../base/co
 import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IManagedSettingsPresentationService } from '../../../services/configuration/common/managedSettingsPresentation.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { USER_LOCAL_AND_REMOTE_SETTINGS } from '../../../../platform/request/common/request.js';
+import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { APPLICATION_SCOPES, FOLDER_SCOPES, IWorkbenchConfigurationService, LOCAL_MACHINE_SCOPES, REMOTE_MACHINE_SCOPES, WORKSPACE_SCOPES } from '../../../services/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
-import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
+import { AGENTS_WINDOW_SETTING_TAG, ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, EXP_ASSIGNMENT_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers, wordifyKey } from '../common/preferences.js';
 import { SettingsTarget } from './preferencesWidgets.js';
 import { ITOCEntry, tocData } from './settingsLayout.js';
+import { IExperimentalSettingsService } from '../../../services/configuration/common/experimentalSettings.js';
 
 export const ONLINE_SERVICES_SETTING_TAG = 'usesOnlineServices';
 
@@ -119,7 +123,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private _displayLabel: string | null = null;
 
 	/**
-	 * scopeValue || defaultValue, for rendering convenience.
+	 * The displayed value, including inherited values in the Agents Window scope.
 	 */
 	value: any;
 
@@ -182,6 +186,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		private readonly userDataProfileService: IUserDataProfileService,
 		private readonly configurationService: IWorkbenchConfigurationService,
 		private readonly isSessionsWindow: boolean,
+		private readonly experimentalSettingsService: IExperimentalSettingsService,
+		private readonly managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
 		super(sanitizeId(parent.id + '_' + setting.key));
 		this.setting = setting;
@@ -190,6 +196,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// Make sure description and valueType are initialized
 		this.initSettingDescription();
 		this.initSettingValueType();
+	}
+
+	get hasExPAssignment(): boolean {
+		return this.experimentalSettingsService.hasAssignment(this.setting.key);
 	}
 
 	get displayCategory(): string {
@@ -307,7 +317,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				break;
 		}
 
-		let displayValue = isConfigured ? inspected[targetSelector] : inspected.defaultValue;
+		const inheritedValue = this.isSessionsWindow && targetSelector === 'workspaceValue' && !languageSelector ? inspected.value : inspected.defaultValue;
+		let displayValue = isConfigured ? inspected[targetSelector] : inheritedValue;
 		const overriddenScopeList: string[] = [];
 		const overriddenDefaultsLanguageList: string[] = [];
 		if ((languageSelector || targetSelector !== 'workspaceValue') && typeof inspected.workspaceValue !== 'undefined') {
@@ -349,11 +360,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		// so we reset the default value source to the non-language-specific default value source for now.
 		this.defaultValueSource = this.setting.nonLanguageSpecificDefaultValueSource;
 
-		if (inspected.policyValue !== undefined) {
-			this.hasPolicyValue = true;
+		// Runtime restrictions affect presentation only; they are not VS Code configuration policies.
+		const policyValue = this.managedSettingsPresentationService.getValue(this.setting.key) ?? inspected.policyValue;
+		this.hasPolicyValue = policyValue !== undefined;
+		if (this.hasPolicyValue) {
 			isConfigured = false; // The user did not manually configure the setting themselves.
-			displayValue = inspected.policyValue;
-			this.scopeValue = inspected.policyValue;
+			displayValue = policyValue;
+			this.scopeValue = policyValue;
 			this.defaultValue = inspected.defaultValue;
 		} else if (languageSelector && this.languageOverrideValues.has(languageSelector)) {
 			const overrideValues = this.languageOverrideValues.get(languageSelector)!;
@@ -386,7 +399,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 
 		this.value = displayValue;
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue || hasAgentsWindowOverride) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted || this.hasPolicyValue || hasAgentsWindowOverride || this.hasExPAssignment) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -394,6 +407,10 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 
 			this.setting.tags?.forEach(tag => this.tags!.add(tag));
+			this.tags.delete(EXP_ASSIGNMENT_SETTING_TAG);
+			if (this.hasExPAssignment) {
+				this.tags.add(EXP_ASSIGNMENT_SETTING_TAG);
+			}
 
 			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
@@ -592,6 +609,8 @@ export class SettingsTreeModel implements IDisposable {
 		@IUserDataProfileService private readonly _userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IExperimentalSettingsService private readonly _experimentalSettingsService: IExperimentalSettingsService,
+		@IManagedSettingsPresentationService private readonly _managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
 	}
 
@@ -666,7 +685,7 @@ export class SettingsTreeModel implements IDisposable {
 		if (tocEntry.settings) {
 			const settingChildren = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(s, element));
 			for (const child of settingChildren) {
-				if (!child.setting.deprecationMessage) {
+				if (!child.setting.deprecationMessage || child.setting.deprecationMessageShowInSettings) {
 					children.push(child);
 				} else {
 					child.inspectSelf();
@@ -708,7 +727,9 @@ export class SettingsTreeModel implements IDisposable {
 			this._productService,
 			this._userDataProfileService,
 			this._configurationService,
-			this._environmentService.isSessionsWindow);
+			this._environmentService.isSessionsWindow,
+			this._experimentalSettingsService,
+			this._managedSettingsPresentationService);
 
 		const nameElements = this._treeElementsBySettingName.get(setting.key) ?? [];
 		nameElements.push(element);
@@ -778,6 +799,24 @@ export function sanitizeId(id: string): string {
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
+	let displayLabel: string | undefined;
+	switch (key) {
+		case AgentSandboxSettingId.AgentSandboxAllowNetwork:
+			displayLabel = localize('agentSandbox.allowNetwork.label', "Allow Outbound Connections");
+			break;
+		case AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands:
+			displayLabel = localize('agentSandbox.allowUnsandboxedCommands.label', "Allow Sandbox Bypass");
+			break;
+		case AgentSandboxSettingId.AgentSandboxMcpServers:
+			displayLabel = localize('agentSandbox.mcpServers.label', "Sandbox MCP Servers");
+			break;
+		case AgentSandboxSettingId.AgentSandboxLspServers:
+			displayLabel = localize('agentSandbox.lspServers.label', "Sandbox LSP Servers");
+			break;
+		case AgentSandboxSettingId.AgentSandboxUserConfiguredPaths:
+			displayLabel = localize('agentSandbox.userConfiguredPaths.label', "User-Configured Paths");
+			break;
+	}
 	const lastDotIdx = key.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
@@ -794,7 +833,7 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 		key = '$(bracket) ' + key;
 	}
 
-	const label = wordifyKey(key);
+	const label = displayLabel ?? wordifyKey(key);
 	return { category, label };
 }
 
@@ -1006,9 +1045,11 @@ export class SearchResultModel extends SettingsTreeModel {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IExperimentalSettingsService experimentalSettingsService: IExperimentalSettingsService,
+		@IManagedSettingsPresentationService managedSettingsPresentationService: IManagedSettingsPresentationService,
 	) {
-		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService);
+		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService, environmentService, experimentalSettingsService, managedSettingsPresentationService);
 		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.cachedUniqueSearchResults = new Map();
 		this.update({ id: 'searchResultModel', label: '' });

@@ -11,7 +11,7 @@ import { SuggestController } from '../../../../editor/contrib/suggest/browser/su
 import { localize } from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { SuggestEnabledInput } from '../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
-import { ADVANCED_SETTING_TAG, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, ID_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from '../common/preferences.js';
+import { ADVANCED_SETTING_TAG, EXP_ASSIGNMENT_SETTING_TAG, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, GENERAL_TAG_SETTING_TAG, ID_SETTING_TAG, LANGUAGE_SETTING_TAG, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG } from '../common/preferences.js';
 
 export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionViewItem {
 	private readonly suggestController: SuggestController | null;
@@ -206,6 +206,12 @@ export class SettingsSearchFilterDropdownMenuActionViewItem extends DropdownMenu
 				localize('advancedSettingsSearch', "Advanced"),
 				localize('advancedSettingsSearchTooltip', "Show advanced settings"),
 				`@tag:${ADVANCED_SETTING_TAG}`,
+			),
+			this.createToggleAction(
+				'expAssignmentSettingsSearch',
+				localize('expAssignmentSettingsSearch', "ExP Assigned"),
+				localize('expAssignmentSettingsSearchTooltip', "Show settings with an ExP treatment assignment"),
+				`@tag:${EXP_ASSIGNMENT_SETTING_TAG}`
 			),
 		];
 	}

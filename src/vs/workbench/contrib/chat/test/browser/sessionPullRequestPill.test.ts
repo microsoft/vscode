@@ -108,15 +108,16 @@ suite('SessionPullRequestPillData', () => {
 		assert.strictEqual(data.getContextMenuActions()[0].checked, true);
 	});
 
-	test('offers removal in dropdown rows or the single visible PR context menu', async () => {
+	test('offers copy and removal in dropdown rows or the single visible PR context menu', async () => {
 		const visibility = createVisibility();
 		const removed: string[] = [];
-		const copyAction = toAction({ id: 'copy', label: 'Copy', run: () => { } });
-		const removeAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
+		const copied: string[] = [];
+		const copyAction = toAction({ id: 'copy', label: 'Copy', run: () => { copied.push('https://github.com/microsoft/vscode/pull/1'); } });
+		const promotedAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
 		const input = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', [{
 			title: 'Pull Requests',
 			entries: [
-				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], removeAction, open: () => { } },
+				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], promotedAction, open: () => { } },
 				{ id: 'closed', label: 'Closed', pullRequestState: 'closed', open: () => { } },
 			],
 		}]);
@@ -128,17 +129,23 @@ suite('SessionPullRequestPillData', () => {
 		const multiple = read();
 		visibility.setShowAll(false);
 		const singleVisible = read();
-		await data.getContextMenuPrimaryActions()[0].run();
+		for (const action of data.getContextMenuPrimaryActions()) {
+			await action.run();
+		}
 		input.set([{ title: 'Pull Requests', entries: [input.get()[0].entries[0]] }], undefined);
 		visibility.setShowAll(true);
 		const singleRemaining = read();
+		input.set([{ title: 'Pull Requests', entries: [{ ...input.get()[0].entries[0], promotedAction: undefined }] }], undefined);
+		const copyOnly = read();
 		input.set([], undefined);
 
-		assert.deepStrictEqual({ multiple, singleVisible, singleRemaining, empty: read(), removed }, {
+		assert.deepStrictEqual({ multiple, singleVisible, singleRemaining, copyOnly, empty: read(), copied, removed }, {
 			multiple: { toolbars: [['copy', 'remove'], []], contextMenu: [] },
-			singleVisible: { toolbars: [['copy']], contextMenu: ['remove'] },
-			singleRemaining: { toolbars: [['copy']], contextMenu: ['remove'] },
+			singleVisible: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
+			singleRemaining: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
+			copyOnly: { toolbars: [['copy']], contextMenu: ['copy'] },
 			empty: { toolbars: [], contextMenu: [] },
+			copied: ['https://github.com/microsoft/vscode/pull/1'],
 			removed: ['open'],
 		});
 	});

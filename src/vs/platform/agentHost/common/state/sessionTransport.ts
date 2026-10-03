@@ -28,11 +28,19 @@ export class NonReconnectableTransportError extends Error {
 	}
 }
 
+export interface ITransportCloseDetails {
+	readonly code?: number;
+	readonly reason?: string;
+	readonly wasClean?: boolean;
+}
+
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
+	readonly onDidCloseDetails?: Event<ITransportCloseDetails>;
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 
@@ -41,6 +49,13 @@ export interface IProtocolTransport extends IDisposable {
 
 	/** Fires when a message is received from the remote end. */
 	readonly onMessage: Event<ProtocolMessage>;
+
+	/**
+	 * Fires, possibly throttled, while part of a message is still arriving, so
+	 * liveness checks don't mistake a slow download for silence. Omitted by
+	 * transports that only see whole messages.
+	 */
+	readonly onDidReceiveData?: Event<void>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;

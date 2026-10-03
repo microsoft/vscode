@@ -26,13 +26,14 @@ import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspa
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IUserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
-import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { Workspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { IRemoteAgentService } from '../../../remote/common/remoteAgentService.js';
 import { IUserDataProfileService } from '../../../userDataProfile/common/userDataProfile.js';
 import { IRemoteUserDataProfilesService } from '../../../userDataProfile/common/remoteUserDataProfiles.js';
 import { WorkbenchMcpManagementService, WorkspaceMcpConfigKind } from '../../common/mcpWorkbenchManagementService.js';
+import { IMcpWorkspaceInstallTargetService, McpWorkspaceInstallTargetService } from '../../common/mcpWorkspaceInstallTargetService.js';
 
 suite('WorkbenchMcpManagementService - workspace configurations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -41,7 +42,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 	const legacyResource = folder.toResource('.vscode/mcp.json');
 	const server: IInstallableMcpServer = { name: 'same', config: { type: McpServerType.LOCAL, command: 'node' } };
 
-	async function createFixture(options: { initialScan?: Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string } = {}) {
+	async function createFixture(options: { initialScan?: Promise<void>; allowed?: boolean; rootContent?: string; legacyContent?: string; workspaceConfiguration?: URI; folderTargetsOnly?: boolean } = {}) {
 		const logService = store.add(new NullLogService());
 		const fileService = store.add(new FileService(logService));
 		store.add(fileService.registerProvider(Schemas.inMemory, store.add(new InMemoryFileSystemProvider())));
@@ -61,7 +62,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 		}(fileService, uriIdentityService));
 		const profileService = new TestUserDataProfileService();
 		const foldersChanged = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
-		let workspace = new Workspace('test', [folder]);
+		let workspace = new Workspace('test', [folder], options.workspaceConfiguration);
 		const userManagement = upcastPartial<IMcpManagementService>({
 			onInstallMcpServer: Event.None,
 			onDidInstallMcpServers: Event.None,
@@ -74,6 +75,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			[IAllowedMcpServersService, upcastPartial<IAllowedMcpServersService>({
 				onDidChangeAllowedMcpServers: Event.None,
 				isAllowed: () => options.allowed === false ? new MarkdownString('Blocked by policy') : true,
+				isServerAllowedBeforeResolution: () => true,
 				isServerAllowed: () => true,
 			})],
 			[ILogService, logService],
@@ -87,11 +89,15 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			[IRemoteAgentService, upcastPartial<IRemoteAgentService>({ getConnection: () => null })],
 			[IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 				getWorkspace: () => workspace,
+				getWorkbenchState: () => workspace.configuration ? WorkbenchState.WORKSPACE : WorkbenchState.FOLDER,
 				onDidChangeWorkspaceFolders: foldersChanged.event,
 				onDidChangeWorkbenchState: Event.None,
 			})],
 		);
 		const instantiationService = store.add(new TestInstantiationService(services));
+		const workspaceInstallTargetService = options.folderTargetsOnly
+			? upcastPartial<IMcpWorkspaceInstallTargetService>({ getTargets: () => workspace.folders })
+			: instantiationService.createInstance(McpWorkspaceInstallTargetService);
 		const service = store.add(new WorkbenchMcpManagementService(
 			userManagement,
 			instantiationService.get(IAllowedMcpServersService),
@@ -103,6 +109,7 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			instantiationService.get(IUserDataProfilesService),
 			instantiationService.get(IRemoteUserDataProfilesService),
 			instantiationService,
+			workspaceInstallTargetService,
 		));
 		return {
 			service, fileService,
@@ -112,6 +119,58 @@ suite('WorkbenchMcpManagementService - workspace configurations', () => {
 			},
 		};
 	}
+
+	test('allows installing in an ordinary workspace configuration that does not exist yet', async () => {
+		const resource = URI.from({ scheme: Schemas.inMemory, path: '/test.code-workspace' });
+		const { service, fileService } = await createFixture({ workspaceConfiguration: resource });
+		const local = await service.install(server, { target: ConfigurationTarget.WORKSPACE });
+		assert.deepStrictEqual({
+			resource: local.mcpResource.toString(),
+			servers: JSON.parse((await fileService.readFile(resource)).value.toString()).settings.mcp.servers,
+		}, {
+			resource: resource.toString(),
+			servers: { same: server.config },
+		});
+	});
+
+	for (const existing of [false, true]) {
+		test(`rejects unsupported workspace configuration targets and explicit resources: existing=${existing}`, async () => {
+			const resource = URI.from({ scheme: Schemas.inMemory, path: '/agent-sessions.code-workspace' });
+			const { service, fileService } = await createFixture({ workspaceConfiguration: resource, folderTargetsOnly: true });
+			const content = '{"settings":{"chat.disableAIFeatures":false}}';
+			if (existing) {
+				await fileService.writeFile(resource, VSBuffer.fromString(content));
+			}
+			const gallery = upcastPartial<IGalleryMcpServer>({ name: 'gallery' });
+			for (const options of [{ target: ConfigurationTarget.WORKSPACE }, { mcpResource: URI.parse(resource.toString()) }]) {
+				await assert.rejects(service.install(server, options), /does not support MCP server installation/);
+				await assert.rejects(service.installFromGallery(gallery, options), /does not support MCP server installation/);
+			}
+			assert.deepStrictEqual({
+				installed: await service.getInstalled(),
+				content: await fileService.exists(resource) ? (await fileService.readFile(resource)).value.toString() : undefined,
+				folderFiles: [await fileService.exists(rootResource), await fileService.exists(legacyResource)],
+			}, {
+				installed: [],
+				content: existing ? content : undefined,
+				folderFiles: [false, false],
+			});
+		});
+	}
+
+	test('folder-only targets still accept equivalent folder URIs and reject unavailable folders', async () => {
+		const { service, fileService } = await createFixture({ folderTargetsOnly: true });
+		const target = toWorkspaceFolder(URI.parse(folder.uri.toString()));
+		const local = await service.install(server, { target, workspaceConfig: WorkspaceMcpConfigKind.Root });
+		const unavailable = toWorkspaceFolder(URI.from({ scheme: Schemas.inMemory, path: '/removed' }));
+		await assert.rejects(service.install(server, { target: unavailable }), /no longer available/);
+		await assert.rejects(service.installFromGallery(upcastPartial<IGalleryMcpServer>({ name: 'gallery' }), { target: unavailable }), /no longer available/);
+		assert.deepStrictEqual({
+			resource: local.mcpResource.toString(),
+			rootExists: await fileService.exists(rootResource),
+			unavailableExists: await fileService.exists(unavailable.uri),
+		}, { resource: rootResource.toString(), rootExists: true, unavailableExists: false });
+	});
 
 	test('waits for initial root management readiness before installing', async () => {
 		const initialScan = new DeferredPromise<void>();

@@ -154,7 +154,8 @@ export function normalizeDomainPattern(pattern: string): string | undefined {
 	}
 
 	if (extractedPattern.startsWith('*.')) {
-		const normalizedPattern = normalizeDomain(extractedPattern, true);
+		const normalizedSuffix = normalizeUriAuthority(extractedPattern.slice(2));
+		const normalizedPattern = normalizeDomain(normalizedSuffix ? `*.${normalizedSuffix}` : extractedPattern, true);
 		if (!normalizedPattern) {
 			return undefined;
 		}

@@ -343,8 +343,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
-				if (options?.authorizationServer) {
+				if (options?.authorizationServer || options?.clientId !== undefined || options?.resource !== undefined) {
 					checkProposedApiEnabled(extension, 'authIssuers');
+				}
+				if (options?.audience !== undefined) {
+					checkProposedApiEnabled(extension, 'authSessionAudience');
 				}
 				// eslint-disable-next-line local/code-no-any-casts
 				return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
@@ -2296,6 +2299,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
 			ChatRequestEditedFileEventKind: extHostTypes.ChatRequestEditedFileEventKind,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
+			LanguageModelChatApiType: extHostTypes.LanguageModelChatApiType,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage2,
 			LanguageModelToolResultPart: extHostTypes.LanguageModelToolResultPart,

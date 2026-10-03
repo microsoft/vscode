@@ -3,20 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
 import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../../../workbench/contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../workbench/contrib/chat/browser/chatPetService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IsPhoneLayoutContext, SessionUsesCombinedConfigPickerContext } from '../../../common/contextkeys.js';
 import { ISessionContext } from '../../../services/sessions/browser/sessionContext.js';
@@ -24,7 +28,6 @@ import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionModelSelection } from './sessionModelSelection.js';
 import { INewChatModelPickerService } from './newChatModelPicker.js';
 import { reportNewChatPickerClosed } from './newChatPickerTelemetry.js';
-import { markOnboardingTarget } from '../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 
 /**
  * The sessions-core model picker. Unlike the previous per-provider pickers,
@@ -39,7 +42,6 @@ export class ModelPicker extends Disposable {
 
 	private readonly _delegate: IModelPickerDelegate;
 	private readonly _modelPicker: ModelPickerActionItem;
-	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _container: HTMLElement | undefined;
 
 	constructor(
@@ -52,11 +54,13 @@ export class ModelPicker extends Disposable {
 		@ISessionContext private readonly _sessionContext: ISessionContext,
 		@ISessionModelSelection private readonly _selectionModel: ISessionModelSelection,
 		@IChatPetService private readonly _chatPetService: IChatPetService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 		const currentModel = derived(this, reader => this._selectionModel.state.read(reader).currentModel);
 
 		this._delegate = {
+			workflow: this._selectionModel.workflow,
 			currentModel,
 			modelConfiguration: this._selectionModel.modelConfiguration,
 			setModel: model => {
@@ -75,7 +79,11 @@ export class ModelPicker extends Disposable {
 					});
 				}
 			},
+			setModelProgrammatically: model => {
+				this._selectionModel.selectModel(model.identifier, false);
+			},
 			getModels: () => [...this._selectionModel.state.get().models],
+			getProvider: () => getAgentHostProviderForTelemetry(this._sessionContext.session.get()?.sessionType, this._chatSessionsService),
 			getPresentationOptions: () => ({
 				...this._selectionModel.state.get().options,
 				showModelIcon: true,
@@ -91,10 +99,12 @@ export class ModelPicker extends Disposable {
 
 		const pickerOptions: IChatInputPickerOptions = {
 			compact,
+			minimal: compact,
 		};
 		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 		this._modelPicker = this._register(instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions));
 		this._register(this._newChatModelPickerService.registerModelPicker({
+			getDomNode: () => this._container,
 			open: () => this._modelPicker.openModelPicker(),
 			switchToModel: modelIdentifier => this.switchToModel(modelIdentifier),
 		}));
@@ -125,17 +135,17 @@ export class ModelPicker extends Disposable {
 	}
 
 	render(container: HTMLElement): void {
-		this._renderDisposables.clear();
 		this._container = container;
 		this._modelPicker.render(container);
-		this._renderDisposables.add(markOnboardingTarget(container, 'sessions.newSession.modelPicker', {
-			open: () => this._modelPicker.openModelPicker(),
-		}));
 		this._updatePickerState();
 	}
 
 	switchToModel(modelIdentifier: string): boolean {
 		return this._selectionModel.selectModel(modelIdentifier);
+	}
+
+	show(anchor?: HTMLElement): void {
+		this._modelPicker.show(anchor);
 	}
 
 	/**
@@ -185,6 +195,15 @@ registerAction2(class extends Action2 {
 				// Hidden on phone when the active provider supplies a combined
 				// mode + model picker instead (see MobileChatInputConfigPicker).
 				when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+			}, {
+				id: Menus.AutomationsDialogInputToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ChatContextKeys.inAutomationsDialog,
+					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+				),
 			}],
 		});
 	}
@@ -194,7 +213,7 @@ registerAction2(class extends Action2 {
 // -- Action View Item --
 
 export class ModelPickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: ModelPicker) {
+	constructor(private readonly picker: ModelPicker, private readonly compact?: ISettableObservable<boolean>) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
 	}
 
@@ -202,8 +221,37 @@ export class ModelPickerActionViewItem extends BaseActionViewItem {
 		this.picker.render(container);
 	}
 
+	isCompact(): boolean {
+		return this.compact?.get() ?? false;
+	}
+
+	setCompact(compact: boolean): void {
+		this.compact?.set(compact, undefined);
+	}
+
+	show(anchor?: HTMLElement): void {
+		this.picker.show(anchor);
+	}
+
 	override dispose(): void {
 		this.picker.dispose();
 		super.dispose();
 	}
 }
+
+class AutomationModelPickerContribution extends Disposable implements IWorkbenchContribution {
+	static readonly ID = 'sessions.contrib.automationModelPicker';
+
+	constructor(
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
+	) {
+		super();
+		this._register(actionViewItemService.register(Menus.AutomationsDialogInputToolbar, 'sessions.modelPicker', (_action, _options, instantiationService) => {
+			const compact = observableValue(this, false);
+			const picker = instantiationService.createInstance(ModelPicker, compact);
+			return new ModelPickerActionViewItem(picker, compact);
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AutomationModelPickerContribution.ID, AutomationModelPickerContribution, WorkbenchPhase.AfterRestored);

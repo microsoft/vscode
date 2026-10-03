@@ -7,8 +7,10 @@ import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js'
 import { mainWindow } from '../../../base/browser/window.js';
 import { MainEditorPart as MainEditorPartBase } from '../../../workbench/browser/parts/editor/editorPart.js';
 import { Parts } from '../../../workbench/services/layout/browser/layoutService.js';
-import type { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
+import { AgentWorkbenchLayout, type IAgentWorkbenchLayoutService } from '../workbench.js';
 import { EDITOR_PART_MINIMUM_WIDTH } from './editorPartSizing.js';
+import { isPhoneLayout } from './mobile/mobileLayout.js';
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
@@ -28,18 +30,25 @@ export class MainEditorPart extends MainEditorPartBase {
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		const agentLayoutService = this.layoutService as IAgentWorkbenchLayoutService;
-		const keepForDockedTabBar = agentLayoutService.isSinglePaneLayoutEnabled
+		const keepForDockedTabBar = agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop
 			&& this.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 		if (!this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && !keepForDockedTabBar) {
 			return;
 		}
 
-		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - MainEditorPart.MARGIN_LEFT - 2 /* border width */;
-		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
+		const compact = this.layoutService.isModernUICompact();
+		const marginLeft = !isPhoneLayout(this.layoutService)
+			&& !compact
+			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
+			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
+			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
+		const borderTotal = compact ? 0 : 2;
+		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - borderTotal;
+		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - borderTotal;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);
 
-		if (agentLayoutService.isSinglePaneLayoutEnabled && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+		if (agentLayoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop && !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 			agentLayoutService.handleDockedEditorPartLayout(width);
 		}
 	}

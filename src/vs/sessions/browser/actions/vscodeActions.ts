@@ -73,7 +73,7 @@ export class OpenInVSCodeAction extends Action2 {
 			return;
 		}
 
-		const workspace = activeSession.workspace.get();
+		const workspace = activeSession.activeChat.get().workspace.get();
 		const folder = workspace?.folders[0];
 		const rawFolderUri = workspace?.isVirtualWorkspace ? undefined : folder?.workingDirectory;
 

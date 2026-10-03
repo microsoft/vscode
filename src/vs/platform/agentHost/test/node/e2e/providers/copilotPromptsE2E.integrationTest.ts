@@ -7,8 +7,8 @@
  * Pins every field of the model request body the bundled Copilot CLI sends per
  * model.
  *
- * The prompt is compiled into the `@github/copilot` binary and only becomes
- * observable when the CLI serializes it onto the wire, so it is read off a
+ * The prompt is compiled into the SDK-owned Copilot runtime and only becomes
+ * observable when the runtime serializes it onto the wire, so it is read off a
  * *replayed* turn — deterministic and tokenless. Recording is the
  * nondeterministic direction: it reaches live CAPI for the model catalog and
  * experiment assignment, either of which moves the prompt for reasons this
@@ -24,13 +24,15 @@
  */
 
 import assert from 'assert';
-import { existsSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
+import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
+import { CopilotCliConfigKey } from '../../../../common/copilotCliConfig.js';
 import { ActionType } from '../../../../common/state/sessionActions.js';
-import { MessageKind, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
+import { MessageKind, ROOT_STATE_URI, ToolCallConfirmationReason, buildDefaultChatUri } from '../../../../common/state/sessionState.js';
 import { AgentHostE2EServerLease, createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import {
 	AgentHostUpdateAhpSnapshotsEnvVar, AgentHostUpdateSnapshotsEnvVar, snapshotPathForTest,
@@ -73,9 +75,9 @@ const SNAPSHOT_MODELS = [
 	'claude-sonnet-4.6',
 	'claude-opus-4.6',
 	'claude-opus-4.7',
-	'claude-opus-4.8',
 	'claude-sonnet-5',
 	'claude-opus-5',
+	'claude-opus-5.5',
 	'gemini-2.0-flash',
 ] as const;
 
@@ -148,11 +150,98 @@ suite('Agent Host E2E — Copilot prompts', function () {
 			// Taking the last keeps this meaningful if the CLI inserts a preflight request.
 			const body = lease!.observedModelRequestBodies.at(-1);
 			assert.ok(body, 'no model request body was captured — the turn never reached the model');
+			assert.deepStrictEqual(
+				(JSON.parse(body) as IWireRequest).tools?.filter(tool => tool.name === 'run_dynamic_workflow' || tool.name === 'dynamic_workflows_manage').map(tool => tool.name),
+				[],
+				'Dynamic workflow tools must not be exposed to the model',
+			);
 
 			await assertPromptSnapshot(this.test!, formatPromptSnapshot(body));
 		});
 	}
+
+	// The rendered Windows system message has separate PowerShell-only sections,
+	// so keep this prompt-shape assertion on the same POSIX scope as the snapshots.
+	(process.platform === 'win32' ? test.skip : test)('skill character budget caps descriptions while keeping all skills available', async function () {
+		this.timeout(120_000);
+
+		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-skill-budget-`);
+		tempDirs.push(workspaceDir);
+		for (let index = 0; index < 40; index++) {
+			const name = `budget-skill-${String(index).padStart(2, '0')}`;
+			const skillDirectory = join(workspaceDir, '.github', 'skills', name);
+			mkdirSync(skillDirectory, { recursive: true });
+			writeFileSync(join(skillDirectory, 'SKILL.md'), [
+				'---',
+				`name: ${name}`,
+				`description: BUDGET_SKILL_DESCRIPTION_${String(index).padStart(2, '0')}_${'x'.repeat(900)}`,
+				'---',
+				'Use this skill when measuring the skill menu character budget.',
+			].join('\n'));
+		}
+
+		const defaultBudgetSessionUri = await createRealSession(
+			client,
+			COPILOT_CONFIG,
+			'skill-char-budget-default',
+			createdSessions,
+			URI.file(workspaceDir),
+			undefined,
+			async () => setSkillCharBudget(client, 15_000, 10_000),
+		);
+		await driveTurnWithModel(client, defaultBudgetSessionUri, 'gpt-5.6-sol');
+		const defaultBudgetBody = lease!.observedModelRequestBodies.at(-1);
+		assert.ok(defaultBudgetBody, 'no model request body was captured for the 15000-character budget');
+		const defaultBudgetCounts = countIncludedBudgetSkills(defaultBudgetBody);
+
+		const peer = await lease!.connectClient();
+		let configuredBudgetCounts: ReturnType<typeof countIncludedBudgetSkills>;
+		try {
+			const configuredBudgetSessionUri = await createRealSession(
+				peer,
+				COPILOT_CONFIG,
+				'skill-char-budget-configured',
+				createdSessions,
+				URI.file(workspaceDir),
+				undefined,
+				async () => setSkillCharBudget(peer, 25_000, 10_001),
+			);
+			await driveTurnWithModel(peer, configuredBudgetSessionUri, 'gpt-5.6-sol');
+			const configuredBudgetBody = lease!.observedModelRequestBodies.at(-1);
+			assert.ok(configuredBudgetBody, 'no model request body was captured for the 25000-character budget');
+			configuredBudgetCounts = countIncludedBudgetSkills(configuredBudgetBody);
+		} finally {
+			peer.close();
+		}
+
+		assert.deepStrictEqual({
+			default15000Budget: defaultBudgetCounts,
+			configured25000Budget: configuredBudgetCounts,
+		}, {
+			default15000Budget: { skills: 40, descriptions: 14 },
+			configured25000Budget: { skills: 40, descriptions: 24 },
+		});
+	});
 });
+
+function setSkillCharBudget(c: TestProtocolClient, budget: number, clientSeq: number): void {
+	c.dispatch({
+		channel: ROOT_STATE_URI,
+		clientSeq,
+		action: { type: ActionType.RootConfigChanged, config: { [CopilotCliConfigKey.SkillCharBudget]: budget } },
+	});
+}
+
+function countIncludedBudgetSkills(rawBody: string): { skills: number; descriptions: number } {
+	const request = JSON.parse(rawBody) as IWireRequest;
+	const system = readSystemPrompt(request);
+	const skillSurface = `${system}\n${JSON.stringify(request.tools ?? [])}`;
+	const countUnique = (pattern: RegExp) => new Set([...skillSurface.matchAll(pattern)].map(match => match[1])).size;
+	return {
+		skills: countUnique(/budget-skill-(\d{2})/g),
+		descriptions: countUnique(/BUDGET_SKILL_DESCRIPTION_(\d{2})/g),
+	};
+}
 
 /** Dispatches a turn with an explicit model selection and waits for completion. */
 async function driveTurnWithModel(c: TestProtocolClient, sessionUri: string, model: string): Promise<void> {
@@ -230,20 +319,20 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 
 /** A partial view for the shape guard; the cast strips nothing from the serialized body. */
 interface IWireRequest {
-	/** Anthropic Messages spells the system prompt `system`; Responses uses `instructions`. */
+	/** Anthropic Messages uses `system`; Responses uses `instructions` or system-role input messages. */
 	readonly system?: unknown;
 	readonly instructions?: unknown;
 	/** Anthropic Messages carries the turn in `messages`; Responses uses `input`. */
 	readonly messages?: ReadonlyArray<{ readonly role?: string; readonly content?: unknown }>;
 	readonly input?: unknown;
-	readonly tools?: readonly unknown[];
+	readonly tools?: ReadonlyArray<{ readonly name?: string; readonly type?: string }>;
 }
 
 function formatPromptSnapshot(rawBody: string): string {
 	const request = JSON.parse(rawBody) as IWireRequest;
-	const system = extractText(request.instructions ?? request.system);
+	const system = readSystemPrompt(request);
 	const tools = request.tools;
-	const messages = readMessages(request);
+	const messages = readMessages(request).filter(message => message.role !== 'system' && message.role !== 'developer');
 	const emptyMessage = messages.find(message => message.text.length === 0);
 
 	// A hollow capture would otherwise become a small, plausible-looking baseline.
@@ -272,6 +361,13 @@ function normalizeVolatileValues(value: unknown): unknown {
 		return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, normalizeVolatileValues(item)]));
 	}
 	return value;
+}
+
+function readSystemPrompt(request: IWireRequest): string {
+	return [
+		extractText(request.instructions ?? request.system),
+		...readMessages(request).filter(message => message.role === 'system').map(message => message.text),
+	].filter(Boolean).join('\n');
 }
 
 /** Reads the turn's messages per dialect, for the shape guard only — never rendered. */
@@ -383,11 +479,24 @@ suite('Copilot prompt snapshot formatting', () => {
 			[{ ...validBody, messages: [] }, /carried no turn messages/],
 			[{ ...validBody, messages: 'not-an-array' }, /carried no turn messages/],
 			[{ ...validBody, messages: [{ role: 'user', content: '' }] }, /turn message was empty/],
+			[{ tools: validBody.tools, input: [{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt' }] }] }, /carried no turn messages/],
 		];
 
 		for (const [body, expected] of cases) {
 			assert.throws(() => formatPromptSnapshot(JSON.stringify(body)), expected);
 		}
+	});
+
+	test('accepts system-role Responses input and preserves prompt cache metadata', () => {
+		const body = {
+			model: 'gpt-5.6-sol',
+			input: [
+				{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt', prompt_cache_breakpoint: { mode: 'explicit' } }] },
+				{ type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello' }] },
+			],
+			tools: [{ name: 'example', type: 'function', parameters: { type: 'object' } }],
+		};
+		assert.strictEqual(formatPromptSnapshot(JSON.stringify(body)), `\`\`\`json\n${JSON.stringify(body, null, 2)}\n\`\`\`\n`);
 	});
 
 	test('renders the request body whole, normalizing volatile values in place', () => {
