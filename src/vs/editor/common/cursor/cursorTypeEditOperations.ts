@@ -803,6 +803,20 @@ export class TabOperation {
 
 	public static getCommands(config: CursorConfiguration, model: ITextModel, selections: Selection[]) {
 		const commands: ICommand[] = [];
+		let autoClosingPairClose: string | null = null;
+		let autoCloseOpenText: string | null = null;
+
+		const areAllSelectionsEmpty = selections.every(s => s.isEmpty());
+		if (areAllSelectionsEmpty) {
+			const typeText = config.insertSpaces ? '' : '\t';
+			if (!config.insertSpaces && typeText === '\t') {
+				autoClosingPairClose = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, '\t', false);
+				if (autoClosingPairClose !== null) {
+					autoCloseOpenText = '\t';
+				}
+			}
+		}
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			if (selection.isEmpty()) {
@@ -816,7 +830,11 @@ export class TabOperation {
 						continue;
 					}
 				}
-				commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
+				if (autoClosingPairClose !== null && autoCloseOpenText !== null) {
+					commands[i] = new TypeWithAutoClosingCommand(selection, autoCloseOpenText, true, autoClosingPairClose);
+				} else {
+					commands[i] = this._replaceJumpToNextIndent(config, model, selection, true);
+				}
 			} else {
 				if (selection.startLineNumber === selection.endLineNumber) {
 					const lineMaxColumn = model.getLineMaxColumn(selection.startLineNumber);
@@ -880,7 +898,7 @@ export class TabOperation {
 		return indentation;
 	}
 
-	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection, insertsAutoWhitespace: boolean): ReplaceCommand {
+	private static _replaceJumpToNextIndent(config: CursorConfiguration, model: ITextModel, selection: Selection, insertsAutoWhitespace: boolean): ICommand {
 		let typeText = '';
 		const position = selection.getStartPosition();
 		if (config.insertSpaces) {

@@ -5446,6 +5446,69 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338697: tab in opening counterpart of auto-closing pair', () => {
+		const languageId = 'autoClosingModeTab';
+
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [
+				{ open: 'begin\t', close: 'end' },
+			],
+		}));
+
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
+		});
+
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: true
+			}
+		}, (editor, model, viewModel) => {
+			model.setValue('begi');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin   ');
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
+		});
+
+		usingCursor({
+			text: [
+				'begi',
+				'begi'
+			],
+			languageId: languageId,
+			modelOpts: {
+				insertSpaces: false
+			}
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(2, 5, 2, 5)]);
+			viewModel.type('n', 'keyboard');
+			editor.runCommand(CoreEditingCommands.Tab, null);
+			assert.strictEqual(model.getLineContent(1), 'begin\tend');
+			assert.strictEqual(model.getLineContent(2), 'begin\tend');
+			assertCursor(viewModel, [new Selection(1, 7, 1, 7), new Selection(2, 7, 2, 7)]);
+		});
+	});
+
 	test('issue #55314: Do not auto-close when ending with open', () => {
 		const languageId = 'myElectricMode';
 
