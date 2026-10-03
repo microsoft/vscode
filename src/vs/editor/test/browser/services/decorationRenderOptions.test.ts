@@ -148,4 +148,30 @@ suite('Decoration Render Options', () => {
 		assert(readStyleSheet(styleSheet).indexOf(`{background:url('${CSS.escape('http://test/pa\'th')}') center center no-repeat;}`) > 0);
 		s.removeDecorationType('example');
 	});
+
+	test('removeDecorationTypes removes exactly the given types', () => {
+		const s = store.add(new TestCodeEditorService(themeServiceMock));
+		const styleSheet = s.globalStyleSheet;
+
+		s.registerDecorationType('test', 'parent', { color: '#FF0000' });
+		for (let i = 0; i < 3; i++) {
+			s.registerDecorationType('test', `parent-${i}`, { after: { contentText: `after-${i}` } }, 'parent');
+		}
+		assert.strictEqual(styleSheet.rules.length, 4);
+
+		s.removeDecorationTypes(['parent-0', 'parent-2']);
+
+		assert.deepStrictEqual(s.listDecorationTypes().sort(), ['parent', 'parent-1']);
+		const remaining = readStyleSheet(styleSheet);
+		assert.strictEqual(styleSheet.rules.length, 2);
+		assert(remaining.indexOf('.ced-parent-1-4.ced-parent-4::after') >= 0);
+		assert(remaining.indexOf('.ced-parent-0-4') < 0);
+		assert(remaining.indexOf('.ced-parent-2-4') < 0);
+		assert(remaining.indexOf('.monaco-editor .ced-parent-1 {') >= 0);
+
+		s.removeDecorationTypes(['parent-1', 'parent']);
+
+		assert.deepStrictEqual(s.listDecorationTypes(), []);
+		assert.strictEqual(readStyleSheet(styleSheet), '');
+	});
 });
