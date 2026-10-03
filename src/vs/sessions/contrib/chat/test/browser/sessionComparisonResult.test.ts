@@ -18,6 +18,8 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -32,7 +34,7 @@ import { buildSessionComparisonAccessibleContent, SessionComparisonResult, Sessi
 suite('Sessions - Comparison Result', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('renders only in the Judge and invokes winner and synthesis actions', async () => {
+	test('renders the scorecard only in the Judge and invokes open, expand, and synthesis actions', async () => {
 		const attempt1Resource = URI.parse('test:///attempt-1');
 		const attempt2Resource = URI.parse('test:///attempt-2');
 		const judgeResource = URI.parse('test:///judge');
@@ -64,7 +66,7 @@ suite('Sessions - Comparison Result', () => {
 			}],
 			verdict: {
 				recommendedParticipantId: 'attempt-2',
-				explanation: 'This legacy explanation should not render when categorized rationale is available.',
+				explanation: 'Handled the edge case that the other attempt left open.',
 				rationale: {
 					comparison: 'Resolved the failure that the other attempt left open.',
 					validation: 'Passed `focused tests`, build, lint, and diagnostics.',
@@ -154,6 +156,7 @@ suite('Sessions - Comparison Result', () => {
 			}
 		}());
 		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
+		instantiationService.stub(IHoverService, NullHoverService);
 		const renderedMarkdown: string[] = [];
 		const markdownRenderer: IMarkdownRenderer = {
 			render(markdown: IMarkdownString, _options, outElement): IRenderedMarkdown {
@@ -172,30 +175,40 @@ suite('Sessions - Comparison Result', () => {
 		const findButton = (label: string) => [...result.domNode.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === label);
 		const initialText = result.domNode.textContent ?? '';
 		const accessibleContent = buildSessionComparisonAccessibleContent(comparison);
+		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
 		assert.deepStrictEqual({
-			winner: initialText.includes('Attempt 2 (Codex) won'),
-			rationale: renderedMarkdown.slice(0, 4),
+			title: result.domNode.querySelector('.session-comparison-result-title')?.textContent,
+			markdown: renderedMarkdown.slice(0, 6),
+			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-attempt-number, .session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
+			checks: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check.passed').length),
+			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
 			otherStrengths: initialText.includes('Clearer naming'),
 			customSynthesis: initialText.includes('Custom Synthesis'),
-			decisionTable: !!result.domNode.querySelector('.session-comparison-synthesis-table'),
 			accessibleDecisions: accessibleContent.includes('Custom Synthesis'),
 			accessibleMetrics: accessibleContent.includes('Attempt 1 (Claude): Total time 1m 35s (winner); Tokens used 38'),
 			role: result.domNode.getAttribute('role'),
 			label: result.domNode.getAttribute('aria-label'),
 			tabIndex: result.domNode.tabIndex,
 		}, {
-			winner: true,
-			rationale: ['Resolved the failure that the other attempt left open.', 'Passed `focused tests`, build, lint, and diagnostics.', 'Kept the change small and aligned with existing types.', 'Handled the `edge case` with typed diagnostics.'],
-			otherStrengths: true, customSynthesis: false, decisionTable: false, accessibleDecisions: false,
+			title: '2Codex won',
+			markdown: [
+				'Handled the edge case that the other attempt left open.',
+				'Resolved the failure that the other attempt left open.', 'Passed `focused tests`, build, lint, and diagnostics.', 'Kept the change small and aligned with existing types.', 'Handled the `edge case` with typed diagnostics.',
+				'Clearer `naming`',
+			],
+			rows: ['2 Codex Recommended 2m 25+', '1 Claude 1m 35s 38'],
+			checks: [4, 1],
+			expanded: ['false', 'false'],
+			otherStrengths: true, customSynthesis: false, accessibleDecisions: false,
 			accessibleMetrics: true, role: 'region',
 			label: 'Attempt 2 (Codex) won. Use Option+F2 to open the comparison result in the Accessible View.', tabIndex: 0,
 		});
 		result.domNode.dispatchEvent(new mainWindow.FocusEvent('focus'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(SessionComparisonResultFocused.key), true);
-		result.domNode.querySelector<HTMLElement>('[aria-label="Focus another attempt"]')?.click();
+		result.domNode.querySelector<HTMLElement>('[aria-label="Open another attempt"]')?.click();
 		await focusAttemptActions[0].run();
 		assert.deepStrictEqual({ selected, opened: opened?.toString() }, { selected: 'attempt-1', opened: attempt1Resource.toString() });
-		findButton('Focus Winning Session')?.click();
+		findButton('Open Attempt 2')?.click();
 		await timeout(0);
 		assert.deepStrictEqual({ selected, opened: opened?.toString() }, { selected: 'attempt-2', opened: attempt2Resource.toString() });
 		result.domNode.querySelector<HTMLElement>('[aria-label="More synthesis options"]')?.click();
@@ -207,7 +220,7 @@ suite('Sessions - Comparison Result', () => {
 		input.value = 'Preserve the public API and add focused tests.';
 		input.dispatchEvent(new mainWindow.Event('input', { bubbles: true }));
 		findButton('Start Synthesis with Instructions')?.click();
-		findButton('Synthesize Attempts')?.click();
+		findButton('Synthesize')?.click();
 		await timeout(0);
 		assert.deepStrictEqual({
 			synthesized, synthesisPlan, savedPlan: synthesisPlans.at(-1), hidden: instructionsPanel?.hidden,
@@ -218,18 +231,20 @@ suite('Sessions - Comparison Result', () => {
 			savedPlan: { instructions: 'Preserve the public API and add focused tests.' },
 			hidden: false, inputLabel: 'Additional synthesis instructions',
 		});
-		const metrics = result.domNode.querySelector<HTMLDetailsElement>('.session-comparison-result-metrics');
-		assert.strictEqual(metrics?.open, false);
-		metrics.querySelector('summary')?.click();
-		assert.strictEqual(metrics.open, true);
-		assert.ok(layouts > 0);
+		const layoutsBeforeExpand = layouts;
+		rows()[1].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
+		assert.deepStrictEqual({
+			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
+			detailVisible: rows().map(row => !row.querySelector<HTMLElement>('.session-comparison-scorecard-detail')?.hidden),
+			relaidOut: layouts > layoutsBeforeExpand,
+		}, { expanded: ['false', 'true'], detailVisible: [false, true], relaidOut: true });
 		currentSession.set(upcastPartial<ISession>({ resource: attempt1Resource }), undefined);
 		assert.strictEqual(result.domNode.hidden, true);
 		comparisons.set([{ ...comparison, synthesisHarness: undefined }], undefined);
 		currentSession.set(upcastPartial<ISession>({ resource: judgeResource }), undefined);
 		assert.deepStrictEqual({
-			winner: !!findButton('Focus Winning Session'),
-			synthesize: !!findButton('Synthesize Attempts'),
+			winner: !!findButton('Open Attempt 2'),
+			synthesize: !!findButton('Synthesize'),
 			instructions: !!result.domNode.querySelector('.session-comparison-synthesis-instructions'),
 		}, { winner: true, synthesize: false, instructions: false });
 	});

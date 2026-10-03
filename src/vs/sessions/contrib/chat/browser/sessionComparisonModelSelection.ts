@@ -25,6 +25,17 @@ function getAttemptModelIds(selection: IComparisonModelSelection | undefined): r
 	return selection.models.length === 1 ? Array<string>(selection.repeatCount).fill(selection.models[0]) : selection.models;
 }
 
+/** How many models are selected, flagged when there are more than a comparison can run. */
+function getAttemptsStatus(count: number): { readonly text: string; readonly warning?: boolean } | undefined {
+	if (count === 0) {
+		return undefined;
+	}
+	if (count > SESSION_COMPARISON_MAX_ATTEMPTS) {
+		return { text: localize('comparisonPicker.selectedOverLimit', "{0} selected · {1} max", count, SESSION_COMPARISON_MAX_ATTEMPTS), warning: true };
+	}
+	return { text: localize('comparisonPicker.selectedCount', "{0} selected", count) };
+}
+
 export class SessionComparisonModelSelection extends Disposable implements IModelPickerWorkflow {
 	private readonly _committed = observableValue<IComparisonModelSelection | undefined>(this, undefined);
 	private readonly _draft = observableValue<IComparisonModelSelection | undefined>(this, undefined);
@@ -46,8 +57,9 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		}
 		const step = this._step.read(reader);
 		const { models, judge, synthesizer } = draft;
-		// Every step can be finished once 2 to 10 distinct models are selected.
-		const valid = models.length >= SESSION_COMPARISON_MIN_ATTEMPTS;
+		// Any number of models can be checked, but every step can only be continued or
+		// finished with 2 to 10 distinct models.
+		const valid = models.length >= SESSION_COMPARISON_MIN_ATTEMPTS && models.length <= SESSION_COMPARISON_MAX_ATTEMPTS;
 		return {
 			title: step === 'attempts' ? localize('comparisonPicker.attempts', "Attempts")
 				: step === 'judge' ? localize('comparisonPicker.judge', "Judge")
@@ -58,10 +70,12 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			summary: localize('comparisonPicker.summary', "{0} Attempts", getAttemptModelIds(draft).length),
 			selectedModelIds: step === 'attempts' ? models : step === 'judge' ? judge ? [judge] : [] : synthesizer ? [synthesizer] : [],
 			multiple: step === 'attempts',
-			maxSelections: step === 'attempts' ? SESSION_COMPARISON_MAX_ATTEMPTS : 1,
+			maxSelections: step === 'attempts' ? Number.POSITIVE_INFINITY : 1,
 			canGoBack: step !== 'attempts',
 			canGoNext: valid && (step === 'attempts' || step === 'judge' && judge !== undefined),
 			canFinish: valid,
+			hasNextStep: step !== 'synthesizer',
+			status: step === 'attempts' ? getAttemptsStatus(models.length) : undefined,
 		};
 	});
 
@@ -112,11 +126,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		switch (this._step.get()) {
 			case 'attempts': {
 				const models = draft.models;
-				if (models.includes(modelId)) {
-					this._draft.set({ ...draft, models: models.filter(id => id !== modelId) }, undefined);
-				} else if (models.length < SESSION_COMPARISON_MAX_ATTEMPTS) {
-					this._draft.set({ ...draft, models: [...models, modelId] }, undefined);
-				}
+				this._draft.set({ ...draft, models: models.includes(modelId) ? models.filter(id => id !== modelId) : [...models, modelId] }, undefined);
 				break;
 			}
 			case 'judge': {

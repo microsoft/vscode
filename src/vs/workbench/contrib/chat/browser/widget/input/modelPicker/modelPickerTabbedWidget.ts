@@ -607,49 +607,47 @@ export class TabbedModelPicker extends Disposable {
 			store.add(select.onDidSelect(event => workflow.setCount(event.index + count.min)));
 		}
 		const actions = dom.append(container, dom.$('.model-picker-workflow-actions'));
-		const close = () => this._widget.hide();
 		const showStep = (move: () => void) => {
 			move();
 			this._searchVisible = false;
 			this._showCurrent();
 			status(workflow.state.get()!.title);
 		};
-		if (!step.canGoBack && !step.canFinish && !step.canGoNext) {
-			// Until enough models are chosen, closing is the only action.
-			const closeButton = store.add(new Button(actions, { ...defaultButtonStyles, secondary: true }));
-			closeButton.label = localize('modelPicker.workflow.close', "Close");
-			closeButton.element.classList.add('model-picker-workflow-close');
-			store.add(closeButton.onDidClick(close));
-			return store;
-		}
+		const leading = dom.append(actions, dom.$('.model-picker-workflow-leading'));
 		if (step.canGoBack) {
-			this._createWorkflowIconButton(actions, store, Codicon.arrowLeft, localize('modelPicker.workflow.back', "Back"), () => showStep(() => workflow.back()));
-		} else {
-			this._createWorkflowIconButton(actions, store, Codicon.close, localize('modelPicker.workflow.close', "Close"), close);
-		}
-		if (step.canFinish) {
-			// Done keeps the selection and closes the picker so the prompt can be written.
-			const done = store.add(new Button(actions, { ...defaultButtonStyles }));
-			done.label = localize('modelPicker.workflow.done', "Done");
-			done.element.classList.add('model-picker-workflow-done');
-			store.add(done.onDidClick(() => {
-				workflow.finish();
-				this._finishingWorkflow = true;
-				this._widget.hide();
+			const backLabel = localize('modelPicker.workflow.back', "Back");
+			// Unthemed, so the quiet text style from CSS applies instead of the secondary button fill.
+			const back = store.add(new Button(leading, {
+				...defaultButtonStyles, secondary: true, supportIcons: true, ariaLabel: backLabel,
+				buttonSecondaryBackground: undefined, buttonSecondaryHoverBackground: undefined, buttonSecondaryForeground: undefined, buttonSecondaryBorder: undefined,
 			}));
+			back.label = `$(${Codicon.chevronLeft.id}) ${backLabel}`;
+			back.element.classList.add('model-picker-workflow-back');
+			store.add(back.onDidClick(() => showStep(() => workflow.back())));
+		} else if (step.status) {
+			const stepStatus = dom.append(leading, dom.$('span.model-picker-workflow-status'));
+			stepStatus.textContent = step.status.text;
+			stepStatus.classList.toggle('warning', !!step.status.warning);
 		}
-		if (step.canGoNext) {
-			this._createWorkflowIconButton(actions, store, Codicon.arrowRight, localize('modelPicker.workflow.next', "Next"), () => showStep(() => workflow.next()));
+		// Done and Next keep their places and are disabled until the selection can be used.
+		const trailing = dom.append(actions, dom.$('.model-picker-workflow-trailing'));
+		const done = store.add(new Button(trailing, { ...defaultButtonStyles }));
+		done.label = localize('modelPicker.workflow.done', "Done");
+		done.enabled = step.canFinish;
+		done.element.classList.add('model-picker-workflow-done');
+		store.add(done.onDidClick(() => {
+			workflow.finish();
+			this._finishingWorkflow = true;
+			this._widget.hide();
+		}));
+		if (step.hasNextStep ?? step.canGoNext) {
+			const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
+			next.label = localize('modelPicker.workflow.next', "Next");
+			next.enabled = step.canGoNext;
+			next.element.classList.add('model-picker-workflow-next');
+			store.add(next.onDidClick(() => showStep(() => workflow.next())));
 		}
 		return store;
-	}
-
-	private _createWorkflowIconButton(container: HTMLElement, store: DisposableStore, icon: ThemeIcon, label: string, run: () => void): void {
-		const button = store.add(new Button(container, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: label, ariaLabel: label }));
-		// An inline icon keeps the button as tall as Done, unlike an icon on the button itself.
-		button.label = `$(${icon.id})`;
-		button.element.classList.add('model-picker-workflow-icon-button');
-		store.add(button.onDidClick(run));
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {

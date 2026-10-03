@@ -1189,7 +1189,8 @@
 }
 
 .model-picker-workflow-footer {
-	padding: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size80) var(--vscode-spacing-size120);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorHoverWidget-border);
 }
 
 .model-picker-workflow-count,
@@ -1207,18 +1208,55 @@
 	flex-shrink: 0;
 }
 
-/* Close (before any selection) and Done fill the row; Close, Back and Next otherwise stay icon-sized. */
-.model-picker-workflow-actions .monaco-button.model-picker-workflow-close,
-.model-picker-workflow-actions .monaco-button.model-picker-workflow-done {
+/* The status or Back sits on the leading edge; Done and Next keep their places on the trailing edge. */
+.model-picker-workflow-leading {
+	display: flex;
 	flex: 1 1 auto;
+	align-items: center;
+	min-width: 0;
 }
 
-.model-picker-workflow-actions .monaco-button.model-picker-workflow-icon-button {
+.model-picker-workflow-status {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.model-picker-workflow-status.warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.model-picker-workflow-trailing {
+	display: flex;
 	flex: 0 0 auto;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+}
+
+.model-picker-workflow-actions .monaco-button {
 	width: auto;
-	min-width: 32px;
-	padding-left: var(--vscode-spacing-size80);
+	min-width: 64px;
+	padding-left: var(--vscode-spacing-size120);
+	padding-right: var(--vscode-spacing-size120);
+	white-space: nowrap;
+}
+
+/* Back is a quiet text action, so the trailing buttons stay the only filled controls. */
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-back {
+	min-width: 0;
+	margin-left: calc(-1 * var(--vscode-spacing-size60));
+	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid transparent;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+}
+
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-back:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
 /* Choosing several models reads as checkboxes, with the chosen rows tinted. */

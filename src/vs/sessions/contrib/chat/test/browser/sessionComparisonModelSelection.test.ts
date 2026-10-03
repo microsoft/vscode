@@ -17,12 +17,12 @@ suite('SessionComparisonModelSelection', () => {
 		}
 	}
 
-	test('Done and Next are offered only for two to ten models', () => {
+	test('Done and Next are enabled only for two to ten models, and more than ten can be selected', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
 		const actions = () => {
 			const state = selection.state.get();
-			return { selected: state?.selectedModelIds.length, canFinish: state?.canFinish, canGoNext: state?.canGoNext, count: state?.count };
+			return { selected: state?.selectedModelIds.length, canFinish: state?.canFinish, canGoNext: state?.canGoNext, hasNextStep: state?.hasNextStep, status: state?.status };
 		};
 		const none = actions();
 		selection.select('model-0');
@@ -31,22 +31,29 @@ suite('SessionComparisonModelSelection', () => {
 		assert.throws(() => selection.finish(), /not ready/);
 		selection.select('model-1');
 		const two = actions();
-		for (let index = 2; index < 11; index++) {
+		for (let index = 2; index < 10; index++) {
 			selection.select(`model-${index}`);
 		}
-		const capped = actions();
-		assert.deepStrictEqual({ none, one, two, capped }, {
-			none: { selected: 0, canFinish: false, canGoNext: false, count: undefined },
-			one: { selected: 1, canFinish: false, canGoNext: false, count: undefined },
-			two: { selected: 2, canFinish: true, canGoNext: true, count: undefined },
-			capped: { selected: 10, canFinish: true, canGoNext: true, count: undefined },
+		const ten = actions();
+		selection.select('model-10');
+		const eleven = actions();
+		assert.throws(() => selection.finish(), /not ready/);
+		selection.select('model-10');
+		const deselected = actions();
+		assert.deepStrictEqual({ none, one, two, ten, eleven, deselected }, {
+			none: { selected: 0, canFinish: false, canGoNext: false, hasNextStep: true, status: undefined },
+			one: { selected: 1, canFinish: false, canGoNext: false, hasNextStep: true, status: { text: '1 selected' } },
+			two: { selected: 2, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '2 selected' } },
+			ten: { selected: 10, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '10 selected' } },
+			eleven: { selected: 11, canFinish: false, canGoNext: false, hasNextStep: true, status: { text: '11 selected · 10 max', warning: true } },
+			deselected: { selected: 10, canFinish: true, canGoNext: true, hasNextStep: true, status: { text: '10 selected' } },
 		});
 	});
 
-	test('multiple models run once each and are capped at ten', () => {
+	test('multiple models run once each, up to ten', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		for (let index = 0; index < 11; index++) {
+		for (let index = 0; index < 10; index++) {
 			selection.select(`model-${index}`);
 		}
 		selection.finish();

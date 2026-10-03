@@ -28,9 +28,14 @@ export interface IModelPickerWorkflowState {
 	readonly summary: string;
 	readonly selectedModelIds: readonly string[];
 	readonly multiple: boolean;
+	/** The most models that can be checked at once; a workflow may allow more than it accepts and disable Done and Next instead. */
 	readonly maxSelections: number;
 	readonly canGoBack: boolean;
 	readonly canGoNext: boolean;
 	readonly canFinish: boolean;
+	/** Whether this step is followed by another; Next then stays visible and is disabled until `canGoNext`. Defaults to `canGoNext`. */
+	readonly hasNextStep?: boolean;
+	/** A short footer status, such as how many models are selected or what must change before continuing. */
+	readonly status?: { readonly text: string; readonly warning?: boolean };
 	readonly count?: { readonly label: string; readonly value: number; readonly min: number; readonly max: number };
 }
