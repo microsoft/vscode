@@ -1049,6 +1049,7 @@ export interface IWebviewContentOptions {
 export interface IWebviewPanelOptions {
 	readonly enableFindWidget?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly autoCloseWhenDispose?: boolean;
 }
 
 export interface CustomEditorProviderCapabilities {

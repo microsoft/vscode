@@ -326,5 +326,6 @@ function serializeWebviewPanelOptions(options: vscode.WebviewPanelOptions): extH
 	return {
 		enableFindWidget: options.enableFindWidget,
 		retainContextWhenHidden: options.retainContextWhenHidden,
+		autoCloseWhenDispose: options.autoCloseWhenDispose,
 	};
 }
