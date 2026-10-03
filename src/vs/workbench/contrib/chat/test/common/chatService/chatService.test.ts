@@ -3588,6 +3588,82 @@ suite('ChatService', () => {
 			]);
 		});
 
+		for (const change of ['prepend', 'remove'] as const) {
+			test(`passive history matches ID-less turns when older history changes: ${change}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', prompt: 'First', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					{ type: 'request', prompt: 'Second', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const original = [...model.getRequests()];
+				const local = model.addRequest({ parts: [], text: 'Local' }, { variables: [] }, 0);
+				local.response!.complete();
+				const updated: IChatSessionHistoryItem[] = change === 'prepend' ? [
+					{ type: 'request', prompt: 'Older', participant: remoteScheme },
+					{ type: 'response', parts: [], participant: remoteScheme },
+					...first,
+				] : first.slice(2);
+				changes.fire(updated);
+				const secondIndex = change === 'prepend' ? 2 : 0;
+
+				assert.deepStrictEqual({
+					requests: model.getRequests().map(request => request.message.text),
+					items: viewModel.getItems().filter(isRequestVM).map(item => item.messageText),
+					secondPreserved: model.getRequests()[secondIndex] === original[1],
+					firstPreservedOrRemoved: change === 'prepend'
+						? model.getRequests()[1] === original[0]
+						: !model.getRequests().some(request => request.id === original[0].id),
+					localPreserved: model.getRequests().at(-1) === local,
+				}, {
+					requests: change === 'prepend' ? ['Older', 'First', 'Second', 'Local'] : ['Second', 'Local'],
+					items: change === 'prepend' ? ['Older', 'First', 'Second', 'Local'] : ['Second', 'Local'],
+					secondPreserved: true, firstPreservedOrRemoved: true, localPreserved: true,
+				});
+			});
+		}
+
+		for (const [previousCount, nextCount] of [[2, 1], [1, 2]]) {
+			test(`passive history does not reuse ambiguous ID-less identities: ${previousCount} to ${nextCount}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const history: IChatSessionHistoryItem[] = Array.from({ length: previousCount }, () => [
+					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
+					{ type: 'response' as const, parts: [], participant: remoteScheme },
+				]).flat();
+				const { resource } = setupRemoteProvider({ history, onDidChangeHistory: changes.event });
+				const service = createChatService();
+				const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				testDisposables.add(ref);
+				const model = ref.object as ChatModel;
+				const previousIds = new Set(model.getRequests().map(request => request.id));
+				const updated: IChatSessionHistoryItem[] = Array.from({ length: nextCount }, () => [
+					{ type: 'request' as const, prompt: 'Repeated request', participant: remoteScheme },
+					{ type: 'response' as const, parts: [], participant: remoteScheme },
+				]).flat();
+				changes.fire(updated);
+				const refreshed = [...model.getRequests()];
+				changes.fire(updated);
+
+				assert.deepStrictEqual({
+					count: model.getRequests().length,
+					reusedAmbiguousId: model.getRequests().some(request => previousIds.has(request.id)),
+					uniqueIds: new Set(model.getRequests().map(request => request.id)).size,
+					identicalRefreshPreserved: model.getRequests().every((request, index) => request === refreshed[index]),
+				}, {
+					count: nextCount, reusedAmbiguousId: false, uniqueIds: nextCount, identicalRefreshPreserved: true,
+				});
+			});
+		}
+
 		test('passive history applies only the latest update after a local response finishes streaming', async () => {
 			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
 			const first: IChatSessionHistoryItem[] = [

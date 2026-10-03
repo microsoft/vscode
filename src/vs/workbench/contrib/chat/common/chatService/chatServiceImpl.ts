@@ -990,11 +990,16 @@ export class ChatService extends Disposable implements IChatService {
 				pendingHistory = undefined;
 				const requests = model.getRequests();
 				const turns = groupHistory(history);
-				for (const [index, turn] of turns.entries()) {
-					const previous = lastTurns[index];
-					// Providers without stable IDs can only match restored turns by position.
-					if (turn.id === undefined && previous?.request.id === undefined) {
-						turn.id = previous?.id;
+				if (turns.length === lastTurns.length && turns.every((turn, index) => equals(turn.items, lastTurns[index].items))) {
+					return;
+				}
+				const previousAnonymous = lastTurns.filter(turn => turn.request.id === undefined);
+				const incomingAnonymous = turns.filter(turn => turn.request.id === undefined);
+				for (const turn of incomingAnonymous) {
+					const matches = previousAnonymous.filter(previous => equals(turn.request, previous.request));
+					// Reuse a local ID only when the request matches uniquely in both histories.
+					if (matches.length === 1 && !incomingAnonymous.some(other => other !== turn && equals(other.request, turn.request))) {
+						turn.id = matches[0].id;
 					}
 				}
 				const previousTurns = new Map(lastTurns.map(turn => [turn.id, turn]));
