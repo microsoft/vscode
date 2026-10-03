@@ -21,11 +21,13 @@
         ],
         "filenames": [
           ".env",
+          ".dev.vars",
           ".flaskenv",
           "user-dirs.dirs"
         ],
         "filenamePatterns": [
-          ".env.*"
+          ".env.*",
+          ".dev.vars.*"
         ],
         "aliases": [
           "Dotenv"
