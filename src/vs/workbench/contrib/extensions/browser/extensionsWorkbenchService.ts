@@ -34,7 +34,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigLockedByPolicyContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionsNotification } from '../common/extensions.js';
 import { ACTIVE_GROUP, IEditorService, MODAL_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IURLService, IURLHandler, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
@@ -978,6 +978,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	declare readonly _serviceBrand: undefined;
 
 	private hasOutdatedExtensionsContextKey: IContextKey<boolean>;
+	private autoUpdateConfigLockedByPolicyContextKey: IContextKey<boolean>;
 
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;
@@ -1045,6 +1046,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		super();
 
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
+		this.autoUpdateConfigLockedByPolicyContextKey = AutoUpdateConfigLockedByPolicyContext.bindTo(contextKeyService);
 		if (extensionManagementServerService.localExtensionManagementServer) {
 			this.localExtensions = this._register(instantiationService.createInstance(Extensions,
 				extensionManagementServerService.localExtensionManagementServer,
@@ -1132,9 +1134,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private initializeAutoUpdate(): void {
+		this.autoUpdateConfigLockedByPolicyContextKey.set(this.isAutoUpdateConfigLockedByPolicy());
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
+				this.autoUpdateConfigLockedByPolicyContextKey.set(this.isAutoUpdateConfigLockedByPolicy());
 				if (!this.isAutoUpdateEnabled()) {
 					// Auto update disabled — cancel any pending delayed re-check
 					this.delayedAutoUpdateCheckTimer.value = undefined;
@@ -1236,6 +1240,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return 'on';
 	}
 
+	isAutoUpdateConfigLockedByPolicy(): boolean {
+		return this.configurationService.inspect(AutoUpdateConfigurationKey).policyValue !== undefined;
+	}
+
 	isAutoUpdateDelayed(extension: IExtension): boolean {
 		if (!extension.outdated) {
 			return false;
@@ -1280,6 +1288,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async updateAutoUpdateForAllExtensions(isAutoUpdateEnabled: boolean): Promise<void> {
+		if (this.isAutoUpdateConfigLockedByPolicy()) {
+			return;
+		}
+
 		const wasAutoUpdateEnabled = this.isAutoUpdateEnabled();
 		if (wasAutoUpdateEnabled === isAutoUpdateEnabled) {
 			return;
@@ -2358,8 +2370,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		const autoUpdateValue = this.getAutoUpdateValue();
+		const autoUpdateLockedByPolicy = this.isAutoUpdateConfigLockedByPolicy();
 
 		if (autoUpdateValue === 'off') {
+			// Per-extension/publisher opt-ins can't override an organization policy.
+			if (autoUpdateLockedByPolicy) {
+				return false;
+			}
 			const extensionsToAutoUpdate = this.getEnabledAutoUpdateExtensions();
 			const extensionId = extension.identifier.id.toLowerCase();
 			if (extensionsToAutoUpdate.includes(extensionId)) {
@@ -2371,13 +2388,16 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
-		if (extension.pinned) {
-			return false;
-		}
-
-		const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
-		if (disabledAutoUpdateExtensions.includes(extension.identifier.id.toLowerCase())) {
-			return false;
+		// A pin (whether set explicitly or as a side effect of installing a specific
+		// version) is a per-extension override too, so it can't defeat the policy either.
+		if (!autoUpdateLockedByPolicy) {
+			if (extension.pinned) {
+				return false;
+			}
+			const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
+			if (disabledAutoUpdateExtensions.includes(extension.identifier.id.toLowerCase())) {
+				return false;
+			}
 		}
 
 		// Auto-update is on; only update enabled extensions.
