@@ -40,6 +40,7 @@ suite('SessionComparisonService', () => {
 			override readonly onDidChange = groupChanges.event;
 			override createGroup(name: string): ISessionGroup { return { id: 'group', name, createdAt: 1 }; }
 			override getGroupOfSession(): string | undefined { return undefined; }
+			override isExplicitlyUngrouped(): boolean { return false; }
 			override getGroup(groupId: string): ISessionGroup | undefined {
 				return this.deletedGroupIds.includes(groupId) ? undefined : { id: groupId, name: 'Comparison', createdAt: 1 };
 			}

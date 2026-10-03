@@ -11,6 +11,7 @@ import { renderAsPlaintext } from '../../../../../../base/browser/markdownRender
 import { DeferredPromise, raceCancellationError, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableMap, DisposableStore, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableFromEvent, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
@@ -6361,6 +6362,89 @@ suite('LocalAgentHostSessionsProvider', () => {
 					resolved: { [approval.key]: approval.values[index], mode: 'autopilot' },
 					creation: { [approval.key]: approval.values[index], mode: 'autopilot' },
 				});
+			});
+		}
+	}
+
+	for (const modeId of ['autopilot', 'plan']) {
+		test(`comparison mode accepts the effective read-only ${modeId} default without explicit permissions`, async () => {
+			agentHost.resolveSessionConfigResult = {
+				schema: {
+					type: 'object', properties: {
+						mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot', 'plan'], default: modeId, readOnly: true },
+					},
+				},
+				values: {},
+			};
+			let sends = 0;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				sendRequest: async resource => {
+					sends++;
+					agentHost.addSession(createSession(AgentSession.id(resource)));
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			const management = createManagementService(disposables, provider);
+			const session = await management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+				providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, modeId,
+			});
+			assert.deepStrictEqual({ launched: !!session, created: agentHost.createSessionConfigs.length, sends }, { launched: true, created: 1, sends: 1 });
+		});
+
+		for (const restriction of ['unsupported', 'omitted', 'clamped', 'readOnly'] as const) {
+			test(`comparison mode rejects ${restriction} ${modeId} before backend creation`, async () => {
+				agentHost.setAgents([{ provider: 'conforming-host', displayName: 'Host', description: '', models: [] }]);
+				agentHost.resolveSessionConfigResult = {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'allow-all'], default: 'manual' },
+							...(restriction === 'unsupported' ? {} : {
+								mode: { type: 'string', title: 'Mode', enum: ['interactive', 'autopilot', 'plan'], default: restriction === 'omitted' ? undefined : 'interactive', readOnly: restriction === 'readOnly' },
+							}),
+						},
+					},
+					values: { approvalMode: 'manual', ...(restriction === 'clamped' || restriction === 'readOnly' ? { mode: 'interactive' } : {}) },
+				};
+				agentHost.resolveSessionConfigHandler = request => ({
+					...agentHost.resolveSessionConfigResult,
+					values: { ...agentHost.resolveSessionConfigResult.values, approvalMode: request.config?.approvalMode ?? 'manual' },
+				});
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, [
+					{ type: 'agent-host-conforming-host', name: 'host', displayName: 'Host', description: 'test', icon: undefined },
+				], {
+					sendRequest: async () => { sends++; throw new Error('Must not send'); },
+				});
+				const management = createManagementService(disposables, provider);
+				await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: 'conforming-host', permissionId: 'autoApprove', modeId,
+				}), new RegExp(`selected session mode '${modeId}' could not be applied`));
+				await timeout(0);
+				assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
+			});
+		}
+	}
+
+	for (const failingResolve of ['discovery', 'application']) {
+		for (const cancelled of [false, true]) {
+			test(`comparison config preserves ${cancelled ? 'cancellation' : 'host failure'} during ${failingResolve}`, async () => {
+				const error = cancelled ? new CancellationError() : new Error('Host connection unavailable');
+				agentHost.resolveSessionConfigHandler = request => {
+					if (failingResolve === 'discovery' || request.config) {
+						throw error;
+					}
+					return agentHost.resolveSessionConfigResult;
+				};
+				let sends = 0;
+				const provider = createProvider(disposables, agentHost, undefined, {
+					sendRequest: async () => { sends++; throw new Error('Must not send'); },
+				});
+				const management = createManagementService(disposables, provider);
+				await assert.rejects(management.createAndSendNewChatRequest(URI.file('/home/user/project'), { query: 'Implement', background: true }, {
+					providerId: provider.id, sessionTypeId: provider.sessionTypes[0].id, permissionId: 'autoApprove', modeId: 'autopilot',
+				}), candidate => candidate === error);
+				await timeout(0);
+				assert.deepStrictEqual({ created: agentHost.createSessionConfigs.length, sends }, { created: 0, sends: 0 });
 			});
 		}
 	}

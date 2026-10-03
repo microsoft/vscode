@@ -96,15 +96,17 @@ async function archiveSessionsWithUndo(
 				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
 				: localize('sessionsArchived', "{0} archived", archived.length);
 			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.archiveNotification?.show(message, async () => {
+				for (const [groupId, comparisonId] of removedComparisonGroups) {
+					const restoredGroupId = restoredGroupIds.get(groupId);
+					if (!restoredGroupId || !groupsService.getGroup(restoredGroupId)) {
+						restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
+					}
+				}
 				while (archived.length > 0) {
 					const { session, groupId } = archived[0];
 					const current = sessionsManagementService.getSession(session.resource);
 					if (current?.isArchived.get()) {
 						await sessionsManagementService.unarchiveSession(current);
-						const comparisonId = groupId ? removedComparisonGroups.get(groupId) : undefined;
-						if (groupId && comparisonId && !restoredGroupIds.has(groupId)) {
-							restoredGroupIds.set(groupId, comparisonService.restoreComparison(comparisonId));
-						}
 						const restoredGroupId = groupId ? restoredGroupIds.get(groupId) ?? groupId : undefined;
 						if (restoredGroupId && groupsService.getGroup(restoredGroupId) && !groupsService.getGroupOfSession(current.sessionId)) {
 							groupsService.addToGroup(current.sessionId, restoredGroupId);

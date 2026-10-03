@@ -120,6 +120,7 @@ export class TabbedModelPicker extends Disposable {
 	private _contextViewLayer: number | undefined;
 	private _activeDestination: string | undefined;
 	private _searchVisible = false;
+	private _filterValue = '';
 	private readonly _speedVariants = new Map<string, IModelSpeedVariants>();
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	private _selectionVersion = 0;
@@ -169,6 +170,7 @@ export class TabbedModelPicker extends Disposable {
 			// Search is a transient view. Left on, it would also size the next popup from
 			// its flattened cross-provider list.
 			this._searchVisible = false;
+			this._filterValue = '';
 			this._selectionVersion++;
 			this._detailsModelId = undefined;
 			this._detailsCard = undefined;
@@ -281,6 +283,7 @@ export class TabbedModelPicker extends Disposable {
 		if (!context || !anchor) {
 			return;
 		}
+		this._filterValue = this._searchVisible ? initialFilterValue ?? '' : '';
 
 		this._speedVariants.clear();
 		this._detailsModelId = undefined;
@@ -370,7 +373,10 @@ export class TabbedModelPicker extends Disposable {
 						current.onDidSearch();
 						this._showCurrent(text);
 					},
-					onDidChangeFilter: () => current.onDidSearch(),
+					onDidChangeFilter: text => {
+						this._filterValue = text;
+						current.onDidSearch();
+					},
 					headerText: hint?.text,
 					headerIcon: hint ? Codicon.info : undefined,
 					headerLink: hint?.link,
@@ -827,7 +833,7 @@ export class TabbedModelPicker extends Disposable {
 			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
 			const { action, ariaDescription } = createModelAction(model, undefined, () => {
 				workflow.select(model.identifier);
-				this._showCurrent(undefined, model.identifier);
+				this._showCurrent(this._filterValue, model.identifier);
 			}, section, true);
 			return {
 				item: { ...action, checked, enabled: !disabled },

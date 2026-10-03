@@ -7,6 +7,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError } from '../.
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../base/common/equals.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -2681,6 +2682,7 @@ interface INewSessionConstructionContext {
 	 */
 	readonly initialConfigValues?: Record<string, unknown>;
 	readonly resolveInitialPermissionConfig?: (config: ResolveSessionConfigResult) => Record<string, unknown>;
+	readonly initialModeId?: string;
 	/** Provider-owned Automation values restored before the first configuration resolution. */
 	readonly initialSessionTemplate?: IAutomationSessionTemplate;
 	/** Model selected specifically for this draft. */
@@ -2804,6 +2806,7 @@ class NewSession extends Disposable {
 	 */
 	private _configRequestSeq = 0;
 	private _hasResolvedConfig = false;
+	private _initialConfigError: Error | undefined;
 	private _lastResolvedConfigSchema: SessionConfigSchema | undefined;
 
 	/**
@@ -2846,6 +2849,7 @@ class NewSession extends Disposable {
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
 	private readonly _initialSessionTemplate: IAutomationSessionTemplate | undefined;
 	private readonly _resolveInitialPermissionConfig: INewSessionConstructionContext['resolveInitialPermissionConfig'];
+	private readonly _initialModeId: string | undefined;
 	readonly modelConfiguration: AutomationModelConfiguration;
 	get initialMetadata(): Record<string, unknown> | undefined { return this._initialMetadata; }
 
@@ -2887,6 +2891,7 @@ class NewSession extends Disposable {
 		this._initialMetadata = ctx.initialMetadata;
 		this._initialSessionTemplate = initialSessionTemplate;
 		this._resolveInitialPermissionConfig = ctx.resolveInitialPermissionConfig;
+		this._initialModeId = ctx.initialModeId;
 
 		const resource = URI.from({ scheme: ctx.resourceScheme, path: `/${generateUuid()}` });
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
@@ -3132,8 +3137,8 @@ class NewSession extends Disposable {
 				await this.waitForConfigResolution();
 			}
 		}
-		if (this._resolveInitialPermissionConfig && !this._hasResolvedConfig) {
-			throw new Error(localize('agentHost.initialPermissionsFailed', "The selected session permissions could not be applied."));
+		if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+			throw this._initialConfigError ?? new Error(localize('agentHost.initialConfigFailed', "The initial session configuration could not be resolved."));
 		}
 	}
 
@@ -3239,9 +3244,17 @@ class NewSession extends Disposable {
 					const effective = approval?.key === key ? getEffectiveSessionApprovalValue(approval, result.schema, result.values)
 						: result.values[key] ?? result.schema.properties[key]?.default;
 					if (!equals(effective, value)) {
-						throw new Error(`Agent host did not apply session permission '${key}'.`);
+						throw new Error(localize('agentHost.initialPermissionRejected', "The selected session permissions could not be applied: the agent host did not apply '{0}'.", key));
 					}
 				}
+				if (!this._hasResolvedConfig && this._initialModeId) {
+					const property = result.schema.properties[SessionConfigKey.Mode];
+					const effectiveMode = property ? result.values[SessionConfigKey.Mode] ?? property.default : undefined;
+					if (effectiveMode !== this._initialModeId) {
+						throw new Error(localize('agentHost.initialModeRejected', "The selected session mode '{0}' could not be applied.", this._initialModeId));
+					}
+				}
+				this._initialConfigError = undefined;
 				this._hasResolvedConfig = true;
 			}
 			this._config = result;
@@ -3256,8 +3269,9 @@ class NewSession extends Disposable {
 			this._config = undefined;
 			this._unresolvedConfigValues = values;
 			this._syncWorktreePending();
-			if (this._resolveInitialPermissionConfig && !this._hasResolvedConfig) {
-				this._logService.error(`[${this._providerId}] Failed to apply initial session permissions`, error);
+			if ((this._resolveInitialPermissionConfig || this._initialModeId) && !this._hasResolvedConfig) {
+				this._initialConfigError = error instanceof Error ? error : new Error(getErrorMessage(error));
+				this._logService.error(`[${this._providerId}] Failed to resolve initial session configuration`, error);
 			}
 			if (strict) {
 				throw error;
@@ -3339,7 +3353,7 @@ class NewSession extends Disposable {
 			let createdWithActiveClient: SessionActiveClient | undefined;
 
 			try {
-				if (this._resolveInitialPermissionConfig) {
+				if (this._resolveInitialPermissionConfig || this._initialModeId) {
 					await this.waitForConfigurationReady();
 				}
 				await this._activeClientScope.whenResolved();
@@ -4550,10 +4564,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				authenticationPending: this.authenticationPending,
 				logService: this._logService,
 				initialConfigValues,
+				initialModeId,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
 					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
 					if (!permissions) {
-						throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
+						throw new Error(localize('agentHost.initialPermissionUnsupported', "The selected session permissions could not be applied: agent '{0}' does not support permission '{1}'.", sessionType.id, initialPermissionId));
 					}
 					return permissions;
 				} : undefined,

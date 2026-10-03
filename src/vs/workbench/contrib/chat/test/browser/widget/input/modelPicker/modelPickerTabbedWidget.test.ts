@@ -369,6 +369,61 @@ suite('TabbedModelPicker', () => {
 			: row.querySelector('.title')?.textContent ?? '');
 	}
 
+	for (const initialFilter of [false, true]) {
+		test(`workflow selections preserve ${initialFilter ? 'initial' : 'typed'} search text and focused model`, () => {
+			const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+			const workflow: IModelPickerWorkflow = {
+				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+				start: () => state.set({
+					title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+					multiple: true, maxSelections: 10, canGoBack: false, canGoNext: true, canFinish: false,
+				}, undefined),
+				cancel: () => state.set(undefined, undefined),
+				reset: () => state.set(undefined, undefined),
+				select: id => {
+					const draft = state.get()!;
+					state.set({ ...draft, selectedModelIds: draft.selectedModelIds.includes(id) ? draft.selectedModelIds.filter(selected => selected !== id) : [...draft.selectedModelIds, id] }, undefined);
+				},
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			};
+			const result = createPicker({ workflow });
+			const { picker, popup } = result;
+			element(popup, '[aria-label="Compare Models"]').click();
+			picker.openWithFilter({ initialFilterValue: initialFilter ? 'Fi' : '' });
+			if (!initialFilter) {
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				input.value = 'Fi';
+				input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			}
+			const snapshots = [undefined, 'ArrowDown', 'ArrowUp'].map(key => {
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				if (key) {
+					input.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowDown' ? 40 : 38, bubbles: true }));
+				}
+				if (initialFilter && !key) {
+					element(popup, '.monaco-list-row.focused').click();
+				} else {
+					input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				}
+				return {
+					filter: popup.querySelector<HTMLInputElement>('input')?.value,
+					focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+					selected: state.get()?.selectedModelIds,
+				};
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ filter: 'Fi', focused: 'First', selected: [models[0].identifier] },
+				{ filter: 'Fi', focused: 'Fixed', selected: [models[0].identifier, models[2].identifier] },
+				{ filter: 'Fi', focused: 'First', selected: [models[2].identifier] },
+			]);
+			picker.hide();
+			reopen(result);
+			element(popup, '[aria-label="Compare Models"]').click();
+			element(popup, '[data-id="search"]').click();
+			assert.strictEqual(popup.querySelector<HTMLInputElement>('input')?.value, '');
+		});
+	}
+
 	test('idempotent filtered opening focuses the exact row without selecting it', () => {
 		const a = model('same');
 		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };

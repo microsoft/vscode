@@ -224,16 +224,33 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual({ archived: test.archived, notices: test.state.notices }, { archived: [], notices: 0 });
 	});
 
-	test('comparison Undo preserves independently restored membership during later session updates', async () => {
-		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
-		await test.run('group');
-		await test.managementService.unarchiveSession(test.sessions[0].session);
-		const manualGroup = test.groupsService.createGroup('Manual group', ['first']);
-		await test.state.undo();
-		test.sessionsChanged.fire({ added: [], removed: [], changed: [test.sessions[1].session] });
-		const comparison = test.comparisonService.getComparison('comparison')!;
-		assert.deepStrictEqual(test.membership(), [['first', manualGroup.id], ['second', comparison.groupId]]);
-	});
+	for (const independentlyRestored of [1, 2]) {
+		for (const regrouped of [false, true]) {
+			test(`comparison Undo preserves ${independentlyRestored} independently restored ${regrouped ? 'regrouped' : 'ungrouped'} sessions`, async () => {
+				const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+				await test.run('group');
+				for (const entry of test.sessions.slice(0, independentlyRestored)) {
+					await test.managementService.unarchiveSession(entry.session);
+				}
+				const manualGroup = regrouped ? test.groupsService.createGroup('Manual group', ['first']) : undefined;
+				await test.state.undo();
+				test.sessionsChanged.fire({ added: [], removed: [], changed: test.sessions.map(entry => entry.session) });
+				const comparison = test.comparisonService.getComparison('comparison')!;
+				assert.deepStrictEqual({
+					comparisonRestored: comparison.archivedAt === undefined && !!test.groupsService.getGroup(comparison.groupId),
+					membership: test.membership(),
+					restored: test.restored,
+				}, {
+					comparisonRestored: true,
+					membership: [
+						...(manualGroup ? [['first', manualGroup.id]] : []),
+						...(independentlyRestored === 1 ? [['second', comparison.groupId]] : []),
+					],
+					restored: ['first', 'second'],
+				});
+			});
+		}
+	}
 
 	for (const kind of ['workspace', 'section', 'group'] as const) {
 		test(`undo restores only newly archived sessions and their groups from a ${kind}`, async () => {
@@ -353,24 +370,32 @@ suite('Sessions - Bulk archive undo', () => {
 		assert.deepStrictEqual(test.restored, ['first', 'second']);
 	});
 
-	test('comparison Undo retries a partial restore without recreating the group twice', async () => {
-		const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
-		await test.run('group');
-		test.state.failRestore = 'second';
-		await assert.rejects(test.state.undo(), /restore failed/);
-		const restoredGroupId = test.comparisonService.getComparison('comparison')!.groupId;
-		test.state.failRestore = '';
-		await test.state.undo();
-		assert.deepStrictEqual({
-			groups: test.groupsService.getGroups().map(group => group.id),
-			restored: test.restored,
-			membership: test.membership(),
-		}, {
-			groups: [restoredGroupId],
-			restored: ['first', 'second'],
-			membership: [['first', restoredGroupId], ['second', restoredGroupId]],
+	for (const failRestore of ['first', 'second']) {
+		test(`comparison Undo retries after ${failRestore} fails and session state refreshes`, async () => {
+			const test = setup(ChatSessionArchiveActionWording.MarkAsDone, true);
+			await test.run('group');
+			test.state.failRestore = failRestore;
+			await assert.rejects(test.state.undo(), /restore failed/);
+			const firstRestoredGroupId = test.comparisonService.getComparison('comparison')!.groupId;
+			test.sessionsChanged.fire({ added: [], removed: [], changed: test.sessions.map(entry => entry.session) });
+			test.state.failRestore = '';
+			await test.state.undo();
+			const comparison = test.comparisonService.getComparison('comparison')!;
+			assert.deepStrictEqual({
+				groups: test.groupsService.getGroups().map(group => group.id),
+				restored: test.restored,
+				membership: test.membership(),
+				archived: comparison.archivedAt !== undefined,
+				retainedGroup: firstRestoredGroupId === comparison.groupId,
+			}, {
+				groups: [comparison.groupId],
+				restored: ['first', 'second'],
+				membership: [['first', comparison.groupId], ['second', comparison.groupId]],
+				archived: false,
+				retainedGroup: failRestore === 'second',
+			});
 		});
-	});
+	}
 
 	test('undo does not recreate deleted groups or move independently restored sessions', async () => {
 		const test = setup();

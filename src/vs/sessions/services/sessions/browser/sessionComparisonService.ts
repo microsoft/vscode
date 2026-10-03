@@ -800,7 +800,9 @@ export class SessionComparisonService extends Disposable implements ISessionComp
 			}
 			const sessionIds = comparison.participants
 				.map(participant => participant.sessionResource ? this.sessionsManagementService.getSession(participant.sessionResource)?.sessionId : undefined)
-				.filter((sessionId): sessionId is string => sessionId !== undefined && !this.sessionGroupsService.getGroupOfSession(sessionId));
+				.filter((sessionId): sessionId is string => sessionId !== undefined
+					&& !this.sessionGroupsService.getGroupOfSession(sessionId)
+					&& !this.sessionGroupsService.isExplicitlyUngrouped(sessionId));
 			this.sessionGroupsService.addToGroup(sessionIds, comparison.groupId);
 		}
 	}
