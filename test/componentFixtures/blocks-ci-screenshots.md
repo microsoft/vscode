@@ -160,22 +160,22 @@
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/35a21ea76e17222fe3540b27aa2f73712155fd385986747428def909d23513ce)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Accent/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/be874852d43aa1775bcab46bf17fe8479f648488f059976c4cd81bfba635bdb0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/50043fc5cbae5da2ebe57a244cefc2f77d1282e771425edc745694021d966385)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Narrow/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/769e05610dfc5f6d39db3ffbddb32909463793767e6e8a3aef20414a629ca497)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/e6be267da84d1eb280418f66888bdb00c6b8f2dedf0814422acc21cf0a74cdb1)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Running/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/d547d1decedfc29628e74e25448c22f3a2887555f4e105b3a66669d70e2226a5)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/dac619eec2d496d392fc76894cbfe72d6c620e8d0d916fbc092259ce219c16ad)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Soft/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/06921b9c55842ff60d0b71c57a211ac83f6ca98abf60f60c3aca751da85522a0)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ca6546aa31546f8a75488b82490bd52cf59ab71fe20bfde1c42d5f687eefed09)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge_Unread/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/912524397db41c4eeb2536543c4d3599af0c4ebbfd0b5f16675bb8e2bb46558f)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/94534fd6bddbf17182ad94cd457d7beda6e90dc2143a7ddae86f97df8b82e60c)
 
 #### sessions/sessionsList/SessionsList_AutomationsNewBadge/Light
-![screenshot](https://hediet-screenshots.azurewebsites.net/images/3968722a18ffe8d9252576a56e650b629e0f7bdafdbd73cc5749bcf2f690429e)
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/6932cbdc45bc378bdeaa0da2840d0bba374c472e5db0fce94f649e6a6b17352a)
 
 #### sessions/sessionsList/SessionsList_CompactArchivedNestedChat/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/00755bbb9f478b7fe3720b508d1c0b53897fa6e4511eb3a241284e5dcd0c6d55)
