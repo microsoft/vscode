@@ -12,6 +12,7 @@ import { ServiceCollection } from '../../instantiation/common/serviceCollection.
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { createFetch } from '../../request/common/fetch.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
@@ -153,7 +154,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			onDidChangeTelemetryLevel: Event.filter<TelemetryLevel, undefined>(Event.map(configurationService.onDidRootConfigChange, () =>
 				agentHostConfigValueToTelemetryLevel(configurationService.getRootConfigValues()[AgentHostTelemetryLevelConfigKey])
 				, options.owned), (level): level is TelemetryLevel => level !== undefined, options.owned),
-			fetch: fetchFn,
+			fetch: options.fetchFn ?? createFetch(fetchFn),
 		},
 	};
 }

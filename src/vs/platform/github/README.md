@@ -15,7 +15,7 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
-- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with the existing default fetch implementation. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with direct Node networking. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
 These instances do not currently share application-wide request state.
@@ -99,23 +99,33 @@ Bindings supply trusted product/channel/version and originating component/versio
 
 Browser fetch, including desktop renderers, sends only `X-Client-Application` to `https://api.github.com`. The other headers are not in GitHub.com's CORS allowlist. Enterprise browser endpoints receive no identification headers until their allowlists are established; CAPI requires its own endpoint policy. This is an explicit egress policy, not a fallback after failed requests. Cross-origin download storage hops receive no identification or retry headers.
 
+### Host networking
+
+Hosts supply plain [RequestFetch](common/types.ts) functions using the [request fetch helpers](../request/README.md). There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
+
+- **Web and desktop workbench:** [createFetch](../request/common/fetch.ts) wraps browser fetch, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
+- **Standalone Agent Host:** the same wrapper preserves the existing Agent Host proxy resolver's host/PAC, authentication and certificate handling. It applies only to GitHub requests, not the fetch used by Copilot or other services. The foundation preserves explicit test overrides.
+- **Shared process:** [createFetch](../request/electron-utility/fetch.ts) configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist.
+
+The helpers retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
+
+All bindings enforce manual redirects and omit ambient origin credentials. Anonymous requests also retain their no-referrer policy and never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
+
 ### Shared-process preparation
 
 `IGitHubService` is registered locally in the shared process. Desktop consumers may explicitly use `ISharedProcessGitHubService` for an anonymous, API-relative GET, with a cancellation token, request options and serializable result metadata. The boundary preserves domain error kinds, HTTP details, rate-limit delays and timeout dispatch status; disconnecting one caller cancels only its waiter and releases its lease. The complete shared engine still owns admission, cooldowns and response limits.
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-This preparation uses the engine's existing default fetch. Host-specific fetch, proxy and certificate integration is deferred; it does not modify the Agent Host proxy resolver or any existing workbench networking. Resolve that transport integration before migrating production callers.
-
 Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
 
 ```powershell
 npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\node\githubService.test.ts
-.\scripts\test.bat --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+npm run test-node -- --run src\vs\platform\request\test\common\fetch.test.ts --run src\vs\platform\request\test\node\fetch.test.ts --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
+.\scripts\test.bat --run src\vs\platform\request\test\common\fetch.test.ts --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts
 ```
 
-Tests use injected fetchers, not live GitHub requests or inference.
+Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
 
 ### Telemetry
 

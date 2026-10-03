@@ -14,6 +14,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { RequestFetch } from '../../../../../platform/github/common/types.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
@@ -30,7 +31,7 @@ suite('Workbench GitHub service', () => {
 		return { id, accessToken: `token-${id}`, account: { id: accountId, label: accountId }, scopes };
 	}
 
-	function setup(sessions: AuthenticationSession[] = [session()], telemetryService: ITelemetryService = NullTelemetryService, getSessions?: () => Promise<readonly AuthenticationSession[]>) {
+	function setup(sessions: AuthenticationSession[] = [session()], telemetryService: ITelemetryService = NullTelemetryService, getSessions?: () => Promise<readonly AuthenticationSession[]>, fetch: RequestFetch = async () => assert.fail('Unexpected network request')) {
 		const changed = store.add(new Emitter<{ providerId: string; label: string; event: AuthenticationSessionsChangeEvent }>());
 		const defaultChanged = store.add(new Emitter<IDefaultAccount | null>());
 		const configuration = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: 'all' });
@@ -60,9 +61,34 @@ suite('Workbench GitHub service', () => {
 				override readonly version = '1.141.0';
 			}(),
 			configuration,
+			fetch,
 		));
 		return { service, sessions, state, changed, defaultChanged, calls, configuration };
 	}
+
+	test('initializes the engine with direct browser fetch and matching identification policy', async () => {
+		const requests: Request[] = [];
+		const { service } = setup(undefined, undefined, undefined, async (input, init) => {
+			requests.push(new Request(input, init));
+			return new Response('{"value":1}');
+		});
+		const client = store.add(service.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' })).object;
+		const result = await client.get('/resource', signal(), { caller: 'github.query' });
+		assert.deepStrictEqual({
+			data: result.data,
+			requests: requests.map(request => ({
+				url: request.url, authorization: request.headers.get('authorization'), credentials: request.credentials,
+				redirect: request.redirect, cache: request.cache,
+				application: request.headers.get('x-client-application'), source: request.headers.get('x-client-source'),
+			})),
+		}, {
+			data: { value: 1 },
+			requests: [{
+				url: 'https://api.github.com/resource', authorization: null, credentials: 'omit', redirect: 'manual', cache: 'no-store',
+				application: 'vscode-insiders/1.141.0', source: null,
+			}],
+		});
+	});
 
 	for (const selection of ['default', 'explicit'] as const) {
 		test(`${selection} selection cancels while the authentication provider is pending`, async () => {
