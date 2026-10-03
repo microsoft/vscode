@@ -10,9 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { ChatPetContextKeys } from '../../../browser/chatPetService.js';
+import { ChatPetToolsContribution } from '../../../browser/tools/chatPetTools.js';
 import { ClientToolSetsContribution } from '../../../browser/tools/clientToolSetsContribution.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { createToolSetFileContents, deleteToolSetFromFileContents, getEnabledSelectionReferences } from '../../../browser/tools/toolSetsContribution.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 
@@ -90,6 +93,38 @@ suite('ToolSetsContribution', () => {
 			sessionsMembers: ['listAutomations', 'configureAutomation', 'runAutomation', 'deleteAutomation'],
 			coreHasSet: false,
 		});
+	});
+
+	test('ClientToolSetsContribution offers the pet tools in both windows', () => {
+		const createContribution = (isSessionsWindow: boolean) => {
+			const toolsService = createToolsService();
+			for (const name of ['petGuide', 'teachPet']) {
+				store.add(toolsService.registerToolData({ id: name, modelDescription: name, displayName: name, toolReferenceName: name, source: ToolDataSource.Internal }));
+			}
+			const workspaceService = new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = isSessionsWindow;
+			}();
+			store.add(new ClientToolSetsContribution(toolsService, workspaceService));
+			return toolsService;
+		};
+
+		assert.deepStrictEqual([true, false].map(isSessionsWindow => Array.from(createContribution(isSessionsWindow).getToolSet('vscode-pet')?.getTools() ?? [], tool => tool.toolReferenceName)), [
+			['petGuide', 'teachPet'],
+			['petGuide', 'teachPet'],
+		]);
+	});
+
+	test('ChatPetToolsContribution also offers the pet tools to local chats through the VS Code tool set, while the pet is shown', () => {
+		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
+		const instaService = workbenchInstantiationService({ contextKeyService: () => contextKeyService }, store);
+		const toolsService = store.add(instaService.createInstance(LanguageModelToolsService));
+		store.add(new ChatPetToolsContribution(toolsService, instaService));
+		const petTools = () => Array.from(toolsService.vscodeToolSet.getTools(), tool => tool.toolReferenceName).filter(name => name === 'petGuide' || name === 'teachPet');
+		const whileHidden = petTools();
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		contextKeyService.createKey(ChatPetContextKeys.enabled.key, true);
+
+		assert.deepStrictEqual({ whileHidden, whileShown: petTools() }, { whileHidden: [], whileShown: ['petGuide', 'teachPet'] });
 	});
 
 	test('getEnabledSelectionReferences keeps enabled tool set references and drops covered tools', () => {

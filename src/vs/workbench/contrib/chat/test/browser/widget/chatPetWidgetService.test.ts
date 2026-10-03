@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { IChatPetWidgetHost } from '../../../browser/widget/chatPetWidget.js';
-import { ChatPetWidgetCoordinator } from '../../../browser/widget/chatPetWidgetService.js';
+import { ChatPetWidgetCoordinator, IChatPetWidgetInstance } from '../../../browser/widget/chatPetWidgetService.js';
 
 suite('ChatPetWidgetService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -58,6 +58,7 @@ suite('ChatPetWidgetService', () => {
 					this.host = nextHost;
 					this.hostHistory.push(nextHost);
 				},
+				playReaction: () => false,
 				dispose() {
 					this.disposed = true;
 				},
@@ -104,12 +105,13 @@ suite('ChatPetWidgetService', () => {
 			override lastFocusedWidget: IChatWidget | undefined = widget;
 			override readonly onDidChangeFocusedWidget = focusEmitter.event;
 		}();
-		let pet: { dispose(): void; setHost(host: IChatPetWidgetHost): void } | undefined;
+		let pet: IChatPetWidgetInstance | undefined;
 		let disposed = false;
 		const coordinator = disposables.add(new ChatPetWidgetCoordinator(() => {
 			const instance = {
 				dispose: () => disposed = true,
 				setHost: () => { },
+				playReaction: () => false,
 			};
 			pet = instance;
 			return instance;
@@ -123,6 +125,39 @@ suite('ChatPetWidgetService', () => {
 		assert.deepStrictEqual({ created: !!pet, disposedAfterHost, disposed }, { created: true, disposedAfterHost: false, disposed: true });
 	});
 
+	test('plays reactions on the pet of the requesting or last focused chat', () => {
+		const widget = new class extends mock<IChatWidget>() { }();
+		const chatWidgetService = new class extends mock<IChatWidgetService>() {
+			override lastFocusedWidget: IChatWidget | undefined = widget;
+			override readonly onDidChangeFocusedWidget = Event.None;
+		}();
+		const played: string[] = [];
+		const coordinator = disposables.add(new ChatPetWidgetCoordinator(() => ({
+			setHost: () => { },
+			playReaction: name => {
+				played.push(name);
+				return name !== 'unknown';
+			},
+			dispose: () => { },
+		}), chatWidgetService));
+		const beforeRegistration = coordinator.playReaction('love', widget);
+		disposables.add(coordinator.register(widget, createHost()));
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			byOwner: coordinator.playReaction('love', widget),
+			byLastFocused: coordinator.playReaction('YES SIR', {}),
+			unknown: coordinator.playReaction('unknown'),
+			played,
+		}, {
+			beforeRegistration: false,
+			byOwner: true,
+			byLastFocused: true,
+			unknown: false,
+			played: ['love', 'YES SIR', 'unknown'],
+		});
+	});
+
 	test('disposes a parked pet when its auxiliary window closes', () => {
 		const focusEmitter = disposables.add(new Emitter<IChatWidget | undefined>());
 		const windowCloseEmitter = disposables.add(new Emitter<number>());
@@ -134,6 +169,7 @@ suite('ChatPetWidgetService', () => {
 		let disposed = false;
 		const coordinator = disposables.add(new ChatPetWidgetCoordinator(() => ({
 			setHost: () => { },
+			playReaction: () => false,
 			dispose: () => disposed = true,
 		}), chatWidgetService, windowCloseEmitter.event));
 		const host = createHost();
@@ -168,6 +204,7 @@ suite('ChatPetWidgetService', () => {
 			hostHistory.push(host);
 			return {
 				setHost: (nextHost: IChatPetWidgetHost) => hostHistory.push(nextHost),
+				playReaction: () => false,
 				dispose: () => { },
 			};
 		}, chatWidgetService));

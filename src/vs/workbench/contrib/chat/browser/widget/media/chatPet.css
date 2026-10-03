@@ -237,6 +237,11 @@
 	transform: none;
 }
 
+/* Taught moves are drawn already mirrored, so readable text in them keeps its orientation. */
+.chat-pet-button[data-facing='left'][data-state='custom'] .chat-pet-sprite > .chat-pet-canvas {
+	transform: none;
+}
+
 .chat-pet-canvas {
 	display: block;
 	height: 48px;
