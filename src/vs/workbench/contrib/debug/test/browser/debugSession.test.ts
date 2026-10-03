@@ -4,8 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ThreadStatusScheduler } from '../../browser/debugSession.js';
+import { createMockDebugModel } from './mockDebugModel.js';
+import { createTestSession } from './callStack.test.js';
+import { DebugSession, ThreadStatusScheduler } from '../../browser/debugSession.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
+import { IRawStoppedDetails } from '../../common/debug.js';
 
 
 suite('DebugSession - ThreadStatusScheduler', () => {
@@ -105,5 +111,101 @@ suite('DebugSession - ThreadStatusScheduler', () => {
 		});
 
 		assert.strictEqual(innerCalled, false);
+	});
+});
+
+suite('DebugSession - stopped details', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	interface TestRawSession {
+		readonly session: DebugSession;
+		fireStopped(body: IRawStoppedDetails): void;
+		fireContinued(threadId: number): void;
+	}
+
+	function createSessionWithRaw(): TestRawSession {
+		const model = ds.add(createMockDebugModel(ds));
+		const onDidStop = ds.add(new Emitter<DebugProtocol.StoppedEvent>());
+		const onDidContinued = ds.add(new Emitter<DebugProtocol.ContinuedEvent>());
+		const noEvent = () => Disposable.None;
+		const raw = {
+			onDidInitialize: noEvent,
+			onDidStop: onDidStop.event,
+			onDidThread: noEvent,
+			onDidTerminateDebugee: noEvent,
+			onDidContinued: onDidContinued.event,
+			onDidOutput: noEvent,
+			onDidBreakpoint: noEvent,
+			onDidLoadedSource: noEvent,
+			onDidCustomEvent: noEvent,
+			onDidProgressStart: noEvent,
+			onDidProgressUpdate: noEvent,
+			onDidProgressEnd: noEvent,
+			onDidInvalidated: noEvent,
+			onDidInvalidateMemory: noEvent,
+			onDidExitAdapter: noEvent,
+			capabilities: {},
+			threads: async () => ({ seq: 1, type: 'response' as const, request_seq: 1, success: true, command: 'threads', body: { threads: [] } })
+		};
+		const session = createTestSession(model);
+		ds.add(session);
+		session.initializeForTest(raw as unknown as RawDebugSession);
+		return {
+			session,
+			fireStopped: body => onDidStop.fire({ seq: 1, type: 'event', event: 'stopped', body } as DebugProtocol.StoppedEvent),
+			fireContinued: threadId => onDidContinued.fire({ seq: 1, type: 'event', event: 'continued', body: { threadId, allThreadsContinued: false } } as DebugProtocol.ContinuedEvent)
+		};
+	}
+
+	async function flushAsync(): Promise<void> {
+		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+
+	function getStoppedDetails(session: DebugSession): IRawStoppedDetails[] {
+		return (session as unknown as { stoppedDetails: IRawStoppedDetails[] }).stoppedDetails;
+	}
+
+	test('a continued event does not remove a stop reported after it arrived (#339076)', async () => {
+		const { session, fireStopped, fireContinued } = createSessionWithRaw();
+
+		// 1. the session stops initially
+		fireStopped({ reason: 'stopped', threadId: 2 });
+		// 2. the user resumes; the adapter reports the continued event for the
+		//    earlier stop, whose asynchronous cleanup has not run yet
+		fireContinued(2);
+		// 3. while the cleanup is pending the session stops again, this time on a breakpoint
+		fireStopped({ reason: 'breakpoint', threadId: 2 });
+
+		await flushAsync();
+
+		const details = getStoppedDetails(session);
+		assert.strictEqual(details.length, 1);
+		assert.strictEqual(details[0].reason, 'breakpoint');
+		assert.strictEqual(session.getStoppedDetails()?.reason, 'breakpoint');
+	});
+
+	test('a continued event still removes earlier stops on the thread', async () => {
+		const { session, fireStopped, fireContinued } = createSessionWithRaw();
+
+		fireStopped({ reason: 'stopped', threadId: 2 });
+		await flushAsync();
+		fireContinued(2);
+		await flushAsync();
+
+		assert.deepStrictEqual(getStoppedDetails(session), []);
+		assert.strictEqual(session.getStoppedDetails(), undefined);
+	});
+
+	test('a continued event does not remove stops on other threads', async () => {
+		const { session, fireStopped, fireContinued } = createSessionWithRaw();
+
+		fireStopped({ reason: 'breakpoint', threadId: 2 });
+		fireStopped({ reason: 'pause', threadId: 3 });
+		fireContinued(2);
+		await flushAsync();
+
+		const details = getStoppedDetails(session);
+		assert.strictEqual(details.length, 1);
+		assert.strictEqual(details[0].threadId, 3);
 	});
 });

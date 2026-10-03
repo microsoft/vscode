@@ -77,6 +77,14 @@ export class DebugSession implements IDebugSession {
 	private lastContinuedThreadId: number | undefined;
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
+	/**
+	 * Sequence numbers, parallel to {@link stoppedDetails}, in the order the
+	 * stop details were reported. Used to make sure that a late `continued`
+	 * cleanup does not remove stop details that were reported after the
+	 * `continued` event was received (#339076).
+	 */
+	private stoppedDetailsSequences: number[] = [];
+	private stoppedDetailsSequenceCounter = 0;
 	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
 
 	/** Test run this debug session was spawned by */
@@ -1132,6 +1140,13 @@ export class DebugSession implements IDebugSession {
 		this.rawListeners.add(this.raw.onDidContinued(async event => {
 			const allThreads = event.body.allThreadsContinued !== false;
 
+			// Only account for stop details that were reported before the
+			// `continued` event arrived. The cleanup below runs asynchronously,
+			// so without this a late cleanup could remove a stop that was
+			// reported after the `continued` event, e.g. a newer breakpoint
+			// stop on the same thread (#339076).
+			const sequenceAtContinued = this.stoppedDetailsSequenceCounter;
+
 			let affectedThreads: number[] | Promise<number[]>;
 			if (!allThreads) {
 				affectedThreads = [event.body.threadId];
@@ -1150,7 +1165,17 @@ export class DebugSession implements IDebugSession {
 
 			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
 			await statusQueue.run(affectedThreads, threadId => {
-				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
+				const remaining: IRawStoppedDetails[] = [];
+				const remainingSequences: number[] = [];
+				for (let i = 0; i < this.stoppedDetails.length; i++) {
+					const details = this.stoppedDetails[i];
+					if (details.threadId !== threadId || this.stoppedDetailsSequences[i] > sequenceAtContinued) {
+						remaining.push(details);
+						remainingSequences.push(this.stoppedDetailsSequences[i]);
+					}
+				}
+				this.stoppedDetails = remaining;
+				this.stoppedDetailsSequences = remainingSequences;
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
 				tokens?.forEach(t => t.dispose(true));
@@ -1332,6 +1357,7 @@ export class DebugSession implements IDebugSession {
 
 				const details = this.stoppedDetails.slice();
 				this.stoppedDetails.length = 0;
+				this.stoppedDetailsSequences.length = 0;
 				if (details.length) {
 					await Promise.all(details.map(d => this.handleStop(d)));
 				} else if (!this.fetchThreadsScheduler.value.isScheduled()) {
@@ -1353,6 +1379,7 @@ export class DebugSession implements IDebugSession {
 	private async handleStop(event: IRawStoppedDetails) {
 		this.passFocusScheduler.cancel();
 		this.stoppedDetails.push(event);
+		this.stoppedDetailsSequences.push(++this.stoppedDetailsSequenceCounter);
 
 		// do this very eagerly if we have hitBreakpointIds, since it may take a
 		// moment for breakpoints to set and we want to do our best to not miss
@@ -1502,6 +1529,7 @@ export class DebugSession implements IDebugSession {
 		this.threads.clear();
 		this.threadIds = [];
 		this.stoppedDetails = [];
+		this.stoppedDetailsSequences = [];
 		this._onDidChangeState.fire();
 	}
 
