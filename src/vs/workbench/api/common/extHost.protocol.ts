@@ -1427,6 +1427,8 @@ export interface ExtHostSpeechShape {
 
 	$createKeywordRecognitionSession(handle: number, session: number): Promise<void>;
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
+
+	$onDidChangeVoiceChatInProgress(inProgress: boolean): void;
 }
 
 export interface BrowserTabDto {
