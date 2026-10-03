@@ -243,7 +243,7 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-fill,
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-connected-edge {
-	bottom: calc(-3 * var(--vscode-strokeThickness));
+	bottom: calc(-2 * var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench.floating-panels .monaco-grid-view .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab.active:not(.connected-tab-upper-row) > .tab-fill,
