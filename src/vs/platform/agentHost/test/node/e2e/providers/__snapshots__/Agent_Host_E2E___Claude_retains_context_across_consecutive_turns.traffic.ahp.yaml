@@ -51,6 +51,9 @@ rounds:
     serverToClient:
       - channel: ${chat_0}
         action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
           type: chat/turnStarted
           turnId: ${turn_1}
           message:

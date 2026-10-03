@@ -237,6 +237,7 @@ function createTestSideEffects(
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
 			_serviceBrand: undefined,
+			setRead: async () => { },
 			setArchived: async () => { },
 		}],
 	);
@@ -3458,7 +3459,7 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 
-		test('marks the parent session unread when a subagent turn completes', () => {
+		test('does not mark the parent session unread when a subagent turn completes', () => {
 			const { sideEffects: persisting } = setupPersisting();
 			setupSession();
 			// The session has been read (e.g. a client viewed it after the parent
@@ -3496,8 +3497,8 @@ suite('AgentSideEffects', () => {
 				readChanges: readChangesFrom(envelopes),
 				isReadBitSet: (stateManager.getSessionSummary(sessionUri.toString())!.status & SessionStatus.IsRead) !== 0,
 			}, {
-				readChanges: [false],
-				isReadBitSet: false,
+				readChanges: [],
+				isReadBitSet: true,
 			});
 		});
 		test('marks a read session unread when a turn is cancelled', () => {
@@ -3687,10 +3688,10 @@ suite('AgentSideEffects', () => {
 					phase: { ...metadata.fusionPhase, status: 'cancelled', duration: phase.duration },
 					finalizedBeforeAbort: true,
 					abortCalls: 1,
-					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatToolCallComplete],
-					liveTurns: [turn],
+					actions: [status === ToolCallStatus.Streaming ? ActionType.ChatToolCallDelta : ActionType.ChatToolCallReady, ActionType.ChatTurnCancelled, ActionType.ChatIsReadChanged, ActionType.ChatToolCallComplete],
+					liveTurns: [structuredClone(turn)],
 					liveActiveTurn: undefined,
-					restoredTurns: [turn],
+					restoredTurns: [structuredClone(turn)],
 					restoredActiveTurn: undefined,
 					pending: [],
 					toolEvents: [],
