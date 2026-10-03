@@ -78,6 +78,30 @@ Restarting the host lets the same new policy work, including message-content cap
     --grep "new sessions honor changed managed telemetry without restarting"
   ```
 
+### Copilot telemetry fails behind a closing Negotiate proxy
+
+Organizations can require Kerberos authentication at their outbound HTTPS proxy.
+When that proxy closes its initial `407 Proxy Authentication Required` response,
+the bundled Copilot runtime can complete a chat but fail to export its telemetry.
+Waiting for a completed assistant response does not establish that traces arrived.
+
+- Test: `provider telemetry reconnects after a closing Negotiate challenge` in `providers/copilotOtelAgentHostE2E.integrationTest.ts`.
+- Bundled baseline: SDK `1.0.17-preview.0`, runtime `1.0.92-0`, macOS arm64. The turn completed, the proxy observed four closing challenges and no authenticated tunnels, and no inference span reached the collector.
+- Expected: the runtime reconnects with a Negotiate token and exports the completed turn's inference span to the TLS collector, correlated by SDK session ID.
+- Candidate: [github/copilot-agent-runtime#24730](https://github.com/github/copilot-agent-runtime/pull/24730), head `aecf4ed09dc066dc058926651923a66116760189`, tested using the macOS CI artifact from [run 37061877515](https://github.com/github/copilot-agent-runtime/actions/runs/37061877515). Its actual source is merge `ba33644ebcf4d71b3634a48e4d28712878b883ae`, which includes that head. The same strict replay and assertions passed twice with fresh hosts and native realms. Only the native runtime was replaced; the VS Code host and SDK wrapper remained bundled.
+- Prerequisite gate: `AGENT_HOST_TEST_KERBEROS=1`, Linux/macOS only. Azure definition 111 enables this by default, including SDK adoption builds; local runs must opt in.
+- Expected failure: only a missing inference span after at least one challenge, zero authenticated tunnels, and no transport errors is accepted. A successful export fails as an unexpected pass so an SDK roll cannot silently retain an obsolete marker. Setup, replay, and other failures remain failures.
+- Prerequisites and isolation: see [the README](./README.md#authenticated-telemetry-proxy-regression). Missing native tools fail an explicitly enabled run; they do not silently skip it. No Docker or domain-joined machine is required.
+- Scope: native client token generation, closing-challenge recovery, TLS verification, and actual trace delivery. The in-process proxy requires a Negotiate header but does not validate the token cryptographically. Metrics, real Squid/Kerberos server interoperability, and Windows SSPI are not covered.
+- Linux and packaged Azure validation remain required before merge. Candidate success is not evidence that the fix is merged or bundled.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_TEST_KERBEROS=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+    --grep "closing Negotiate"
+  ```
+
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.

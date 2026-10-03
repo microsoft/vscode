@@ -52,6 +52,14 @@ steps:
       sudo service xvfb start
     displayName: Setup system services
 
+  - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron') }}:
+    - script: |
+        set -e
+        ./build/azure-pipelines/linux/apt-retry.sh sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+          krb5-user krb5-kdc krb5-admin-server openssl
+      condition: and(succeeded(), eq(variables['AGENT_HOST_TEST_KERBEROS'], '1'))
+      displayName: Install native Kerberos E2E prerequisites
+
   - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
