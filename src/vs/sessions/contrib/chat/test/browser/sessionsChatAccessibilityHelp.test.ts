@@ -178,13 +178,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			survey: content.includes('a two-step feedback survey may appear above the chat input'),
-			keyboard: content.includes('use Up and Down Arrow to choose why you switched'),
-			acknowledgement: content.includes('the questions are replaced above the input by a message that your feedback was recorded'),
+			survey: content.includes('a feedback survey may appear above the chat input'),
+			keyboard: content.includes('Use Up and Down Arrow to choose why you switched, then press Enter or Space to submit'),
+			acknowledgement: content.includes('a message confirms that your feedback was recorded'),
+			feedbackLink: content.includes('Use Tab to reach Share it on GitHub to provide specific feedback in a GitHub issue'),
 		}, {
 			survey: true,
 			keyboard: true,
 			acknowledgement: true,
+			feedbackLink: true,
 		});
 	});
 
@@ -395,12 +397,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
+			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
 			oldAction: content.includes('Remove Pull Request Artifact'),
 			immediateRemoval: content.includes('Removal is immediate'),
 		}, {
 			recordedArtifactsAndReferences: true,
 			singleItemActions: true,
+			copyActions: true,
 			persistence: true,
 			oldAction: false,
 			immediateRemoval: false,
