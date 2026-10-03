@@ -70,6 +70,8 @@ export interface ISetting {
 	overrideOf?: ISetting;
 	deprecationMessage?: string;
 	deprecationMessageIsMarkdown?: boolean;
+	deprecationMessageSeverity?: 'warning' | 'info';
+	deprecationMessageShowInSettings?: boolean;
 
 	scope?: ConfigurationScope;
 	type?: string | string[];

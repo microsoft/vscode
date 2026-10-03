@@ -12,6 +12,9 @@ export const HAS_IGNORED_FILES_MESSAGE = l10n.t('\n\n**Note:** Some files were e
 
 export const IIgnoreService = createServiceIdentifier<IIgnoreService>('IIgnoreService');
 
+/** How many exclusion checks may run at once when filtering a batch of search results. */
+const IGNORE_CHECK_CONCURRENCY = 20;
+
 export interface IIgnoreService {
 
 	_serviceBrand: undefined;
@@ -29,7 +32,7 @@ export interface IIgnoreService {
 
 	init(): Promise<void>;
 
-	isCopilotIgnored(file: URI, token?: CancellationToken): Promise<boolean>;
+	isCopilotIgnored(file: URI, token?: CancellationToken, contents?: string): Promise<boolean>;
 
 	asMinimatchPattern(): Promise<string | undefined>;
 }
@@ -61,12 +64,27 @@ export class NullIgnoreService implements IIgnoreService {
 	}
 }
 
+/**
+ * Filters out content excluded resources with bounded concurrency, preserving order. Workers claim
+ * the next index rather than queueing each resource into a `Limiter`, whose `Array#shift` based queue
+ * is quadratic over the hundreds of thousands of results a workspace-wide search can return.
+ */
 export async function filterIngoredResources(ignoreService: IIgnoreService, resources: URI[]): Promise<URI[]> {
-	const result: URI[] = [];
-	for (const resource of resources) {
-		if (!await ignoreService.isCopilotIgnored(resource)) {
-			result.push(resource);
+	const ignored = new Array<boolean>(resources.length);
+	let nextIndex = 0;
+	let stopped = false;
+	const worker = async () => {
+		while (!stopped && nextIndex < resources.length) {
+			const index = nextIndex++;
+			ignored[index] = await ignoreService.isCopilotIgnored(resources[index]);
 		}
+	};
+	try {
+		await Promise.all(Array.from({ length: Math.min(IGNORE_CHECK_CONCURRENCY, resources.length) }, worker));
+	} finally {
+		// Promise.all reports the first failure straight away; this stops the other workers from
+		// checking the rest of the batch for a caller that has already been given the error.
+		stopped = true;
 	}
-	return result;
+	return resources.filter((_, index) => !ignored[index]);
 }

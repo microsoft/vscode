@@ -67,12 +67,28 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Low rounded crown with a broad curved brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.StrawHat,
+		shape: 'Tall golden crown with a red band and asymmetric brim',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.BambooHat,
+		shape: 'Wide tiered bamboo hat with warm gold shading',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.PinkPartyHat,
+		shape: 'Pink leaning party cone with a gold pom',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.BaseballCap,
 		shape: 'Paneled red crown with a long side-facing bill',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.PropellerHat,
+		shape: 'Multicolor beanie with a full-width gold propeller',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.TopHatMonocle,
-		shape: 'Extra-tall squared crown with a full-width brim',
+		shape: 'Extra-tall striped crown with a full-width brim and monocle',
 	},
 	{
 		accessoryId: ChatPetAccessoryIds.PartyHat,
@@ -83,6 +99,10 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'White Dixie-cup cap with a balanced crown and subtle forward brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.DarkSailorHat,
+		shape: 'White sailor cap with a dark band and gold accent',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.SpinnerHat,
 		shape: 'Domed beanie with a wide multicolor propeller',
 	},
@@ -91,16 +111,20 @@ const productionAccessoryPreviews: readonly IChatPetProductionAccessoryPreview[]
 		shape: 'Low ribbed safety dome with a full-width brim',
 	},
 	{
+		accessoryId: ChatPetAccessoryIds.WhiteChefHat,
+		shape: 'Tall white toque with a pleated lower crown',
+	},
+	{
 		accessoryId: ChatPetAccessoryIds.FirefighterHelmet,
 		shape: 'Rounded red helmet with a gold shield and neck guard',
 	},
 	{
-		accessoryId: ChatPetAccessoryIds.VikingHelmet,
-		shape: 'Balanced steel helmet with a longer forward horn and short nose guard',
-	},
-	{
 		accessoryId: ChatPetAccessoryIds.Crown,
 		shape: 'Gold crown with tall points and jewel highlights',
+	},
+	{
+		accessoryId: ChatPetAccessoryIds.WizardHat,
+		shape: 'Wide purple leaning hat with a floating gold star',
 	},
 	{
 		accessoryId: ChatPetAccessoryIds.ArtistBeret,
@@ -417,7 +441,7 @@ async function renderAllRuntimeStates(ctx: ComponentFixtureContext): Promise<voi
 async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '900px';
-	ctx.container.style.height = '1080px';
+	ctx.container.style.height = '1320px';
 	ctx.container.style.boxSizing = 'border-box';
 	ctx.container.style.padding = '24px';
 	ctx.container.style.overflow = 'auto';
@@ -514,7 +538,7 @@ async function renderAllAccessoriesFacing(ctx: ComponentFixtureContext): Promise
 async function renderCoveredAntennaeComparison(ctx: ComponentFixtureContext): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 	ctx.container.style.width = '1240px';
-	ctx.container.style.height = '1000px';
+	ctx.container.style.height = '2240px';
 	ctx.container.style.boxSizing = 'border-box';
 	ctx.container.style.padding = '24px';
 	ctx.container.style.overflow = 'auto';
@@ -525,7 +549,7 @@ async function renderCoveredAntennaeComparison(ctx: ComponentFixtureContext): Pr
 	heading.textContent = 'Production accessory motion';
 	heading.style.margin = '0 0 8px';
 	const description = DOM.append(ctx.container, DOM.$('p'));
-	description.textContent = 'All 11 achievement rewards use body-owned attachment tracks and transparent antenna occlusion in both directions.';
+	description.textContent = `All ${productionAccessoryPreviews.length} achievement rewards use body-owned attachment tracks and transparent antenna occlusion in both directions.`;
 	description.style.margin = '0 0 20px';
 	description.style.color = 'var(--vscode-descriptionForeground)';
 

@@ -52,37 +52,42 @@ class TestPage extends mock<PlaywrightPage>() {
 suite('PlaywrightTab', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('blocks agent access after Chromium normalizes an IPv4-mapped IPv6 URL', async () => {
-		const url = 'http://[::ffff:7f00:1]:3000/private';
-		const page = new TestPage(url);
-
+	test('blocks agent access to reported parser-differential authorities', async () => {
 		const configService = new TestConfigurationService();
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.NetworkFilter, true);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
 		configService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 		const networkFilterService = disposables.add(new AgentNetworkFilterService(configService));
 		const actionScope: IPlaywrightActionScope = { activeCalls: 0 };
-		const tab = new PlaywrightTab(page, actionScope, networkFilterService);
+		const urls = [
+			'http://a%40b@127.0.0.1:3000/private',
+			'http://[::1]:3000/private',
+			'http://[::ffff:7f00:1]:3000/private',
+			'https://evil.com%2fx/',
+			'https://evil.com%5c/',
+		];
+		const results = await Promise.all(urls.map(async url => {
+			const tab = new PlaywrightTab(new TestPage(url), actionScope, networkFilterService);
+			let actionRan = false;
+			let actionBlocked = false;
+			try {
+				await tab.safeRunAgainstPage(async () => {
+					actionRan = true;
+				});
+			} catch {
+				actionBlocked = true;
+			}
+			return {
+				actionBlocked,
+				actionRan,
+				summary: await tab.getSummary(),
+			};
+		}));
 
-		let actionRan = false;
-		let actionBlocked = false;
-		try {
-			await tab.safeRunAgainstPage(async () => {
-				actionRan = true;
-			});
-		} catch {
-			actionBlocked = true;
-		}
-		const summary = await tab.getSummary();
-
-		assert.deepStrictEqual({
-			actionBlocked,
-			actionRan,
-			summary,
-		}, {
+		assert.deepStrictEqual(results, urls.map(url => ({
 			actionBlocked: true,
 			actionRan: false,
 			summary: networkFilterService.formatError(URI.parse(url)),
-		});
+		})));
 	});
 });

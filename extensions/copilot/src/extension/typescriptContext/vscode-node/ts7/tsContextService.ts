@@ -228,7 +228,7 @@ export class TS7LanguageContextService extends AbstractTSLanguageContextService 
 			}
 			// Workaround for https://github.com/microsoft/typescript-go/issues/4916
 			api.clearSourceFileCache();
-			const snapshot = await api.updateSnapshot({ openFiles: [ { uri: document.uri.toString() } ] });
+			const snapshot = await api.updateSnapshot();
 			try {
 				if (token.isCancellationRequested) {
 					return ComputeContextResult.cancelled;

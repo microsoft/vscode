@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-input-picker-split > .chat-input-picker-split-button {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height, 22px);
+	min-width: 0;
+	padding: 0 var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	text-decoration: none;
+	color: inherit;
+	white-space: nowrap;
+}
+
+.chat-input-picker-split > .chat-input-picker-split-secondary {
+	position: relative;
+	margin-left: var(--vscode-spacing-size20);
+}
+
+.chat-input-picker-split > .chat-input-picker-split-secondary::before {
+	position: absolute;
+	left: calc(-1 * var(--vscode-spacing-size20) / 2);
+	top: 50%;
+	width: var(--vscode-strokeThickness);
+	height: var(--vscode-spacing-size120);
+	background-color: var(--vscode-widget-border, var(--vscode-editorWidget-border, transparent));
+	content: "";
+	transform: translate(-50%, -50%);
+	z-index: 1;
+	pointer-events: none;
+}
+
+.monaco-workbench .action-label.chat-input-picker-split:not(.disabled, [aria-disabled='true']):is(:hover, .hovered) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-input-picker-split:not(.disabled, [aria-disabled='true']) > .chat-input-picker-split-button:not([aria-disabled='true']):is(:hover, .hovered, [aria-expanded='true']) {
+	background-color: var(--vscode-toolbar-activeBackground, var(--vscode-toolbar-hoverBackground));
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench .chat-input-picker-split-button:focus-visible,
+.monaco-workbench .chat-input-picker-focus-scope :is(.action-label, .monaco-button):focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .chat-input-picker-split-button:focus:not(:focus-visible),
+.monaco-workbench .chat-input-picker-focus-scope :is(.action-label, .monaco-button):focus:not(:focus-visible),
+.monaco-workbench .chat-input-picker-focus-scope.pointer-focus :is(.action-label, .chat-input-picker-split-button, .monaco-button):focus {
+	outline: none;
+}

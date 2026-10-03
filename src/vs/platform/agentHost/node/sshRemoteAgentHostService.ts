@@ -11,6 +11,7 @@ import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { raceTimeout } from '../../../base/common/async.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
@@ -47,6 +48,7 @@ import {
 } from './sshKnownHosts.js';
 import type { RemoteAgentHostLocationPreference } from '../common/remoteAgentHostLocationPreference.js';
 import type { IRelayMessage } from '../common/relayTransport.js';
+import { RelayActivityReporter } from '../common/relayActivity.js';
 import { AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
 import {
@@ -59,15 +61,10 @@ import {
 	buildAgentHostBaseCommand,
 	buildAgentHostSpawnCommand,
 	buildAgentRelayCommand,
-	buildCLIDownloadUrl,
-	buildCleanupOldCLIsCommand,
-	buildFindFallbackCLICommand,
 	extractAgentHostWebSocketURL,
 	filterLiveAgentHostEndpoints,
-	getRemoteCLIBin,
+	getNewAgentHostRegistrationTimeoutMs,
 	getRemoteCLIDataDir,
-	getRemoteCLIInstallRoot,
-	isValidFallbackCLIPath,
 	redactToken,
 	resolveRemotePlatform,
 	runAgentEndpoints,
@@ -75,8 +72,11 @@ import {
 	validateAgentHostTelemetryLevel,
 	waitForNewStandaloneEndpoint,
 } from './sshRemoteAgentHostHelpers.js';
+import { ensureRemoteAgentHostCliInstalled, type IRemoteAgentHostCliInstallResult } from './remoteAgentHostCliInstaller.js';
 import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 import { removeAnsiEscapeCodes } from '../../../base/common/strings.js';
+import { expandSSHProxyCommand, SSHProxyCommand } from './sshProxyCommand.js';
+import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from './sshConfigPaths.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -86,6 +86,12 @@ interface SSHChannel extends NodeJS.ReadWriteStream {
 	on(event: string, listener: (...args: unknown[]) => void): this;
 	stderr: { on(event: 'data', listener: (data: Buffer) => void): void };
 	close(): void;
+}
+
+interface ISSHKnownHostsEvidence {
+	readonly entries: IKnownHostsEntry[];
+	readonly strictHostKeyChecking: SSHStrictHostKeyChecking | undefined;
+	readonly hostKeyAlias: string | undefined;
 }
 
 /** Minimal subset of ssh2.Client used by this module. */
@@ -111,7 +117,7 @@ const LOG_PREFIX = '[SSHRemoteAgentHost]';
 
 /**
  * Maximum time to wait for {@link SSHRemoteAgentHostMainService._createWebSocketRelay}
- * to settle on the `replaceRelay` reconnect path before giving up. A silently
+ * to settle while acquiring a relay lease before giving up. A silently
  * dead SSH client (TCP half-open, ssh2 keepalive hasn't fired yet) can leave
  * `forwardOut`'s callback unfired, hanging the whole `connect()` call. Bounding
  * this surfaces a clean failure so the renderer can clear its pending-reconnect
@@ -151,6 +157,15 @@ const HANDSHAKE_TIMEOUT_MS = 30_000;
 const INTERACTIVE_TIMEOUT_MS = 300_000;
 
 /**
+ * How long a resolved `ssh -G` result stays reusable. One connect attempt asks
+ * for the same host several times — proxy and identity resolution, then
+ * `known_hosts` lookup during host key verification, plus reconnects that
+ * resolve the alias before connecting — and each spawn costs a process. The
+ * window is short so an edited SSH config is picked up by the next attempt.
+ */
+const RESOLVED_CONFIG_REUSE_MS = 10_000;
+
+/**
  * One entry in the queue of authentication attempts handed to ssh2's
  * `authHandler`. Each attempt corresponds to one of the auth method shapes
  * documented at https://www.npmjs.com/package/ssh2#client-methods.
@@ -159,6 +174,7 @@ const INTERACTIVE_TIMEOUT_MS = 300_000;
  * attempt is returned to ssh2.
  */
 export type SSHAuthAttempt =
+	| { readonly type: 'none'; readonly username: string }
 	| { readonly type: 'publickey'; readonly username: string; readonly key: Buffer; readonly keyPath: string; readonly encrypted?: boolean }
 	| { readonly type: 'agent'; readonly username: string; readonly agent: string }
 	| { readonly type: 'password'; readonly username: string; readonly password: string }
@@ -166,6 +182,7 @@ export type SSHAuthAttempt =
 
 function describeAuthAttempt(attempt: SSHAuthAttempt): string {
 	switch (attempt.type) {
+		case 'none': return 'none';
 		case 'publickey': return `publickey ${attempt.keyPath}`;
 		case 'agent': return 'agent';
 		case 'password': return 'password';
@@ -226,6 +243,7 @@ function toAuthMethod(
 		}
 		case 'agent':
 		case 'password':
+		case 'none':
 			return attempt;
 		case 'keyboard-interactive': {
 			if (!kbiHandler) {
@@ -516,6 +534,7 @@ function createWebSocketOverChannel(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	return new Promise((resolve, reject) => {
 		const WS = nativeRequire('ws') as typeof WebSocket;
@@ -528,20 +547,31 @@ function createWebSocketOverChannel(
 		// with ws's createConnection, but our minimal SSHChannel interface
 		// doesn't carry the full Node Duplex shape.
 		const ws = new WS(url, { createConnection: (() => channel) as unknown as WebSocket.ClientOptions['createConnection'] });
+		const activity = new RelayActivityReporter(onActivity);
 
 		ws.on('open', () => {
 			logService.info(`${LOG_PREFIX} WebSocket relay connected to remote agent host`);
+			// ws subscribed to 'data' before emitting 'open', so this runs after it relays any message the chunk completes.
+			const onChannelData = () => activity.dataReceived();
+			const stopReportingActivity = () => channel.removeListener('data', onChannelData);
+			channel.on('data', onChannelData);
+			ws.once('close', stopReportingActivity);
 			resolve({
 				send: (data: string) => {
 					if (ws.readyState === ws.OPEN) {
 						ws.send(data);
 					}
 				},
-				close: () => ws.close(),
+				close: () => {
+					// Stop now: bytes arrive until the close handshake ends, and a replacement relay reuses this connection ID.
+					stopReportingActivity();
+					ws.close();
+				},
 			});
 		});
 
 		ws.on('message', (data: WebSocket.RawData) => {
+			activity.messageReceived();
 			if (Array.isArray(data)) {
 				onMessage(Buffer.concat(data).toString());
 			} else if (data instanceof ArrayBuffer) {
@@ -579,6 +609,7 @@ async function createWebSocketRelayForEndpoint(
 	logService: ILogService,
 	onMessage: (data: string) => void,
 	onClose: () => void,
+	onActivity: () => void,
 ): Promise<{ send: (data: string) => void; close: () => void }> {
 	let channel: SSHChannel;
 	let urlHost: string;
@@ -598,7 +629,7 @@ async function createWebSocketRelayForEndpoint(
 		urlHost = '127.0.0.1';
 		urlPort = 1;
 	}
-	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose);
+	return createWebSocketOverChannel(nativeRequire, channel, urlHost, urlPort, connectionToken, logService, onMessage, onClose, onActivity);
 }
 
 function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitized {
@@ -607,10 +638,8 @@ function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitiz
 }
 
 /**
- * State for a single active SSH relay connection.
- * Immutable and dispose-once — follows the same pattern as TunnelConnection.
- * On reconnect, the old SSHConnection is disposed and a fresh one is created;
- * the SSH client can be detached first so only the WebSocket relay is torn down.
+ * Shared SSH session state. Renderer protocol clients acquire independent relay
+ * leases from this session so no two clients ever share an AHP socket.
  */
 class SSHConnection extends Disposable {
 	private readonly _onDidClose = new Emitter<void>();
@@ -618,19 +647,18 @@ class SSHConnection extends Disposable {
 
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
-	private _sshClientDetached = false;
 	private readonly _sshCloseListener = () => {
-		this._logService.info(`${LOG_PREFIX} SSH client closed for connection ${this.connectionId} (address ${this.address}); disposing connection`);
+		this._logService.info(`${LOG_PREFIX} SSH client closed for ${this.address}; disposing session`);
 		this.dispose();
 	};
 	private readonly _sshErrorListener = (err?: Error) => {
-		this._logService.info(`${LOG_PREFIX} SSH client error for connection ${this.connectionId} (address ${this.address}): ${err instanceof Error ? err.message : String(err)}; disposing connection`);
+		this._logService.info(`${LOG_PREFIX} SSH client error for ${this.address}: ${err instanceof Error ? err.message : String(err)}; disposing session`);
 		this.dispose();
 	};
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
-		readonly connectionId: string,
+		readonly connectionKey: string,
 		readonly address: string,
 		readonly name: string,
 		readonly connectionToken: string | undefined,
@@ -649,7 +677,6 @@ class SSHConnection extends Disposable {
 		/** Remote user-data path the endpoint registry was resolved against; empty for the `remoteAgentHostCommand` override path (not applicable). */
 		readonly userDataPath: string,
 		readonly sshClient: SSHClient,
-		private readonly _relay: { send: (data: string) => void; close: () => void },
 		private readonly _remoteStream: SSHChannel | undefined,
 		private readonly _logService: ILogService,
 	) {
@@ -663,11 +690,10 @@ class SSHConnection extends Disposable {
 				return;
 			}
 			this._closed = true;
-			this._relay.close();
-			if (!this._sshClientDetached) {
-				this._remoteStream?.close();
-				sshClient.end();
-			}
+			sshClient.removeListener('close', this._sshCloseListener);
+			sshClient.removeListener('error', this._sshErrorListener);
+			this._remoteStream?.close();
+			sshClient.end();
 			this._onDidClose.fire();
 		}));
 
@@ -676,21 +702,38 @@ class SSHConnection extends Disposable {
 		sshClient.on('close', this._sshCloseListener);
 		sshClient.on('error', this._sshErrorListener);
 	}
+}
 
-	/**
-	 * Detach the SSH client from this connection so that `dispose()`
-	 * only closes the WebSocket relay without ending the SSH session.
-	 * Also removes event listeners from the SSH client so the old
-	 * connection object is not retained by the shared client.
-	 */
-	detachSshClient(): void {
-		this._sshClientDetached = true;
-		this.sshClient.removeListener('close', this._sshCloseListener);
-		this.sshClient.removeListener('error', this._sshErrorListener);
+class SSHRelayLease extends Disposable {
+	private readonly _onDidClose = new Emitter<void>();
+	readonly onDidClose = this._onDidClose.event;
+	private _released = false;
+	private _physicalCloseNotified = false;
+
+	constructor(
+		readonly connectionId: string,
+		readonly session: SSHConnection,
+		private readonly _relay: { send: (data: string) => void; close: () => void },
+	) {
+		super();
+		this._register(toDisposable(() => {
+			this._released = true;
+			this._relay.close();
+			this._onDidClose.fire();
+		}));
+		this._register(this._onDidClose);
 	}
 
 	relaySend(data: string): void {
 		this._relay.send(data);
+	}
+
+	notifyPhysicalClose(): boolean {
+		if (this._released || this._physicalCloseNotified) {
+			return false;
+		}
+		this._physicalCloseNotified = true;
+		return true;
 	}
 }
 
@@ -708,6 +751,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	private readonly _onDidRelayMessage = this._register(new Emitter<IRelayMessage>());
 	readonly onDidRelayMessage: Event<IRelayMessage> = this._onDidRelayMessage.event;
+
+	private readonly _onDidRelayActivity = this._register(new Emitter<string>());
+	readonly onDidRelayActivity: Event<string> = this._onDidRelayActivity.event;
 
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
@@ -762,14 +808,27 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private _hostKeyRequestCounter = 0;
 
 	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
+	private readonly _relayLeases = this._register(new DisposableMap<string, SSHRelayLease>());
+	private readonly _pendingSessions = new Map<string, Promise<SSHConnection>>();
+	private readonly _pendingReconnects = new Map<string, Promise<ISSHConnectResult>>();
+	private readonly _pendingRelayAcquisitions = new Map<SSHConnection, number>();
+	private readonly _replacements = new Map<string, string>();
 
 	private _nativeRequire: NodeJS.Require | undefined;
+	private readonly _proxies = this._register(new DisposableMap<SSHClient, SSHProxyCommand>());
+	private readonly _resolvedConfigs = new Map<string, { readonly resolved: Promise<ISSHResolvedConfig>; readonly expiry: number }>();
 
 	/**
 	 * Override hook for tests to shorten the relay-creation timeout used on
-	 * the `replaceRelay` reconnect path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
+	 * relay-acquisition path. See {@link RECONNECT_RELAY_TIMEOUT_MS}.
 	 */
 	protected relayCreationTimeoutMs: number = RECONNECT_RELAY_TIMEOUT_MS;
+
+	/**
+	 * Override hook for tests to disable or shorten the reuse of resolved SSH
+	 * configurations. See {@link RESOLVED_CONFIG_REUSE_MS}.
+	 */
+	protected resolvedConfigReuseMs: number = RESOLVED_CONFIG_REUSE_MS;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -787,7 +846,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * the import, avoiding issues with Electron's ESM loader which cannot
 	 * resolve `node:` specifiers.
 	 */
-	private async _getNativeRequire(): Promise<NodeJS.Require> {
+	protected async _getNativeRequire(): Promise<NodeJS.Require> {
 		if (!this._nativeRequire) {
 			const nodeModule = await import('node:module');
 			this._nativeRequire = nodeModule.createRequire(import.meta.url);
@@ -795,105 +854,40 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return this._nativeRequire;
 	}
 
-	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
+	async connect(config: ISSHAgentHostConfig, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		const connectionKey = computeSSHConnectionKey(config);
+		const existing = this._connections.get(connectionKey);
+		if (existing) {
+			return this._acquireRelay(existing, expectedConnectionId);
+		}
+		const pending = this._pendingSessions.get(connectionKey);
+		if (pending) {
+			return pending.then(session => this._acquireRelay(session, expectedConnectionId));
+		}
+		const connect = this._connect(config);
+		this._pendingSessions.set(connectionKey, connect);
+		void connect.finally(() => {
+			if (this._pendingSessions.get(connectionKey) === connect) {
+				this._pendingSessions.delete(connectionKey);
+			}
+		}).catch(() => { /* The caller observes the original rejection. */ });
+		return connect.then(session => this._acquireRelay(session, expectedConnectionId));
+	}
+
+	private async _connect(config: ISSHAgentHostConfig): Promise<SSHConnection> {
 		const connectionKey = computeSSHConnectionKey(config);
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
-			if (replaceRelay) {
-				// Tear down the old relay and create a fresh one, following
-				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
-				// The SSH client is detached so only the WebSocket relay is closed.
-				// This reconnect path deliberately does NOT rerun endpoint
-				// discovery/selection: it reattaches to the exact same endpoint
-				// this connection was already using, so a dropped SSH tunnel can
-				// never silently promote a different candidate or spawn a
-				// duplicate standalone (requirement 7).
-				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
-				const { sshClient, endpoint, connectionToken, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath } = existing;
-
-				// Remove from map and detach SSH client before disposing so
-				// the old relay's close handler (conn?.dispose()) is a no-op.
-				this._connections.deleteAndLeak(connectionKey);
-				existing.detachSshClient();
-				existing.dispose();
-
-				// Create fresh relay and connection. If relay creation fails,
-				// clean up the detached SSH client so it doesn't leak.
-				const connectionId = connectionKey;
-				try {
-					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-					// Bound the relay creation: a silently dead SSH client
-					// (TCP half-open, ssh2 keepalive hasn't fired yet) can
-					// leave forwardOut's callback unfired, hanging the whole
-					// promise chain. raceTimeout returns undefined on timeout.
-					const timeoutMs = this.relayCreationTimeoutMs;
-					const relay = await raceTimeout(
-						this._createWebSocketRelay(
-							sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
-							(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-							() => { conn?.dispose(); },
-						),
-						timeoutMs,
-					);
-					if (!relay) {
-						throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
-					}
-
-					conn = new SSHConnection(
-						config, connectionId, connectionKey, config.name,
-						connectionToken, endpoint, serverType, instanceId, lifecycle, cliBin, cliDataDir, userDataPath,
-						sshClient, relay, undefined,
-						this._logService,
-					);
-
-					Event.once(conn.onDidClose)(() => {
-						if (this._connections.get(connectionKey) === conn) {
-							this._connections.deleteAndDispose(connectionKey);
-							this._onDidRelayClose.fire(connectionId);
-							this._onDidCloseConnection.fire(connectionId);
-							this._onDidChangeConnections.fire();
-						}
-					});
-
-					this._connections.set(connectionKey, conn);
-
-					return {
-						connectionId: conn.connectionId,
-						address: conn.address,
-						name: conn.name,
-						connectionToken: conn.connectionToken,
-						config: conn.config,
-						sshConfigHost: config.sshConfigHost,
-						serverType: conn.serverType,
-						instanceId: conn.instanceId,
-						primary: true,
-						lifecycle: conn.lifecycle,
-					};
-				} catch (err) {
-					sshClient.end();
-					this._onDidRelayClose.fire(connectionId);
-					this._onDidCloseConnection.fire(connectionId);
-					this._onDidChangeConnections.fire();
-					throw err;
-				}
-			}
-
-			return {
-				connectionId: existing.connectionId,
-				address: existing.address,
-				name: existing.name,
-				connectionToken: existing.connectionToken,
-				config: existing.config,
-				sshConfigHost: config.sshConfigHost,
-				serverType: existing.serverType,
-				instanceId: existing.instanceId,
-				primary: true,
-				lifecycle: existing.lifecycle,
-			};
+			return existing;
 		}
 
-		this._logService.info(`${LOG_PREFIX} ${replaceRelay ? 'Reconnecting' : 'Connecting'} to ${connectionKey}`);
+		const pending = this._pendingSessions.get(connectionKey);
+		if (pending) {
+			return pending;
+		}
+
+		this._logService.info(`${LOG_PREFIX} Connecting to ${connectionKey}`);
 		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		let sshClient: SSHClient | undefined;
 
@@ -944,7 +938,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				}
 				this._logService.info(`${LOG_PREFIX} Remote platform: ${platform.os}-${platform.arch}`);
 				reportProgress(localize('sshProgressInstallingCLI', "Checking remote CLI installation..."));
-				cliBin = await this._ensureCLIInstalled(sshClient, platform, reportProgress);
+				const cliInstallation = await this._ensureCLIInstalled(sshClient, platform, reportProgress);
+				cliBin = cliInstallation.cliBin;
 				cliDataDir = getRemoteCLIDataDir(this._serverDataFolderName);
 
 				// 3. Discover every live endpoint on the remote via the shared registry.
@@ -968,7 +963,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 						this._logService.warn(`${LOG_PREFIX} Spawn command for dedicated agent host reported an error: ${err instanceof Error ? err.message : String(err)}`);
 					});
 					reportProgress(localize('sshProgressAwaitingAgent', "Waiting for the new agent host to register..."));
-					return waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, live);
+					return waitForNewStandaloneEndpoint(exec, cliBin, cliDataDir, userDataPath, live, {
+						timeoutMs: getNewAgentHostRegistrationTimeoutMs(cliInstallation.installed),
+						progress: elapsedMs => reportProgress(localize('sshProgressStillAwaitingAgent', "Waiting for the new agent host to register... ({0} seconds elapsed)", Math.floor(elapsedMs / 1000))),
+					});
 				};
 
 				// Deterministic dedicated (standalone) selection: reuse a live
@@ -1071,40 +1069,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				lifecycle = selected.lifecycle;
 			}
 
-			// 4. Connect to the exact selected/spawned endpoint via WebSocket relay.
-			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
-			const connectionId = connectionKey;
-			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
-			let relay: { send: (data: string) => void; close: () => void };
-			try {
-				relay = await this._createWebSocketRelay(
-					sshClient, endpoint, cliBin, cliDataDir, instanceId, userDataPath, connectionToken,
-					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-					() => { conn?.dispose(); },
-				);
-			} catch (relayErr) {
-				// Never silently promote a different candidate, nor kill/replace
-				// an editor or reused standalone, on failure — reread the
-				// registry once (purely diagnostic) and surface a clear error
-				// so the user can retry connecting against a fresh picker
-				// (requirement 7).
-				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
-				this._logService.warn(`${LOG_PREFIX} Failed to connect to selected agent host endpoint: ${relayErrorMessage}`);
-				if (!config.remoteAgentHostCommand && cliBin && cliDataDir) {
-					try {
-						await runAgentEndpoints(bindSshExec(sshClient), cliBin, cliDataDir, userDataPath);
-					} catch (rereadErr) {
-						this._logService.warn(`${LOG_PREFIX} Failed to reread agent host endpoints after relay failure: ${rereadErr instanceof Error ? rereadErr.message : String(rereadErr)}`);
-					}
-				}
-				throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
-			}
-
-			// 5. Create connection object
+			// 4. Retain the exact selected endpoint in the shared SSH session.
 			const address = connectionKey;
-			conn = new SSHConnection(
+			const conn = new SSHConnection(
 				config,
-				connectionId,
+				connectionKey,
 				address,
 				config.name,
 				connectionToken,
@@ -1116,7 +1085,6 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				cliDataDir,
 				userDataPath,
 				sshClient,
-				relay,
 				agentStream,
 				this._logService,
 			);
@@ -1124,8 +1092,19 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			Event.once(conn.onDidClose)(() => {
 				if (this._connections.get(connectionKey) === conn) {
 					this._connections.deleteAndDispose(connectionKey);
-					this._onDidRelayClose.fire(connectionId);
-					this._onDidCloseConnection.fire(connectionId);
+					for (const [connectionId, lease] of this._relayLeases) {
+						if (lease.session === conn) {
+							this._relayLeases.deleteAndLeak(connectionId);
+							lease.dispose();
+							for (const [supersededId, replacementId] of this._replacements) {
+								if (supersededId === connectionId || replacementId === connectionId) {
+									this._replacements.delete(supersededId);
+								}
+							}
+							this._onDidRelayClose.fire(connectionId);
+							this._onDidCloseConnection.fire(connectionId);
+						}
+					}
 					this._onDidChangeConnections.fire();
 				}
 			});
@@ -1135,18 +1114,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 			this._onDidChangeConnections.fire();
 
-			return {
-				connectionId,
-				address,
-				name: config.name,
-				connectionToken,
-				config: conn.config,
-				sshConfigHost: config.sshConfigHost,
-				serverType,
-				instanceId,
-				primary: true,
-				lifecycle,
-			};
+			return conn;
 
 		} catch (err) {
 			sshClient?.end();
@@ -1160,23 +1128,194 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 	async disconnect(host: string): Promise<void> {
 		for (const [key, conn] of this._connections) {
-			if (key === host || conn.connectionId === host) {
+			if (key === host) {
 				conn.dispose();
 				return;
 			}
 		}
+		await this.releaseRelay(host);
 	}
 
 	async relaySend(connectionId: string, message: string): Promise<void> {
-		for (const conn of this._connections.values()) {
-			if (conn.connectionId === connectionId) {
-				conn.relaySend(message);
-				return;
+		this._relayLeases.get(connectionId)?.relaySend(message);
+	}
+
+	async releaseRelay(connectionId: string): Promise<void> {
+		this._releaseRelay(connectionId);
+	}
+
+	private _releaseRelay(connectionId: string, notifyRenderer = true): void {
+		const lease = this._relayLeases.deleteAndLeak(connectionId);
+		if (!lease) {
+			return;
+		}
+		lease.dispose();
+		this._pruneReplacements();
+		if (notifyRenderer) {
+			this._onDidRelayClose.fire(connectionId);
+			this._onDidCloseConnection.fire(connectionId);
+		}
+		if (this._canDisposeSession(lease.session)) {
+			lease.session.dispose();
+		}
+		this._onDidChangeConnections.fire();
+	}
+
+	private async _acquireRelay(session: SSHConnection, expectedConnectionId?: string): Promise<ISSHConnectResult> {
+		if (expectedConnectionId) {
+			const pending = this._pendingReconnects.get(expectedConnectionId);
+			if (pending) {
+				return pending;
+			}
+			const previous = this._relayLeases.get(expectedConnectionId);
+			if (previous?.session === session) {
+				const reconnect = this._createRelayLease(session).then(result => {
+					this._replacements.set(expectedConnectionId, result.connectionId);
+					this._releaseRelay(expectedConnectionId, false);
+					return result;
+				});
+				this._pendingReconnects.set(expectedConnectionId, reconnect);
+				void reconnect.finally(() => {
+					if (this._pendingReconnects.get(expectedConnectionId) === reconnect) {
+						this._pendingReconnects.delete(expectedConnectionId);
+					}
+				}).catch(() => { /* The caller observes the original rejection. */ });
+				return reconnect;
+			}
+			const replacement = this._getCurrentLease(expectedConnectionId);
+			if (replacement?.session === session) {
+				return this._toResult(replacement);
+			}
+		}
+		return this._createRelayLease(session);
+	}
+
+	private _getCurrentLease(connectionId: string): SSHRelayLease | undefined {
+		let currentId = connectionId;
+		const visited = new Set<string>();
+		while (!visited.has(currentId)) {
+			visited.add(currentId);
+			const lease = this._relayLeases.get(currentId);
+			if (lease) {
+				return lease;
+			}
+			const replacement = this._replacements.get(currentId);
+			if (!replacement) {
+				return undefined;
+			}
+			currentId = replacement;
+		}
+		return undefined;
+	}
+
+	private _pruneReplacements(): void {
+		for (const connectionId of this._replacements.keys()) {
+			if (!this._getCurrentLease(connectionId)) {
+				this._replacements.delete(connectionId);
 			}
 		}
 	}
 
-	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference): Promise<ISSHConnectResult> {
+	private async _createRelayLease(session: SSHConnection): Promise<ISSHConnectResult> {
+		const connectionId = generateUuid();
+		let lease: SSHRelayLease | undefined;
+		const timeoutMs = this.relayCreationTimeoutMs;
+		let timedOut = false;
+		let relay: { send: (data: string) => void; close: () => void } | undefined;
+		this._pendingRelayAcquisitions.set(session, (this._pendingRelayAcquisitions.get(session) ?? 0) + 1);
+		try {
+			let acceptRelay = true;
+			const relayPromise = this._createWebSocketRelay(
+				session.sshClient, session.endpoint, session.cliBin, session.cliDataDir, session.instanceId, session.userDataPath, session.connectionToken,
+				data => this._onDidRelayMessage.fire({ connectionId, data }),
+				() => {
+					if (lease?.notifyPhysicalClose()) {
+						this._onDidRelayClose.fire(connectionId);
+					}
+				},
+				() => this._onDidRelayActivity.fire(connectionId),
+			).then(createdRelay => {
+				if (!acceptRelay) {
+					createdRelay.close();
+					return undefined;
+				}
+				return createdRelay;
+			});
+			relay = await raceTimeout(
+				relayPromise,
+				timeoutMs,
+			);
+			acceptRelay = false;
+			if (!relay) {
+				timedOut = true;
+				throw new Error(`SSH relay creation timed out after ${timeoutMs}ms (SSH client appears unresponsive)`);
+			}
+			if (this._connections.get(session.connectionKey) !== session) {
+				relay.close();
+				throw new Error(`${LOG_PREFIX} SSH session for ${session.connectionKey} was closed while acquiring a relay.`);
+			}
+			lease = new SSHRelayLease(connectionId, session, relay);
+			Event.once(lease.onDidClose)(() => {
+				if (this._relayLeases.get(connectionId) === lease) {
+					void this.releaseRelay(connectionId);
+				}
+			});
+			this._relayLeases.set(connectionId, lease);
+			this._onDidChangeConnections.fire();
+			return this._toResult(lease);
+		} catch (error) {
+			const relayErrorMessage = error instanceof Error ? error.message : String(error);
+			this._logService.warn(`${LOG_PREFIX} Failed to connect to selected agent host endpoint: ${relayErrorMessage}`);
+			if (!timedOut && this._connections.get(session.connectionKey) === session && session.cliBin && session.cliDataDir) {
+				try {
+					const endpoints = await raceTimeout(
+						runAgentEndpoints(bindSshExec(session.sshClient), session.cliBin, session.cliDataDir, session.userDataPath),
+						timeoutMs,
+					);
+					if (!endpoints) {
+						this._logService.warn(`${LOG_PREFIX} Timed out rereading agent host endpoints after relay failure.`);
+					}
+				} catch (rereadError) {
+					this._logService.warn(`${LOG_PREFIX} Failed to reread agent host endpoints after relay failure: ${rereadError instanceof Error ? rereadError.message : String(rereadError)}`);
+				}
+			}
+			session.dispose();
+			throw new Error(`${LOG_PREFIX} Failed to connect to the selected remote agent host: ${relayErrorMessage}. Please retry connecting.`);
+		} finally {
+			const remaining = (this._pendingRelayAcquisitions.get(session) ?? 1) - 1;
+			if (remaining > 0) {
+				this._pendingRelayAcquisitions.set(session, remaining);
+			} else {
+				this._pendingRelayAcquisitions.delete(session);
+				if (!lease && this._canDisposeSession(session)) {
+					session.dispose();
+				}
+			}
+		}
+	}
+
+	private _canDisposeSession(session: SSHConnection): boolean {
+		return !this._pendingRelayAcquisitions.has(session)
+			&& ![...this._relayLeases.values()].some(candidate => candidate.session === session);
+	}
+
+	private _toResult(lease: SSHRelayLease): ISSHConnectResult {
+		const session = lease.session;
+		return {
+			connectionId: lease.connectionId,
+			address: session.address,
+			name: session.name,
+			connectionToken: session.connectionToken,
+			config: session.config,
+			sshConfigHost: session.config.sshConfigHost,
+			serverType: session.serverType,
+			instanceId: session.instanceId,
+			primary: true,
+			lifecycle: session.lifecycle,
+		};
+	}
+
+	async reconnect(sshConfigHost: string, name: string, remoteAgentHostCommand?: string, agentForward?: boolean, userInitiated?: boolean, preferredAgentLocation?: RemoteAgentHostLocationPreference, expectedConnectionId?: string): Promise<ISSHConnectResult> {
 		this._logService.info(`${LOG_PREFIX} Reconnecting via SSH config host: ${sshConfigHost} (userInitiated=${userInitiated ?? true})`);
 		const resolved = await this.resolveSSHConfig(sshConfigHost);
 
@@ -1203,7 +1342,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			agentForward: agentForward && resolved.forwardAgent ? true : undefined,
 			userInitiated,
 			preferredAgentLocation,
-		}, /* replaceRelay */ true);
+		}, expectedConnectionId);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -1259,8 +1398,31 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	}
 
 	async resolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
+		const now = Date.now();
+		for (const [key, entry] of this._resolvedConfigs) {
+			if (entry.expiry <= now) {
+				this._resolvedConfigs.delete(key);
+			}
+		}
+		const reusable = this._resolvedConfigs.get(host);
+		if (reusable) {
+			return reusable.resolved;
+		}
+		const resolved = this._doResolveSSHConfig(host);
+		this._resolvedConfigs.set(host, { resolved, expiry: now + this.resolvedConfigReuseMs });
+		// A failed resolution says nothing about the next attempt, so only
+		// successful results are worth reusing.
+		resolved.catch(() => {
+			if (this._resolvedConfigs.get(host)?.resolved === resolved) {
+				this._resolvedConfigs.delete(host);
+			}
+		});
+		return resolved;
+	}
+
+	protected async _doResolveSSHConfig(host: string): Promise<ISSHResolvedConfig> {
 		return new Promise<ISSHResolvedConfig>((resolve, reject) => {
-			cp.execFile('ssh', ['-G', host], { timeout: 5000 }, (err, stdout) => {
+			cp.execFile('ssh', ['-G', '--', host], { timeout: 5000 }, (err, stdout) => {
 				if (err) {
 					reject(new Error(`${LOG_PREFIX} ssh -G failed for ${host}: ${err.message}`));
 					return;
@@ -1338,15 +1500,36 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return hosts;
 	}
 
-	private _parseSSHGOutput(stdout: string): ISSHResolvedConfig {
-		return parseSSHGOutput(stdout);
+	private async _parseSSHGOutput(stdout: string): Promise<ISSHResolvedConfig> {
+		return { ...parseSSHGOutput(stdout), ...await resolveSSHKnownHostsFiles(stdout) };
 	}
 
 	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
 		connectionKey?: string,
 	): Promise<SSHClient> {
+		const originalHost = config.sshConfigHost ?? config.host;
+		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
+		// Command failures are best effort; failures resolving configured trust files must remain fatal.
+		let resolved: ISSHResolvedConfig | undefined;
+		try {
+			resolved = await this.resolveSSHConfig(originalHost);
+		} catch (err) {
+			if (err instanceof SSHKnownHostsResolutionError) {
+				throw err;
+			}
+			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for ${originalHost}: ${err}`);
+		}
+		config = {
+			...config,
+			host: resolved?.hostname ?? config.host,
+			port: config.port ?? resolved?.port,
+			sshConfigHost: originalHost,
+			identityAgent: config.identityAgent ?? resolved?.identityAgent,
+			privateKeyPath: config.privateKeyPath ?? resolved?.identityFile[0],
+		};
 		const port = config.port ?? 22;
+		const hostKeyHost = resolved?.hostKeyAlias ?? config.host;
 		const connectConfig: ConnectConfig = {
 			host: config.host,
 			port,
@@ -1357,9 +1540,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			keepaliveInterval: 15_000,
 		};
 
-		const attempts = await this._buildAuthAttempts(config);
+		const attempts: SSHAuthAttempt[] = [{ type: 'none', username: config.username }, ...await this._buildAuthAttempts(config)];
 		this._logService.info(`${LOG_PREFIX} Built ${attempts.length} auth attempt(s): ${attempts.map(a => describeAuthAttempt(a)).join(', ')}`);
-		const displayHost = config.sshConfigHost ?? `${config.username}@${config.host}`;
 		// Track requestIds we created during this connect so we can fire
 		// onDidCancelKeyboardInteractive for any still-pending prompts when
 		// the connect attempt fails or completes.
@@ -1526,6 +1708,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				clearDeadline();
 				cancelLiveKbiRequests();
 				cancelLiveHostKeyRequests();
+				this._proxies.deleteAndDispose(client);
 				if (endClient) {
 					client.end();
 				}
@@ -1555,6 +1738,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// connect promise would never settle and any outstanding host key
 			// prompt would be left on screen forever.
 			client.on('close', () => {
+				this._proxies.deleteAndDispose(client);
 				rejectConnect(
 					hostKeyDenied
 						? new SSHHostKeyDeniedError(displayHost)
@@ -1569,11 +1753,24 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			// prompting — this is what lets a legitimate key rotation be
 			// learned silently instead of surfacing as a scary mismatch later.
 			client.on('hostkeys', (keys: readonly { getPublicSSH(): Buffer; type: string }[]) => {
-				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, config.host, port, keys);
+				this._handleAnnouncedHostKeys(connectionKey ?? displayHost, hostKeyHost, port, keys);
 			});
 
 			armDeadline(HANDSHAKE_TIMEOUT_MS);
-			client.connect(connectConfig);
+			try {
+				if (resolved?.proxyCommand) {
+					const proxy = new SSHProxyCommand(expandSSHProxyCommand(resolved.proxyCommand, config.host, originalHost, port, config.username), this._logService);
+					this._proxies.set(client, proxy);
+					proxy.stream.on('error', error => {
+						this._logService.error(`${LOG_PREFIX} SSH ProxyCommand failed`, error);
+						rejectConnect(error, true);
+					});
+					connectConfig.sock = proxy.stream;
+				}
+				client.connect(connectConfig);
+			} catch (error) {
+				rejectConnect(error instanceof Error ? error : new Error(String(error)), true);
+			}
 		});
 	}
 
@@ -1779,15 +1976,17 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 *
 	 * Resolution deliberately goes through `ssh -G` rather than assuming
 	 * `~/.ssh/known_hosts`, so a user who has redirected `UserKnownHostsFile`
-	 * gets the files they actually configured. A failure here is not fatal: we
-	 * fall back to no entries, which downgrades to a trust prompt rather than
-	 * silently accepting an unverified key.
+	 * gets the files they actually configured. Command failures use the default
+	 * known-hosts file; failures resolving configured trust files remain fatal.
 	 */
-	protected async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined }> {
+	protected async _readKnownHostsEntries(host: string): Promise<ISSHKnownHostsEvidence> {
 		let resolved: ISSHResolvedConfig | undefined;
 		try {
 			resolved = await this.resolveSSHConfig(host);
 		} catch (err) {
+			if (err instanceof SSHKnownHostsResolutionError) {
+				throw err;
+			}
 			this._logService.warn(`${LOG_PREFIX} Could not resolve SSH config for known_hosts lookup of ${host}: ${err}`);
 		}
 
@@ -1806,7 +2005,11 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				// systems have no known_hosts2 and no global file).
 			}
 		}
-		return { entries, strictHostKeyChecking: resolved?.strictHostKeyChecking };
+		return {
+			entries,
+			strictHostKeyChecking: resolved?.strictHostKeyChecking,
+			hostKeyAlias: resolved?.hostKeyAlias,
+		};
 	}
 
 	/**
@@ -1855,7 +2058,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			}
 
 			const fingerprint = computeHostKeyFingerprint(key);
-			const { entries, strictHostKeyChecking } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
+			const { entries, strictHostKeyChecking, hostKeyAlias } = await this._readKnownHostsEntries(config.sshConfigHost ?? config.host);
 
 			// Gathering evidence is asynchronous, so the connect attempt may
 			// have failed while we were reading known_hosts. Registering now
@@ -1867,7 +2070,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				return;
 			}
 
-			const knownHostsMatch = matchKnownHosts(entries, config.host, port, keyType, key);
+			const hostKeyHost = hostKeyAlias ?? config.host;
+			const knownHostsMatch = matchKnownHosts(entries, hostKeyHost, port, keyType, key);
 			this._logService.info(`${LOG_PREFIX} Host key for ${displayHost}: ${keyType} ${fingerprint} (known_hosts: ${knownHostsMatch})`);
 
 			const requestId = `hostkey-${++this._hostKeyRequestCounter}`;
@@ -1878,7 +2082,8 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				requestId,
 				connectionKey,
 				displayHost,
-				host: config.host,
+				host: hostKeyHost,
+				resolvedHost: config.host,
 				port,
 				keyType,
 				fingerprint,
@@ -2059,10 +2264,10 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		relayInstanceId: string,
 		relayUserDataPath: string,
 		connectionToken: string | undefined,
-		onMessage: (data: string) => void, onClose: () => void,
+		onMessage: (data: string) => void, onClose: () => void, onActivity: () => void,
 	): Promise<{ send: (data: string) => void; close: () => void }> {
 		const nativeRequire = await this._getNativeRequire();
-		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose);
+		return createWebSocketRelayForEndpoint(nativeRequire, client, endpoint, relayCliBin, relayCliDataDir, relayInstanceId, relayUserDataPath, connectionToken, this._logService, onMessage, onClose, onActivity);
 	}
 
 
@@ -2084,160 +2289,16 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	 * at `~/<serverDataFolderName>/<archive>`. Existing CLIs self-update
 	 * against the latest release before reuse.
 	 *
-	 * Returns the resolved CLI binary path to run.
+	 * Returns the resolved CLI binary path and its install outcome.
 	 */
-	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
-		const commit = this._commit;
-		if (!commit) {
-			return this._ensureCLIInstalledLoose(client, platform, reportProgress);
-		}
-		return this._ensureCLIInstalledPinned(client, platform, reportProgress, commit);
-	}
-
-	/**
-	 * Commit-pinned install path. See {@link _ensureCLIInstalled}.
-	 */
-	private async _ensureCLIInstalledPinned(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void, commit: string): Promise<string> {
-		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality, commit);
-		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
-
-		// Primary reuse check: pure file existence on the commit-keyed path.
-		// No `--version` parsing — we know the file is ours and matches the
-		// desktop commit.
-		const { code: existsCode } = await sshExec(client, `test -x ${cliBin}`, { ignoreExitCode: true });
-		if (existsCode === 0) {
-			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin}`);
-			// Bump mtime so the retention pass below doesn't prune the
-			// binary we just decided to reuse. Without this, a user
-			// rotating between several desktop builds could see their
-			// currently-used CLI fall out of the 5-newest window and
-			// get deleted just before the next reconnect.
-			const { code: touchCode } = await sshExec(client, `touch -- ${cliBin}`, { ignoreExitCode: true });
-			if (touchCode === 0) {
-				// Now that the in-use binary is the newest by mtime, prune
-				// older commit-keyed installs. Best-effort.
-				await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
-			} else {
-				// If we couldn't refresh mtime, skip the retention pass —
-				// running it now could prune the binary we just decided
-				// to reuse. We'll retry retention on the next reconnect.
-				this._logService.warn(`${LOG_PREFIX} Skipping CLI retention cleanup: touch exited ${touchCode}`);
-			}
-			return cliBin;
-		}
-
-		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
-		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality, commit);
-
-		// Extract into a temp dir inside the install root so the final `mv`
-		// is a same-filesystem atomic rename. Concurrent SSH sessions racing
-		// here both end up with a valid binary for the same commit; the
-		// trailing `rm -rf` of the tmp dir is idempotent.
-		const installCmd = [
-			`mkdir -p ${installRoot}`,
-			`tmpdir=$(mktemp -d ${installRoot}/.cli-install-XXXXXX)`,
-			`(cd "$tmpdir" && curl -fsSL ${shellEscape(url)} | tar xz)`,
-			// The archive contains exactly one file: the CLI binary, named per quality.
-			`mv "$tmpdir"/* ${cliBin}`,
-			`chmod +x ${cliBin}`,
-			`rm -rf "$tmpdir"`,
-		].join(' && ');
-
-		try {
-			await sshExec(client, installCmd);
-			// Validate the installed binary actually runs. If the archive was
-			// for the wrong platform / corrupted, this surfaces immediately.
-			const { code: versionCode } = await sshExec(client, `${cliBin} --version`, { ignoreExitCode: true });
-			if (versionCode !== 0) {
-				throw new Error(`CLI at ${cliBin} failed --version check after install (exit code ${versionCode})`);
-			}
-			this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
-			// Prune older commit-keyed installs now that the new binary is
-			// in place and is the newest by mtime.
-			await sshExec(client, buildCleanupOldCLIsCommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
-			return cliBin;
-		} catch (installErr) {
-			// Soft fallback (key difference from Remote-SSH): if the
-			// commit-pinned download fails (offline, 404, etc.) but another
-			// usable CLI is already on the box, use that instead of refusing
-			// to connect. The agent host has no strict commit-lock with the
-			// desktop — the protocol handshake will catch genuine
-			// incompatibilities.
-			const installErrorMessage = installErr instanceof Error ? installErr.message : String(installErr);
-			this._logService.warn(`${LOG_PREFIX} Could not install matching CLI for commit ${commit}: ${installErrorMessage}. Looking for a fallback CLI on the remote...`);
-			const fallback = await this._findFallbackCLI(client);
-			if (fallback) {
-				this._logService.warn(`${LOG_PREFIX} Using fallback CLI at ${fallback} (does not match desktop commit ${commit}).`);
-				return fallback;
-			}
-			throw installErr;
-		}
-	}
-
-	/**
-	 * Loose dev-build install: no commit pin. See {@link _ensureCLIInstalled}.
-	 */
-	private async _ensureCLIInstalledLoose(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<string> {
-		const cliBin = getRemoteCLIBin(this._serverDataFolderName, this._quality);
-		const installRoot = getRemoteCLIInstallRoot(this._serverDataFolderName);
-		this._logService.warn(`${LOG_PREFIX} Desktop has no product commit; falling back to non-pinned CLI install at ${cliBin}.`);
-
-		const updateExitCodeMarker = '__vscode_cli_update_exit_code__:';
-		const { code, stdout } = await sshExec(client, `${cliBin} --version && (${cliBin} update; update_code=$?; echo ${updateExitCodeMarker}$update_code; true)`, { ignoreExitCode: true });
-		if (code === 0) {
-			const updateExitCodeLine = stdout.split('\n').find(line => line.startsWith(updateExitCodeMarker));
-			const updateExitCode = updateExitCodeLine === undefined ? undefined : Number.parseInt(updateExitCodeLine.slice(updateExitCodeMarker.length), 10);
-			if (updateExitCode !== undefined && updateExitCode !== 0) {
-				this._logService.warn(`${LOG_PREFIX} Could not refresh the dev-build remote CLI at ${cliBin}; reusing the existing executable: update exited ${updateExitCode}`);
-			}
-			this._logService.info(`${LOG_PREFIX} Reusing remote CLI at ${cliBin} (dev build, latest-version refresh attempted)`);
-			return cliBin;
-		}
-
-		reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote..."));
-		const url = buildCLIDownloadUrl(platform.os, platform.arch, this._quality);
-
-		const installCmd = [
-			`mkdir -p ${installRoot}`,
-			`curl -fsSL ${shellEscape(url)} | tar xz -C ${installRoot}`,
-			`chmod +x ${cliBin}`,
-		].join(' && ');
-
-		await sshExec(client, installCmd);
-		this._logService.info(`${LOG_PREFIX} Installed remote CLI at ${cliBin}`);
-		return cliBin;
-	}
-
-	/**
-	 * List remote CLI candidates that could be used as a fallback when the
-	 * commit-pinned download fails, and return the newest one that passes
-	 * a `--version` check. Returns `undefined` if no candidate works.
-	 */
-	private async _findFallbackCLI(client: SSHClient): Promise<string | undefined> {
-		const { stdout } = await sshExec(client, buildFindFallbackCLICommand(this._serverDataFolderName, this._quality), { ignoreExitCode: true });
-		const rawCandidates = stdout.split('\n').map(s => s.trim()).filter(s => s.length > 0);
-		// Defensive validation: the finder shell snippet emits paths we
-		// trust by construction, but the output is still data coming back
-		// over SSH that we then interpolate into a follow-up command
-		// (`<candidate> --version`). Filter to the exact shapes we expect
-		// — `<root>/<archive>-<40 hex>` or `<legacyDir>/<archive>` — so a
-		// malicious or junk file in the install root can never become a
-		// shell argument.
-		const candidates: string[] = [];
-		for (const candidate of rawCandidates) {
-			if (isValidFallbackCLIPath(candidate, this._serverDataFolderName, this._quality)) {
-				candidates.push(candidate);
-			} else {
-				this._logService.info(`${LOG_PREFIX} Ignoring fallback CLI candidate with unexpected path shape: ${candidate}`);
-			}
-		}
-		for (const candidate of candidates) {
-			const { code } = await sshExec(client, `${candidate} --version`, { ignoreExitCode: true });
-			if (code === 0) {
-				return candidate;
-			}
-			this._logService.info(`${LOG_PREFIX} Fallback CLI candidate ${candidate} failed --version check (exit ${code}); trying next.`);
-		}
-		return undefined;
+	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<IRemoteAgentHostCliInstallResult> {
+		return ensureRemoteAgentHostCliInstalled(bindSshExec(client), platform, {
+			serverDataFolderName: this._serverDataFolderName,
+			quality: this._quality,
+			commit: this._commit,
+			reportInstalling: () => reportProgress(localize('sshProgressDownloadingCLI', "Installing VS Code CLI on remote...")),
+			logService: this._logService,
+			logPrefix: LOG_PREFIX,
+		});
 	}
 }

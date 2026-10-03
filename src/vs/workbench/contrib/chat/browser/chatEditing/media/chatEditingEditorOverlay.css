@@ -43,6 +43,10 @@
 	gap: 6px;
 }
 
+.chat-editor-overlay-widget .chat-editor-overlay-progress > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .chat-editor-overlay-widget.busy .chat-editor-overlay-progress {
 	display: inline-flex;
 }

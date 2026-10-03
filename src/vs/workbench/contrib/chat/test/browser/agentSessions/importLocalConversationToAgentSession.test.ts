@@ -7,7 +7,8 @@ import assert from 'assert';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ResponsePartKind, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, ResponsePartKind, ToolCallStatus, ToolResultContentType, TurnState, type ResponsePart, type ToolCallCompletedState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
 import type { IChatProgressResponseContent, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { importedTurnsFromChatModel } from '../../../browser/agentSessions/agentHost/importLocalConversationToAgentSession.js';
 
@@ -72,11 +73,16 @@ suite('importedTurnsFromChatModel', () => {
 		return importedTurnsFromChatModel(model).map(turn => ({
 			text: turn.message.text,
 			state: turn.state,
-			error: turn.error,
-			parts: turn.responseParts.map(part =>
-				part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning
-					? { kind: part.kind, content: part.content }
-					: { kind: part.kind, subagent: subagentOf(part) }),
+			error: getTurnError(turn),
+			parts: turn.responseParts.map(part => {
+				if (part.kind === ResponsePartKind.Markdown || part.kind === ResponsePartKind.Reasoning) {
+					return { kind: part.kind, content: part.content };
+				}
+				if (part.kind === ResponsePartKind.Error) {
+					return { kind: part.kind, error: part.error };
+				}
+				return { kind: part.kind, subagent: subagentOf(part) };
+			}),
 		}));
 	}
 
@@ -198,7 +204,7 @@ suite('importedTurnsFromChatModel', () => {
 			text: 'q',
 			state: TurnState.Error,
 			error: { errorType: 'E1', message: 'boom' },
-			parts: [],
+			parts: [{ kind: ResponsePartKind.Error, error: { errorType: 'E1', message: 'boom' } }],
 		}]);
 	});
 
@@ -228,5 +234,44 @@ suite('importedTurnsFromChatModel', () => {
 			error: undefined,
 			parts: [{ kind: ResponsePartKind.ToolCall, subagent: { agentName: 'explore', description: 'Explores the codebase' } }],
 		}]);
+	});
+
+	test('imports phase summaries and terminal outcomes without inventing child subagents', () => {
+		const phase: IChatToolInvocationSerialized = {
+			kind: 'toolInvocationSerialized',
+			presentation: undefined,
+			toolId: 'hydrafusion_phase',
+			toolCallId: 'fusion:phase-1',
+			invocationMessage: 'Main pass',
+			originMessage: undefined,
+			pastTenseMessage: 'Main pass completed',
+			isConfirmed: undefined,
+			isComplete: true,
+			source: undefined,
+			toolSpecificData: {
+				kind: 'subagent',
+				presentation: 'phase',
+				phaseStatus: 'succeeded',
+				description: 'Main pass',
+				result: 'Main pass completed',
+				isChatAvailable: false,
+			},
+		};
+		assert.deepStrictEqual((['succeeded', 'failed', 'cancelled'] as const).map(phaseStatus => {
+			const toolSpecificData: IChatToolInvocationSerialized['toolSpecificData'] = {
+				kind: 'subagent', presentation: 'phase',
+				phaseStatus,
+				description: 'Main pass', result: `Main pass ${phaseStatus}`,
+			};
+			const turns = importedTurnsFromChatModel(model([request('q', response([{ ...phase, toolSpecificData }]))]));
+			const part = turns[0].responseParts[0];
+			return part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? {
+				success: part.toolCall.success, error: part.toolCall.error, content: part.toolCall.content,
+			} : undefined;
+		}), [
+			{ success: true, error: undefined, content: [{ type: ToolResultContentType.Text, text: 'Main pass succeeded' }] },
+			{ success: false, error: { message: 'Main pass failed' }, content: [{ type: ToolResultContentType.Text, text: 'Main pass failed' }] },
+			{ success: false, error: { message: 'Main pass cancelled', code: 'cancelled' }, content: [{ type: ToolResultContentType.Text, text: 'Main pass cancelled' }] },
+		]);
 	});
 });

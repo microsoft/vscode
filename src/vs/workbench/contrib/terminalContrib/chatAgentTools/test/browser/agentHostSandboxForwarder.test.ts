@@ -12,7 +12,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
@@ -23,7 +23,9 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import type { ActionEnvelope, IRootConfigChangedAction, INotification, SessionAction, TerminalAction, ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
+import { TestPathService } from '../../../../../test/browser/workbenchTestServices.js';
 import { AgentHostSandboxForwarder } from '../../browser/agentHostSandboxForwarder.js';
 
 // ---- Mocks ------------------------------------------------------------------
@@ -175,25 +177,20 @@ interface ITestSetup {
 	configurationService: TestConfigurationService;
 }
 
-function setup(disposables: DisposableStore, configValues: Record<string, unknown> = {}): ITestSetup {
+function setup(disposables: DisposableStore, configValues: Record<string, unknown> = {}, configurationService = new TestConfigurationService({
+	[AgentHostCustomTerminalToolEnabledSettingId]: false,
+	...configValues,
+})): ITestSetup {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const local = new MockAgentHostService();
 	disposables.add({ dispose: () => local.dispose() });
 	const remote = new MockRemoteAgentHostService();
 	disposables.add({ dispose: () => remote.dispose() });
-	// Default the host-policy gates to "engine path" so existing tests that
-	// only set `chat.agent.sandbox.*` continue to assert against the user's
-	// raw forwarded values. The SDK-sandbox gating sub-suite below overrides
-	// both gates explicitly to exercise the other branches.
-	const configurationService = new TestConfigurationService({
-		[AgentHostCustomTerminalToolEnabledSettingId]: true,
-		...configValues,
-	});
-
 	instantiationService.stub(IAgentHostService, local);
 	instantiationService.stub(IRemoteAgentHostService, remote);
 	instantiationService.stub(IConfigurationService, configurationService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IPathService, new TestPathService());
 	const connectionsService = disposables.add(instantiationService.createInstance(AgentHostConnectionsService));
 	instantiationService.stub(IAgentHostConnectionsService, connectionsService);
 
@@ -264,6 +261,42 @@ suite('AgentHostSandboxForwarder', () => {
 		}]);
 	});
 
+	test('keeps policy authority out of ordinary local and remote settings forwarding', () => {
+		const setting = AgentSandboxSettingId.AgentSandboxEnabled;
+		const configuration = new class extends TestConfigurationService {
+			required = false;
+			override inspect<T>(key: string) {
+				const inspected = super.inspect<T>(key);
+				return { ...inspected, policyValue: key === setting && this.required ? inspected.value : undefined };
+			}
+		}({ [setting]: AgentSandboxEnabledValue.On });
+		const { local, remote } = setup(disposables, {}, configuration);
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		assert.deepStrictEqual(local.dispatched, []);
+
+		const changePolicy = (required: boolean) => {
+			configuration.required = required;
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.DEFAULT,
+				affectsConfiguration: key => key === setting,
+				affectedKeys: new Set([setting]),
+				change: { keys: [setting], overrides: [] },
+			});
+		};
+		changePolicy(true);
+		local.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		const connection = remote.addConnection('remote.example:9000');
+		connection.setRootState(rootStateWithSandboxSchema());
+		connection.setRootState(rootStateWithSandboxSchema({ enabled: 'on' }));
+		changePolicy(false);
+
+		const expected = [
+			{ type: ActionType.RootConfigChanged, config: { sandbox: { enabled: 'on' } } },
+		];
+		assert.deepStrictEqual(local.dispatched, []);
+		assert.deepStrictEqual(connection.dispatched, expected);
+	});
+
 	test('dispatches to remote connections when they appear', () => {
 		const { remote } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 
@@ -318,6 +351,31 @@ suite('AgentHostSandboxForwarder', () => {
 		assert.deepStrictEqual(local.dispatched, []);
 	});
 
+	for (const [key, hostKey] of [
+		[AgentSandboxSettingId.AgentSandboxMcpServers, AgentHostSandboxKey.SandboxMcpServers],
+		[AgentSandboxSettingId.AgentSandboxLspServers, AgentHostSandboxKey.SandboxLspServers],
+		[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, AgentHostSandboxKey.AllowDevToolAccess],
+		[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, AgentHostSandboxKey.AllowLocalNetwork],
+	]) {
+		test(`forwards ${key} changes to connected hosts`, async () => {
+			const { local, configurationService } = setup(disposables, { [key]: true });
+			local.setRootState(rootStateWithSandboxSchema());
+			for (const value of [false, true]) {
+				await configurationService.setUserConfiguration(key, value);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectsConfiguration: section => section === key,
+					affectedKeys: new Set([key]),
+					change: { keys: [key], overrides: [] },
+				});
+			}
+			assert.deepStrictEqual(local.dispatched, [true, false, true].map(value => ({
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostSandboxConfigKey.Sandbox]: { [hostKey]: value } },
+			})));
+		});
+	}
+
 	test('does not push back after initial push when the host updates rootState', () => {
 		const { local } = setup(disposables, { [AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On });
 
@@ -333,6 +391,24 @@ suite('AgentHostSandboxForwarder', () => {
 		local.setRootState(rootStateWithSandboxSchema());
 
 		assert.strictEqual(local.dispatched.length, 1);
+	});
+
+	test('forwards user-configured paths and clears them when reset', async () => {
+		const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+		const paths = { readwritePaths: ['C:/work'], readonlyPaths: ['~/reference'], deniedPaths: ['./private'] };
+		const { local, configurationService } = setup(disposables, { [key]: paths });
+		local.setRootState(rootStateWithSandboxSchema());
+		await configurationService.setUserConfiguration(key, {});
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectsConfiguration: section => section === key,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+		});
+		assert.deepStrictEqual(local.dispatched, [paths, {}].map(value => ({
+			type: ActionType.RootConfigChanged,
+			config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.UserConfiguredPaths]: value } },
+		})));
 	});
 
 	test('does not re-push to existing connections when a new remote appears', () => {
@@ -372,13 +448,41 @@ suite('AgentHostSandboxForwarder', () => {
 		assert.deepStrictEqual(remoteConn.dispatched, []);
 	});
 
-	suite('SDK-sandbox gating', () => {
-		test('forwards user values verbatim when customTerminalTool is enabled, regardless of sdkSandbox', () => {
+	suite('shared sandbox enablement', () => {
+		for (const [settingId, sandboxKey] of [
+			[AgentSandboxSettingId.AgentSandboxEnabled, AgentHostSandboxKey.Enabled],
+		] as const) {
+			for (const enabled of [true, false]) {
+				test(`normalizes ${settingId}=${enabled} for the SDK shell`, () => {
+					const { local } = setup(disposables, { [settingId]: enabled });
+
+					local.setRootState(rootStateWithSandboxSchema());
+
+					assert.deepStrictEqual(local.dispatched, [{
+						type: ActionType.RootConfigChanged,
+						config: {
+							[AgentHostSandboxConfigKey.Sandbox]: {
+								[sandboxKey]: enabled ? AgentSandboxEnabledValue.On : AgentSandboxEnabledValue.Off,
+							},
+						},
+					}]);
+				});
+			}
+		}
+
+		test('does not forward sandbox configuration when general settings are absent', () => {
+			const { local } = setup(disposables, {});
+
+			local.setRootState(rootStateWithSandboxSchema());
+
+			assert.deepStrictEqual(local.dispatched, []);
+		});
+
+		test('forwards user values verbatim when customTerminalTool is enabled', () => {
 			const { local } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
 				[AgentHostCustomTerminalToolEnabledSettingId]: true,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
 
 			local.setRootState(rootStateWithSandboxSchema());
@@ -394,31 +498,33 @@ suite('AgentHostSandboxForwarder', () => {
 			}]);
 		});
 
-		test('forwards an empty sandbox object when both customTerminalTool and sdkSandbox are off (default)', () => {
+		test('enables the SDK sandbox on initial connection using the general settings', () => {
 			const { local } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
-				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
+				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: false,
+				[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: { denyRead: ['./deniedRead/', '~/.ssh/'], allowRead: [], allowWrite: [], denyWrite: ['./deniedWrite/'] },
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				// sdkSandbox unset → defaults to 'off'.
 			});
 
-			// Host already carries values from a prior session.
-			local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
+			local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off }));
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.AllowNetwork]: false,
+						[AgentHostSandboxKey.LinuxFileSystem]: { denyRead: ['./deniedRead/', '~/.ssh/'], allowRead: [], allowWrite: [], denyWrite: ['./deniedWrite/'] },
+					},
+				},
 			}]);
 		});
 
-		test('enables non-Windows SDK sandbox independently', () => {
+		test('forwards disabled sandboxing for the SDK shell', () => {
 			const { local } = setup(disposables, {
-				// User has the engine sandbox off entirely — the SDK sandbox
-				// setting should still drive the SDK path independently.
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.Off,
 				[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: true,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.On,
 			});
 
 			local.setRootState(rootStateWithSandboxSchema());
@@ -427,8 +533,7 @@ suite('AgentHostSandboxForwarder', () => {
 				type: ActionType.RootConfigChanged,
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
-						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
 						[AgentHostSandboxKey.AllowUnsandboxedCommands]: true,
 					},
 				},
@@ -440,7 +545,6 @@ suite('AgentHostSandboxForwarder', () => {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentSandboxSettingId.AgentSandboxAllowNetwork]: true,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.On,
 			});
 
 			local.setRootState(rootStateWithSandboxSchema());
@@ -450,18 +554,16 @@ suite('AgentHostSandboxForwarder', () => {
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
 						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 						[AgentHostSandboxKey.AllowNetwork]: true,
 					},
 				},
 			}]);
 		});
 
-		test('enables Windows SDK sandbox independently', () => {
+		test('enables sandboxing with the shared setting', () => {
 			const { local } = setup(disposables, {
+				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
-				[AgentHostSdkSandboxWindowsEnabledSettingId]: AgentSandboxEnabledValue.On,
 			});
 
 			local.setRootState(rootStateWithSandboxSchema());
@@ -470,65 +572,65 @@ suite('AgentHostSandboxForwarder', () => {
 				type: ActionType.RootConfigChanged,
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
-						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 					},
 				},
 			}]);
 		});
 
-		test('re-dispatches when the Windows SDK sandbox setting changes', () => {
+		test('re-dispatches when the unified sandbox setting is enabled', () => {
 			const { local, configurationService } = setup(disposables, {
+				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.Off,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
-				[AgentHostSdkSandboxWindowsEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
-			local.setRootState(rootStateWithSandboxSchema());
+			local.setRootState(rootStateWithSandboxSchema({
+				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+			}));
 			assert.deepStrictEqual(local.dispatched, []);
 
-			configurationService.setUserConfiguration(AgentHostSdkSandboxWindowsEnabledSettingId, AgentSandboxEnabledValue.On);
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
-				affectsConfiguration: key => key === AgentHostSdkSandboxWindowsEnabledSettingId,
-				affectedKeys: new Set([AgentHostSdkSandboxWindowsEnabledSettingId]),
-				change: { keys: [AgentHostSdkSandboxWindowsEnabledSettingId], overrides: [] },
+				affectsConfiguration: key => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				change: { keys: [AgentSandboxSettingId.AgentSandboxEnabled], overrides: [] },
 			});
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
-						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.On,
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
 					},
 				},
 			}]);
 		});
 
-		test('re-dispatches when sdkSandbox toggles from `on` to `off`', () => {
+		test('re-dispatches when general sandboxing is disabled', () => {
 			const { local, configurationService } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.On,
 			});
 			local.setRootState(rootStateWithSandboxSchema({
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 			}));
-			// Initial state already matches → no dispatch.
 			assert.deepStrictEqual(local.dispatched, []);
 
-			configurationService.setUserConfiguration(AgentHostSdkSandboxEnabledSettingId, AgentSandboxEnabledValue.Off);
+			configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.Off);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
-				affectsConfiguration: (key: string) => key === AgentHostSdkSandboxEnabledSettingId,
-				affectedKeys: new Set([AgentHostSdkSandboxEnabledSettingId]),
-				change: { keys: [AgentHostSdkSandboxEnabledSettingId], overrides: [] },
+				affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+				affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
+				change: { keys: [AgentSandboxSettingId.AgentSandboxEnabled], overrides: [] },
 			});
 
 			assert.deepStrictEqual(local.dispatched, [{
 				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
+				config: {
+					[AgentHostSandboxConfigKey.Sandbox]: {
+						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.Off,
+					},
+				},
 			}]);
 		});
 
@@ -536,11 +638,9 @@ suite('AgentHostSandboxForwarder', () => {
 			const { local, configurationService } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.On,
 			});
 			local.setRootState(rootStateWithSandboxSchema({
 				[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-				[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 			}));
 			assert.deepStrictEqual(local.dispatched, []);
 
@@ -557,35 +657,19 @@ suite('AgentHostSandboxForwarder', () => {
 				config: {
 					[AgentHostSandboxConfigKey.Sandbox]: {
 						[AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On,
-						[AgentHostSandboxKey.WindowsEnabled]: AgentSandboxEnabledValue.Off,
 						[AgentHostSandboxKey.AllowNetwork]: true,
 					},
 				},
 			}]);
 		});
 
-		test('re-dispatches when customTerminalTool is toggled while sdkSandbox is off', () => {
+		test('does not change sandbox enablement when switching terminal implementations', () => {
 			const { local, configurationService } = setup(disposables, {
 				[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.On,
 				[AgentHostCustomTerminalToolEnabledSettingId]: false,
-				[AgentHostSdkSandboxEnabledSettingId]: AgentSandboxEnabledValue.Off,
 			});
-			// Both gates off → forwarder pushes `{}`, which clears the host's
-			// prior value.
 			local.setRootState(rootStateWithSandboxSchema({ [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On }));
-			assert.deepStrictEqual(local.dispatched, [{
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: {} },
-			}]);
 
-			// Simulate the host applying that dispatch (the mock does not do this
-			// automatically). Without this, the equals-check inside _tryPush would
-			// short-circuit the second push because the host's view of the sandbox
-			// values would still be the stale pre-clear value.
-			local.setRootState(rootStateWithSandboxSchema({}));
-
-			// Flip customTerminalTool ON → forwarder should push the real
-			// sandbox values verbatim (engine path needs them).
 			configurationService.setUserConfiguration(AgentHostCustomTerminalToolEnabledSettingId, true);
 			configurationService.onDidChangeConfigurationEmitter.fire({
 				source: ConfigurationTarget.USER,
@@ -594,10 +678,7 @@ suite('AgentHostSandboxForwarder', () => {
 				change: { keys: [AgentHostCustomTerminalToolEnabledSettingId], overrides: [] },
 			});
 
-			assert.deepStrictEqual(local.dispatched.at(-1), {
-				type: ActionType.RootConfigChanged,
-				config: { [AgentHostSandboxConfigKey.Sandbox]: { [AgentHostSandboxKey.Enabled]: AgentSandboxEnabledValue.On } },
-			});
+			assert.deepStrictEqual(local.dispatched, []);
 		});
 	});
 });

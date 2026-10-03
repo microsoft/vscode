@@ -15,7 +15,8 @@ import { AgentHostDebugLogsArtifactKind, IAgentConnection, IAgentCreateSessionCo
 import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { RootState, TerminalClaimKind, TerminalLifecycleStatus, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { ActionEnvelope, IRootConfigChangedAction, SessionAction, TerminalAction, INotification, ClientAnnotationsAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-automation/commands.js';
+import type { ActionEnvelope, ChatAction, ClientAnnotationsAction, ClientAutomationAction, ClientAutomationRunAction, ClientChangesetAction, IRootConfigChangedAction, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, ResourceMkdirParams, ResourceMkdirResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -42,7 +43,7 @@ class MockAgentConnection implements IAgentConnection {
 	readonly onMcpNotification: Event<import('../../../../../platform/agentHost/common/agentService.js').IMcpNotification> = Event.None;
 	readonly initializeResult: IObservable<import('../../../../../platform/agentHost/common/state/protocol/common/commands.js').InitializeResult | undefined> = constObservable(undefined);
 
-	readonly dispatchedActions: { channel: string; action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction }[] = [];
+	readonly dispatchedActions: { channel: string; action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction }[] = [];
 	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
@@ -92,6 +93,9 @@ class MockAgentConnection implements IAgentConnection {
 	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async completions(_params: CompletionsParams): Promise<CompletionsResult> { return { items: [] }; }
+	async listAutomationTriggerDefinitions(_params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> { return { items: [] }; }
+	async runAutomation(_params: RunAutomationParams): Promise<RunAutomationResult> { throw new Error('Not implemented'); }
+	async fetchAutomationRuns(_params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult> { return {}; }
 	async getCompletionTriggerCharacters(): Promise<readonly string[]> { return []; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async createChat(_session: URI, _chat: URI): Promise<void> { }
@@ -150,7 +154,7 @@ class MockAgentConnection implements IAgentConnection {
 	getActiveSubscriptions(): readonly IActiveSubscriptionInfo[] {
 		return [];
 	}
-	dispatch(channel: string, action: SessionAction | TerminalAction | ClientAnnotationsAction | IRootConfigChangedAction): void {
+	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
 		this.dispatchedActions.push({ channel, action });
 	}
 
@@ -311,8 +315,74 @@ suite('AgentHostPty', () => {
 		assert.deepStrictEqual(dataReceived, ['hello world\r\n']);
 	});
 
-	test('terminal/exited action finalizes the local PTY exactly once', async () => {
+	test('isCommandExecuting tracks command lifecycle once command detection is available', async () => {
 		const conn = new MockAgentConnection();
+		disposables.add(conn);
+		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri, undefined, logService));
+		await pty.start();
+
+		const states: (boolean | undefined)[] = [pty.isCommandExecuting];
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandDetectionAvailable });
+		states.push(pty.isCommandExecuting);
+		pty.markCommandPending();
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'c1', commandLine: 'npm run build', timestamp: 0 });
+		states.push(pty.isCommandExecuting);
+		// Input to the foreground process must not leave the terminal busy after the command finishes.
+		pty.input('answer\r');
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandFinished, commandId: 'c1', exitCode: 0 });
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandExecuted, commandId: 'sentinel', commandLine: 'echo <<<COPILOT_SENTINEL_test>>>', timestamp: 1 });
+		states.push(pty.isCommandExecuting);
+		conn.fireAction(terminalUri, { type: ActionType.TerminalCommandFinished, commandId: 'sentinel', exitCode: 0 });
+		states.push(pty.isCommandExecuting);
+
+		assert.deepStrictEqual(states, [undefined, false, true, true, false, true, false]);
+	});
+
+	test('isCommandExecuting is unknown while reconnecting and restores from the snapshot', async () => {
+		const conn1 = new MockAgentConnection({ supportsCommandDetection: true });
+		disposables.add(conn1);
+		const pty = disposables.add(new AgentHostPty(1, conn1, terminalUri, undefined, logService));
+		await pty.start();
+
+		const conn2 = new MockAgentConnection({
+			supportsCommandDetection: true,
+			content: [{
+				type: 'command',
+				commandId: 'c1',
+				commandLine: 'npm run build',
+				output: '',
+				timestamp: 0,
+				isComplete: false,
+			}],
+		});
+		disposables.add(conn2);
+		const beforeReconnect = pty.isCommandExecuting;
+		const reconnect = pty.reconnect(conn2);
+		const whileReconnecting = pty.isCommandExecuting;
+		await reconnect;
+		const afterRunningSnapshot = pty.isCommandExecuting;
+
+		const conn3 = new MockAgentConnection();
+		disposables.add(conn3);
+		await pty.reconnect(conn3);
+
+		assert.deepStrictEqual({
+			beforeReconnect,
+			whileReconnecting,
+			afterRunningSnapshot,
+			afterUnknownSnapshot: pty.isCommandExecuting,
+		}, {
+			beforeReconnect: false,
+			whileReconnecting: undefined,
+			afterRunningSnapshot: true,
+			afterUnknownSnapshot: undefined,
+		});
+	});
+
+	test('terminal/exited action finalizes the local PTY exactly once', async () => {
+		const conn = new MockAgentConnection({ supportsCommandDetection: true });
 		disposables.add(conn);
 		const pty = new TestAgentHostPty(1, conn, terminalUri, undefined, logService);
 
@@ -321,6 +391,7 @@ suite('AgentHostPty', () => {
 
 		await pty.start();
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
+		const commandStateAfterExit = pty.isCommandExecuting;
 		conn.fireAction(terminalUri, { type: ActionType.TerminalExited, exitCode: 42 });
 		pty.shutdown(false);
 		pty.input('ignored');
@@ -334,12 +405,14 @@ suite('AgentHostPty', () => {
 			disposedSubscriptions: conn.disposedSubscriptions,
 			disposedTerminals: conn.disposedTerminals,
 			dispatchedActions: conn.dispatchedActions,
+			commandStateAfterExit,
 		}, {
 			exitCodes: [42],
 			disposeCount: 1,
 			disposedSubscriptions: 1,
 			disposedTerminals: [],
 			dispatchedActions: [],
+			commandStateAfterExit: undefined,
 		});
 	});
 

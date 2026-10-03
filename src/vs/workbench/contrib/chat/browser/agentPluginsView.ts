@@ -18,7 +18,7 @@ import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDispos
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun, derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
-import { dirname } from '../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -51,7 +51,7 @@ import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
 import { HasInstalledAgentPluginsContext, InstalledAgentPluginsViewId, RefreshAgentPluginMarketplacesCommandId } from './chat.js';
 
@@ -69,6 +69,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
 		description: plugin.description,
+		version: plugin.version,
 		source: plugin.source,
 		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
@@ -88,18 +89,14 @@ class UpdatePluginAction extends Action {
 	static readonly ID = 'agentPlugin.update';
 
 	constructor(
-		private readonly plugin: IAgentPlugin,
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 	) {
 		super(UpdatePluginAction.ID, localize('update', "Update"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
-			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
-		}
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
 	}
 }
 
@@ -228,7 +225,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 				const actions: Action[] = [];
 				const livePlugin = element.outdated?.read(reader);
 				if (livePlugin) {
-					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, livePlugin);
+					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, livePlugin);
 					reader.store.add(updateAction);
 					actions.push(updateAction);
 				}
@@ -418,7 +415,8 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
 		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
-		let installed = this.queryInstalled();
+		const allInstalled = this.queryInstalled();
+		let installed = allInstalled;
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
@@ -461,19 +459,19 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			const marketplace = filteredMp.map(marketplacePluginToItem);
 
 			// Filter out marketplace items that are already installed
-			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
+			const installedPlugins = allInstalled.map(i => i.plugin);
 			const filteredMarketplace = marketplace.filter(m => {
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: m.name,
 					description: m.description,
-					version: '',
+					version: m.version ?? '',
 					source: m.source,
 					sourceDescriptor: m.sourceDescriptor,
 					marketplace: m.marketplace,
 					marketplaceReference: m.marketplaceReference,
 					marketplaceType: m.marketplaceType,
 				});
-				return !installedPaths.has(expectedUri.toString());
+				return !findInstalledPlugin(installedPlugins, expectedUri, m);
 			});
 
 			items = [...installed, ...filteredMarketplace];
@@ -521,7 +519,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				if (storedPlugin) {
 					const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
 					const live = marketplaceByKey.get(key);
-					if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
+					if (live && (hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor) || !isEqual(p.uri, this.pluginInstallService.getPluginInstallUri(live)))) {
 						return live;
 					}
 				}

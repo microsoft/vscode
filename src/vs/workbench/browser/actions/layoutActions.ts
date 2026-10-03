@@ -8,7 +8,7 @@ import { MenuId, MenuRegistry, registerAction2, Action2 } from '../../../platfor
 import { Categories } from '../../../platform/action/common/actionCommonCategories.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { alert } from '../../../base/browser/ui/aria/aria.js';
-import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts, Position, ZenModeSettings, positionToString } from '../../services/layout/browser/layoutService.js';
+import { EditorActionsLocation, EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, Parts, Position, ZenModeSettings, positionToString } from '../../services/layout/browser/layoutService.js';
 import { ServicesAccessor, IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from '../../../base/common/platform.js';
@@ -53,6 +53,9 @@ const panelAlignmentJustifyIcon = registerIcon('panel-align-justify', Codicon.la
 
 const quickInputAlignmentTopIcon = registerIcon('quickInputAlignmentTop', Codicon.arrowUp, localize('quickInputAlignmentTop', "Represents quick input alignment set to the top"));
 const quickInputAlignmentCenterIcon = registerIcon('quickInputAlignmentCenter', Codicon.circle, localize('quickInputAlignmentCenter', "Represents quick input alignment set to the center"));
+
+const layoutDensityDefaultIcon = registerIcon('layout-density-default-icon', Codicon.layoutDensityDefault, localize('layoutDensityDefaultIcon', "Represents the default layout density"));
+const layoutDensityCompactIcon = registerIcon('layout-density-compact-icon', Codicon.layoutDensityCompact, localize('layoutDensityCompactIcon', "Represents the compact layout density"));
 
 const fullscreenIcon = registerIcon('fullscreen', Codicon.screenFull, localize('fullScreenIcon', "Represents full screen"));
 const centerLayoutIcon = registerIcon('centerLayoutIcon', Codicon.layoutCentered, localize('centerLayoutIcon', "Represents centered layout mode"));
@@ -1385,6 +1388,13 @@ const QuickInputActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.alignQuickInputCenter', QuickInputAlignmentContextKey.isEqualTo('center'), localize('center', "Center"), quickInputAlignmentCenterIcon),
 ];
 
+const ModernUIEnabledContext = ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI}`, true);
+
+const LayoutDensityActions: CustomizeLayoutItem[] = [
+	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Default}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Default), localize('layoutDensityDefault', "Default"), layoutDensityDefaultIcon),
+	CreateOptionLayoutItem(`workbench.action.setLayoutDensity.${ModernUIDensity.Compact}`, ContextKeyExpr.equals(`config.${LayoutSettings.MODERN_UI_DENSITY}`, ModernUIDensity.Compact), localize('layoutDensityCompact', "Compact"), layoutDensityCompactIcon),
+];
+
 const MiscLayoutOptions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem('workbench.action.toggleFullScreen', IsMainWindowFullscreenContext, localize('fullscreen', "Full Screen"), fullscreenIcon),
 	CreateOptionLayoutItem('workbench.action.toggleZenMode', InEditorZenModeContext, localize('zenMode', "Zen Mode"), zenModeIcon),
@@ -1392,10 +1402,13 @@ const MiscLayoutOptions: CustomizeLayoutItem[] = [
 ];
 
 const LayoutContextKeySet = new Set<string>();
-for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...MiscLayoutOptions]) {
+for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...LayoutDensityActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
 	}
+}
+for (const key of ModernUIEnabledContext.keys()) {
+	LayoutContextKeySet.add(key);
 }
 
 /**
@@ -1484,6 +1497,17 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				]
 			};
 		};
+		const layoutDensityItems: QuickPickItem[] = [];
+		if (ModernUIEnabledContext.evaluate(contextKeyService.getContext(null))) {
+			layoutDensityItems.push(
+				{
+					type: 'separator',
+					label: localize('layoutDensity', "Layout Density")
+				},
+				...LayoutDensityActions.map(toQuickPickItem)
+			);
+		}
+
 		return [
 			{
 				type: 'separator',
@@ -1505,6 +1529,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				label: localize('quickOpen', "Quick Input Position")
 			},
 			...QuickInputActions.map(toQuickPickItem),
+			...layoutDensityItems,
 			{
 				type: 'separator',
 				label: localize('layoutModes', "Modes"),
@@ -1593,6 +1618,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				resetSetting('workbench.sideBar.location');
 				resetSetting('workbench.statusBar.visible');
 				resetSetting('workbench.panel.defaultLocation');
+				resetSetting(LayoutSettings.MODERN_UI_DENSITY);
 
 				if (!isMacintosh || !isNative) {
 					resetSetting('window.menuBarVisibility');

@@ -5,13 +5,21 @@
 
 import * as assert from 'assert';
 import { Action, SubmenuAction } from '../../../../../base/common/actions.js';
-import { Event } from '../../../../../base/common/event.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullAgentHostService } from '../../../../../platform/agentHost/browser/nullAgentHostService.js';
+import { CODEX_ACCOUNT_META_KEY } from '../../../../../platform/agentHost/common/codexAccount.js';
 import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { CODEX_AGENT_PROVIDER_ID } from '../../../../../platform/agentHost/common/agent.js';
+import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
+import type { RootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { OpenOptions } from '../../../../../platform/opener/common/opener.js';
-import { ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
+import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
+import { ContentEncoding } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { CodexAccountService, ICodexAccountService, createCodexAccountMenuActions, hasSignedInCodexChatGPTAccount, openCodexAuthUrl, readCodexProfileImageDataUri, shouldShowCodexAccount } from '../../browser/codexAccountService.js';
 
 suite('CodexAccountService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,14 +68,27 @@ suite('CodexAccountService', () => {
 		assert.strictEqual(hasSignedInCodexChatGPTAccount(service('error').account), false);
 	});
 
-	test('offers sign-in without claiming an unknown account is signed out', async () => {
-		const accountService = service('unknown');
-		const actions = createCodexAccountMenuActions(accountService);
-		assert.ok(actions[0] instanceof Action);
-		disposables.add(actions[0] as Action);
-		assert.strictEqual(actions[0].label, 'Sign in to ChatGPT');
-		await actions[0].run();
-		assert.strictEqual(accountService.signInCalls, 1);
+	test('keeps the passive unknown account hidden and offers sign-in after resolution', async () => {
+		const signedOut = service('signedOut');
+		const error = service('error');
+		const signedOutActions = createCodexAccountMenuActions(signedOut);
+		const errorActions = createCodexAccountMenuActions(error);
+		disposables.add(signedOutActions[0] as Action);
+		disposables.add(errorActions[0] as Action);
+		await signedOutActions[0].run();
+		await errorActions[0].run();
+
+		assert.deepStrictEqual({
+			unknown: createCodexAccountMenuActions(service('unknown')),
+			signedOut: signedOutActions.map(action => action.label),
+			error: errorActions.map(action => action.label),
+			signInCalls: [signedOut.signInCalls, error.signInCalls],
+		}, {
+			unknown: [],
+			signedOut: ['Sign in to ChatGPT'],
+			error: ['Sign in to ChatGPT'],
+			signInCalls: [1, 1],
+		});
 	});
 
 	test('shows download status instead of sign-in while the Codex binary is downloading', () => {
@@ -76,7 +97,7 @@ suite('CodexAccountService', () => {
 		disposables.add(actions[0] as Action);
 
 		assert.deepStrictEqual(actions.map(action => ({ label: action.label, enabled: action.enabled })), [
-			{ label: 'Downloading Codex agent…', enabled: false },
+			{ label: 'Downloading Codex Agent…', enabled: false },
 		]);
 	});
 
@@ -117,18 +138,151 @@ suite('CodexAccountService', () => {
 		});
 	});
 
-	test('opens generated ChatGPT authentication URLs without validation prompts', async () => {
+	test('opens expected authentication URLs without validation prompts', async () => {
 		let call: { resource: string; options: OpenOptions | undefined } | undefined;
 		await openCodexAuthUrl({
 			open: async (resource, options) => {
 				call = { resource: resource.toString(), options };
 				return true;
 			}
-		}, 'https://auth.openai.com/authorize?token=secret');
+		}, 'https://auth.openai.com/oauth/authorize?token=secret');
 
 		assert.deepStrictEqual(call, {
-			resource: 'https://auth.openai.com/authorize?token=secret',
+			resource: 'https://auth.openai.com/oauth/authorize?token=secret',
 			options: { openExternal: true, skipValidation: true },
+		});
+	});
+
+	test('rejects unexpected authentication URLs', async () => {
+		let openCalls = 0;
+		const opener = {
+			open: async () => {
+				openCalls++;
+				return true;
+			}
+		};
+		const opened = await Promise.all([
+			openCodexAuthUrl(opener, 'https://example.com/login'),
+			openCodexAuthUrl(opener, 'custom-protocol:/login'),
+		]);
+
+		assert.deepStrictEqual({ opened, openCalls }, { opened: [false, false], openCalls: 0 });
+	});
+
+	test('reads profile-image bytes through the Agent Host resource connection', async () => {
+		const nonce = 'a'.repeat(64);
+		const reference = {
+			uri: `vscode-codex-profile-image:/profile-${nonce}.jpg`,
+			contentType: 'image/jpeg',
+			sizeHint: 3,
+			nonce,
+		};
+		const dataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/jpg' }),
+		}, reference);
+		assert.strictEqual(dataUri, 'data:image/jpeg;base64,AQID');
+
+		const invalidDataUri = await readCodexProfileImageDataUri({
+			resourceRead: async () => ({ data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' }),
+		}, reference);
+		assert.strictEqual(invalidDataUri, undefined);
+	});
+
+	test('rebinds account state when the Agent Host starts', () => {
+		const initialState: RootState = { agents: [] };
+		const connectedState: RootState = {
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', email: 'person@example.com' } },
+		};
+		const initialStateEmitter = disposables.add(new Emitter<RootState>());
+		const connectedStateEmitter = disposables.add(new Emitter<RootState>());
+		const hostStartEmitter = disposables.add(new Emitter<void>());
+		const initialRootState: IAgentSubscription<RootState> = {
+			value: initialState,
+			verifiedValue: initialState,
+			onDidChange: initialStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const connectedRootState: IAgentSubscription<RootState> = {
+			value: connectedState,
+			verifiedValue: connectedState,
+			onDidChange: connectedStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		let rootState = initialRootState;
+		const agentHostService = new class extends NullAgentHostService {
+			override readonly onAgentHostStart = hostStartEmitter.event;
+
+			override get rootState(): IAgentSubscription<RootState> {
+				return rootState;
+			}
+		}();
+		const accountService = disposables.add(new CodexAccountService(agentHostService, NullOpenerService));
+
+		rootState = connectedRootState;
+		hostStartEmitter.fire();
+		initialStateEmitter.fire({ agents: [], _meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedOut' } } });
+
+		assert.deepStrictEqual({
+			status: accountService.account.status,
+			email: accountService.account.email,
+		}, {
+			status: 'signedIn',
+			email: 'person@example.com',
+		});
+	});
+
+	test('retries a failed profile-image read for the same reference', async () => {
+		const nonce = 'a'.repeat(64);
+		const reference = {
+			uri: `vscode-codex-profile-image:/profile-${nonce}.png`,
+			contentType: 'image/png',
+			sizeHint: 3,
+			nonce,
+		};
+		const state: RootState = {
+			agents: [],
+			_meta: { [CODEX_ACCOUNT_META_KEY]: { status: 'signedIn', profileImage: reference } },
+		};
+		const rootStateEmitter = new Emitter<RootState>();
+		const rootState: IAgentSubscription<RootState> = {
+			value: state,
+			verifiedValue: state,
+			onDidChange: rootStateEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		const firstReadStarted = new DeferredPromise<void>();
+		let readCount = 0;
+		const agentHostService = new class extends NullAgentHostService {
+			override get rootState(): IAgentSubscription<RootState> {
+				return rootState;
+			}
+
+			override async resourceRead(_uri: URI, _encoding?: ContentEncoding) {
+				if (++readCount === 1) {
+					firstReadStarted.complete();
+					throw new Error('transient read failure');
+				}
+				return { data: 'AQID', encoding: ContentEncoding.Base64, contentType: 'image/png' };
+			}
+		}();
+		const accountService = disposables.add(new CodexAccountService(agentHostService, NullOpenerService));
+		disposables.add(rootStateEmitter);
+
+		await firstReadStarted.p;
+		await timeout(0);
+		const loadedAccount = Event.toPromise(Event.filter(accountService.onDidChangeAccount, account => !!account.profileImageDataUri));
+		rootStateEmitter.fire(state);
+
+		assert.deepStrictEqual({
+			readCount,
+			profileImageDataUri: (await loadedAccount).profileImageDataUri,
+		}, {
+			readCount: 2,
+			profileImageDataUri: 'data:image/png;base64,AQID',
 		});
 	});
 

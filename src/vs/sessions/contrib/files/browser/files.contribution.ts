@@ -4,24 +4,36 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IListService } from '../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowEnablement } from '../../../../workbench/common/views.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
+import { SESSIONS_FILES_VIEW_ID } from '../../../../workbench/contrib/files/common/files.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { IsSessionsWindowContext, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
-import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../workbench/common/editor.js';
+import { resolveCommandsContext } from '../../../../workbench/browser/parts/editor/editorCommandsContext.js';
+import { FileDownload } from '../../../../workbench/contrib/files/browser/fileImportExport.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { Menus } from '../../../browser/menus.js';
+import { EmptyFileEditorInput } from '../../editor/browser/emptyFileEditorInput.js';
+import { SESSIONS_FILES_EMPTY_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { SessionHasGitRepositoryContext, SessionHasGitSyncActionRunningContext, IsNewChatSessionContext, IsPhoneLayoutContext, SessionHasWorkspaceContext } from '../../../common/contextkeys.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext, DesktopLayoutContext } from '../../../common/contextkeys.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -48,7 +60,7 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	windowEnablement: WindowEnablement.Sessions,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
-class RegisterFilesViewContribution implements IWorkbenchContribution {
+export class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerFilesView';
 
@@ -75,7 +87,13 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
 			canToggleVisibility: false,
 			canMoveView: false,
-			when: ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), IsPhoneLayoutContext.negate(), SessionHasWorkspaceContext),
+			when: ContextKeyExpr.and(
+				IsPhoneLayoutContext.negate(),
+				ContextKeyExpr.or(
+					ContextKeyExpr.and(WorkspaceFolderCountContext.isEqualTo('0'), SessionHasWorkspaceContext),
+					ContextKeyExpr.and(DesktopLayoutContext, IsQuickChatSessionContext),
+				),
+			),
 			windowEnablement: WindowEnablement.Sessions,
 		}], filesViewContainer);
 	}
@@ -83,47 +101,60 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(RegisterFilesViewContribution.ID, RegisterFilesViewContribution, WorkbenchPhase.BlockStartup);
 
-registerAction2(class extends Action2 {
+export class DownloadRemoteFileAction extends Action2 {
+	static readonly ID = 'sessions.files.action.downloadRemoteFile';
+
 	constructor() {
+		const precondition = ContextKeyExpr.and(
+			IsSessionsWindowContext,
+			ActiveEditorContext.notEqualsTo(EmptyFileEditorInput.EDITOR_ID),
+			ResourceContextKey.IsFileSystemResource,
+			ContextKeyExpr.or(
+				ResourceContextKey.Scheme.isEqualTo(AGENT_HOST_SCHEME),
+				ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+			),
+		);
 		super({
-			id: 'sessions.files.action.syncChanges',
-			title: localize2('syncChanges', "Sync Changes"),
-			icon: Codicon.sync,
-			precondition: SessionHasGitSyncActionRunningContext.negate(),
-			menu: {
-				id: MenuId.ViewTitle,
+			id: DownloadRemoteFileAction.ID,
+			title: localize2('downloadRemoteFile', "Download..."),
+			icon: Codicon.cloudDownload,
+			precondition,
+			menu: [{
+				id: Menus.SessionsEditorTitle,
+				group: '2_download',
+				when: ContextKeyExpr.and(precondition, DesktopLayoutContext),
+			}, {
+				id: MenuId.EditorTitle,
 				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					IsNewChatSessionContext,
-					SessionHasGitRepositoryContext,
-					ContextKeyExpr.equals('view', SESSIONS_FILES_VIEW_ID),
-				)
-			},
+				when: ContextKeyExpr.and(precondition, DesktopLayoutContext.negate()),
+			}],
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		const contextKeyService = accessor.get(IContextKeyService);
-		const contextService = accessor.get(IWorkspaceContextService);
-
-		const workspaceFolder = contextService.getWorkspace().folders[0];
-		if (!workspaceFolder) {
-			return;
-		}
-
-		const isSyncActionRunning = SessionHasGitSyncActionRunningContext.bindTo(contextKeyService);
-		isSyncActionRunning.set(true);
+	async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const context = resolveCommandsContext(args, editorService, accessor.get(IEditorGroupsService), accessor.get(IListService));
+		const resources = context.groupedEditors
+			.flatMap(group => group.editors)
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY }))
+			.filter((resource): resource is URI => resource !== undefined && (resource.scheme === AGENT_HOST_SCHEME || resource.scheme === Schemas.vscodeRemote));
 
 		try {
-			await commandService.executeCommand('git.sync', workspaceFolder.uri);
-		} finally {
-			isSyncActionRunning.set(false);
+			const sources = await Promise.all(resources.map(resource => fileService.resolve(resource)));
+			if (sources.length > 0) {
+				await instantiationService.createInstance(FileDownload).download(sources);
+			}
+		} catch (error) {
+			notificationService.error(error);
+			throw error;
 		}
 	}
-});
+}
+
+registerAction2(DownloadRemoteFileAction);
 
 registerAction2(class extends Action2 {
 	constructor() {
