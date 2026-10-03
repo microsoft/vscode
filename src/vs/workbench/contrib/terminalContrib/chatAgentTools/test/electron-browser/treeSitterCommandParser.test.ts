@@ -184,14 +184,19 @@ suite('TreeSitterCommandParser', () => {
 			});
 
 			// https://github.com/microsoft/vscode/issues/294010
-			// The upstream tree-sitter-powershell grammar parses POSIX-style
-			// `--flag=value` arguments as assignment expressions and truncates
-			// the surrounding command. The parser masks the `=` before parsing
-			// so these arguments are preserved as part of the sub-command.
-			suite('POSIX-style `--flag=value` arguments', () => {
+			// https://github.com/microsoft/vscode/issues/321748
+			// The upstream tree-sitter-powershell grammar parses some POSIX-style
+			// native CLI arguments as invalid shell syntax. The parser masks these
+			// tokens before parsing so they are preserved as part of the sub-command.
+			suite('POSIX-style native CLI arguments', () => {
 				test('double-dash flag with quoted value', () => t('git log --format="abc"', ['git log --format="abc"']));
 				test('double-dash flag with value containing pipe', () => t('git log --format="a|b"', ['git log --format="a|b"']));
 				test('double-dash flag with single-quoted value', () => t(`git log --format='%h|%s'`, [`git log --format='%h|%s'`]));
+				test('standalone double dash following a variable expression', () => t('$val --', []));
+				test('standalone double dash preceding a variable expression', () => t('-- $val', []));
+				test('standalone double dash at the end of a native CLI command', () => t('git diff --', ['git diff --']));
+				test('standalone double dash pathspec separator', () => t('git diff -- file.txt', ['git diff -- file.txt']));
+				test('standalone double dash command separator', () => t('npm exec -- tsc --noEmit --pretty false', ['npm exec -- tsc --noEmit --pretty false']));
 				test('multiple flag=value arguments', () => t('git log --format="%h" --date=short HEAD -1', ['git log --format="%h" --date=short HEAD -1']));
 				test('chained git log with format containing pipes', () => t(
 					'git log --format="%h|%s|%an|%ad" --date=short dff523fc450 -1; git log --format="%h|%s|%an|%ad" --date=short 0a541d056d3 -1',
@@ -249,10 +254,14 @@ suite('TreeSitterCommandParser', () => {
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '$env:FOO="bar"; git status'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, '[System.Environment]::SetEnvironmentVariable("FOO", "bar"); git status'),
 				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git log --format="%h|%s" -5'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'git diff -- package.json pnpm-lock.yaml'),
+				parser.extractAutoApprovalSubCommands(TreeSitterCommandParserLanguage.PowerShell, 'npm exec -- tsc --noEmit --pretty false'),
 			]), [
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git status'], hasUnanalyzableSyntax: true },
 				{ subCommands: ['git log --format="%h|%s" -5'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['git diff -- package.json pnpm-lock.yaml'], hasUnanalyzableSyntax: false },
+				{ subCommands: ['npm exec -- tsc --noEmit --pretty false'], hasUnanalyzableSyntax: false },
 			]);
 		});
 
