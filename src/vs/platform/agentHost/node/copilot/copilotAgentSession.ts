@@ -89,6 +89,7 @@ import { CopilotSandboxDiagnostics } from './copilotSandboxDiagnostics.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
+import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
 import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -1504,6 +1505,11 @@ export class CopilotAgentSession extends Disposable {
 				const resolution = this._customizationEnablementService.resolve(this._ownerSessionUri.toString(), targetForMcpServer(server, owningPluginUri, false));
 				return resolution.kind === 'resolved' ? resolution.enablement : undefined;
 			},
+			// The runtime adds its own GitHub server only while the setting is on; a server merely named the same
+			// (user, workspace or plugin configured) is not the runtime's, and the setting cannot control it.
+			controllingSetting: (serverName, provenance) => serverName === GITHUB_MCP_SERVER_NAME && provenance.source === 'builtin' && !provenance.sourcePlugin
+				? AgentHostGitHubMcpServerEnabledSettingId
+				: undefined,
 		}));
 
 		this._register(toDisposable(() => this._cancelAllPendingInteractions()));
@@ -7806,12 +7812,15 @@ export class CopilotAgentSession extends Disposable {
 	 */
 	private _toSdkMcpServer(server: McpServer): ISdkMcpServer {
 		const hasPendingAuthentication = this._hasPendingMcpAuthentication(server.name);
-		const source = server.source !== undefined
+		// Only inventory records report a source, so only they replace (or clear) provenance; lifecycle updates keep it.
+		const provenance = server.source !== undefined
 			? {
 				source: server.source,
 				sourceUri: server.source === 'user'
 					? URI.file(getCopilotMcpConfigurationPath(this._environmentService.userHome.fsPath, process.env)).toString()
 					: null,
+				displayName: server.displayName ?? null,
+				pluginName: server.sourcePlugin ?? null,
 			}
 			: {};
 		return {
@@ -7819,8 +7828,7 @@ export class CopilotAgentSession extends Disposable {
 			state: this._translateSdkMcpStatus(server.name, server.status, server.error, hasPendingAuthentication),
 			...(server.status === 'pending' && !hasPendingAuthentication ? { allowAuthRequiredToStarting: true } : {}),
 			enabled: server.status !== 'disabled' && server.status !== 'not_configured',
-			...source,
-			pluginName: server.sourcePlugin,
+			...provenance,
 			pluginVersion: server.sourcePluginVersion,
 		};
 	}

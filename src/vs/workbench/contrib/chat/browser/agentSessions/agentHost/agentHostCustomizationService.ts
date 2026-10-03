@@ -16,7 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { readMcpServerSource } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -245,12 +245,16 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return [];
 		}
 		return getPresentableMcpServerCustomizations(target.customizations)
-			.map(({ server, plugin }): IAgentHostMcpServer => {
+			.map(({ server, plugin, isTopLevel }): IAgentHostMcpServer => {
 				const source = URI.parse(server.uri);
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					displayName: readMcpServerDisplayName(server),
 					source: readMcpServerSource(server),
+					sourcePluginName: readMcpServerSourcePlugin(server),
+					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
+					controllingSettingId: readMcpServerControllingSetting(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
@@ -476,6 +480,19 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 		return entries;
 	}
 	return entries.filter(entry => entry.isTopLevel || !topLevelNames.has(entry.server.name));
+}
+
+/**
+ * Reads the definition the agent host's own MCP server configuration holds for `serverName`. Such
+ * servers have no configuration file, so the runtime reports no source for them.
+ */
+function getHostMcpServerConfiguration(rootConfig: RootConfigState | undefined, serverName: string): IMcpServerConfiguration | undefined {
+	const servers = rootConfig?.values[AgentHostMcpServersConfigKey];
+	if (!servers || typeof servers !== 'object' || Array.isArray(servers) || !Object.hasOwn(servers, serverName)) {
+		return undefined;
+	}
+	const configuration: unknown = (servers as Record<string, unknown>)[serverName];
+	return configuration && typeof configuration === 'object' && !Array.isArray(configuration) ? configuration as IMcpServerConfiguration : undefined;
 }
 
 /**

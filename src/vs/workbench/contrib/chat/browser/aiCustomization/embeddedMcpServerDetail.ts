@@ -11,7 +11,8 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -20,12 +21,13 @@ import { ILanguageService } from '../../../../../editor/common/languages/languag
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
@@ -55,6 +57,28 @@ export interface IMcpServerDetailInput {
 		readonly uri: URI;
 		readonly range?: IRange;
 	};
+	/** Where the server comes from when it has no {@link source} file, such as an extension or the agent itself. */
+	readonly provenance?: IMcpServerProvenance;
+	/** Explains why there is no definition to show, for a server whose definition the client cannot read. */
+	readonly definitionUnavailable?: IMcpServerDefinitionUnavailable;
+}
+
+/** Why an MCP server has no definition to show, and where it can be controlled instead. */
+export interface IMcpServerDefinitionUnavailable {
+	/** Localized explanation shown in place of the definition. */
+	readonly message: string;
+	/** Setting that controls the server, offered as a link to the Settings editor. */
+	readonly settingId?: string;
+}
+
+/** Describes where an MCP server comes from when there is no configuration file to open. */
+export interface IMcpServerProvenance {
+	/** Short localized label, for example "Built-in: Copilot" or "Extension: GitHub Copilot Chat". */
+	readonly label: string;
+	/** Localized accessible name of the link that reveals the provider; present with {@link open}. */
+	readonly ariaLabel?: string;
+	/** Reveals the provider, for example its extension details. */
+	open?(): void;
 }
 
 export interface IMcpServerDetailOptions {
@@ -113,6 +137,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly diagnosticDisposables = this._register(new DisposableStore());
 	private readonly iconDisposables = this._register(new DisposableStore());
 	private readonly migrationLinkListener = this._register(new MutableDisposable());
+	private readonly definitionSettingsLinkListener = this._register(new MutableDisposable());
 	private readonly emptyEl: HTMLElement;
 
 	private current: IMcpServerDetailInput | undefined;
@@ -135,6 +160,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		@ICustomizationHarnessService private readonly customizationHarnessService: ICustomizationHarnessService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IThemeService private readonly themeService: IThemeService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -156,15 +182,17 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.editConfigurationButton.label = editConfigurationLabel;
 		this._register(this.editConfigurationButton.onDidClick(() => void this.editConfiguration()));
 		this._register(DOM.addDisposableListener(this.pathEl, DOM.EventType.CLICK, event => {
-			const source = this.current?.source;
-			if (!source) {
-				return;
+			const server = this.current;
+			if (server?.source) {
+				event.preventDefault();
+				void this.editorService.openEditor({
+					resource: server.source.uri,
+					options: { selection: server.source.range, pinned: true },
+				});
+			} else if (server?.provenance?.open) {
+				event.preventDefault();
+				server.provenance.open();
 			}
-			event.preventDefault();
-			void this.editorService.openEditor({
-				resource: source.uri,
-				options: { selection: source.range, pinned: true },
-			});
 		}));
 
 		this.bodyEl = DOM.append(this.root, $('.mcp-detail-body'));
@@ -227,6 +255,24 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.renderItem();
 	}
 
+	/**
+	 * Replaces the current server's presentation (label, source, provenance, definition) after the host
+	 * reports new metadata, keeping migration state and leaving the view untouched when nothing changed.
+	 */
+	updateInput(server: IMcpServerDetailInput): void {
+		const current = this.current;
+		if (!current || current.id !== server.id) {
+			return;
+		}
+		const next: IMcpServerDetailInput = { ...server, migratable: current.migratable };
+		if (isSameMcpServerDetailPresentation(current, next)) {
+			return;
+		}
+		this.current = next;
+		this.bindDiagnostics();
+		this.renderItem();
+	}
+
 	setMigratable(migratable: boolean): void {
 		if (!this.current || this.current.migratable === migratable) {
 			return;
@@ -260,29 +306,14 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		this.renderIcon();
 		if (!server) {
 			this.nameEl.textContent = '';
-			this.pathEl.textContent = '';
-			this.pathEl.removeAttribute('href');
-			this.pathEl.removeAttribute('aria-label');
-			this.pathEl.classList.remove('source-link');
-			this.editConfigurationButton.element.style.display = 'none';
+			this.renderSource(undefined);
 			this.setDefinition(undefined);
 			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
-		const sourceLabel = server.source ? basename(server.source.uri) : 'mcp.json';
-		this.pathEl.textContent = sourceLabel;
-		this.pathEl.classList.toggle('source-link', !!server.source);
-		if (server.source) {
-			this.pathEl.href = '#';
-			this.pathEl.setAttribute('aria-label', localize('openMcpServerSource', "Open {0}", sourceLabel));
-			this.editConfigurationButton.element.style.display = '';
-		} else {
-			this.pathEl.removeAttribute('href');
-			this.pathEl.removeAttribute('aria-label');
-			this.editConfigurationButton.element.style.display = 'none';
-		}
+		this.renderSource(server);
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
 		} else if (server.config) {
@@ -291,7 +322,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 			this.setDefinition(undefined, localize('mcpDefinitionLoading', "Loading MCP server definition..."));
 			void this.loadSourceDefinition(server, server.source, renderGeneration);
 		} else {
-			this.setDefinition(undefined);
+			this.setDefinition(undefined, server.definitionUnavailable?.message, server.definitionUnavailable?.settingId);
 		}
 	}
 
@@ -302,6 +333,28 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (icon) {
 			renderCustomizationMarketplaceIcon(this.iconEl, mcpServerIcon, icon, this.themeService.getColorTheme().type, this.iconDisposables);
 		}
+	}
+
+	/** Shows the configuration file, or where the server comes from when it has none. */
+	private renderSource(server: IMcpServerDetailInput | undefined): void {
+		const source = server?.source;
+		const provenance = source ? undefined : server?.provenance;
+		const label = source ? basename(source.uri) : provenance?.label ?? '';
+		const linkLabel = source
+			? localize('openMcpServerSource', "Open {0}", label)
+			: provenance?.open ? provenance.ariaLabel ?? label : undefined;
+		this.pathEl.textContent = label;
+		this.pathEl.style.display = label ? '' : 'none';
+		this.pathEl.classList.toggle('provenance', provenance !== undefined);
+		this.pathEl.classList.toggle('source-link', linkLabel !== undefined);
+		if (linkLabel !== undefined) {
+			this.pathEl.href = '#';
+			this.pathEl.setAttribute('aria-label', linkLabel);
+		} else {
+			this.pathEl.removeAttribute('href');
+			this.pathEl.removeAttribute('aria-label');
+		}
+		this.editConfigurationButton.element.style.display = source ? '' : 'none';
 	}
 
 	private async editConfiguration(): Promise<void> {
@@ -538,11 +591,11 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}
 	}
 
-	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.")): void {
+	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server."), settingId?: string): void {
 		const hasDefinition = definition !== undefined;
 		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
 		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
-		this.definitionEmptyEl.textContent = emptyMessage;
+		this.renderDefinitionEmpty(emptyMessage, hasDefinition ? undefined : settingId);
 
 		if (this.currentDefinition === definition) {
 			this._onDidChangeContent.fire();
@@ -566,6 +619,24 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		definitionEditor.setModel(model);
 		this.definitionModel.value = model;
 		this._onDidChangeContent.fire();
+	}
+
+	/** Shows why there is no definition, with a link to the setting that controls the server when one exists. */
+	private renderDefinitionEmpty(message: string, settingId: string | undefined): void {
+		this.definitionSettingsLinkListener.clear();
+		DOM.clearNode(this.definitionEmptyEl);
+		DOM.append(this.definitionEmptyEl, $('span.mcp-detail-definition-message')).textContent = message;
+		if (!settingId) {
+			return;
+		}
+		const link = DOM.append(this.definitionEmptyEl, $('a.mcp-detail-definition-settings-link')) as HTMLAnchorElement;
+		link.href = '#';
+		link.textContent = localize('mcpOpenServerSettings', "Open Settings");
+		link.setAttribute('aria-label', localize('mcpOpenServerSettingsAria', "Open Settings for {0}", this.current?.label || this.current?.name || ''));
+		this.definitionSettingsLinkListener.value = DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+			event.preventDefault();
+			void this.commandService.executeCommand('workbench.action.openSettings', `@id:${settingId}`);
+		});
 	}
 
 	private ensureDefinitionEditor(): CodeEditorWidget {
@@ -592,6 +663,26 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}
 		return this.definitionEditor;
 	}
+}
+
+/**
+ * Whether two inputs for the same server present the same thing. Ignores the error observable and link
+ * callbacks, which are recreated on every rebuild without changing what the detail shows.
+ */
+function isSameMcpServerDetailPresentation(a: IMcpServerDetailInput, b: IMcpServerDetailInput): boolean {
+	return a.name === b.name
+		&& a.label === b.label
+		&& a.installState === b.installState
+		&& a.compatibilityId === b.compatibilityId
+		&& a.migratable === b.migratable
+		&& equals(a.config, b.config)
+		&& isEqual(a.source?.uri, b.source?.uri)
+		&& equals(a.source?.range, b.source?.range)
+		&& a.provenance?.label === b.provenance?.label
+		&& a.provenance?.ariaLabel === b.provenance?.ariaLabel
+		&& !a.provenance?.open === !b.provenance?.open
+		&& equals(a.definitionUnavailable, b.definitionUnavailable)
+		&& isCustomizationMarketplaceIconEqual(a.icon, b.icon);
 }
 
 function resolveCompatibilityState(resolved: boolean, compatibility: ICustomizationMcpServerCompatibility | undefined): McpDetailCompatibilityState {

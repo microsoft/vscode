@@ -39,7 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -20872,7 +20872,7 @@ Use the attached image as context.
 			assert.deepStrictEqual(names, ['alpha', 'beta']);
 		});
 
-		test('publishes SDK configuration sources for host-only MCP servers and retains them across status updates', async () => {
+		test('publishes SDK configuration sources, display names and plugins for host-only MCP servers and retains them across status updates', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
 				configureMockSession: m => {
 					m.mcpListResult = {
@@ -20880,28 +20880,71 @@ Use the attached image as context.
 							{ name: 'local-memory', status: 'connected', source: 'user' },
 							{ name: 'github', status: 'failed', source: 'user' },
 							{ name: 'workspace-server', status: 'connected', source: 'workspace' },
-							{ name: 'plugin-server', status: 'connected', source: 'plugin' },
+							{ name: 'plugin-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' },
 							{ name: 'github-mcp-server', status: 'connected', source: 'builtin' },
+							{ name: 'computer-use', status: 'connected', source: 'builtin', sourcePlugin: 'computer-use' },
+							{ name: 'github-copilot-connector-1', status: 'connected', source: 'managed', displayName: 'Linear' },
 						]
 					};
 				},
 			});
 			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
 			const snapshot = () => session.topLevelMcpCustomizations().map(server => ({
-				name: server.name, source: readMcpServerSource(server),
+				name: server.name, source: readMcpServerSource(server), displayName: readMcpServerDisplayName(server), sourcePlugin: readMcpServerSourcePlugin(server),
 			}));
 			const initial = snapshot();
 
 			mockSession.fire('session.mcp_server_status_changed', { serverName: 'local-memory', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'computer-use', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-copilot-connector-1', status: 'stopped' });
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-mcp-server', status: 'stopped' });
 
 			const expected = [
-				{ name: 'local-memory', source: 'user' },
-				{ name: 'github', source: 'user' },
-				{ name: 'workspace-server', source: 'workspace' },
-				{ name: 'plugin-server', source: 'plugin' },
-				{ name: 'github-mcp-server', source: 'builtin' },
+				{ name: 'local-memory', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'github', source: 'user', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'workspace-server', source: 'workspace', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'plugin-server', source: 'plugin', displayName: undefined, sourcePlugin: 'acme' },
+				{ name: 'github-mcp-server', source: 'builtin', displayName: undefined, sourcePlugin: undefined },
+				{ name: 'computer-use', source: 'builtin', displayName: undefined, sourcePlugin: 'computer-use' },
+				{ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear', sourcePlugin: undefined },
 			];
 			assert.deepStrictEqual({ initial, afterStatusChange: snapshot() }, { initial: expected, afterStatusChange: expected });
+		});
+
+		test('declares the GitHub MCP setting only for the runtime\'s own GitHub server, not a configured server of the same name', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				configureMockSession: m => {
+					m.mcpListResult = { servers: [{ name: 'github-mcp-server', status: 'connected', source: 'builtin' }] };
+				},
+			});
+			await waitForSignal(s => isAction(s, ActionType.SessionCustomizationUpdated));
+			const setting = () => readMcpServerControllingSetting(session.topLevelMcpCustomizations().find(server => server.name === 'github-mcp-server'));
+			const builtin = setting();
+			mockSession.fire('session.mcp_server_status_changed', { serverName: 'github-mcp-server', status: 'stopped' });
+			const afterStatusChange = setting();
+
+			const configured: Record<string, string | undefined> = {};
+			for (const [kind, server] of [
+				['user', { name: 'github-mcp-server', status: 'connected', source: 'user', sourcePlugin: undefined }],
+				['plugin', { name: 'github-mcp-server', status: 'connected', source: 'plugin', sourcePlugin: 'acme' }],
+				['builtinPlugin', { name: 'github-mcp-server', status: 'connected', source: 'builtin', sourcePlugin: 'acme' }],
+			] as const) {
+				const published = (signal: AgentSignal) => isAction(signal, ActionType.SessionCustomizationUpdated)
+					&& signal.action.type === ActionType.SessionCustomizationUpdated
+					&& signal.action.customization.type === CustomizationType.McpServer
+					&& readMcpServerSource(signal.action.customization) === server.source
+					&& readMcpServerSourcePlugin(signal.action.customization) === server.sourcePlugin;
+				mockSession.mcpListResult = { servers: [server] };
+				mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+				await waitForSignal(published);
+				configured[kind] = setting();
+			}
+
+			assert.deepStrictEqual({ builtin, afterStatusChange, configured }, {
+				builtin: 'chat.agentHost.githubMcpServer.enabled',
+				afterStatusChange: 'chat.agentHost.githubMcpServer.enabled',
+				configured: { user: undefined, plugin: undefined, builtinPlugin: undefined },
+			});
 		});
 
 		test('resolves omitted SDK sources from user configuration without reclassifying explicit or unknown sources', async () => {
