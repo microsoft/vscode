@@ -297,6 +297,47 @@ export function capBridgeTools(request: IByokLmChatRequest, maxTools = BYOK_MAX_
 	};
 }
 
+/**
+ * Whether the request input ends with a user message, ignoring any trailing
+ * system or developer messages. This holds for the first model call of a turn,
+ * including one after a cancelled turn's retained tool results, and for a call
+ * after a steering message. It doesn't hold when the call continues after tool
+ * results.
+ */
+export function endsWithUserMessage(input: readonly IByokLmInputItem[]): boolean {
+	for (let i = input.length - 1; i >= 0; i--) {
+		const item = input[i];
+		if (item.type !== 'message' || item.role === 'assistant') {
+			return false;
+		}
+		if (item.role === 'user') {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * Whether bridge output contains something the Copilot runtime counts as a
+ * visible response: non-whitespace text, a tool call, or non-whitespace
+ * reasoning summary text. When a model call that answers a user message has
+ * none of these, the runtime fails the turn with a generic "No response was
+ * returned" error.
+ */
+export function hasVisibleBridgeOutput(output: readonly IByokLmOutputItem[]): boolean {
+	return output.some(item => {
+		switch (item.type) {
+			case 'message':
+				return item.content.some(part => part.text.trim().length > 0);
+			case 'reasoning':
+				return item.summary.some(text => text.trim().length > 0);
+			case 'function_call':
+			case 'custom_tool_call':
+				return true;
+		}
+	});
+}
+
 let responseCounter = 0;
 
 function nextId(prefix: string): string {
