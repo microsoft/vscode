@@ -3074,7 +3074,7 @@ suite('ModernUIContribution', () => {
 			middleTab: {
 				shoulders: ['""', '""'],
 				capRadii: ['7px', '7px'],
-				backgroundClip: 'padding-box',
+				backgroundClip: 'border-box',
 				radii: ['7px', '7px'],
 				sizes: [['7px', '7px'], ['7px', '7px']],
 			},
@@ -3154,8 +3154,8 @@ suite('ModernUIContribution', () => {
 				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			},
 			active: {
-				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
-				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-2px'], fillInlineStart: '0px' },
+				single: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
+				wrappedBottom: { tabBorders: ['0px', '0px'], fillInsets: ['0px', '-1px'], fillInlineStart: '0px' },
 			},
 		});
 	});
