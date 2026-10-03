@@ -5163,22 +5163,30 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
-	test('an empty branch list does not trigger a second completion request', async () => {
+	test('an empty branch list is requested again on the next picker open, then cached', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.branchCompletionItems = [];
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
-		const branches = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		const first = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		agentHost.branchCompletionItems = [{ value: 'main', label: 'main' }, { value: 'feature', label: 'feature' }];
+		const second = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
+		const requestsAfterSecond = agentHost.branchCompletionRequests.length;
+		const third = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
-			branches,
-			queries: agentHost.branchCompletionRequests.map(request => request.query),
+			first,
+			second: second.map(item => item.value),
+			third: third.map(item => item.value),
+			requestsAfterThird: agentHost.branchCompletionRequests.length - requestsAfterSecond,
 		}, {
-			branches: [],
-			queries: [undefined],
+			first: [],
+			second: ['main', 'feature'],
+			third: ['main', 'feature'],
+			requestsAfterThird: 0,
 		});
 	});
 
-	test('failed branch loading reports the error without retrying', async () => {
+	test('failed branch loading reports the error and is requested again on the next picker open', async () => {
 		const provider = createProvider(disposables, agentHost);
 		agentHost.failBranchCompletions = true;
 		const session = provider.createNewSession(URI.file('/project'), provider.sessionTypes[0].id);
@@ -5188,13 +5196,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		} catch (cause) {
 			error = String(cause);
 		}
+		agentHost.failBranchCompletions = false;
+		const retried = await provider.getSessionConfigCompletions(session.sessionId, SessionConfigKey.Branch);
 
 		assert.deepStrictEqual({
 			error,
-			requestCount: agentHost.branchCompletionRequests.length,
+			retried: retried.map(item => item.value),
 		}, {
 			error: 'Error: branch completions unavailable',
-			requestCount: 1,
+			retried: ['main'],
 		});
 	});
 
