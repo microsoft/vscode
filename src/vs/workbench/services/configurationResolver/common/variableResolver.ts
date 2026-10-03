@@ -114,6 +114,32 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
 
+	private getEnvValue(envName: string, env: IProcessEnvironment | undefined): string | undefined {
+		if (env) {
+			return env[isWindows ? envName.toLowerCase() : envName];
+		} else {
+			return undefined;
+		}
+	}
+
+	private parseEnvVariable(argument: string, env: IProcessEnvironment | undefined) {
+		const defaultIfEmptyOrUndefinedSeperator = ':-';
+		const defaultIfUndefinedSeperator = '-';
+
+		if (argument.includes(defaultIfEmptyOrUndefinedSeperator)) {
+			const [envName, fallbackValue] = argument.split(defaultIfEmptyOrUndefinedSeperator, 2);
+			const envValue = this.getEnvValue(envName, env);
+			return ((envValue === undefined) || (envValue === '')) ? fallbackValue : envValue;
+		}
+		if (argument.includes(defaultIfUndefinedSeperator)) {
+			const [envName, fallbackValue] = argument.split(defaultIfUndefinedSeperator, 2);
+			const envValue = this.getEnvValue(envName, env);
+			return (envValue === undefined) ? fallbackValue : envValue;
+		}
+
+		return this.getEnvValue(argument, env) ?? '';
+	}
+
 	protected async evaluateSingleVariable(replacement: Replacement, folderUri: uri | undefined, processEnvironment?: IProcessEnvironment, commandValueMapping?: IStringDictionary<IResolvedValue>): Promise<IResolvedValue | string | undefined> {
 
 
@@ -168,13 +194,7 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		switch (variable) {
 			case 'env':
 				if (argument) {
-					if (environment.env) {
-						const env = environment.env[isWindows ? argument.toLowerCase() : argument];
-						if (types.isString(env)) {
-							return env;
-						}
-					}
-					return '';
+					return this.parseEnvVariable(argument, environment.env);
 				}
 				throw new VariableError(VariableKind.Env, localize('missingEnvVarName', "Variable {0} can not be resolved because no environment variable name is given.", replacement.id));
 
