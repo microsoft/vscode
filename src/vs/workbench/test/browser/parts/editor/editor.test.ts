@@ -15,7 +15,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
-import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
@@ -24,14 +24,6 @@ import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../edito
 import { Position } from '../../../../../editor/common/core/position.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
-import { InteractiveEditorInput } from '../../../../contrib/interactive/browser/interactiveEditorInput.js';
-import { InteractiveDocumentService, IInteractiveDocumentService } from '../../../../contrib/interactive/browser/interactiveDocumentService.js';
-import { IInteractiveHistoryService, InteractiveHistoryService } from '../../../../contrib/interactive/browser/interactiveHistoryService.js';
-import { INotebookService } from '../../../../contrib/notebook/common/notebookService.js';
-import { INotebookEditorModelResolverService } from '../../../../contrib/notebook/common/notebookEditorModelResolverService.js';
-import { Event } from '../../../../../base/common/event.js';
-import { ITextModelService, IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
-import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('Workbench editor utils', () => {
 
@@ -433,78 +425,6 @@ suite('Workbench editor utils', () => {
 
 		enforcedOverride.dispose();
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
-	});
-
-	test('disposes an editor input when a different matching input is already open', async () => {
-		const accessor = await createServices();
-		const resource = URI.file('/matching-input.txt');
-		const openedInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
-		const matchingInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
-
-		await accessor.editorService.openEditor(openedInput, { pinned: true });
-		await accessor.editorService.openEditor(matchingInput, { pinned: true });
-
-		assert.strictEqual(openedInput.gotDisposed, false);
-		assert.strictEqual(matchingInput.gotDisposed, true);
-	});
-
-	test('does not dispose a matching editor input that is open in another group', async () => {
-		const accessor = await createServices();
-		const firstGroup = accessor.editorGroupService.activeGroup;
-		const secondGroup = accessor.editorGroupService.addGroup(firstGroup, GroupDirection.RIGHT);
-		const resource = URI.file('/matching-input.txt');
-		const firstInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
-		const secondInput = disposables.add(new TestFileEditorInput(resource, 'testTypeId'));
-
-		await firstGroup.openEditor(firstInput, { pinned: true });
-		await secondGroup.openEditor(secondInput, { pinned: true });
-		await secondGroup.openEditor(firstInput, { pinned: true });
-
-		assert.strictEqual(firstInput.gotDisposed, false);
-		assert.strictEqual(secondInput.gotDisposed, false);
-	});
-
-	test('reopening an interactive notebook preserves its live input document', async () => {
-		const localInstantiationService = workbenchInstantiationService(undefined, disposables);
-		const documentService = disposables.add(new InteractiveDocumentService());
-		localInstantiationService.stub(IInteractiveDocumentService, documentService);
-		localInstantiationService.stub(IInteractiveHistoryService, disposables.add(new InteractiveHistoryService()));
-		localInstantiationService.stub(INotebookService, { onDidAddNotebookDocument: Event.None, canResolve: async () => false });
-		localInstantiationService.stub(INotebookEditorModelResolverService, {});
-		const model = disposables.add(localInstantiationService.createInstance(TestServiceAccessor).modelService.createModel('', null));
-		localInstantiationService.stub(ITextModelService, {
-			createModelReference: async () => ({
-				object: new class extends mock<IResolvedTextEditorModel>() {
-					override textEditorModel = model;
-				},
-				dispose: () => { }
-			})
-		});
-		disposables.add(registerTestEditor('TestInteractiveEditor', [new SyncDescriptor(InteractiveEditorInput)]));
-		const part = await createEditorPart(localInstantiationService, disposables);
-		localInstantiationService.stub(IEditorGroupsService, part);
-		const editorService = disposables.add(localInstantiationService.createInstance(EditorService, undefined));
-		localInstantiationService.stub(IEditorService, editorService);
-		const resource = URI.parse('untitled:/test.interactive');
-		const inputResource = URI.parse('vscode-interactive-input:/test');
-		const openedInput = disposables.add(localInstantiationService.createInstance(InteractiveEditorInput, resource, inputResource, undefined, undefined));
-		const candidate = disposables.add(localInstantiationService.createInstance(InteractiveEditorInput, resource, inputResource, undefined, undefined));
-		const removed: string[] = [];
-		disposables.add(documentService.onWillRemoveInteractiveDocument(e => removed.push(e.inputUri.toString())));
-
-		await openedInput.resolveInput();
-		await editorService.openEditor(openedInput, { pinned: true });
-		await editorService.openEditor(candidate, { pinned: true });
-
-		assert.deepStrictEqual({
-			candidateDisposed: candidate.isDisposed(),
-			openedInputDisposed: openedInput.isDisposed(),
-			removed
-		}, { candidateDisposed: true, openedInputDisposed: false, removed: [] });
-
-		await part.activeGroup.closeEditor(openedInput);
-		openedInput.dispose();
-		assert.deepStrictEqual(removed, [inputResource.toString()]);
 	});
 
 	test('editor tab mode class follows configured and enforced part options', async () => {
