@@ -7,7 +7,7 @@ import * as nls from '../../../../nls.js';
 import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
-import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise, disposableTimeout } from '../../../../base/common/async.js';
+import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
 import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -999,7 +999,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installing: IExtension[] = [];
 	private tasksInProgress: CancelablePromise<any>[] = [];
-	private readonly delayedAutoUpdateCheckTimer = this._register(new MutableDisposable());
 
 	readonly whenInitialized: Promise<void>;
 
@@ -1135,19 +1134,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				if (!this.isAutoUpdateEnabled()) {
-					// Auto update disabled — cancel any pending delayed re-check
-					this.delayedAutoUpdateCheckTimer.value = undefined;
-				} else {
+				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 				// The auto update value affects whether an extension is shown as delayed
 				this._onChange.fire(undefined);
 			}
 			if (e.affectsConfiguration(AutoUpdateDelayConfigurationKey)) {
-				// The delay affects when delayed updates are applied — cancel any pending
-				// delayed re-check and re-run the scheduling path with the new delay.
-				this.delayedAutoUpdateCheckTimer.value = undefined;
 				if (this.isAutoUpdateEnabled()) {
 					this.eventuallyAutoUpdateExtensions();
 				}
@@ -2280,7 +2273,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const toUpdate: IExtension[] = [];
 		const disabledAutoUpdate = [];
 		const consentRequired = [];
-		let soonestDelayRemaining = Number.MAX_SAFE_INTEGER;
 		for (const extension of this.outdated) {
 			if (!this.shouldAutoUpdateExtension(extension)) {
 				disabledAutoUpdate.push(extension.identifier.id);
@@ -2291,7 +2283,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const delayRemaining = this.getAutoUpdateDelayRemaining(extension);
 				if (delayRemaining > 0) {
 					this.logService.trace('Auto update delayed for extension', extension.identifier.id);
-					soonestDelayRemaining = Math.min(soonestDelayRemaining, delayRemaining);
 					continue;
 				}
 			}
@@ -2300,12 +2291,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				continue;
 			}
 			toUpdate.push(extension);
-		}
-
-		if (soonestDelayRemaining < Number.MAX_SAFE_INTEGER) {
-			this.delayedAutoUpdateCheckTimer.value = disposableTimeout(() => this.eventuallyCheckForUpdates(true), soonestDelayRemaining);
-		} else {
-			this.delayedAutoUpdateCheckTimer.value = undefined;
 		}
 
 		if (disabledAutoUpdate.length) {
