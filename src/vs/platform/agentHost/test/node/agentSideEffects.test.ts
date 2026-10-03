@@ -40,9 +40,9 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
-import { AgentHostOverlapProviderPreparationSettingId } from '../../common/agentService.js';
+import { AgentHostDeferTurnStartCheckpointSettingId, AgentHostOverlapProviderPreparationSettingId } from '../../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostDeferTurnStartCheckpointConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -807,6 +807,151 @@ suite('AgentSideEffects', () => {
 			assert.deepStrictEqual({ beforeContext, afterContext: telemetry.triggers }, {
 				beforeContext: [],
 				afterContext: [`config.${AgentHostOverlapProviderPreparationSettingId}`],
+			});
+		});
+	});
+
+	suite('deferred turn-start checkpoint', () => {
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+
+		function createDeferringSideEffects(checkpointService: IAgentHostCheckpointService, telemetry: ITelemetryService = NullTelemetryService): AgentSideEffects {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+			}, undefined, telemetry, new FakeChangesetService(), undefined, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			return localSideEffects;
+		}
+
+		function setRootConfig(values: Record<string, unknown>): void {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: values });
+		}
+
+		/** Records the barrier each send receives, while still delivering the send to the mock agent. */
+		function captureSendBarriers(): (Promise<void> | undefined)[] {
+			const barriers: (Promise<void> | undefined)[] = [];
+			const sendMessage = agent.chats.sendMessage;
+			agent.chats.sendMessage = (chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientTypeOrContext, context) => {
+				const sendContext = context ?? clientTypeOrContext;
+				barriers.push(sendContext && typeof sendContext === 'object' && !URI.isUri(sendContext) ? sendContext.turnStartBarrier : undefined);
+				return sendMessage(chat, prompt, workingDirectories, attachments, turnId, senderClientId, clientTypeOrContext, context);
+			};
+			return barriers;
+		}
+
+		test('sends before the capture completes and hands the provider a barrier that settles with it', async () => {
+			const capture = new DeferredPromise<void>();
+			const localSideEffects = createDeferringSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: () => capture.p,
+			});
+			setRootConfig({ [AgentHostDeferTurnStartCheckpointConfigKey]: true });
+			(agent.chats as { supportsTurnStartBarrier?: boolean }).supportsTurnStartBarrier = true;
+			const barriers = captureSendBarriers();
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+			let barrierSettled = false;
+			void barriers[0]?.then(() => { barrierSettled = true; });
+			await timeout(0);
+			const beforeCapture = barrierSettled;
+			capture.complete();
+			await timeout(0);
+
+			assert.deepStrictEqual({ hasBarrier: barriers[0] !== undefined, beforeCapture, afterCapture: barrierSettled }, {
+				hasBarrier: true,
+				beforeCapture: false,
+				afterCapture: true,
+			});
+		});
+
+		test('defers only for providers that hold tools behind the barrier, and reports the trigger in both arms', async () => {
+			const results: Record<string, { sentBeforeCapture: boolean; barrier: boolean; triggers: readonly string[] }> = {};
+			for (const [name, enabled, supportsBarrier] of [['enabled', true, true], ['disabled', false, true], ['unsupported', true, false]] as const) {
+				const capture = new DeferredPromise<void>();
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const localSideEffects = createDeferringSideEffects({
+					...NULL_CHECKPOINT_SERVICE,
+					captureTurnStartCheckpoint: () => capture.p,
+				}, telemetry);
+				setRootConfig({ [AgentHostDeferTurnStartCheckpointConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				(agent.chats as { supportsTurnStartBarrier?: boolean }).supportsTurnStartBarrier = supportsBarrier;
+				const barriers = captureSendBarriers();
+				const sendsBefore = agent.sendMessageCalls.length;
+
+				stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+				localSideEffects.handleAction(defaultChatUri, turnStarted);
+				await timeout(0);
+				const sentBeforeCapture = agent.sendMessageCalls.length > sendsBefore;
+				capture.complete();
+				await waitForSendMessageCalls(sendsBefore + 1);
+				results[name] = { sentBeforeCapture, barrier: barriers[0] !== undefined, triggers: telemetry.triggers };
+				stateManager.removeSession(sessionUri.toString());
+			}
+
+			const trigger = [`config.${AgentHostDeferTurnStartCheckpointSettingId}`];
+			assert.deepStrictEqual(results, {
+				enabled: { sentBeforeCapture: true, barrier: true, triggers: trigger },
+				disabled: { sentBeforeCapture: false, barrier: true, triggers: trigger },
+				unsupported: { sentBeforeCapture: false, barrier: false, triggers: [] },
+			});
+		});
+
+		test('a failed deferred capture still settles the barrier and does not fail the turn', async () => {
+			const localSideEffects = createDeferringSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => { throw new Error('capture failed'); },
+			});
+			setRootConfig({ [AgentHostDeferTurnStartCheckpointConfigKey]: true });
+			(agent.chats as { supportsTurnStartBarrier?: boolean }).supportsTurnStartBarrier = true;
+			const barriers = captureSendBarriers();
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+			await barriers[0];
+
+			assert.notStrictEqual(stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state, TurnState.Error);
+		});
+
+		test('hands turn preparation the barrier so hook commands run while the session starts wait for the capture', async () => {
+			const capture = new DeferredPromise<void>();
+			const localSideEffects = createDeferringSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: () => capture.p,
+			});
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			(agent.chats as { supportsTurnStartBarrier?: boolean }).supportsTurnStartBarrier = true;
+			let prepareBarrier: Promise<void> | undefined;
+			agent.chats.prepareTurn = async (_chat, _turnId, _workingDirectories, context) => {
+				prepareBarrier = URI.isUri(context) ? undefined : context.turnStartBarrier;
+			};
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await timeout(0);
+			let barrierSettled = false;
+			void prepareBarrier?.then(() => { barrierSettled = true; });
+			await timeout(0);
+			const beforeCapture = barrierSettled;
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ hasBarrier: prepareBarrier !== undefined, beforeCapture, afterCapture: barrierSettled }, {
+				hasBarrier: true,
+				beforeCapture: false,
+				afterCapture: true,
 			});
 		});
 	});

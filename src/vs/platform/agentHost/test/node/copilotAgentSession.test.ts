@@ -1073,6 +1073,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContextError?: Error;
 	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
+	pendingTurnStartBarrier?: () => Promise<void> | undefined;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1388,6 +1389,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			pendingTurnStartBarrier: options?.pendingTurnStartBarrier,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
@@ -16553,6 +16555,43 @@ Use the attached image as context.
 			assert.ok(entry.first instanceof Error);
 			assert.strictEqual((entry.first as Error).message, 'pre tool boom');
 			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPreToolUse: tool=edit');
+		});
+
+		test('holds every tool until the turn-start barrier settles', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const { session } = await createAgentSession(disposables, { captureRuntime: capturedRuntime });
+			const barrier = new DeferredPromise<void>();
+			(session as unknown as { _turnStartBarrier: Promise<void> | undefined })._turnStartBarrier = barrier.p;
+
+			let settled = false;
+			const hook = capturedRuntime.current!.handlePreToolUse({
+				sessionId: 'test-session-1',
+				timestamp: new Date(0),
+				workingDirectory: '/tmp',
+				toolName: 'bash',
+				toolArgs: { command: 'echo hi' },
+			}).then(() => { settled = true; });
+			await timeout(0);
+			const beforeBarrier = settled;
+			barrier.complete();
+			await hook;
+
+			assert.deepStrictEqual({ beforeBarrier, afterBarrier: settled }, { beforeBarrier: false, afterBarrier: true });
+		});
+
+		test('hook commands wait for the pending turn-start barrier before the turn is sent', async () => {
+			const capturedRuntime: { current?: ICopilotSessionRuntime } = {};
+			const barrier = new DeferredPromise<void>();
+			await createAgentSession(disposables, { captureRuntime: capturedRuntime, pendingTurnStartBarrier: () => barrier.p });
+
+			let settled = false;
+			const wait = capturedRuntime.current!.waitForTurnStartBarrier().then(() => { settled = true; });
+			await timeout(0);
+			const beforeBarrier = settled;
+			barrier.complete();
+			await wait;
+
+			assert.deepStrictEqual({ beforeBarrier, afterBarrier: settled }, { beforeBarrier: false, afterBarrier: true });
 		});
 
 		test('denies GitHub fallback tools during Agent Merge turns', async () => {

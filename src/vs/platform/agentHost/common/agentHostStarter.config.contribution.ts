@@ -27,6 +27,7 @@ import {
 	AgentHostCopilotMultiRootEnabledSettingId,
 	AgentHostMarkdownPlanRichLinksEnabledSettingId,
 	AgentHostOverlapProviderPreparationSettingId,
+	AgentHostDeferTurnStartCheckpointSettingId,
 	AgentHostOTelCaptureContentSettingId,
 	AgentHostOTelCaptureIdentitySettingId,
 	AgentHostOTelDbSpanExporterEnabledSettingId,
@@ -53,6 +54,7 @@ import {
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
 	AgentHostOverlapProviderPreparationConfigKey,
+	AgentHostDeferTurnStartCheckpointConfigKey,
 	AgentHostSystemProxyEnabledConfigKey,
 	AgentHostWorkspaceSnapshotEnabledConfigKey,
 } from './agentHostSchema.js';
@@ -227,6 +229,15 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostOverlapProviderPreparationConfigKey },
+		},
+		[AgentHostDeferTurnStartCheckpointSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.agentHost.experimental.deferTurnStartCheckpoint', "When enabled, a turn is sent to the agent while its turn-start checkpoint is still being captured, and the agent's tools wait until the capture completes. This removes the checkpoint from the time to the first response."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
+			agentHost: { key: AgentHostDeferTurnStartCheckpointConfigKey },
 		},
 		[AgentHostWorkspaceSnapshotEnabledSettingId]: {
 			type: 'boolean',

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -681,6 +682,38 @@ suite('copilotPluginConverters', () => {
 
 			assert.strictEqual(input.prompt, 'Keep GitHub casing');
 			assert.deepStrictEqual(result, { additionalContext: 'Rename with exact casing' });
+		});
+
+		test('plugin hook commands wait for beforeHookCommands, internal-only hooks do not', async () => {
+			const { command, cleanup } = echoJsonCmd({});
+			try {
+				const barrier = new DeferredPromise<void>();
+				const waits: string[] = [];
+				const tracking = (name: string) => ({
+					onPreToolUse: async () => { },
+					onPostToolUse: async () => { },
+					onUserPromptSubmitted: () => undefined,
+					beforeHookCommands: () => { waits.push(name); return barrier.p; },
+				});
+				const withCommands = toSdkHooks([makeHookGroup('SessionStart', command), makeHookGroup('UserPromptSubmit', command)], tracking('commands'));
+				const internalOnly = toSdkHooks([], tracking('internal'));
+				const context = { timestamp: new Date(0), workingDirectory: '/', sessionId: 'test' };
+
+				let settled = 0;
+				const pending = [
+					Promise.resolve(withCommands.onSessionStart!({ ...context, source: 'new' }, { sessionId: 'test' })).then(() => { settled++; }),
+					Promise.resolve(withCommands.onUserPromptSubmitted!({ ...context, prompt: 'hi' }, { sessionId: 'test' })).then(() => { settled++; }),
+				];
+				await internalOnly.onUserPromptSubmitted!({ ...context, prompt: 'hi' }, { sessionId: 'test' });
+				await timeout(0);
+				const beforeRelease = settled;
+				barrier.complete();
+				await Promise.all(pending);
+
+				assert.deepStrictEqual({ waits, beforeRelease, afterRelease: settled }, { waits: ['commands', 'commands'], beforeRelease: 0, afterRelease: 2 });
+			} finally {
+				cleanup();
+			}
 		});
 	});
 
