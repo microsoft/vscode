@@ -10,6 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -201,6 +202,18 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
 			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
 			['gpt-5', undefined, undefined],
+		]);
+	});
+
+	test('declares the first model the host publishes as the default', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('gpt-5.5'), makeModel('auto'), makeModel('claude-sonnet-4.6')]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(info => [info.metadata.id, info.metadata.isDefaultForLocation]), [
+			['gpt-5.5', { [ChatAgentLocation.Chat]: true }],
+			['auto', {}],
+			['claude-sonnet-4.6', {}],
 		]);
 	});
 

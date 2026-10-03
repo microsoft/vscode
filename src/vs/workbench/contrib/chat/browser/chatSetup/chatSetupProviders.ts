@@ -581,7 +581,8 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			for (const id of languageModelsService.getLanguageModelIds()) {
 				const model = languageModelsService.lookupLanguageModel(id);
-				if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
+				// A model scoped to one session type is no default for a request outside it.
+				if (model && !model.targetChatSessionType && model.isDefaultForLocation[ChatAgentLocation.Chat]) {
 					return true;
 				}
 			}
@@ -645,7 +646,7 @@ export class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let languageModelDefaultCount = 0;
 		for (const id of languageModelIds) {
 			const model = languageModelsService.lookupLanguageModel(id);
-			if (model?.isDefaultForLocation[ChatAgentLocation.Chat]) {
+			if (model && !model.targetChatSessionType && model.isDefaultForLocation[ChatAgentLocation.Chat]) {
 				languageModelDefaultCount++;
 			}
 		}

@@ -16,6 +16,7 @@ import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHo
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
+import { ChatAgentLocation } from '../../../common/constants.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatProvider, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 
 /**
@@ -92,7 +93,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		return this._models
 			.filter(m => m.policyState !== 'disabled')
-			.map(m => {
+			.map((m, index) => {
 				const pricing = readAgentModelPricingMeta(m);
 				const multiplierNumeric = pricing.multiplierNumeric;
 				// "Auto" advertises the auto-mode discount (detail) + description (tooltip). microsoft/vscode#321778, #321659.
@@ -129,7 +130,9 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
-						isDefaultForLocation: {},
+						// Hosts list their default model first. Left undeclared, the chat input
+						// falls back to a pick of its own that the host may not be able to run.
+						isDefaultForLocation: index === 0 ? { [ChatAgentLocation.Chat]: true } : {},
 						isUserSelectable: true,
 						statusIcon: notices?.rowWarning ? Codicon.warning : undefined,
 						warningText: notices?.warningText,
