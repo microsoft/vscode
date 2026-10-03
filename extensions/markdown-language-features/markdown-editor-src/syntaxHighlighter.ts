@@ -5,23 +5,13 @@
 
 import { LengthEdit, OffsetRange, StringEdit } from '@vscode/markdown-editor';
 import { observableValue, type ISettableObservable, type ITransaction } from '@vscode/observables';
+import type { MarkdownEditorHost, HighlightResult } from '../src/preview/markdownEditorProtocol';
 
 /**
  * A single coloured run as returned by the `documentSyntaxHighlighting`
  * proposed API. Tokens are dense and offset-free: `sum(length)` equals the
  * highlighted source length.
  */
-interface IHighlightToken {
-	readonly length: number;
-	readonly foreground: number;
-	readonly fontStyle: number;
-}
-
-interface IHighlightResult {
-	readonly tokens: readonly IHighlightToken[];
-	readonly colorMap: readonly string[];
-}
-
 /** A `Token` as consumed by `@vscode/markdown-editor`'s code block view. */
 interface IRenderToken {
 	readonly length: number;
@@ -104,6 +94,8 @@ class HighlighterDocument {
 	readonly snapshot: ISettableObservable<ISnapshot, LengthEdit>;
 	readonly #owner: WebviewSyntaxHighlighter;
 	readonly #languageId: string;
+	#requestVersion = 0;
+	#disposed = false;
 
 	constructor(
 		owner: WebviewSyntaxHighlighter,
@@ -133,14 +125,25 @@ class HighlighterDocument {
 	}
 
 	dispose(): void {
+		this.#disposed = true;
 		this.#owner._remove(this);
 	}
 
 	async #request(text: string): Promise<void> {
-		const result = await this.#owner.request(text, this.#languageId);
-		if (text !== this.#text) {
+		const version = ++this.#requestVersion;
+		let result: HighlightResult;
+		try {
+			result = await this.#owner.request(text, this.#languageId);
+		} catch (error) {
+			if (!this.#disposed && !this.#owner.isDisposed) {
+				console.error('Markdown editor highlight failed', error);
+			}
 			return;
 		}
+		if (this.#disposed || this.#owner.isDisposed || version !== this.#requestVersion) {
+			return;
+		}
+		this.#owner.updateColors(result.colorMap);
 		this.#tokens = result.tokens.map(token => ({ length: token.length, className: classNameFor(token.foreground, token.fontStyle) }));
 		this.snapshot.set(makeSnapshot(this.#tokens), undefined, LengthEdit.replace(OffsetRange.ofLength(text.length), text.length));
 	}
@@ -153,14 +156,13 @@ class HighlighterDocument {
  * highlight request is proxied to the host and the themed result posted back.
  */
 export class WebviewSyntaxHighlighter {
-	#nextRequestId = 0;
-	readonly #pending = new Map<number, (result: IHighlightResult) => void>();
 	readonly #documents = new Set<HighlighterDocument>();
 	readonly #styleElement: HTMLStyleElement;
-	readonly #postMessage: (message: unknown) => void;
+	readonly #host: Pick<MarkdownEditorHost, 'highlight'>;
+	#disposed = false;
 
-	constructor(postMessage: (message: unknown) => void) {
-		this.#postMessage = postMessage;
+	constructor(host: Pick<MarkdownEditorHost, 'highlight'>) {
+		this.#host = host;
 		this.#styleElement = document.createElement('style');
 		this.#styleElement.textContent = fontStyleRules();
 		document.head.appendChild(this.#styleElement);
@@ -172,45 +174,31 @@ export class WebviewSyntaxHighlighter {
 		return document;
 	}
 
-	request(source: string, languageId: string): Promise<IHighlightResult> {
-		const requestId = this.#nextRequestId++;
-		return new Promise<IHighlightResult>(resolve => {
-			this.#pending.set(requestId, resolve);
-			this.#postMessage({ type: 'highlight', requestId, source, languageId });
-		});
+	get isDisposed(): boolean {
+		return this.#disposed;
 	}
 
-	/**
-	 * Handles highlighter-related messages from the extension host. Returns
-	 * `true` if the message was consumed.
-	 */
-	handleMessage(message: { readonly type: string; readonly requestId?: number; readonly tokens?: readonly IHighlightToken[]; readonly colorMap?: readonly string[] }): boolean {
-		switch (message.type) {
-			case 'highlightResult': {
-				const resolve = this.#pending.get(message.requestId!);
-				if (resolve) {
-					this.#pending.delete(message.requestId!);
-					this.#updateColors(message.colorMap!);
-					resolve({ tokens: message.tokens!, colorMap: message.colorMap! });
-				}
-				return true;
-			}
-			case 'highlightThemeChanged': {
-				for (const document of this.#documents) {
-					document.refresh();
-				}
-				return true;
-			}
-			default:
-				return false;
+	request(source: string, languageId: string): Promise<HighlightResult> {
+		return this.#host.highlight({ source, languageId });
+	}
+
+	themeChanged(): void {
+		for (const document of this.#documents) {
+			document.refresh();
 		}
+	}
+
+	dispose(): void {
+		this.#disposed = true;
+		this.#documents.clear();
+		this.#styleElement.remove();
 	}
 
 	_remove(document: HighlighterDocument): void {
 		this.#documents.delete(document);
 	}
 
-	#updateColors(colorMap: readonly string[]): void {
+	updateColors(colorMap: readonly string[]): void {
 		this.#styleElement.textContent = `${fontStyleRules()}\n${colorRules(colorMap)}`;
 	}
 }

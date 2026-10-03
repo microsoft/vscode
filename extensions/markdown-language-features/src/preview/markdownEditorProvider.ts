@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { HubRpcConnection, type InterfaceHandlers } from '@vscode/hubrpc';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { Disposable } from '../util/dispose';
 import { getRangeFromPositionOrRange, MdLinkOpener } from '../util/openDocumentLink';
@@ -16,28 +17,12 @@ import type { ResolvedDocumentLinkTarget } from '../client/protocol';
 import type {
 	MarkdownCodeBlockEditorProvider,
 	MarkdownCodeBlockEditorSandbox,
-	MarkdownCodeBlockEditorSelector,
 	MarkdownContributionProvider,
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-
-interface CodeBlockEditorProviderDefinition {
-	readonly id: string;
-	readonly selector: MarkdownCodeBlockEditorSelector;
-	readonly source: { readonly kind: 'static'; readonly descriptor: ResolvedCodeBlockEditor } | { readonly kind: 'exportApi' };
-}
-
-interface ResolvedCodeBlockEditor {
-	readonly cacheKey?: string;
-	readonly html: string;
-	readonly runtimeKey: string;
-	readonly resourceBaseUrl?: string;
-	readonly hostTransport?: boolean;
-	readonly contentType: 'text' | 'json';
-	readonly initialHeight?: number;
-	readonly sandbox?: MarkdownCodeBlockEditorSandbox;
-}
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { MarkdownEditorRpcTransport } from './markdownEditorRpc';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -89,20 +74,78 @@ export interface MarkdownEditorEdit {
 }
 
 /**
- * Authenticates messages sent from the extension host to one Markdown editor webview.
+ * Owns the private RPC connection for one webview, replacing it on each HTML reload.
  */
-class AuthenticatedWebview {
+class AuthenticatedWebview implements vscode.Disposable {
 
-	readonly #messageSecret = generateUuid();
+	#messageSecret = generateUuid();
+	#connection: HubRpcConnection<undefined>;
+	#handlers: InterfaceHandlers<typeof markdownEditorHost> | undefined;
+	readonly #onReady = new vscode.EventEmitter<void>();
+	readonly onReady = this.#onReady.event;
+	#ready = false;
+	#disposed = false;
 
-	constructor(readonly webview: vscode.Webview) { }
+	constructor(readonly webview: vscode.Webview, readonly logger: ILogger) {
+		this.#connection = this.#connect();
+	}
+
+	#connect(): HubRpcConnection<undefined> {
+		return HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
+			this.#messageSecret,
+			message => this.webview.postMessage(message),
+			listener => this.webview.onDidReceiveMessage(listener),
+		));
+	}
+
+	get renderer() {
+		return this.#connection.get(markdownEditorRenderer);
+	}
+
+	get ready(): boolean {
+		return this.#ready;
+	}
+
+	setHandlers(handlers: InterfaceHandlers<typeof markdownEditorHost>): void {
+		this.#handlers = handlers;
+		this.#connection.register(markdownEditorHost, handlers);
+	}
+
+	acceptReady(): void {
+		this.#ready = true;
+	}
+
+	publishReady(): void {
+		this.#onReady.fire();
+	}
+
+	reset(): void {
+		this.#ready = false;
+		this.#connection.close();
+		this.#messageSecret = generateUuid();
+		this.#connection = this.#connect();
+		if (this.#handlers) {
+			this.#connection.register(markdownEditorHost, this.#handlers);
+		}
+	}
 
 	get messageSecret(): string {
 		return this.#messageSecret;
 	}
 
-	postMessage(message: object): Thenable<boolean> {
-		return this.webview.postMessage({ ...message, messageSecret: this.#messageSecret });
+	report(operation: string, request: Promise<void>): void {
+		void request.catch(error => {
+			if (!this.#disposed) {
+				this.logger.trace('Markdown editor RPC', operation, error);
+			}
+		});
+	}
+
+	dispose(): void {
+		this.#disposed = true;
+		this.#ready = false;
+		this.#connection.close();
+		this.#onReady.dispose();
 	}
 }
 
@@ -255,7 +298,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const webview = new AuthenticatedWebview(webviewPanel.webview);
+		const webview = new AuthenticatedWebview(webviewPanel.webview, this.#logger);
 		this.#webviewPanels.set(webviewPanel, webview);
 		const codeBlockEditorProviders = this.#loadCodeBlockEditorProviders(webviewPanel.webview);
 		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview);
@@ -313,11 +356,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 			const state = new CodeBlockEditorHostTransportState(
 				runtimeKey,
-				message => editorWebview.postMessage({
-					type: 'codeBlockEditorHostTransportMessage',
+				message => editorWebview.report('Publish code block editor message', editorWebview.renderer.codeBlockEditorHostTransportMessage({
 					runtimeId,
 					message,
-				}),
+				})),
 			);
 			hostTransports.set(runtimeId, state);
 			void this.#initializeCodeBlockEditorHostTransport(contribution, state, resolveCancellation.token).then(initialized => {
@@ -334,14 +376,13 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		async function postAuthoritativeUpdate(epoch = editQueue.invalidate()): Promise<void> {
 			const content = document.getText();
 			webviewText = content;
-			const accepted = await editorWebview.postMessage({
-				type: 'update',
+			if (!editorWebview.ready) {
+				return;
+			}
+			await editorWebview.renderer.update({
 				content,
 				editEpoch: epoch,
 			});
-			if (!accepted) {
-				throw new Error('Markdown editor webview rejected authoritative update');
-			}
 		}
 		const editQueue = new RecoveringTaskQueue(
 			async (error, epoch) => {
@@ -354,11 +395,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			document,
 			this.#linkOpener,
 			this.#logger,
-			message => editorWebview.postMessage(message),
+			params => editorWebview.renderer.richLinkPresentations(params),
 		);
 		const postCodeBlockEditorProviders = async (): Promise<void> => {
 			if (webviewReady && codeBlockEditorProviders) {
-				await editorWebview.postMessage({ type: 'codeBlockEditorProviders', codeBlockEditorProviders });
+				await editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
 			}
 		};
 		const initialContributionUpdate = contributionUpdate;
@@ -374,167 +415,133 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			}
 		});
 
-		const onMessage = editorWebview.webview.onDidReceiveMessage(async (message) => {
-			switch (message.type) {
-				case 'ready': {
-					webviewReady = true;
-					if (message.documentVersion !== document.version || message.editEpoch !== editQueue.epoch) {
-						await postAuthoritativeUpdate();
+		const comments = this.#wireComments(document, editorWebview);
+		editorWebview.setHandlers({
+			ready: async (message, _context, { signal }) => {
+				webviewReady = true;
+				editorWebview.acceptReady();
+				if (message.documentVersion !== document.version || message.editEpoch !== editQueue.epoch) {
+					await postAuthoritativeUpdate();
+				}
+				signal.throwIfAborted();
+				editorWebview.publishReady();
+				await postCodeBlockEditorProviders();
+			},
+
+			resolveCodeBlockEditor: async (message, _context, { signal }) => {
+				const provider = this.#contributions.contributions.codeBlockEditorProviders.find(candidate => candidate.id === message.providerId);
+				const descriptor = provider
+					? await this.#resolveCodeBlockEditor(provider, document.uri, message.language, editorWebview.webview)
+					: undefined;
+				signal.throwIfAborted();
+				return { descriptor };
+			},
+
+			createCodeBlockEditorHostTransport: message => {
+				createHostTransport(message.runtimeId, message.providerId, message.runtimeKey);
+			},
+
+			codeBlockEditorHostTransportMessage: message => {
+				hostTransports.get(message.runtimeId)?.acceptMessage(message.message);
+			},
+
+			disposeCodeBlockEditorHostTransport: message => {
+				disposeHostTransport(message.runtimeId);
+			},
+
+			codeBlockEditorDiagnostic: message => {
+				this.#logger.trace('Markdown code block editor', message.message);
+			},
+
+			richLinkTargets: message => {
+				richLinks.updateTargets(message.hrefs);
+			},
+
+			editorFocusChanged: async message => {
+				if (message.focused) {
+					this.#focusedWebviewPanels.add(webviewPanel);
+				} else {
+					this.#focusedWebviewPanels.delete(webviewPanel);
+				}
+				await this.#updateEditorFocusContext();
+			},
+
+
+			setReadonly: async message => {
+				await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, message.readonly);
+			},
+			history: async (message, _context, { signal }) => {
+				// The TextDocument owns undo/redo, so route the chord to the built-in
+				// command; the active custom editor input scopes it to this resource's
+				// history, shared with the Edit menu and Command Palette. Drain any
+				// in-flight edit first and only act while this panel is active, so the
+				// chord cannot race a pending edit or land on a different document.
+				await editQueue.drain();
+				signal.throwIfAborted();
+				if (webviewPanel.active && !resolveCancellation.token.isCancellationRequested) {
+					await vscode.commands.executeCommand(message.command);
+				}
+			},
+			openLink: async (message, _context, { signal }) => {
+				// Link targets resolve against the authoritative document. Drain
+				// accepted edits so the resolved line/column belongs to this epoch.
+				await editQueue.drain();
+				signal.throwIfAborted();
+				if (await this.#tryOpenLink(message.href)) {
+					return;
+				}
+				signal.throwIfAborted();
+				const target = await this.#linkOpener.resolveDocumentLink(message.href, document.uri);
+				signal.throwIfAborted();
+				if (message.href.includes('#')) {
+					const range = getInDocumentLinkTargetRange(document, target, webviewText);
+					if (range) {
+						await editorWebview.renderer.revealLinkTarget(range);
+						return;
 					}
-					await postCodeBlockEditorProviders();
-					break;
 				}
-
-				case 'resolveCodeBlockEditor': {
-					const requestId = message.requestId;
-					const provider = typeof message.providerId === 'string'
-						? this.#contributions.contributions.codeBlockEditorProviders.find(candidate => candidate.id === message.providerId)
-						: undefined;
-					const descriptor = provider && typeof message.language === 'string'
-						? await this.#resolveCodeBlockEditor(provider, document.uri, message.language, editorWebview.webview)
-						: undefined;
-					if (resolveCancellation.token.isCancellationRequested) {
-						break;
+				await this.#linkOpener.openResolvedDocumentLink(message.href, document.uri, target);
+			},
+			edit: async message => {
+				const messageEdit = readMarkdownEditorEdit(message);
+				if (!messageEdit) {
+					throw new Error('Invalid Markdown editor edit range');
+				}
+				if (messageEdit.editEpoch !== editQueue.epoch) {
+					this.#logger.trace('Markdown editor', `Ignored edit from stale epoch ${messageEdit.editEpoch}; current epoch is ${editQueue.epoch}`);
+					return;
+				}
+				await editQueue.enqueue(messageEdit.editEpoch, async () => {
+					const documentText = document.getText();
+					const computedEdit = computeMarkdownEditorEdit(document.uri, documentText, document.eol, webviewText, messageEdit);
+					if (!computedEdit) {
+						throw new Error(`Edit range ${messageEdit.start}-${messageEdit.endExclusive} is invalid for the current webview document`);
 					}
-					await editorWebview.postMessage({
-						type: 'resolvedCodeBlockEditor',
-						requestId,
-						descriptor,
-					});
-					break;
-				}
-
-				case 'createCodeBlockEditorHostTransport': {
-					if (
-						typeof message.runtimeId === 'string'
-						&& typeof message.providerId === 'string'
-						&& typeof message.runtimeKey === 'string'
-					) {
-						createHostTransport(message.runtimeId, message.providerId, message.runtimeKey);
-					}
-					break;
-				}
-
-				case 'codeBlockEditorHostTransportMessage': {
-					if (typeof message.runtimeId === 'string') {
-						hostTransports.get(message.runtimeId)?.acceptMessage(message.message);
-					}
-					break;
-				}
-
-				case 'disposeCodeBlockEditorHostTransport': {
-					if (typeof message.runtimeId === 'string') {
-						disposeHostTransport(message.runtimeId);
-					}
-					break;
-				}
-
-				case 'codeBlockEditorDiagnostic': {
-					if (typeof message.message === 'string') {
-						this.#logger.trace('Markdown code block editor', message.message);
-					}
-					break;
-				}
-
-				case 'richLinkTargets': {
-					if (Array.isArray(message.hrefs)) {
-						richLinks.updateTargets(message.hrefs.filter((href: unknown): href is string => typeof href === 'string'));
-					}
-					break;
-				}
-
-				case 'editorFocusChanged': {
-					if (message.focused) {
-						this.#focusedWebviewPanels.add(webviewPanel);
-					} else {
-						this.#focusedWebviewPanels.delete(webviewPanel);
-					}
-					await this.#updateEditorFocusContext();
-					break;
-				}
-
-
-				case 'setReadonly': {
-					// Remember the edit/read-only choice as the global default for the
-					// next Markdown editor.
-					await this.#globalState.update(MarkdownEditorProvider.#readonlyStateKey, !!message.readonly);
-					break;
-				}
-				case 'history': {
-					// The TextDocument owns undo/redo, so route the chord to the built-in
-					// command; the active custom editor input scopes it to this resource's
-					// history, shared with the Edit menu and Command Palette. Drain any
-					// in-flight edit first and only act while this panel is active, so the
-					// chord cannot race a pending edit or land on a different document.
-					if (message.command === 'undo' || message.command === 'redo') {
-						await editQueue.drain();
-						if (webviewPanel.active) {
-							await vscode.commands.executeCommand(message.command);
+					expectedWebviewContent = {
+						content: computedEdit.expectedDocumentText,
+						epoch: messageEdit.editEpoch,
+					};
+					const edit = new vscode.WorkspaceEdit();
+					edit.replace(
+						document.uri,
+						computedEdit.range,
+						computedEdit.replacementText,
+					);
+					try {
+						if (!await vscode.workspace.applyEdit(edit)) {
+							throw new Error('Workspace rejected Markdown editor edit');
 						}
-					}
-					break;
-				}
-				case 'openLink': {
-					if (typeof message.href !== 'string') {
-						break;
-					}
-					// Link targets resolve against the authoritative document. Drain
-					// accepted edits so the resolved line/column belongs to this epoch.
-					await editQueue.drain();
-					if (await this.#tryOpenLink(message.href)) {
-						break;
-					}
-					const target = await this.#linkOpener.resolveDocumentLink(message.href, document.uri);
-					if (message.href.includes('#')) {
-						const range = getInDocumentLinkTargetRange(document, target, webviewText);
-						if (range) {
-							await editorWebview.postMessage({ type: 'revealLinkTarget', ...range });
-							break;
+						if (messageEdit.editEpoch === editQueue.epoch) {
+							webviewText = computedEdit.nextWebviewText;
 						}
+					} finally {
+						expectedWebviewContent = undefined;
 					}
-					await this.#linkOpener.openResolvedDocumentLink(message.href, document.uri, target);
-					break;
-				}
-				case 'edit': {
-					const messageEdit = readMarkdownEditorEdit(message);
-					if (!messageEdit) {
-						this.#logger.trace('Markdown editor', 'Ignored invalid edit message');
-						break;
-					}
-					if (messageEdit.editEpoch !== editQueue.epoch) {
-						this.#logger.trace('Markdown editor', `Ignored edit from stale epoch ${messageEdit.editEpoch}; current epoch is ${editQueue.epoch}`);
-						break;
-					}
-					await editQueue.enqueue(messageEdit.editEpoch, async () => {
-						const documentText = document.getText();
-						const computedEdit = computeMarkdownEditorEdit(document.uri, documentText, document.eol, webviewText, messageEdit);
-						if (!computedEdit) {
-							throw new Error(`Edit range ${messageEdit.start}-${messageEdit.endExclusive} is invalid for the current webview document`);
-						}
-						expectedWebviewContent = {
-							content: computedEdit.expectedDocumentText,
-							epoch: messageEdit.editEpoch,
-						};
-						const edit = new vscode.WorkspaceEdit();
-						edit.replace(
-							document.uri,
-							computedEdit.range,
-							computedEdit.replacementText,
-						);
-						try {
-							if (!await vscode.workspace.applyEdit(edit)) {
-								throw new Error('Workspace rejected Markdown editor edit');
-							}
-							if (messageEdit.editEpoch === editQueue.epoch) {
-								webviewText = computedEdit.nextWebviewText;
-							}
-						} finally {
-							expectedWebviewContent = undefined;
-						}
-					});
-					break;
-				}
-			}
+				});
+			},
+			addComment: comments.addComment,
+			deleteComment: comments.deleteComment,
+			highlight: async ({ source, languageId }) => vscode.languages.computeFullSyntaxHighlighting(source, languageId),
 		});
 
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -557,13 +564,16 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const quickDiff = originalDocument
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview)
 			: this.#wireQuickDiff(document, editorWebview);
-		const comments = this.#wireComments(document, editorWebview);
 		const reloadWebview = (): void => {
 			webviewReady = false;
 			void editQueue.enqueueBarrier(async epoch => {
+				if (resolveCancellation.token.isCancellationRequested) {
+					return;
+				}
 				disposeHostTransports();
 				expectedWebviewContent = undefined;
 				webviewText = document.getText();
+				editorWebview.reset();
 				this.#configureWebview(document, editorWebview, epoch);
 				await refreshCodeBlockEditorProviders(true, true);
 			});
@@ -622,13 +632,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 
 		webviewPanel.onDidDispose(() => {
 			contributionUpdate++;
+			editQueue.invalidate();
 			resolveCancellation.cancel();
 			resolveCancellation.dispose();
 			disposeHostTransports();
 			this.#webviewPanels.delete(webviewPanel);
 			this.#focusedWebviewPanels.delete(webviewPanel);
 			this.#updateEditorFocusContext();
-			onMessage.dispose();
+			editorWebview.dispose();
 			onDocumentChange.dispose();
 			highlight.dispose();
 			quickDiff.dispose();
@@ -652,7 +663,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			this.#logger.trace('Markdown editor command', `Ignored ${command} because no Markdown editor is active`);
 			return;
 		}
-		await activeWebview.postMessage({ type: 'command', command });
+		await activeWebview.renderer.command({ command });
 	}
 
 	async #updateEditorFocusContext(): Promise<void> {
@@ -885,7 +896,6 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * offsets.
 	 */
 	#wireQuickDiff(document: vscode.TextDocument, editorWebview: AuthenticatedWebview): vscode.Disposable {
-		const webview = editorWebview.webview;
 		const diffProvider = vscode.window.createSourceControlDiffInformation(document.uri);
 
 		const postMarkers = () => {
@@ -894,54 +904,49 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			// version. Only map them to offsets while that version still matches the
 			// document we hold, otherwise the line positions could be stale. A newer
 			// diff for the current version will arrive via onDidChange.
-			if (!diffInformation || diffInformation.isStale) {
+			if (!editorWebview.ready || !diffInformation || diffInformation.isStale) {
 				return;
 			}
-			editorWebview.postMessage({ type: 'gutterMarkers', markers: toGutterMarkers(document, diffInformation.changes) });
+			editorWebview.report('Publish quick diff', editorWebview.renderer.gutterMarkers({ markers: toGutterMarkers(document, diffInformation.changes) }));
 		};
 
 		const onChange = diffProvider.onDidChange(postMarkers);
 		// Re-send once the webview has (re)initialized its model, and whenever the
 		// document settles on the version the changes were computed for.
-		const onMessage = webview.onDidReceiveMessage((message) => {
-			if (message.type === 'ready') {
-				postMarkers();
-			}
-		});
+		const onReady = editorWebview.onReady(postMarkers);
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument((e) => {
 			if (e.document.uri.toString() === document.uri.toString()) {
 				postMarkers();
 			}
 		});
 
-		return vscode.Disposable.from(diffProvider, onChange, onMessage, onDocumentChange);
+		return vscode.Disposable.from(diffProvider, onChange, onReady, onDocumentChange);
 	}
 
 	#wireDocumentDiff(originalDocument: vscode.TextDocument, modifiedDocument: vscode.TextDocument, editorWebview: AuthenticatedWebview): vscode.Disposable {
-		const webview = editorWebview.webview;
 		const lineDiffProvider = new MarkdownPreviewLineDiffProvider(originalDocument, modifiedDocument);
 		const postMarkers = async () => {
+			if (!editorWebview.ready) {
+				return;
+			}
 			const originalVersion = originalDocument.version;
 			const modifiedVersion = modifiedDocument.version;
 			const changes = await lineDiffProvider.getChangedLineRanges();
 			if (originalVersion !== originalDocument.version || modifiedVersion !== modifiedDocument.version) {
 				return;
 			}
-			editorWebview.postMessage({ type: 'gutterMarkers', markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
+			await editorWebview.renderer.gutterMarkers({ markers: lineRangesToGutterMarkers(modifiedDocument, changes) });
 		};
 
-		const onMessage = webview.onDidReceiveMessage(message => {
-			if (message.type === 'ready') {
-				void postMarkers();
-			}
-		});
+		const publishMarkers = () => editorWebview.report('Publish document diff', postMarkers());
+		const onReady = editorWebview.onReady(publishMarkers);
 		const onDocumentChange = vscode.workspace.onDidChangeTextDocument(event => {
 			if (event.document.uri.toString() === originalDocument.uri.toString() || event.document.uri.toString() === modifiedDocument.uri.toString()) {
-				void postMarkers();
+				publishMarkers();
 			}
 		});
 
-		return vscode.Disposable.from(onMessage, onDocumentChange);
+		return vscode.Disposable.from(onReady, onDocumentChange);
 	}
 
 	/**
@@ -952,13 +957,14 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * Comment ranges are converted between {@link vscode.Range} and the source
 	 * character offsets the webview works in.
 	 */
-	#wireComments(document: vscode.TextDocument, editorWebview: AuthenticatedWebview): vscode.Disposable {
-		const webview = editorWebview.webview;
+	#wireComments(document: vscode.TextDocument, editorWebview: AuthenticatedWebview): vscode.Disposable & Pick<InterfaceHandlers<typeof markdownEditorHost>, 'addComment' | 'deleteComment'> {
 		const commentsProvider = vscode.window.createAgentEditorComments(document.uri);
-		let webviewReady = false;
 		let revealedCommentId: string | undefined;
 
 		const postComments = () => {
+			if (!editorWebview.ready) {
+				return;
+			}
 			const comments = commentsProvider.comments.map(comment => ({
 				id: comment.id,
 				start: document.offsetAt(comment.range.start),
@@ -966,11 +972,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				body: comment.body,
 				author: comment.author,
 			}));
-			editorWebview.postMessage({ type: 'comments', comments, acceptsComments: commentsProvider.acceptsComments });
+			editorWebview.report('Publish comments', editorWebview.renderer.comments({ comments, acceptsComments: commentsProvider.acceptsComments }));
 		};
 		const postReveal = () => {
-			if (webviewReady && revealedCommentId) {
-				editorWebview.postMessage({ type: 'revealComment', id: revealedCommentId });
+			if (editorWebview.ready && revealedCommentId) {
+				editorWebview.report('Reveal comment', editorWebview.renderer.revealComment({ id: revealedCommentId }));
 			}
 		};
 
@@ -979,23 +985,27 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			revealedCommentId = id;
 			postReveal();
 		});
-		const onMessage = webview.onDidReceiveMessage((message) => {
-			if (message.type === 'ready') {
-				webviewReady = true;
-				postComments();
-				postReveal();
-			} else if (message.type === 'addComment') {
+		const onReady = editorWebview.onReady(() => {
+			postComments();
+			postReveal();
+		});
+
+		return {
+			addComment: message => {
+				if (message.endExclusive < message.start || message.endExclusive > document.getText().length) {
+					throw new Error('Invalid Markdown editor comment range');
+				}
 				const range = new vscode.Range(
 					document.positionAt(message.start),
 					document.positionAt(message.endExclusive),
 				);
 				commentsProvider.addComment(range, message.text);
-			} else if (message.type === 'deleteComment') {
+			},
+			deleteComment: message => {
 				commentsProvider.deleteComment(message.id);
-			}
-		});
-
-		return vscode.Disposable.from(commentsProvider, onChange, onDidRevealComment, onMessage);
+			},
+			dispose: () => vscode.Disposable.from(commentsProvider, onChange, onDidRevealComment, onReady).dispose(),
+		};
 	}
 
 
@@ -1005,25 +1015,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	 * it directly. Also forwards theme changes so the webview can re-highlight.
 	 */
 	#wireHighlight(editorWebview: AuthenticatedWebview): vscode.Disposable {
-		const webview = editorWebview.webview;
-		const onMessage = webview.onDidReceiveMessage(async (message) => {
-			if (message.type !== 'highlight') {
-				return;
+		return vscode.languages.onDidChangeSyntaxHighlighting(() => {
+			if (editorWebview.ready) {
+				editorWebview.report('Refresh highlighting', editorWebview.renderer.highlightThemeChanged({}));
 			}
-			const result = await vscode.languages.computeFullSyntaxHighlighting(message.source, message.languageId);
-			editorWebview.postMessage({
-				type: 'highlightResult',
-				requestId: message.requestId,
-				tokens: result.tokens,
-				colorMap: result.colorMap,
-			});
 		});
-
-		const onThemeChange = vscode.languages.onDidChangeSyntaxHighlighting(() => {
-			editorWebview.postMessage({ type: 'highlightThemeChanged' });
-		});
-
-		return vscode.Disposable.from(onMessage, onThemeChange);
 	}
 
 	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, editEpoch: number): string {

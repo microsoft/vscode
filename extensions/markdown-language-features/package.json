@@ -1934,6 +1934,7 @@
     "build-webview": "node ./esbuild.webview.mts",
     "watch-webview": "node ./esbuild.webview.mts --watch",
     "build-markdown-editor": "node ./esbuild.markdownEditor.mts",
+    "typecheck-markdown-editor": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.markdownEditor.json",
     "watch-markdown-editor": "node ./esbuild.markdownEditor.mts --watch",
     "update-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --write",
     "check-markdown-editor-package-json": "node ./scripts/updateMarkdownEditorPackageJson.mts --check",
@@ -1964,11 +1965,13 @@
     "yaml": "^2.8.3"
   },
   "devDependencies": {
+    "@vscode/hubrpc": "0.0.2-20",
     "@types/dompurify": "^3.0.5",
     "@types/lodash.throttle": "^4.1.9",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "24.x",
     "@types/picomatch": "^2.3.0",
+    "zod": "4.4.3",
     "@types/vscode-notebook-renderer": "^1.60.0",
     "@types/vscode-webview": "^1.57.0",
     "@vscode/markdown-it-katex": "^1.1.1",
