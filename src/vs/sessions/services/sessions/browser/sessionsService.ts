@@ -661,9 +661,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 		disposables.add(autorun(reader => {
 			const chat = activeSession.activeChat.read(reader);
 			const mainChat = activeSession.mainChat.read(reader);
-			const hasMultipleAggregateChats = activeSession.chats.read(reader)
-				.filter(candidate => candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity.read(reader) !== ChatInteractivity.Hidden)
-				.length > 1;
 			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
 			previousActiveChat = chat?.resource;
 			if (activeChatChanged) {
@@ -684,10 +681,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			lastReadRequest = { chat: chat.resource, version };
-			if (!hasMultipleAggregateChats && this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)) {
+			if (this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)) {
 				this.sessionsManagementService.markRead(activeSession, {
 					preserveExplicitUnread: !activeChatChanged,
-					chatVersion: version,
 				}).catch(onUnexpectedError);
 			} else {
 				this.sessionsManagementService.markChatRead(activeSession, chat).catch(onUnexpectedError);

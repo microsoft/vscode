@@ -1365,39 +1365,45 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
-		test('preserves an explicit unread active single chat until its completed-turn version changes', async () => {
-			const isRead = observableValue('isRead', true);
+		test('preserves an explicit unread active single chat until the chat advances', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', true);
 			const lastTurnEnd = observableValue<Date | undefined>('lastTurnEnd', new Date(1));
-			const main = { ...stubChat, isRead, lastTurnEnd };
+			const main = { ...stubChat, isRead: mainIsRead, lastTurnEnd };
 			const session = stubSession({
 				sessionId: 'explicit-unread',
 				providerId: 'test',
-				isRead,
+				isRead: sessionIsRead,
 				mainChat: constObservable(main),
 				chats: constObservable([main]),
 			});
-			const readChanges: boolean[] = [];
+			const readChanges: { readonly chat: string; readonly isRead: boolean }[] = [];
 			const provider = new class extends TestSessionsProvider {
-				override async setSessionReadState(_sessionId: string, read: boolean): Promise<void> {
-					readChanges.push(read);
-					isRead.set(read, undefined);
+				override async setChatReadState(_sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+					readChanges.push({ chat: chatResource.toString(), isRead });
+					mainIsRead.set(isRead, undefined);
 				}
 			}(session);
 			const { service, view } = createSessionsManagementService(session, disposables, provider);
 			await view.openSession(session.resource);
 
 			await service.markUnread(session);
-			const afterExplicitUnread = isRead.get();
+			const afterExplicitUnread = mainIsRead.get();
 			lastTurnEnd.set(new Date(2), undefined);
 
 			assert.deepStrictEqual({
 				afterExplicitUnread,
-				afterNewTurn: isRead.get(),
+				afterNewTurn: mainIsRead.get(),
+				sessionIsRead: sessionIsRead.get(),
 				readChanges,
 			}, {
 				afterExplicitUnread: false,
 				afterNewTurn: true,
-				readChanges: [false, true],
+				sessionIsRead: false,
+				readChanges: [
+					{ chat: 'test:/chat', isRead: false },
+					{ chat: 'test:/chat', isRead: true },
+				],
 			});
 		});
 
@@ -1442,9 +1448,10 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
-		test('uses the session read operation when only a tool peer accompanies the main chat', async () => {
-			const isRead = observableValue('isRead', false);
-			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead };
+		test('uses the main chat read operation when only a tool peer accompanies it', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
 			const toolIsRead = observableValue('toolIsRead', false);
 			const tool = {
 				...stubChat,
@@ -1456,18 +1463,17 @@ suite('SessionsManagementService', () => {
 			const session = stubSession({
 				sessionId: 'tool-peer',
 				providerId: 'test',
-				isRead,
+				isRead: sessionIsRead,
 				mainChat: constObservable(main),
 				chats: constObservable([main, tool]),
 			});
 			const readChanges: string[] = [];
 			const provider = new class extends TestSessionsProvider {
-				override async setSessionReadState(_sessionId: string, read: boolean): Promise<void> {
-					readChanges.push(`session:${read}`);
-					isRead.set(read, undefined);
-				}
 				override async setChatReadState(_sessionId: string, chatResource: URI, read: boolean): Promise<void> {
 					readChanges.push(`chat:${chatResource.toString()}:${read}`);
+					if (chatResource.toString() === main.resource.toString()) {
+						mainIsRead.set(read, undefined);
+					}
 				}
 			}(session);
 			const { view } = createSessionsManagementService(session, disposables, provider);
@@ -1480,10 +1486,10 @@ suite('SessionsManagementService', () => {
 				tool: tool.isRead.get(),
 				readChanges,
 			}, {
-				session: true,
+				session: false,
 				main: true,
 				tool: false,
-				readChanges: ['session:true'],
+				readChanges: ['chat:test:/main:true'],
 			});
 		});
 
@@ -1552,16 +1558,48 @@ suite('SessionsManagementService', () => {
 			);
 		});
 
-		test('explicit session read actions update only when requested', async () => {
-			const { session, service, view, isRead, readChanges } = createReadStateSessions();
-			await view.openSession(session.resource);
-			await service.markRead(session);
+		test('explicit session row read actions update the main chat only', async () => {
+			const sessionIsRead = observableValue('sessionIsRead', false);
+			const mainIsRead = observableValue('mainIsRead', true);
+			const main = { ...stubChat, isRead: mainIsRead };
+			const session = stubSession({
+				sessionId: 'explicit-main-chat-read',
+				providerId: 'test',
+				isRead: sessionIsRead,
+				mainChat: constObservable(main),
+				chats: constObservable([main]),
+			});
+			const chatReadChanges: boolean[] = [];
+			const sessionReadChanges: boolean[] = [];
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _chatResource: URI, isRead: boolean): Promise<void> {
+					chatReadChanges.push(isRead);
+					mainIsRead.set(isRead, undefined);
+				}
+				override async setSessionReadState(_sessionId: string, isRead: boolean): Promise<void> {
+					sessionReadChanges.push(isRead);
+					sessionIsRead.set(isRead, undefined);
+				}
+			}(session);
+			const { service } = createSessionsManagementService(session, disposables, provider);
+
 			await service.markUnread(session);
-			isRead.set(true, undefined);
+			const afterMarkUnread = { main: mainIsRead.get(), session: sessionIsRead.get() };
+			await service.markRead(session);
 
 			assert.deepStrictEqual(
-				{ isRead: isRead.get(), readChanges },
-				{ isRead: true, readChanges: [true, false] },
+				{
+					afterMarkUnread,
+					afterMarkRead: { main: mainIsRead.get(), session: sessionIsRead.get() },
+					chatReadChanges,
+					sessionReadChanges,
+				},
+				{
+					afterMarkUnread: { main: false, session: false },
+					afterMarkRead: { main: true, session: false },
+					chatReadChanges: [false, true],
+					sessionReadChanges: [],
+				},
 			);
 		});
 	});

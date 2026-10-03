@@ -258,6 +258,35 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
+	test('session row read actions target each selected main chat', async () => {
+		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+		const sessions = [createTestSession('First').session, createTestSession('Second').session];
+		const markedRead: string[] = [];
+		const markedUnread: string[] = [];
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async markRead(session: ISession): Promise<void> {
+				markedRead.push(session.mainChat.get().resource.toString());
+			}
+			override async markUnread(session: ISession): Promise<void> {
+				markedUnread.push(session.mainChat.get().resource.toString());
+			}
+			override async markAllRead(): Promise<void> {
+				throw new Error('Session row action must not use the aggregate read operation');
+			}
+		});
+
+		await CommandsRegistry.getCommand(MARK_SESSION_READ_COMMAND_ID)?.handler(instantiationService, sessions);
+		await CommandsRegistry.getCommand(MARK_SESSION_UNREAD_COMMAND_ID)?.handler(instantiationService, sessions);
+
+		assert.deepStrictEqual({
+			markedRead,
+			markedUnread,
+		}, {
+			markedRead: sessions.map(session => session.mainChat.get().resource.toString()),
+			markedUnread: sessions.map(session => session.mainChat.get().resource.toString()),
+		});
+	});
+
 	test('the main session context menu opens its main chat to the side', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
 		const { session } = createTestSession('Session');

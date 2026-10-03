@@ -1579,9 +1579,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				collapsed,
 			);
 			template.statusContext.set(sessionStatus);
-			const sessionIsRead = element.isRead.read(reader);
 			const isRead = getSessionRowIsRead(element, reader, !!this.options.deriveStatusFromMainChat);
-			template.isReadContext.set(sessionIsRead);
+			template.isReadContext.set(element.mainChat.read(reader).isRead.read(reader));
 			const isArchived = element.isArchived.read(reader);
 			template.isArchivedContext.set(isArchived);
 			const isQuickChat = element.isQuickChat?.read(reader) ?? false;
@@ -5486,7 +5485,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
-			[SessionIsReadContext.key, element.isRead.get()],
+			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
@@ -6636,7 +6635,7 @@ export class SessionsFlatList extends Disposable {
 		const disposables = new DisposableStore();
 		const contextKeyService = this.contextKeyService.createOverlay([
 			[SessionIsArchivedContext.key, session.isArchived.get()],
-			[SessionIsReadContext.key, session.isRead.get()],
+			[SessionIsReadContext.key, session.mainChat.get().isRead.get()],
 			[SessionTypeContext.key, session.sessionType],
 			[SessionProviderIdContext.key, session.providerId],
 			[SessionSupportsMultipleChatsContext.key, session.capabilities.get().supportsMultipleChats],

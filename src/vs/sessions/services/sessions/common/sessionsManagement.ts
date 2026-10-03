@@ -233,12 +233,10 @@ export interface IRecentlyOpenedSessions {
 	readonly other: ISession[];
 }
 
-/** Controls automatic read transitions for an active single-chat session. */
+/** Controls automatic read transitions for an active main chat. */
 export interface IMarkSessionReadOptions {
 	/** Preserve a user-requested unread state until the active chat advances. */
 	readonly preserveExplicitUnread?: boolean;
-	/** Version of the active chat used to detect a newly completed turn. */
-	readonly chatVersion?: number;
 }
 
 export interface ISessionsManagementService {
@@ -578,10 +576,10 @@ export interface ISessionsManagementService {
 	/** Mark a chat as read through its provider when it supports independent chat read state. */
 	markChatRead(session: ISession, chat: IChat): Promise<void>;
 
-	/** Mark a session as read through its provider. */
+	/** Mark the session's main chat as read through its provider. */
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;
 
-	/** Mark a session as unread through its provider. */
+	/** Mark the session's main chat as unread through its provider. */
 	markUnread(session: ISession): Promise<void>;
 
 	/** Mark all of the given sessions as read through their providers. */
