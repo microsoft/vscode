@@ -49,6 +49,7 @@ export const KnownSnippetVariableNames = Object.freeze<{ [key: string]: true }>(
 	'CURSOR_INDEX': true, // 0-offset
 	'CURSOR_NUMBER': true, // 1-offset
 	'RELATIVE_FILEPATH': true,
+	'REVERSE_RELATIVE_FILEPATH': true,
 	'BLOCK_COMMENT_START': true,
 	'BLOCK_COMMENT_END': true,
 	'LINE_COMMENT': true,
@@ -162,7 +163,8 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 	constructor(
 		private readonly _labelService: ILabelService,
-		private readonly _model: ITextModel
+		private readonly _model: ITextModel,
+		private readonly _workspaceService: IWorkspaceContextService | undefined,
 	) {
 		//
 	}
@@ -171,37 +173,63 @@ export class ModelBasedVariableResolver implements VariableResolver {
 
 		const { name } = variable;
 
-		if (name === 'TM_FILENAME') {
-			return path.basename(this._model.uri.fsPath);
+		switch (name) {
+			case 'TM_FILENAME':
+				return path.basename(this._model.uri.fsPath);
 
-		} else if (name === 'TM_FILENAME_BASE') {
-			const name = path.basename(this._model.uri.fsPath);
-			const idx = name.lastIndexOf('.');
-			if (idx <= 0) {
-				return name;
-			} else {
-				return name.slice(0, idx);
+			case 'TM_FILENAME_BASE': {
+				const name = path.basename(this._model.uri.fsPath);
+				const idx = name.lastIndexOf('.');
+				if (idx <= 0) {
+					return name;
+				} else {
+					return name.slice(0, idx);
+				}
 			}
 
-		} else if (name === 'TM_DIRECTORY') {
-			if (path.dirname(this._model.uri.fsPath) === '.') {
-				return '';
-			}
-			return this._labelService.getUriLabel(dirname(this._model.uri));
+			case 'TM_DIRECTORY':
+				if (path.dirname(this._model.uri.fsPath) === '.') {
+					return '';
+				}
+				return this._labelService.getUriLabel(dirname(this._model.uri));
 
-		} else if (name === 'TM_DIRECTORY_BASE') {
-			if (path.dirname(this._model.uri.fsPath) === '.') {
-				return '';
-			}
-			return path.basename(path.dirname(this._model.uri.fsPath));
+			case 'TM_DIRECTORY_BASE':
+				if (path.dirname(this._model.uri.fsPath) === '.') {
+					return '';
+				}
+				return path.basename(path.dirname(this._model.uri.fsPath));
 
-		} else if (name === 'TM_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri);
-		} else if (name === 'RELATIVE_FILEPATH') {
-			return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+			case 'TM_FILEPATH':
+				return this._labelService.getUriLabel(this._model.uri);
+
+			case 'RELATIVE_FILEPATH':
+				return this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+
+			case 'REVERSE_RELATIVE_FILEPATH':
+				return this._resolveReverseRelativeFilepath();
+
+			default:
+				return undefined;
+		}
+	}
+
+	private _resolveReverseRelativeFilepath(): string | undefined {
+		const folder = this._workspaceService?.getWorkspaceFolder(this._model.uri);
+		if (!folder) {
+			return undefined;
 		}
 
-		return undefined;
+		// Defer to the label service for the relative path text so that formatters,
+		// scheme handling and separator choice stay in sync with `RELATIVE_FILEPATH`.
+		const relativeLabel = this._labelService.getUriLabel(this._model.uri, { relative: true, noPrefix: true });
+		const separator = this._labelService.getSeparator(this._model.uri.scheme, this._model.uri.authority);
+
+		const parentDirectoryDepth = relativeLabel.length === 0 ? 0 : relativeLabel.split(separator).length - 1;
+		if (parentDirectoryDepth === 0) {
+			return '.';
+		}
+
+		return Array.from({ length: parentDirectoryDepth }, () => '..').join(separator);
 	}
 }
 
