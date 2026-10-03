@@ -21,7 +21,10 @@ import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, remo
 import { fetchSessionWithChat, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
+import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+
+const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
 const clearedOtlpTlsEnv = {
 	OTEL_EXPORTER_OTLP_CERTIFICATE: '',
@@ -45,11 +48,12 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 	let workspace: string;
 	let collector: ILocalOtlpHttpReceiver;
 	let initialized: boolean;
+	let allowUnconsumedResponses: boolean;
 
 	teardown(async function () {
 		this.timeout(120_000);
 		try {
-			await lease?.release(createdSessions, this.currentTest?.state === 'failed');
+			await lease?.release(createdSessions, this.currentTest?.state === 'failed', { allowUnconsumedResponses });
 		} finally {
 			try {
 				await lease?.dispose();
@@ -67,6 +71,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		spans.length = 0;
 		decodeErrors.length = 0;
 		initialized = false;
+		allowUnconsumedResponses = false;
 		const directory = await mkdtemp(join(tmpdir(), 'copilot-managed-otel-'));
 		tempDirs.push(directory);
 		workspace = join(directory, 'workspace');
@@ -172,11 +177,14 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		await completeCapturedTurn('otel-policy-a', 'otel-capture-second', await setPolicy('otel-policy-a'));
 	});
 
-	// The runtime currently rejects a changed process-wide OTel configuration (see KNOWN_ISSUES.md).
-	(process.env['AGENT_HOST_RUN_KNOWN_ISSUES'] === '1' ? test : test.skip)('new sessions honor changed managed telemetry without restarting', async function () {
+	(RECORD ? test.skip : test)('new sessions honor changed managed telemetry without restarting', async function () {
 		this.timeout(180_000);
 		await completeCapturedTurn('otel-policy-a', 'otel-policy-first', await setPolicy('otel-policy-a'));
-		await completeCapturedTurn('otel-policy-b', 'otel-policy-second', await setPolicy('otel-policy-b'));
+		await assertExpectedFailure('github/copilot-agent-runtime#24069',
+			/^Session error while driving otel-policy-second: sendFailed: Request session\.create failed with message: Standalone managed telemetry preparation failed: Managed telemetry conflicts with the already selected OTel configuration$/, async () => {
+				await completeCapturedTurn('otel-policy-b', 'otel-policy-second', await setPolicy('otel-policy-b'));
+			});
+		allowUnconsumedResponses = true;
 	});
 
 	test('new sessions honor changed managed telemetry after restarting', async function () {
