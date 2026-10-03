@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { makeTextResult } from './utils';
+import { makeTextResult, normalizeDiagnosticCode } from './utils';
 import { ILogger } from '../../../../../platform/log/common/logService';
 
 export function registerGetDiagnosticsTool(server: McpServer, logger: ILogger): void {
@@ -44,7 +44,7 @@ export function registerGetDiagnosticsTool(server: McpServer, logger: ILogger): 
 						end: { line: d.range.end.line, character: d.range.end.character },
 					},
 					source: d.source,
-					code: typeof d.code === 'object' ? d.code.value : d.code,
+					code: normalizeDiagnosticCode(d.code),
 				})),
 			})).filter(item => item.diagnostics.length > 0);
 
