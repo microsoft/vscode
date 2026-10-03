@@ -214,4 +214,26 @@ suite('Copilot app tool presentation compatibility', () => {
 			toolKind: undefined, invocationMessage: { markdown: 'Edit [a\\](command:unsafe).ts](file:///workspace/a%5D%28command%3Aunsafe%29.ts)' }, pastTenseMessage: 'Edited',
 		});
 	});
+
+	for (const { path, title, markdown } of [
+		{ path: 'C:\\workspace\\file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file:///c%3A/workspace/file.ts)' },
+		{ path: 'C:/workspace/file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file:///c%3A/workspace/file.ts)' },
+		{ path: 'C:\\workspace/mixed\\file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file:///c%3A/workspace/mixed/file.ts)' },
+		{ path: '\\\\server\\share\\file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file://server/share/file.ts)' },
+		{ path: '//server/share/file.ts', title: 'Edit file.ts', markdown: 'Edit [file.ts](file://server/share/file.ts)' },
+		{ path: '/workspace/a\\b.ts', title: 'Edit a\\b.ts', markdown: 'Edit [a\\\\b.ts](file:///workspace/a%5Cb.ts)' },
+		{ path: '/workspace/a\\', title: 'Edit a\\', markdown: 'Edit [a\\\\](file:///workspace/a%5C)' },
+		{ path: '/workspace/a\\].ts', title: 'Edit a\\].ts', markdown: 'Edit [a\\\\\\].ts](file:///workspace/a%5C%5D.ts)' },
+	]) {
+		test(`write permission preserves host path semantics for ${path}`, () => {
+			const pending: ToolCallPendingConfirmationState = {
+				status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'future_edit', displayName: 'Edit',
+				invocationMessage: 'Edit file', confirmationTitle: 'Edit file',
+				_meta: { promptRequest: { kind: 'write', fileName: path } },
+			};
+			assert.deepStrictEqual(readToolCallPresentation(pending), {
+				toolKind: undefined, invocationMessage: { markdown }, pastTenseMessage: undefined, confirmationTitle: title,
+			});
+		});
+	}
 });
