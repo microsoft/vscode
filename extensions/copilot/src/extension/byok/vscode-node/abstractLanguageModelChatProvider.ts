@@ -14,6 +14,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { LanguageModelChatApiType } from '../../../vscodeTypes';
 import { CopilotLanguageModelWrapper } from '../../conversation/vscode-node/languageModelAccess';
 import { BYOKAuthType, BYOKKnownModels, BYOKModelCapabilities, resolveModelInfo } from '../common/byokProvider';
+import { ILanguageModelRequestMiddlewareRegistry } from '../common/languageModelRequestMiddleware';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { byokKnownModelsToAPIInfoWithEffort } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
@@ -31,6 +32,8 @@ const apiTypes = LanguageModelChatApiType && {
 
 export interface ExtendedLanguageModelChatInformation<C extends LanguageModelChatConfiguration> extends LanguageModelChatInformation {
 	readonly configuration?: C;
+	/** The name of the provider group the model was configured in, if any. */
+	readonly providerGroup?: string;
 }
 
 export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelChatConfiguration = LanguageModelChatConfiguration, T extends ExtendedLanguageModelChatInformation<C> = ExtendedLanguageModelChatInformation<C>> implements LanguageModelChatProvider<T> {
@@ -66,7 +69,7 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 		await commands.executeCommand('lm.migrateLanguageModelsProviderGroup', { vendor: this._id, name, ...configuration });
 	}
 
-	async provideLanguageModelChatInformation({ silent, configuration }: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
+	async provideLanguageModelChatInformation({ silent, group, configuration }: PrepareLanguageModelChatModelOptions, token: CancellationToken): Promise<T[]> {
 		let apiKey: string | undefined = (configuration as C)?.apiKey;
 		if (!apiKey) {
 			apiKey = await this.configureDefaultGroupWithApiKeyOnly();
@@ -77,7 +80,8 @@ export abstract class AbstractLanguageModelChatProvider<C extends LanguageModelC
 			...model,
 			isBYOK: true,
 			apiKey,
-			configuration
+			configuration,
+			providerGroup: group,
 		}));
 	}
 
@@ -102,7 +106,8 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 		logService: ILogService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IConfigurationService protected readonly _configurationService: IConfigurationService,
-		@IExperimentationService protected readonly _expService: IExperimentationService
+		@IExperimentationService protected readonly _expService: IExperimentationService,
+		@ILanguageModelRequestMiddlewareRegistry private readonly _requestMiddlewareRegistry: ILanguageModelRequestMiddlewareRegistry,
 	) {
 		super(id, name, knownModels, byokStorageService, logService);
 		this._lmWrapper = this._instantiationService.createInstance(CopilotLanguageModelWrapper);
@@ -125,7 +130,25 @@ export abstract class AbstractOpenAICompatibleLMProvider<T extends LanguageModel
 
 	async provideLanguageModelChatResponse(model: OpenAICompatibleLanguageModelChatInformation<T>, messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>, options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Promise<void> {
 		const openAIChatEndpoint = await this.createOpenAIEndPoint(model);
+		await this.applyRequestMiddleware(openAIChatEndpoint, model, options, token);
 		return this._lmWrapper.provideLanguageModelResponse(openAIChatEndpoint, messages, options, options.requestInitiator, progress, token);
+	}
+
+	/**
+	 * Collects request-scoped headers from the registered language model request
+	 * middleware and applies them to `endpoint`. Subclasses that create their own
+	 * endpoint for a request must call this before making the request.
+	 */
+	protected async applyRequestMiddleware(endpoint: OpenAIEndpoint, model: OpenAICompatibleLanguageModelChatInformation<T>, options: ProvideLanguageModelChatResponseOptions, token: CancellationToken): Promise<void> {
+		const requestHeaders = await this._requestMiddlewareRegistry.provideRequestHeaders({
+			vendor: this._id,
+			modelId: model.id,
+			url: endpoint.urlOrRequestMetadata,
+			providerGroup: model.providerGroup,
+			requestInitiator: options.requestInitiator,
+			cancellationToken: token,
+		});
+		endpoint.applyRequestHeaders(requestHeaders);
 	}
 
 	async provideTokenCount(model: OpenAICompatibleLanguageModelChatInformation<T>, text: string | LanguageModelChatMessage | LanguageModelChatMessage2, token: CancellationToken): Promise<number> {

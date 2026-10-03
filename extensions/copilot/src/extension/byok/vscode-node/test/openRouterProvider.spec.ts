@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { BYOKModelCapabilities } from '../../common/byokProvider';
+import { LanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
 import { OpenRouterLMProvider } from '../openRouterProvider';
 
 /**
@@ -38,6 +39,7 @@ function createProvider(): TestableOpenRouterLMProvider {
 		{ createInstance: vi.fn().mockReturnValue({}) } as any,
 		{ isConfigured: vi.fn().mockReturnValue(false), getConfig: vi.fn(), setConfig: vi.fn() } as any,
 		{} as any,
+		new LanguageModelRequestMiddlewareRegistry(logService as any),
 	);
 }
 

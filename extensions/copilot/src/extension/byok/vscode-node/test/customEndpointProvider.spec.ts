@@ -7,9 +7,8 @@ import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
-import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
-import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
-import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
+import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
@@ -17,13 +16,14 @@ import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
-import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { ILanguageModelRequestMiddlewareRegistry, LanguageModelRequestContext } from '../../common/languageModelRequestMiddleware';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
+import { CapturingChatMLFetcher } from './capturingChatMLFetcher';
 import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
 
 const customResponsesModelId = 'custom-responses-model';
@@ -32,23 +32,6 @@ const customResponsesMarker = 'resp_custom_previous';
 class TestCustomEndpointBYOKModelProvider extends CustomEndpointBYOKModelProvider {
 	public createEndpoint(model: OpenAICompatibleLanguageModelChatInformation<CustomEndpointModelProviderConfig>): Promise<IChatEndpoint> {
 		return this.createOpenAIEndPoint(model);
-	}
-}
-
-class CapturingChatMLFetcher implements IChatMLFetcher {
-	declare readonly _serviceBrand: undefined;
-	readonly onDidMakeChatMLRequest = Event.None;
-	readonly requests: IFetchMLOptions[] = [];
-
-	private readonly delegate = new MockChatMLFetcher();
-
-	fetchOne(options: IFetchMLOptions): Promise<ChatResponse> {
-		this.requests.push(options);
-		return this.delegate.fetchOne();
-	}
-
-	fetchMany(): Promise<ChatResponses> {
-		return this.delegate.fetchMany();
 	}
 }
 
@@ -176,6 +159,119 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
+		it('adds request-scoped headers from matching middleware, overriding configured headers and the credential case-insensitively', async () => {
+			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			const contexts: LanguageModelRequestContext[] = [];
+			disposables.add(registry.register({
+				selector: { vendors: ['customendpoint'], modelIds: ['middleware-model'] },
+				provideRequestHeaders: async context => {
+					contexts.push(context);
+					return { 'x-dynamic': 'value', 'x-shared': 'middleware', Authorization: 'Bearer middleware-token' };
+				},
+			}));
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const [model] = await provider.provideLanguageModelChatInformation({
+				silent: true,
+				group: 'Acme',
+				configuration: {
+					apiKey: 'test-api-key',
+					models: [{
+						id: 'middleware-model',
+						name: 'Middleware Model',
+						url: 'https://api.example.com',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+						requestHeaders: { 'x-static': 'value', 'X-Shared': 'config' },
+					}],
+				}
+			}, tokenSource.token);
+
+			await provider.provideLanguageModelChatResponse(
+				model,
+				[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+				{
+					requestInitiator: 'core',
+					tools: [],
+					toolMode: vscode.LanguageModelChatToolMode.Auto,
+				},
+				{ report: () => undefined },
+				tokenSource.token,
+			);
+
+			const endpoint = chatMLFetcher.requests[0]?.endpoint;
+			expect({
+				contexts: contexts.map(({ cancellationToken, ...context }) => context),
+				headers: endpoint?.getExtraHeaders?.(),
+			}).toEqual({
+				contexts: [{
+					vendor: 'customendpoint',
+					modelId: 'middleware-model',
+					url: 'https://api.example.com/v1/chat/completions',
+					providerGroup: 'Acme',
+					requestInitiator: 'core',
+				}],
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer middleware-token',
+					'x-static': 'value',
+					'x-dynamic': 'value',
+					'x-shared': 'middleware',
+				},
+			});
+			// Context-size overrides clone the endpoint; the request-scoped headers must survive.
+			expect(endpoint?.cloneWithTokenOverride(1000).getExtraHeaders?.()).toEqual(endpoint?.getExtraHeaders?.());
+		});
+
+		it('keeps a credential scoped to its provider group when two groups share a URL', async () => {
+			const registry = accessor.get(ILanguageModelRequestMiddlewareRegistry);
+			disposables.add(registry.register({
+				selector: { vendors: ['customendpoint'], providerGroups: ['Acme Premium'] },
+				provideRequestHeaders: async ({ url }): Promise<Record<string, string>> => new URL(url).origin === 'https://gateway.example.com' ? { Authorization: 'Bearer gateway-token' } : {},
+			}));
+			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
+			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
+			const prepareGroup = (group: string, apiKey: string, id: string) => provider.provideLanguageModelChatInformation({
+				silent: true,
+				group,
+				configuration: {
+					apiKey,
+					models: [{
+						id,
+						name: id,
+						url: 'https://gateway.example.com',
+						maxInputTokens: 128000,
+						maxOutputTokens: 16000,
+						toolCalling: true,
+						vision: false,
+					}],
+				}
+			}, tokenSource.token);
+			const [premiumModel] = await prepareGroup('Acme Premium', 'premium-key', 'premium-model');
+			const [budgetModel] = await prepareGroup('Acme Budget', 'budget-key', 'budget-model');
+
+			for (const model of [premiumModel, budgetModel]) {
+				await provider.provideLanguageModelChatResponse(
+					model,
+					[new vscode.LanguageModelChatMessage(vscode.LanguageModelChatMessageRole.User, 'hello')],
+					{
+						requestInitiator: 'core',
+						tools: [],
+						toolMode: vscode.LanguageModelChatToolMode.Auto,
+					},
+					{ report: () => undefined },
+					tokenSource.token,
+				);
+			}
+
+			expect(chatMLFetcher.requests.map(request => request.endpoint.getExtraHeaders?.()?.Authorization)).toEqual([
+				'Bearer gateway-token',
+				'Bearer budget-key',
+			]);
+		});
+
 		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
@@ -660,6 +756,42 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				xApiKey: undefined,
 				authorization: 'Bearer override',
 				anthropicVersion: '2023-06-01',
+			});
+		});
+
+		it('suppresses default x-api-key on Messages API when request middleware supplies Authorization header', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata([ModelSupportedEndpoint.Messages]),
+				'test-api-key',
+				'https://anthropic.example.com/v1/messages');
+			endpoint.applyRequestHeaders({ 'Authorization': 'Bearer middleware-token' });
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				xApiKey: headers['x-api-key'],
+				authorization: headers['Authorization'],
+				anthropicVersion: headers['anthropic-version'],
+			}).toEqual({
+				xApiKey: undefined,
+				authorization: 'Bearer middleware-token',
+				anthropicVersion: '2023-06-01',
+			});
+		});
+
+		it('replaces default Bearer with api-key supplied by request middleware on Chat Completions endpoints', () => {
+			const endpoint = instaService.createInstance(CustomEndpointOAIEndpoint,
+				makeMetadata(undefined),
+				'test-api-key',
+				'https://api.example.com/v1/chat/completions');
+			endpoint.applyRequestHeaders({ 'api-key': 'middleware-key' });
+			const headers = endpoint.getExtraHeaders();
+
+			expect({
+				authorization: headers['Authorization'],
+				apiKey: headers['api-key'],
+			}).toEqual({
+				authorization: undefined,
+				apiKey: 'middleware-key',
 			});
 		});
 

@@ -5,6 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
+import { LanguageModelRequestMiddlewareRegistry } from '../../common/languageModelRequestMiddleware';
 import { OllamaLMProvider } from '../ollamaProvider';
 
 describe('OllamaLMProvider', () => {
@@ -76,7 +77,8 @@ describe('OllamaLMProvider', () => {
 			{
 				createInstance: vi.fn().mockReturnValue({}),
 			} as any,
-			{} as any
+			{} as any,
+			new LanguageModelRequestMiddlewareRegistry(logService as any),
 		);
 
 		const tokenSource = new vscode.CancellationTokenSource();
