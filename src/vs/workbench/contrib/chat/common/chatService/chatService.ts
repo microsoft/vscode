@@ -998,6 +998,7 @@ export namespace IChatToolInvocation {
 		source?: ToolConfirmationSource;
 		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
 		reasonMessage?: string | IMarkdownString;
+		resultDetails?: IToolResult['toolResultDetails'];
 	}
 
 	export type State =
@@ -1107,7 +1108,7 @@ export namespace IChatToolInvocation {
 		}
 
 		const state = invocation.state.read(reader);
-		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval) {
+		if (state.type === StateKind.Completed || state.type === StateKind.WaitingForPostApproval || state.type === StateKind.Cancelled) {
 			return state.resultDetails;
 		}
 

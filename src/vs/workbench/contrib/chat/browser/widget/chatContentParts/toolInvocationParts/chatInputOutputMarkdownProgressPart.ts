@@ -39,6 +39,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		return this.collapsibleListPart.codeblocks;
 	}
 
+	public updateInput(input: string): void {
+		this.collapsibleListPart.updateInput(input);
+	}
+
 	constructor(
 		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
 		context: IChatContentPartRenderContext,

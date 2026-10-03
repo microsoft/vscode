@@ -19,7 +19,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../../platform/act
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -210,8 +210,7 @@ class SaveResourcesAction extends Action2 {
 		const labelService = accessor.get(ILabelService);
 		const defaultFilepath = await fileDialog.defaultFilePath();
 
-		const savePart = async (part: IChatCollapsibleIODataPart, isFolder: boolean, uri: URI) => {
-			const target = isFolder ? joinPath(uri, basename(part.uri)) : uri;
+		const savePart = async (part: IChatCollapsibleIODataPart, target: URI) => {
 			try {
 				if (part.kind === 'data') {
 					await fileService.copy(part.uri, target, true);
@@ -250,7 +249,7 @@ class SaveResourcesAction extends Action2 {
 			if (!uri) {
 				return;
 			}
-			await withProgress(uri, [() => savePart(part, false, uri)]);
+			await withProgress(uri, [() => savePart(part, uri)]);
 		} else {
 			const uris = await fileDialog.showOpenDialog({
 				title: localize('chat.saveResources.title', "Pick folder to save resources"),
@@ -264,7 +263,26 @@ class SaveResourcesAction extends Action2 {
 				return;
 			}
 
-			await withProgress(uris[0], context.parts.map(part => () => savePart(part, true, uris[0])));
+			const folder = uris[0];
+			const caseSensitive = fileService.hasCapability(folder, FileSystemProviderCapabilities.PathCaseSensitive);
+			const nameKey = (name: string) => caseSensitive ? name : name.toLowerCase();
+			const reservedNames = new Set(context.parts.map(part => nameKey(basename(part.uri))));
+			const usedNames = new Set<string>();
+			const saves = context.parts.map(part => {
+				const name = basename(part.uri);
+				let targetName = name;
+				if (usedNames.has(nameKey(targetName))) {
+					const extension = extname(part.uri);
+					const stem = name.slice(0, name.length - extension.length);
+					let suffix = 2;
+					do {
+						targetName = `${stem}-${suffix++}${extension}`;
+					} while (reservedNames.has(nameKey(targetName)) || usedNames.has(nameKey(targetName)));
+				}
+				usedNames.add(nameKey(targetName));
+				return () => savePart(part, joinPath(folder, targetName));
+			});
+			await withProgress(folder, saves);
 		}
 	}
 }

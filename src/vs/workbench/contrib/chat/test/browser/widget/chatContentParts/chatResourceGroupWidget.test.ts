@@ -10,11 +10,18 @@ import { DeferredPromise, retry, timeout } from '../../../../../../../base/commo
 import { decodeBase64, VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Disposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { dirname } from '../../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { CommandsRegistry } from '../../../../../../../platform/commands/common/commands.js';
+import { IFileDialogService } from '../../../../../../../platform/dialogs/common/dialogs.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import { FileSystemProviderCapabilities, IFileService } from '../../../../../../../platform/files/common/files.js';
+import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -44,6 +51,49 @@ suite('ChatResourceGroupWidget', () => {
 			},
 		});
 	});
+
+	for (const { names, savedNames, caseSensitive = true } of [
+		{ names: ['image.png', 'image.png'], savedNames: ['image.png', 'image-2.png'] },
+		{ names: ['image.png', 'image.png', 'image-2.png'], savedNames: ['image.png', 'image-3.png', 'image-2.png'] },
+		{ names: ['image', 'image'], savedNames: ['image', 'image-2'] },
+		{ names: ['IMAGE.PNG', 'image.png'], savedNames: ['IMAGE.PNG', 'image.png'], caseSensitive: true },
+		{ names: ['IMAGE.PNG', 'image.png'], savedNames: ['IMAGE.PNG', 'image-2.png'], caseSensitive: false },
+	]) {
+		test(`saving a gallery preserves every resource with duplicate names (${names.join(', ')}, caseSensitive=${caseSensitive})`, async () => {
+			const fileService = store.add(new FileService(new NullLogService()));
+			store.add(fileService.registerProvider(Schemas.inMemory, store.add(new class extends InMemoryFileSystemProvider {
+				override get capabilities() {
+					return caseSensitive ? super.capabilities : super.capabilities & ~FileSystemProviderCapabilities.PathCaseSensitive;
+				}
+			}())));
+			instantiationService.stub(IFileService, fileService);
+			const destination = URI.from({ scheme: Schemas.inMemory, path: '/saved' });
+			await fileService.createFolder(destination);
+			instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() {
+				override async defaultFilePath() { return destination; }
+				override async showOpenDialog() { return [destination]; }
+			}());
+			const parts: IChatCollapsibleIODataPart[] = [];
+			for (const [index, name] of names.entries()) {
+				const uri = URI.from({ scheme: Schemas.inMemory, path: `/source-${index}/${name}` });
+				await fileService.createFolder(dirname(uri));
+				await fileService.writeFile(uri, VSBuffer.fromString(`image-${index}`));
+				parts.push({ kind: 'data', uri, mimeType: 'image/png' });
+			}
+			const command = CommandsRegistry.getCommand('chat.toolOutput.save');
+			assert.ok(command);
+			await instantiationService.invokeFunction(accessor => command.handler(accessor, { parts }));
+			const saved = await fileService.resolve(destination);
+			const contents = await Promise.all((saved.children ?? []).map(async file => ({
+				name: file.name,
+				value: (await fileService.readFile(file.resource)).value.toString(),
+			})));
+			assert.deepStrictEqual(contents.sort((a, b) => a.name.localeCompare(b.name)), savedNames.map((name, index) => ({
+				name,
+				value: `image-${index}`,
+			})).sort((a, b) => a.name.localeCompare(b.name)));
+		});
+	}
 
 	function render(parts: IChatCollapsibleIODataPart[], inline = true, animateImageReveal = false, imageDimensions?: ResourceMap<dom.IDimension>): ChatResourceGroupWidget {
 		const host = dom.append(mainWindow.document.body, dom.$(animateImageReveal ? '.chat-image-generation-single' : 'div'));

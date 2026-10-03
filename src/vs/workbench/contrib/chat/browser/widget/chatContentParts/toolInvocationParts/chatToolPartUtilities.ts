@@ -46,6 +46,12 @@ export function createImageGenerationLabel(message: string): MarkdownString {
 }
 
 export function hasToolInvocationError(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
+	if (isImageGenerationToolInvocation(toolInvocation)) {
+		const confirmation = IChatToolInvocation.executionConfirmedOrDenied(toolInvocation);
+		if (confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped) {
+			return false;
+		}
+	}
 	const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 	if (IChatToolInvocation.resultError(toolInvocation) || (isToolResultInputOutputDetails(resultDetails) && resultDetails.isError)) {
 		return true;

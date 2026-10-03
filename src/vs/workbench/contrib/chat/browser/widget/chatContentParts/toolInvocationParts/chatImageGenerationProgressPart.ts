@@ -58,8 +58,7 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 			const inputText = (typeof input === 'string' ? input : JSON.stringify(input, null, 2))
 				?? localize('imageGeneration.inputUnavailable', "The image prompt is not available yet.");
 			const message = getImageGenerationInvocationMessage(toolInvocation, reader);
-			if (!this.details.value || inputText !== previousInput) {
-				this.details.clear();
+			if (!this.details.value) {
 				const details = this.details.value = instantiationService.createInstance(
 					ChatInputOutputMarkdownProgressPart,
 					toolInvocation,
@@ -73,8 +72,13 @@ export class ChatImageGenerationToolProgressPart extends BaseChatToolInvocationS
 					false,
 				);
 				dom.reset(detailsContainer, details.domNode);
-			} else if (message !== previousMessage) {
-				this.details.value.title = createImageGenerationLabel(message);
+			} else {
+				if (inputText !== previousInput) {
+					this.details.value.updateInput(inputText);
+				}
+				if (message !== previousMessage) {
+					this.details.value.title = createImageGenerationLabel(message);
+				}
 			}
 			if (inputText !== previousInput || message !== previousMessage) {
 				previousInput = inputText;

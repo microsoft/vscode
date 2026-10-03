@@ -145,7 +145,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			toolInvocation.toolSpecificData?.kind,
 			IChatToolInvocation.isComplete(toolInvocation),
 		);
-		this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
+		this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(context.content);
 		this.renderedGeneratedImageResults = this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === toolInvocation.toolCallId
 			? getGeneratedImageResultSnapshot(context.content) : [];
 		this.imageGenerationProgressSuppressed = this.shouldSuppressImageGenerationProgress();
@@ -253,9 +253,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			this.domNode.classList.toggle('chat-tool-call-error', !!error);
 			this.renderedGeneratedImageResult = shouldRenderGeneratedImageResult(toolInvocation.toolSpecificData?.kind, IChatToolInvocation.isComplete(toolInvocation));
 			const isSingleImage = isImageGenerationToolInvocation(toolInvocation) && !error
-				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(context.content) === 1));
+				&& (isGeneratingImage || (this.renderedGeneratedImageResult && getGeneratedImageResultCount(toolInvocation.subAgentInvocationId ? [toolInvocation] : context.content, toolInvocation.subAgentInvocationId) === 1));
 			this.domNode.classList.toggle('chat-image-generation-single', isSingleImage);
-			this.renderedLastGeneratedImageToolCallId = getLastGeneratedImageToolCallId(context.content);
+			this.renderedLastGeneratedImageToolCallId = toolInvocation.subAgentInvocationId ? undefined : getLastGeneratedImageToolCallId(context.content);
 			this.renderedGeneratedImageResults = this.renderedGeneratedImageResult && this.renderedLastGeneratedImageToolCallId === toolInvocation.toolCallId
 				? getGeneratedImageResultSnapshot(context.content) : [];
 			if (toolInvocation.presentation === ToolInvocationPresentation.Hidden
@@ -453,10 +453,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (isToolResultInputOutputDetails(resultDetails)) {
 			let message = this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
-			if (isImageGenerationToolInvocation(this.toolInvocation)) {
+			const isImageGeneration = isImageGenerationToolInvocation(this.toolInvocation);
+			const isError = isImageGeneration ? hasToolInvocationError(this.toolInvocation) : !!resultDetails.isError;
+			if (isImageGeneration) {
 				const confirmation = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 				if (confirmation?.type !== ToolConfirmKind.Denied && confirmation?.type !== ToolConfirmKind.Skipped) {
-					if (resultDetails.isError) {
+					if (isError) {
 						message = localize('imageGeneration.failed', "Generated image failed");
 					} else if (this.renderedGeneratedImageResult) {
 						message = this.toolInvocation.pastTenseMessage ?? localize('imageGeneration.generated', "Generated image");
@@ -476,7 +478,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				resultDetails.input,
 				resultDetails.inputLanguage,
 				resultDetails.output,
-				!!resultDetails.isError,
+				isError,
 			);
 		}
 
@@ -488,7 +490,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			const confirmation = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
 			const cancelled = confirmation?.type === ToolConfirmKind.Denied || confirmation?.type === ToolConfirmKind.Skipped;
 			const message = cancelled
-				? (state?.type === IChatToolInvocation.StateKind.Cancelled ? state.reasonMessage : undefined) ?? localize('imageGeneration.cancelled', "Image generation cancelled")
+				? this.toolInvocation.pastTenseMessage ?? (state?.type === IChatToolInvocation.StateKind.Cancelled ? state.reasonMessage : undefined) ?? localize('imageGeneration.cancelled', "Image generation cancelled")
 				: this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage;
 			return this.instantiationService.createInstance(
 				ChatInputOutputMarkdownProgressPart,
@@ -567,6 +569,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			return false;
 		}
 		if ((other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized')
+			&& !other.subAgentInvocationId
 			&& this.renderedGeneratedImageResult
 			&& this.renderedLastGeneratedImageToolCallId !== (getLastGeneratedImageToolCallId(followingContent) ?? other.toolCallId)) {
 			return false;

@@ -48,12 +48,13 @@ suite('Chat Accessibility Help', () => {
 			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown, including the image model when available, with a single image below it even when collapsed'),
 			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
 			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
+			cancelledState: help.includes('Stopping image generation shows Image generation cancelled, not a generation error'),
 			previews: help.includes('Image previews start loading as soon as generation succeeds, even if the response is still in progress'),
 			loading: help.includes('A preview is marked as busy while its bytes load'),
 			loadFailure: help.includes('Unable to load image indicates a problem loading the preview, not a failed generation'),
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Use the Save action to the right of the image to save generated images'),
-		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
+		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

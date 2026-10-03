@@ -3136,12 +3136,20 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		: undefined;
 	// Clear transient progress so didExecuteTool does not promote it to the past-tense message.
 	invocation.acceptProgress({ message: undefined });
-	const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
-		{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
-		tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
-	);
-	if (!cancelledFromStreaming) {
-		invocation.didExecuteTool(result);
+	if (isCancelled && isImageGenerationTool(tc)) {
+		invocation.didCancelTool(
+			{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
+			tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+			resultDetails,
+		);
+	} else {
+		const cancelledFromStreaming = isCancelled && invocation.cancelFromStreaming(
+			{ type: tc.reason === ToolCallCancellationReason.Skipped ? ToolConfirmKind.Skipped : ToolConfirmKind.Denied },
+			tc.reasonMessage ? stringOrMarkdownToString(tc.reasonMessage, connectionAuthority) : undefined,
+		);
+		if (!cancelledFromStreaming) {
+			invocation.didExecuteTool(result);
+		}
 	}
 
 	return fileEdits;

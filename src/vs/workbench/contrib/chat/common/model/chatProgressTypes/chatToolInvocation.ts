@@ -218,6 +218,15 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			return false; // Only cancel from streaming state
 		}
 
+		this.didCancelTool(reason, reasonMessage);
+		return true;
+	}
+
+	/** Records provider cancellation without turning an executed tool into a failed completion. */
+	public didCancelTool(reason: ToolDeniedReason, reasonMessage?: string | IMarkdownString, resultDetails?: IToolResult['toolResultDetails']): void {
+		if (IChatToolInvocation.isComplete(this)) {
+			return;
+		}
 		this._state.set({
 			type: IChatToolInvocation.StateKind.Cancelled,
 			reason: reason.type,
@@ -225,8 +234,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			reasonMessage: reasonMessage,
 			parameters: this.parameters,
 			confirmationMessages: this.confirmationMessages,
+			...(resultDetails ? { resultDetails } : {}),
 		}, undefined);
-		return true;
 	}
 
 	/**
@@ -373,7 +382,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		}
 		if (result?.toolResultMessage) {
 			this.pastTenseMessage = result.toolResultMessage;
-		} else if (this.toolSpecificData?.kind !== 'generatedImage' && this._progress.get().message) {
+		} else if (this._progress.get().message) {
 			this.pastTenseMessage = this._progress.get().message;
 		}
 

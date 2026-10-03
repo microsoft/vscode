@@ -232,7 +232,22 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		return contents.root;
 	}
 
-	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
+	updateInput(text: string): void {
+		if (this.input.data === text) {
+			return;
+		}
+		this.input.data = text;
+		const codeBlock = this._editorReferences[0]?.object;
+		if (codeBlock) {
+			const viewState = codeBlock.editor.saveViewState();
+			this.renderCodeBlock(this.input, codeBlock);
+			if (viewState) {
+				codeBlock.editor.restoreViewState(viewState);
+			}
+		}
+	}
+
+	private renderCodeBlock(part: IChatCollapsibleIOCodePart, codeBlock: CodeBlockPart): void {
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
 			text: part.data,
@@ -242,9 +257,13 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
+		codeBlock.render(data, (this._lastLayoutWidth ?? this.context.currentWidth.get()) || 300);
+	}
+
+	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
 		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
 		const editorReference = this._register(this.context.editorPool.get(key));
-		editorReference.object.render(data, this.context.currentWidth.get() || 300);
+		this.renderCodeBlock(part, editorReference.object);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 	}

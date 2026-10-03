@@ -57,10 +57,11 @@ function getGeneratedImageResultDetails(toolInvocation: IChatToolInvocation | IC
 	return isToolResultInputOutputDetails(resultDetails) ? resultDetails : undefined;
 }
 
+/** Collects completed top-level image results for the response gallery, excluding subagent tools. */
 export function getGeneratedImageResultSnapshot(content: ReadonlyArray<IChatRendererContent | IChatProgressResponseContent>): { readonly toolCallId: string; readonly details: IToolResultInputOutputDetails }[] {
 	const results: { toolCallId: string; details: IToolResultInputOutputDetails }[] = [];
 	for (const part of content) {
-		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage' || !IChatToolInvocation.isComplete(part)) {
+		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.subAgentInvocationId || part.toolSpecificData?.kind !== 'generatedImage' || !IChatToolInvocation.isComplete(part)) {
 			continue;
 		}
 		const details = getGeneratedImageResultDetails(part);
@@ -74,6 +75,7 @@ export function getGeneratedImageResultSnapshot(content: ReadonlyArray<IChatRend
 export function getLastGeneratedImageToolCallId(content: ReadonlyArray<IChatRendererContent>): string | undefined {
 	const lastImageTool = content.findLast(part =>
 		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+		&& !part.subAgentInvocationId
 		&& part.toolSpecificData?.kind === 'generatedImage'
 		&& IChatToolInvocation.isComplete(part));
 	return lastImageTool?.kind === 'toolInvocation' || lastImageTool?.kind === 'toolInvocationSerialized'
@@ -81,10 +83,10 @@ export function getLastGeneratedImageToolCallId(content: ReadonlyArray<IChatRend
 		: undefined;
 }
 
-export function getGeneratedImageResultCount(content: ReadonlyArray<IChatRendererContent>): number {
+export function getGeneratedImageResultCount(content: ReadonlyArray<IChatRendererContent>, subAgentInvocationId?: string): number {
 	let count = 0;
 	for (const part of content) {
-		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.toolSpecificData?.kind !== 'generatedImage') {
+		if ((part.kind !== 'toolInvocation' && part.kind !== 'toolInvocationSerialized') || part.subAgentInvocationId !== subAgentInvocationId || part.toolSpecificData?.kind !== 'generatedImage') {
 			continue;
 		}
 		const details = getGeneratedImageResultDetails(part);
@@ -129,11 +131,14 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		super(toolInvocation);
 		this.domNode = dom.$('.chat-generated-image-tool-result');
 
-		if (getLastGeneratedImageToolCallId(context.content) !== toolInvocation.toolCallId) {
+		if (!toolInvocation.subAgentInvocationId && getLastGeneratedImageToolCallId(context.content) !== toolInvocation.toolCallId) {
 			return;
 		}
 
-		const parts = getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
+		// Child tools retain their own results rather than claiming the response-level gallery.
+		const parts = toolInvocation.subAgentInvocationId
+			? getGeneratedImageResultParts(getGeneratedImageResultDetails(toolInvocation), context.element.sessionResource, toolInvocation.toolCallId)
+			: getGeneratedImageResultPartsFromContent(context.content, context.element.sessionResource);
 		let imageDimensions = ChatGeneratedImageResultSubPart.imageDimensions.get(context.element);
 		if (!imageDimensions) {
 			imageDimensions = new ResourceMap<dom.IDimension>(resource => {
@@ -152,7 +157,6 @@ export class ChatGeneratedImageResultSubPart extends BaseChatToolInvocationSubPa
 		}));
 		this._register(resourceGroup.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		const gallery = dom.append(this.domNode, dom.$('.chat-generated-image-result', undefined, resourceGroup.domNode));
-		const hasMultipleGeneratedImages = getGeneratedImageResultCount(context.content) > 1;
-		gallery.classList.toggle('multiple', hasMultipleGeneratedImages);
+		gallery.classList.toggle('multiple', parts.length > 1);
 	}
 }

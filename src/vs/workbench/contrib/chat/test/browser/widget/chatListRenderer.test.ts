@@ -23,7 +23,7 @@ import { ITextResourcePropertiesService } from '../../../../../../editor/common/
 import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { ConfirmationOptionKind, McpServerStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpServerStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, type ToolCallCompletedState, type ToolCallRunningState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
@@ -45,7 +45,7 @@ import { IChatResponseFileChangesService } from '../../../browser/chatResponseFi
 import { ChatTreeItem, IChatAccessibilityService, IChatListItemRendererOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { getCompactCodicon } from '../../../browser/chatIcons.js';
 import { IChatToolRiskAssessmentService } from '../../../browser/tools/chatToolRiskAssessmentService.js';
-import { finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { completedToolCallToSerialized, finalizeToolInvocation, toolCallStateToInvocation, toolCallStateToPreparedInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AcceptToolConfirmationActionId, registerChatToolActions, SkipToolConfirmationActionId } from '../../../browser/actions/chatToolActions.js';
 import { buildPlanReviewProgressContent, ChatListItemRenderer, endsWithActiveSubagentContent, endsWithCompletedQuestionInteraction, formatCompletedResponseDisclosureLabel, formatResponseTokenStats, getCompletedResponseCollapseEndIndex, getFinalResponseStartIndex, getFinalResponseStartIndexAfterMovingResponseOutcomeTools, getPersistentActivityLabel, getPersistentBackgroundActivity, getPersistentProgressState, getTrailingProgressLabel, getVisibleCompletedResponseItemCount, getWorkingProgressRelevantParts, IChatListItemTemplate, isAnchorTarget, isBlockingToolState, isFinalResponseRendered, isWaitingForMcpServers, moveResponseOutcomeToolsAfterFinalResponse, reconcileChatItemHeight, renderChatRequestTimestamp, renderChatResponseDetails, shouldCollapseCompletedResponsePart, shouldCreateGroupedThinkingPart, shouldHideChatUserIdentity, shouldPinToolInvocationToThinking, shouldRenderInitialProgressiveContentImmediately, shouldScheduleInitialHeightChange, shouldShowFileChangesSummaryForSettings, shouldShowTurnPillsSummary, shouldStartNewCollapsedThinkingGroup } from '../../../browser/widget/chatListRenderer.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
@@ -2756,32 +2756,200 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const focus of ['collapsed', 'expanded', 'editor'] as const) {
+		test(`streaming image prompts preserve the ${focus} control and focus`, () => {
+			const { instantiationService, model, request, renderer, template, node } = createPersistentProgressRenderer();
+			const tool = ChatToolInvocation.createStreaming({
+				toolId: 'image_generation',
+				toolCallId: 'focused-image',
+				toolData: { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			});
+			tool.updatePartialInput({ prompt: 'Draw a' });
+			model.acceptResponseProgress(request, tool);
+			renderer.renderElement(node, 0, template);
+			const dropdown = template.value.querySelector<HTMLElement>('.chat-confirmation-widget-title')!;
+			if (focus !== 'collapsed') {
+				dropdown.click();
+			}
+			const editors = () => instantiationService.get(ICodeEditorService).listCodeEditors().filter(editor => template.value.contains(editor.getDomNode()));
+			const editor = editors()[0];
+			const editorModel = editor?.getModel();
+			if (focus === 'editor') {
+				editor.setSelection(new Range(2, 4, 2, 10));
+				editor.focus();
+			} else {
+				dropdown.focus();
+			}
+			const selection = editor?.getSelection();
+			const focusedElement = mainWindow.document.activeElement;
+			tool.updatePartialInput({ prompt: 'Draw a puppy' });
+			assert.deepStrictEqual({
+				sameDropdown: template.value.querySelector('.chat-confirmation-widget-title') === dropdown,
+				sameEditor: editors()[0] === editor,
+				sameModel: editors()[0]?.getModel() === editorModel,
+				sameFocus: mainWindow.document.activeElement === focusedElement,
+				selection: editors()[0]?.getSelection(),
+				input: editors()[0]?.getValue({ preserveBOM: false, lineEnding: '\n' }),
+			}, {
+				sameDropdown: true,
+				sameEditor: true,
+				sameModel: true,
+				sameFocus: true,
+				selection,
+				input: focus === 'collapsed' ? undefined : JSON.stringify({ prompt: 'Draw a puppy' }, null, 2),
+			});
+			request.response?.complete();
+		});
+	}
+
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		for (const reason of [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied]) {
+			test(`executing ${toolName} cancellation stays distinct from failure in live and restored UI (${reason})`, () => {
+				const { model, request, renderer, template, node } = createPersistentProgressRenderer();
+				const backend = URI.parse('remote-images:/cancelled');
+				const running: ToolCallRunningState = {
+					toolCallId: 'cancelled-image',
+					toolName,
+					displayName: 'Generate Image',
+					invocationMessage: 'Generating image',
+					toolInput: '{"prompt":"Draw a puppy"}',
+					status: ToolCallStatus.Running,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+				};
+				const tool = toolCallStateToInvocation(running, undefined, backend, 'remote');
+				model.acceptResponseProgress(request, tool);
+				renderer.renderElement(node, 0, template);
+				const cancelled = { ...running, status: ToolCallStatus.Cancelled, reason } as const;
+				finalizeToolInvocation(tool, cancelled, backend, 'remote');
+				const snapshot = (value: HTMLElement) => ({
+					title: value.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
+					error: !!value.querySelector('.chat-tool-call-error, .chat-confirmation-widget-title .codicon-error-compact'),
+					images: value.querySelectorAll('.chat-generated-image-result img').length,
+					loading: value.querySelectorAll('.chat-image-generation-placeholder').length,
+				});
+				const live = snapshot(template.value);
+				request.response?.complete();
+				const restored = createPersistentProgressRenderer();
+				restored.model.acceptResponseProgress(restored.request, completedToolCallToSerialized(cancelled, undefined, backend, 'remote'));
+				restored.request.response?.complete();
+				restored.renderer.renderElement(restored.node, 0, restored.template);
+				const expected = { title: 'Image generation cancelled', error: false, images: 0, loading: 0 };
+				assert.deepStrictEqual({ live, restored: snapshot(restored.template.value) }, { live: expected, restored: expected });
+			});
+		}
+	}
+
+	test('subagent image completion preserves the parent gallery and renders its own images', async () => {
+		const { model, request, renderer, template, node } = createPersistentProgressRenderer({
+			chatMode: ChatModeKind.Agent,
+			collapsedTools: CollapsedToolsDisplayMode.Always,
+		});
+		const backend = URI.parse('remote-images:/subagent');
+		const imageData = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=';
+		const createCall = (toolCallId: string): ToolCallRunningState => ({
+			toolCallId,
+			toolName: 'image_generation',
+			displayName: 'Generate Image',
+			invocationMessage: 'Generating image',
+			toolInput: '{"prompt":"Draw a puppy"}',
+			status: ToolCallStatus.Running,
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+		const parentCall = createCall('parent-image');
+		const parent = toolCallStateToInvocation(parentCall, undefined, backend, 'remote');
+		model.acceptResponseProgress(request, parent);
+		renderer.renderElement(node, 0, template);
+		const complete = (tool: ChatToolInvocation, call: ToolCallRunningState) => finalizeToolInvocation(tool, {
+			...call,
+			status: ToolCallStatus.Completed,
+			success: true,
+			pastTenseMessage: 'Generated image',
+			content: [{ type: ToolResultContentType.EmbeddedResource, data: imageData, contentType: 'image/png' }],
+		}, backend, 'remote');
+		complete(parent, parentCall);
+		renderer.renderElement(node, 0, template);
+		const rootImages = () => [...template.value.querySelectorAll('.chat-generated-image-result img')].filter(image => !image.closest('.chat-subagent-part')).length;
+		const beforeSubagent = rootImages();
+		const subagent = new ChatToolInvocation({
+			invocationMessage: 'Delegating work',
+			pastTenseMessage: 'Delegated work',
+			toolSpecificData: { kind: 'subagent', description: 'Draw another image', isActive: true },
+		}, {
+			id: 'task', displayName: 'Task', modelDescription: 'Delegate work', source: ToolDataSource.Internal,
+		}, 'image-subagent', undefined, {});
+		model.acceptResponseProgress(request, subagent);
+		renderer.renderElement(node, 0, template);
+		const subagentPart = template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(subagentPart instanceof ChatSubagentContentPart);
+		const childCall = createCall('child-image');
+		const child = toolCallStateToInvocation(childCall, subagent.toolCallId, backend, 'remote');
+		model.acceptResponseProgress(request, child);
+		renderer.renderElement(node, 0, template);
+		complete(child, childCall);
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Continuing the response.') });
+		renderer.renderElement(node, 0, template);
+		const afterComparison = rootImages();
+		subagentPart.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		await timeout(0);
+		const afterExpansion = { root: rootImages(), all: template.value.querySelectorAll('.chat-generated-image-result img').length };
+		const secondChildCall = createCall('second-child-image');
+		const secondChild = toolCallStateToInvocation(secondChildCall, subagent.toolCallId, backend, 'remote');
+		model.acceptResponseProgress(request, secondChild);
+		renderer.renderElement(node, 0, template);
+		complete(secondChild, secondChildCall);
+		renderer.renderElement(node, 0, template);
+		const afterSecondChild = { root: rootImages(), all: template.value.querySelectorAll('.chat-generated-image-result img').length };
+		request.response?.complete();
+		const restored = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent, collapsedTools: CollapsedToolsDisplayMode.Always });
+		for (const tool of [parent, subagent, child, secondChild]) {
+			restored.model.acceptResponseProgress(restored.request, tool.toJSON());
+		}
+		restored.request.response?.complete();
+		restored.renderer.renderElement(restored.node, 0, restored.template);
+		const restoredSubagent = restored.template.renderedParts?.find(part => part instanceof ChatSubagentContentPart);
+		assert.ok(restoredSubagent instanceof ChatSubagentContentPart);
+		restoredSubagent.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			beforeSubagent,
+			afterComparison,
+			afterExpansion,
+			afterSecondChild,
+			restoredImages: restored.template.value.querySelectorAll('.chat-generated-image-result img').length,
+		}, {
+			beforeSubagent: 1,
+			afterComparison: 1,
+			afterExpansion: { root: 1, all: 2 },
+			afterSecondChild: { root: 1, all: 3 },
+			restoredImages: 3,
+		});
+	});
+
 	for (const success of [true, false]) {
 		test(`image generation shows its ${success ? 'completed' : 'failed'} dropdown instead of the last progress message`, async () => {
 			const { model, request, renderer, template, node } = createPersistentProgressRenderer();
-			const tool = new ChatToolInvocation({
-				invocationMessage: 'Generating image',
-				pastTenseMessage: 'Generated image',
-			}, {
-				id: 'image_generation',
+			const backend = URI.parse('remote-images:/completed');
+			const running: ToolCallRunningState = {
+				toolCallId: 'image',
+				toolName: 'image_generation',
 				displayName: 'Generate Image',
-				modelDescription: 'Generate Image',
-				source: ToolDataSource.Internal,
-			}, 'image', undefined, { prompt: 'Draw a puppy' }, {}, request.id);
+				invocationMessage: 'Generating image',
+				status: ToolCallStatus.Running,
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				toolInput: '{"prompt":"Draw a puppy"}',
+			};
+			const tool = toolCallStateToInvocation(running, undefined, backend, 'remote');
 			model.acceptResponseProgress(request, tool);
 			renderer.renderElement(node, 0, template);
 			tool.acceptProgress({ message: 'Rendering the last pixels', progress: 0.9 });
-			await tool.didExecuteTool({
-				content: [],
-				toolSpecificData: success ? { kind: 'generatedImage' } : undefined,
-				toolResultDetails: {
-					input: '{"prompt":"Draw a puppy"}',
-					isError: !success,
-					output: success
-						? [{ type: 'embed', value: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', mimeType: 'image/png' }]
-						: [{ type: 'embed', value: 'Image request failed', isText: true }],
-				},
-			});
+			finalizeToolInvocation(tool, {
+				...running,
+				status: ToolCallStatus.Completed,
+				success,
+				pastTenseMessage: 'Generated image',
+				content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a79cAAAAASUVORK5CYII=', contentType: 'image/png' }] : [],
+				error: success ? undefined : { message: 'Image request failed' },
+			}, backend, 'remote');
 			renderer.renderElement(node, 0, template);
 			const snapshot = (value: HTMLElement) => ({
 				title: value.querySelector('.chat-confirmation-widget-title p')?.textContent?.replace(/\u00a0/g, ' '),
