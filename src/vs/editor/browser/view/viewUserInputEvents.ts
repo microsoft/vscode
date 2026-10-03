@@ -22,7 +22,7 @@ export class ViewUserInputEvents {
 	public onMouseLeave: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
-	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseDrag: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseDropCanceled: EventCallback<void> | null = null;
 	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
@@ -61,7 +61,7 @@ export class ViewUserInputEvents {
 		this.onMouseUp?.(this._convertViewToModelMouseEvent(e));
 	}
 
-	public emitMouseDrag(e: IEditorMouseEvent): void {
+	public emitMouseDrag(e: IPartialEditorMouseEvent): void {
 		this.onMouseDrag?.(this._convertViewToModelMouseEvent(e));
 	}
 
