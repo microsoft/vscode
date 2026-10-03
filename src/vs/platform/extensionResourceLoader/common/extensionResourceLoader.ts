@@ -132,7 +132,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		return !!this._extensionGalleryAuthority && this._extensionGalleryAuthority === this._getExtensionGalleryAuthority(uri);
 	}
 
-	protected async getExtensionGalleryRequestHeaders(): Promise<Record<string, string>> {
+	protected async getExtensionGalleryRequestHeaders(resource: URI): Promise<Record<string, string>> {
 		const headers: Record<string, string> = {
 			'X-Client-Name': `${this._productService.applicationName}${isWeb ? '-web' : ''}`,
 			'X-Client-Version': this._productService.version
@@ -143,6 +143,7 @@ export abstract class AbstractExtensionResourceLoaderService extends Disposable 
 		if (this._productService.commit) {
 			headers['X-Client-Commit'] = this._productService.commit;
 		}
+		Object.assign(headers, await this._extensionGalleryManifestService.getAuthorizationHeaders(resource.toString(true)));
 		return headers;
 	}
 
