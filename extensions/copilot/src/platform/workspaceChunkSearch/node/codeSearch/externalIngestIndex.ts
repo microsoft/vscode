@@ -605,6 +605,15 @@ export class ExternalIngestIndex extends Disposable {
 					enableForeignKeyConstraints: true,
 				});
 
+				// Apply the same connection-level PRAGMAs as a fresh database.
+				// These are per-connection (not persisted in the file), so an
+				// existing database reopened here must re-apply them. In
+				// particular `journal_mode = OFF` avoids creating a rollback
+				// journal file, without which any write (e.g. reconcileDbFiles
+				// deleting stale rows) fails with "attempt to write a readonly
+				// database" on read-only storage.
+				this.applyConnectionPragmas(db);
+
 				const storedVersion = this.getStoredCacheVersion(db);
 				if (storedVersion === ingestUtils.cacheVersion()) {
 					this._logService.trace(`ExternalIngestIndex: Cache version matches (${ingestUtils.cacheVersion()})`);
@@ -641,14 +650,7 @@ export class ExternalIngestIndex extends Disposable {
 		return undefined;
 	}
 
-	private createFreshDatabase(dbPath: string | ':memory:'): sql.DatabaseSync {
-		this._logService.trace(`ExternalIngestIndex: Creating fresh database at path: ${dbPath}`);
-
-		const db = new sql.DatabaseSync(dbPath, {
-			open: true,
-			enableForeignKeyConstraints: true,
-		});
-
+	private applyConnectionPragmas(db: sql.DatabaseSync): void {
 		db.exec(`PRAGMA foreign_keys = ON;`);
 		db.exec(`
 			PRAGMA journal_mode = OFF;
@@ -657,6 +659,17 @@ export class ExternalIngestIndex extends Disposable {
 			PRAGMA locking_mode = EXCLUSIVE;
 			PRAGMA temp_store = MEMORY;
 		`);
+	}
+
+	private createFreshDatabase(dbPath: string | ':memory:'): sql.DatabaseSync {
+		this._logService.trace(`ExternalIngestIndex: Creating fresh database at path: ${dbPath}`);
+
+		const db = new sql.DatabaseSync(dbPath, {
+			open: true,
+			enableForeignKeyConstraints: true,
+		});
+
+		this.applyConnectionPragmas(db);
 
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS Metadata (
