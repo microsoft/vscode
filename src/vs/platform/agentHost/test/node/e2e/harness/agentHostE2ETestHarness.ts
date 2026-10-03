@@ -657,6 +657,13 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 		break;
 	}
 
+	await c.waitForNotification(n =>
+		isActionNotification(n, ActionType.ChatIsReadChanged)
+		&& getActionEnvelope(n).channel === chat
+		&& !(getActionEnvelope(n).action as { isRead: boolean }).isRead,
+		90_000,
+	);
+
 	return { sawInputRequest, sawPendingConfirmation, responseText: getMarkdownResponseText(c) };
 }
 
