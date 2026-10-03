@@ -28,7 +28,7 @@ import { AccessibilityVerbositySettingId } from '../../../../../workbench/contri
 import { AccessibilityCommandId } from '../../../../../workbench/contrib/accessibility/common/accessibilityCommands.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
+import { ISessionComparison, ISessionComparisonService, ISessionComparisonSynthesisPlan, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
 import { buildSessionComparisonAccessibleContent, SessionComparisonResult, SessionComparisonResultFocused } from '../../browser/sessionComparisonResult.js';
 
 suite('Sessions - Comparison Result', () => {
@@ -179,7 +179,7 @@ suite('Sessions - Comparison Result', () => {
 		assert.deepStrictEqual({
 			title: result.domNode.querySelector('.session-comparison-result-title')?.textContent,
 			markdown: renderedMarkdown.slice(0, 6),
-			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-attempt-number, .session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
+			rows: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-model, .session-comparison-result-tag, .session-comparison-scorecard-metric-value')].map(element => element.textContent).join(' ')),
 			checks: rows().map(row => row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check.passed').length),
 			expanded: rows().map(row => row.querySelector('.session-comparison-scorecard-toggle')?.getAttribute('aria-expanded')),
 			otherStrengths: initialText.includes('Clearer naming'),
@@ -190,19 +190,27 @@ suite('Sessions - Comparison Result', () => {
 			label: result.domNode.getAttribute('aria-label'),
 			tabIndex: result.domNode.tabIndex,
 		}, {
-			title: '2Codex won',
+			title: 'Codex won',
 			markdown: [
 				'Handled the edge case that the other attempt left open.',
 				'Resolved the failure that the other attempt left open.', 'Passed `focused tests`, build, lint, and diagnostics.', 'Kept the change small and aligned with existing types.', 'Handled the `edge case` with typed diagnostics.',
 				'Clearer `naming`',
 			],
-			rows: ['2 Codex Recommended 2m 25+', '1 Claude 1m 35s 38'],
+			rows: ['Codex Recommended 2m 25+', 'Claude 1m 35s 38'],
 			checks: [4, 1],
 			expanded: ['false', 'false'],
 			otherStrengths: true, customSynthesis: false, accessibleDecisions: false,
 			accessibleMetrics: true, role: 'region',
 			label: 'Attempt 2 (Codex) won. Use Option+F2 to open the comparison result in the Accessible View.', tabIndex: 0,
 		});
+		// The winner's expanded detail carries the same checks strip as any other attempt,
+		// so recommended and non-recommended rows read consistently once expanded.
+		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
+		assert.deepStrictEqual(
+			[...rows()[0].querySelectorAll('.session-comparison-scorecard-check-item-label')].map(element => element.textContent),
+			['Tests', 'Build', 'Lint', 'Diagnostics'],
+		);
+		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
 		result.domNode.dispatchEvent(new mainWindow.FocusEvent('focus'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(SessionComparisonResultFocused.key), true);
 		result.domNode.querySelector<HTMLElement>('[aria-label="Open another attempt"]')?.click();
@@ -247,5 +255,96 @@ suite('Sessions - Comparison Result', () => {
 			synthesize: !!findButton('Synthesize'),
 			instructions: !!result.domNode.querySelector('.session-comparison-synthesis-instructions'),
 		}, { winner: true, synthesize: false, instructions: false });
+	});
+
+	test('shows one shared note instead of repeating identical uninformative checks on every row', () => {
+		const attempt1Resource = URI.parse('test:///attempt-1');
+		const attempt2Resource = URI.parse('test:///attempt-2');
+		const judgeResource = URI.parse('test:///judge');
+		const notRun = { state: SessionComparisonValidationState.NotRun, source: SessionComparisonValidationSource.Unavailable } satisfies SessionComparisonValidationEvidence;
+		const comparison: ISessionComparison = {
+			id: 'comparison-uniform',
+			groupId: 'group-uniform',
+			title: 'Compare',
+			createdAt: 0,
+			workspace: URI.file('/repo'),
+			prompt: 'Implement',
+			participants: [{
+				id: 'attempt-1',
+				role: SessionComparisonParticipantRole.Attempt,
+				sessionResource: attempt1Resource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Claude' },
+				completion: { elapsedMs: 10_000, tokenCount: 10, tokenCountIsComplete: true },
+			}, {
+				id: 'attempt-2',
+				role: SessionComparisonParticipantRole.Attempt,
+				sessionResource: attempt2Resource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Codex' },
+				completion: { elapsedMs: 12_000, tokenCount: 12, tokenCountIsComplete: true },
+			}, {
+				id: 'judge',
+				role: SessionComparisonParticipantRole.Judge,
+				sessionResource: judgeResource,
+				harness: { providerId: 'test', sessionTypeId: 'test', label: 'Copilot' },
+			}],
+			verdict: {
+				recommendedParticipantId: 'attempt-2',
+				explanation: 'Handled the edge case.',
+				rationale: { comparison: 'Comparison point.', validation: 'Validation point.', codeQuality: 'Code quality point.', solution: 'Solution point.' },
+				conflicts: [],
+				attempts: [{
+					participantId: 'attempt-1',
+					summary: 'Attempt 1 summary.',
+					validation: { tests: notRun, build: notRun, lint: notRun, diagnostics: notRun },
+					unresolvedIssues: [],
+					notableDifferences: [],
+				}, {
+					participantId: 'attempt-2',
+					summary: 'Attempt 2 summary.',
+					validation: { tests: notRun, build: notRun, lint: notRun, diagnostics: notRun },
+					unresolvedIssues: [],
+					notableDifferences: [],
+				}],
+			},
+		};
+		const currentSession = observableValue<ISession | undefined>('session', upcastPartial<ISession>({ resource: judgeResource }));
+		const instantiationService = store.add(new TestInstantiationService());
+		const configurationService = new TestConfigurationService();
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configurationService)));
+		instantiationService.stub(IKeybindingService, new class extends mock<IKeybindingService>() { }());
+		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+			override comparisons = observableValue<readonly ISessionComparison[]>('comparisons', [comparison]);
+			override getComparison(): ISessionComparison { return comparison; }
+		}());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { });
+		instantiationService.stub(IContextMenuService, new class extends mock<IContextMenuService>() { });
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { });
+		instantiationService.stub(IHoverService, NullHoverService);
+		const markdownRenderer: IMarkdownRenderer = {
+			render(markdown: IMarkdownString, _options, outElement): IRenderedMarkdown {
+				const element = outElement ?? mainWindow.document.createElement('div');
+				element.textContent = markdown.value.replaceAll('`', '');
+				return { element, dispose: () => { } };
+			},
+		};
+		const result = store.add(instantiationService.createInstance(SessionComparisonResult, currentSession, () => { }, markdownRenderer));
+		result.domNode.style.width = '800px';
+		mainWindow.document.body.append(result.domNode);
+		store.add({ dispose: () => result.domNode.remove() });
+
+		const rows = () => [...result.domNode.querySelectorAll<HTMLElement>('.session-comparison-scorecard-row')];
+		assert.deepStrictEqual({
+			note: result.domNode.querySelector('.session-comparison-scorecard-checks-note')?.textContent,
+			perRowChecks: rows().map(row => [...row.querySelectorAll('.session-comparison-scorecard-checks .session-comparison-check')].length),
+			perRowSummaryDash: rows().map(row => row.querySelector('.session-comparison-scorecard-checks .session-comparison-check-summary')?.textContent),
+		}, {
+			note: 'Tests, build, lint, and diagnostics did not run for this comparison; the Judge reviewed the code changes only.',
+			perRowChecks: [0, 0],
+			perRowSummaryDash: ['\u2014', '\u2014'],
+		});
+		rows()[0].querySelector<HTMLElement>('.session-comparison-scorecard-toggle')?.click();
+		assert.strictEqual(rows()[0].querySelector('.session-comparison-scorecard-checks-strip'), null, 'the shared note replaces the per-row checks strip once expanded too');
 	});
 });

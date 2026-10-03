@@ -25,6 +25,14 @@ function getAttemptModelIds(selection: IComparisonModelSelection | undefined): r
 	return selection.models.length === 1 ? Array<string>(selection.repeatCount).fill(selection.models[0]) : selection.models;
 }
 
+/** The composer pill text: the attempt models by name, or a count when names are not resolvable. */
+function getAttemptsSummaryText(modelIds: readonly string[], getModelLabel?: (modelId: string) => string | undefined): string {
+	const labels = getModelLabel && modelIds.map(getModelLabel);
+	return labels?.every((label): label is string => !!label)
+		? labels.join(', ')
+		: localize('comparisonPicker.summary', "{0} Attempts", modelIds.length);
+}
+
 /** How many models are selected, flagged when there are more than a comparison can run. */
 function getAttemptsStatus(count: number): { readonly text: string; readonly warning?: boolean } | undefined {
 	if (count === 0) {
@@ -48,7 +56,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 	readonly judgeModelId = derived(this, reader => this._committed.read(reader)?.judge);
 	readonly synthesizerModelId = derived(this, reader => this._committed.read(reader)?.synthesizer);
 	readonly summary = derived(this, reader => this.enabled.read(reader)
-		? localize('comparisonPicker.summary', "{0} Attempts", this.attemptModelIds.read(reader).length)
+		? getAttemptsSummaryText(this.attemptModelIds.read(reader), this._getModelLabel)
 		: undefined);
 	readonly state = derived<IModelPickerWorkflowState | undefined>(this, reader => {
 		const draft = this._draft.read(reader);
@@ -67,7 +75,7 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
 				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Select a model to review the attempts and pick a winner. Skip this step to compare them yourself.")
 					: localize('comparisonPicker.synthesizerDescription', "Select a model to combine the best parts of each attempt. Synthesis starts only when you ask."),
-			summary: localize('comparisonPicker.summary', "{0} Attempts", getAttemptModelIds(draft).length),
+			summary: getAttemptsSummaryText(getAttemptModelIds(draft), this._getModelLabel),
 			selectedModelIds: step === 'attempts' ? models : step === 'judge' ? judge ? [judge] : [] : synthesizer ? [synthesizer] : [],
 			multiple: step === 'attempts',
 			maxSelections: step === 'attempts' ? Number.POSITIVE_INFINITY : 1,
@@ -79,7 +87,11 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		};
 	});
 
-	constructor(readonly available: IObservable<boolean>, configurationResolving: IObservable<boolean> = constObservable(false)) {
+	constructor(
+		readonly available: IObservable<boolean>,
+		configurationResolving: IObservable<boolean> = constObservable(false),
+		private readonly _getModelLabel?: (modelId: string) => string | undefined,
+	) {
 		super();
 		this._register(autorun(reader => {
 			if (!available.read(reader) && !configurationResolving.read(reader)) {

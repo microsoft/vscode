@@ -116,18 +116,78 @@ function createComparison(options: { readonly synthesisStarted?: boolean } = {})
 	};
 }
 
+const notRun: SessionComparisonValidationEvidence = { state: SessionComparisonValidationState.NotRun, source: SessionComparisonValidationSource.Unavailable };
+
+/**
+ * A two-attempt comparison where nothing ran for either attempt (no test/build/lint
+ * tooling in the repo), matching the real "blackout mode" run this was validated
+ * against: the scorecard should show one shared note instead of repeating four
+ * uninformative icons per row.
+ */
+function createUniformComparison(): ISessionComparison {
+	const attempt = (index: number, modelLabel: string, effort: 'high' | 'medium', elapsedMs: number, tokenCount: number): ISessionComparisonParticipant => ({
+		id: `attempt-${index}`,
+		role: SessionComparisonParticipantRole.Attempt,
+		harness: harness(modelLabel, effort),
+		sessionResource: URI.parse(`vscode-agent-host-copilot:/sessions/uniform-attempt-${index}`),
+		completion: { elapsedMs, tokenCount, tokenCountIsComplete: true },
+	});
+	const attempts: ISessionComparisonAttemptVerdict[] = [{
+		participantId: 'attempt-1',
+		summary: 'Blocks click, touch, and keyboard navigation while the deck is blacked out, and updates the on-screen hint.',
+		validation: { tests: notRun, build: notRun, lint: notRun, diagnostics: notRun },
+		unresolvedIssues: [],
+		notableDifferences: [],
+	}, {
+		participantId: 'attempt-2',
+		summary: 'Toggles blackout with B and Escape, but click and touch handlers still advance slides while black.',
+		validation: { tests: notRun, build: notRun, lint: notRun, diagnostics: notRun },
+		unresolvedIssues: ['Click and touch handlers still advance slides while black.'],
+		notableDifferences: ['Uses a keyframe fade-out driven by an `exiting` class.'],
+	}];
+	return {
+		id: 'comparison-uniform-checks',
+		groupId: 'group-uniform-checks',
+		title: 'Add a blackout mode for presenting',
+		createdAt: new Date('2026-10-02T20:38:45Z').getTime(),
+		workspace: URI.parse('https://github.com/eli-w-king/designing-with-data'),
+		prompt: 'Add a blackout mode for presenting: B fades the deck to black, and B or Escape brings it back. Arrow keys should not change slides while it is black.',
+		branch: 'main',
+		judgeHarness: harness('Claude Sonnet 5.5', 'high'),
+		participants: [
+			attempt(1, 'GPT-5.4 mini', 'medium', 243_000, 1_130_000),
+			attempt(2, 'Claude Haiku 4.5', 'high', 197_000, 1_240_000),
+			{ id: 'judge', role: SessionComparisonParticipantRole.Judge, harness: harness('Claude Sonnet 5.5', 'high'), sessionResource: judgeResource },
+		],
+		verdict: {
+			recommendedParticipantId: 'attempt-1',
+			explanation: 'Attempt 1 blocks click and touch navigation while black; Attempt 2 does not.',
+			rationale: {
+				comparison: 'Only Attempt 1 guards key, click, and touch navigation while black and updates the hint to mention B.',
+				validation: 'No attempt reported test, build, or lint results, and the repository has no test tooling; this is a diff review only.',
+				codeQuality: 'One `setBlackout` helper toggles a body class with a CSS fade overlay; it calls `preventDefault` on every key while black.',
+				solution: 'B toggles, Escape exits, arrows are ignored while black, the overlay fades over 250ms, and the chrome is hidden.',
+			},
+			conflicts: [],
+			attempts,
+		},
+	};
+}
+
 interface IRenderOptions {
 	/** The width the Judge chat input lays the result out at. */
 	readonly width?: number;
 	readonly synthesisStarted?: boolean;
 	/** Expands the row at this index, counted from the recommended attempt. */
 	readonly expandRow?: number;
+	/** Renders the uniform-checks comparison instead of the default four-attempt one. */
+	readonly uniformChecks?: boolean;
 }
 
 function renderResult(context: ComponentFixtureContext, options: IRenderOptions = {}): void {
 	const { container, disposableStore } = context;
 	const width = options.width ?? 784;
-	const comparison = createComparison({ synthesisStarted: options.synthesisStarted });
+	const comparison = options.uniformChecks ? createUniformComparison() : createComparison({ synthesisStarted: options.synthesisStarted });
 	container.classList.add('agent-sessions-workbench');
 	container.style.padding = '24px 0';
 	container.style.width = `${width}px`;
@@ -177,4 +237,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/comparisonResult/' }, 
 	AttemptExpanded: defineComponentFixture({ render: context => renderResult(context, { expandRow: 3 }) }),
 	SynthesisStarted: defineComponentFixture({ render: context => renderResult(context, { synthesisStarted: true }) }),
 	Narrow: defineComponentFixture({ render: context => renderResult(context, { width: 520 }) }),
+	UniformChecks: defineComponentFixture({ render: context => renderResult(context, { uniformChecks: true }) }),
+	UniformChecksExpanded: defineComponentFixture({ render: context => renderResult(context, { uniformChecks: true, expandRow: 0 }) }),
 });

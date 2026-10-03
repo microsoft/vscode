@@ -60,6 +60,27 @@ suite('SessionComparisonModelSelection', () => {
 		assert.deepStrictEqual(selection.attemptModelIds.get(), Array.from({ length: 10 }, (_, index) => `model-${index}`));
 	});
 
+	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
+		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
+		const named = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		named.start();
+		selectAttempts(named, 'model-a', 'model-b');
+		named.finish();
+		assert.strictEqual(named.summary.get(), 'Claude Haiku 4.5, GPT-5.4 mini');
+
+		const unresolvedLabel = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
+		unresolvedLabel.start();
+		selectAttempts(unresolvedLabel, 'model-a', 'model-unknown');
+		unresolvedLabel.finish();
+		assert.strictEqual(unresolvedLabel.summary.get(), '2 Attempts');
+
+		const noResolver = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		noResolver.start();
+		selectAttempts(noResolver, 'model-a', 'model-b');
+		noResolver.finish();
+		assert.strictEqual(noResolver.summary.get(), '2 Attempts');
+	});
+
 	test('Done finishes from any step and keeps what was chosen so far', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
