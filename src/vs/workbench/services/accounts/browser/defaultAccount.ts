@@ -817,6 +817,12 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options, managedSettingsSources);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
+			// A failed lookup (for example while an extension host restart re-registers the provider) is not a sign-out.
+			// Keep the known account with its policy and freshness; session removals still clear it through onDidChangeSessions.
+			if (this._defaultAccount?.defaultAccount.authenticationProvider.id === authenticationProvider.id) {
+				this.logService.info('[DefaultAccount] Keeping the current default account after the session lookup failed');
+				return this._defaultAccount;
+			}
 			this.blockManagedSettingsFreshnessWithoutToken(refreshRequirement);
 			return null;
 		}
@@ -849,7 +855,7 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 				: undefined;
 			if (!requirement.effective) {
 				this.setManagedSettingsFreshness(MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED);
-			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope) || options?.forceRefresh) && this.canRequestManagedSettings(options, scope)) {
+			} else if ((!scope || !isManagedSettingsFreshnessSatisfiedFor(this._managedSettingsFreshness, scope)) && this.canRequestManagedSettings(options, scope)) {
 				this.setManagedSettingsFreshness({
 					state: ManagedSettingsFreshnessState.Pending,
 					source: requirement.source,
@@ -1195,7 +1201,8 @@ export class DefaultAccountProvider extends Disposable implements IDefaultAccoun
 		}
 
 		const lastAttemptAt = Date.now();
-		if (requirement.effective) {
+		// Keep the accepted policy active during a same-scope refresh; failures below still close the gate.
+		if (requirement.effective && !freshnessSatisfied) {
 			this.setManagedSettingsFreshness({
 				state: ManagedSettingsFreshnessState.Pending,
 				source: requirement.source,

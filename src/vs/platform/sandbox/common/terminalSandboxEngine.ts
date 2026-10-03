@@ -624,10 +624,6 @@ export class TerminalSandboxEngine extends Disposable {
 			return false;
 		}
 		await this.getOS();
-		if (this._os === OperatingSystem.Windows) {
-			const value = this._getSandboxConfiguredWindowsEnabledValue();
-			return isAgentSandboxEnabledValue(value);
-		}
 		const value = this._getSandboxConfiguredEnabledValue();
 		return isAgentSandboxEnabledValue(value);
 	}
@@ -1087,10 +1083,6 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
 		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
-	}
-
-	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
-		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {

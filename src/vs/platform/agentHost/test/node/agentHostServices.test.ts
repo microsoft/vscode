@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -19,6 +18,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { IAgentService } from '../../common/agentService.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -26,6 +26,7 @@ import { IAgentConfigurationService } from '../../node/agentConfigurationService
 import { IAgentHostAuthenticationController, IAgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
+import { IAgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
@@ -89,12 +90,6 @@ function registerCoreServices(services: ServiceCollection): void {
 		storageResource: URI.file('/storage.json'),
 		fetchFn: globalThis.fetch,
 		gitHubServiceOptions: {
-			endpoint: {
-				onDidChange: Event.None,
-				getApiBaseUri: () => 'https://api.github.com',
-				getGraphQlUri: () => 'https://api.github.com/graphql',
-			},
-			tokenProvider: { getToken: () => undefined },
 			fetch: globalThis.fetch,
 		},
 	});
@@ -185,11 +180,13 @@ suite('Agent Host service registrations', () => {
 			IInstantiationService,
 			IAgentHostStateManager,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
+			IAgentService,
 			IByokLmBridgeRegistry,
 		]);
 		assertCompleteAcyclicGraph(services, externallyRegistered);
@@ -209,11 +206,13 @@ suite('Agent Host service registrations', () => {
 			IInstantiationService,
 			IAgentHostStateManager,
 			IAgentConfigurationService,
+			IAgentHostManagedSettingsService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
 			IAgentHostProxyResolver,
 			IAgentHostClientConnectionService,
+			IAgentService,
 			IByokLmBridgeRegistry,
 			IAgentHostGitService,
 			IAgentHostOTelService,
@@ -240,6 +239,14 @@ suite('Agent Host service registrations', () => {
 			nullSupported: false,
 			host: false,
 		});
+	});
+
+	test('preserves the host fetch implementation in OTel service options', () => {
+		const services = new StrictServiceCollection();
+		registerHostServices(services);
+		const descriptor = services.get(IAgentHostOTelService);
+		assert.ok(descriptor instanceof SyncDescriptor);
+		assert.deepStrictEqual(descriptor.staticArguments, [{ fetchFn: globalThis.fetch }]);
 	});
 
 	test('descriptor-created services have one disposal owner', () => {

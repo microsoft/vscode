@@ -16,13 +16,14 @@ import { ILogService } from '../../log/common/log.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { getAgentHostClientType } from '../common/agentHostClientInfo.js';
+import { withSessionInitiator } from '../common/meta/agentSessionInitiatorMeta.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, readClientConnectionKind, readClientDevDeviceId, readClientMachineId, readClientTelemetryLevel, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentSession, type IAgentCreateChatRequestOptions, type IMcpNotification } from '../common/agent.js';
 import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings.js';
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -78,6 +79,7 @@ import { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { IDevContainerAgentHostMainService } from '../common/devContainerAgentHost.js';
 import { DevContainerAgentHostProtocol } from './devContainerAgentHostProtocol.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -466,13 +468,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					try {
 						const result = this._handleInitialize(msg.params, transport, disposables);
 						client = result.client;
+						const sendInitializeResult = (response: IAgentHostExtensionInitializeResult) => {
+							transport.send(jsonRpcSuccess(msg.id, response));
+						};
 						if (result.response instanceof Promise) {
 							this._trackRequest(result.response).then(
-								response => transport.send(jsonRpcSuccess(msg.id, response)),
+								sendInitializeResult,
 								err => transport.send(jsonRpcErrorFrom(msg.id, err)),
 							);
 						} else {
-							transport.send(jsonRpcSuccess(msg.id, result.response));
+							sendInitializeResult(result.response);
 						}
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
@@ -483,16 +488,18 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					let responsePromise: Promise<unknown>;
 					try {
 						const result = this._handleReconnect(msg.params, transport, disposables);
-						client = result.client;
+						const reconnectClient = result.client;
+						client = reconnectClient;
 						responsePromise = this._trackRequest(result.responsePromise);
+						responsePromise.then(
+							response => {
+								transport.send(jsonRpcSuccess(msg.id, response));
+							},
+							err => transport.send(jsonRpcErrorFrom(msg.id, err)),
+						);
 					} catch (err) {
 						transport.send(jsonRpcErrorFrom(msg.id, err));
-						return;
 					}
-					responsePromise.then(
-						response => transport.send(jsonRpcSuccess(msg.id, response)),
-						err => transport.send(jsonRpcErrorFrom(msg.id, err)),
-					);
 					return;
 				}
 
@@ -696,7 +703,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
 				serverSeq: this._stateManager.serverSeq,
-				_meta: getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
+				_meta: getAgentHostExtensionInitializeResultMeta(
+					!!this._agentService.removeSessionArtifact,
+					!!client.devContainers,
+					this._otelService?.diagnosticsEnabled,
+					!!this._agentService.importSession,
+				),
 				snapshots,
 				defaultDirectory: this._config.defaultDirectory,
 				completionTriggerCharacters: this._config.completionTriggerCharacters ? [...this._config.completionTriggerCharacters] : undefined,
@@ -750,8 +762,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			client.subscriptions.set(sub.uri, sub);
 			return undefined;
 		}
-		// Annotations need persisted data; changesets need their first-subscriber refresh before the snapshot is read.
-		if (isAnnotationsUri(channel) || parseChangesetUri(channel)) {
+		// Annotations need persisted data, changesets need their first-subscriber
+		// refresh, and chats need their input-availability check before snapshotting.
+		// Keep missing chat baselines on the normal debt/restore path: a fresh
+		// host may need authentication before it can materialize those chats.
+		if (isAnnotationsUri(channel) || parseChangesetUri(channel) || (isAhpChatChannel(channel) && this._stateManager.getSnapshot(channel))) {
 			return this._requestHandlers.subscribe(client, { channel }).then(result => result.snapshot).catch(error => {
 				this._logService.info(`[ProtocolServer] Initialize: failed to restore subscription ${channel}: ${error instanceof Error ? error.message : String(error)}`);
 				return undefined;
@@ -1105,7 +1120,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (record?.state === 'grace') {
 			record.disconnectTimeouts.set('managed-settings', disposableTimeout(() => {
 				record.disconnectTimeouts.deleteAndDispose('managed-settings');
-				this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+				this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			}, CLIENT_TOOL_CALL_DISCONNECT_TIMEOUT));
 		}
 		for (const session of this._stateManager.getSessionUris()) {
@@ -1366,6 +1381,12 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			&& record.connections.some(connection => connection.telemetryConnectionActive);
 	}
 
+	isLocalClient(clientId: string): boolean {
+		const record = this._clients.get(clientId);
+		return record?.state === 'active'
+			&& record.connections.some(connection => connection.telemetryConnectionActive && this._isLocalClientConnection(connection));
+	}
+
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number> {
 		const result = new Map<string, number>();
 		for (const [clientId, record] of this._clients) {
@@ -1378,6 +1399,30 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}
 		return result;
+	}
+
+	async requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean> {
+		for (const record of this._clients.values()) {
+			if (record.state !== 'active') {
+				continue;
+			}
+			for (const client of record.connections) {
+				if (!client.telemetryConnectionActive) {
+					continue;
+				}
+				try {
+					const result = await this._sendReverseRequestToConnection<IAgentHostExtensionServerCommandMap[typeof RequestAgentHostMcpAuthenticationExtensionMethod]['result']>(
+						client, RequestAgentHostMcpAuthenticationExtensionMethod, request,
+					);
+					if (result.authenticated === true) {
+						return true;
+					}
+				} catch (error) {
+					this._logService.debug(`[ProtocolServerHandler] MCP authentication request rejected by client ${client.clientId}: ${toErrorMessage(error)}`);
+				}
+			}
+		}
+		return false;
 	}
 
 	async requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean> {
@@ -1398,6 +1443,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 		}
 		return count;
+	}
+
+	private _isLocalClientConnection(client: IConnectedClient): boolean {
+		return client.telemetryContext.connectionKind === AgentHostClientConnectionKind.Local
+			&& client.telemetryContext.transportKind === AgentHostTransportKind.MessagePort;
 	}
 
 	private _createClientTelemetryContext(clientInfo: Implementation | undefined, meta: Record<string, unknown> | undefined, transport: IProtocolTransport, fallbackConnectionKind = AgentHostClientConnectionKind.Unknown): IAgentHostClientTelemetryContext {
@@ -1582,7 +1632,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
-					_meta: params._meta,
+					_meta: _client.clientInfo ? withSessionInitiator(params._meta, _client.clientInfo) : params._meta,
 					workingDirectories: params.workingDirectories?.map(d => URI.parse(d)),
 					session: URI.parse(params.channel),
 					config: params.config,
@@ -1646,6 +1696,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			);
 			return null;
 		},
+		moveChat: async () => {
+			throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, 'Method not found: moveChat');
+		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
 			const parsed = parseChatUri(chat);
@@ -1682,6 +1735,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 						origin: chat.origin,
 						...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 						...(chat.archived === true ? { archived: true } : {}),
+						...(chat.changes !== undefined ? { changes: chat.changes } : {}),
 					})),
 					defaultChat: s.chats?.find(chat => chat.kind === 'default')?.chat.toString(),
 					// `_meta` carries durable host provenance, including session kind
@@ -1770,8 +1824,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return {};
 		},
-		createTerminal: async (_client, params) => {
-			await this._agentService.createTerminal(params);
+		createTerminal: async (client, params) => {
+			await this._agentService.createTerminal(params, client.telemetryContext.clientType);
 			return null;
 		},
 		disposeTerminal: async (_client, params) => {
@@ -1841,7 +1895,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		}
 
 		// VS Code extension methods (not in the typed protocol maps yet)
-		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(method, params);
+		const extensionResult = client.devContainers?.handleRequest(method, params) ?? this._handleExtensionRequest(client, method, params);
 		if (extensionResult) {
 			this._trackRequest(extensionResult).then(result => {
 				client.transport.send(jsonRpcSuccess(id, result ?? null));
@@ -1946,7 +2000,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(client: IConnectedClient, method: string, params: unknown): Promise<unknown> | undefined {
 		if (method === ReportChatUserInteractionExtensionMethod) {
 			if (!this._otelService?.diagnosticsEnabled) {
 				return Promise.resolve();
@@ -2363,7 +2417,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	override dispose(): void {
 		for (const [clientId, record] of this._clients) {
-			this._managedSettingsService.removeClientPermissions(this._managedSettingsContributionId(clientId));
+			this._managedSettingsService.removeClient(this._managedSettingsContributionId(clientId));
 			if (record.state === 'active') {
 				for (const connection of [...record.connections]) {
 					const subscriptionCount = connection.subscriptions.size;

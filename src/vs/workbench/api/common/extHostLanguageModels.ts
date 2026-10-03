@@ -40,6 +40,18 @@ type LanguageModelProviderData = {
 
 type LMResponsePart = vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart;
 
+const apiTypesFromApi = new Map<number, NonNullable<ILanguageModelChatMetadata['capabilities']>['apiType']>([
+	[extHostTypes.LanguageModelChatApiType.ChatCompletions, 'chatCompletions'],
+	[extHostTypes.LanguageModelChatApiType.Responses, 'responses'],
+	[extHostTypes.LanguageModelChatApiType.Messages, 'messages'],
+]);
+
+const apiTypesToApi = {
+	chatCompletions: extHostTypes.LanguageModelChatApiType.ChatCompletions,
+	responses: extHostTypes.LanguageModelChatApiType.Responses,
+	messages: extHostTypes.LanguageModelChatApiType.Messages,
+};
+
 
 class LanguageModelResponse {
 
@@ -196,6 +208,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (m.capabilities.editTools) {
 				checkProposedApiEnabled(data.extension, 'chatProvider');
 			}
+			if (m.capabilities.apiType !== undefined || m.capabilities.adaptiveThinking !== undefined) {
+				checkProposedApiEnabled(data.extension, 'languageModelCapabilities');
+			}
 
 			const isDefaultForLocation: { [K in ChatAgentLocation]?: boolean } = {};
 			if (isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -251,6 +266,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
 						editTools: m.capabilities.editTools,
+						apiType: m.capabilities.apiType === undefined ? undefined : apiTypesFromApi.get(m.capabilities.apiType),
+						adaptiveThinking: m.capabilities.adaptiveThinking,
 						toolCalling: !!m.capabilities.toolCalling,
 						agentMode: !!m.capabilities.toolCalling
 					} : undefined,
@@ -433,6 +450,25 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		return this._createLanguageModelChatApi(extension, modelId);
 	}
 
+	/**
+	 * Resolves the model a chat request or tool invocation runs on. An explicit selection that cannot be resolved
+	 * fails rather than silently running on (and billing) the default model.
+	 */
+	async getLanguageModelForRequest(extension: IExtensionDescription, userSelectedModelId: string | undefined): Promise<vscode.LanguageModelChat> {
+		if (userSelectedModelId) {
+			const model = await this.getLanguageModelByIdentifier(extension, userSelectedModelId);
+			if (!model) {
+				throw extHostTypes.LanguageModelError.NotFound(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
+			}
+			return model;
+		}
+		const model = await this.getDefaultLanguageModel(extension);
+		if (!model) {
+			throw new Error('Language model unavailable');
+		}
+		return model;
+	}
+
 	private async _createLanguageModelChatApi(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {
 		const model = this._localModels.get(modelId);
 		if (!model) {
@@ -466,6 +502,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				supportsImageToText: model.metadata.capabilities?.vision ?? false,
 				supportsToolCalling: !!model.metadata.capabilities?.toolCalling,
 				editToolsHint: model.metadata.capabilities?.editTools,
+				apiType: model.metadata.capabilities?.apiType === undefined ? undefined : apiTypesToApi[model.metadata.capabilities.apiType],
+				supportsAdaptiveThinking: model.metadata.capabilities?.adaptiveThinking,
 			},
 			maxInputTokens: model.metadata.maxInputTokens,
 			countTokens(text, token) {

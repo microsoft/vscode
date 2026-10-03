@@ -15,6 +15,7 @@ import { IFileDeleteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
 import { customizationId, type ClientPluginCustomization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { CustomizationType } from '../../common/state/protocol/state.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
@@ -109,6 +110,31 @@ suite('AgentPluginManager', () => {
 	// ---- syncCustomizations -------------------------------------------------
 
 	suite('syncCustomizations', () => {
+
+		test('uses agent host file URIs in place and reads file URIs from the client', async () => {
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const directory = URI.file('/local/bundle');
+			await fileService.writeFile(URI.joinPath(directory, 'index.js'), VSBuffer.fromString('host'));
+			await fileService.writeFile(URI.joinPath(toAgentClientUri(directory, AUTOMATION_ACTIVE_CLIENT_ID), 'index.js'), VSBuffer.fromString('client-served'));
+			const hostRef = { ...makeRef('host', 'revision'), uri: toAgentHostFileUri(directory).toString() };
+			const clientRef = { ...makeRef('client', 'revision'), uri: directory.toString() };
+			const [host] = await manager.syncCustomizations('not-connected', [hostRef]);
+			const cacheExistsAfterHost = await fileService.exists(URI.joinPath(manager.basePath, 'cache.json'));
+			const [client] = await manager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [clientRef]);
+			assert.deepStrictEqual({
+				hostPluginDir: host.pluginDir?.toString(),
+				hostCustomization: host.customization,
+				cacheExistsAfterHost,
+				clientCopied: client.pluginDir?.toString() !== directory.toString(),
+				clientContent: (await fileService.readFile(URI.joinPath(client.pluginDir!, 'index.js'))).value.toString(),
+			}, {
+				hostPluginDir: directory.toString(),
+				hostCustomization: { ...hostRef, load: { kind: 'loaded' } },
+				cacheExistsAfterHost: false,
+				clientCopied: true,
+				clientContent: 'client-served',
+			});
+		});
 
 		test('returns loaded status and pluginDir for each synced plugin', async () => {
 			await seedPluginDir('alpha', { 'index.js': 'a' });

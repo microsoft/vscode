@@ -9,6 +9,7 @@ import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import type { IAgentTelemetryContext } from '../common/agent.js';
+import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
 import { IAgentHostTelemetryReporter, type AgentHostExecutorClientConnectionState, type AgentHostModelTelemetryKind, type AgentHostTelemetryReporter, type IAgentHostToolInvokedReport } from './agentHostTelemetryReporter.js';
@@ -49,6 +50,7 @@ interface IToolCallTiming {
 	readonly toolId: string;
 	contributor: ToolCallContributor | undefined;
 	toolSourceKind: string;
+	mcpSourceKind: McpServerSource | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	modelResolvedFromUsage: boolean;
@@ -96,7 +98,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		super();
 	}
 
-	toolCallStarted(provider: string, session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined): void {
+	toolCallStarted(provider: string, session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, mcpSourceKind?: McpServerSource): void {
 		const resolvedModel = this._turnModels.get(this._turnKey(session, turnId));
 		this._toolCalls.set(this._key(session, toolCallId), {
 			lifecycleStopWatch: StopWatch.create(true),
@@ -106,6 +108,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			toolId: toolName,
 			contributor,
 			toolSourceKind: toolSourceKindFromContributor(contributor),
+			mcpSourceKind,
 			model: resolvedModel?.model ?? model,
 			modelTelemetryKind: resolvedModel?.modelTelemetryKind ?? modelTelemetryKind,
 			modelResolvedFromUsage: resolvedModel !== undefined,
@@ -133,7 +136,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		}
 	}
 
-	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
+	toolCallMetadataUpdated(session: string, toolCallId: string, contributor: ToolCallContributor | undefined, mcpSourceKind?: McpServerSource): void {
 		const timing = this._toolCalls.get(this._key(session, toolCallId));
 		if (!timing) {
 			return;
@@ -141,6 +144,7 @@ export class AgentHostToolCallTracker extends Disposable {
 		if (contributor && canRefineContributor(timing.contributor, contributor)) {
 			timing.contributor = contributor;
 			timing.toolSourceKind = toolSourceKindFromContributor(contributor);
+			timing.mcpSourceKind = mcpSourceKind ?? timing.mcpSourceKind;
 		}
 	}
 
@@ -173,6 +177,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
+			mcpSourceKind: timing.mcpSourceKind,
 			toolCallId,
 			result: resultBucket,
 			invocationTimeMs: timing.invocationStopWatch?.elapsed(),

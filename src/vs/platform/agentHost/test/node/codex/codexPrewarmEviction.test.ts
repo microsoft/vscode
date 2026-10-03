@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { spy } from 'sinon';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { PassThrough } from 'stream';
 import * as fs from 'fs';
@@ -33,9 +34,10 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, type StringOrMarkdown } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, chatStorageUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
-import { ISessionDataService } from '../../../common/sessionDataService.js';
+import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
+import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
@@ -56,12 +58,14 @@ import { ICopilotApiService } from '../../../node/shared/copilotApiService.js';
 import { buildMcpChannel, McpCustomizationController } from '../../../node/shared/mcpCustomizationController.js';
 import { AGENT_HOST_WORKSPACELESS_INSTRUCTIONS } from '../../../node/shared/workspacelessInstructions.js';
 import { sessionServerToolDefinitions, sessionToolRequiresConfirmation } from '../../../node/shared/sessionServerTools.js';
+import { CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT } from '../../../node/codex/codexTerminalOutput.js';
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { AgentHostCodexMultiRootEnabledConfigKey } from '../../../common/agentHostSchema.js';
 import { CodexSessionConfigKey } from '../../../common/codexSessionConfigKeys.js';
 import type { SelectedCapabilityRoot } from '../../../node/codex/protocol/generated/v2/SelectedCapabilityRoot.js';
 import type { ConfigEdit } from '../../../node/codex/protocol/generated/v2/ConfigEdit.js';
 import type { TurnStartParams } from '../../../node/codex/protocol/generated/v2/TurnStartParams.js';
+import type { ThreadItem } from '../../../node/codex/protocol/generated/v2/ThreadItem.js';
 import { createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
@@ -269,6 +273,7 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(IAgentPluginManager, {
 		_serviceBrand: undefined,
 		basePath: URI.file('/plugins'),
+		hostPluginsPath: URI.file('/plugins/.host'),
 		syncCustomizations: async (_clientId, customizations) => customizations.map(customization => ({ customization })),
 	});
 	instantiationService.stub(ICopilotApiService, { _serviceBrand: undefined, models: async () => models });
@@ -295,7 +300,6 @@ async function createAgent(disposables: Pick<DisposableStore, 'add'>, options: I
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, options.telemetryService ?? NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	agent['_probeAccountAtStartup'] = async () => { };
 	agent['_activated'] = true;
 	await agent.authenticate(agent.getProtectedResources()[0].resource, 'test-token');
 	await agent.refreshModels();
@@ -1386,6 +1390,353 @@ suite('CodexAgent prewarm eviction', () => {
 				response: ['restored two'],
 			}],
 		});
+		peer.exit();
+	});
+
+	test('large command output is stored before its completion is published and reopens after restore', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const chat = defaultChatOf(session);
+		const threadId = 'retained-output-thread';
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		entry.threadId = threadId;
+		agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+		// `turn/started` records the host turn before any of its items complete.
+		await database.createTurn('turn-1');
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const command = (id: string, aggregatedOutput: string | null) => ({
+			type: 'commandExecution', id,
+			command: 'curl -s https://example.com', cwd: '/tmp', processId: null,
+			source: 'agent', status: aggregatedOutput === null ? 'inProgress' : 'completed',
+			commandActions: [], aggregatedOutput, exitCode: aggregatedOutput === null ? null : 0, durationMs: null,
+		});
+		const startItem = (item: object) => agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item, threadId, turnId: 'turn-1', startedAtMs: 0 } as never));
+		const completeItem = (item: object) => agent['_dispatchItemCompleted']({ item, threadId, turnId: 'turn-1', completedAtMs: 0 } as never);
+		const published: { toolCallId: string; storedSize: Promise<number | undefined>; content: unknown }[] = [];
+		disposables.add(agent.onDidChatProgress(signal => {
+			if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete) {
+				const { toolCallId, result } = signal.action;
+				published.push({ toolCallId, storedSize: database.getTerminalOutputSize(toolCallId), content: result.content });
+			}
+		}));
+
+		// An output-less sandbox pre-flight followed by its approved re-run renders as the pre-flight's tool call.
+		startItem(command('pre', null));
+		completeItem(command('pre', ''));
+		startItem(command('rerun', null));
+		completeItem(command('rerun', output));
+
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: threadId, historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'fetch it', text_elements: [] }] },
+						command('pre', ''),
+						command('rerun', output),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+		const turns = await agent.chats.getMessages(chat, chatContext(session, chat));
+
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
+		const retainedContent = [
+			{ type: ToolResultContentType.Text, text: preview },
+			{
+				type: ToolResultContentType.Terminal,
+				resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, session, chat, 'pre'),
+				title: 'Run shell command',
+				isPty: false,
+				result: { exitCode: 0, preview, truncated: true },
+			},
+		];
+		const stored = await database.readTerminalOutput('pre');
+		assert.deepStrictEqual({
+			published: await Promise.all(published.map(async ({ toolCallId, storedSize, content }) => ({ toolCallId, storedSize: await storedSize, content }))),
+			restored: turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed
+				? { toolCallId: part.toolCall.toolCallId, content: part.toolCall.content }
+				: undefined),
+			stored: stored && VSBuffer.wrap(stored).toString(),
+		}, {
+			published: [{ toolCallId: 'pre', storedSize: output.length, content: retainedContent }],
+			restored: [{ toolCallId: 'pre', content: retainedContent }],
+			stored: output,
+		});
+		peer.exit();
+	});
+
+	test('command output retention checks character and UTF-8 byte limits before storage', async () => {
+		const database = new TestSessionDatabase();
+		const agent = await createAgent(disposables, { database });
+		const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+		const entry = agent['_sessions'].get(AgentSession.id(session))!;
+		await database.createTurn('turn-1');
+		const results = [];
+		for (const [id, output] of [
+			['ascii-over', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES + 1)],
+			['ascii-limit', 'x'.repeat(MAX_TERMINAL_OUTPUT_BYTES)],
+			['utf8-over', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2 + 1)],
+			['utf8-limit', '\u00e9'.repeat(MAX_TERMINAL_OUTPUT_BYTES / 2)],
+		]) {
+			entry.mapState.itemToToolCall.set(id, { toolCallId: id, turnId: 'turn-1', toolName: 'shell', output });
+			const encode = spy(VSBuffer, 'fromString');
+			try {
+				const resource = agent['_retainCommandOutput'](entry, {
+					type: 'commandExecution', id, command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
+					source: 'agent', status: 'completed', commandActions: [],
+					aggregatedOutput: output, exitCode: 0, durationMs: 1,
+				});
+				await agent['_pendingCommandOutputs'].get(entry)?.get(id);
+				results.push({ id, encoded: encode.calledWith(output), retained: !!resource, size: await database.getTerminalOutputSize(id) });
+			} finally {
+				encode.restore();
+			}
+		}
+		assert.deepStrictEqual(results, [
+			{ id: 'ascii-over', encoded: false, retained: false, size: undefined },
+			{ id: 'ascii-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+			{ id: 'utf8-over', encoded: true, retained: false, size: undefined },
+			{ id: 'utf8-limit', encoded: true, retained: true, size: MAX_TERMINAL_OUTPUT_BYTES },
+		]);
+	});
+
+	for (const recovered of [false, true]) {
+		for (const outcome of ['stored', 'failed', 'missing turn', 'disposed'] as const) {
+			test(`command output retention preserves publication order (${recovered ? 'recovered' : 'ordinary'}, ${outcome})`, async () => {
+				const write = new DeferredPromise<void>();
+				class DelayedOutputDatabase extends TestSessionDatabase {
+					override async storeTerminalOutput(turnId: string, toolCallId: string, content: Uint8Array): Promise<void> {
+						await write.p;
+						if (outcome === 'failed') {
+							throw new Error('Output write failed');
+						}
+						await super.storeTerminalOutput(turnId, toolCallId, content);
+					}
+				}
+				const database = new DelayedOutputDatabase();
+				const agent = await createAgent(disposables, { database });
+				const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL } });
+				const entry = agent['_sessions'].get(AgentSession.id(session))!;
+				const threadId = 'delayed-output-thread';
+				entry.threadId = threadId;
+				agent['_sessionIdByThreadId'].set(threadId, entry.sessionId);
+				if (outcome !== 'missing turn') {
+					await database.createTurn('turn-1');
+				}
+				const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+				const command: Extract<ThreadItem, { type: 'commandExecution' }> = {
+					type: 'commandExecution', id: 'cmd-delayed',
+					command: 'build', cwd: '/tmp', processId: null,
+					pluginId: null, scriptPath: null,
+					source: 'agent', status: 'inProgress',
+					commandActions: [], aggregatedOutput: null, exitCode: null, durationMs: null,
+				};
+				agent['_dispatchByThread'](threadId, s => agent['_handleItemStarted'](s, { item: command, threadId, turnId: 'turn-1', startedAtMs: 0 }));
+				const signals: AgentSignal[] = [];
+				disposables.add(agent.onDidChatProgress(signal => signals.push(signal)));
+				const completed: typeof command = { ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 };
+				if (!recovered) {
+					agent['_dispatchItemCompleted']({ item: completed, threadId, turnId: 'turn-1', completedAtMs: 1 });
+				}
+				agent['_dispatchTurnCompleted']({
+					threadId,
+					turn: {
+						id: 'turn-1', items: recovered ? [completed] : [], itemsView: 'full',
+						status: 'completed', error: null, startedAt: null, completedAt: null, durationMs: 1,
+					},
+				});
+				agent['_fireSteeringConsumed'](entry, 'steering-1');
+				const beforeWrite = signals.length;
+				const pending = agent['_pendingChatProgress']?.get(entry);
+				if (outcome === 'disposed') {
+					await agent.chats.disposeChat(defaultChatOf(session), chatContext(session, defaultChatOf(session)));
+				}
+				await write.complete();
+				await pending;
+
+				const completion = signals.find(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete);
+				const content = completion?.kind === 'action' && completion.action.type === ActionType.ChatToolCallComplete ? completion.action.result.content : undefined;
+				assert.deepStrictEqual({
+					beforeWrite,
+					order: signals.map(signal => signal.kind === 'action' ? signal.action.type : signal.kind),
+					text: content?.find(part => part.type === ToolResultContentType.Text)?.text,
+					retained: content?.some(part => part.type === ToolResultContentType.Terminal),
+					warned: (agent['_logService'] as TestCodexLogService).warnings.some(warning => warning.includes('Failed to retain output')),
+				}, {
+					beforeWrite: 0,
+					order: outcome === 'disposed' ? [] : [ActionType.ChatToolCallComplete, ActionType.ChatTurnComplete, 'steering_consumed'],
+					text: outcome === 'disposed' ? undefined : outcome === 'stored' ? output.slice(0, 400) : output,
+					retained: outcome === 'disposed' ? undefined : outcome === 'stored',
+					warned: outcome === 'failed' || outcome === 'missing turn',
+				});
+			});
+		}
+	}
+
+	test('turn completion recovery retains large parent output but leaves subagent output inline', async () => {
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const command = {
+			type: 'commandExecution', id: 'cmd-recovered',
+			command: 'build', cwd: '/tmp', processId: null,
+			source: 'agent', status: 'inProgress',
+			commandActions: [], aggregatedOutput: null,
+			exitCode: null, durationMs: null,
+		};
+		const results = [];
+		const cases = [
+			{ retainRecoveredOutput: true, session: AgentSession.uri('codex', 'parent-recovery') },
+			{ retainRecoveredOutput: false, session: AgentSession.uri('codex', 'subagent-recovery') },
+		];
+		for (const { retainRecoveredOutput, session: requestedSession } of cases) {
+			const database = new TestSessionDatabase();
+			const agent = await createAgent(disposables, { database });
+			const { session } = await createSession(agent, { model: { id: COPILOT_TEST_MODEL }, session: requestedSession });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			await database.createTurn('turn-1');
+			agent['_handleItemStarted'](entry, { item: command, threadId: 'thread-1', turnId: 'turn-1', startedAtMs: 0 } as never);
+
+			const actions = agent['_handleTurnCompletedNotification'](entry, {
+				threadId: 'thread-1',
+				turn: {
+					id: 'turn-1',
+					items: [{ ...command, status: 'completed', aggregatedOutput: output, exitCode: 0 }],
+					itemsView: { type: 'full' },
+					status: 'completed',
+					error: null,
+					startedAt: null,
+					completedAt: null,
+					durationMs: 1,
+				},
+			} as never, retainRecoveredOutput);
+
+			const completion = actions.find(action => action.type === ActionType.ChatToolCallComplete);
+			const content = completion?.type === ActionType.ChatToolCallComplete ? completion.result.content : undefined;
+			results.push({
+				retainRecoveredOutput,
+				stored: await database.getTerminalOutputSize('cmd-recovered'),
+				content: content?.map(part => {
+					if (part.type === ToolResultContentType.Text) {
+						return { type: part.type, text: part.text };
+					}
+					if (part.type === ToolResultContentType.Terminal) {
+						return { type: part.type, resource: part.resource };
+					}
+					return { type: part.type };
+				}),
+			});
+		}
+
+		assert.deepStrictEqual(results, [{
+			retainRecoveredOutput: true,
+			stored: output.length,
+			content: [
+				{ type: ToolResultContentType.Text, text: output.slice(0, 400) },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(
+						AgentSession.uri('codex', 'parent-recovery'),
+						AgentSession.uri('codex', 'parent-recovery'),
+						defaultChatOf(AgentSession.uri('codex', 'parent-recovery')),
+						'cmd-recovered',
+					),
+				},
+			],
+		}, {
+			retainRecoveredOutput: false,
+			stored: undefined,
+			content: [{ type: ToolResultContentType.Text, text: output }],
+		}]);
+	});
+
+	test('restored large command output reopens its retained terminal resource', async () => {
+		const output = `BEGIN\n${'x'.repeat(CODEX_COMMAND_OUTPUT_INLINE_CHAR_LIMIT)}\nEND\n`;
+		const database = new TestSessionDatabase();
+		await database.setMetadata('codex.threadId', 'retained-history-thread');
+		await database.createTurn('host-turn');
+		const retainedIds = ['cmd-retained', 'cmd-short', 'cmd-empty', 'cmd-missing'];
+		for (const id of retainedIds) {
+			await database.storeTerminalOutput('host-turn', id, VSBuffer.fromString(output).buffer);
+		}
+		const agent = await createAgent(disposables, { database });
+		const peer = disposables.add(createTestPeer());
+		agent['_connection'] = {
+			kind: 'ready',
+			client: new CodexAppServerClient(peer.transport),
+			usageSource: 'github',
+			child: { kill: () => true },
+		} as never;
+		const parent = AgentSession.uri('codex', 'parent');
+		const chat = chatOf(parent, 'retained-history');
+		await agent.materializeChat(chat, parent, JSON.stringify({ sessionId: 'retained-history' }));
+		const command = (id: string, aggregatedOutput: string | null = output) => ({
+			type: 'commandExecution', id,
+			command: `build ${id}`, cwd: '/tmp', processId: null,
+			source: 'agent', status: 'completed',
+			commandActions: [], aggregatedOutput, exitCode: 0, durationMs: 5,
+		});
+		const responses: Record<string, object> = {
+			'thread/read': { thread: { id: 'retained-history', historyMode: 'paginated', turns: [] } },
+			'thread/turns/list': {
+				data: [{
+					id: 'turn-1',
+					items: [
+						{ type: 'userMessage', id: 'user-1', content: [{ type: 'text', text: 'build it', text_elements: [] }] },
+						command('cmd-retained'),
+						command('cmd-short', 'short native output'),
+						command('cmd-empty', ''),
+						command('cmd-missing', null),
+						command('cmd-inline'),
+					],
+					itemsView: 'full',
+					status: 'completed',
+				}],
+				nextCursor: null,
+				backwardsCursor: null,
+			},
+		};
+		disposables.add(Event.fromNodeEventEmitter<Buffer>(peer.outbound, 'data')(chunk => {
+			const request: ITestWireRequest = JSON.parse(chunk.toString('utf8'));
+			assert.ok(responses[request.method], `Unexpected request: ${request.method}`);
+			peer.push({ id: request.id, result: responses[request.method] });
+		}));
+
+		const turns = await agent.chats.getMessages(chat, { configurationResource: parent, resource: chat });
+
+		const preview = `BEGIN\n${'x'.repeat(400 - 'BEGIN\n'.length)}`;
+		assert.deepStrictEqual(turns[0]?.responseParts.map(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.content : undefined), [
+			...retainedIds.map(id => [
+				{ type: ToolResultContentType.Text, text: preview },
+				{
+					type: ToolResultContentType.Terminal,
+					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, id),
+					title: 'Run shell command',
+					isPty: false,
+					result: { exitCode: 0, preview, truncated: true },
+				},
+			]),
+			// Output the database did not retain stays as the thread recorded it.
+			[{ type: ToolResultContentType.Text, text: output }],
+		]);
 		peer.exit();
 	});
 
