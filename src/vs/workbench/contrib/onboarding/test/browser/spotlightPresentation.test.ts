@@ -65,6 +65,98 @@ suite('SpotlightPresentation', () => {
 		};
 	}
 
+	test('a primary action runs only on click and waits for accepted selection', async () => {
+		const container = createContainer();
+		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+		const selected = disposables.add(new Emitter<Promise<boolean>>());
+		const shown = new DeferredPromise<void>();
+		const accepted = new DeferredPromise<boolean>();
+		createTarget(container, 'test.action', { onDidSelect: selected.event });
+		let actions = 0;
+		let completed = false;
+		const result = presentation.run(createScenario('test.action', {
+			id: 'action', targetId: 'test.action', title: 'Choose', description: 'Choose a model.',
+			advanceOnTargetSelection: true, hideNext: true,
+			primaryAction: { label: 'Use Copilot', run: () => { actions++; } },
+		}), { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
+		void result.then(() => { completed = true; });
+		await shown.p;
+		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button'));
+		assert.deepStrictEqual({ actions, visibleButtons: buttons.filter(button => button.style.display !== 'none').map(button => button.textContent) }, {
+			actions: 0, visibleButtons: ['End Tour', 'Use Copilot'],
+		});
+		buttons[2].click();
+		buttons[2].click();
+		selected.fire(accepted.p);
+		await Promise.resolve();
+		assert.deepStrictEqual({ actions, completed }, { actions: 1, completed: false });
+		await accepted.complete(true);
+		assert.strictEqual((await result).outcome, OnboardingOutcome.Completed);
+	});
+
+	for (const exit of ['back', 'endTour', 'abort', 'replace'] as const) {
+		test(`cancels a pending primary action on ${exit} and ignores its late result`, async () => {
+			const container = createContainer();
+			const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+			const abort = disposables.add(new Emitter<void>());
+			const shown = new DeferredPromise<void>();
+			const action = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			const target = createTarget(container, 'test.cancelAction');
+			let actionToken: CancellationToken | undefined;
+			const result = presentation.runStep({
+				id: 'action', kind: SPOTLIGHT_PRESENTATION_KIND,
+				payload: {
+					id: 'action', targetId: 'test.cancelAction', title: 'Choose', description: 'Choose a model.',
+					missingTarget: { kind: 'abort' },
+					primaryAction: {
+						label: 'Use Copilot', run: token => {
+							actionToken = token;
+							disposables.add(token.onCancellationRequested(() => { void cancelled.complete(); }));
+							return action.p;
+						},
+					},
+				} satisfies ISpotlightStep,
+			}, {
+				targetWindow: mainWindow, onAbort: abort.event, onDidShow: () => { void shown.complete(); },
+				cancellationToken: CancellationToken.None, stepIndex: 1, visualStepIndex: 1, visualStepCount: 2, canGoBack: true, isLastVisualStep: true,
+			});
+			await shown.p;
+			const [endTour, back, primary] = Array.from(container.querySelectorAll<HTMLElement>('.monaco-button'));
+			primary.click();
+			if (exit === 'back') { back.click(); }
+			else if (exit === 'endTour') { endTour.click(); }
+			else if (exit === 'abort') { abort.fire(); }
+			else { target.remove(); }
+			await cancelled.p;
+			await action.complete();
+			assert.deepStrictEqual({ cancelled: actionToken?.isCancellationRequested, action: (await result).action }, {
+				cancelled: true, action: exit === 'back' ? 'back' : exit === 'endTour' ? 'skipSequence' : 'abort',
+			});
+		});
+	}
+
+	test('a scoped adapter reports selection without replacing the owner target marker', async () => {
+		const container = createContainer();
+		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+		const selected = disposables.add(new Emitter<Promise<boolean>>());
+		const target = createTarget(container, 'test.owner');
+		disposables.add(registerOnboardingTargetProvider('test.adapter', () => ({ element: target, onDidSelect: selected.event })));
+		const result = await presentation.run(createScenario('test.adapter', {
+			id: 'choose', targetId: 'test.adapter', title: 'Open Session', description: 'Use the real row.',
+			allowTargetInteraction: true, advanceOnTargetSelection: true, hideNext: true,
+		}), {
+			targetWindow: mainWindow, onAbort: Event.None,
+			onDidShow: () => selected.fire(Promise.resolve(true)),
+		});
+		assert.deepStrictEqual({ outcome: result.outcome, marker: target.getAttribute(ONBOARDING_TARGET_ATTR), retainedListener: selected.hasListeners() }, {
+			outcome: OnboardingOutcome.Completed, marker: 'test.owner', retainedListener: false,
+		});
+	});
+
 	test('resolves a target within the prepared instance scope', async () => {
 		const container = createContainer();
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));

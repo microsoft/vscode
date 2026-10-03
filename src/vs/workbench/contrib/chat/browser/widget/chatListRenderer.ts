@@ -2128,8 +2128,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
-		if (this.rendererOptions.renderStyle === 'minimal' || element.isComplete) {
+		if (this.rendererOptions.renderStyle === 'minimal') {
 			return undefined;
+		}
+
+		if (element.isComplete) {
+			return moreContentAvailable && this.isPersistentProgressEnabled()
+				? templateData.renderedContent?.findLast(part => part.kind === 'working')
+				: undefined;
 		}
 
 		if (this.isPersistentProgressEnabled()) {
@@ -2522,6 +2528,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
+	private readonly requestDisclosureState = new WeakMap<IChatRequestViewModel, boolean>();
+
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.stickyScrollSource = undefined;
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
@@ -2549,6 +2557,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const isStickyScrollRow = !!dom.findParentWithClass(templateData.rowContainer, 'monaco-tree-sticky-row');
+		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
+		const requestSummary = isFirstRequest && !element.confirmation && !element.pendingKind && this.viewModel?.editing?.id !== element.id
+			? this.rendererOptions.firstRequestSummary
+			: undefined;
 		if (element.id === this.viewModel?.editing?.id && !isStickyScrollRow) {
 			this._onDidRerender.fire(templateData);
 		}
@@ -2573,7 +2585,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const otherVariables = element.variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const requestMarkdown = this.getRequestMarkdown(element, explicitFileOrImageVariables);
+			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables);
 			if (requestMarkdown) {
 				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
 			}
@@ -2588,7 +2600,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		dom.clearNode(templateData.value);
-		const isFirstRequest = this.viewModel?.model.getRequests()[0]?.id === element.id;
 		if (!isStickyScrollRow && (element.origin || (this.environmentService.isSessionsWindow && isFirstRequest))) {
 			const requestOriginPart = this.instantiationService.createInstance(ChatRequestOriginPart, element.sessionResource, element.origin);
 			templateData.value.appendChild(requestOriginPart.domNode);
@@ -2620,7 +2631,33 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				templateData.elementDisposables.add(otherAttachmentsPart);
 			}
 		}
-		const contentContainer = templateData.value;
+		let contentContainer = templateData.value;
+		if (requestSummary && !isStickyScrollRow) {
+			const details = dom.append(contentContainer, dom.$<HTMLDetailsElement>('details.chat-request-disclosure'));
+			const summary = dom.append(details, dom.$('summary', undefined, requestSummary));
+			details.open = this.requestDisclosureState.get(element) ?? false;
+			const updateExpansionState = () => {
+				this.requestDisclosureState.set(element, details.open);
+				summary.setAttribute('aria-expanded', String(details.open));
+			};
+			updateExpansionState();
+			templateData.elementDisposables.add(dom.addDisposableListener(details, 'toggle', updateExpansionState));
+			templateData.elementDisposables.add(dom.addDisposableListener(summary, dom.EventType.KEY_DOWN, event => {
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
+					event.stopPropagation();
+				}
+			}));
+			templateData.elementDisposables.add(dom.addDisposableListener(summary, dom.EventType.CLICK, event => {
+				event.preventDefault();
+				event.stopPropagation();
+				details.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
+				details.open = !details.open;
+				updateExpansionState();
+			}));
+			contentContainer = details;
+			templateData.stickyScrollSource = summary;
+		}
 
 		if (isStickyAndEditing) {
 			const store = new DisposableStore();
@@ -3112,6 +3149,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
 		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}`);
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		if (element.isComplete && !contentForThisTurn.moreContentAvailable) {
+			this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
+			element.renderData = undefined;
+			this.renderChatResponseBasic(element, index, templateData);
+			return true;
+		}
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
 
 		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
@@ -3123,12 +3166,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// The content that we want to render in this turn is already rendered, but there is more content to render on the next tick
 				this.traceLayout('doNextProgressiveRender', 'not rendering any new content this tick, but more available');
 				return false;
-			} else if (element.isComplete) {
-				// All content is rendered, and response is done, so do a normal render
-				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
-				element.renderData = undefined;
-				this.renderChatResponseBasic(element, index, templateData);
-				return true;
 			} else if (this.isWorkingProgressDebouncePending(element, contentForThisTurn.content)) {
 				// Caught up to the streamed markdown, but still within the working
 				// indicator debounce window. Keep the render loop alive so the
@@ -3313,6 +3350,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this.isPersistentProgressEnabled() && partToRender.kind === 'working') {
 				const workingPart = displacedWorkingPart ?? (alreadyRenderedPart instanceof ChatWorkingProgressContentPart ? alreadyRenderedPart : undefined);
 				if (workingPart) {
+					if (alreadyRenderedPart && alreadyRenderedPart !== workingPart) {
+						alreadyRenderedPart.dispose();
+						alreadyRenderedPart.domNode?.remove();
+					}
 					workingPart.updateWorkingContent(partToRender.content, partToRender.isActive, partToRender.announce, partToRender.progressStep, partToRender.showDelayedProgressMessage);
 					renderedParts[contentIndex] = workingPart;
 					displacedWorkingPart = undefined;

@@ -7,7 +7,7 @@ import { $, Dimension, getWindow, scheduleAtNextAnimationFrame } from '../../../
 import { Action } from '../../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { listErrorForeground, listWarningForeground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { isDark, isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -32,20 +33,44 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, IToolbarActions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import {
+	EDITOR_BORDER,
 	EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND,
 	EDITOR_GROUP_HEADER_TABS_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_FOREGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_BACKGROUND,
+	MODERN_EDITOR_TAB_HOVER_FOREGROUND,
+	MODERN_EDITOR_TAB_INACTIVE_BACKGROUND,
+	MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND,
+	TAB_ACTIVE_BORDER,
+	TAB_ACTIVE_BORDER_TOP,
+	TAB_BORDER,
+	TAB_DIVIDER,
+	TAB_HOVER_BACKGROUND,
+	TAB_HOVER_BORDER,
+	TAB_SELECTED_BORDER_TOP,
+	TAB_UNFOCUSED_ACTIVE_BORDER,
+	TAB_UNFOCUSED_ACTIVE_BORDER_TOP,
+	TAB_UNFOCUSED_HOVER_BORDER,
 } from '../../../../common/theme.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { BreadcrumbsService, IBreadcrumbsService } from '../../../../browser/parts/editor/breadcrumbs.js';
 import { EditorTitleControl } from '../../../../browser/parts/editor/editorTitleControl.js';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
+import '../../../../services/themes/browser/modernTabColorCustomizations.js';
+import { ColorThemeData } from '../../../../services/themes/common/colorThemeData.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { IOutlineService } from '../../../../services/outline/browser/outline.js';
 import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { getThemeStyleSheet } from '../fixtureUtilsCss.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
@@ -276,6 +301,21 @@ export interface IEditorTabsFixtureOptions {
 	readonly headerMenuIds?: IEditorGroupMenuIds;
 	readonly editorContents?: string;
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
+	readonly colorCustomizations?: Readonly<Record<string, string>>;
+	readonly editorFrame?: boolean;
+}
+
+let customizedThemeId = 0;
+
+function customizeTheme(theme: ColorThemeData, customizations: Readonly<Record<string, string>> | undefined): ColorThemeData {
+	if (!customizations) {
+		return theme;
+	}
+
+	const customizedTheme = Object.assign(ColorThemeData.createLoadedEmptyTheme(theme.id, theme.settingsId), theme);
+	customizedTheme.id = `${theme.id} tab-custom-colors-${customizedThemeId++}`;
+	customizedTheme.setCustomColors(customizations);
+	return customizedTheme;
 }
 
 function createPartOptions(overrides?: Partial<IEditorPartOptions>): IEditorPartOptions {
@@ -290,7 +330,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 	// Open sticky editors first so their indices stay at the front.
 	const ordered = [...specs].sort((a, b) => (a.sticky === b.sticky) ? 0 : a.sticky ? -1 : 1);
 	const inputBySpec = new Map<IEditorSpec, FixtureEditorInput>();
-	for (const spec of ordered) {
+	for (const [index, spec] of ordered.entries()) {
 		const input = disposableStore.add(new FixtureEditorInput(spec.resource, {
 			typeId: spec.typeId,
 			dirty: spec.dirty,
@@ -299,6 +339,7 @@ function populateModel(model: EditorGroupModel, specs: IEditorSpec[], disposable
 		}));
 		inputBySpec.set(spec, input);
 		model.openEditor(input, {
+			index,
 			pinned: spec.pinned ?? true,
 			sticky: spec.sticky,
 			active: spec.active,
@@ -335,8 +376,18 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 
 	// Feed the fixture's themes to the shared theme service so tab-bar theme lookups resolve.
 	const themeService = instantiationService.get(IThemeService) as TestThemeService;
-	themeService.setTheme(theme);
+	const fixtureTheme = customizeTheme(theme, options.colorCustomizations);
+	themeService.setTheme(fixtureTheme);
 	themeService.setFileIconTheme(fileIconTheme);
+	if (fixtureTheme !== theme) {
+		const styleSheet = getThemeStyleSheet(fixtureTheme);
+		const targetDocument = container.ownerDocument;
+		container.classList.add(...fixtureTheme.classNames);
+		targetDocument.adoptedStyleSheets = [...targetDocument.adoptedStyleSheets, styleSheet];
+		disposableStore.add(toDisposable(() => {
+			targetDocument.adoptedStyleSheets = targetDocument.adoptedStyleSheets.filter(sheet => sheet !== styleSheet);
+		}));
+	}
 
 	// Services the base workbench harness does not stub but the tab bar needs.
 	instantiationService.stub(ITreeViewsDnDService, new TreeViewsDnDService());
@@ -423,7 +474,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
 	titleContainer.classList.toggle('show-file-icons', partOptions.showIcons);
 
-	const headerBackground = theme.getColor(partOptions.showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
+	const headerBackground = fixtureTheme.getColor(partOptions.showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
 	if (headerBackground) {
 		titleContainer.style.backgroundColor = headerBackground.toString();
 	}
@@ -436,7 +487,23 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	content.appendChild(groupContainer);
 	groupContainer.appendChild(titleContainer);
 	groupContainer.appendChild(editorContainer);
-	container.appendChild(editorPart);
+	if (options.editorFrame) {
+		container.classList.add('floating-panels');
+		editorPart.style.border = 'var(--vscode-strokeThickness) solid var(--vscode-editor-border)';
+		editorPart.style.borderRadius = 'var(--vscode-cornerRadius-large)';
+		editorPart.style.boxSizing = 'border-box';
+		editorPart.style.overflow = 'hidden';
+		editorPart.style.backgroundColor = 'var(--vscode-editor-background)';
+		const grid = $('.monaco-grid-view');
+		grid.appendChild(editorPart);
+		container.appendChild(grid);
+	} else {
+		container.appendChild(editorPart);
+	}
+
+	container.style.width = `${width}px`;
+	groupContainer.style.width = options.editorFrame ? '100%' : `${width}px`;
+	const layoutWidth = groupContainer.clientWidth;
 
 	if (options.editorContents !== undefined && model.activeEditor instanceof FixtureEditorInput) {
 		editorContainer.style.height = '240px';
@@ -452,11 +519,8 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 			padding: { top: 16 },
 		}, { contributions: [] }));
 		editor.setModel(textModel);
-		editor.layout(new Dimension(width, 240));
+		editor.layout(new Dimension(layoutWidth, 240));
 	}
-
-	container.style.width = `${width}px`;
-	groupContainer.style.width = `${width}px`;
 
 	const titleControl = disposableStore.add(instantiationService.createInstance(
 		EditorTitleControl,
@@ -473,8 +537,8 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 
 	const layout = () => {
 		titleControl.layout({
-			container: new Dimension(width, titleControl.getHeight().total),
-			available: new Dimension(width, 200),
+			container: new Dimension(layoutWidth, titleControl.getHeight().total),
+			available: new Dimension(layoutWidth, 200),
 		}, options.headerWidth);
 	};
 	groupView.relayoutFn = layout;
@@ -516,14 +580,113 @@ function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'mod
 	};
 }
 
-function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'pinnedSeparateRow', tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => Promise<void> | void {
-	const wrapped = layout === 'wrapped';
+function getLegacyEditorTabBorderCustomizations(): Readonly<Record<string, string>> {
+	return {
+		[TAB_ACTIVE_BORDER]: '#F43F5E',
+		[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
+		[TAB_BORDER]: '#FACC15',
+		[TAB_DIVIDER]: '#FFFFFF',
+		[TAB_HOVER_BORDER]: '#F97316',
+		[TAB_UNFOCUSED_ACTIVE_BORDER]: '#FB923C',
+		[TAB_UNFOCUSED_ACTIVE_BORDER_TOP]: '#C084FC',
+		[TAB_UNFOCUSED_HOVER_BORDER]: '#A855F7',
+		[TAB_SELECTED_BORDER_TOP]: '#A3E635',
+	};
+}
+
+function getModernEditorTabColorCustomizations(theme: ComponentFixtureContext['theme']): Readonly<Record<string, string>> {
+	const dark = isDark(theme.type);
+	return {
+		[MODERN_EDITOR_TAB_ACTIVE_BACKGROUND]: dark ? '#164E63' : '#BAE6FD',
+		[MODERN_EDITOR_TAB_ACTIVE_ACTION_BACKGROUND]: dark ? '#0E3747' : '#7DD3FC',
+		[MODERN_EDITOR_TAB_ACTIVE_FOREGROUND]: dark ? '#CFFAFE' : '#0C4A6E',
+		[MODERN_EDITOR_TAB_INACTIVE_BACKGROUND]: dark ? '#1E293B' : '#E2E8F0',
+		[MODERN_EDITOR_TAB_HOVER_BACKGROUND]: dark ? '#7C2D12' : '#FED7AA',
+		[MODERN_EDITOR_TAB_HOVER_ACTION_BACKGROUND]: dark ? '#5A1F0C' : '#FDBA74',
+		[MODERN_EDITOR_TAB_HOVER_FOREGROUND]: dark ? '#FFEDD5' : '#7C2D12',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_BACKGROUND]: dark ? '#6B21A8' : '#E9D5FF',
+		[MODERN_EDITOR_TAB_ACTIVE_HOVER_ACTION_BACKGROUND]: dark ? '#4C1678' : '#D8B4FE',
+		[MODERN_EDITOR_TAB_SELECTED_ACTION_BACKGROUND]: dark ? '#166534' : '#BBF7D0',
+	};
+}
+
+function renderBorderOwnership(modernUI: boolean, editorTabStyle?: ModernUIEditorTabStyle, customizeColors = true): (ctx: ComponentFixtureContext) => void {
+	return ctx => renderEditorTabsFixture(ctx, {
+		modernUI,
+		editorTabStyle,
+		width: 1200,
+		editors: [
+			{ resource: file('/project/alpha.ts'), pinned: true },
+			{ resource: file('/project/beta.ts'), pinned: true },
+			{ resource: file('/project/gamma.ts'), pinned: true },
+			{ resource: file('/project/delta.ts'), pinned: true, active: true },
+			{ resource: file('/project/epsilon.ts'), pinned: true },
+			{ resource: file('/project/zeta.ts'), pinned: true },
+			{ resource: file('/project/eta.ts'), pinned: true },
+			{ resource: file('/project/theta.ts'), pinned: true },
+		],
+		colorCustomizations: customizeColors && !isHighContrast(ctx.theme.type) ? getLegacyEditorTabBorderCustomizations() : undefined,
+	});
+}
+
+function renderConnectedLegacyBorders(active: boolean): (ctx: ComponentFixtureContext) => void {
+	return render(true, {
+		active,
+		editors: multiSelectEditorSpecs(),
+		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
+	});
+}
+
+function renderConnectedBorderContinuity(activeTabIndex: number): (ctx: ComponentFixtureContext) => void {
+	return render(true, {
+		editorFrame: true,
+		editors: [
+			{ resource: file('/project/alpha.ts'), pinned: true, active: activeTabIndex === 0 },
+			{ resource: file('/project/beta.ts'), pinned: true, active: activeTabIndex === 1 },
+			{ resource: file('/project/gamma.ts'), pinned: true, active: activeTabIndex === 2 },
+		],
+		colorCustomizations: {
+			[EDITOR_BORDER]: '#22D3EE',
+			[TAB_ACTIVE_BORDER_TOP]: '#22D3EE',
+			[TAB_BORDER]: '#22D3EE',
+			[TAB_DIVIDER]: '#00000000',
+		},
+	});
+}
+
+function renderWrappedConnectedBorderOwnership(): (ctx: ComponentFixtureContext) => void {
+	return render(true, {
+		width: 820,
+		editors: manyEditorSpecs().slice(0, 10).map((spec, index) => ({ ...spec, active: index === 0 })),
+		partOptions: { wrapTabs: true, editorActionsLocation: 'hidden' },
+		colorCustomizations: getLegacyEditorTabBorderCustomizations(),
+	});
+}
+
+function renderConnectedModernEditorTabCustomizations(layout: 'single' | 'wrapped' | 'pinned' = 'single'): (ctx: ComponentFixtureContext) => void {
+	return ctx => renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		editorTabStyle: ModernUIEditorTabStyle.Connected,
+		partOptions: layout === 'wrapped' ? { wrapTabs: true } : layout === 'pinned' ? { pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'normal' } : undefined,
+		width: layout === 'wrapped' ? 260 : undefined,
+		editors: [
+			{ resource: file('/project/alpha.ts'), pinned: true, selected: layout === 'single', sticky: layout === 'pinned' },
+			{ resource: file('/project/beta.ts'), pinned: true, active: true, selected: true },
+			{ resource: file('/project/gamma.ts'), pinned: true },
+		],
+		colorCustomizations: getModernEditorTabColorCustomizations(ctx.theme),
+	});
+}
+
+function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'wrappedBottomActive' | 'pinnedSeparateRow', tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => Promise<void> | void {
+	const wrapped = layout === 'wrapped' || layout === 'wrappedBottomActive';
+	const bottomActive = layout === 'wrappedBottomActive';
 	const renderFixture = layout === 'pinnedSeparateRow'
 		? renderPinnedSeparateRow(tabHeight)
 		: render(true, {
-			partOptions: { wrapTabs: wrapped, tabHeight },
-			editors: wrapped ? manyEditorSpecs() : undefined,
-			width: wrapped ? 520 : undefined,
+			partOptions: { wrapTabs: wrapped, tabHeight, ...(bottomActive ? { editorActionsLocation: 'hidden' } : {}) },
+			editors: bottomActive ? manyEditorSpecs(8).slice(0, 10) : wrapped ? manyEditorSpecs() : undefined,
+			width: bottomActive ? 820 : wrapped ? 520 : undefined,
 		});
 	if (!wrapped) {
 		return renderFixture;
@@ -543,6 +706,12 @@ function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'pinnedSeparateRo
 				tabs: tabs.map(tab => [tab.offsetLeft, tab.offsetTop, tab.offsetWidth, tab.offsetHeight]),
 			});
 			if (layout === previousLayout) {
+				if (tabs.some((tab, index) => tab.classList.contains('last-in-row') !== (index === tabs.length - 1 || tab.offsetTop !== tabs[index + 1].offsetTop))) {
+					throw new Error('Wrapped tab row markers do not match the rendered rows');
+				}
+				if (bottomActive && tabs.some(tab => tab.classList.contains('active') && (tab.offsetTop !== Math.max(...tabs.map(tab => tab.offsetTop)) || tab.classList.contains('connected-tab-upper-row')))) {
+					throw new Error('The active tab must be connected to the bottom wrapped row');
+				}
 				return;
 			}
 			previousLayout = layout;
@@ -582,6 +751,18 @@ function createDensityFixtures() {
 			Compact: defineComponentFixture({
 				render: renderDensityLayout('wrapped', 'compact'),
 				expectedVisualDescriptions: ['Compact-density tabs wrap into equal-height rows while labels and actions remain vertically centered.'],
+			}),
+		}),
+		WrappedBottomActive: defineThemedFixtureGroup({
+			Default: defineComponentFixture({
+				render: renderDensityLayout('wrappedBottomActive', 'default'),
+				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				expectedVisualDescriptions: ['The active bottom-row tab joins the body separator with a continuous curved stroke on both sides, without changing the height of any row.'],
+			}),
+			Compact: defineComponentFixture({
+				render: renderDensityLayout('wrappedBottomActive', 'compact'),
+				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				expectedVisualDescriptions: ['Compact bottom-row tabs preserve the same continuous shoulder stroke as default density; upper rows remain separate pills.'],
 			}),
 		}),
 	};
@@ -651,6 +832,91 @@ function renderPinnedSeparateRow(tabHeight: IEditorPartOptions['tabHeight']): (c
 const extendedTabThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
+	Colors: defineThemedFixtureGroup({
+		ConnectedLegacyBorders: defineThemedFixtureGroup({
+			ActiveGroup: defineComponentFixture({
+				render: renderConnectedLegacyBorders(true),
+				expectedVisualDescriptions: ['The active connected tab shows customized focused top and bottom borders; selected tabs retain their selected accent.'],
+			}),
+			InactiveGroup: defineComponentFixture({
+				render: renderConnectedLegacyBorders(false),
+				expectedVisualDescriptions: ['The active connected tab shows customized unfocused top and bottom borders; selected tabs retain their selected accent.'],
+			}),
+		}),
+		BorderOwnership: defineThemedFixtureGroup({
+			Legacy: defineComponentFixture({
+				render: renderBorderOwnership(false),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Legacy tabs retain standard indicators and use tab.border as the only shared-edge separator.'],
+			}),
+			Pill: defineComponentFixture({
+				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Pill),
+				themes: ['dark'],
+				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				expectedVisualDescriptions: ['Pill tabs use rounded tab boundaries and dedicated dividers in standard themes, without redundant HC dividers.'],
+			}),
+			Connected: defineComponentFixture({
+				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected),
+				themes: ['dark'],
+				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				expectedVisualDescriptions: ['Connected tabs give the active cap boundary ownership and show dividers only between inactive tabs in standard themes.'],
+			}),
+			ConnectedDefault: defineComponentFixture({
+				render: renderBorderOwnership(true, ModernUIEditorTabStyle.Connected, false),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Default Connected tabs use the same cap, shoulder, mask, and separator geometry as customized Connected tabs.'],
+			}),
+			ConnectedWrapped: defineComponentFixture({
+				render: renderWrappedConnectedBorderOwnership(),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Upper wrapped tabs retain pill geometry with inset customized accents.'],
+			}),
+			ConnectedModernEditorTokens: defineComponentFixture({
+				render: renderConnectedModernEditorTabCustomizations(),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Connected tabs honor every explicitly customized modernEditorTab fill, label, and action color.'],
+			}),
+			WrappedModernEditorTokens: defineComponentFixture({
+				render: renderConnectedModernEditorTabCustomizations('wrapped'),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Upper wrapped tabs retain the explicitly customized hover action background independently of the tab hover background.'],
+			}),
+			PinnedModernEditorTokens: defineComponentFixture({
+				render: renderConnectedModernEditorTabCustomizations('pinned'),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['Separate pinned-row tabs retain the same hover action color customization as ordinary connected tabs.'],
+			}),
+		}),
+		SelectedBorderFallback: defineThemedFixtureGroup({
+			ActiveGroup: defineComponentFixture({
+				render: render(true, { editors: multiSelectEditorSpecs(), colorCustomizations: { [TAB_SELECTED_BORDER_TOP]: '#a3e635' } }),
+				additionalThemes: ['darkPlus'],
+				expectedVisualDescriptions: ['An explicitly customized selected top border appears on the active tab when the theme has no active top border, but does not override an existing active top border.'],
+			}),
+			InactiveGroup: defineComponentFixture({
+				render: render(true, { active: false, editors: multiSelectEditorSpecs(), colorCustomizations: { [TAB_SELECTED_BORDER_TOP]: '#a3e635' } }),
+				additionalThemes: ['darkPlus'],
+				expectedVisualDescriptions: ['The unfocused active tab uses the explicit selected-border fallback only when its active top border is absent.'],
+			}),
+		}),
+		DerivedColors: defineComponentFixture({
+			render: render(true, { active: false, colorCustomizations: { [TAB_BORDER]: '#22d3ee', [TAB_HOVER_BACKGROUND]: '#7c2d12' } }),
+			additionalThemes: ['darkPlus'],
+			expectedVisualDescriptions: ['Dividers inherit the customized tab border. Unfocused hover preserves an explicitly defined theme color or derives the translucent hover color when the theme leaves it unset.'],
+		}),
+		Continuity: defineThemedFixtureGroup({
+			FirstActive: defineComponentFixture({
+				render: renderConnectedBorderContinuity(0),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['The first active connected tab joins the customized outer editor frame without a duplicate left edge.'],
+			}),
+			MiddleActive: defineComponentFixture({
+				render: renderConnectedBorderContinuity(1),
+				themes: ['dark'],
+				expectedVisualDescriptions: ['The middle active connected tab has one continuous customized cap and document boundary.'],
+			}),
+		}),
+	}),
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
 	FileIcons: defineThemedFixtureGroup({
 		Disabled: defineComponentFixture({

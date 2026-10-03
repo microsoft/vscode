@@ -25,6 +25,10 @@ export function projectCopilotSandboxPolicy(data: Extract<SessionEvent, { type: 
 		enabled: failClosed || sandbox?.enabled === true,
 		allowBypass: failClosed ? false : typeof sandbox?.allowBypass === 'boolean' ? sandbox.allowBypass : undefined,
 		...(typeof network?.allowOutbound === 'boolean' ? { allowOutbound: network.allowOutbound } : {}),
+		...(typeof network?.allowLocalNetwork === 'boolean' ? { allowLocalNetwork: network.allowLocalNetwork } : {}),
+		...(typeof sandbox?.allowDevToolAccess === 'boolean' ? { allowDevToolAccess: sandbox.allowDevToolAccess } : {}),
+		...(typeof sandbox?.sandboxMcpServers === 'boolean' ? { sandboxMcpServers: sandbox.sandboxMcpServers } : {}),
+		...(typeof sandbox?.sandboxLspServers === 'boolean' ? { sandboxLspServers: sandbox.sandboxLspServers } : {}),
 		...(sandboxFailClosed ? { failClosed: true } : {}),
 	};
 }

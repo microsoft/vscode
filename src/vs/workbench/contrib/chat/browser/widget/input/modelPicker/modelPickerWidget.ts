@@ -51,6 +51,12 @@ import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
+/** Trusted caller options for opening a searchable picker without toggling it closed. */
+export interface IModelPickerOpenOptions {
+	readonly initialFilterValue?: string;
+	readonly initialFocusItemId?: string;
+}
+
 const CACHE_BREAK_HINT_DISMISSED_STORAGE_KEY = 'chat.cacheBreakHintDismissed';
 
 /** Opt-in setting for the tabbed model picker and its model details page. */
@@ -171,6 +177,15 @@ export class ModelPickerWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		if (this._delegate.workflow) {
+			this._register(autorun(reader => {
+				this._delegate.workflow?.summary.read(reader);
+				if (!this._delegate.workflow?.available.read(reader)) {
+					this._tabbedPicker.value?.hide();
+				}
+				this._renderLabel();
+			}));
+		}
 		this._configuration = this._instantiationService.createInstance(ModelPickerConfiguration, {
 			getSelectedModel: () => this._selectedModel,
 			getConfigurationAccess: () => this._delegate.modelConfiguration ?? this._languageModelsService,
@@ -504,7 +519,7 @@ export class ModelPickerWidget extends Disposable {
 		}];
 	}
 
-	private _showTabbedPicker(anchor: HTMLElement, context: ITabbedModelPickerContext, telemetrySession: ModelPickerTelemetrySession, detailsModelId?: string, focusConfiguration = false): void {
+	private _showTabbedPicker(anchor: HTMLElement, context: ITabbedModelPickerContext, telemetrySession: ModelPickerTelemetrySession, detailsModelId?: string, focusConfiguration = false, options?: IModelPickerOpenOptions): void {
 		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
 		const previouslyFocusedElement = dom.getActiveElement();
 		const trigger = detailsModelId ? this._configButton : this._nameButton;
@@ -526,27 +541,41 @@ export class ModelPickerWidget extends Disposable {
 			this._configButton?.setAttribute('aria-expanded', 'true');
 		}
 		this._domNode?.classList.add('model-picker-active');
-		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer);
+		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 	}
 
-	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }): void {
-		this._show(anchor, showDetails, focusConfiguration, trigger);
+	canOpenWithFilter(): boolean {
+		return !!this._domNode?.isConnected && !this._domNode.classList.contains('disabled')
+			&& !this.isRestrictedMode() && !this.isSetupRequired();
+	}
+
+	show(anchor?: HTMLElement, showDetails = false, focusConfiguration = false, trigger: IModelPickerOpenTrigger = { entryPoint: 'command', inputMethod: 'unknown' }, options?: IModelPickerOpenOptions): void {
+		this._show(anchor, showDetails, focusConfiguration, trigger, options);
 	}
 
 	/**
 	 * @param telemetry How the picker was opened, or the session of a flat picker
 	 * that pinning re-shows in place, so it keeps reporting as one interaction.
 	 */
-	private _show(anchor: HTMLElement | undefined, showDetails: boolean, focusConfiguration: boolean, telemetry: IModelPickerOpenTrigger | ModelPickerTelemetrySession): void {
+	private _show(anchor: HTMLElement | undefined, showDetails: boolean, focusConfiguration: boolean, telemetry: IModelPickerOpenTrigger | ModelPickerTelemetrySession, options?: IModelPickerOpenOptions): void {
 		const anchorElement = anchor ?? this._domNode;
 		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
-		if (this._tabbedPicker.value?.isVisible) {
+		if (options && this._tabbedPicker.value?.isVisible) {
+			this._tabbedPicker.value.openWithFilter(options);
+			return;
+		}
+		if (options && this._nameButton?.getAttribute('aria-expanded') === 'true') {
+			this._actionWidgetService.setFilter(options.initialFilterValue ?? '', options.initialFocusItemId);
+			return;
+		}
+
+		if (!options && this._tabbedPicker.value?.isVisible) {
 			this._tabbedPicker.value.hide();
 			return;
 		}
-		if (this._nameButton?.getAttribute('aria-expanded') === 'true') {
+		if (!options && this._nameButton?.getAttribute('aria-expanded') === 'true') {
 			this._actionWidgetService.hide(true);
 			return;
 		}
@@ -610,6 +639,7 @@ export class ModelPickerWidget extends Disposable {
 			const showCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ true);
 			const showConfigurationCacheBreakHint = this.shouldShowCacheBreakHint(/* excludeAutoModel */ false);
 			this._showTabbedPicker(anchorElement, {
+				workflow: this._delegate.workflow,
 				models,
 				selectedModelId: this._selectedModel?.identifier,
 				recentModelIds: this._languageModelsService.getRecentlyUsedModelIds().filter(id => !this._languageModelsService.isModelHidden(id)),
@@ -645,7 +675,7 @@ export class ModelPickerWidget extends Disposable {
 					link: this.getCacheBreakLearnMoreLink(),
 					dismiss: () => this.dismissCacheBreakHint(),
 				} : undefined,
-			}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration);
+			}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration, options);
 			return;
 		}
 
@@ -712,6 +742,8 @@ export class ModelPickerWidget extends Disposable {
 			headerLink: showCacheBreakHint ? this.getCacheBreakLearnMoreLink() : undefined,
 			headerDismiss: showCacheBreakHint ? () => this.dismissCacheBreakHint() : undefined,
 			showFilter: !unavailable,
+			initialFilterValue: options?.initialFilterValue,
+			initialFocusItemId: options?.initialFocusItemId,
 			filterPlaceholder: localize('chat.modelPicker.search', "Search models"),
 			focusFilterOnOpen: true,
 			filterAsCombobox: !unavailable,
@@ -790,9 +822,10 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const name = this._selectedModel
+		const workflow = this.isTabbedPickerEnabled() ? this._delegate.workflow?.summary.get() : undefined;
+		const name = workflow ?? (this._selectedModel
 			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
-			: undefined;
+			: undefined);
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
 		const restrictedMode = reason === ModelPickerUnavailableReason.Restricted;
@@ -801,7 +834,7 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = this._selectedModel
+		const modelIcon = workflow ? Codicon.layers : this._selectedModel
 			? (this._delegate.getPresentationOptions().showModelIcon
 				? getCompactModelPickerIcon(this._selectedModel)
 				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
@@ -838,6 +871,9 @@ export class ModelPickerWidget extends Disposable {
 			const opensDetails = tabbed && !showingAuto && !(this._selectedModel && isHydraFusionModel(this._selectedModel));
 			this._configButton.setAttribute('aria-haspopup', opensDetails ? 'dialog' : 'menu');
 			this._configuration.renderButton(this._configButton, minimal || (tabbed && compact), noModelsAvailable, tabbed);
+			if (workflow) {
+				this._configButton.style.display = 'none';
+			}
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('tabbed', this.isTabbedPickerEnabled());

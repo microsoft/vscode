@@ -41,6 +41,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -77,7 +78,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -650,6 +651,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -750,6 +752,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
 	return summary;
 }
 
@@ -812,6 +815,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -823,6 +827,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------
@@ -1282,6 +1287,14 @@ export interface ISessionGitState {
 	readonly baseBranchName?: string;
 	/** Upstream tracking branch (e.g. `origin/feature`). */
 	readonly upstreamBranchName?: string;
+	/**
+	 * Default branch of the `origin` remote (e.g. `main`), read from
+	 * `refs/remotes/origin/HEAD`. Unlike {@link baseBranchName}, it is never
+	 * replaced by a configured base branch.
+	 */
+	readonly defaultBranchName?: string;
+	/** Remote-tracking branch of {@link defaultBranchName} (e.g. `origin/main`), present only when that ref exists. */
+	readonly defaultRemoteBranchName?: string;
 	/** Number of commits the upstream branch has ahead of the local branch. */
 	readonly incomingChanges?: number;
 	/** Number of commits the local branch has ahead of the upstream branch. */
@@ -1479,6 +1492,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 		isDetachedHead?: boolean;
 		baseBranchName?: string;
 		upstreamBranchName?: string;
+		defaultBranchName?: string;
+		defaultRemoteBranchName?: string;
 		incomingChanges?: number;
 		outgoingChanges?: number;
 		uncommittedChanges?: number;
@@ -1493,6 +1508,8 @@ export function parseSessionGitState(value: unknown): ISessionGitState | undefin
 	if (typeof raw['isDetachedHead'] === 'boolean') { result.isDetachedHead = raw['isDetachedHead']; }
 	if (typeof raw['baseBranchName'] === 'string') { result.baseBranchName = raw['baseBranchName']; }
 	if (typeof raw['upstreamBranchName'] === 'string') { result.upstreamBranchName = raw['upstreamBranchName']; }
+	if (typeof raw['defaultBranchName'] === 'string') { result.defaultBranchName = raw['defaultBranchName']; }
+	if (typeof raw['defaultRemoteBranchName'] === 'string') { result.defaultRemoteBranchName = raw['defaultRemoteBranchName']; }
 	if (typeof raw['incomingChanges'] === 'number') { result.incomingChanges = raw['incomingChanges']; }
 	if (typeof raw['outgoingChanges'] === 'number') { result.outgoingChanges = raw['outgoingChanges']; }
 	if (typeof raw['uncommittedChanges'] === 'number') { result.uncommittedChanges = raw['uncommittedChanges']; }

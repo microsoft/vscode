@@ -43,6 +43,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { CloudSandboxReadOnlySessionHandler } from './cloudSandboxReadOnlySessionHandler.js';
 import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHostConnectionCustomization.js';
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
+import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -53,6 +54,7 @@ const INVENTORY_STORAGE_PREFIX = 'sessions.cloudSandbox.inventory.';
 /** A discovered sandbox environment we can create a provider for. */
 export interface ICloudSandboxSessionEnvironment {
 	readonly environmentId: string;
+	readonly eventType?: string;
 	readonly sessionId?: string;
 	/**
 	 * Mission Control task owning the session. Persisted AHP history is addressed per task, so this
@@ -71,6 +73,7 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.sessionId === 'string' && candidate.sessionId.length > 0
 		&& typeof candidate.taskId === 'string' && candidate.taskId.length > 0
 		&& typeof candidate.name === 'string'
+		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
 		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string');
 }
@@ -331,6 +334,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		const project = discoveredSessionProject(session.repoName);
 		provider?.seedSessions([{
 			session: AgentSession.uri(CLOUD_SANDBOX_AGENT_PROVIDER, session.sessionId),
+			provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+			...(session.eventType ? { _meta: withSessionInitiator(undefined, { name: session.eventType }) } : {}),
 			startTime: modifiedTime,
 			modifiedTime,
 			summary: session.name,
@@ -401,6 +406,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					environmentId: environment.environmentId,
 					sessionId: environment.sessionId,
 					taskId: environment.taskId,
+					eventType: environment.eventType,
 					name: environment.name,
 					repoName: environment.repoName,
 					updatedAt: environment.updatedAt,
@@ -429,6 +435,29 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	protected _ownsSandboxSession(address: string, rawId: string): boolean {
 		const environment = this._environments.get(address);
 		return !!environment?.taskId && environment.sessionId === rawId;
+	}
+
+	protected async _renameSandboxSession(address: string, rawId: string, title: string): Promise<void> {
+		const environment = this._environments.get(address);
+		if (!environment?.taskId || environment.sessionId !== rawId) {
+			throw new Error(localize('cloudSandbox.renameSessionNotFound', "Mission Control sandbox session not found."));
+		}
+		const store = new DisposableStore();
+		const source = store.add(new CancellationTokenSource(this._enabledCts.token));
+		try {
+			await this._apiService.renameTask(environment.taskId, title, source.token);
+			if (source.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+		} finally {
+			store.dispose();
+		}
+		const current = this._environments.get(address);
+		if (current?.taskId !== environment.taskId || current.sessionId !== rawId) {
+			throw new CancellationError();
+		}
+		this._environments.set(address, { ...current, name: title });
+		this._persistInventory();
 	}
 
 	protected async _deleteSandboxSession(address: string, sessionIds: readonly string[], removeSession: (rawId: string) => void, token: CancellationToken = CancellationToken.None): Promise<void> {
@@ -748,6 +777,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		this._environments.set(address, {
 			...known, ...env,
 			taskId: env.taskId ?? known?.taskId,
+			eventType: env.eventType ?? known?.eventType,
 			repoName: env.repoName ?? known?.repoName,
 			updatedAt: env.updatedAt ?? known?.updatedAt,
 		});

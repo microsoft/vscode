@@ -23,6 +23,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { GitHubCommit } from '../../../../../platform/github/common/githubQueryService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { buildSessionArtifactSections, sessionArtifactLocationText, SessionArtifacts, type ISessionArtifactActions } from '../../browser/sessionArtifacts.js';
 import { type IChat, type IGitHubInfo, type ISessionArtifact, type ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -49,7 +50,7 @@ suite('Session Artifacts', () => {
 		},
 	};
 
-	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false) {
+	function createPresentation(entries: readonly ISessionArtifact[], info?: IGitHubInfo, commit?: GitHubCommit, getCommit?: ISessionsGitHubService['getCommit'], fromChat = false, workbenchGitHubService?: IWorkbenchGitHubService) {
 		const artifacts = observableValue('artifacts', entries);
 		const removed: string[] = [];
 		const errors: string[] = [];
@@ -82,7 +83,7 @@ suite('Session Artifacts', () => {
 		const presentation = disposables.add(new SessionArtifacts(
 			session,
 			constObservable(new Set<string>()),
-			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ workspace }) : undefined)),
+			derived(reader => getSessionGitHubReferences(session.read(reader), reader, fromChat ? upcastPartial<IChat>({ resource: URI.parse('ahp-chat://peer/session'), workspace }) : undefined)),
 			new class extends mock<IClipboardService>() { }(),
 			new class extends mock<ICommandService>() { }(),
 			configurationService,
@@ -109,6 +110,7 @@ suite('Session Artifacts', () => {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
 			}(),
 			upcastPartial<ISessionsGitHubService>({ getCommit: getCommit ?? (() => commit ? Promise.resolve(commit) : new Promise(() => { })) }),
+			workbenchGitHubService ?? upcastPartial<IWorkbenchGitHubService>({ onDidChangeDefaultClient: Event.None, acquireDefaultAccountClient: () => new Promise(() => { }) }),
 			new NullLogService(),
 			new class extends mock<ITelemetryService>() {
 				override publicLog2(eventName?: string, data?: unknown): void {
@@ -289,6 +291,65 @@ suite('Session Artifacts', () => {
 		});
 	});
 
+	test('attaches rich GitHub metadata lazily to references without promoting them', () => {
+		let acquisitions = 0;
+		const { presentation } = createPresentation([{
+			id: 'reference',
+			kind: SessionArtifactKind.PullRequest,
+			label: 'Related pull request',
+			isArtifact: false,
+			isGitHub: true,
+			link: URI.parse('https://github.com/microsoft/vscode/pull/1'),
+		}], undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: () => {
+				acquisitions++;
+				return new Promise(() => { });
+			},
+		}));
+
+		const sections = presentation.referenceSections.get();
+		const entry = sections[0].entries[0];
+		assert.deepStrictEqual({
+			acquisitions,
+			sectionTitle: sections[0].title,
+			entryId: entry.id,
+			entryLabel: entry.label,
+			hasDropdownHover: typeof entry.hover?.content === 'function',
+			hasPillHover: typeof entry.pillHover === 'object',
+			hasPrefetch: typeof entry.prefetch === 'function',
+		}, {
+			acquisitions: 0,
+			sectionTitle: 'Pull Requests',
+			entryId: 'reference',
+			entryLabel: 'Pull Request #1',
+			hasDropdownHover: true,
+			hasPillHover: true,
+			hasPrefetch: true,
+		});
+	});
+
+	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+		const links = [
+			URI.parse('https://github.com/microsoft/vscode/pull/1'),
+			URI.parse('https://github.com/microsoft/vscode/issues/2'),
+		];
+		const { presentation } = createPresentation(links.map((link, index) => ({
+			id: `reference-${index}`, kind: index === 0 ? SessionArtifactKind.PullRequest : SessionArtifactKind.Issue,
+			label: 'Related item', isArtifact: false, isGitHub: true, link,
+		})), undefined, undefined, undefined, false, upcastPartial<IWorkbenchGitHubService>({
+			onDidChangeDefaultClient: Event.None,
+			acquireDefaultAccountClient: async () => { throw new Error('offline'); },
+		}));
+		for (const entry of presentation.referenceSections.get().flatMap(section => section.entries)) {
+			entry.prefetch?.();
+		}
+		await timeout(0);
+		assert.deepStrictEqual(presentation.referenceSections.get().flatMap(section => section.entries.map(entry => ({
+			label: entry.label, description: entry.ariaDescription,
+		}))), links.map(link => ({ label: link.toString(true), description: undefined })));
+	});
+
 	test('lists recorded pull requests from other repositories as artifacts when resolving for a chat', () => {
 		const { presentation } = createPresentation([
 			{ id: 'own-repo-pr', kind: SessionArtifactKind.PullRequest, label: 'Own repo', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/pull/1') },
@@ -297,6 +358,23 @@ suite('Session Artifacts', () => {
 
 		assert.deepStrictEqual(visibleEntries(presentation), {
 			artifacts: ['other-repo-pr'],
+			references: [],
+		});
+	});
+
+	test('does not re-list a pull request recorded by multiple chats as a generic artifact', () => {
+		const pullRequest = URI.parse('https://github.com/owner/repo/pull/1');
+		const { presentation } = createPresentation([
+			{ id: 'peer-artifact', chat: URI.parse('ahp-chat://peer/session'), kind: SessionArtifactKind.PullRequest, label: 'Peer label', isArtifact: true, isGitHub: true, link: pullRequest },
+			{ id: 'main-artifact', chat: URI.parse('ahp-chat://default/session'), kind: SessionArtifactKind.PullRequest, label: 'Main label', isArtifact: true, isGitHub: true, link: pullRequest },
+		], {
+			owner: 'owner',
+			repo: 'repo',
+			pullRequests: [{ owner: 'owner', repo: 'repo', number: 1, uri: pullRequest, recordedReferenceId: 'main-artifact' }],
+		});
+
+		assert.deepStrictEqual(visibleEntries(presentation), {
+			artifacts: [],
 			references: [],
 		});
 	});

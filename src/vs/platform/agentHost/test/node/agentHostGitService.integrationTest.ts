@@ -29,6 +29,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, GitRefType } from '../../common/agentHostGitService.js';
+import type { ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostGitService } from '../../node/agentHostGitService.js';
 
 class TestLogService extends NullLogService {
@@ -227,6 +228,31 @@ suite('AgentHostGitService - getSessionGitState (real git)', () => {
 		assert.deepStrictEqual(await svc!.getDefaultBranch(URI.file(dir)), {
 			name: 'main',
 			startPoint: 'main',
+		});
+	});
+
+	(hasGit ? test : test.skip)('reports the default branch in the session git state regardless of the configured base branch', async () => {
+		const dir = initRepo();
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: dir, stdio: 'pipe' });
+		run('branch', 'release');
+		run('update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
+		run('symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main');
+		const defaultBranchFields = (state: ISessionGitState | undefined) => ({
+			baseBranchName: state?.baseBranchName,
+			defaultBranchName: state?.defaultBranchName,
+			defaultRemoteBranchName: state?.defaultRemoteBranchName,
+		});
+
+		const detected = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+		const configured = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir), 'release'));
+		// `origin/HEAD` outlives its target when the remote renames its default branch.
+		run('update-ref', '-d', 'refs/remotes/origin/main');
+		const dangling = defaultBranchFields(await svc!.getSessionGitState(URI.file(dir)));
+
+		assert.deepStrictEqual({ detected, configured, dangling }, {
+			detected: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			configured: { baseBranchName: 'release', defaultBranchName: 'main', defaultRemoteBranchName: 'origin/main' },
+			dangling: { baseBranchName: 'main', defaultBranchName: 'main', defaultRemoteBranchName: undefined },
 		});
 	});
 
@@ -1729,8 +1755,8 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 		const { dir } = await initRepoWithFiles({ 'a.txt': 'a-v1\n', 'b.txt': 'b-v1\n' });
 		const base = headTree(dir);
 
-		// Working tree modifies a.txt only; capture it as the source tree.
-		await fs.writeFile(join(dir, 'a.txt'), 'a-v2\n');
+		// Change the size too so Git detects the edit even when filesystem timestamps collide.
+		await fs.writeFile(join(dir, 'a.txt'), 'a-v2-modified\n');
 		const source = await svc!.captureWorkingTreeAsTree(URI.file(dir));
 		assert.ok(source, 'expected a working-tree snapshot');
 
@@ -1745,7 +1771,7 @@ suite('AgentHostGitService - overlayPathIntoTree (real git)', () => {
 			},
 			{
 				files: ['a.txt', 'b.txt'],
-				aContent: 'a-v2\n', // overlaid from the source tree
+				aContent: 'a-v2-modified\n', // overlaid from the source tree
 				bContent: 'b-v1\n', // copied verbatim from the base tree
 			});
 	});

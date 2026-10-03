@@ -9,6 +9,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import {
 	CLOUD_SANDBOX_AGENT_SLUG,
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
@@ -41,6 +42,7 @@ type CloudSandboxEnvironmentAction = 'get' | 'connect' | 'reconnect';
 /** The subset of a Mission Control task the sandbox discovery path reads. */
 interface ITaskSummary {
 	readonly id: string;
+	readonly event_type?: string;
 	readonly name?: string;
 	readonly archived_at?: string | null;
 	readonly updated_at?: string;
@@ -390,6 +392,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							removedTaskIds.push(task.id);
 						}
 						const status = binding ? taskSessionStatus(full.sessions?.find(session => session.id === binding.sessionId)?.state ?? full.state ?? task.state, this._logService) : undefined;
+						const eventType = full.event_type || task.event_type;
 						cached = {
 							summary: task,
 							repositoryId: full.repository?.id ?? task.repository?.id,
@@ -397,6 +400,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 							session: binding ? {
 								...binding,
 								taskId: task.id,
+								...(eventType ? { eventType } : {}),
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),
@@ -532,6 +536,26 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		this._discoveryGeneration++;
 	}
 
+	async renameTask(taskId: string, title: string, token: CancellationToken): Promise<void> {
+		const context = await this._request(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(taskId)}`, 'mc.taskClient.update', 'renameTask', {
+			'Accept': 'application/json',
+			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+		}, token, REQUEST_TIMEOUT_MS, { name: title }, 'PATCH');
+		if (!isSuccess(context)) {
+			await this._throwForStatus('task rename', context);
+		}
+		const cached = this._discoveredTasks.get(taskId);
+		if (cached) {
+			this._discoveredTasks.set(taskId, {
+				...cached,
+				summary: { ...cached.summary, name: title },
+				session: cached.session ? { ...cached.session, name: title } : undefined,
+				needsRefresh: true,
+			});
+		}
+		this._discoveryGeneration++;
+	}
+
 	/**
 	 * Delete a task we created but cannot use. Best-effort: the caller is already failing, and a
 	 * failed cleanup must not replace the error that explains why.
@@ -620,6 +644,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		searchParams: Record<string, string>,
 		onRequest?: ICloudSandboxConnectionRequest['onRequest'],
 	): Promise<CloudSandboxConnectResult> {
+		const watch = StopWatch.create(false);
 		const context = await this._sendEnvironment(action, environmentId, token, searchParams, onRequest);
 
 		if (context.res.statusCode === 202) {
@@ -629,7 +654,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			return { kind: 'waking', waking: { retryAfterSeconds } };
 		}
 		if (!isSuccess(context)) {
-			await this._throwForStatus(action, context);
+			const header = context.res.headers['x-github-request-id'];
+			const requestId = typeof header === 'string' && header.length <= 128 && /^[0-9A-Fa-f]{1,16}(?::[0-9A-Fa-f]{1,16}){4}$/.test(header) ? header : undefined;
+			const retryAfter = retryAfterSeconds(context.res.headers['retry-after']);
+			const status = context.res.statusCode;
+			this._logService.error(`${LOG_PREFIX} ${action} failed: method=GET host=${new URL(GITHUB_DOT_COM_COPILOT_API_BASE_URI).host} environmentId=${environmentId} sessionId=${searchParams.session_id ?? 'none'} clientId=${searchParams.client_id ?? 'none'} status=${status ?? 'unknown'} requestId=${requestId ?? 'unavailable'} durationMs=${watch.elapsed()} retryAfterSeconds=${retryAfter ?? 'none'}`);
+			throw new CloudSandboxRequestError(status, `Mission Control ${action} failed: HTTP ${status ?? 'unknown'}${requestId ? ` (requestId=${requestId})` : ''}`, retryAfter);
 		}
 		const clientToken = await this._readJson<ICloudSandboxClientToken>(context);
 		if (!clientToken?.access_token || !clientToken?.wps_endpoint || !clientToken?.client_id || !clientToken?.groups) {
@@ -699,7 +729,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 	}
 
-	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
+	private async _request(url: string, callSite: string, action: CloudSandboxRequestAction, headers: Record<string, string>, token: CancellationToken, timeoutMs: number = REQUEST_TIMEOUT_MS, body?: unknown, method?: 'GET' | 'POST' | 'DELETE' | 'PATCH', onRequest?: ICloudSandboxConnectionRequest['onRequest']): Promise<IRequestContext> {
 		const accessToken = (await this._resolveGitHubSession())?.accessToken;
 		if (!accessToken) {
 			// No request is issued, so there is no request outcome to count.

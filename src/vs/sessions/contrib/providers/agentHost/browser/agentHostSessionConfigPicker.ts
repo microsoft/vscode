@@ -46,10 +46,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -77,21 +77,18 @@ import { ClaudeSessionConfigKey } from '../../../../../platform/agentHost/common
 import { AgentHostCodexApprovalsPicker } from './agentHostCodexApprovalsPicker.js';
 import { isAutoApproveValuePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
-import { filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
+import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filterBranchPickerItems } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBranchPicker.js';
 import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
-const ExperimentalSessionComposerLayout = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	ContextKeyExpr.equals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true),
-	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
-	IsPhoneLayoutContext.negate(),
-)!;
+const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
+const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
 const PICKER_OPEN_ATTRIBUTE = 'data-picker-open';
+const MOBILE_BRANCH_PICKER_RESULT_LIMIT = 25;
 const repositoryConfigSequencer = new SequencerByKey<string>();
 
 function showActiveSessionModePicker(accessor: ServicesAccessor): void {
@@ -159,6 +156,8 @@ function getBranchUncommittedChanges(branchName: string, repositoryBranchName: s
 interface IBranchPickerContext {
 	readonly branchName?: string;
 	readonly upstreamBranchName?: string;
+	readonly defaultBranchName?: string;
+	readonly defaultRemoteBranchName?: string;
 	readonly uncommittedChanges?: number;
 	readonly isWorktree: boolean;
 	readonly query?: string;
@@ -166,7 +165,11 @@ interface IBranchPickerContext {
 }
 
 function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean, branchContext?: IBranchPickerContext): IActionListItem<IConfigPickerItem>[] {
-	const actionItems: IActionListItem<IConfigPickerItem>[] = items.map(item => {
+	const query = branchContext?.query?.toLowerCase();
+	const pickerItems: readonly IConfigPickerItem[] = property === SessionConfigKey.Branch
+		? ensureSelectedBranchPickerItem(items, currentValue, query)
+		: items;
+	const actionItems: IActionListItem<IConfigPickerItem>[] = pickerItems.map(item => {
 		const policyDisabled = property === SessionConfigKey.AutoApprove && isAutoApproveValuePolicyRestricted(item.value, policyRestricted === true);
 		const disabled = item.disabled || policyDisabled;
 		const checked = isSelectedValue(currentValue, item.value);
@@ -201,50 +204,120 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 	});
 
 	if (property === SessionConfigKey.Branch) {
-		const query = branchContext?.query?.toLowerCase();
-		const upstreamBranchName = branchContext?.isWorktree
-			&& (currentValue === branchContext.branchName || currentValue === branchContext.upstreamBranchName)
-			? branchContext.upstreamBranchName
-			: undefined;
-		let priorityCount = 0;
-		const currentIndex = actionItems.findIndex(item => item.item?.value === currentValue);
-		if (currentIndex >= 0) {
-			const [current] = actionItems.splice(currentIndex, 1);
-			actionItems.unshift(current);
-			priorityCount++;
-		}
-
-		if (upstreamBranchName && currentValue === upstreamBranchName && (!query || branchContext?.branchName?.toLowerCase().includes(query))) {
-			const localIndex = actionItems.findIndex(item => item.item?.value === branchContext?.branchName);
-			if (localIndex >= 0) {
-				const [local] = actionItems.splice(localIndex, 1);
-				actionItems.unshift(local);
-				priorityCount++;
-			}
-		}
-
-		if (upstreamBranchName && (!query || upstreamBranchName.toLowerCase().includes(query))) {
-			const upstreamIndex = actionItems.findIndex(item => item.item?.value === upstreamBranchName);
-			const upstream = upstreamIndex >= 0
-				? actionItems.splice(upstreamIndex, 1)[0]
-				: {
-					kind: ActionListItemKind.Action,
-					label: upstreamBranchName,
-					group: { title: '', icon: Codicon.gitBranch },
-					item: { id: upstreamBranchName, value: upstreamBranchName, label: upstreamBranchName },
-				};
-			if (upstreamIndex >= 0 && upstreamIndex < priorityCount) {
-				priorityCount--;
-			}
-			actionItems.unshift(upstream);
-			priorityCount++;
-		}
-		if (priorityCount > 0 && actionItems.length > priorityCount) {
-			actionItems.splice(priorityCount, 0, { kind: ActionListItemKind.Separator, label: '' });
-		}
+		actionItems.unshift(...takePinnedBranchItems(actionItems, getPinnedBranchGroups(currentValue, branchContext), query));
 	}
 
 	return actionItems;
+}
+
+/** A branch pinned above the remaining branches. */
+interface IPinnedBranch {
+	readonly name: string | undefined;
+	/** Remote-tracking branches are listed even when missing from the results. */
+	readonly isRemote: boolean;
+}
+
+/** Pinned branches listed together under a labeled separator. */
+interface IPinnedBranchGroup {
+	readonly label: string;
+	readonly branches: readonly IPinnedBranch[];
+}
+
+/**
+ * The branch groups pinned, in order, above the remaining branches.
+ *
+ * Both isolations pin the current branch first, when it is not the default
+ * branch, then the default branch, and the selection does not reorder the
+ * groups. Worktree isolation lists each branch after its remote-tracking branch
+ * (the current branch's upstream, the default branch's remote); an upstream
+ * that is the default branch's remote stays in the default branch group.
+ * Folder isolation pins only local branches, because folder checkouts only
+ * accept them, and takes the current branch from the selection, which the
+ * provider keeps in sync with the checked-out branch.
+ */
+function getPinnedBranchGroups(currentValue: unknown, branchContext: IBranchPickerContext | undefined): readonly IPinnedBranchGroup[] {
+	const defaultLabel = localize('agentHostSessionConfig.defaultBranchGroup', "Default Branch");
+	const currentLabel = localize('agentHostSessionConfig.currentBranchGroup', "Current Branch");
+	if (!branchContext?.isWorktree) {
+		// Not the Git state's branch: it lags a picker checkout by up to the host's refresh interval.
+		const selected = typeof currentValue === 'string' ? currentValue : undefined;
+		return [
+			{ label: currentLabel, branches: selected !== branchContext?.defaultBranchName ? [{ name: selected, isRemote: false }] : [] },
+			{ label: defaultLabel, branches: [{ name: branchContext?.defaultBranchName, isRemote: false }] },
+		];
+	}
+
+	return [
+		{
+			label: currentLabel,
+			branches: branchContext.branchName !== branchContext.defaultBranchName
+				? [
+					{ name: branchContext.upstreamBranchName !== branchContext.defaultRemoteBranchName ? branchContext.upstreamBranchName : undefined, isRemote: true },
+					{ name: branchContext.branchName, isRemote: false },
+				]
+				: [],
+		},
+		{
+			label: defaultLabel,
+			branches: [
+				{ name: branchContext.defaultRemoteBranchName, isRemote: true },
+				{ name: branchContext.defaultBranchName, isRemote: false },
+			],
+		},
+	];
+}
+
+/**
+ * Removes the pinned branches from `actionItems` and returns them grouped, each
+ * group after the first under a separator labeled with its name, followed by a
+ * separator labeled "Branches" before the remaining branches. Every branch
+ * carries its group name as its group title so screen readers, which skip
+ * separators, announce it, including in the first group; the remaining
+ * branches are updated in place. A branch is pinned once, in its first group;
+ * missing remote-tracking branches are created when they match `query`.
+ */
+function takePinnedBranchItems(actionItems: IActionListItem<IConfigPickerItem>[], groups: readonly IPinnedBranchGroup[], query: string | undefined): IActionListItem<IConfigPickerItem>[] {
+	const withGroupTitle = (item: IActionListItem<IConfigPickerItem>, title: string): IActionListItem<IConfigPickerItem> => ({ ...item, group: { ...item.group, title } });
+	const pinnedItems: IActionListItem<IConfigPickerItem>[] = [];
+	const pinnedNames = new Set<string>();
+	for (const group of groups) {
+		const groupItems: IActionListItem<IConfigPickerItem>[] = [];
+		for (const { name, isRemote } of group.branches) {
+			if (!name || pinnedNames.has(name)) {
+				continue;
+			}
+			const index = actionItems.findIndex(item => item.item?.value === name);
+			const item: IActionListItem<IConfigPickerItem> | undefined = index >= 0
+				? actionItems.splice(index, 1)[0]
+				: isRemote && (!query || name.toLowerCase().includes(query))
+					? {
+						kind: ActionListItemKind.Action,
+						label: name,
+						group: { title: '', icon: Codicon.gitBranch },
+						item: { id: name, value: name, label: name },
+					}
+					: undefined;
+			if (item) {
+				pinnedNames.add(name);
+				groupItems.push(withGroupTitle(item, group.label));
+			}
+		}
+		if (groupItems.length > 0) {
+			// The first group needs no separator above it.
+			if (pinnedItems.length > 0) {
+				pinnedItems.push({ kind: ActionListItemKind.Separator, label: group.label });
+			}
+			pinnedItems.push(...groupItems);
+		}
+	}
+	if (pinnedItems.length > 0 && actionItems.length > 0) {
+		const remainingLabel = localize('agentHostSessionConfig.otherBranchesGroup', "Branches");
+		pinnedItems.push({ kind: ActionListItemKind.Separator, label: remainingLabel });
+		for (let i = 0; i < actionItems.length; i++) {
+			actionItems[i] = withGroupTitle(actionItems[i], remainingLabel);
+		}
+	}
+	return pinnedItems;
 }
 
 function isSelectedValue(currentValue: unknown | undefined, itemValue: string): boolean {
@@ -930,7 +1003,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _renderIsolationCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
-		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
+		const label = NEW_WORKTREE_LABEL;
 		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
 		const checked = value === 'worktree';
 		const combinationDisabled = !this._isDevContainerWorktreeEnabled()
@@ -1113,6 +1186,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		this._openedPickerSessionId = sessionId;
 		trigger.setAttribute('aria-expanded', 'true');
 		repositoryConfigContainer?.setAttribute(PICKER_OPEN_ATTRIBUTE, 'true');
+		// Count the branches rather than the items, which add the default branch's remote only for worktrees.
+		const showFilter = (branchCompletions ?? items).length > 10;
 		this._actionWidgetService.show<IConfigPickerItem>(
 			`agentHostSessionConfig.${property}`,
 			false,
@@ -1126,19 +1201,26 @@ export class AgentHostSessionConfigPicker extends Disposable {
 					const label = item.badge
 						? localize('agentHostSessionConfig.itemAriaLabelWithBadge', "{0}, {1}", item.label ?? '', item.badge)
 						: item.label ?? '';
-					return item.ariaDescription
-						? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", label, item.ariaDescription)
+					const groupLabel = item.group?.title
+						? localize('agentHostSessionConfig.itemAriaLabelWithGroup', "{0}, {1}", label, item.group.title)
 						: label;
+					return item.ariaDescription
+						? localize('agentHostSessionConfig.itemAriaLabelWithDescription', "{0}, {1}", groupLabel, item.ariaDescription)
+						: groupLabel;
 				},
 				getWidgetAriaLabel: () => localize('agentHostSessionConfig.ariaLabel', "{0} Picker", schema.title),
 			},
-			items.length > 10
-				? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options..."), minWidth: 255, anchorPosition: AnchorPosition.BELOW }
-				: { minWidth: 255, anchorPosition: AnchorPosition.BELOW },
+			{
+				...(showFilter ? { showFilter: true, filterPlaceholder: localize('agentHostSessionConfig.filter', "Filter options...") } : {}),
+				minWidth: 255,
+				anchorPosition: AnchorPosition.BELOW,
+				maxVisibleItems: isBranchPicker ? BRANCH_PICKER_MAX_VISIBLE_ITEMS : undefined,
+			},
 		);
-		const upstreamBranchName = repositoryState?.upstreamBranchName;
-		if (isBranchPicker && isolationKey !== undefined && config?.values[isolationKey] === 'worktree' && upstreamBranchName && actionItems[0]?.item?.value === upstreamBranchName) {
-			this._actionWidgetService.focusItemById(upstreamBranchName);
+		// Branch groups keep a fixed order, so focus the selected branch wherever it is listed.
+		if (isBranchPicker && typeof currentValue === 'string'
+			&& actionItems.some(item => item.item?.value === currentValue)) {
+			this._actionWidgetService.focusItemById(currentValue);
 		}
 	}
 
@@ -1164,7 +1246,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		await this._viewsService.openView(CHANGES_VIEW_ID, true);
 	}
 
-	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; upstreamBranchName: string | undefined; uncommittedChanges: number | undefined } {
+	protected _getRepositoryBranchState(sessionId: string): { branchName: string | undefined; upstreamBranchName: string | undefined; defaultBranchName: string | undefined; defaultRemoteBranchName: string | undefined; uncommittedChanges: number | undefined } {
 		const session = this._session.get();
 		const repository = session?.sessionId === sessionId
 			? session.workspace.get()?.folders[0]?.gitRepository
@@ -1173,14 +1255,20 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		return {
 			branchName: repository?.branchName,
 			upstreamBranchName: repository?.upstreamBranchName,
+			defaultBranchName: repository?.defaultBranchName,
+			defaultRemoteBranchName: repository?.defaultRemoteBranchName,
 			uncommittedChanges: repository?.uncommittedChanges,
 		};
 	}
 
-	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[]): Promise<readonly IConfigPickerItem[]> {
+	/**
+	 * Returns the picker items for `property`. Base branch results are filtered by `query`
+	 * and, when `branchResultLimit` is set, capped at that many results.
+	 */
+	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			const worktreeDisabled = !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
-			return ['worktree', schema.enum?.includes('workspace') ? 'workspace' : 'folder'].filter(value => schema.enum?.includes(value)).map(value => ({
+			return [schema.enum?.includes('workspace') ? 'workspace' : 'folder', 'worktree'].filter(value => schema.enum?.includes(value)).map(value => ({
 				value,
 				label: this._getLabel(sessionId, property, schema, value),
 				description: value === 'worktree'
@@ -1202,7 +1290,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 			? branchCompletions ?? await provider.getSessionConfigCompletions(sessionId, property, isBaseBranch ? undefined : query || undefined)
 			: undefined;
 		if (dynamicItems) {
-			const items = (isBaseBranch ? filterBranchPickerItems(dynamicItems, query) : dynamicItems)
+			const items = (isBaseBranch ? filterBranchPickerItems(dynamicItems, query, branchResultLimit) : dynamicItems)
 				.map(item => this._fromCompletionItem(item));
 			this._cacheDynamicValueLabels(sessionId, property, items);
 			return items;
@@ -1264,7 +1352,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			return value === 'worktree'
-				? localize('agentHostSessionConfig.isolation.worktree', "New Worktree")
+				? NEW_WORKTREE_LABEL
 				: value === 'folder' || value === 'workspace'
 					? localize('agentHostSessionConfig.isolation.branch', "Branch")
 					: schema.title;
@@ -1418,7 +1506,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				? this._getItems(provider, sessionId, isolationProperty, isolationSchema)
 				: Promise.resolve([] as readonly IConfigPickerItem[]),
 			branchSchema && canSelectBranch
-				? this._getItems(provider, sessionId, branchProperty, branchSchema, undefined, branchCompletions)
+				? this._getItems(provider, sessionId, branchProperty, branchSchema, undefined, branchCompletions, MOBILE_BRANCH_PICKER_RESULT_LIMIT)
 				: Promise.resolve([] as readonly IConfigPickerItem[]),
 		]);
 		if (!this._isCurrentSession(provider, sessionId)) {
@@ -1481,7 +1569,7 @@ class MobileAgentHostSessionConfigPicker extends AgentHostSessionConfigPicker {
 				emptyMessage: localize('mobileAgentHostSessionConfig.repoSheet.branchSearchEmpty', "No matching branches."),
 				loadItems: async (query, token) => {
 					const items = query
-						? await this._getItems(provider, sessionId, branchProperty, branchSchema, query, branchCompletions)
+						? await this._getItems(provider, sessionId, branchProperty, branchSchema, query, branchCompletions, MOBILE_BRANCH_PICKER_RESULT_LIMIT)
 						: branchItems;
 					if (token.isCancellationRequested || !this._isCurrentSession(provider, sessionId)) {
 						return [];
@@ -2030,7 +2118,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2055,7 +2143,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2085,7 +2173,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2121,7 +2209,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
-					ExperimentalSessionComposerLayout.negate(),
+					LegacySessionComposerLayout,
 				),
 			}],
 		});

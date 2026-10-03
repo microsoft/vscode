@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { arrayEqualsC, structuralEquals } from '../../../../../base/common/equals.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, mapObservableArrayCached, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { basename, extUriBiasedIgnorePathCase, isEqual } from '../../../../../base/common/resources.js';
@@ -13,7 +14,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { isMultiRootSession } from '../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
-import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset } from '../../../../../platform/agentHost/common/changesetUri.js';
+import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../platform/agentHost/common/changesetUri.js';
 import { isAgentMergeMessage } from '../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { ChangesetOperationTargetKind, InvokeChangesetOperationResult } from '../../../../../platform/agentHost/common/state/protocol/channels-changeset/commands.js';
 import { ChangesetOperation, ChangesetOperationScope, type ChangesetFile, ChangesetOperationStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -132,6 +133,7 @@ export function createChangesets(
 	isActiveSessionObs: IObservable<boolean>,
 	changesets: readonly IAgentHostChangeset[] | undefined,
 	chatUri?: URI,
+	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
 ): readonly ISessionChangeset[] {
 	if (!changesets) {
 		return [];
@@ -139,7 +141,7 @@ export function createChangesets(
 
 	const sessionChangesets: ISessionChangeset[] = [];
 
-	const defaultChangeset = selectDefaultChangeset(changesets, options.defaultChangesetKind);
+	const defaultChangeset = selectDefaultChangeset(changesets, defaultChangesetKind);
 
 	for (const catalogueEntry of changesets) {
 		const isDefault = chatUri !== undefined && catalogueEntry === defaultChangeset;
@@ -179,6 +181,7 @@ export function createChatChangesets(
 	options: IAgentHostAdapterOptions,
 	isActiveSessionObs: IObservable<boolean>,
 	currentTurnChanges?: IObservable<IAgentHostCurrentTurnChanges | undefined>,
+	defaultChangesetKind: DefaultChangesetKind | undefined = options.defaultChangesetKind,
 ): IObservable<readonly ISessionChangeset[] | undefined> {
 	const chatStateObs = createActiveSessionSubscriptionObs<ChatState>(
 		options,
@@ -232,7 +235,7 @@ export function createChatChangesets(
 				|| changeset.changeKind === ChangesetKind.Session
 				? currentTurnChanges
 				: undefined,
-		})), chatUri);
+		})), chatUri, defaultChangesetKind);
 		return lastChangesets;
 	});
 }
@@ -261,7 +264,7 @@ export function createActiveSessionSubscriptionObs<T>(
 
 		const subscriptionRef = reader.store.add(connection.getSubscription(component, resource, 'AgentHostSessionChangesets'));
 
-		return observableFromEvent(subscriptionRef.object.onDidChange,
+		return observableFromEvent(Event.any(subscriptionRef.object.onDidChange, subscriptionRef.object.onDidError ?? Event.None),
 			() => subscriptionRef.object.value as T | Error | undefined);
 	});
 }
