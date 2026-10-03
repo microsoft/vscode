@@ -3049,6 +3049,29 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result, []);
 		});
 
+		test('restores a remote write approval with a file pill and a plain filename in its title', () => {
+			const result = activeTurnToProgress(URI.parse('provider:/session/from-host'), createActiveTurnState([{
+				kind: ResponsePartKind.ToolCall,
+				toolCall: {
+					status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+					invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: '/workspaces/server/index.js',
+					_meta: { promptRequest: { kind: 'write', fileName: '/workspaces/server/index.js' } },
+				},
+			}]), 'sandbox.example');
+			const invocation = result.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			const confirmation = IChatToolInvocation.getConfirmationMessages(invocation);
+			assert.deepStrictEqual({
+				title: confirmation?.title,
+				message: typeof confirmation?.message === 'string' ? confirmation.message : confirmation?.message?.value,
+				state: invocation.state.get().type,
+			}, {
+				title: 'Edit index.js',
+				message: 'Edit [](vscode-agent-host://sandbox.example/workspaces/server/index.js?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0)',
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+		});
+
 		test('includes usage progress from active turn usage', () => {
 			const activeTurn = createActiveTurnState();
 			activeTurn.usage = { inputTokens: 1000, outputTokens: 250 };

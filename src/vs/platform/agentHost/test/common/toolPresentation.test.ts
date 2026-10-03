@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallPresentation } from '../../common/meta/agentToolCallMeta.js';
-import { ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, type ToolCallCompletedState, type StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { ToolCallContributorKind, ToolCallStatus, ToolCallConfirmationReason, type ToolCallCompletedState, type ToolCallPendingConfirmationState, type StringOrMarkdown } from '../../common/state/protocol/state.js';
 
 function call(toolName: string, overrides?: Partial<ToolCallCompletedState>): ToolCallCompletedState {
 	return {
@@ -174,5 +174,44 @@ suite('Copilot app tool presentation compatibility', () => {
 		assert.deepStrictEqual([undefined, null, false, 42, {}, '', 'echo output'].map(command =>
 			readToolCallPresentation(call('bash', { toolInput: JSON.stringify({ command }) })).toolKind
 		), [undefined, undefined, undefined, undefined, undefined, undefined, 'terminal']);
+	});
+
+	test('write permissions name their target without inferring an edit kind or changing protocol state', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'future_edit', displayName: 'Edit',
+			invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: '/workspace/file.ts',
+			_meta: { promptRequest: { kind: 'write', fileName: '/workspace/file.ts' } },
+		};
+		const message = { markdown: 'Edit [file.ts](file:///workspace/file.ts)' };
+		assert.deepStrictEqual({
+			pending: readToolCallPresentation(pending),
+			specific: readToolCallPresentation({ ...pending, invocationMessage: 'Update configuration', confirmationTitle: 'Update settings?' }),
+			invalid: readToolCallPresentation({ ...pending, _meta: { promptRequest: { kind: 'write', fileName: 42 } } }),
+			absent: readToolCallPresentation({ ...pending, _meta: undefined }),
+			vscode: readToolCallPresentation({ ...pending, _meta: { ...pending._meta, toolKind: 'read' } }),
+			mcp: readToolCallPresentation({ ...pending, contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' } }),
+			running: readToolCallPresentation({ ...pending, status: ToolCallStatus.Running, confirmed: ToolCallConfirmationReason.UserAction }),
+			source: { message: pending.invocationMessage, input: pending.toolInput },
+		}, {
+			pending: { toolKind: undefined, invocationMessage: message, pastTenseMessage: undefined, confirmationTitle: 'Edit file.ts' },
+			specific: { toolKind: undefined, invocationMessage: 'Update configuration', pastTenseMessage: undefined },
+			invalid: { toolKind: undefined, invocationMessage: 'Edit file', pastTenseMessage: undefined },
+			absent: { toolKind: undefined, invocationMessage: 'Edit file', pastTenseMessage: undefined },
+			vscode: { toolKind: 'read', invocationMessage: 'Edit file', pastTenseMessage: undefined },
+			mcp: { toolKind: undefined, invocationMessage: 'Edit file', pastTenseMessage: undefined },
+			running: { toolKind: undefined, invocationMessage: 'Edit file', pastTenseMessage: undefined },
+			source: { message: 'Edit file', input: '/workspace/file.ts' },
+		});
+	});
+
+	test('write permission filenames cannot break out of their file link', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+			invocationMessage: 'Edit file', confirmationTitle: 'Custom confirmation',
+			_meta: { permissionRequest: { kind: 'write', fileName: '/workspace/a](command:unsafe).ts' } },
+		};
+		assert.deepStrictEqual(readToolCallPresentation(pending), {
+			toolKind: undefined, invocationMessage: { markdown: 'Edit [a\\](command:unsafe).ts](file:///workspace/a%5D%28command%3Aunsafe%29.ts)' }, pastTenseMessage: 'Edited',
+		});
 	});
 });

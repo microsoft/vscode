@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { appendEscapedMarkdownInlineCode } from '../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { isString } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { getInlineToolInput, parsePartialToolInputForDisplay } from '../../partialToolInput.js';
 import { ToolCallStatus, type StringOrMarkdown, type ToolCallState } from '../../state/protocol/state.js';
+import { AgentPermissionRequestKind, readPermissionRequestMeta } from './agentPermissionRequestMeta.js';
 
 export interface IToolPresentation {
 	readonly toolKind?: 'terminal' | 'search' | 'read';
@@ -121,6 +124,24 @@ const labels: Readonly<Record<string, IToolLabels>> = {
 	delete_scheduled_task: { running: localize('copilotd.deleteScheduled.running', "Deleting scheduled task"), completed: localize('copilotd.deleteScheduled.completed', "Deleted scheduled task"), failed: localize('copilotd.deleteScheduled.failed', "Delete scheduled task failed") },
 	run_scheduled_task: { running: localize('copilotd.runScheduled.running', "Starting scheduled task"), completed: localize('copilotd.runScheduled.completed', "Started scheduled task"), failed: localize('copilotd.runScheduled.failed', "Start scheduled task failed") },
 };
+
+/** Compensates for copilot-host#981 until write confirmations name their file natively. */
+export function readCopilotWritePermissionPresentation(call: ToolCallState): { invocationMessage: StringOrMarkdown; confirmationTitle?: StringOrMarkdown } | undefined {
+	if (call.status !== ToolCallStatus.PendingConfirmation || call.contributor || call._meta?.ui !== undefined) {
+		return undefined;
+	}
+	const request = readPermissionRequestMeta(call);
+	if (request.kind !== AgentPermissionRequestKind.Write || !request.fileName) {
+		return undefined;
+	}
+	const uri = URI.file(request.fileName);
+	const file = new MarkdownString().appendLink(uri, basename(uri)).value;
+	const message = { markdown: localize('copilotd.permission.editFile', "Edit {0}", file) };
+	return {
+		invocationMessage: typeof call.invocationMessage === 'string' && call.invocationMessage.trim() === 'Edit file' ? message : call.invocationMessage,
+		...(typeof call.confirmationTitle === 'string' && call.confirmationTitle.trim() === 'Edit file' ? { confirmationTitle: localize('copilotd.permission.editFile', "Edit {0}", basename(uri)) } : {}),
+	};
+}
 
 export function readCopilotToolPresentation(call: ToolCallState): IToolPresentation | undefined {
 	if (call.contributor || call._meta?.ui !== undefined) {
