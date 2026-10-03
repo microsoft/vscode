@@ -863,7 +863,11 @@ export class TabbedModelPicker extends Disposable {
 				// instead of revealing that row at the top, and the popup keeps its size.
 				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
 			}, section, true);
-			const workflowSummary = getModelConfigSummary(model, context.configurationAccess);
+			const variants = checked && step.multiple ? workflow.getVariants(model.identifier) : [];
+			const baseSummary = getModelConfigSummary(model, context.configurationAccess);
+			// A row with variants also names how many extra attempts of it are queued, e.g.
+			// "High · 1M +1", so the list reflects the comparison's real attempt count at a glance.
+			const workflowSummary = variants.length && baseSummary ? localize('chat.modelPicker.workflowSummaryWithVariants', "{0} +{1}", baseSummary, variants.length) : baseSummary;
 			const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 			return {
 				item: { ...action, checked, enabled: !disabled },
@@ -932,6 +936,8 @@ export class TabbedModelPicker extends Disposable {
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
+		const workflowStep = context.workflow?.state.get();
+		const isCheckedAttempt = !!(context.workflow && workflowStep?.multiple && workflowStep.selectedModelIds.includes(model.identifier));
 		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
@@ -942,6 +948,17 @@ export class TabbedModelPicker extends Disposable {
 			externalHeader: true,
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
+			workflowVariants: isCheckedAttempt ? {
+				list: context.workflow!.getVariants(model.identifier),
+				onAdd: (configuration, label) => {
+					context.workflow!.addVariant(model.identifier, configuration, label);
+					this.refresh();
+				},
+				onRemove: index => {
+					context.workflow!.removeVariant(model.identifier, index);
+					this.refresh();
+				},
+			} : undefined,
 			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
 			onSelect: next => {
 				if (context.workflow) {

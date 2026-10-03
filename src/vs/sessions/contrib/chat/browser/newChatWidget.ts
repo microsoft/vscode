@@ -1687,15 +1687,21 @@ export class NewChatWidget extends Disposable {
 			if (!permission || permission.locked) {
 				throw new Error(localize('comparisonPicker.permissionsUnavailable', "The current permissions are unavailable for comparison. Update the draft permissions and try again."));
 			}
-			const resolveHarness = (modelId: string): ISessionComparisonHarness => {
+			const resolveHarness = (modelId: string, configurationOverride?: Readonly<Record<string, string | number | boolean | null>>): ISessionComparisonHarness => {
 				const resolution = provider.getModelsSnapshotForCreation?.(workspace, session.sessionType, modelId).desiredModelResolution;
 				if (resolution?.kind !== 'available') {
 					throw new Error(localize('comparisonPicker.modelUnavailable', "A selected comparison model is no longer available. Update the model picker selection."));
 				}
-				const modelConfiguration: Record<string, string | number | boolean | null> = {};
-				for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
-					if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
-						modelConfiguration[key] = value;
+				let modelConfiguration: Record<string, string | number | boolean | null> = {};
+				if (configurationOverride) {
+					// A variant attempt (e.g. this model again at another thinking effort): run at
+					// exactly the configuration chosen for it, not the model's current global default.
+					modelConfiguration = { ...configurationOverride };
+				} else {
+					for (const [key, value] of Object.entries(provider.getAutomationModelConfiguration?.(session.sessionId)?.getModelConfiguration(resolution.model.identifier) ?? {})) {
+						if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
+							modelConfiguration[key] = value;
+						}
 					}
 				}
 				return {
@@ -1716,7 +1722,7 @@ export class NewChatWidget extends Disposable {
 				workspace,
 				prompt: request,
 				attachedContext: requestContext.size ? [...requestContext.values()] : undefined,
-				attempts: this._comparisonSelection.attemptModelIds.get().map(modelId => ({ id: generateUuid(), harness: resolveHarness(modelId) })),
+				attempts: this._comparisonSelection.attempts.get().map(attempt => ({ id: generateUuid(), harness: resolveHarness(attempt.modelId, attempt.configuration) })),
 				judgeHarness: judgeModelId ? resolveHarness(judgeModelId) : undefined,
 				synthesisHarness: synthesisModelId ? resolveHarness(synthesisModelId) : undefined,
 				branch,

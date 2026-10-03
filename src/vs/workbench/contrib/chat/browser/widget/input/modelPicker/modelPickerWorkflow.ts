@@ -20,6 +20,22 @@ export interface IModelPickerWorkflow {
 	next(): void;
 	finish(): void;
 	setCount(count: number): void;
+	/**
+	 * Extra attempts of a selected model at another configuration (e.g. the same model at a
+	 * different thinking effort), beyond its single default-configured attempt. Empty when the
+	 * model is not currently selected or has no variants.
+	 */
+	getVariants(modelId: string): readonly IModelPickerWorkflowVariant[];
+	/** Adds another attempt of a selected model at a specific configuration. */
+	addVariant(modelId: string, configuration: Readonly<Record<string, string | number | boolean | null>>, label: string): void;
+	removeVariant(modelId: string, index: number): void;
+}
+
+/** One extra configured attempt of an already-selected model. */
+export interface IModelPickerWorkflowVariant {
+	readonly configuration: Readonly<Record<string, string | number | boolean | null>>;
+	/** The configuration's display label, e.g. "Max", shown beside the model name. */
+	readonly label: string;
 }
 
 export interface IModelPickerWorkflowState {

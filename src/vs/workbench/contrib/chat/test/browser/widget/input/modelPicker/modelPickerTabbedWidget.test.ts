@@ -278,6 +278,7 @@ suite('TabbedModelPicker', () => {
 			reset: () => state.set(undefined, undefined),
 			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: state.get()!.hasNextStep !== false, canFinish: true, status: { text: '1 selected' } }, undefined),
 			setCount: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			back: () => state.set(attempts, undefined),
 			next: () => {
 				const toSynthesizer = state.get()?.title === 'Judge';
@@ -364,6 +365,7 @@ suite('TabbedModelPicker', () => {
 				state.set({ ...current, selectedModelIds: ids, canFinish: ids.length >= 2 }, undefined);
 			},
 			setCount: () => { }, back: () => { }, next: () => { },
+			getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 			finish: () => { },
 		};
 		const result = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
@@ -395,6 +397,62 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('a checked compare-mode row can add and remove variant attempts at another configuration from its Details flyout', () => {
+		const attempts: IModelPickerWorkflowState = {
+			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+		};
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const variantsByModel = new Map<string, { configuration: Record<string, string | number | boolean | null>; label: string }[]>();
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set(attempts, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				const current = state.get()!;
+				const ids = current.selectedModelIds.includes(id) ? current.selectedModelIds.filter(existing => existing !== id) : [...current.selectedModelIds, id];
+				state.set({ ...current, selectedModelIds: ids, canFinish: ids.length >= 2, status: { text: `${ids.length} selected` } }, undefined);
+			},
+			setCount: () => { }, back: () => { }, next: () => { },
+			finish: () => { },
+			getVariants: modelId => variantsByModel.get(modelId) ?? [],
+			addVariant: (modelId, configuration, label) => {
+				variantsByModel.set(modelId, [...(variantsByModel.get(modelId) ?? []), { configuration, label }]);
+			},
+			removeVariant: (modelId, index) => {
+				variantsByModel.set(modelId, (variantsByModel.get(modelId) ?? []).filter((_, candidate) => candidate !== index));
+			},
+		};
+		const result = createPicker({ workflow });
+		const addableLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-variant-chip.addable'), chip => chip.textContent?.trim());
+		const addedLabels = () => Array.from(result.popup.querySelectorAll('.chat-model-card-variant-chip.added'), chip => chip.textContent?.trim());
+		const rowBadge = () => element(result.popup, '.chat-model-picker-model').querySelector('.action-label')?.textContent;
+
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		// Check "First" (default effort is Low, from its schema default).
+		element(result.popup, '.chat-model-picker-model').click();
+		openDetails(result.popup, 'First');
+		const beforeAdd = { addable: addableLabels(), added: addedLabels() };
+
+		element(result.popup, '.chat-model-card-variant-chip.addable').click();
+		const afterAdd = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
+		goBack(result.popup);
+		const badgeAfterAdd = rowBadge();
+
+		openDetails(result.popup, 'First');
+		element(result.popup, '.chat-model-card-variant-remove').click();
+		const afterRemove = { addable: addableLabels(), added: addedLabels(), stored: workflow.getVariants('copilot/First') };
+		goBack(result.popup);
+
+		assert.deepStrictEqual({ beforeAdd, afterAdd, badgeAfterAdd, afterRemove, badgeAfterRemove: rowBadge() }, {
+			beforeAdd: { addable: ['High'], added: [] },
+			afterAdd: { addable: [], added: ['High'], stored: [{ configuration: { effort: 'high' }, label: 'High' }] },
+			badgeAfterAdd: 'Low · 32K +1',
+			afterRemove: { addable: ['High'], added: [], stored: [] },
+			badgeAfterRemove: 'Low · 32K',
+		});
+	});
 	for (const committed of [false, true]) {
 		for (const dismissal of ['Escape', 'click-away'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
@@ -411,6 +469,7 @@ suite('TabbedModelPicker', () => {
 					reset: () => assert.fail('Dismissal must not reset committed state'),
 					select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
 					back: () => { }, next: () => { }, setCount: () => { },
+					getVariants: () => [], addVariant: () => { }, removeVariant: () => { },
 					finish: () => assert.fail('Dismissal must not commit'),
 				};
 				const { picker, popup, anchor, context, dismiss, selections } = createPicker({ workflow });

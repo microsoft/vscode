@@ -1020,6 +1020,50 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.chat-model-card-variant-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.chat-model-card-variant-chip {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size80);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label2);
+	line-height: var(--vscode-spacing-size160);
+	white-space: nowrap;
+}
+
+.chat-model-card-variant-chip.added {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-focusBorder) 16%, transparent);
+}
+
+.chat-model-card-variant-remove {
+	display: flex;
+	cursor: pointer;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-model-card-variant-remove:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-model-card-variant-chip.addable {
+	border: 1px solid var(--vscode-widget-border, var(--vscode-contrastBorder));
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+}
+
+.chat-model-card-variant-chip.addable:hover {
+	color: var(--vscode-foreground);
+	background: color-mix(in srgb, var(--vscode-foreground) 6%, transparent);
+}
+
 .chat-model-card-options {
 	display: flex;
 	flex-direction: column;

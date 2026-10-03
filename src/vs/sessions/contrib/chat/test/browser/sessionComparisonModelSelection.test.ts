@@ -60,6 +60,46 @@ suite('SessionComparisonModelSelection', () => {
 		assert.deepStrictEqual(selection.attemptModelIds.get(), Array.from({ length: 10 }, (_, index) => `model-${index}`));
 	});
 
+	test('a selected model can add variant attempts at other configurations, counted toward Done/Next and run alongside the default attempt', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		assert.throws(() => selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max'), /Select the model/);
+		selection.select('gpt-5.5');
+		// Exactly one model and no variants: still below the two-attempt minimum.
+		assert.deepStrictEqual({ canFinish: selection.state.get()?.canFinish, variants: selection.getVariants('gpt-5.5') }, { canFinish: false, variants: [] });
+
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max');
+		const withOneVariant = { canFinish: selection.state.get()?.canFinish, status: selection.state.get()?.status, variants: selection.getVariants('gpt-5.5') };
+		selection.finish();
+		assert.deepStrictEqual({
+			withOneVariant,
+			attempts: selection.attempts.get(),
+			attemptModelIds: selection.attemptModelIds.get(),
+			summary: selection.summary.get(),
+		}, {
+			withOneVariant: { canFinish: true, status: { text: '2 selected' }, variants: [{ configuration: { effort: 'max' }, label: 'Max' }] },
+			attempts: [{ modelId: 'gpt-5.5' }, { modelId: 'gpt-5.5', configuration: { effort: 'max' }, variantLabel: 'Max' }],
+			attemptModelIds: ['gpt-5.5', 'gpt-5.5'],
+			summary: '2 Attempts',
+		});
+
+		// Deselecting the model discards its queued variants; reselecting starts fresh.
+		selection.start();
+		selection.select('gpt-5.5'); // deselect
+		selection.select('gpt-5.5'); // reselect
+		assert.deepStrictEqual(selection.getVariants('gpt-5.5'), []);
+	});
+
+	test('removeVariant removes exactly the targeted variant by index', () => {
+		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
+		selection.start();
+		selection.select('gpt-5.5');
+		selection.addVariant('gpt-5.5', { effort: 'low' }, 'Low');
+		selection.addVariant('gpt-5.5', { effort: 'max' }, 'Max');
+		selection.removeVariant('gpt-5.5', 0);
+		assert.deepStrictEqual(selection.getVariants('gpt-5.5'), [{ configuration: { effort: 'max' }, label: 'Max' }]);
+	});
+
 	test('the composer summary names the attempt models, falling back to a count when a label is missing', () => {
 		const labels = new Map([['model-a', 'Claude Haiku 4.5'], ['model-b', 'GPT-5.4 mini']]);
 		const named = store.add(new SessionComparisonModelSelection(constObservable(true), undefined, modelId => labels.get(modelId)));
