@@ -382,6 +382,19 @@ suite('Frosted glass styles', () => {
 		});
 	});
 
+	(supportsGlass(document.body) ? test : test.skip)('rounds the menubar menu holder and frosted glass to the outer radius', () => {
+		const { root, menubarMenuContainer } = createOverlays();
+		root.classList.add('modern-ui-frosted-glass');
+		const targetWindow = getWindow(menubarMenuContainer);
+		assert.deepStrictEqual({
+			holderRadius: targetWindow.getComputedStyle(menubarMenuContainer).borderRadius,
+			glassRadius: targetWindow.getComputedStyle(menubarMenuContainer, '::before').borderRadius,
+		}, {
+			holderRadius: '8px',
+			glassRadius: '8px',
+		});
+	});
+
 	test('keeps picker and nested picker tint steady while opening and uses a solid closing fallback', () => {
 		const { root, picker } = createOverlays();
 		root.classList.add('modern-ui-frosted-glass', 'monaco-enable-motion');
