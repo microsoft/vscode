@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ICodeEditorService } from './codeEditorService.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { EditorOpenSource } from '../../../platform/editor/common/editor.js';
-import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, extractSelection, IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, NoExternalUriResolverError, OpenOptions, ResolveExternalUriOptions } from '../../../platform/opener/common/opener.js';
 
 interface IExternalUriOpenTarget {
 	readonly sourceUri: URI;
@@ -225,6 +225,9 @@ export class OpenerService implements IOpenerService {
 	}
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
+		let lastError: unknown;
+		let hasResolverError = false;
+
 		for (const resolver of this._resolvers) {
 			try {
 				const result = await resolver.resolveExternalUri(resource, options);
@@ -234,12 +237,17 @@ export class OpenerService implements IOpenerService {
 					}
 					return result;
 				}
-			} catch {
-				// noop
+			} catch (error) {
+				lastError = error;
+				hasResolverError = true;
 			}
 		}
 
-		throw new Error('Could not resolve external URI: ' + resource.toString());
+		if (hasResolverError) {
+			throw lastError;
+		}
+
+		throw new NoExternalUriResolverError(resource);
 	}
 
 	private async _resolveExternalUriOpenTarget(resource: URI | string, options: OpenOptions | undefined): Promise<IExternalUriOpenTarget> {
