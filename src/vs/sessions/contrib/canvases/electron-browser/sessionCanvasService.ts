@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun, IReader, observableFromEvent } from '../../../../base/common/observable.js';
+import { autorun, derived, IReader, observableFromEvent, observableSignal } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { CanvasesEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -15,18 +15,20 @@ import { IEditorService } from '../../../../workbench/services/editor/common/edi
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, ISessionCanvas } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionCanvasReference, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
+import { ISessionCanvasReference, ISessionCanvasReopenTarget, ISessionCanvasService, ISessionCanvasTarget, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export class SessionCanvasService extends Disposable implements ISessionCanvasService {
 
 	declare readonly _serviceBrand: undefined;
 	readonly enabled;
+	readonly reopenableCanvases;
 
 	private readonly _inputs = this._register(new DisposableMap<string, SessionCanvasInput>());
 	private readonly _inputLifetimes = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _dismissed = new Map<string, ISessionCanvasReference>();
 	private readonly _presented = new Set<string>();
 	private readonly _programmaticCloses = new Set<string>();
+	private readonly _dismissedChanged = observableSignal(this);
 
 	constructor(
 		@ISessionsService private readonly sessionsService: ISessionsService,
@@ -45,6 +47,21 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			!entitlementService.sentiment.hidden
 			&& configurationService.getValue<boolean>(CanvasesEnabledSettingId) === true
 		);
+		this.reopenableCanvases = derived(this, reader => {
+			this._dismissedChanged.read(reader);
+			if (!this.enabled.read(reader)) {
+				return [];
+			}
+
+			const reopenable: ISessionCanvasReopenTarget[] = [];
+			for (const reference of this._dismissed.values()) {
+				const target = this.getTarget(reference, reader);
+				if (target?.canvas.source !== undefined) {
+					reopenable.push({ reference, canvas: target.canvas });
+				}
+			}
+			return reopenable;
+		});
 		this._register(sessionsManagementService.onDidChangeSessions(event => {
 			for (const session of event.removed) {
 				this._removeSession(session);
@@ -82,7 +99,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 			if (activeSession && activeChat && canvases !== undefined) {
 				for (const [key, dismissed] of this._dismissed) {
 					if (ownsChat(dismissed, activeSession, activeChat) && !activeKeys.has(key)) {
-						this._dismissed.delete(key);
+						this._deleteDismissed(key);
 					}
 				}
 			}
@@ -114,6 +131,29 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		return this.enabled.read(reader) && this.getTarget(reference, reader) !== undefined;
 	}
 
+	async reopenCanvas(reference: ISessionCanvasReference): Promise<void> {
+		const key = canvasKey(reference);
+		const reopenable = this.reopenableCanvases.get().find(candidate => canvasKey(candidate.reference) === key);
+		if (!reopenable) {
+			return;
+		}
+
+		const input = this._getOrCreateInput(reference, reopenable.canvas);
+		input.setCanvas(reopenable.canvas);
+		this._deleteDismissed(key);
+		this._presented.add(key);
+		try {
+			await this.editorService.openEditor(input, { pinned: true, revealIfOpened: true, preserveFocus: false });
+		} catch (error) {
+			this._presented.delete(key);
+			const target = this.getTarget(reference);
+			if (this.enabled.get() && target?.canvas.source !== undefined) {
+				this._rememberDismissed(key, reference);
+			}
+			throw error;
+		}
+	}
+
 	private _getOrCreateInput(reference: ISessionCanvasReference, canvas: ISessionCanvas): SessionCanvasInput {
 		const key = canvasKey(reference);
 		let input = this._inputs.get(key);
@@ -126,7 +166,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		this._inputLifetimes.set(key, lifetime);
 		lifetime.add(Event.once(input.onWillDispose)(() => {
 			if (!this._programmaticCloses.delete(key)) {
-				this._dismissed.set(key, reference);
+				this._rememberDismissed(key, reference);
 			}
 			if (this._inputs.get(key) === input) {
 				this._inputs.deleteAndLeak(key);
@@ -143,7 +183,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 	private _removeSession(session: ISession): void {
 		for (const [key, dismissed] of this._dismissed) {
 			if (ownsSession(dismissed, session)) {
-				this._dismissed.delete(key);
+				this._deleteDismissed(key);
 			}
 		}
 		for (const [key, input] of this._inputs) {
@@ -165,7 +205,7 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		if (lifetime && this._inputLifetimes.get(key) === lifetime) {
 			this._inputLifetimes.deleteAndLeak(key);
 		}
-		this._dismissed.delete(key);
+		this._deleteDismissed(key);
 		this._presented.delete(key);
 		await this.editorService.closeEditors(this.editorService.findEditors(input.resource), { preserveFocus: true });
 		if (!input.isDisposed()) {
@@ -173,6 +213,18 @@ export class SessionCanvasService extends Disposable implements ISessionCanvasSe
 		}
 		lifetime?.dispose();
 		this._programmaticCloses.delete(key);
+	}
+
+	private _rememberDismissed(key: string, reference: ISessionCanvasReference): void {
+		this._dismissed.delete(key);
+		this._dismissed.set(key, reference);
+		this._dismissedChanged.trigger(undefined);
+	}
+
+	private _deleteDismissed(key: string): void {
+		if (this._dismissed.delete(key)) {
+			this._dismissedChanged.trigger(undefined);
+		}
 	}
 }
 

@@ -27,13 +27,20 @@ export interface ISessionCanvasTarget {
 	readonly canvas: ISessionCanvas;
 }
 
+export interface ISessionCanvasReopenTarget {
+	readonly reference: ISessionCanvasReference;
+	readonly canvas: ISessionCanvas;
+}
+
 export const ISessionCanvasService = createDecorator<ISessionCanvasService>('sessionCanvasService');
 
 export interface ISessionCanvasService {
 	readonly _serviceBrand: undefined;
 	readonly enabled: IObservable<boolean>;
+	readonly reopenableCanvases: IObservable<readonly ISessionCanvasReopenTarget[]>;
 	getTarget(reference: ISessionCanvasReference, reader?: IReader): ISessionCanvasTarget | undefined;
 	isActiveOwner(reference: ISessionCanvasReference, reader?: IReader): boolean;
+	reopenCanvas(reference: ISessionCanvasReference): Promise<void>;
 }
 
 function createInputResource(reference: ISessionCanvasReference): URI {
@@ -67,7 +74,7 @@ export class SessionCanvasInput extends EditorInput {
 	override get editorId(): string { return SessionCanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas until the agent opens it again."); }
+	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Add Tab menu while it remains available."); }
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }
