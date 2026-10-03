@@ -301,6 +301,8 @@ A failed test, a failed teardown, routine recycling, or a test that restarted it
 
 Directory-removal failures include each underlying filesystem error and affected path in the suite error, not only in nested `AggregateError.errors`, so CI reports distinguish permissions, read-only files, and live handles.
 
+Every provider's test host runs at trace level so retained logs distinguish provider metadata reads, history hydration, and customization discovery during a slow restore. Only the Copilot provider's own runtime logs are separately collected.
+
 Remove test workspaces only after disposing the shared server lease in suite teardown. A provider can retain directory watchers after an individual session is released, preventing workspace deletion on Windows while its process is still alive.
 
 > Historical note: an older comment warned that "Claude's mid-turn dispose leaves the agent host in a bad state." That dates from the live real-SDK era (real streaming turns actually in flight). In the deterministic replay suite the only mid-turn paths are gone — the abort test is record-only, and turns drain — so all providers reuse the server safely. Recording still uses a fresh proxy + fixture per test regardless of the flag (a proxy records to one fixture at a time).

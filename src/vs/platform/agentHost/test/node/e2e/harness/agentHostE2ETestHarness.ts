@@ -953,9 +953,7 @@ export class AgentHostE2EServerLease {
 				matchModelRequestsByProjection: capiReplay.matchModelRequestsByProjection,
 			});
 		} else {
-			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
-			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
-			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
+			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: 'trace' });
 			this._modelBackedTestsOnCurrentServer = 0;
 			this._testsOnCurrentServer = 0;
 		}
@@ -1011,7 +1009,7 @@ export class AgentHostE2EServerLease {
 				...this._startOptions,
 				capiReplay,
 				existingCapiReplay: proxy,
-				logLevel: this._isCopilotProvider ? 'trace' : undefined,
+				logLevel: 'trace',
 			});
 		} catch (error) {
 			await proxy.close();
