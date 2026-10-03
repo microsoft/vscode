@@ -493,9 +493,20 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			}
 		}
 
-		if (error instanceof NoNextEditReason.FetchFailure || error instanceof NoNextEditReason.Unexpected) {
+		if (error instanceof NoNextEditReason.Unexpected) {
 			logger.trace(`has throwing error: ${error.error}`);
 			throw error.error;
+		} else if (error instanceof NoNextEditReason.FetchFailure) {
+			// A failed fetch (e.g. a transient network error such as a DNS failure while offline)
+			// is an expected, non-exceptional outcome: we simply have no suggestion to offer right
+			// now. Do not rethrow it - otherwise the rejection escapes through the inline-completion
+			// `raceAndAll` racer to `onUnexpectedError` and pollutes error telemetry with benign
+			// connectivity failures. Genuine programming errors are modeled as
+			// `NoNextEditReason.Unexpected` and continue to throw so they remain observable.
+			logger.trace(`fetch failure: ${error.error}`);
+			logContext.setError(error.error);
+			telemetryBuilder.setNextEditProviderError(ErrorUtils.toString(error.error));
+			telemetryBuilder.setStatus(`noEdit:fetchFailure`);
 		} else if (error instanceof NoNextEditReason.NoSuggestions) {
 			if (error.nextCursorPosition === undefined) {
 				logContext.markAsNoSuggestions();
