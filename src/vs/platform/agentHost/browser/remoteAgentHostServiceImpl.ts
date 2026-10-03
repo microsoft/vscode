@@ -606,6 +606,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		this._logService.info(`[RemoteAgentHost] Reconciling: desired=[${[...desired].join(', ')}], current=[${[...this._entries.keys()].map(a => `${a}(${this._entries.get(a)!.connected ? 'connected' : 'pending'})`).join(', ')}]`);
 
+		// Remove connections no longer exposed by a factory, before the names are
+		// rebuilt: each removal announces the remaining connections, which must
+		// still carry their names.
+		for (const address of [...this._entries.keys()]) {
+			if (!desired.has(address)) {
+				this._logService.info(`[RemoteAgentHost] Disconnecting from ${address}`);
+				this._cancelReconnect(address);
+				this._reconnectAttempts.delete(address);
+				this._removeConnection(address);
+			}
+		}
+
 		// Update name map and detect name changes for existing connections
 		let namesChanged = false;
 		const oldNames = new Map(this._names);
@@ -625,16 +637,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (!desired.has(address)) {
 				this._operatingSystems.delete(address);
 				this._clearHostLabelFormatter(address);
-			}
-		}
-
-		// Remove connections no longer exposed by a factory.
-		for (const address of [...this._entries.keys()]) {
-			if (!desired.has(address)) {
-				this._logService.info(`[RemoteAgentHost] Disconnecting from ${address}`);
-				this._cancelReconnect(address);
-				this._reconnectAttempts.delete(address);
-				this._removeConnection(address);
 			}
 		}
 
