@@ -571,7 +571,7 @@ export async function createShellTools(
 
 	const writeTool: Tool<IWriteShellArgs> = {
 		name: `write_${shellType}`,
-		description: `Send input to a running ${shellType} shell (e.g. answering a prompt, sending Ctrl+C).`,
+		description: `Send input to a running ${shellType} shell (e.g. answering a prompt, sending Ctrl+C). When sandboxing is enabled, this requires approval to run outside the sandbox and is unavailable if unsandboxed execution is disabled.`,
 		parameters: {
 			type: 'object',
 			properties: {
@@ -581,11 +581,37 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		skipPermission: true,
-		handler: async (args) => {
+		handler: async (args, invocation) => {
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
 			if (!shell) {
 				return makeFailureResult('No active shell found.', 'no_shell');
+			}
+			if (await engine.isEnabled()) {
+				if (!engine.areUnsandboxedCommandsAllowed()) {
+					return makeFailureResult(
+						'Shell input is disabled because unsandboxed execution is not allowed. Use the primary shell tool to run a sandboxed command.',
+						'unsandboxed_disabled',
+					);
+				}
+				if (!confirmUnsandboxedExecution) {
+					return makeFailureResult('Shell input requires approval to run outside the sandbox.', 'sandbox_blocked');
+				}
+
+				// Input can reach the unsandboxed host prompt even if a command was running when this call started.
+				const approved = await confirmUnsandboxedExecution({
+					toolCallId: invocation.toolCallId,
+					toolName: invocation.toolName,
+					shellExecutable: shell.executable,
+					command: args.command,
+					reason: 'Writing to a persistent host shell can execute input outside the sandbox.',
+				});
+				if (!approved) {
+					return makeFailureResult('User declined to send input outside the sandbox.', 'sandbox_blocked');
+				}
+				if (await engine.isEnabled() && !engine.areUnsandboxedCommandsAllowed()) {
+					return makeFailureResult('Unsandboxed execution was disabled while awaiting approval.', 'unsandboxed_disabled');
+				}
 			}
 			await terminalManager.sendText(shell.terminalUri, args.command, { shouldExecute: false });
 			return makeSuccessResult('Input sent to shell.');

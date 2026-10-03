@@ -681,6 +681,13 @@ publishes the failure before the rollback, with the originating client ID and se
 that window logs and displays a standard error notification, once per request.
 Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
 
+Custom terminal input helpers (`write_bash` and `write_powershell`) write to a
+persistent host shell, not necessarily a sandboxed foreground command. When
+sandboxing is enabled, each input requires the existing unsandboxed-execution
+approval and is rejected if bypass is disabled. Policy is checked again after
+approval. This applies to interactive input as well as idle-shell input;
+checking whether the shell is busy cannot guarantee that input stays sandboxed.
+
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 
 ### 8g. Seam → provider read it replaces
