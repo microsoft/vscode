@@ -319,6 +319,13 @@
 	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
+/* Rings are for keyboard focus only; the workbench's generic focus rule also rings mouse focus. */
+.monaco-workbench .session-comparison-result:focus:not(:focus-visible),
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-toggle:focus:not(:focus-visible),
+.monaco-workbench .session-comparison-result .session-comparison-scorecard-open:focus:not(:focus-visible) {
+	outline: none;
+}
+
 /* Expanded details line up with the attempt column. */
 .session-comparison-scorecard-detail {
 	display: grid;
