@@ -3805,7 +3805,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					automation: 'ahp-automation:/automation',
 					origin: { kind: AutomationRunOriginKind.Manual },
 					lifecycle: { status: AutomationRunStatus.Running, createdAt: '2026-01-01T00:00:00Z', startedAt: '2026-01-01T00:00:00Z' },
-					primarySession: AgentSession.uri('copilotcli', 'automation-1').toString(),
+					primarySession: createSession('automation-1').session.toString(),
 					sessionCount: 1,
 				}],
 			}],

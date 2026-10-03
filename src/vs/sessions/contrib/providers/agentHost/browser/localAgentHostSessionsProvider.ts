@@ -157,6 +157,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			providerForSessionScheme: scheme => AgentSession.provider(URI.from({ scheme })) ?? scheme,
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
 		}));
 		this.automations = automations;

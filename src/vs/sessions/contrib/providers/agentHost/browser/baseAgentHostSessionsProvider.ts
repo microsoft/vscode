@@ -1414,7 +1414,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
 		}
 		this.agentProvider = agentProvider;
-		this.backendUri = AgentSession.uri(_options.backendSessionScheme ?? agentProvider, rawId);
+		this.backendUri = URI.from({ scheme: _options.backendSessionScheme ?? metadata.session.scheme, path: `/${rawId}` });
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this._rawId = rawId;
 		this._resourceScheme = resourceScheme;
@@ -2896,7 +2896,7 @@ class NewSession extends Disposable {
 		this._isActiveSessionObs = derived(this, reader => isEqual(sessionsService.activeSession.read(reader)?.resource, resource));
 		// Defaults to scheme == provider; only hosts that address sessions under a different
 		// scheme (cloud sandbox: provider `copilot`, scheme `ahp-session`) override it.
-		this.backendUri = AgentSession.uri(ctx.backendSessionScheme ?? this.agentProvider, AgentSession.id(resource));
+		this.backendUri = URI.from({ scheme: ctx.backendSessionScheme ?? this.agentProvider, path: `/${AgentSession.id(resource)}` });
 		this._status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		this._title = observableValue<string>(this, '');
 		const title = this._title;
@@ -3977,12 +3977,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * adapter and provider use the host's real scheme. Must be a stable per-provider
 	 * mapping.
 	 */
-	protected _backendSessionScheme(agentProvider: string): string {
-		return agentProvider;
+	protected _backendSessionScheme(agentProvider: string, existingSession?: URI): string {
+		return existingSession?.scheme ?? AgentSession.uri(agentProvider, '').scheme;
 	}
 
 	protected _logicalSessionTypeForBackendScheme(backendScheme: string): string {
-		return backendScheme;
+		return AgentSession.provider(URI.from({ scheme: backendScheme })) ?? backendScheme;
 	}
 
 	private _mapBackendSessionResource(resource: URI): URI {
@@ -4012,7 +4012,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			},
 			getBackendChatResource: chat => this.getBackendChatResource(chat),
 			agentCapabilities: this._agentCapabilities,
-			backendSessionScheme: this._backendSessionScheme(provider),
+			backendSessionScheme: this._backendSessionScheme(provider, meta.session),
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 			connectionStatus: this.remoteConnectionStatus,
 			...this._adapterOptions(),
@@ -4259,7 +4259,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		connection.dispatch(AgentSession.uri(cached.agentProvider, rawId).toString(), {
+		connection.dispatch(cached.backendUri.toString(), {
 			type: ActionType.SessionActiveClientSet,
 			activeClient,
 		});

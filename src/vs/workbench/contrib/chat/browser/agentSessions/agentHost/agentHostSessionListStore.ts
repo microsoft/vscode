@@ -170,14 +170,18 @@ export class AgentHostSessionListStore extends Disposable {
 	}
 
 	private _providerForSession(session: URI | string): string | undefined {
-		const scheme = AgentSession.provider(session);
+		const scheme = (typeof session === 'string' ? URI.parse(session) : session).scheme;
 		const alias = this._options.sessionSchemeAlias;
-		return alias && scheme === alias.backend ? alias.ui : scheme;
+		return alias && scheme === alias.backend ? alias.ui : AgentSession.provider(session);
 	}
 
 	private _sessionUri(provider: string, rawId: string): URI {
+		const entry = this._entries.get(this._key(provider, rawId));
+		if (entry && !entry.fromDiscovery) {
+			return URI.parse(entry.summary.resource);
+		}
 		const alias = this._options.sessionSchemeAlias;
-		return AgentSession.uri(alias && provider === alias.ui ? alias.backend : provider, rawId);
+		return URI.from({ scheme: alias && provider === alias.ui ? alias.backend : provider, path: `/${rawId}` });
 	}
 
 	async disposeSession(provider: string, rawId: string): Promise<void> {

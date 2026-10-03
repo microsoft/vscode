@@ -91,7 +91,7 @@ export function isSendMessageTool(toolName: string): boolean {
  * so it is enforced here once rather than at each call site.
  */
 export function buildOpenSessionLinkUri(backendSession: URI | string, chatId?: string, turnId?: string): string {
-	const provider = AgentSession.provider(backendSession);
+	const provider = (typeof backendSession === 'string' ? URI.parse(backendSession) : backendSession).scheme;
 	const rawId = AgentSession.id(backendSession);
 	if (!provider) {
 		throw new Error(`Cannot build open-session link: missing provider in ${backendSession.toString()}`);
@@ -177,7 +177,7 @@ export function parseOpenSessionLinkUri(uri: URI | string): URI | undefined {
 	if (!rawId) {
 		return undefined;
 	}
-	return AgentSession.uri(parsed.authority, rawId);
+	return URI.from({ scheme: parsed.authority, path: `/${rawId}` });
 }
 
 /**

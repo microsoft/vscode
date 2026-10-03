@@ -2387,7 +2387,7 @@ export class CopilotAgentSession extends Disposable {
 		void this._telemetryReporter.toolCallDetails({
 			clientContext: turn.clientContext,
 			telemetryContext: turn.telemetryContext,
-			provider: this._ownerSessionUri.scheme,
+			provider: AgentSession.provider(this._ownerSessionUri) ?? this._ownerSessionUri.scheme,
 			session: this.resourceUri.toString(),
 			chat: this._chatChannelUri.toString(),
 			turnId: turn.id,
@@ -2415,7 +2415,7 @@ export class CopilotAgentSession extends Disposable {
 		this._telemetryReporter.toolApproval({
 			clientContext: this._currentTurn.value?.clientContext,
 			telemetryContext: this._currentTurn.value?.telemetryContext,
-			provider: this._ownerSessionUri.scheme,
+			provider: AgentSession.provider(this._ownerSessionUri) ?? this._ownerSessionUri.scheme,
 			session: this.resourceUri.toString(),
 			turnId: this._turnId,
 			toolId: toolName,
@@ -8109,7 +8109,7 @@ export class CopilotAgentSession extends Disposable {
 				};
 				this._telemetryService.publicLog2<AgentHostInstructionsCollectedEvent, AgentHostInstructionsCollectedClassification>('agentHost.instructionsCollected', {
 					...toInitiatorTelemetry(clientContext),
-					provider: this._ownerSessionUri.scheme,
+					provider: AgentSession.provider(this._ownerSessionUri) ?? this._ownerSessionUri.scheme,
 					agentSessionId: AgentSession.id(this.resourceUri),
 					isSubagentSession: isSubagentSession(this.resourceUri),
 					totalInstructionsCount: sources.length,

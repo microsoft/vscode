@@ -41,6 +41,17 @@ suite('openSessionLink', () => {
 		assert.strictEqual(parsed?.toString(), URI.parse(backend).toString());
 	});
 
+	test('preserves advertised session schemes rather than applying native provider aliases', () => {
+		const sessions = ['copilotcli:/same-id', 'ahp-session:/same-id', 'custom-provider:/same-id'];
+		assert.deepStrictEqual(sessions.map(session => ({
+			link: buildOpenSessionLinkUri(session),
+			restored: parseOpenSessionLinkUri(buildOpenSessionLinkUri(session))?.toString(),
+		})), sessions.map(session => ({
+			link: `agent-host-session://${URI.parse(session).scheme}/same-id`,
+			restored: session,
+		})));
+	});
+
 	test('builds and parses an external Agents window session link', () => {
 		const external = buildExternalOpenSessionLinkUri('vscode-insiders', 'copilotcli:/abc-123', 'chat-9', 'turn-7');
 		assert.deepStrictEqual({

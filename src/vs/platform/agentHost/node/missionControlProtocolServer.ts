@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import WebSocket from 'ws';
-import { randomBytes } from 'crypto';
+import { randomInt } from 'crypto';
 import { DeferredPromise, IntervalTimer, RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
@@ -36,8 +36,7 @@ export interface IMissionControlBootstrap {
 const relayKeepAliveTimeoutMs = 15 * 60_000;
 
 function newConnectionGeneration(): number {
-	const bytes = randomBytes(7);
-	return (bytes[0] & 15) * 2 ** 48 + bytes.readUIntBE(1, 6) + 1;
+	return randomInt(1, 2 ** 48);
 }
 
 class MissionControlLane extends Disposable implements IProtocolTransport {

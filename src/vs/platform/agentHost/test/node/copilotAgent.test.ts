@@ -9983,7 +9983,7 @@ suite('CopilotAgent', () => {
 					initialCandidates: filterCalls[0].length,
 					runtimeCandidates: filterCalls.slice(1),
 					requests: context.client.sessionListRequests,
-					originLogged: logs.args.some(([message]) => /Publishing copilotcli:\/live: external=true, clientName=github\/cli, scan=2, reason=directoryAdded, observedMsAgo=\d+$/.test(message)),
+					originLogged: logs.args.some(([message]) => /Publishing (?:copilotcli|ahp-session):\/live: external=true, clientName=github\/cli, scan=2, reason=directoryAdded, observedMsAgo=\d+$/.test(message)),
 					costLogged: logs.args.some(([message]) => /Scan 2 catalog: sdkSessions=251, candidates=1, listMs=\d+, classifyMs=\d+, published=1, external=1/.test(message)),
 				}, {
 					published: [{ id: 'live', external: true }], initialCandidates: 250, runtimeCandidates: [['live']],

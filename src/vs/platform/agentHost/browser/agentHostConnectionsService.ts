@@ -179,7 +179,9 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return {
 			connectionAuthority: authority,
 			...(policy?.connectionAddress !== undefined ? { connectionAddress: policy.connectionAddress } : {}),
-			backendSession: AgentSession.uri(backendProvider, rawSessionId),
+			backendSession: authority === AMBIENT_AGENT_HOST_AUTHORITY
+				? AgentSession.uri(backendProvider, rawSessionId)
+				: URI.from({ scheme: backendProvider, path: `/${rawSessionId}` }),
 			defaultChangesetKind: policy?.defaultChangesetKind,
 		};
 	}

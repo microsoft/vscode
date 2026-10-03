@@ -15,6 +15,7 @@ import { IPathService, type IResourcePathProvider } from '../../../path/common/p
 import { AgentHostConnectionsService } from '../../browser/agentHostConnectionsService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../../common/agentHostConnectionsService.js';
 import type { IAgentConnection, IAgentHostService } from '../../common/agentService.js';
+import { AgentSession } from '../../common/agent.js';
 import { ChangesetKind } from '../../common/changesetUri.js';
 import type { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService } from '../../common/remoteAgentHostService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../common/agentHostUri.js';
@@ -158,7 +159,7 @@ suite('AgentHostConnectionsService', () => {
 		assert.deepStrictEqual([
 			service.resolveSessionResourceIdentity(URI.parse('agent-host-copilotcli:/parent#peer'))?.backendSession.toString(),
 			service.resolveSessionResourceIdentity(URI.parse('remote-myhost-copilotcli:/parent#peer'))?.backendSession.toString(),
-		], ['copilotcli:/parent', 'copilotcli:/parent']);
+		], [AgentSession.uri('copilotcli', 'parent').toString(), 'copilotcli:/parent']);
 	});
 
 	test('resolveSessionResource maps local and remote schemes to connections', () => {
@@ -169,7 +170,7 @@ suite('AgentHostConnectionsService', () => {
 		const local = service.resolveSessionResource(URI.parse('agent-host-copilotcli:/abc123'));
 		assert.strictEqual(local?.connection, ambient);
 		assert.strictEqual(local?.connectionAuthority, AMBIENT_AGENT_HOST_AUTHORITY);
-		assert.strictEqual(local?.backendSession.toString(), 'copilotcli:/abc123');
+		assert.strictEqual(local?.backendSession.toString(), AgentSession.uri('copilotcli', 'abc123').toString());
 
 		const remote = service.resolveSessionResource(URI.parse('remote-myhost-copilotcli:/xyz789'));
 		assert.strictEqual(remote?.connection, remoteConn);

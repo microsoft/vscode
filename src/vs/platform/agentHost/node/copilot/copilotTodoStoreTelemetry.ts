@@ -53,7 +53,7 @@ export function reportCopilotTodoStoreOperation(telemetryService: ITelemetryServ
 		...toInitiatorTelemetry(clientContext),
 		...operation,
 		toolCallId,
-		provider: session.scheme,
+		provider: AgentSession.provider(session) ?? session.scheme,
 		agentSessionId: AgentSession.id(session),
 		isSubagentSession: isSubagentSession(session),
 	});
