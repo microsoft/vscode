@@ -907,8 +907,7 @@ class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.processBinary(data);
 	}
 	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
-		// A running process that's being reattached keeps its size until its terminal starts it; the
-		// terminal resizes it after the replay
+		// A reattached running process keeps its size until its terminal starts it
 		if (this._inReplay || this._isReattaching) {
 			return;
 		}

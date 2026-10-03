@@ -416,10 +416,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
-		// Size an attached process to the terminal before starting it, otherwise a revived process
-		// would start at the size its terminal had in the previous session. The pty host ignores this
-		// for a process that's already running. Remote ptys only send resizes once started, so this
-		// is local only.
+		// Spawn revived processes at the current size (remote ptys only resize once started)
 		if (shellLaunchConfig.attachPersistentProcess && !this.remoteAuthority) {
 			newProcess.resize(cols, rows);
 		}

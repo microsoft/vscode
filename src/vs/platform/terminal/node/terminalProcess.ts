@@ -569,8 +569,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				}
 			}
 		} else {
-			// The process hasn't been spawned yet (e.g. a revived process waiting for its terminal to
-			// attach), spawn it at this size
+			// Not spawned yet (e.g. a revived process), so spawn at this size
 			this._ptyOptions.cols = cols;
 			this._ptyOptions.rows = rows;
 		}
