@@ -21,6 +21,8 @@ import { BidirectionalMap, ResourceMap } from '../../../base/common/map.js';
 import { diffSets } from '../../../base/common/collections.js';
 import { Iterable } from '../../../base/common/iterator.js';
 
+const maxMarkerDecorations = 500;
+
 export class MarkerDecorationsService extends Disposable implements IMarkerDecorationsService {
 
 	declare readonly _serviceBrand: undefined;
@@ -57,6 +59,10 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
 		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
+	}
+
+	getDecorationLimit(uri: URI): number | false {
+		return this._markerDecorations.get(uri)?.limited ?? false;
 	}
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable {
@@ -112,8 +118,11 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		// Limit to the first 500 errors/warnings
-		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: maxMarkerDecorations + 1 });
+		const limited = markers.length > maxMarkerDecorations ? maxMarkerDecorations : false;
+		if (limited !== false) {
+			markers = markers.slice(0, maxMarkerDecorations);
+		}
 
 		// filter markers from suppressed ranges
 		const suppressedRanges = this._suppressedRanges.get(markerDecorations.model.uri);
@@ -123,7 +132,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 			});
 		}
 
-		if (markerDecorations.update(markers)) {
+		if (markerDecorations.update(markers, limited)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
 		}
 	}
@@ -132,6 +141,8 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 class MarkerDecorations extends Disposable {
 
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
+
+	public limited: number | false = false;
 
 	constructor(
 		readonly model: ITextModel
@@ -143,7 +154,9 @@ class MarkerDecorations extends Disposable {
 		}));
 	}
 
-	public update(markers: IMarker[]): boolean {
+	public update(markers: IMarker[], limited: number | false): boolean {
+		const limitChanged = this.limited !== limited;
+		this.limited = limited;
 
 		// We use the fact that marker instances are not recreated when different owners
 		// update. So we can compare references to find out what changed since the last update.
@@ -151,7 +164,7 @@ class MarkerDecorations extends Disposable {
 		const { added, removed } = diffSets(new Set(this._map.keys()), new Set(markers));
 
 		if (added.length === 0 && removed.length === 0) {
-			return false;
+			return limitChanged;
 		}
 
 		const oldIds: string[] = removed.map(marker => this._map.get(marker)!);

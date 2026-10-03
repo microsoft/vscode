@@ -22,5 +22,8 @@ export interface IMarkerDecorationsService {
 
 	getLiveMarkers(uri: URI): [Range, IMarker][];
 
+	/** Returns the decoration limit when markers were truncated, or false otherwise. */
+	getDecorationLimit(uri: URI): number | false;
+
 	addMarkerSuppression(uri: URI, range: Range): IDisposable;
 }

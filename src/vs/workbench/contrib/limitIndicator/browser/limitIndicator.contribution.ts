@@ -6,6 +6,8 @@
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import Severity from '../../../../base/common/severity.js';
 import { ICodeEditor, getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { EditorOption, filterValidationDecorations } from '../../../../editor/common/config/editorOptions.js';
+import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILanguageStatus, ILanguageStatusService } from '../../../services/languageStatus/common/languageStatusService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -21,18 +23,18 @@ const openSettingsCommand = 'workbench.action.openSettings';
 const configureSettingsLabel = nls.localize('status.button.configure', "Configure");
 
 /**
- * Uses that language status indicator to show information which language features have been limited for performance reasons.
- * Currently this is used for folding ranges and for color decorators.
+ * Uses the language status indicator to report performance limits for folding ranges, color decorators, and diagnostic highlights.
  */
 export class LimitIndicatorContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@ILanguageStatusService languageStatusService: ILanguageStatusService
+		@ILanguageStatusService languageStatusService: ILanguageStatusService,
+		@IMarkerDecorationsService markerDecorationsService: IMarkerDecorationsService
 	) {
 		super();
 
-		const accessors = [new ColorDecorationAccessor(), new FoldingRangeAccessor()];
+		const accessors = [new ColorDecorationAccessor(), new FoldingRangeAccessor(), new DiagnosticDecorationAccessor(markerDecorationsService)];
 		const statusEntries = accessors.map(indicator => new LanguageStatusEntry(languageStatusService, indicator));
 		statusEntries.forEach(entry => this._register(entry));
 
@@ -59,7 +61,6 @@ export class LimitIndicatorContribution extends Disposable implements IWorkbench
 export interface LimitInfo {
 	readonly onDidChange: Event<void>;
 
-	readonly computed: number;
 	readonly limited: number | false;
 }
 
@@ -68,7 +69,7 @@ interface LanguageFeatureAccessor {
 	readonly name: string;
 	readonly label: string;
 	readonly source: string;
-	readonly settingsId: string;
+	readonly settingsId?: string;
 	getLimitReporter(editor: ICodeEditor): LimitInfo | undefined;
 }
 
@@ -96,10 +97,35 @@ class FoldingRangeAccessor implements LanguageFeatureAccessor {
 	}
 }
 
+class DiagnosticDecorationAccessor implements LanguageFeatureAccessor {
+	readonly id = 'diagnosticsLimitInfo';
+	readonly name = nls.localize('diagnosticHighlightsStatusItem.name', "Diagnostic Highlight Status");
+	readonly label = nls.localize('status.limitedDiagnosticHighlights.short', "Diagnostic highlights");
+	readonly source = nls.localize('diagnosticHighlightsStatusItem.source', "Diagnostics");
+
+	constructor(private readonly markerDecorationsService: IMarkerDecorationsService) { }
+
+	getLimitReporter(editor: ICodeEditor): LimitInfo {
+		const markerDecorationsService = this.markerDecorationsService;
+		return {
+			onDidChange: Event.any(
+				Event.signal(editor.onDidChangeModel),
+				Event.signal(Event.filter(editor.onDidChangeConfiguration, e => e.hasChanged(EditorOption.renderValidationDecorations) || e.hasChanged(EditorOption.readOnly))),
+				Event.signal(Event.filter(markerDecorationsService.onDidChangeMarker, model => model === editor.getModel()))
+			),
+			get limited(): number | false {
+				const model = editor.getModel();
+				return model && !filterValidationDecorations(editor.getOptions()) ? markerDecorationsService.getDecorationLimit(model.uri) : false;
+			}
+		};
+	}
+}
+
 class LanguageStatusEntry implements IDisposable {
 
 	private _limitStatusItem: IDisposable | undefined;
 	private _indicatorChangeListener: IDisposable | undefined;
+	private _limited: number | false = false;
 
 	constructor(private languageStatusService: ILanguageStatusService, private accessor: LanguageFeatureAccessor) {
 	}
@@ -126,19 +152,25 @@ class LanguageStatusEntry implements IDisposable {
 
 
 	private updateStatusItem(info: LimitInfo | undefined) {
+		const limited = info?.limited ?? false;
+		if (limited === this._limited) {
+			return;
+		}
+		this._limited = limited;
+
 		if (this._limitStatusItem) {
 			this._limitStatusItem.dispose();
 			this._limitStatusItem = undefined;
 		}
-		if (info && info.limited !== false) {
+		if (limited !== false) {
 			const status: ILanguageStatus = {
 				id: this.accessor.id,
 				selector: '*',
 				name: this.accessor.name,
 				severity: Severity.Warning,
 				label: this.accessor.label,
-				detail: nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited),
-				command: { id: openSettingsCommand, arguments: [this.accessor.settingsId], title: configureSettingsLabel },
+				detail: nls.localize('status.limited.details', 'only {0} shown for performance reasons', limited),
+				command: this.accessor.settingsId ? { id: openSettingsCommand, arguments: [this.accessor.settingsId], title: configureSettingsLabel } : undefined,
 				accessibilityInfo: undefined,
 				source: this.accessor.source,
 				busy: false
@@ -148,6 +180,7 @@ class LanguageStatusEntry implements IDisposable {
 	}
 
 	public dispose() {
+		this._limited = false;
 		this._limitStatusItem?.dispose();
 		this._limitStatusItem = undefined;
 		this._indicatorChangeListener?.dispose();
