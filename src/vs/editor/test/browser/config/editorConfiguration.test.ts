@@ -7,14 +7,50 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IEnvConfiguration } from '../../../browser/config/editorConfiguration.js';
 import { migrateOptions } from '../../../browser/config/migrateOptions.js';
-import { ConfigurationChangedEvent, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorExperimentalGpuAcceleration, EditorOption, IEditorHoverOptions, IQuickSuggestionsOptions } from '../../../common/config/editorOptions.js';
 import { EditorZoom } from '../../../common/config/editorZoom.js';
 import { TestConfiguration } from './testConfiguration.js';
 import { AccessibilitySupport } from '../../../../platform/accessibility/common/accessibility.js';
 
 suite('Common Editor Config', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const installed of [false, true]) {
+		test(`optional editor-view option (installed=${installed})`, () => {
+			const option = store.add(new EditorExperimentalGpuAcceleration(installed));
+			assert.deepStrictEqual({
+				values: option.schema.enum,
+				descriptionCount: option.schema.enumDescriptions?.length,
+				defaultValue: option.defaultValue,
+				validated: ['off', 'on', 'editorView', 'invalid', undefined].map(value => option.validate(value)),
+			}, {
+				values: installed ? ['off', 'on', 'editorView'] : ['off', 'on'],
+				descriptionCount: installed ? 3 : 2,
+				defaultValue: 'off',
+				validated: ['off', 'on', installed ? 'editorView' : 'off', 'off', 'off'],
+			});
+		});
+	}
+
+	test('editor-view failure removes only the optional choice and notifies once', () => {
+		const option = store.add(new EditorExperimentalGpuAcceleration(true));
+		let changes = 0;
+		store.add(option.onDidChangeAvailability(() => changes++));
+		option.disableEditorView();
+		option.disableEditorView();
+		assert.deepStrictEqual({
+			values: option.schema.enum,
+			descriptionCount: option.schema.enumDescriptions?.length,
+			validated: ['off', 'on', 'editorView'].map(value => option.validate(value)),
+			changes
+		}, {
+			values: ['off', 'on'],
+			descriptionCount: 2,
+			validated: ['off', 'on', 'off'],
+			changes: 1
+		});
+	});
 
 	test('Zoom Level', () => {
 

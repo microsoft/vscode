@@ -233,9 +233,11 @@ export async function importAMDNodeModule<T>(nodeModuleName: string, pathInsideN
 	return result;
 }
 
-export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string): string {
-	const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
-	const isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
+export function resolveAmdNodeModulePath(nodeModuleName: string, pathInsideNodeModule: string, isBuilt?: boolean): string {
+	if (isBuilt === undefined) {
+		const product = globalThis._VSCODE_PRODUCT_JSON as unknown as IProductConfiguration;
+		isBuilt = Boolean((product ?? globalThis.vscode?.context?.configuration()?.product)?.commit);
+	}
 	const useASAR = (isBuilt && (platform.isElectron || (platform.isWebWorker && platform.hasElectronUserAgent)));
 
 	const nodeModulePath = `${nodeModuleName}/${pathInsideNodeModule}`;

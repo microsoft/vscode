@@ -101,6 +101,8 @@ export interface IProductConfiguration {
 	readonly date?: string;
 	readonly quality?: string;
 	readonly commit?: string;
+	/** Detected by desktop startup, not a distro product.json opt-in flag. */
+	readonly hasEditorView?: boolean;
 
 	readonly nameShort: string;
 	readonly nameLong: string;
