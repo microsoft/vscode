@@ -15,6 +15,7 @@ import { Emitter } from '../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
@@ -614,6 +615,7 @@ export class TabbedModelPicker extends Disposable {
 			status(workflow.state.get()!.title);
 		};
 		const leading = dom.append(actions, dom.$('.model-picker-workflow-leading'));
+		let stepStatus: HTMLElement | undefined;
 		if (step.canGoBack) {
 			const backLabel = localize('modelPicker.workflow.back', "Back");
 			// Unthemed, so the quiet text style from CSS applies instead of the secondary button fill.
@@ -624,29 +626,37 @@ export class TabbedModelPicker extends Disposable {
 			back.label = `$(${Codicon.chevronLeft.id}) ${backLabel}`;
 			back.element.classList.add('model-picker-workflow-back');
 			store.add(back.onDidClick(() => showStep(() => workflow.back())));
-		} else if (step.status) {
-			const stepStatus = dom.append(leading, dom.$('span.model-picker-workflow-status'));
-			stepStatus.textContent = step.status.text;
-			stepStatus.classList.toggle('warning', !!step.status.warning);
+		} else {
+			stepStatus = dom.append(leading, dom.$('span.model-picker-workflow-status'));
 		}
 		// Done and Next keep their places and are disabled until the selection can be used.
 		const trailing = dom.append(actions, dom.$('.model-picker-workflow-trailing'));
 		const done = store.add(new Button(trailing, { ...defaultButtonStyles }));
 		done.label = localize('modelPicker.workflow.done', "Done");
-		done.enabled = step.canFinish;
 		done.element.classList.add('model-picker-workflow-done');
 		store.add(done.onDidClick(() => {
 			workflow.finish();
 			this._finishingWorkflow = true;
 			this._widget.hide();
 		}));
-		if (step.hasNextStep ?? step.canGoNext) {
-			const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
-			next.label = localize('modelPicker.workflow.next', "Next");
-			next.enabled = step.canGoNext;
-			next.element.classList.add('model-picker-workflow-next');
-			store.add(next.onDidClick(() => showStep(() => workflow.next())));
-		}
+		const next = store.add(new Button(trailing, { ...defaultButtonStyles, secondary: true }));
+		next.label = localize('modelPicker.workflow.next', "Next");
+		next.element.classList.add('model-picker-workflow-next');
+		store.add(next.onDidClick(() => showStep(() => workflow.next())));
+		// Checking a model updates the rows in place, so the footer follows the workflow state.
+		store.add(autorun(reader => {
+			const current = workflow.state.read(reader);
+			if (!current) {
+				return;
+			}
+			done.enabled = current.canFinish;
+			next.enabled = current.canGoNext;
+			dom.setVisibility(current.hasNextStep ?? current.canGoNext, next.element);
+			if (stepStatus) {
+				stepStatus.textContent = current.status?.text ?? '';
+				stepStatus.classList.toggle('warning', !!current.status?.warning);
+			}
+		}));
 		return store;
 	}
 
@@ -849,7 +859,9 @@ export class TabbedModelPicker extends Disposable {
 			const disabled = step.multiple && !checked && step.selectedModelIds.length >= step.maxSelections;
 			const { action, ariaDescription } = createModelAction(model, undefined, () => {
 				workflow.select(model.identifier);
-				this._showCurrent(this._filterValue, model.identifier);
+				// Update the rows in place, so checking a model keeps the list where it was
+				// instead of revealing that row at the top.
+				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true });
 			}, section, true);
 			return {
 				item: { ...action, checked, enabled: !disabled },

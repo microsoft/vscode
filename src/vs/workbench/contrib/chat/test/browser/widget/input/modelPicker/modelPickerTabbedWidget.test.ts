@@ -291,7 +291,7 @@ suite('TabbedModelPicker', () => {
 		const toggle = element(popup, '[aria-label="Compare Models"]');
 		const toggleAlignedWithSearch = toggle.classList.contains('align-end');
 		toggle.click();
-		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')];
+		const footerButtons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')].filter(button => button.style.display !== 'none');
 		/** Each footer button's label, with `(disabled)` when it is shown but cannot be used. */
 		const buttons = () => footerButtons().map(button => `${button.getAttribute('aria-label') ?? button.textContent?.trim()}${button.classList.contains('disabled') ? ' (disabled)' : ''}`);
 		const button = (label: string) => {
@@ -308,7 +308,7 @@ suite('TabbedModelPicker', () => {
 			checkboxes: popup.querySelectorAll('.chat-model-picker-checkbox').length,
 			buttons: buttons(),
 			status: footerStatus(),
-		}, { toggleAlignedWithSearch: true, heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: undefined });
+		}, { toggleAlignedWithSearch: true, heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Done (disabled)', 'Next (disabled)'], status: '' });
 		button('Done').click();
 		assert.deepStrictEqual({ finished, visible: picker.isVisible }, { finished: false, visible: true }, 'disabled Done does nothing');
 		const list = element(popup, '.monaco-list');
