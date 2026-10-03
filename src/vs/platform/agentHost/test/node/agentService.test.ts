@@ -17556,16 +17556,10 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(localService).announceSurfacedSession(summary);
 				getStateManager(localService).prepareSessionSummariesForListing([summary]);
 
-				const notifications: INotification[] = [];
-				const listener = localService.onDidNotification(n => notifications.push(n));
+				const changed = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged' && notification.session === sessionStr), disposables);
 
 				localService.dispatchAction(sessionStr, action, 'test-client', 1, AgentHostClientType.EditorWindow);
-				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-					await timeout(0);
-				}
-				listener.dispose();
-
-				const summaryChanged = notifications.find(n => n.type === 'root/sessionSummaryChanged');
+				const summaryChanged = await changed;
 				assert.deepStrictEqual({
 					action: action.type,
 					persisted: await db.getMetadata(key),
@@ -17646,9 +17640,54 @@ suite('AgentService (node dispatcher)', () => {
 				catalogArchived: catalogDataOf(catalog)?.isArchived,
 			}, {
 				publishedBeforeRelease: false,
-				persistedBeforeRelease: 'true',
+				persistedBeforeRelease: '',
 				catalogArchivedAtPublish: true,
 				catalogArchived: true,
+			});
+		});
+
+		test('passive metadata rejects a failed durable snapshot without publishing or changing persisted flags', async () => {
+			class FailingSnapshotDatabase extends TestSessionDatabase {
+				failWrites = false;
+
+				override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+					if (this.failWrites) {
+						throw new Error('snapshot write failed');
+					}
+					return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				}
+			}
+			const db = new FailingSnapshotDatabase();
+			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
+			registerTestAgentProvider(localService, copilotAgent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			await localService.whenCatalogReconciliationIdle();
+			const sessionKey = session.toString();
+			const stateManager = getStateManager(localService);
+			stateManager.prepareSessionSummariesForListing([stateManager.getSessionSummary(sessionKey)!]);
+			stateManager.removeSession(sessionKey);
+			const notifications: INotification[] = [];
+			disposables.add(localService.onDidNotification(notification => notifications.push(notification)));
+			const rejected = Event.toPromise(Event.filter(localService.onDidAction, envelope => envelope.origin?.clientSeq === 1), disposables);
+			db.failWrites = true;
+
+			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			const envelope = await rejected;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				published: notifications.some(notification => notification.type === 'root/sessionSummaryChanged'),
+				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
+				catalogArchived: catalogDataOf(await catalogDatabase.getSessionV2(sessionKey))?.isArchived,
+			}, {
+				rejectionReason: 'snapshot write failed',
+				published: false,
+				persisted: '',
+				catalogArchived: false,
 			});
 		});
 
@@ -17754,9 +17793,9 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
+			const changed = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged' && notification.session === sessionStr), disposables);
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
+			await changed;
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),
@@ -17785,9 +17824,9 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 			});
 
+			const changed = Event.toPromise(Event.filter(localService.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged' && notification.session === sessionStr), disposables);
 			localService.dispatchAction(sessionStr, { type: ActionType.SessionIsArchivedChanged, isArchived: false }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await timeout(0);
-			await timeout(0);
+			await changed;
 
 			assert.deepStrictEqual({
 				persisted: await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY),

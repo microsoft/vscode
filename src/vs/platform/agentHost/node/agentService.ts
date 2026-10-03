@@ -82,7 +82,7 @@ import { type IArtifactServerToolAccessor } from './shared/artifactServerTools.j
 import { SessionArtifacts } from './shared/sessionArtifacts.js';
 import { readSessionAdditionalWorktrees, writeSessionAdditionalWorktrees, type ISessionAdditionalWorktree } from './shared/sessionAdditionalWorktrees.js';
 import { parseSessionArtifacts, readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { AgentHostCatalogDatabaseReference, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
+import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncService, IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, AgentHostCatalogData, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogReconciliationService, AgentHostCatalogReconciliationSourceResult, AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, IAgentHostCatalogReconciliationOptions } from './agentHostCatalogReconciliationService.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
@@ -6729,10 +6729,6 @@ export class AgentService extends Disposable implements IAgentService {
 		const [key, flag, set] = action.type === ActionType.SessionIsArchivedChanged
 			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
 			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
-		await persistSessionMetadataValues(this._sessionDataService, session, {
-			[key]: set ? 'true' : '',
-			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
-		});
 		const payloadDirty = this._markCatalogPayloadDirty(session);
 		await Promise.all([payloadDirty, this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set })]);
 		this._invalidateSessionList();
@@ -6742,7 +6738,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): Promise<void> {
 		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
-			return Promise.resolve();
+			return Promise.reject(new AgentHostCatalogDeletionFencedError(session));
 		}
 		const sessionKey = session.toString();
 		const existing = this._backgroundPassiveSessionMetadataWrites.get(sessionKey);
@@ -6782,6 +6778,13 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private async _synchronizePassiveSessionMetadata(session: URI, updates: readonly IPassiveSessionMetadataUpdate[]): Promise<void> {
+		const metadataValues: Record<string, string> = {};
+		for (const update of updates) {
+			metadataValues[update.key] = update.set ? 'true' : '';
+			if (update.flag === SessionStatus.IsArchived && !update.set) {
+				metadataValues[AH_META_AUTO_ARCHIVED_AT_DB_KEY] = '';
+			}
+		}
 		let requestUnavailable = false;
 		try {
 			const result = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
@@ -6825,15 +6828,13 @@ export class AgentService extends Disposable implements IAgentService {
 					throw new Error(`No catalog synchronization source is available for passive session metadata ${sessionKey}`);
 				}
 				let data = request.data;
-				const legacyMetadata = { ...request.legacyMetadata };
 				for (const update of updates) {
 					data = {
 						...data,
 						...(update.flag === SessionStatus.IsArchived ? { isArchived: update.set } : { isRead: update.set }),
 					};
-					legacyMetadata[update.key] = update.set ? 'true' : '';
 				}
-				return { data, legacyMetadata };
+				return { data, legacyMetadata: { ...request.legacyMetadata, ...metadataValues } };
 			});
 			if (result.status === 'pending') {
 				this._pendingPassiveCatalogReplays.add(session.toString());
@@ -6843,6 +6844,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		} catch (error) {
 			if (requestUnavailable) {
+				await persistSessionMetadataValues(this._sessionDataService, session.toString(), metadataValues);
 				return;
 			}
 			throw error;
