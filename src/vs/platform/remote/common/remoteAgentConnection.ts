@@ -14,7 +14,7 @@ import * as performance from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IIPCLogger } from '../../../base/parts/ipc/common/ipc.js';
-import { Client, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
+import { Client, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType, SocketTimeoutReason } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../log/common/log.js';
 import { RemoteAgentConnectionContext } from './remoteAgentEnvironment.js';
 import { RemoteAuthorityResolverError, RemoteConnection } from './remoteAuthorityResolver.js';
@@ -596,7 +596,12 @@ export abstract class PersistentConnection extends Disposable {
 		}));
 		this._register(protocol.onSocketTimeout((e) => {
 			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
-			this._options.logService.info(`${logPrefix} received socket timeout event (reason: ${e.reason}, unacknowledgedMsgCount: ${e.unacknowledgedMsgCount}, timeSinceOldestUnacknowledgedMsg: ${e.timeSinceOldestUnacknowledgedMsg}, timeSinceLastReceivedSomeData: ${e.timeSinceLastReceivedSomeData}).`);
+			this._options.logService.info(`${logPrefix} received socket timeout event (reason: ${e.reason}, unacknowledgedMsgCount: ${e.unacknowledgedMsgCount}, unacknowledgedMsgBytes: ${e.unacknowledgedMsgBytes}, timeSinceOldestUnacknowledgedMsg: ${e.timeSinceOldestUnacknowledgedMsg}, timeSinceLastReceivedSomeData: ${e.timeSinceLastReceivedSomeData}).`);
+			if (e.reason === SocketTimeoutReason.UNACKNOWLEDGED_MESSAGE_REPLAY_BUFFER_OVERFLOW) {
+				this._options.logService.error(`${logPrefix} unacknowledged message replay buffer overflow is unrecoverable.`);
+				this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), 0, false);
+				return;
+			}
 			this._beginReconnecting();
 		}));
 
