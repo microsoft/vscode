@@ -20,7 +20,6 @@ import { SyncDescriptor } from '../../../../platform/instantiation/common/descri
 import { registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { createFetch } from '../../../../platform/request/common/fetch.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -119,7 +118,6 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
 			credentialProvider,
-			fetch: createFetch(fetch),
 			telemetrySource: isWeb ? 'web' : 'workbench',
 			clientMetadata: createGitHubClientMetadata(productService, 'workbench', 'browser'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>

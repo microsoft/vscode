@@ -6,35 +6,36 @@
 import type { ProxyAgentParams } from '@vscode/proxy-agent';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { createFetch as createCommonFetch } from '../common/fetch.js';
-import { IRequestService, systemCertificatesNodeDefault } from '../common/request.js';
+import { INativeHostService } from '../../native/common/native.js';
+import { systemCertificatesNodeDefault } from '../../request/common/request.js';
 
-export type FetchNetwork = Pick<IRequestService, 'resolveProxy' | 'lookupAuthorization' | 'lookupKerberosAuthorization' | 'loadCertificates'>;
-
-/** Creates a locally configured, proxy-aware fetch without replacing the runtime's fetch behavior. */
+/** Creates a proxy-aware GitHub fetch using the utility process's native-host networking. */
 export function createFetch(
-	network: FetchNetwork,
+	nativeHostService: INativeHostService,
 	configurationService: IConfigurationService,
 	logService: ILogService,
 	env: NodeJS.ProcessEnv = process.env,
 	fetchImpl: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init),
 ): typeof globalThis.fetch {
 	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
-	return createCommonFetch(async request => {
+	return async (input, init) => {
+		const request = input instanceof Request && init === undefined ? input : new Request(input, init);
 		const fetch = await (fetchPromise ??= createProxyFetch());
 		request.signal.throwIfAborted();
 		return fetch(request);
-	});
+	};
 
 	async function createProxyFetch(): Promise<typeof globalThis.fetch> {
 		const [{ createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, LogLevel }, { getCACertificates }] = await Promise.all([
 			import('@vscode/proxy-agent'),
 			import('tls'),
 		]);
+
 		const getConfigurationValue = <T>(key: string, fallback: T): T => {
 			const value = configurationService.inspect<T>(key);
 			return value.userLocalValue ?? value.defaultValue ?? fallback;
 		};
+
 		// Proxy-agent diagnostics can contain full URLs and authentication challenges.
 		const log: ProxyAgentParams['log'] = {
 			trace: () => logService.trace('[Fetch] Proxy resolver trace'),
@@ -43,13 +44,15 @@ export function createFetch(
 			warn: () => logService.warn('[Fetch] Proxy or certificate lookup warning'),
 			error: () => logService.error('[Fetch] Proxy or certificate lookup failed'),
 		};
+
 		const lookupAuthorization = createProxyAuthorizationLookup({
 			log,
-			lookupAuthorization: authInfo => network.lookupAuthorization(authInfo),
-			lookupKerberosAuthorization: url => network.lookupKerberosAuthorization(new URL(url).origin),
+			lookupAuthorization: authInfo => nativeHostService.lookupAuthorization(authInfo),
+			lookupKerberosAuthorization: url => nativeHostService.lookupKerberosAuthorization(new URL(url).origin),
 		});
+
 		const params: ProxyAgentParams = {
-			resolveProxy: url => network.resolveProxy(url),
+			resolveProxy: url => nativeHostService.resolveProxyForUtilityProcess(url),
 			getProxyURL: () => getConfigurationValue('http.proxy', ''),
 			getProxySupport: () => 'override',
 			getNoProxyConfig: () => getConfigurationValue<string[]>('http.noProxy', []),
@@ -58,7 +61,7 @@ export function createFetch(
 			addCertificatesV1: () => getConfigurationValue('http.systemCertificates', true),
 			addCertificatesV2: () => false,
 			loadSystemCertificatesFromNode: () => getConfigurationValue('http.systemCertificatesNode', systemCertificatesNodeDefault),
-			loadAdditionalCertificates: async () => [...getCACertificates('default'), ...await network.loadCertificates()],
+			loadAdditionalCertificates: async () => [...getCACertificates('default'), ...await nativeHostService.loadCertificates()],
 			lookupProxyAuthorization: async (url, challenge, state) => {
 				const configured = getConfigurationValue<string | undefined>('http.proxyAuthorization', undefined);
 				if (configured) {
@@ -77,6 +80,7 @@ export function createFetch(
 			getNetworkInterfaceCheckInterval: () => getConfigurationValue('http.experimental.networkInterfaceCheckInterval', 300) * 1000,
 			env,
 		};
+
 		return createFetchPatch(params, fetchImpl, createProxyResolver(params).resolveProxyURL);
 	}
 }

@@ -9,27 +9,30 @@ import os from 'os';
 import { stub } from 'sinon';
 import type { Duplex } from 'stream';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GitHubRequestError, GitHubTransport } from '../../../github/common/githubTransport.js';
-import { createFetch, FetchNetwork } from '../../node/fetch.js';
+import { INativeHostService } from '../../../native/common/native.js';
+import { GitHubRequestError, GitHubTransport } from '../../common/githubTransport.js';
+import { createFetch } from '../../electron-utility/githubFetch.js';
 
-suite('createFetch (node)', () => {
+suite('GitHub createFetch (shared process)', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const nodeTest = process.type === 'renderer' ? test.skip : test;
+
+	type FetchNetwork = Pick<INativeHostService, 'resolveProxyForUtilityProcess' | 'lookupAuthorization' | 'lookupKerberosAuthorization' | 'loadCertificates'>;
 
 	function createTestFetch(fetch?: typeof globalThis.fetch, overrides?: Partial<FetchNetwork>, values?: Record<string, unknown>, log = new NullLogService()) {
 		const configuration = new TestConfigurationService({ 'http.systemCertificates': false, ...values });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const network: FetchNetwork = {
-			resolveProxy: async () => 'DIRECT',
-			lookupAuthorization: async () => undefined,
-			lookupKerberosAuthorization: async () => undefined,
-			loadCertificates: async () => [],
-			...overrides,
-		};
-		return createFetch(network, configuration, log, {}, fetch);
+		const nativeHost = new class extends mock<INativeHostService>() {
+			override readonly resolveProxyForUtilityProcess = overrides?.resolveProxyForUtilityProcess ?? (async () => 'DIRECT');
+			override readonly lookupAuthorization = overrides?.lookupAuthorization ?? (async () => undefined);
+			override readonly lookupKerberosAuthorization = overrides?.lookupKerberosAuthorization ?? (async () => undefined);
+			override readonly loadCertificates = overrides?.loadCertificates ?? (async () => []);
+		}();
+		return createFetch(nativeHost, configuration, log, {}, fetch);
 	}
 
 	async function withServer(listener: RequestListener, run: (url: string) => Promise<void>): Promise<void> {
@@ -54,7 +57,7 @@ suite('createFetch (node)', () => {
 			requests.push(new Request(input, init));
 			return new Response(null, { status: 302, headers: { location: 'https://storage.test/?sig=fixture-secret' } });
 		}, {
-			resolveProxy: async url => {
+			resolveProxyForUtilityProcess: async url => {
 				resolved.push(url);
 				return 'PROXY proxy-user:proxy-password@proxy.test:8080';
 			},
@@ -82,7 +85,7 @@ suite('createFetch (node)', () => {
 			attempts++;
 			return new Response();
 		}, {
-			resolveProxy: async () => {
+			resolveProxyForUtilityProcess: async () => {
 				resolutions++;
 				return 'DIRECT';
 			},
@@ -115,7 +118,7 @@ suite('createFetch (node)', () => {
 		networkInterfaces.returns(network('192.0.2.2'));
 		let resolutions = 0;
 		const fetch = createTestFetch(async () => new Response(), {
-			resolveProxy: async () => ++resolutions === 1 ? 'DIRECT' : 'PROXY proxy.test:8080',
+			resolveProxyForUtilityProcess: async () => ++resolutions === 1 ? 'DIRECT' : 'PROXY proxy.test:8080',
 		}, { 'http.experimental.networkInterfaceCheckInterval': 0 });
 		try {
 			await fetch('https://api.test/resource');
@@ -150,7 +153,7 @@ suite('createFetch (node)', () => {
 			input.signal.throwIfAborted();
 			return new Response();
 		}, {
-			resolveProxy: async () => {
+			resolveProxyForUtilityProcess: async () => {
 				void resolving.complete();
 				return resolved.p;
 			},

@@ -5,9 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createFetch } from '../../common/fetch.js';
+import { createFetch } from '../../common/githubFetch.js';
 
-suite('createFetch', () => {
+suite('GitHub createFetch', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('preserves streaming, cancellation and request policy without ambient credentials', async () => {
