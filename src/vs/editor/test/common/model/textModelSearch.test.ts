@@ -11,7 +11,8 @@ import { getMapForWordSeparators } from '../../../common/core/wordCharacterClass
 import { USUAL_WORD_SEPARATORS } from '../../../common/core/wordHelper.js';
 import { EndOfLineSequence, FindMatch, SearchData } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { SearchParams, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { SearchParams, Searcher, TextModelSearch, isMultilineRegexSource } from '../../../common/model/textModelSearch.js';
+import { PieceTreeTextBufferBuilder } from '../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
 import { createTextModel } from '../testTextModel.js';
 
 // --------- Find
@@ -381,6 +382,50 @@ suite('TextModelSearch', () => {
 				[1, 13, 1, 20]
 			]
 		);
+	});
+
+	test('issue #291591: Match whole word skips overlapping matches', () => {
+		const text = [
+			'[1] aa-aa',
+			'[2] xaa-aa-aa',
+			'[3] aax-aa-aa',
+		].join('\n');
+		const expected: [number, number, number, number][] = [
+			[1, 5, 1, 10],
+			[2, 9, 2, 14],
+			[3, 9, 3, 14],
+		];
+		// case-insensitive (regex path)
+		assertFindMatches(text, 'aa-aa', false, false, USUAL_WORD_SEPARATORS, expected);
+		// case-sensitive (simple indexOf path)
+		assertFindMatches(text, 'aa-aa', false, true, USUAL_WORD_SEPARATORS, expected);
+		// a rejected candidate ending at end-of-line must not stop the search
+		assertFindMatches('xaa-aa', 'aa-aa|aa', true, false, USUAL_WORD_SEPARATORS, [[1, 5, 1, 7]]);
+
+		// the find widget goes through `model.findMatches`. When the search range spans more than one
+		// piece tree node it is scanned line by line instead of node by node, so build a chunked model.
+		const builder = new PieceTreeTextBufferBuilder();
+		for (const line of text.split('\n')) {
+			builder.acceptChunk(line + '\n');
+		}
+		const model = createTextModel(builder.finish(true));
+		const actual = model.findMatches('aa-aa', null, false, true, USUAL_WORD_SEPARATORS, false).map(m => m.range);
+		model.dispose();
+		assert.deepStrictEqual(actual, expected.map(entry => new Range(entry[0], entry[1], entry[2], entry[3])));
+	});
+
+	test('issue #291591: whole word search stays linear on long lines', () => {
+		// a rejected candidate must skip the whole run of `a`s, not retry one character at a time
+		const model = createTextModel('x' + 'a'.repeat(100000));
+		const range = model.getFullModelRange();
+		assert.deepStrictEqual(TextModelSearch.findMatches(model, new SearchParams('a+', true, false, USUAL_WORD_SEPARATORS), range, false, 1000), []);
+		assert.deepStrictEqual(TextModelSearch.findMatches(model, new SearchParams('aa', false, true, USUAL_WORD_SEPARATORS), range, false, 1000), []);
+		model.dispose();
+	});
+
+	test('issue #291591: a regex that cannot advance still terminates', () => {
+		// a non-global regex ignores `lastIndex`, so only the duplicate-match check can end the loop
+		assert.strictEqual(new Searcher(usualWordSeparators, /abc/).next('xabc'), null);
 	});
 
 	test('findNextMatch without regex', () => {
