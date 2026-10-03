@@ -4031,6 +4031,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		position: relative;
 	}
 
+	.chat-request-disclosure {
+		width: 100%;
+	}
+
+	.chat-request-disclosure > summary {
+		width: fit-content;
+		max-width: 100%;
+		margin-left: auto;
+		margin-bottom: var(--vscode-spacing-size60);
+		padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+		border-radius: var(--vscode-cornerRadius-small);
+		border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+		color: var(--vscode-descriptionForeground);
+		cursor: pointer;
+	}
+
+	.chat-request-disclosure > summary:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-request-disclosure > summary:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
 		/* Clamp request text to 2 lines — only in sticky scroll */

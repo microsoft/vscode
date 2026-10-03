@@ -56,9 +56,8 @@ interface ITrackedTerminalScope {
 }
 
 /**
- * Returns terminal info for the given session: worktree or repository path for
- * workspace-backed agent sessions. Returns `undefined` for sessions without a
- * workspace (e.g. Cloud), or when no path is available.
+ * Returns the session's filesystem working directory for terminal matching and creation.
+ * Returns `undefined` when no filesystem working directory is available.
  */
 function getSessionTerminalInfo(session: ISession | undefined, reader?: IReader): ISessionTerminalInfo | undefined {
 	if (!session) {
@@ -86,8 +85,12 @@ function getWorkspaceTerminalInfo(workspace: ISessionWorkspace | undefined): ISe
 	if (!cwd) {
 		return undefined;
 	}
+	const terminalCwd = fromAgentHostUri(cwd);
+	if (terminalCwd.scheme !== Schemas.file && terminalCwd.scheme !== Schemas.vscodeRemote) {
+		return undefined;
+	}
 	if (cwd.scheme === AGENT_HOST_SCHEME) {
-		return { cwd: fromAgentHostUri(cwd), agentHostCwd: cwd };
+		return { cwd: terminalCwd, agentHostCwd: cwd };
 	}
 	return { cwd };
 }
@@ -574,6 +577,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 	private async _onActiveSessionChanged(session: IActiveSession | undefined, info = getActiveSessionTerminalInfo(session)): Promise<void> {
 		if (!session) {
+			return;
+		}
+		if (!info && session.activeChat.get().workspace.get()?.isVirtualWorkspace === false) {
+			this._logService.trace(`[SessionsTerminal] Waiting for a filesystem working directory for ${session.sessionId}`);
 			return;
 		}
 

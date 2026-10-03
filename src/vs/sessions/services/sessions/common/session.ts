@@ -49,7 +49,7 @@ export interface ISessionType {
 	 * is not usable yet. Absent when selecting the type cannot make progress.
 	 */
 	readonly initializationOnSelection?: {
-		/** Whether the provider already has non-GitHub authentication for initialization. */
+		/** Whether the provider can discover or use its own authentication without GitHub. */
 		readonly canInitializeWithoutGitHub: boolean;
 	};
 }
@@ -634,28 +634,18 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-/** Availability of a live canvas source. */
-export const enum SessionCanvasAvailability {
-	Ready = 'ready',
-	Unavailable = 'unavailable',
-}
-
 /** A model-opened canvas owned by one chat. */
 export interface ISessionCanvas {
 	/** Stable canvas identity within its owning chat. */
 	readonly resource: URI;
-	/** Stable provider-supplied instance identifier. */
-	readonly instanceId: string;
+	/** Stable provider-supplied instance identifier; absent before canvas state hydrates. */
+	readonly instanceId: string | undefined;
 	/** Display title. */
 	readonly title: string;
 	/** Optional provider status text. */
 	readonly status?: string;
-	/** Monotonic instance revision. */
-	readonly revision: number;
-	/** Whether the current source can be resolved. */
-	readonly availability: SessionCanvasAvailability;
-	/** Resolve the current HTTP(S) source for this revision. */
-	resolveSource(): Promise<URI>;
+	/** Current live HTTP(S) source; absent while the provider is unavailable. */
+	readonly source: URI | undefined;
 }
 
 /**
@@ -696,6 +686,15 @@ export interface IChat {
 	/** Changesets produced by the chat. `undefined` means they have not been published yet. */
 	readonly changesets: IObservable<readonly ISessionChangeset[] | undefined>;
 	/**
+	 * Compact summary of the changes associated with the chat, available without
+	 * loading the chat's details or changesets (e.g. for session lists). The
+	 * scope is provider-defined: a provider may report only the chat's own
+	 * changes, or a cumulative scope such as the whole session for a session's
+	 * main chat, so consumers must not assume the counts are chat-local.
+	 * Providers that cannot determine this omit the observable.
+	 */
+	readonly changesSummary?: IObservable<ISessionChangesSummary | undefined>;
+	/**
 	 * File changes produced by the chat's **last turn** only (as opposed to the
 	 * cumulative chat {@link changes}). Derived from the chat's live output
 	 * stream so consumers — e.g. the chat input status pills — can reflect just
@@ -709,8 +708,8 @@ export interface IChat {
 	 * output stream. Providers that cannot determine this omit the observable.
 	 */
 	readonly customizations?: IObservable<readonly ISessionChatCustomization[]>;
-	/** Live model-opened canvases owned by this chat. */
-	readonly canvases?: IObservable<readonly ISessionCanvas[]>;
+	/** Server-published live canvases owned by this chat; undefined while membership is unknown. */
+	readonly canvases?: IObservable<readonly ISessionCanvas[] | undefined>;
 	/** Active background shells, including commands started in earlier turns. */
 	readonly backgroundShells?: IObservable<readonly IChatBackgroundShell[]>;
 	/** Checkpoints associated with the chat. */
@@ -783,6 +782,19 @@ export function getChatCapabilities(chat: IChat, session: ISession | undefined, 
  * A session groups one or more chats together.
  * All {@link ISessionData} fields are propagated from the primary (first) chat.
  */
+export interface ISessionApplication {
+	readonly id: string;
+	readonly label: string;
+}
+
+export interface ISessionEnvironment {
+	/** Stable identity, independent of the environment's display name. */
+	readonly id: string;
+	readonly label: string;
+	/** Remote environments appear in the filter menu only while connected. */
+	readonly isConnected?: IObservable<boolean>;
+}
+
 export interface ISession {
 	/** Globally unique session ID (`providerId:localId`). */
 	readonly sessionId: string;
@@ -792,6 +804,12 @@ export interface ISession {
 	readonly providerId: string;
 	/** Session type ID (e.g., 'copilot-cli', 'copilot-cloud', 'local'). */
 	readonly sessionType: string;
+	/** Harness identity, independent of the session's routing type. */
+	readonly harness: string;
+	/** Provider-assigned environment identity: local, cloud, or a remote host identifier. */
+	readonly environment: string;
+	/** Creation provenance, which may hydrate after the session is discovered. */
+	readonly application: IObservable<ISessionApplication>;
 	/** Icon for this session. */
 	readonly icon: ThemeIcon;
 	/** When the session was created. */
@@ -910,7 +928,7 @@ export interface ISessionCapabilities {
 	readonly supportsImport?: boolean;
 	/** Whether recorded artifacts can be removed from this session. */
 	readonly supportsRemoveArtifacts?: boolean;
-	/** Whether this session can expose model-opened canvases. */
+	/** Whether the owning provider permits presenting server-published canvases for this session. */
 	readonly supportsCanvases?: boolean;
 	/** Whether this session supports multiple chats. */
 	readonly supportsMultipleChats: boolean;

@@ -47,7 +47,7 @@ import { getChatSessionType } from '../../../../workbench/contrib/chat/common/mo
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
-import { IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
 import { ChatInteractivity, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { IChatViewFactory } from '../../../services/chatView/browser/chatViewFactory.js';
 import { isExperimentalSessionComposerLayoutEnabled, NewChatWidget } from './newChatWidget.js';
@@ -68,13 +68,14 @@ import { SessionsChatBackgroundReplica } from '../../../services/chatBackground/
 import { ISessionsChatBackgroundService } from '../../../services/chatBackground/browser/chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../common/layoutConstants.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 
 const SESSION_CHAT_RESPONSE_INTERNAL_HORIZONTAL_PADDING = 12;
-// 14px icon + 6px padding + 4px gap + the 4em (44px) expanded percentage label + breathing room.
-export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 72;
+// 14px icon + 6px padding + 4px gap + breathing room. The percentage label expands over the editor on hover.
+export const EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE = 28;
 
 /**
  * Returns the total horizontal space the renderer must reserve for Sessions chat items.
@@ -90,6 +91,25 @@ export function shouldShowSessionChatTip(sessionStatus: SessionStatus | undefine
 
 export function isExperimentalRunningSessionComposerLayoutEnabled(configurationService: IConfigurationService, layoutService: IWorkbenchLayoutService): boolean {
 	return isExperimentalSessionComposerLayoutEnabled(configurationService) && !isPhoneLayout(layoutService);
+}
+
+export function shouldRenderRunningSessionSecondaryToolbar(usesExperimentalComposerLayout: boolean): boolean {
+	return !usesExperimentalComposerLayout;
+}
+
+export function getSessionComparisonRequestSummary(comparisons: readonly ISessionComparison[], sessionResource: URI | undefined, chatResource: URI | undefined, mainChatResource: URI | undefined): string | undefined {
+	if (!sessionResource || !chatResource || !isEqual(chatResource, mainChatResource)) {
+		return undefined;
+	}
+	const participant = comparisons.flatMap(comparison => comparison.participants).find(participant => isEqual(participant.sessionResource, sessionResource));
+	switch (participant?.role) {
+		case SessionComparisonParticipantRole.Judge:
+			return localize('sessionComparison.judgeInstructions', "Judge Instructions");
+		case SessionComparisonParticipantRole.Synthesis:
+			return localize('sessionComparison.synthesisInstructions', "Synthesis Instructions");
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -290,6 +310,7 @@ export class ChatView extends AbstractChatView {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 	) {
 		super();
 		this._register(toDisposable(() => this._reportModelUnbound()));
@@ -300,6 +321,10 @@ export class ChatView extends AbstractChatView {
 		this.element.appendChild(this._widgetContainer);
 
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
+		const usesExperimentalComposerLayout = SessionUsesExperimentalComposerLayoutContext.bindTo(scopedContextKeyService);
+		const initiallyUsesExperimentalComposerLayout = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+		usesExperimentalComposerLayout.set(initiallyUsesExperimentalComposerLayout);
+		this.element.classList.toggle('experimental-session-composer', initiallyUsesExperimentalComposerLayout);
 		const scopedInstantiationService = this._register(instantiationService.createChild(
 			new ServiceCollection([IContextKeyService, scopedContextKeyService])
 		));
@@ -314,6 +339,15 @@ export class ChatView extends AbstractChatView {
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: true,
+				firstRequestSummary: derived(this, reader => {
+					const session = this._currentSessionObs.read(reader);
+					return getSessionComparisonRequestSummary(
+						this.comparisonService.comparisons.read(reader),
+						session?.resource,
+						this._currentChatResourceObs.read(reader),
+						session?.mainChat.read(reader).resource,
+					);
+				}),
 				supportsFileReferences: true,
 				rendererOptions: {
 					referencesExpandedWhenEmptyResponse: false,
@@ -323,6 +357,7 @@ export class ChatView extends AbstractChatView {
 				enableImplicitContext: true,
 				enableWorkingSet: 'implicit',
 				supportsChangingModes: true,
+				renderSecondaryToolbar: shouldRenderRunningSessionSecondaryToolbar(initiallyUsesExperimentalComposerLayout),
 				inputEditorMinLines: 2,
 				isSessionsWindow: true,
 				transcriptTabIndex: -1,
@@ -336,6 +371,7 @@ export class ChatView extends AbstractChatView {
 		this._widget.render(this._widgetContainer, undefined, this._isActiveObs);
 		const updateExperimentalComposerLayout = () => {
 			const enabled = isExperimentalRunningSessionComposerLayoutEnabled(this.configurationService, this.layoutService);
+			usesExperimentalComposerLayout.set(enabled);
 			this.element.classList.toggle('experimental-session-composer', enabled);
 			this._widget.inputPart.placeContextUsageWidget(enabled ? this._widget.inputPart.inputContainerElement : undefined);
 			this._widget.inputPart.setInputEditorTrailingSpace(enabled ? EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE : 0);

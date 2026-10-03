@@ -55,21 +55,27 @@ The session's combined changes sometimes omit edits from one of its two chats, f
 scripts\test-integration.bat --run src/vs/platform/agentHost/test/node/e2e/providers/codexAgentHostE2E.integrationTest.ts --grep "session changeset aggregates provider edits from default and peer chats"
 ```
 
-### Copilot managed-settings diagnostics cannot return an account snapshot
+### Copilot managed telemetry changes require a host restart
 
-A user can request diagnostics to see which enterprise-managed settings apply to their Copilot account. With the runtime bundled in `1.0.15-preview.2` and later (still reproduces with `1.0.15-preview.3`), the request returns an error instead of the account-level snapshot, so the user cannot inspect the policy sources and managed keys through these diagnostics. A live Copilot session can expose its own effective snapshot through `session.rpc.managedSettings.get()`, but this diagnostic request has no session to query. This does not establish that the runtime has stopped enforcing the policy.
+An administrator can change telemetry policy while a user has an Agent Host running.
+After the runtime has exported a turn under the original policy, creating another
+session with a changed telemetry service name fails instead of starting the chat.
+Restarting the host lets the same new policy work, including message-content capture.
 
-- Test: `managed settings diagnostics expose the provider snapshot`.
-- Scope: Copilot on all platforms, in strict replay.
-- Expected: `getManagedSettingsDiagnostics` returns a provider snapshot with a valid source and an array of managed keys.
-- Observed: the provider reports an error because the bundled runtime SDK does not expose the account-scoped `getManagedSettings()` function.
-- Gate: the scenario requires `AGENT_HOST_RUN_KNOWN_ISSUES=1`.
+- Test: `new sessions honor changed managed telemetry without restarting` in `providers/copilotOtelAgentHostE2E.integrationTest.ts`.
+- Scope: Copilot, record and replay. Reproduced locally on macOS with SDK `1.0.16` / runtime `1.0.90`; other platforms remain unvalidated.
+- Expected: the second session completes without a manual restart, and its decoded inference span contains its actual user message under service B, correlated using the provider session ID reported over AHP.
+- Observed: the second turn fails with `Managed telemetry conflicts with the already selected OTel configuration`. The runtime deliberately permits only one effective telemetry configuration per process; suppressing the error or retaining policy A is not a fix.
+- Controls: unchanged-policy sessions and an explicit host restart both pass with capture enabled. Runtime `1.0.89-3` from SDK `1.0.15-preview.3`, tested through the current host's runtime-path override, completes the first turn but exports no inference spans. It is not a green baseline for the full telemetry contract.
+- Expected failure: runs by default and accepts only the second session's known configuration-conflict error, tracked by [github/copilot-agent-runtime#24069](https://github.com/github/copilot-agent-runtime/pull/24069). A successful second turn and export fail the test as an unexpected pass, requiring removal of the marker. Setup, replay, and other failures remain failures.
+- After that recognized failure only, teardown permits unused future model responses; all observed requests must still match the recording.
+- Fixture provenance: the two trivial model responses were generated with an explicit restart between turns, then the restart was removed and the warm failure was confirmed in strict replay. The permanent warm scenario must never restart the host.
 - Reproduce:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
-    src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
-    --grep "managed settings diagnostics expose the provider snapshot"
+  ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+    --grep "new sessions honor changed managed telemetry without restarting"
   ```
 
 ### Binary writes to client-hosted files are corrupted

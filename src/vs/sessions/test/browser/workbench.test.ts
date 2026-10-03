@@ -10,7 +10,9 @@ import { SashState } from '../../../base/browser/ui/sash/sash.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Part } from '../../../workbench/browser/part.js';
-import { IPartVisibilityChangeEvent, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IPartVisibilityChangeEvent, LayoutSettings, ModernUIDensity, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { DockedAuxiliaryBarController, IDockedAuxiliaryBarHost } from '../../browser/dockedAuxiliaryBarController.js';
 import { AgentWorkbenchLayout, ISidePaneState, ISidePaneToggleEvent, Workbench } from '../../browser/workbench.js';
 import { DesktopWorkbench, DockedEditorSizeMemento } from '../../browser/desktopWorkbench.js';
@@ -50,7 +52,7 @@ class TestTelemetryService extends NullTelemetryServiceShape {
 }
 
 suite('Sessions - Workbench', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	// Real Workbench methods invoked against a prototype-chained fake harness so
 	// the protected layout hooks dispatch to the base (grid) or DesktopWorkbench
@@ -970,6 +972,57 @@ suite('Sessions - Workbench', () => {
 			{ width: 1196, height: 796 },
 			{ width: 1196, height: 796 },
 		]);
+	});
+
+	test('applies layout density at startup and relayouts changes without changing phone gutters', async () => {
+		const configuration = new TestConfigurationService({
+			[LayoutSettings.MODERN_UI]: false,
+			[LayoutSettings.MODERN_UI_DENSITY]: ModernUIDensity.Compact,
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		let viewport = 'desktop';
+		const layouts: { width: number; height: number; compact: boolean }[] = [];
+		const host = {
+			layoutDensity: ModernUIDensity.Default,
+			layoutPolicy: { viewportClass: { get: () => viewport } },
+			_mainContainerDimension: { width: 1200, height: 800 },
+			mobileTopBarElement: undefined,
+			workbenchGrid: undefined as { layout(width: number, height: number): void } | undefined,
+			layout: () => layoutGridForDensity.call(host),
+		};
+		Object.setPrototypeOf(host, Workbench.prototype);
+		const layoutGridForDensity = Reflect.get(Workbench.prototype, '_layoutGrid') as (this: typeof host) => void;
+		const updateDensity = Reflect.get(Workbench.prototype, 'updateLayoutDensity') as (this: typeof host, configuration: IConfigurationService) => void;
+		const isCompact = Workbench.prototype.isModernUICompact as (this: typeof host) => boolean;
+
+		updateDensity.call(host, configuration);
+		const startup = { compact: isCompact.call(host), layouts: layouts.length };
+		host.workbenchGrid = { layout: (width, height) => layouts.push({ width, height, compact: isCompact.call(host) }) };
+		host.layout();
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default);
+		updateDensity.call(host, configuration);
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Compact);
+		updateDensity.call(host, configuration);
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI, true);
+		updateDensity.call(host, configuration);
+		viewport = 'phone';
+		host.layout();
+		await configuration.setUserConfiguration(LayoutSettings.MODERN_UI_DENSITY, ModernUIDensity.Default);
+		updateDensity.call(host, configuration);
+		viewport = 'desktop';
+		host.layout();
+
+		assert.deepStrictEqual({ startup, layouts }, {
+			startup: { compact: true, layouts: 0 },
+			layouts: [
+				{ width: 1200, height: 800, compact: true },
+				{ width: 1196, height: 796, compact: false },
+				{ width: 1200, height: 800, compact: true },
+				{ width: 1200, height: 800, compact: false },
+				{ width: 1200, height: 800, compact: false },
+				{ width: 1196, height: 796, compact: false },
+			],
+		});
 	});
 
 	test('desktop sidebar visibility leaves a detail-only pane width unchanged', () => {

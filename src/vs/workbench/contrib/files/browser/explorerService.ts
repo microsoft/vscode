@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from '../common/files.js';
+import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions, SESSIONS_FILES_VIEW_ID, VIEW_ID } from '../common/files.js';
 import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
@@ -23,6 +23,7 @@ import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgres
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
@@ -59,7 +60,8 @@ export class ExplorerService implements IExplorerService {
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -177,8 +179,8 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
-	getViewId(): string | undefined {
-		return this.view?.id;
+	getViewId(): string {
+		return this.environmentService.isSessionsWindow ? SESSIONS_FILES_VIEW_ID : VIEW_ID;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {

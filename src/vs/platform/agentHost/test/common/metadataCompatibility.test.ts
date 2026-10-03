@@ -105,6 +105,12 @@ suite('Metadata compatibility', () => {
 		{ name: 'VS Code tool kind remains authoritative', meta: { toolKind: 'read', permissionRequest: { kind: 'shell' } }, expected: {} },
 		{ name: 'Copilot shell', meta: { permissionRequest: { kind: 'shell' } }, expected: { kind: AgentPermissionRequestKind.Commands } },
 		{ name: 'projected read permission', meta: { promptRequest: { kind: 'read' } }, expected: { kind: AgentPermissionRequestKind.Read } },
+		{ name: 'projected write permission', meta: { promptRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
+		{ name: 'raw write permission', meta: { permissionRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
+		{ name: 'projected request wins without borrowing a raw filename', meta: { promptRequest: { kind: 'write' }, permissionRequest: { kind: 'write', fileName: '/other.ts' } }, expected: { kind: AgentPermissionRequestKind.Write } },
+		{ name: 'malformed filename', meta: { promptRequest: { kind: 'write', fileName: 42 } }, expected: { kind: AgentPermissionRequestKind.Write } },
+		{ name: 'empty filename', meta: { promptRequest: { kind: 'write', fileName: ' ' } }, expected: { kind: AgentPermissionRequestKind.Write } },
+		{ name: 'malformed projected request falls back to raw', meta: { promptRequest: [], permissionRequest: { kind: 'write', fileName: '/workspace/file.ts' } }, expected: { kind: AgentPermissionRequestKind.Write, fileName: '/workspace/file.ts' } },
 		{ name: 'malformed VS Code does not fall through', meta: { toolKind: null, permissionRequest: { kind: 'shell' } }, expected: {} },
 		{ name: 'unrecognized permission is generic', meta: { permissionRequest: { kind: 'path', accessKind: 'shell' } }, expected: {} },
 	]);

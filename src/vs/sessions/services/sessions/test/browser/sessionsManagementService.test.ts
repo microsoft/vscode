@@ -37,7 +37,7 @@ import { IChatEditorOptions } from '../../../../../workbench/contrib/chat/browse
 import { IChatWidgetHistoryService } from '../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
 import { PreferredGroup } from '../../../../../workbench/services/editor/common/editorService.js';
 import { nullExtensionDescription } from '../../../../../workbench/services/extensions/common/extensions.js';
-import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionStatus } from '../../common/session.js';
+import { SessionTypeAuthRequirement, ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionType, ISessionWorkspace, ISideChatSelection, SessionRemoteConnectionFailureReason, SessionRemoteConnectionStatus, SessionStatus } from '../../common/session.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { ISessionChangeEvent, ISendRequestOptions, ISessionModelsSnapshot, ISessionModelPickerOptions, ISessionsProvider, ISessionsProviderCreateSessionOptions, ISessionWorktreeConfiguration } from '../../common/sessionsProvider.js';
@@ -82,6 +82,9 @@ function stubSession(overrides: Partial<ISession> & Pick<ISession, 'sessionId' |
 	return {
 		resource: URI.parse(`test:///${overrides.sessionId}`),
 		sessionType: 'test',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.vm,
 		createdAt: new Date(),
 		workspace: constObservable(undefined),
@@ -391,6 +394,42 @@ suite('SessionsManagementService', () => {
 				same: part.getSessionView('a') === aView,
 				disposed: aChat.disposed, input: aChat.input.value,
 			}, { visible: ['b', 'a', 'c'], sticky: [false, true, false], active: 'a', above: 'b', same: true, disposed: false, input: 'still here' });
+		});
+
+		test('a foreground remote open mounts its chat while provider preparation is pending', async () => {
+			const active = created('active');
+			const connectionStatus = observableValue<SessionRemoteConnectionStatus>('connectionStatus', { kind: 'disconnected', reason: SessionRemoteConnectionFailureReason.Unknown });
+			const target = {
+				...created('target'),
+				remoteConnectionStatus: connectionStatus,
+			};
+			const preparation = new DeferredPromise<void>();
+			const { view, part, container } = harness([active, target], {
+				prepare: async session => {
+					if (session === target) {
+						connectionStatus.set({ kind: 'connecting' }, undefined);
+						await preparation.p;
+					}
+				},
+			});
+			await view.openSession(active.resource);
+			const opening = view.openSession(target.resource);
+			await timeout(0);
+			const before = {
+				active: view.activeSession.get()?.sessionId,
+				mounted: part.getSessionView('target')?.getSession()?.sessionId,
+				focused: part.getSessionView('target')?.element.contains(container.ownerDocument.activeElement),
+				progress: container.querySelector('.remote-host-unavailable-empty-state-progress')?.textContent,
+			};
+			preparation.complete();
+			await opening;
+			assert.deepStrictEqual({
+				before,
+				after: view.activeSession.get()?.sessionId,
+			}, {
+				before: { active: 'target', mounted: 'target', focused: true, progress: 'Waiting for agent host connection...' },
+				after: 'target',
+			});
 		});
 
 		test('balanced subset changes preserve caller order and retained widgets', async () => {
@@ -2562,7 +2601,7 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('openSession awaits provider preparation before activation', async () => {
+	test('openSession activates before awaiting provider preparation', async () => {
 		const active = stubSession({ sessionId: 'active', providerId: 'test' });
 		const target = stubSession({ sessionId: 'target', providerId: 'test' });
 		const preparation = new DeferredPromise<void>();
@@ -2585,8 +2624,30 @@ suite('SessionsManagementService', () => {
 			activeBeforePreparation,
 			activeAfterPreparation: view.activeSession.get()?.sessionId,
 		}, {
-			activeBeforePreparation: 'active',
+			activeBeforePreparation: 'target',
 			activeAfterPreparation: 'target',
+		});
+	});
+
+	test('provider preparation cannot reclaim the active session after navigation', async () => {
+		const target = stubSession({ sessionId: 'target', providerId: 'test' });
+		const next = stubSession({ sessionId: 'next', providerId: 'test' });
+		const preparation = new DeferredPromise<void>();
+		const provider = new class extends TestSessionsProvider {
+			override getSessions(): ISession[] { return [target, next]; }
+			override prepareSessionForOpen(session: ISession): Promise<void> {
+				return session === target ? preparation.p : Promise.resolve();
+			}
+		}(target);
+		const { view } = createSessionsManagementService(target, disposables, provider);
+		const opening = view.openSession(target.resource);
+		await timeout(0);
+		const duringPreparation = view.activeSession.get()?.sessionId;
+		await view.openSession(next.resource);
+		preparation.complete();
+		await opening;
+		assert.deepStrictEqual({ duringPreparation, afterNavigation: view.activeSession.get()?.sessionId }, {
+			duringPreparation: 'target', afterNavigation: 'next',
 		});
 	});
 
@@ -3568,27 +3629,23 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
-	test('createNewSession forwards exact permission and mode choices and rejects unavailable permissions', () => {
+	test('createNewSession forwards exact permission and mode choices for provider validation', () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 		});
 		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
 		const provider = new class extends TestSessionsProvider {
+			override readonly supportsPermissionsForCreation = true;
 			override readonly sessionTypes: readonly ISessionType[] = [
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
 			];
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
-			override getPermissionOptionsForCreation(sessionTypeId: string) {
-				return sessionTypeId === 'supported' ? [{
-					id: 'allowAll',
-					label: 'Allow all',
-					description: 'Allow all tools.',
-					isAllowAll: true,
-				}] : [];
-			}
 			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				if (_sessionTypeId === 'unsupported') {
+					throw new Error(`Provider does not support permission '${options?.permissionId}'`);
+				}
 				providerOptions.push(options);
 				return session;
 			}
@@ -3610,6 +3667,18 @@ suite('SessionsManagementService', () => {
 			permissionId: 'allowAll',
 			modeId: 'autopilot',
 		}]);
+	});
+
+	test('createNewSession rejects permissions when the provider cannot apply them', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession { assert.fail('Must not create a session with ignored permissions'); }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), { permissionId: 'allowAll' }), /does not support permission 'allowAll'/);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {

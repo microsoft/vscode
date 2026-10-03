@@ -1576,6 +1576,50 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
+		for (const key of ['promptRequest', 'permissionRequest'] as const) {
+			test(`Copilot D write ${key} identifies the file through the wire without changing approval options`, async () => {
+				const { startRequest, fire, peer, echo, chatUri } = await openWireSession();
+				const { turnId, progress, finish } = await startRequest();
+				const options = [
+					{ id: 'approve-once', label: 'Approve once', kind: ConfirmationOptionKind.Approve },
+					{ id: 'approve-for-session', label: 'Approve for this session', kind: ConfirmationOptionKind.Approve },
+				];
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'write-permission', toolName: 'edit', displayName: 'Edit' });
+				fire({
+					type: ActionType.ChatToolCallReady, turnId, toolCallId: 'write-permission',
+					invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: '/workspaces/simple-server/index.js', options,
+					_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' } },
+				});
+				const invocation = progress.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const messages = IChatToolInvocation.getConfirmationMessages(invocation);
+				const observed = {
+					message: textOf(invocation.invocationMessage),
+					title: textOf(messages?.title),
+					body: textOf(messages?.message),
+					options: messages?.customOptions,
+					state: invocation.state.get().type,
+				};
+				const confirmation = peer.nextDispatch(ActionType.ChatToolCallConfirmed);
+				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: 'approve-for-session' });
+				const sent = await confirmation;
+				echo(sent);
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId: 'write-permission', result: { success: true, pastTenseMessage: 'Edited file', content: [] } });
+				await finish();
+				const message = `Edit [](${toAgentHostUri(URI.file('/workspaces/simple-server/index.js'), agentHostAuthority('sandbox.example:443'))})`;
+				assert.deepStrictEqual({ ...observed, channel: sent.channel, action: sent.action }, {
+					message, title: 'Edit index.js', body: message, options,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+					channel: chatUri,
+					action: {
+						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'write-permission', approved: true,
+						selectedOptionId: 'approve-for-session', confirmed: ToolCallConfirmationReason.UserAction,
+						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+					},
+				});
+			});
+		}
+
 		const appToolCases = [
 			{ name: 'grep', args: { pattern: 'auth' }, kind: 'search', running: 'Searching `auth`', completed: 'Searched `auth`' },
 			{ name: 'glob', args: { pattern: '*.ts' }, kind: 'search', running: 'Searching `*.ts`', completed: 'Searched `*.ts`' },
@@ -14687,7 +14731,7 @@ suite('AgentHostChatContribution', () => {
 			});
 		});
 
-		test('round-trips queued agent message provenance without rewriting it as a user message', async () => {
+		test('round-trips queued agent provenance and drops delegation ownership after a user edit', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
 			const backendSession = AgentSession.uri('copilot', 'remote-agent-message');
 			agentHostService.sessionStates.set(backendSession.toString(), {
@@ -14730,15 +14774,33 @@ suite('AgentHostChatContribution', () => {
 				origin: undefined,
 			});
 			chatModel.firePendingRequestsChanged();
-			assert.deepStrictEqual({
+			const roundTrip = {
 				projectedOrigin: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].agentHostMessageOrigin,
 				projected: chatService.syncPendingRequestsFromRemoteCalls.at(-1)?.requests[0].metadata,
 				storedOrigin: pendingRequests[0].sendOptions.agentHostMessageOrigin,
 				stored: pendingRequests[0].sendOptions.metadata,
 				rewrites: agentHostService.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet),
-			}, {
-				projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
-				storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+			};
+
+			agentHostService.dispatchedActions.length = 0;
+			pendingRequests[0] = {
+				...pendingRequests[0],
+				request: upcastPartial<IChatRequestModel>({ id: 'remote-message', message: { text: 'User-edited findings', parts: [] } }),
+			};
+			chatModel.firePendingRequestsChanged();
+			const edited = agentHostService.dispatchedActions.find(dispatch => dispatch.action.type === ActionType.ChatPendingMessageSet)?.action;
+
+			assert.deepStrictEqual({ roundTrip, edited }, {
+				roundTrip: {
+					projectedOrigin: { kind: MessageKind.Agent }, projected: metadata,
+					storedOrigin: { kind: MessageKind.Agent }, stored: metadata, rewrites: [],
+				},
+				edited: {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Queued,
+					id: 'remote-message',
+					message: { text: 'User-edited findings', origin: { kind: MessageKind.Agent } },
+				},
 			});
 		});
 

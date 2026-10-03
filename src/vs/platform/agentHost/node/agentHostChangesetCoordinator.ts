@@ -91,6 +91,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		this._changesets.refreshChangesetCatalog(chat);
 		this._changesets.registerStaticChangesets(chat);
+		this._changesets.ensureChatChangesSummary(chat);
 		void this._gitStateService.refreshSessionGitState(chat);
 		const session = parseChatUri(chat)?.session;
 		if (session
@@ -628,6 +629,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (isAhpChatChannel(sessionStr)) {
 			this._changesets.refreshChangesetCatalog(sessionStr);
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
+			this._changesets.refreshChatChangesSummary(sessionStr);
 			void this._gitStateService.refreshSessionGitState(sessionStr);
 			const session = parseChatUri(sessionStr)?.session;
 			if (session && this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
@@ -648,6 +650,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
 			this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(chat.resource);
 			this._changesets.recomputeSubscribedChangesets(chat.resource);
+			this._changesets.refreshChatChangesSummary(chat.resource);
 			void this._gitStateService.refreshSessionGitState(chat.resource);
 		}
 		for (const candidate of this._stateManager.getSessionUris()) {
