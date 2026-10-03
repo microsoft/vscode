@@ -101,7 +101,8 @@ class ToggleWordWrapAction extends EditorAction {
 			const originalEditor = diffEditor.getOriginalEditor();
 			const modifiedEditor = diffEditor.getModifiedEditor();
 			const otherEditor = (originalEditor === editor ? modifiedEditor : originalEditor);
-			if (canToggleWordWrap(codeEditorService, otherEditor)) {
+			const isHiddenOriginalEditor = otherEditor === originalEditor && !diffEditor.renderSideBySide;
+			if (canToggleWordWrap(codeEditorService, otherEditor) || (isHiddenOriginalEditor && otherEditor.hasModel())) {
 				writeTransientState(otherEditor.getModel(), newState, codeEditorService);
 				diffEditor.updateOptions({});
 			}
@@ -127,7 +128,8 @@ class ToggleWordWrapController extends Disposable implements IEditorContribution
 		let currentlyApplyingEditorConfig = false;
 
 		this._register(_editor.onDidChangeConfiguration((e) => {
-			if (!e.hasChanged(EditorOption.wrappingInfo)) {
+			// the diff editor also changes wordWrapOverride2 of its original editor
+			if (!e.hasChanged(EditorOption.wrappingInfo) && !e.hasChanged(EditorOption.wordWrapOverride2)) {
 				return;
 			}
 			const options = this._editor.getOptions();
