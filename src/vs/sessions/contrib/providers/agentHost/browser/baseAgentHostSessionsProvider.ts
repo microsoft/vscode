@@ -3265,7 +3265,26 @@ class NewSession extends Disposable {
 
 	loadBranches(connection: IAgentConnection): Promise<readonly SessionConfigValueItem[]> {
 		const branch = this._config && getSessionWorkspaceProperties(this._config.schema).baseBranch;
-		return branch ? this._branchLoad ??= this.getConfigCompletions(connection, branch.key, undefined).then(result => result.items) : Promise.resolve([]);
+		if (!branch) {
+			return Promise.resolve([]);
+		}
+		if (!this._branchLoad) {
+			const load = this.getConfigCompletions(connection, branch.key, undefined).then(result => result.items);
+			this._branchLoad = load;
+			// The host reports a timed-out or failed git query as an empty list, which is
+			// likely right after startup, so only keep a non-empty result for later picker opens.
+			const forget = () => {
+				if (this._branchLoad === load) {
+					this._branchLoad = undefined;
+				}
+			};
+			load.then(items => {
+				if (items.length === 0) {
+					forget();
+				}
+			}, forget);
+		}
+		return this._branchLoad;
 	}
 
 	// -- Backend session lifecycle -------------------------------------------
