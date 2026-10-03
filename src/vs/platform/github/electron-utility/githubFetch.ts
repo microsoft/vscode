@@ -61,7 +61,7 @@ export function createFetch(
 		});
 
 		const params: ProxyAgentParams = {
-			resolveProxy: url => nativeHostService.resolveProxyForUtilityProcess(url),
+			resolveProxy: url => nativeHostService.resolveProxy(url),
 			getProxyURL: () => getConfigurationValue('http.proxy', ''),
 			getProxySupport: () => 'override',
 			getNoProxyConfig: () => getConfigurationValue<string[]>('http.noProxy', []),

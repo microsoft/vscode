@@ -1162,11 +1162,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
-		return session?.resolveProxy(url);
-	}
-
-	async resolveProxyForUtilityProcess(_windowId: number | undefined, url: string): Promise<string> {
-		return app.resolveProxy(url);
+		return session ? session.resolveProxy(url) : app.resolveProxy(url);
 	}
 
 	async resolveProxyWithPackage(_windowId: number | undefined, url: string): Promise<IOSProxy[]> {

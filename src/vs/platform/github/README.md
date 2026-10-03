@@ -105,7 +105,7 @@ GitHub service implementations own their plain [RequestFetch](common/types.ts) f
 
 - **Web and desktop workbench:** browser fetch is used directly, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
 - **Standalone Agent Host:** GitHub receives the same fetch as Copilot and other host services, without an additional wrapper. The existing Agent Host proxy resolver owns host/PAC, authentication and certificate handling. The foundation preserves explicit test overrides for all consumers.
-- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist.
+- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. System/PAC lookup uses the native host's existing `resolveProxy` API, which uses Electron's application-level resolver for windowless callers.
 
 The bindings retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
 
