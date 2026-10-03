@@ -112,6 +112,7 @@ export class HoverService extends Disposable implements IHoverService {
 		super();
 
 		this._register(contextMenuService.onDidShowContextMenu(() => this.hideHover()));
+		this._register(addDisposableListener(mainWindow.document, EventType.MOUSE_LEAVE, () => this.hideHover()));
 
 		this._register(KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'workbench.action.showHover',
