@@ -345,6 +345,56 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
 
+	test('a compare-mode row reuses the model Details flyout for reasoning effort without disturbing checkbox selection or the single-model path', async () => {
+		const attempts: IModelPickerWorkflowState = {
+			title: 'Attempts', description: 'Select models.', summary: '', selectedModelIds: [],
+			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false, hasNextStep: true,
+		};
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		const selectedIds: string[] = [];
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set(attempts, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => {
+				selectedIds.push(id);
+				const current = state.get()!;
+				const ids = current.selectedModelIds.includes(id) ? current.selectedModelIds.filter(existing => existing !== id) : [...current.selectedModelIds, id];
+				state.set({ ...current, selectedModelIds: ids, canFinish: ids.length >= 2 }, undefined);
+			},
+			setCount: () => { }, back: () => { }, next: () => { },
+			finish: () => { },
+		};
+		const result = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		element(result.popup, '[aria-label="Compare Models"]').click();
+		// Check the first row ("First").
+		element(result.popup, '.chat-model-picker-model').click();
+		assert.deepStrictEqual(selectedModels(result.popup), ['First']);
+		// Open Details for a different, unchecked row and change its reasoning effort.
+		openDetails(result.popup, 'Second');
+		element(result.popup, '.chat-model-card [role="radiogroup"] [role="radio"]:last-child').click();
+		await timeout(0);
+		assert.deepStrictEqual({
+			savedEffort: result.values.get(models[1].identifier),
+			// The single-model select path must never fire while a workflow is active.
+			singleModelSelections: result.selections,
+		}, {
+			savedEffort: { effort: 'high' },
+			singleModelSelections: [],
+		});
+		goBack(result.popup);
+		assert.deepStrictEqual({
+			// "First" is still the only checked row; visiting "Second"'s Details did not check it.
+			checked: selectedModels(result.popup),
+			// workflow.select was called only for the checkbox click, not for the Details save.
+			workflowSelections: selectedIds,
+		}, {
+			checked: ['First'],
+			workflowSelections: ['copilot/First'],
+		});
+	});
+
 	for (const committed of [false, true]) {
 		for (const dismissal of ['Escape', 'click-away'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {

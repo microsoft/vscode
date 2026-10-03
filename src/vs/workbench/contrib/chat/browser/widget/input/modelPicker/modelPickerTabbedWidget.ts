@@ -863,11 +863,13 @@ export class TabbedModelPicker extends Disposable {
 				// instead of revealing that row at the top, and the popup keeps its size.
 				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
 			}, section, true);
+			const workflowSummary = getModelConfigSummary(model, context.configurationAccess);
+			const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 			return {
 				item: { ...action, checked, enabled: !disabled },
 				kind: ActionListItemKind.Action,
 				label: action.label,
-				ariaDescription,
+				ariaDescription: [ariaDescription, getModelConfigDescription(model, context.configurationAccess)].filter(Boolean).join(', '),
 				group: { title: '', icon: checked ? Codicon.check : Codicon.blank },
 				// Choosing several models reads as checkboxes; a single role keeps the plain check mark.
 				iconClasses: step.multiple ? ['chat-model-picker-checkbox', ...(checked ? ['checked', ...ThemeIcon.asClassNameArray(Codicon.check)] : [])] : undefined,
@@ -875,6 +877,12 @@ export class TabbedModelPicker extends Disposable {
 				section,
 				disabled,
 				className: ['chat-model-picker-model', ...(step.multiple && checked ? ['chat-model-picker-workflow-checked'] : [])].join(' '),
+				toolbarLabels: true,
+				// Reuses the same Details/Thinking-Level flyout as the single-model picker, for
+				// models that support configurable reasoning effort or context size, so a
+				// comparison attempt can run at a specific effort rather than whatever the
+				// model's last global default happened to be.
+				toolbarActions: routingModel ? undefined : [this._createDetailsAction(model, workflowSummary)],
 			};
 		}
 		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
@@ -936,6 +944,14 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
 			onSelect: next => {
+				if (context.workflow) {
+					// There is no single "selected" model to swap while a workflow is active;
+					// a configuration change here (e.g. reasoning effort) applies to the model
+					// itself and is picked up when the comparison starts. Refresh in place so
+					// the row stays put and the popup keeps its size, matching a checkbox toggle.
+					this._widget.refreshActiveList({ focusItemId: next.identifier, preserveScrollPosition: true, preserveSize: true });
+					return;
+				}
 				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
 					this._rememberSpeedVariant(next.identifier);
 					this._detailsModelId = next.identifier;
