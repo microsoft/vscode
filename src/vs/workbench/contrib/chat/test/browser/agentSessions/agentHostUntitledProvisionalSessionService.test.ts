@@ -21,6 +21,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfi
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { CustomizationType, type ClientPluginCustomization, type ConfigSchema, type SessionActiveClient } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
@@ -47,6 +48,9 @@ interface IDispatchedAction {
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
 	override readonly clientId = 'test-client';
+	override readonly initializeResult = observableValue<InitializeResult | undefined>(this, {
+		protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true },
+	});
 
 	readonly createCalls: IAgentCreateSessionConfig[] = [];
 	readonly disposed: URI[] = [];
@@ -296,6 +300,54 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			config: { isolation: 'folder' },
 		});
 	});
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		for (const supported of [false, true]) {
+			test(`${provider} provisional drafts negotiate addressing and retain their frontend resource (${supported})`, async () => {
+				agentHost.initializeResult.set({
+					protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': supported },
+				}, undefined);
+				const draft = URI.parse(`agent-host-${provider}:/untitled-interop`);
+				const committed = URI.parse(`agent-host-${provider}:/final-interop`);
+				const initial = await provisional.getOrCreate(draft, provider, undefined);
+				const rebound = await provisional.tryRebind(draft, committed, provider);
+				assert.deepStrictEqual({
+					initialScheme: initial?.scheme,
+					rebound: rebound?.toString(),
+					resolved: provisional.get(committed)?.toString(),
+				}, {
+					initialScheme: supported ? 'ahp-session' : provider,
+					rebound: `${supported ? 'ahp-session' : provider}:/final-interop`,
+					resolved: `${supported ? 'ahp-session' : provider}:/final-interop`,
+				});
+			});
+		}
+	}
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`${provider} a pre-initialize draft retains its identity while rebind uses the negotiated host`, async () => {
+			agentHost.initializeResult.set(undefined, undefined);
+			const draft = URI.parse(`agent-host-${provider}:/untitled-before-initialize`);
+			const committed = URI.parse(`agent-host-${provider}:/after-initialize`);
+			const initial = await provisional.getOrCreate(draft, provider, undefined);
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': true },
+			}, undefined);
+			const retained = await provisional.getOrCreate(draft, provider, undefined);
+			const rebound = await provisional.tryRebind(draft, committed, provider);
+			assert.deepStrictEqual({
+				initialScheme: initial?.scheme,
+				retained: retained?.toString(),
+				rebound: rebound?.toString(),
+				frontend: committed.toString(),
+			}, {
+				initialScheme: provider,
+				retained: initial?.toString(),
+				rebound: 'ahp-session:/after-initialize',
+				frontend: `agent-host-${provider}:/after-initialize`,
+			});
+		});
+	}
 
 	test('publishes active-client customizations before the first prompt and keeps them updated', async () => {
 		const first: ClientPluginCustomization = {

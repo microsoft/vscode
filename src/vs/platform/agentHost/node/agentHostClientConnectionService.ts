@@ -20,6 +20,8 @@ export interface IAgentHostClientConnectionSource {
 	isClientConnected(clientId: string): boolean;
 	/** Whether an active connection is local and uses the server's MessagePort transport. */
 	isLocalClient(clientId: string): boolean;
+	/** Compatibility addressing for a positively identified legacy VS Code connection. */
+	usesLegacySessionUris?(clientId: string): boolean;
 	getConnectedClientTransportCounts(): ReadonlyMap<string, number>;
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
 	/** Requests silent MCP authentication from connected clients. */
@@ -35,6 +37,7 @@ export interface IAgentHostClientConnectionService {
 	isClientConnected(clientId: string): boolean;
 	/** Whether any source has an active local MessagePort connection for this client. */
 	isLocalClient(clientId: string): boolean;
+	usesLegacySessionUris(clientId: string): boolean;
 	getConnectionCounts(clientId: string): IAgentHostClientConnectionCounts;
 	requestWorkspaceTrust(clientId: string, request: IAgentHostWorkspaceTrustRequest): Promise<boolean>;
 	/** Requests silent MCP authentication, stopping at the first successful source. */
@@ -103,6 +106,10 @@ export class AgentHostClientConnectionService extends Disposable implements IAge
 			connectedTransportCount,
 			clientTransportCount,
 		};
+	}
+
+	usesLegacySessionUris(clientId: string): boolean {
+		return [...this._sources].some(source => source.usesLegacySessionUris?.(clientId) === true);
 	}
 
 	async requestMcpAuthentication(request: IAgentHostMcpAuthenticationRequest): Promise<boolean> {

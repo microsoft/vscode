@@ -1528,6 +1528,27 @@ suite('CopilotAgent', () => {
 	});
 
 	suite('MCP authentication during session initialization', () => {
+		test('standard host sessions reserve independent Copilot backing IDs without changing their address', async () => {
+			const client = new McpAuthChallengeCopilotClient([]);
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+			});
+			const session = URI.parse('ahp-session:/new-copilot');
+			try {
+				await agent.authenticate('https://api.github.com', 'github-token');
+				const result = await provisionSession(agent, { session, workingDirectories: [URI.file('/workspace')] });
+				assert.deepStrictEqual({
+					session: result.session.toString(),
+					provisional: result.provisional,
+					backingProvider: result.backingSession?.scheme,
+					separateBacking: result.backingSession && AgentSession.id(result.backingSession) !== AgentSession.id(session),
+				}, { session: session.toString(), provisional: true, backingProvider: 'copilotcli', separateBacking: true });
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		const authenticationParams = (scopes: readonly string[] = TEST_MCP_SCOPES): AuthenticateParams => ({
 			resource: TEST_MCP_RESOURCE,
 			scopes,

@@ -45,6 +45,7 @@ export function activateAgentHostContributions(accessor: ServicesAccessor, insta
 		)));
 		store.add(completions.registerProvider(new CodexCompactCompletionProvider(
 			session => (stateManager.getSessionState(session)?.turns.length ?? 0) > 0,
+			session => stateManager.getSessionSummary(session)?.provider,
 		)));
 		store.add(registerBuiltInChatContributions(accessor.get(IAgentHostChatContributions)));
 		return store;

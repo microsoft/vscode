@@ -30,6 +30,7 @@ type IAgentHostEditArcTelemetryEvent = IEditArcTelemetryEvent & IAgentHostEventT
 type IAgentHostEditArcTelemetryClassification = IEditArcTelemetryClassification & IAgentHostEventClassification;
 
 export interface IEditArcReporterLaunchParams {
+	readonly provider?: string;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	readonly sessionUri: string;
 	readonly turnId: string;
@@ -317,7 +318,7 @@ class EditArcReporter extends Disposable {
 
 	async emit(timeDelayMs: number): Promise<void> {
 		const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
-		const provider = AgentSession.provider(sessionUri) ?? 'unknown';
+		const provider = this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown';
 		const originalLineCounts = new EditArcTracker(this._params.beforeText, this._params.initialEdit).getLineCountInfo();
 		const currentLineCounts = this._tracker.getLineCountInfo();
 		const event: IAgentHostEditArcTelemetryEvent = {

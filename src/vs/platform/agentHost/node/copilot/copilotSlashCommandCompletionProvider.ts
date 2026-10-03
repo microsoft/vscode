@@ -28,6 +28,7 @@ const PLUGIN_MARKETPLACE_COMPLETION_CACHE_TTL_MS = 30_000;
  * retrieve runtime slash command metadata and apply feature gating.
  */
 export interface ICopilotSlashCommandSessionInfo {
+	ownsSession?(session: string): boolean;
 	/**
 	 * Whether the experimental rubber duck critic subagent is enabled via
 	 * the agent host config. When provided and `false`, `/rubber-duck` is hidden.
@@ -75,7 +76,7 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 	) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.channel) !== this.copilotcliId) {
+		if (!(this._sessionInfo.ownsSession?.(params.channel) ?? (AgentSession.provider(params.channel) === this.copilotcliId))) {
 			return [];
 		}
 		const sessionId = AgentSession.id(params.channel);

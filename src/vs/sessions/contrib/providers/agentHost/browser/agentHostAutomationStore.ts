@@ -13,6 +13,7 @@ import { derived, type IObservable, observableSignalFromEvent, observableValue }
 import { basename, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
@@ -57,6 +58,8 @@ export interface IAgentHostAutomationBoundaryMapper {
 	toHost(resource: URI): URI;
 	fromHost(resource: URI): URI;
 	resourceSchemeForProvider(provider: string): string;
+	sessionResource?(resource: URI): URI | undefined;
+	readonly onDidChangeSessionResolution?: Event<void>;
 	providerForSessionScheme?(scheme: string): string;
 	providerForResourceScheme?(scheme: string): string | undefined;
 }
@@ -106,6 +109,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		this._catalog = this._catalogReference.object;
 		this._catalogChanged = observableSignalFromEvent(this, this._catalog.onDidChange);
 		this._catalogError = observableSignalFromEvent(this, this._catalog.onDidError ?? Event.None);
+		const sessionResolutionChanged = observableSignalFromEvent(this, _boundaryMapper?.onDidChangeSessionResolution ?? Event.None);
 		this.catalogueState = derived(this, reader => {
 			this._catalogChanged.read(reader);
 			this._catalogError.read(reader);
@@ -120,6 +124,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		});
 		this.runs = derived(this, reader => {
 			this._catalogChanged.read(reader);
+			sessionResolutionChanged.read(reader);
 			return distinctById([...this._projectRuns(), ...this._archivedRuns.read(reader)])
 				.sort((first, second) => second.startedAt.localeCompare(first.startedAt));
 		});
@@ -300,9 +305,15 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	// Projects an Agent Host session resource into the editor-facing provider scheme.
-	private _projectSessionResource(resource: string): URI {
+	private _projectSessionResource(resource: string): URI | undefined {
 		const session = URI.parse(resource);
-		const provider = this._boundaryMapper?.providerForSessionScheme?.(session.scheme) ?? session.scheme;
+		if (this._boundaryMapper?.sessionResource) {
+			return this._boundaryMapper.sessionResource(session);
+		}
+		const provider = this._boundaryMapper?.providerForSessionScheme?.(session.scheme) ?? AgentSession.provider(session);
+		if (!provider) {
+			return undefined;
+		}
 		const resourceScheme = this._boundaryMapper?.resourceSchemeForProvider(provider);
 		return resourceScheme ? session.with({ scheme: resourceScheme }) : session;
 	}

@@ -50,6 +50,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildSessionChangesetUri } from '../../common/changesetUri.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
+import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -502,6 +503,8 @@ suite('ProtocolServerHandler', () => {
 			protocolVersion: PROTOCOL_VERSION,
 			serverSeq: stateManager.serverSeq,
 			meta: {
+				'vscode.agentHost': true,
+				'vscode.ahpSessionUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.autonomousAutomations': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
@@ -2146,6 +2149,105 @@ suite('ProtocolServerHandler', () => {
 
 		assert.strictEqual(findNotifications(transportA.sent, 'root/sessionAdded').length, 1);
 		assert.strictEqual(findNotifications(transportB.sent, 'root/sessionAdded').length, 1);
+	});
+
+	test('mixed identities are visible to standard clients but not identified legacy VS Code clients', async () => {
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			for (const scheme of [provider, 'ahp-session']) {
+				agentService.listedSessions.push({ session: URI.parse(`${scheme}:/${provider}-${scheme}`), provider, startTime: 1000, modifiedTime: 2000 });
+			}
+		}
+		const clients = [
+			connectClient('legacy-editor', ['ahp-root://'], editorWindowAgentHostClientInfo),
+			connectClient('legacy-agents', ['ahp-root://'], agentsWindowAgentHostClientInfo, { [AgentHostSessionUrisCapabilityMetaKey]: 'true' }),
+			connectClient('new-vscode', ['ahp-root://'], editorWindowAgentHostClientInfo, { [AgentHostSessionUrisCapabilityMetaKey]: true }),
+			connectClient('external', ['ahp-root://']),
+		];
+		const listed = [];
+		for (const client of clients) {
+			const pending = waitForResponse(client, 2);
+			client.simulateMessage(request(2, 'listSessions', { channel: 'ahp-root://' }));
+			const response = await pending;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+			const result = response.result as ListSessionsResult;
+			listed.push(result.items.map(item => [item.provider, item.resource]));
+		}
+		const summary = { ...makeSessionSummary('ahp-session:/new'), provider: 'codex' };
+		for (const client of clients) {
+			client.sent.length = 0;
+		}
+		stateManager.createSession(summary);
+		assert.deepStrictEqual({
+			listed,
+			added: clients.map(client => client.sent.filter(message => isJsonRpcNotification(message) && message.method === 'root/sessionAdded').length),
+		}, {
+			listed: [clients[0], clients[1], clients[2], clients[3]].map((_, index) =>
+				agentService.listedSessions.filter(meta => index >= 2 || meta.session.scheme !== 'ahp-session').map(meta => [meta.provider, meta.session.toString()])),
+			added: [0, 0, 1, 1],
+		});
+	});
+
+	test('new host honors old client-chosen creation resources and declares standard identity support', async () => {
+		const client = connectClient('old-vscode', ['ahp-root://'], editorWindowAgentHostClientInfo);
+		const initialize = findResponse(client.sent, 1);
+		assert.ok(initialize && isJsonRpcResponse(initialize) && hasKey(initialize, { result: true }));
+		assert.strictEqual(supportsAgentHostSessionUris(initialize.result as InitializeResult), true);
+		const pending = waitForResponse(client, 2);
+		client.simulateMessage(request(2, 'createSession', { channel: 'claude:/chosen-by-old-client', provider: 'claude' }));
+		await pending;
+		assert.deepStrictEqual(agentService.createSessionConfigs.at(-1)?.session?.toString(), 'claude:/chosen-by-old-client');
+	});
+
+	test('initial snapshots and reconnect preserve connection-scoped legacy visibility', async () => {
+		const legacy = 'codex:/historical';
+		const standard = 'ahp-session:/fresh';
+		for (const resource of [legacy, standard]) {
+			stateManager.createSession({ ...makeSessionSummary(resource), provider: 'codex' });
+			agentService.listedSessions.push({ session: URI.parse(resource), provider: 'codex', startTime: 1000, modifiedTime: 2000 });
+		}
+		const results = [];
+		for (const [clientId, clientInfo, meta] of [
+			['legacy', editorWindowAgentHostClientInfo, undefined],
+			['modern', agentsWindowAgentHostClientInfo, { [AgentHostSessionUrisCapabilityMetaKey]: true }],
+			['unmarked', undefined, undefined],
+		] as const) {
+			const initial = connectClient(clientId, ['ahp-root://', legacy, standard], clientInfo, meta);
+			const initialized = findResponse(initial.sent, 1);
+			assert.ok(initialized && isJsonRpcResponse(initialized) && hasKey(initialized, { result: true }));
+			const initialResources = (initialized.result as InitializeResult).snapshots.map(snapshot => snapshot.resource);
+			const legacyCreation = clientConnections.usesLegacySessionUris(clientId);
+			initial.simulateClose();
+			const resumed = new MockProtocolTransport();
+			server.simulateConnection(resumed);
+			const reconnecting = waitForResponse(resumed, 2);
+			resumed.simulateMessage(request(2, 'reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: stateManager.serverSeq, subscriptions: ['ahp-root://'], _meta: meta }));
+			await reconnecting;
+			const listing = waitForResponse(resumed, 3);
+			resumed.simulateMessage(request(3, 'listSessions', { channel: 'ahp-root://' }));
+			const response = await listing;
+			assert.ok(isJsonRpcResponse(response) && hasKey(response, { result: true }));
+			results.push({ initialResources, legacyCreation, resumedLegacyCreation: clientConnections.usesLegacySessionUris(clientId), sessions: (response.result as ListSessionsResult).items.map(item => item.resource) });
+			resumed.simulateClose();
+		}
+		assert.deepStrictEqual(results, [
+			{ initialResources: ['ahp-root://', legacy], legacyCreation: true, resumedLegacyCreation: true, sessions: [legacy] },
+			...Array.from({ length: 2 }, () => ({ initialResources: ['ahp-root://', legacy, standard], legacyCreation: false, resumedLegacyCreation: false, sessions: [legacy, standard] })),
+		]);
+	});
+
+	test('standard session addition, summary changes and removal are hidden only from legacy VS Code', () => {
+		const legacy = connectClient('old', ['ahp-root://'], editorWindowAgentHostClientInfo);
+		const standard = connectClient('external-standard', ['ahp-root://']);
+		legacy.sent.length = 0;
+		standard.sent.length = 0;
+		const summary = { ...makeSessionSummary('ahp-session:/notifications'), provider: 'claude' };
+		stateManager.announceSurfacedSession(summary);
+		stateManager.updateSurfacedSessionTitle(summary.resource, 'Retitled');
+		stateManager.retractSurfacedSession(summary.resource);
+		assert.deepStrictEqual([legacy, standard].map(client => client.sent.filter(isJsonRpcNotification).map(message => message.method)), [
+			[],
+			['root/sessionAdded', 'root/sessionSummaryChanged', 'root/sessionRemoved'],
+		]);
 	});
 
 	test('listSessions includes project metadata', async () => {

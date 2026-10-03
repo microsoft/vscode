@@ -136,7 +136,7 @@ export class AgentHostProviderService extends Disposable implements IAgentHostPr
 		if (schemeProvider) {
 			return this._providers.get(schemeProvider);
 		}
-		return this._defaultProvider ? this._providers.get(this._defaultProvider) : undefined;
+		return undefined;
 	}
 
 	getProviders(): readonly IAgent[] {

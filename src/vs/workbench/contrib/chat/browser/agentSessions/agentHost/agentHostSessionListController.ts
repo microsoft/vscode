@@ -8,10 +8,11 @@ import { Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { withEphemeralSessionMeta } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInteractivity, type ChangesSummary, type SessionChatSummary } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatOriginKind, isDefaultChatUri, parseChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatOriginKind, isDefaultChatUri, SessionStatus, readSessionEhcliAdoptable, SESSION_META_EHCLI_ADOPTABLE_KEY, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { ChatSessionStatus, IChatNewSessionRequest, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta } from '../../../common/chatSessionsService.js';
@@ -149,7 +150,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		const rawId = AgentSession.id(resource);
 		if (resource.fragment) {
 			const entry = this._sessionListStore.getSessions(this._provider).find(entry => entry.rawId === rawId);
-			const chat = entry?.summary.chats?.find(chat => parseChatUri(chat.resource)?.chatId === resource.fragment);
+			const chat = entry?.summary.chats?.find(chat => getAgentHostChatId(chat.resource) === resource.fragment);
 			if (!chat) {
 				throw new Error(`Cannot resolve chat '${resource.fragment}' in session '${rawId}'`);
 			}
@@ -299,11 +300,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}
 
 	private _chatResource(rawId: string, chat: SessionChatSummary): URI {
-		const parsed = parseChatUri(chat.resource);
-		if (!parsed) {
-			throw new Error(`Invalid chat URI '${chat.resource}' in session '${rawId}'`);
-		}
-		return this._resource(rawId).with({ fragment: parsed.chatId });
+		return this._resource(rawId).with({ fragment: getAgentHostChatId(chat.resource) });
 	}
 
 	private _isDefaultChat(summary: SessionSummary, chat: SessionChatSummary): boolean {

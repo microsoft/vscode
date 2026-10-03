@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { fromAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { agentHostAgentPickerStorageKey } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
@@ -32,6 +32,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		if (environmentService.isSessionsWindow) {
@@ -180,8 +181,7 @@ export class AgentHostModeSynchronizer extends Disposable implements IWorkbenchC
 			return undefined;
 		}
 
-		const provider = sessionResource.scheme.substring(AGENT_HOST_SESSION_SCHEME_PREFIX.length);
-		return provider ? AgentSession.uri(provider, sessionResource.path.substring(1)) : undefined;
+		return this._connectionsService.resolveSessionResourceIdentity(sessionResource)?.backendSession;
 	}
 }
 

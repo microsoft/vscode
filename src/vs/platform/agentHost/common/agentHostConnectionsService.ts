@@ -67,6 +67,8 @@ export interface IAgentHostSessionIdentity {
 	/** Provider-owned remote address, retained even when the live connection has been removed. */
 	readonly connectionAddress?: string;
 	readonly backendSession: URI;
+	/** The backend resource was advertised, not reconstructed by the bounded legacy fallback. */
+	readonly backendSessionIsAdvertised?: true;
 	readonly defaultChangesetKind?: DefaultChangesetKind;
 }
 
@@ -143,8 +145,11 @@ export interface IAgentHostConnectionsService {
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
-	/** Maps a backend session through provider policy, preserving every component except its routing scheme. */
-	getSessionResource(backendSession: URI, authority?: string): URI;
+	/** Records an exact backend identity and adapts only its frontend provider scheme. */
+	getSessionResource(backendSession: URI, authority?: string, provider?: string): URI;
+
+	/** Looks up a frontend resource using its advertised backend identity on one connection. */
+	findSessionResource(backendSession: URI, authority?: string): URI | undefined;
 
 	/**
 	 * Resolves an agent-host chat-session resource to its connection authority

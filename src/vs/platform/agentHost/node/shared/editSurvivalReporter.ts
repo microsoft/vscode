@@ -30,6 +30,7 @@ import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './edit
  * revisit when we have a notebook-aware tracker.
  */
 export interface IEditSurvivalReporterLaunchParams {
+	readonly provider?: string;
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	/** Full session URI string (e.g. `claude:/abc123`). */
 	readonly sessionUri: string;
@@ -204,7 +205,7 @@ class SessionEditSurvivalReporter extends Disposable {
 				'agentHost.trackEditSurvival',
 				{
 					...toInitiatorTelemetry(this._params.clientContext),
-					provider: AgentSession.provider(sessionUri) ?? 'unknown',
+					provider: this._params.provider ?? AgentSession.provider(sessionUri) ?? 'unknown',
 					modelId: this._params.modelId ?? '',
 					toolName: this._params.toolName ?? '',
 					agentSessionId: AgentSession.id(sessionUri),

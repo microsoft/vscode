@@ -19,10 +19,13 @@ export class CodexCompactCompletionProvider implements IAgentHostCompletionItemP
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
 	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
 
-	constructor(private readonly _hasHistory: (session: URI) => boolean) { }
+	constructor(
+		private readonly _hasHistory: (session: URI) => boolean,
+		private readonly _providerForSession: (session: URI) => string | undefined = AgentSession.provider,
+	) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.channel) !== CODEX_AGENT_PROVIDER_ID || !this._hasHistory(params.channel)) {
+		if (this._providerForSession(params.channel) !== CODEX_AGENT_PROVIDER_ID || !this._hasHistory(params.channel)) {
 			return [];
 		}
 		const leading = extractLeadingSlashToken(params.text, params.offset);

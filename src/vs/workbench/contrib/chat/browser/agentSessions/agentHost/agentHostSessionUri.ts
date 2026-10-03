@@ -14,11 +14,14 @@ export function resolveAgentHostChatSession(sessionResource: URI, provisionalBac
 		: resolution;
 }
 
-export function toAgentHostBackendSessionUri(sessionResource: URI): URI | undefined {
+export function toAgentHostBackendSessionUri(sessionResource: URI, connectionsService?: IAgentHostConnectionsService): URI | undefined {
 	const scheme = sessionResource.scheme;
 	const prefix = 'agent-host-';
 	if (!scheme.startsWith(prefix)) {
 		return undefined;
+	}
+	if (connectionsService) {
+		return connectionsService.resolveSessionResourceIdentity(sessionResource)?.backendSession;
 	}
 	const provider = scheme.substring(prefix.length);
 	if (!provider) {

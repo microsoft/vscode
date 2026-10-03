@@ -15,6 +15,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
@@ -110,8 +111,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		// An un-adopted legacy chat still carries the adoptable marker and must take
 		// the migration probe; only a surfaced external / already-adopted session
 		// short-circuits, since opening its twin is a plain (non-migrating) open.
-		const adoptable = rawId ? readSessionEhcliAdoptable(this._getSessionMetadataByRawId(rawId)) : false;
-		if (rawId && this._sessionCache.has(rawId) && !adoptable) {
+		const sessionKey = rawId ? AgentSession.uri('copilotcli', rawId).toString() : undefined;
+		const adoptable = sessionKey ? readSessionEhcliAdoptable(this._getSessionMetadataByKey(sessionKey)) : false;
+		if (sessionKey && this._sessionCache.has(sessionKey) && !adoptable) {
 			return twin; // already surfaced and not an un-adopted legacy chat; no round-trip
 		}
 		// Startup restore reopens persisted slots against a cold host, where the
@@ -150,6 +152,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		@IPathService pathService: IPathService,
 		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionsService, activeClientService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
@@ -157,6 +160,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
+			sessionResource: resource => this._connectionsService.findSessionResource(resource)
+				?? (AgentSession.provider(resource) ? this._connectionsService.getSessionResource(resource) : undefined),
+			onDidChangeSessionResolution: this._connectionsService.onDidChangeSessionResolution,
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
 		}));
 		this.automations = automations;
@@ -184,6 +190,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				if (session.isQuickChat?.get() && (session.sessionType === 'copilotcli' || session.sessionType === 'claude')) {
 					homes.push({ uri: workspacelessScratchDir(userHome, rawId), label });
 				}
+
 				if (session.sessionType === 'copilotcli') {
 					homes.push({ uri: joinPath(sessionStateRoot, rawId), label });
 					for (const artifact of session.artifacts?.get() ?? []) {
@@ -272,6 +279,12 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override supportsDevContainerWorkspace(workspaceUri: URI): boolean {
 		return workspaceUri.scheme === Schemas.file || !!findDevContainerSample(workspaceUri);
+	}
+
+	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		const adapter = super.createAdapter(meta);
+		this._connectionsService.getSessionResource(adapter.backendUri, undefined, adapter.agentProvider);
+		return adapter;
 	}
 
 	override getSessions(): ISession[] {

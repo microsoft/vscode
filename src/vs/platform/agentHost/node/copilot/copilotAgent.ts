@@ -1058,11 +1058,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._register(this._onDidChatProgress.event(signal => this._emitSpawnedChatForSubagentSignal(signal)));
 		this._register(completions.registerProvider(new CopilotSlashCommandCompletionProvider(this.id,
 			{
+				ownsSession: session => [...this._chatScopes.values()].some(scope => isEqual(scope, URI.parse(session))) || AgentSession.provider(session) === this.id,
 				isRubberDuckEnabled: () => this._isRubberDuckEnabled(),
 				isLocalIndexEnabled: () => this._isLocalIndexEnabled(),
 				getRuntimeSlashCommands: (sessionId, options) => this._getRuntimeSlashCommands(sessionId, options),
 				getSessionCustomizations: (sessionId) => {
-					const session = AgentSession.uri(this.id, sessionId);
+					const session = this._sessionResourceForCompletions(sessionId);
 					const chat = URI.parse(buildDefaultChatUri(session));
 					return this.getChatCustomizations(chat, { configurationResource: session, resource: chat });
 				},
@@ -3720,15 +3721,20 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _getRuntimeSlashCommands(sessionId: string, options?: ICopilotRuntimeSlashCommandQueryOptions) {
-		const session = this._findSessionBySdkId(sessionId);
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId)) ?? this._findSessionBySdkId(sessionId);
 		if (session) {
 			return session.getRuntimeSlashCommands(options) ?? [];
 		}
+
 		return this._slashCommandProvider.getSlashCommands(options);
 	}
 
+	private _sessionResourceForCompletions(sessionId: string): URI {
+		return [...this._chatScopes.values()].find(scope => AgentSession.id(scope) === sessionId) ?? AgentSession.uri(this.id, sessionId);
+	}
+
 	private async _listPluginMarketplaces(sessionId: string) {
-		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
 		if (session) {
 			return session.listPluginMarketplaces();
 		}
@@ -3737,7 +3743,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listInstalledPlugins(sessionId: string) {
-		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
 		if (session) {
 			return session.listInstalledPlugins();
 		}
@@ -3746,7 +3752,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _listPluginMarketplacePlugins(sessionId: string): Promise<readonly { readonly name: string; readonly marketplace: string }[]> {
-		const session = this._findSessionChat(AgentSession.uri(this.id, sessionId));
+		const session = this._findSessionChat(this._sessionResourceForCompletions(sessionId));
 		if (session) {
 			return session.listPluginMarketplacePlugins();
 		}
@@ -4946,7 +4952,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * be a no-op (e.g. `/autopilot on` while already in autopilot).
 	 */
 	private _getSessionConfigState(sessionId: string): ICopilotConfigSlashCommandState {
-		const sessionKey = AgentSession.uri(this.id, sessionId).toString();
+		const sessionKey = this._sessionResourceForCompletions(sessionId).toString();
 		return {
 			mode: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.Mode),
 			autoApprove: this._configurationService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove),

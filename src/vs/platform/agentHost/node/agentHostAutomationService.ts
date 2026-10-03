@@ -1007,7 +1007,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			runId: AgentSession.id(run.resource),
 			trigger: run.origin.kind === AutomationRunOriginKind.Manual ? 'manual' : run.origin.catchUp ? 'catch_up' : run.origin.scheduledFor ? 'schedule' : 'event',
 			runCreatedAt: run.lifecycle.createdAt,
-			provider: session ? getAutomationTelemetryProvider(AgentSession.provider(session)) : 'default',
+			provider: session ? getAutomationTelemetryProvider(this._stateManager.getSessionSummary(session)?.provider ?? AgentSession.provider(session)) : 'default',
 			agentSessionId: session ? AgentSession.id(session) : undefined,
 			sessionCreated: run.sessions.length > 0,
 		};

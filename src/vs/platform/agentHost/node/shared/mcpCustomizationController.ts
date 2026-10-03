@@ -114,6 +114,7 @@ export { DEFAULT_MCP_APP_CAPABILITIES, DEFAULT_MCP_APP };
  * Options for {@link McpCustomizationController}.
  */
 export interface IMcpCustomizationControllerOptions {
+	readonly provider?: string;
 	/** Concrete chat URI used for MCP App routing. */
 	readonly chatUri: URI;
 	/** Emits a {@link SessionAction} into the session's action stream. */
@@ -145,8 +146,7 @@ export function buildMcpTopLevelCustomizationId(providerId: string, sessionId: s
 	return `mcp-top-level:${providerId}:${sessionId}:${serverName}`;
 }
 
-export function buildMcpChannel(chatUri: URI, serverName: string): string {
-	const providerId = getMcpChannelProviderId(chatUri);
+export function buildMcpChannel(chatUri: URI, serverName: string, providerId = getMcpChannelProviderId(chatUri)): string {
 	return `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/${encodeURIComponent(serverName)}`;
 }
 
@@ -202,7 +202,7 @@ export class McpCustomizationController extends Disposable {
 			throw new Error(`Malformed AHP chat URI: ${this._chatUri.toString()}`);
 		}
 		this._sessionUri = URI.parse(chat.session);
-		this._providerId = AgentSession.provider(this._sessionUri) ?? '';
+		this._providerId = this._options.provider ?? this._stateManager.getSessionSummary(chat.session)?.provider ?? AgentSession.provider(this._sessionUri) ?? '';
 		this._sessionId = AgentSession.id(this._sessionUri);
 		if (!this._providerId || !this._sessionId) {
 			throw new Error(`Malformed Agent Host session URI: ${chat.session}`);
@@ -508,7 +508,7 @@ export class McpCustomizationController extends Disposable {
 		if (state.kind !== McpServerStatus.Ready) {
 			return undefined;
 		}
-		return buildMcpChannel(this._chatUri, serverName);
+		return buildMcpChannel(this._chatUri, serverName, this._providerId);
 	}
 
 	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, source?: McpServerSource, sourceUri?: string | null): McpServerCustomization {
@@ -684,6 +684,10 @@ export function parseMcpChannelUri(uri: string): IMcpChannelRoute | undefined {
 	}
 	if (!providerId || !serverName) {
 		return undefined;
+	}
+	const parsedChat = parseChatUri(chatUri);
+	if (parsedChat && URI.parse(parsedChat.session).scheme === 'ahp-session') {
+		return { providerId, chatUri, serverName };
 	}
 	let routedProviderId: string;
 	try {

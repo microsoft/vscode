@@ -112,6 +112,14 @@ const PLUGIN_CUSTOMIZATIONS: readonly Customization[] = [
 ];
 
 suite('McpCustomizationController', () => {
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`standard chat channels carry explicit ${provider} routing`, () => {
+			const chat = URI.parse(buildChatUri('ahp-session:/fresh', 'peer'));
+			const channel = buildMcpChannel(chat, 'search', provider);
+			const route = parseMcpChannelUri(channel);
+			assert.deepStrictEqual(route && { ...route, chatUri: route.chatUri.toString() }, { providerId: provider, chatUri: chat.toString(), serverName: 'search' });
+		});
+	}
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 

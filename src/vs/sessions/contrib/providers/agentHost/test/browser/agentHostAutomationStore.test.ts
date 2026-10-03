@@ -1738,6 +1738,7 @@ suite('AgentHostAutomationStore', () => {
 			createdAt: timestamp,
 			modifiedAt: timestamp,
 		});
+
 		const projected = store.getAutomation('local-agent-host:ahp-automation:/host-authored');
 		await store.updateAutomation('local-agent-host:ahp-automation:/host-authored', { enabled: false });
 		const update = connection.dispatched.at(-1)?.action;
@@ -1761,6 +1762,41 @@ suite('AgentHostAutomationStore', () => {
 				[SessionConfigKey.AgentMerge]: true,
 			},
 		});
+	});
+
+	test('standard run resources use advertised session identity rather than the mutable definition provider', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const changed = disposables.add(new Emitter<void>());
+		const resources = new ResourceMap<URI>();
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, {
+			toHost: resource => resource, fromHost: resource => resource,
+			resourceSchemeForProvider: provider => `agent-host-${provider}`,
+			sessionResource: resource => resources.get(resource),
+			onDidChangeSessionResolution: changed.event,
+		}, new NullLogService(), disposables.add(new InMemoryStorageService()), activeClientService));
+		const timestamp = new Date().toISOString();
+		const backend = URI.parse('ahp-session:/historical-run');
+		const definition: AutomationEntry = {
+			resource: 'ahp-automation:/changed-provider',
+			definition: {
+				title: 'Changed provider', enabled: true, triggers: [],
+				message: { text: 'Run', origin: { kind: MessageKind.Automation } },
+				session: { provider: 'claude' },
+			},
+			runs: [{
+				resource: 'ahp-automation-run:/historical', automation: 'ahp-automation:/changed-provider',
+				origin: { kind: AutomationRunOriginKind.Manual }, primarySession: backend.toString(), sessionCount: 1,
+				lifecycle: { status: AutomationRunStatus.Completed, createdAt: timestamp, startedAt: timestamp, completedAt: timestamp },
+			}],
+			operations: [], createdAt: timestamp, modifiedAt: timestamp,
+		};
+		connection.setAutomation(definition);
+		const observed: (string | undefined)[] = [];
+		disposables.add(autorun(reader => observed.push(store.runs.read(reader)[0]?.sessionResource?.toString())));
+		resources.set(backend, URI.parse('agent-host-codex:/historical-run'));
+		changed.fire();
+		connection.setAutomation({ ...definition, definition: { ...definition.definition, session: { provider: 'copilotcli' } } });
+		assert.deepStrictEqual(observed, [undefined, 'agent-host-codex:/historical-run', 'agent-host-codex:/historical-run']);
 	});
 
 	test('uses per-automation operations as the client authority', async () => {
