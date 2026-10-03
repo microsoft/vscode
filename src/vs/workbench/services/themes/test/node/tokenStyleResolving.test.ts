@@ -356,4 +356,22 @@ suite('Themes - TokenStyleResolving', () => {
 			assert.strictEqual(registry.getTokenStylingDefaultRules().length, numberOfDefaultRules);
 		}
 	});
+
+	test('enabled false suppresses custom semantic token rules', async () => {
+		const themeData = ColorThemeData.createLoadedEmptyTheme('test', 'test');
+		themeData.setCustomColors({ 'editor.foreground': '#000000' });
+		themeData.setCustomSemanticTokenColors({
+			enabled: false,
+			rules: {
+				'type': '#ff0000',
+				'namespace': '#00ff00'
+			}
+		});
+
+		const tokenStyleMetaData = themeData.getTokenStyleMetadata('namespace', [], 'typescript');
+		assert.strictEqual(tokenStyleMetaData === undefined || tokenStyleMetaData.foreground === undefined, true, 'namespace token should not have custom foreground color when enabled is false');
+
+		const typeStyleMetaData = themeData.getTokenStyleMetadata('type', [], 'typescript');
+		assert.strictEqual(typeStyleMetaData === undefined || typeStyleMetaData.foreground === undefined, true, 'type token should not have custom foreground color when enabled is false');
+	});
 });
