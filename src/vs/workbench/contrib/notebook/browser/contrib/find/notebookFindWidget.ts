@@ -92,6 +92,27 @@ export class NotebookFindContrib extends Disposable implements INotebookEditorCo
 			this._widget.value.findPrevious();
 		}
 	}
+
+	toggleCaseSensitive(): void {
+		if (this._widget.rawValue) {
+			const state = this._widget.value.state;
+			state.change({ matchCase: !state.matchCase }, false);
+		}
+	}
+
+	toggleWholeWord(): void {
+		if (this._widget.rawValue) {
+			const state = this._widget.value.state;
+			state.change({ wholeWord: !state.wholeWord }, false);
+		}
+	}
+
+	toggleRegex(): void {
+		if (this._widget.rawValue) {
+			const state = this._widget.value.state;
+			state.change({ isRegex: !state.isRegex }, false);
+		}
+	}
 }
 
 class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
@@ -156,6 +177,10 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 	get findModel(): FindModel {
 		return this._findModel;
+	}
+
+	get state(): FindReplaceState<NotebookFindFilters> {
+		return this._state;
 	}
 
 	get isFocused(): boolean {
