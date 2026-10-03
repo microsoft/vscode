@@ -101,8 +101,21 @@ Options:
 --timeout <ms>                timeout for tests
 --crash-reporter-directory <path> crash reporter directory
 --tfs <url>                   TFS server URL
---help, -h                    show the help`);
+--help, -h                    show the help
+
+Environment:
+VSCODE_TEST_QUALITY=<quality> override product.quality (insider, stable, exploration)`);
 	process.exit(0);
+}
+
+// VSCODE_TEST_QUALITY overrides product.quality in renderer.js, see test/unit/README.md
+const testQuality = process.env.VSCODE_TEST_QUALITY;
+if (testQuality) {
+	if (!['insider', 'stable', 'exploration'].includes(testQuality)) {
+		console.error(`Invalid VSCODE_TEST_QUALITY '${testQuality}'. Expected one of: insider, stable, exploration.`);
+		process.exit(1);
+	}
+	console.log(`Running unit tests with product.quality '${testQuality}' (from VSCODE_TEST_QUALITY)`);
 }
 
 // Treat bare .ts/.js positional arguments as --run values

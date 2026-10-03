@@ -300,11 +300,14 @@ jobs:
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
+          VSCODE_TEST_QUALITY: insider # match official builds, see test/unit/README.md
 
       - name: 🧪 Run unit tests (node.js)
         if: ${{ inputs.electron_tests && inputs.unit_tests }}
         timeout-minutes: 15
         run: npm run test-node
+        env:
+          VSCODE_TEST_QUALITY: insider # match official builds, see test/unit/README.md
 
       - name: 🧪 Run unit tests (Browser, Chromium)
         if: ${{ inputs.browser_tests && inputs.unit_tests }}
