@@ -245,6 +245,7 @@ export class GitHubSessionEngine implements vscode.AuthenticationProvider, vscod
 			context.extension.extensionKind,
 			this._microsoft,
 			this._accountLinks,
+			context.isCustomUserDataDir,
 			ghesUri);
 
 		// Contains the current state of the sessions we have available.

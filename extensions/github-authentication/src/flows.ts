@@ -58,6 +58,7 @@ export interface IFlowQuery {
 	target: GitHubTarget;
 	extensionHost: ExtensionHost;
 	isSupportedClient: boolean;
+	isCustomUserDataDir?: boolean;
 }
 
 interface IFlowTriggerOptions {
@@ -649,7 +650,7 @@ export function getFlows(query: IFlowQuery) {
 		return useFlow;
 	});
 
-	const preferDeviceCodeFlow = workspace.getConfiguration('github-authentication').get<boolean>('preferDeviceCodeFlow', false);
+	const preferDeviceCodeFlow = query.isCustomUserDataDir || workspace.getConfiguration('github-authentication').get<boolean>('preferDeviceCodeFlow', false);
 	if (preferDeviceCodeFlow) {
 		return [
 			...validFlows.filter(flow => flow instanceof DeviceCodeFlow),
