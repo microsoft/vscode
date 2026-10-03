@@ -3343,6 +3343,49 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._inFlightRegisteredSessions;
 	}
 
+	private async _recoverChatSelectionCorruption(entries: readonly IRegisteredSession[]): Promise<readonly IRegisteredSession[]> {
+		const bySession = new Map(entries.map(entry => [entry.session.toString(), entry]));
+		const phantomsByParent = new Map<string, IRegisteredSession[]>();
+		for (const entry of entries) {
+			const resource = entry.session;
+			if (entry.source !== 'restore' || resource.scheme !== 'copilotcli' || resource.authority || resource.query || !resource.fragment) {
+				continue;
+			}
+			const parent = resource.with({ fragment: '' }).toString();
+			const parentEntry = bySession.get(parent);
+			if (!parentEntry || parentEntry.external || parentEntry.provider !== entry.provider) {
+				continue;
+			}
+			const phantoms = phantomsByParent.get(parent) ?? [];
+			phantoms.push(entry);
+			phantomsByParent.set(parent, phantoms);
+		}
+		const removed = new Set<string>();
+		for (const [parentKey, phantoms] of phantomsByParent) {
+			const parent = URI.parse(parentKey);
+			await this._chatCatalogMutationSequencer.queue(parentKey, async () => {
+				const recovered = await this._peerChatStore.recoverChatSelectionCorruption(parent, phantoms.map(entry => entry.session.fragment));
+				if (!recovered) {
+					return;
+				}
+				if (this._stateManager.getSessionState(parentKey)) {
+					await this._restorePeerChatsFromCatalog(parent, recovered.entries);
+					await this._persistOrderedListVisibleSessionState(parent, {});
+				}
+				await this._markCatalogPayloadDirty(parentKey);
+				for (const phantom of phantoms) {
+					if (!recovered.verifiedPhantomChatIds.includes(phantom.session.fragment)) {
+						continue;
+					}
+					await this._sessionRegistry.unregister(phantom.session);
+					this._stateManager.removeSession(phantom.session.toString());
+					removed.add(phantom.session.toString());
+				}
+			});
+		}
+		return entries.filter(entry => !removed.has(entry.session.toString()));
+	}
+
 	private async _advanceSessionModifiedTime(session: URI, modifiedTime: number, invalidate = true): Promise<void> {
 		if (!Number.isFinite(modifiedTime)) {
 			return;
@@ -3603,6 +3646,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (allRegistered.length === 0) {
 			await this._awaitInitialProviderMigration();
 			allRegistered = await this._listRegisteredSessions();
+		}
+		if (allRegistered.some(entry => entry.source === 'restore' && entry.session.scheme === 'copilotcli' && !!entry.session.fragment)) {
+			allRegistered = await this._recoverChatSelectionCorruption(allRegistered);
 		}
 		// External sessions that the current mode hides outright are dropped
 		// before any provider or database read. On a large catalogue these are

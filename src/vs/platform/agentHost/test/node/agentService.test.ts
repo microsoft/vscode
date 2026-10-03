@@ -64,7 +64,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { AgentHostDatabase, AgentHostDatabaseSessionChatCatalogReplaceResult, AgentHostDatabaseSessionV2UpsertResult, IAgentHostDatabase, IAgentHostDatabaseRegisterOptions, IAgentHostDatabaseSession, IAgentHostDatabaseSessionChat, IAgentHostDatabaseSessionChatCatalog, IAgentHostDatabaseSessionsV2Exclusion, IAgentHostDatabaseSessionsV2ExclusionExpectation, IAgentHostDatabaseSessionOptions, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Envelope, IAgentHostDatabaseSessionV2Receipt } from '../../node/agentHostDatabase.js';
-import { CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
+import { AgentHostPeerChatStore, CHAT_ORIGIN_METADATA_KEY, CHAT_PROVIDER_DATA_METADATA_KEY, CHAT_WORKING_DIRECTORIES_METADATA_KEY, PEER_CHATS_METADATA_KEY, type IPersistedPeerChat } from '../../node/agentHostPeerChatStore.js';
 import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_PAYLOAD_VERSION, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
 import type { IAgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY, CATALOG_VERIFICATION_VERSION } from '../../node/agentHostCatalogReconciliationService.js';
@@ -793,6 +793,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
 		return { status: 'applied', revision };
 	}
+	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this.replaceSessionChatCatalog(session, chats, expectedRevision);
+	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
 		const current = this._sessionChats.get(session);
 		if (!current || current.revision !== expectedRevision) {
@@ -824,6 +827,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 
 /** In-memory orchestrator database that two {@link AgentService} instances can share to simulate a host restart. */
 class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
+	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this.replaceSessionChatCatalog(session, chats, expectedRevision);
+	}
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _sessions = new Map<string, IAgentHostDatabaseSession>();
@@ -20661,6 +20667,106 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- peer-chat catalog persistence (B2: orchestrator-owned) ---------
 
 	suite('peer chat catalog persistence', () => {
+
+		for (const cold of [false, true]) {
+			test(`listing recovers erased peer membership and unregisters only verified restored phantoms without deleting data (${cold ? 'cold' : 'live'} session)`, async () => {
+				const originalTurn: Turn = {
+					id: 'original-turn',
+					state: TurnState.Complete,
+					message: { text: 'Original peer conversation', origin: { kind: MessageKind.User } },
+					responseParts: [],
+					usage: undefined,
+				};
+				const perSession = createPerSessionDataService();
+				const dataId = (resource: URI) => `${resource.authority ? `${resource.authority}-` : ''}${resource.path.slice(1)}`;
+				const sessionData: ISessionDataService = {
+					...perSession.service,
+					getSessionDataDir: resource => URI.file(`/session-data/${dataId(resource)}`),
+					getSessionDataDirById: id => URI.file(`/session-data/${id}`),
+					listSessionDataIds: async () => perSession.databaseIds().map(key => dataId(URI.parse(key))),
+					deleteSessionData: async () => { throw new Error('Recovery must not delete any backing data'); },
+				};
+				const database = disposables.add(new AgentHostDatabase(':memory:'));
+				const localService = disposables.add(createTestAgentService(
+					new NullLogService(), fileService, sessionData,
+					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+				));
+				class MultiChatAgent extends MockAgent {
+					readonly materialized: { chat: string; providerData: string | undefined }[] = [];
+
+					override async createChat(): Promise<IAgentCreateChatResult> {
+						return { providerData: '{"sdkSessionId":"original-sdk-session"}' };
+					}
+
+					override async materializeChat(chat: URI, _context: URI | IAgentChatContext, providerData: string | undefined): Promise<void> {
+						if (!isDefaultChatUri(chat)) {
+							this.materialized.push({ chat: chat.toString(), providerData });
+						}
+					}
+
+					override async getSessionMessages(chat: URI): Promise<readonly Turn[]> {
+						return isDefaultChatUri(chat) ? [] : [originalTurn];
+					}
+				}
+				const agent = disposables.add(new MultiChatAgent('copilotcli'));
+				registerTestAgentProvider(localService, agent);
+				const parent = await localService.createSession({ provider: 'copilotcli' });
+				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
+				const otherId = 'c805f176-d9f7-4a24-a332-feac66843088';
+				const selected = URI.parse(buildChatUri(parent, selectedId));
+				const other = URI.parse(buildChatUri(parent, otherId));
+				await localService.createChat(parent, selected, { title: 'Original Selected Chat' });
+				await localService.createChat(parent, other, { title: 'Original Other Chat' });
+				await perSession.database(other).createTurn('original-turn');
+				await perSession.database(other).setTurnEventId('original-turn', 'original-event');
+				const phantom = parent.with({ fragment: selectedId });
+				const explicitFragment = parent.with({ fragment: 'explicit-resource' });
+				await database.registerRuntimeSession(phantom.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
+				await database.registerRuntimeSession(explicitFragment.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await perSession.database(parent).setMetadata('peerChats', '[]');
+				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
+				await peerStore.reconcileLegacy(parent);
+				const stateManager = getStateManager(localService);
+				stateManager.removeChat(parent.toString(), selected.toString());
+				stateManager.removeChat(parent.toString(), other.toString());
+				if (cold) {
+					stateManager.removeSession(parent.toString());
+				}
+
+				const listed = await localService.listSessions();
+				const registered = await localService.getRegisteredSessions();
+				await localService.listSessions();
+				const lazyBeforeOpen = stateManager.getChatState(other.toString()) === undefined;
+				agent.materialized.length = 0;
+				await localService.subscribe(other, 'recovery-reader');
+				const restored = await stateManager.resolveChatState(other.toString());
+
+				assert.deepStrictEqual({
+					registered: registered.map(resource => resource.toString()).sort(),
+					membership: (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat),
+					listed: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.map(chat => ({ uri: chat.chat.toString(), title: chat.summary ?? '' })),
+					turnEvent: await perSession.database(other).getTurnEventId('original-turn'),
+					providerData: await perSession.database(other).getMetadata('agentHost.chatProviderData'),
+					lazyBeforeOpen,
+					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
+					materialized: agent.materialized,
+				}, {
+					registered: [parent.toString(), explicitFragment.toString()].sort(),
+					membership: [selected.toString(), other.toString()],
+					listed: [
+						{ uri: buildDefaultChatUri(parent), title: '' },
+						{ uri: selected.toString(), title: 'Original Selected Chat' },
+						{ uri: other.toString(), title: 'Original Other Chat' },
+					],
+					turnEvent: 'original-event',
+					providerData: '{"sdkSessionId":"original-sdk-session"}',
+					lazyBeforeOpen: true,
+					restoredTurns: [{ id: 'original-turn', text: 'Original peer conversation' }],
+					materialized: [{ chat: other.toString(), providerData: '{"sdkSessionId":"original-sdk-session"}' }],
+				});
+			});
+		}
 
 		function createSessionDataService(sessionDatabase: TestSessionDatabase = new TestSessionDatabase()): ISessionDataService {
 			const base = createSingleDatabaseSessionDataService(sessionDatabase);
