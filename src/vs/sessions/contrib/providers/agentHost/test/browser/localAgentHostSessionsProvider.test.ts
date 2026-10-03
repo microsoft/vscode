@@ -2193,8 +2193,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 	}));
 
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		const LEGACY_KEYS = ['localAgentHost.cachedSessions', 'localAgentHost.cachedSessions.v2'];
-		const CURRENT_KEY = 'localAgentHost.cachedSessions.v3';
+		const LEGACY_KEYS = ['localAgentHost.cachedSessions', 'localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions.v3'];
+		const CURRENT_KEY = 'localAgentHost.cachedSessions.v4';
 		const storageService = disposables.add(new InMemoryStorageService());
 
 		// Simulate a previous (old-schema) window: persist a session, then move
@@ -2300,7 +2300,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			origin: undefined,
 		} as ActionEnvelope);
 		await storageService.flush();
-		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v3', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
+		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v4', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
 
 		assert.deepStrictEqual({
 			repersisted: repersisted[0].multiRoot,

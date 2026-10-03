@@ -57,9 +57,9 @@ const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
  * single machine-wide local agent host, so a fixed key (no per-authority
  * suffix) is used; the base provider persists under `StorageScope.APPLICATION`.
  */
-const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v3';
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEY = 'localAgentHost.cachedSessions.v4';
 // TODO@sandy081 Remove this legacy cache-key cleanup after 2026-10-14.
-const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEYS_LEGACY = ['localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions'];
+const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEYS_LEGACY = ['localAgentHost.cachedSessions.v3', 'localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions'];
 
 /**
  * Local-window sessions provider backed by the in-process
