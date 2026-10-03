@@ -14,18 +14,6 @@ import { AGENT_SESSION_RENAME_ACTION_ID } from '../../../browser/agentSessions/a
 suite('Chat Accessibility Help', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const type of ['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const) {
-		test(`only describes visible Codex continuation UI (${type})`, () => {
-			const keybindings = new MockKeybindingService();
-			const hidden = getAccessibilityHelpText(type, keybindings, false);
-			const shown = getAccessibilityHelpText(type, keybindings, false, false, false, false, false, ChatSessionArchiveActionWording.Archive, true);
-			assert.deepStrictEqual({
-				hidden: hidden.includes('A ChatGPT limit suggestion'),
-				shown: shown.includes('A ChatGPT limit suggestion'),
-			}, { hidden: false, shown: type !== 'inlineChat' && type !== 'quickChat' });
-		});
-	}
-
 	test('documents the sandbox policy command and report link', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));

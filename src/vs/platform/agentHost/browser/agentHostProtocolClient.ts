@@ -23,7 +23,6 @@ import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, I
 import { ClaimAgentHostDetachedWorktreeExtensionMethod, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, supportsAgentHostChatStateFile, supportsAgentHostDevContainers, type IAgentHostExtensionCommandMap, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../common/state/protocol/channels-session/state.js';
 import { supportsAgentHostTiming, supportsChatUserInteractionTiming } from '../common/meta/agentHostTimingMeta.js';
-import { readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY } from '../common/agentHostConnectionsService.js';
@@ -1850,39 +1849,35 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 */
 	async listSessions(): Promise<(IAgentSessionMetadata & { readonly workingDirectory?: URI })[]> {
 		const result = await this._sendRequest('listSessions', { channel: ROOT_STATE_URI });
-		return result.items.map((s: SessionSummary) => {
-			const model = readCodexSessionModel(s);
-			return {
-				session: URI.parse(s.resource),
-				provider: s.provider,
-				startTime: Date.parse(s.createdAt),
-				modifiedTime: Date.parse(s.modifiedAt),
-				...(s.project ? {
-					project: {
-						uri: this._toClientUri(URI.parse(s.project.uri)),
-						displayName: s.project.displayName,
-					}
-				} : {}),
-				summary: s.title,
-				status: s.status,
-				activity: s.activity,
-				workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
-				workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
-				changes: s.changes,
-				...(model ? { model } : {}),
-				chats: s.chats?.map(chat => ({
-					chat: URI.parse(chat.resource),
-					summary: chat.title,
-					kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
-					origin: chat.origin,
-					...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-					...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
-					...(chat.changes !== undefined ? { changes: chat.changes } : {}),
-				})),
-				// Carry durable host provenance for sessions first materialized from a listing.
-				...(s._meta !== undefined ? { _meta: s._meta } : {}),
-			};
-		});
+		return result.items.map((s: SessionSummary) => ({
+			session: URI.parse(s.resource),
+			provider: s.provider,
+			startTime: Date.parse(s.createdAt),
+			modifiedTime: Date.parse(s.modifiedAt),
+			...(s.project ? {
+				project: {
+					uri: this._toClientUri(URI.parse(s.project.uri)),
+					displayName: s.project.displayName,
+				}
+			} : {}),
+			summary: s.title,
+			status: s.status,
+			activity: s.activity,
+			workingDirectory: typeof s.workingDirectories?.[0] === 'string' ? this._toClientUri(URI.parse(s.workingDirectories[0])) : undefined,
+			workingDirectories: s.workingDirectories?.map(d => this._toClientUri(URI.parse(d))),
+			changes: s.changes,
+			chats: s.chats?.map(chat => ({
+				chat: URI.parse(chat.resource),
+				summary: chat.title,
+				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+				origin: chat.origin,
+				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
+				...(isSessionStatusArchived(chat.status) || chat.archived === true ? { archived: true } : {}),
+				...(chat.changes !== undefined ? { changes: chat.changes } : {}),
+			})),
+			// Carry durable host provenance for sessions first materialized from a listing.
+			...(s._meta !== undefined ? { _meta: s._meta } : {}),
+		}));
 	}
 
 	private _toClientUri(uri: URI): URI {

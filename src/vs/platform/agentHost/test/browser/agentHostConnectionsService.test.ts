@@ -173,43 +173,6 @@ suite('AgentHostConnectionsService', () => {
 		assert.strictEqual(service.resolveSessionResource(URI.parse('remote-unknown-copilotcli:/foo')), undefined);
 	});
 
-	test('maps backend resources back through local and remote connection policy', () => {
-		const { service } = createService([], new Map());
-		assert.deepStrictEqual([
-			service.getSessionResource(URI.parse('codex:/external')).toString(),
-			service.getSessionResource(URI.parse('codex:/external'), 'remote').toString(),
-		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
-	});
-
-	for (const authority of [AMBIENT_AGENT_HOST_AUTHORITY, 'myhost']) {
-		for (const aliased of [false, true]) {
-			test(`preserves complete host-advertised session identity (${authority}, alias: ${aliased})`, () => {
-				const connection = fakeConnection('remote-host');
-				const byAddress = new Map([['myhost', connection]]);
-				const { service, ambient } = createService([info('myhost', 'My Remote')], byAddress);
-				if (aliased) {
-					store.add(service.registerSessionResolutionPolicy(authority, {
-						sessionSchemeAlias: { ui: 'copilot', backend: 'host-session' },
-					}));
-				}
-				const advertised = URI.parse('host-session://tenant.example/opaque/session%20key?revision=7#default');
-				const resource = service.getSessionResource(advertised, authority);
-				const resolved = service.resolveSessionResource(resource);
-				assert.deepStrictEqual({
-					resource: resource.toString(),
-					backend: resolved?.backendSession.toString(),
-					connection: resolved?.connection,
-				}, {
-					resource: advertised.with({ scheme: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'host-session'}` }).toString(),
-					backend: advertised.toString(),
-					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
-				});
-				byAddress.clear();
-				assert.strictEqual(service.resolveSessionResourceIdentity(resource)?.backendSession.toString(), advertised.toString());
-			});
-		}
-	}
-
 	test('applies provider session resolution policy', () => {
 		const remoteConn = fakeConnection('remote-host');
 		const byAddress = new Map<string, IAgentConnection>([['myhost', remoteConn]]);

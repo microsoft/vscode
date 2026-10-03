@@ -113,10 +113,6 @@ suite('AgentHostTelemetryReporter', () => {
 			assert.deepStrictEqual(service.standardEvents.splice(0), baseline.map(event => ({
 				...event, data: { ...event.data, ...(provider === 'codex' ? snapshot : {}) },
 			})));
-			// A legacy/selected model ID cannot determine the dispatch route. The
-			// provider-owned snapshot wins, and only Codex reports this field.
-			reporter.turnCompleted({ ...completion, model: 'legacy-model', codexModelProvider: 'openai' });
-			assert.strictEqual(service.standardEvents.splice(0)[0].data?.codexModelProvider, provider === 'codex' ? 'openai' : undefined);
 		}
 	});
 

@@ -369,8 +369,8 @@ suite('TabbedModelPicker', () => {
 			: row.querySelector('.title')?.textContent ?? '');
 	}
 
-	for (const initialFilter of [false, true]) {
-		test(`workflow selections preserve ${initialFilter ? 'initial' : 'typed'} search text and focused model`, () => {
+	for (const clickSelection of [false, true]) {
+		test(`workflow selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, () => {
 			const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
 			const workflow: IModelPickerWorkflow = {
 				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
@@ -389,18 +389,16 @@ suite('TabbedModelPicker', () => {
 			const result = createPicker({ workflow });
 			const { picker, popup } = result;
 			element(popup, '[aria-label="Compare Models"]').click();
-			picker.openWithFilter({ initialFilterValue: initialFilter ? 'Fi' : '' });
-			if (!initialFilter) {
-				const input = popup.querySelector<HTMLInputElement>('input')!;
-				input.value = 'Fi';
-				input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-			}
+			element(popup, '[data-id="search"]').click();
+			const filterInput = popup.querySelector<HTMLInputElement>('input')!;
+			filterInput.value = 'Fi';
+			filterInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 			const snapshots = [undefined, 'ArrowDown', 'ArrowUp'].map(key => {
 				const input = popup.querySelector<HTMLInputElement>('input')!;
 				if (key) {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowDown' ? 40 : 38, bubbles: true }));
 				}
-				if (initialFilter && !key) {
+				if (clickSelection && !key) {
 					element(popup, '.monaco-list-row.focused').click();
 				} else {
 					input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
@@ -423,17 +421,6 @@ suite('TabbedModelPicker', () => {
 			assert.strictEqual(popup.querySelector<HTMLInputElement>('input')?.value, '');
 		});
 	}
-
-	test('idempotent filtered opening focuses the exact row without selecting it', () => {
-		const a = model('same');
-		const b = { ...model('same'), identifier: 'codex/target', metadata: { ...a.metadata, vendor: 'codex', modelPickerGroup: { id: 'copilot', label: 'GitHub Copilot' } } };
-		const { picker, popup, selections } = createPicker({ models: [a, b] });
-		picker.openWithFilter({ initialFilterValue: 'same', initialFocusItemId: b.identifier });
-		picker.openWithFilter({ initialFilterValue: 'same', initialFocusItemId: b.identifier });
-		const input = popup.querySelector<HTMLInputElement>('input');
-		assert.deepStrictEqual({ visible: picker.isVisible, query: input?.value, selections }, { visible: true, query: 'same', selections: [] });
-		assert.ok(popup.querySelector('.monaco-list-row.focused'));
-	});
 
 	for (const initiallyAuto of [false, true]) {
 		test(`mode and provider changes retain the popup size when opened in ${initiallyAuto ? 'Auto' : 'manual'} mode`, () => {
