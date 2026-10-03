@@ -281,10 +281,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return workspaceUri.scheme === Schemas.file || !!findDevContainerSample(workspaceUri);
 	}
 
-	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
-		const adapter = super.createAdapter(meta);
-		this._connectionsService.getSessionResource(adapter.backendUri, undefined, adapter.agentProvider);
-		return adapter;
+	protected override registerBackendSession(backendSession: URI, provider: string): void {
+		this._connectionsService.getSessionResource(backendSession, undefined, provider);
 	}
 
 	override getSessions(): ISession[] {

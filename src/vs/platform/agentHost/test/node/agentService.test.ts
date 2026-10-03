@@ -4966,6 +4966,20 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('createSession', () => {
+		test('non-native providers retain allocation without native storage probes', async () => {
+			const fileServiceWithoutProviders = disposables.add(new FileService(new NullLogService()));
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileServiceWithoutProviders, createSessionDataService(),
+				{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(svc, disposables.add(new MockAgent('custom-provider')));
+			const session = await svc.createSession({ provider: 'custom-provider' });
+			assert.deepStrictEqual({
+				scheme: session.scheme,
+				provider: getStateManager(svc).getSessionSummary(session.toString())?.provider,
+			}, { scheme: 'custom-provider', provider: 'custom-provider' });
+		});
+
 		class PersistedMockAgent extends MockAgent {
 			constructor(provider: string, private readonly sdkMetadata: Map<string, IAgentChatMetadata>) {
 				super(provider);
@@ -21055,8 +21069,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				const agent = disposables.add(new MultiChatAgent('copilotcli'));
 				registerTestAgentProvider(localService, agent);
-				const broken = await localService.createSession({ provider: 'copilotcli' });
-				const healthy = await localService.createSession({ provider: 'copilotcli' });
+				const broken = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
+				const healthy = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
 				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
 				const peerStore = new AgentHostPeerChatStore(database, sessionData, logService);
 				for (const parent of [broken, healthy]) {
@@ -21137,7 +21151,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 				const agent = disposables.add(new MultiChatAgent('copilotcli'));
 				registerTestAgentProvider(localService, agent);
-				const parent = await localService.createSession({ provider: 'copilotcli' });
+				const parent = await localService.createSession({ provider: 'copilotcli', session: AgentSession.uri('copilotcli', generateUuid()) });
 				const selectedId = '653a2e4f-5354-46ae-9a96-30c1b2cf4ce1';
 				const otherId = 'c805f176-d9f7-4a24-a332-feac66843088';
 				const selected = URI.parse(buildChatUri(parent, selectedId));

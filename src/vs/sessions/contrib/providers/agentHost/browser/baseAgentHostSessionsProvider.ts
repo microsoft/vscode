@@ -2711,6 +2711,7 @@ interface INewSessionConstructionContext {
 	 * takes over ownership of the same `sessionId` key.
 	 */
 	readonly onSessionState?: (sessionId: string, state: SessionState | undefined) => void;
+	readonly onSessionCreated: (backendSession: URI) => void;
 	readonly activeClientScope: IAgentCustomizationScope;
 }
 
@@ -2842,6 +2843,7 @@ class NewSession extends Disposable {
 	 */
 	private readonly _activeClientPublisher = this._register(new MutableDisposable());
 	private readonly _onSessionState: ((sessionId: string, state: SessionState | undefined) => void) | undefined;
+	private readonly _onSessionCreated: INewSessionConstructionContext['onSessionCreated'];
 
 	private readonly _activeClientScope: IAgentCustomizationScope;
 	private readonly _initialMetadata: Record<string, unknown> | undefined;
@@ -2884,6 +2886,7 @@ class NewSession extends Disposable {
 		this._providerId = ctx.providerId;
 		this._logService = ctx.logService;
 		this._onSessionState = ctx.onSessionState;
+		this._onSessionCreated = ctx.onSessionCreated;
 		this._activeClientScope = ctx.activeClientScope;
 		this._register(this._activeClientScope);
 		this._initialMetadata = ctx.initialMetadata;
@@ -3360,7 +3363,7 @@ class NewSession extends Disposable {
 				}
 				const activeClient = this._activeClientScope.activeClient(connection.clientId).get();
 				createdWithActiveClient = activeClient;
-				await connection.createSession({
+				const createdSession = await connection.createSession({
 					provider: this.agentProvider,
 					session: backendUri,
 					...(this._selectedModelId ? { model: this.getSelectedModel() } : {}),
@@ -3376,6 +3379,9 @@ class NewSession extends Disposable {
 					...(this._selectedAgent ? { agent: { uri: this._selectedAgent.uri } } : {}),
 					activeClient,
 				});
+				if (!isEqual(createdSession, backendUri)) {
+					throw new Error(`Agent host returned unexpected session URI: ${createdSession.toString()}`);
+				}
 			} catch (err) {
 				this._logService.warn(`[${this._providerId}] Eager createSession failed for ${backendUri.toString()}: ${err}`);
 				// Clear backend bookkeeping so a later `dispose()` doesn't
@@ -3395,6 +3401,7 @@ class NewSession extends Disposable {
 			if (this._backendUri?.toString() !== backendUri.toString()) {
 				return;
 			}
+			this._onSessionCreated(backendUri);
 
 			// Hold a state subscription for our lifetime so the agent host's
 			// empty-session GC sees a non-zero subscriber count. The session
@@ -3928,6 +3935,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
+	protected abstract registerBackendSession(backendSession: URI, provider: string): void;
 
 	/** Connection state for remote-host sessions. */
 	protected get remoteConnectionStatus(): IObservable<RemoteAgentHostConnectionStatus> | undefined {
@@ -4010,6 +4018,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._metadataBySession.set(rawId, meta);
 		const adapter = this._instantiationService.createInstance(AgentHostSessionAdapter, meta, this.id, resourceScheme, provider, options, this._getChatCatalogLoading(rawId), sessionId => this._acquireSessionChatDetails(sessionId));
 		this._sessionKeysByResource.set(adapter.resource.with({ fragment: '' }), rawId);
+		this.registerBackendSession(adapter.backendUri, adapter.agentProvider);
 		return adapter;
 	}
 
@@ -4583,6 +4592,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialModelConfiguration,
 				initialConfigSchema: this._seededConfigSchema(),
 				initialMetadata,
+				onSessionCreated: backendSession => this.registerBackendSession(backendSession, sessionType.id),
 				instantiationService: this._instantiationService,
 				onSessionState: (id, state) => state === undefined
 					? this._handleNewSessionStateGone(id)

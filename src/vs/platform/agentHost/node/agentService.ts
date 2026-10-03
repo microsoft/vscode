@@ -5367,10 +5367,13 @@ export class AgentService extends Disposable implements IAgentService {
 		const clientId = sourceChat && turnId ? this._turnTracker.getInitiatorClientId(sourceChat, turnId) : config?.activeClient?.clientId;
 		const legacy = clientId !== undefined && this._clientConnections.usesLegacySessionUris(clientId);
 		const nativeProvider = provider.id === COPILOT_CLI_AGENT_PROVIDER_ID || provider.id === CODEX_AGENT_PROVIDER_ID || provider.id === CLAUDE_AGENT_PROVIDER_ID;
+		if (!nativeProvider) {
+			return AgentSession.uri(provider.id, generateUuid());
+		}
 		const registeredIds = new Set([...await this._sessionRegistry.listRuntimeCompatibleSessionKeys()].map(key => AgentSession.id(key)));
 		let session: URI;
 		do {
-			session = AgentSession.uri(legacy || !nativeProvider ? provider.id : 'ahp-session', generateUuid());
+			session = AgentSession.uri(legacy ? provider.id : 'ahp-session', generateUuid());
 		} while (registeredIds.has(AgentSession.id(session))
 		|| await this._sessionRegistry.isTombstoned(session)
 			|| await this._fileService.exists(this._sessionDataService.getSessionDataDir(session)));

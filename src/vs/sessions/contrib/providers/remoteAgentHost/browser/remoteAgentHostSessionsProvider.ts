@@ -911,11 +911,14 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
 		const adapter = super.createAdapter(meta);
-		this.agentHostConnectionsService.getSessionResource(adapter.backendUri, this._connectionAuthority, adapter.agentProvider);
 		if (this._connection) {
 			this._activitySources.set(adapter, { source: 'host' });
 		}
 		return adapter;
+	}
+
+	protected override registerBackendSession(backendSession: URI, provider: string): void {
+		this.agentHostConnectionsService.getSessionResource(backendSession, this._connectionAuthority, provider);
 	}
 
 	protected override updateAdapter(adapter: AgentHostSessionAdapter, meta: IAgentSessionMetadata): boolean {

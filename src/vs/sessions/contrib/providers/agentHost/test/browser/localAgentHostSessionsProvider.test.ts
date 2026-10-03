@@ -7315,6 +7315,46 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 	});
 
+	for (const agentProvider of ['copilotcli', 'codex', 'claude']) {
+		for (const supported of [false, true]) {
+			test(`${agentProvider} eager allocation registers its exact address before catalog publication (${supported})`, async () => {
+				agentHost.initializeResult.set({
+					...agentHost.initializeResult.get(),
+					_meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': supported },
+				}, undefined);
+				agentHost.setAgents([{ provider: agentProvider, displayName: agentProvider, description: '', models: [] }]);
+				const registered: { backend: string; provider: string; subscribed: boolean }[] = [];
+				class RecordingProvider extends LocalAgentHostSessionsProvider {
+					protected override registerBackendSession(backendSession: URI, provider: string): void {
+						registered.push({
+							backend: backendSession.toString(),
+							provider,
+							subscribed: agentHost.sessionSubscribeCounts.has(backendSession.toString()),
+						});
+						super.registerBackendSession(backendSession, provider);
+					}
+				}
+				const provider = createProvider(disposables, agentHost, [{
+					type: `agent-host-${agentProvider}`, name: agentProvider, displayName: agentProvider, description: 'test', icon: undefined,
+				}], { providerCtor: RecordingProvider, configurationService: new TestConfigurationService({ [AgentHostCodexAgentEnabledSettingId]: true }) });
+				const draft = provider.createNewSession(URI.file('/home/user/project'), agentProvider);
+				await timeout(0);
+				const backend = `${supported ? 'ahp-session' : agentProvider}:${draft.resource.path}`;
+				assert.deepStrictEqual({
+					created: agentHost.createdSessionUris.map(resource => resource.toString()),
+					registered,
+					published: provider.getSessions().length,
+					frontend: draft.resource.scheme,
+				}, {
+					created: [backend],
+					registered: [{ backend, provider: agentProvider, subscribed: false }],
+					published: 0,
+					frontend: `agent-host-${agentProvider}`,
+				});
+			});
+		}
+	}
+
 	test('createNewSession does not eagerly create the backend session in an untrusted folder', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, { workspaceTrusted: false });
 		const workspaceUri = URI.parse('file:///home/user/untrusted-project');
