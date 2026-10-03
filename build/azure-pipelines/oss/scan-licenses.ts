@@ -998,8 +998,8 @@ function findCargoLockFiles(repoRoot: string): string[] {
 
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
-	const repoRoot = args['repo'];
-	const outputPath = args['output'];
+	const repoRoot = args.repo;
+	const outputPath = args.output;
 
 	if (!repoRoot || !outputPath) {
 		console.error('Usage: scan-licenses.js --repo <path> --output <path> [--cg <ThirdPartyNotices.generated.txt>]');
@@ -1015,7 +1015,7 @@ async function main(): Promise<void> {
 	// "stub" bodies (CG emitted the SPDX expression instead of real text) and to
 	// gate fetches (don't re-fetch crates CG already covered with real text).
 	const cgBodies = new Map<string, string>();
-	const cgNoticePath = args['cg'];
+	const cgNoticePath = args.cg;
 	if (cgNoticePath && fs.existsSync(cgNoticePath)) {
 		try {
 			for (const e of parseNoticeFile(cgNoticePath)) {
@@ -2129,7 +2129,7 @@ async function main(): Promise<void> {
 	// Write the presence index as a sibling file. A package counts as
 	// "present but unlicensed" only if it was never resolved with a license
 	// anywhere (filter out anything that later landed in `entries`).
-	const presencePath = args['presence'] || (outputPath + '.presence.json');
+	const presencePath = args.presence || (outputPath + '.presence.json');
 	const presence = [...noLicenseSeen.entries()]
 		.filter(([k]) => !entries.has(k))
 		.map(([, v]) => ({ name: v.name, version: v.version }))
@@ -2139,7 +2139,7 @@ async function main(): Promise<void> {
 	// Write the stub-override index as a sibling file. merge-notices.ts reads it
 	// to let these cargo entries beat CG on `<name>@<version>` collision (CG
 	// otherwise always wins). Mirrors the presence.json sibling pattern.
-	const stubOverridePath = args['stuboverride'] || (outputPath + '.stuboverride.json');
+	const stubOverridePath = args.stuboverride || (outputPath + '.stuboverride.json');
 	const stubOverrideList = [...stubOverrideKeys].sort();
 	fs.writeFileSync(stubOverridePath, JSON.stringify(stubOverrideList, null, '\t'), 'utf8');
 
@@ -2147,7 +2147,7 @@ async function main(): Promise<void> {
 	// tried to resolve but produced NO row for. merge-notices.ts cross-checks this
 	// against the final merged NOTICE so packages rescued downstream (e.g. a
 	// cglicenses.json override) are excluded. Mirrors the presence.json sibling.
-	const unresolvedPath = args['unresolved'] || (outputPath + '.unresolved.json');
+	const unresolvedPath = args.unresolved || (outputPath + '.unresolved.json');
 	const unresolvedSorted = unresolved.slice().sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 	fs.writeFileSync(unresolvedPath, JSON.stringify(unresolvedSorted, null, '\t'), 'utf8');
 

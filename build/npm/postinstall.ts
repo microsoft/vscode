@@ -112,7 +112,7 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	}
 
 	// Use our bundled node-gyp version
-	env['npm_config_node_gyp'] =
+	env.npm_config_node_gyp =
 		process.platform === 'win32'
 			? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
 			: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
@@ -126,9 +126,9 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	// in preinstall sync with this logic.
 	// Change was first introduced in https://github.com/nodejs/node/commit/6e0a2bb54c5bbeff0e9e33e1a0c683ed980a8a0f
 	if ((dir === 'remote' || dir === 'build') && process.platform === 'darwin') {
-		env['npm_config_force_process_config'] = 'true';
+		env.npm_config_force_process_config = 'true';
 	} else {
-		delete env['npm_config_force_process_config'];
+		delete env.npm_config_force_process_config;
 	}
 
 	if (dir === 'build') {
@@ -137,7 +137,7 @@ function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 		// This is fixed in v0.25.1 however the version is not published to npm, refs
 		// https://github.com/tree-sitter/node-tree-sitter/issues/268.
 		// env['npm_config_target'] = process.versions.node;
-		env['npm_config_arch'] = process.arch;
+		env.npm_config_arch = process.arch;
 	}
 }
 
@@ -262,10 +262,10 @@ async function main() {
 		if (dir === 'build') {
 			nativeTasks.push(() => {
 				const env: NodeJS.ProcessEnv = { ...process.env };
-				if (process.env['CC']) { env['CC'] = 'gcc'; }
-				if (process.env['CXX']) { env['CXX'] = 'g++'; }
-				if (process.env['CXXFLAGS']) { env['CXXFLAGS'] = ''; }
-				if (process.env['LDFLAGS']) { env['LDFLAGS'] = ''; }
+				if (process.env['CC']) { env.CC = 'gcc'; }
+				if (process.env['CXX']) { env.CXX = 'g++'; }
+				if (process.env['CXXFLAGS']) { env.CXXFLAGS = ''; }
+				if (process.env['LDFLAGS']) { env.LDFLAGS = ''; }
 				setNpmrcConfig('build', env);
 				return npmInstallAsync('build', { env });
 			});
@@ -277,21 +277,21 @@ async function main() {
 			nativeTasks.push(() => {
 				const env: NodeJS.ProcessEnv = { ...process.env };
 				if (process.env['VSCODE_REMOTE_CC']) {
-					env['CC'] = process.env['VSCODE_REMOTE_CC'];
+					env.CC = process.env['VSCODE_REMOTE_CC'];
 				} else {
-					delete env['CC'];
+					delete env.CC;
 				}
 				if (process.env['VSCODE_REMOTE_CXX']) {
-					env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+					env.CXX = process.env['VSCODE_REMOTE_CXX'];
 				} else {
-					delete env['CXX'];
+					delete env.CXX;
 				}
-				if (process.env['CXXFLAGS']) { delete env['CXXFLAGS']; }
-				if (process.env['CFLAGS']) { delete env['CFLAGS']; }
-				if (process.env['LDFLAGS']) { delete env['LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+				if (process.env['CXXFLAGS']) { delete env.CXXFLAGS; }
+				if (process.env['CFLAGS']) { delete env.CFLAGS; }
+				if (process.env['LDFLAGS']) { delete env.LDFLAGS; }
+				if (process.env['VSCODE_REMOTE_CXXFLAGS']) { env.CXXFLAGS = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+				if (process.env['VSCODE_REMOTE_LDFLAGS']) { env.LDFLAGS = process.env['VSCODE_REMOTE_LDFLAGS']; }
+				if (process.env['VSCODE_REMOTE_NODE_GYP']) { env.npm_config_node_gyp = process.env['VSCODE_REMOTE_NODE_GYP']; }
 				setNpmrcConfig('remote', env);
 				return npmInstallAsync(remoteDir, { env });
 			});
