@@ -44,3 +44,8 @@ containing only the default chat. The first list response must include recovered
 without opening the parent or materializing transcripts, including after membership
 recovery has already completed and phantom registrations have been removed. Stale
 recovered projections are refreshed through catalogue synchronization before listing.
+
+The integration/E2E server launcher sets
+`VSCODE_AGENT_HOST_SKIP_CHAT_RECOVERY_IN_TESTS=1` in child hosts to disable automatic
+incident recovery and its projection refresh. Normal hosts and recovery unit tests
+do not set this variable and retain the production recovery behavior.

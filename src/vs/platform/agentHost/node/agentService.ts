@@ -5,6 +5,7 @@
 
 import { withMessageRequestHiddenFromTranscript } from '../common/meta/agentMessageMeta.js';
 import { open, unlink, type FileHandle } from 'fs/promises';
+import { env } from '../../../base/common/process.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { Barrier, DeferredPromise, disposableTimeout, Limiter, raceTimeout, ResourceQueue, SequencerByKey, ThrottlerByKey } from '../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
@@ -3388,6 +3389,7 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	private readonly _checkedRecoveredSessionProjections = new Set<string>();
+	private readonly _chatSelectionRecoveryEnabled = env.VSCODE_AGENT_HOST_SKIP_CHAT_RECOVERY_IN_TESTS !== '1';
 
 	private async _refreshRecoveredSessionProjection(registered: IRegisteredSession, result: AgentHostCatalogListResult): Promise<AgentHostCatalogListResult> {
 		const session = registered.session;
@@ -3715,7 +3717,7 @@ export class AgentService extends Disposable implements IAgentService {
 			await this._awaitInitialProviderMigration();
 			allRegistered = await this._listRegisteredSessions();
 		}
-		if (allRegistered.some(entry => entry.source === 'restore' && entry.session.scheme === 'copilotcli' && !!entry.session.fragment)) {
+		if (this._chatSelectionRecoveryEnabled && allRegistered.some(entry => entry.source === 'restore' && entry.session.scheme === 'copilotcli' && !!entry.session.fragment)) {
 			allRegistered = await this._recoverChatSelectionCorruption(allRegistered);
 		}
 		// External sessions that the current mode hides outright are dropped
@@ -3746,7 +3748,7 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 		const centralResults = [...centralRead.results];
 		const recoveryProjectionCandidates = catalogCandidates.map((registered, index) => ({ registered, index }))
-			.filter(({ registered, index }) => centralResults[index].eligible && !registered.external
+			.filter(({ registered, index }) => this._chatSelectionRecoveryEnabled && centralResults[index].eligible && !registered.external
 				&& registered.session.scheme === 'copilotcli' && !registered.session.authority && !registered.session.query && !registered.session.fragment
 				&& !this._checkedRecoveredSessionProjections.has(registered.session.toString()));
 		if (recoveryProjectionCandidates.length > 0) {
