@@ -308,7 +308,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						// remember when this was build
 						newLastBuildVersion.set(fileName, host.getScriptVersion(fileName));
 
-						// remember the signature
+						// remeber the signature
 						if (value.signature && lastDtsHash[fileName] !== value.signature) {
 							lastDtsHash[fileName] = value.signature;
 							filesWithChangedSignature.push(fileName);
