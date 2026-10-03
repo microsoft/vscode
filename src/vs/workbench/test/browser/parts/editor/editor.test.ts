@@ -24,6 +24,14 @@ import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../edito
 import { Position } from '../../../../../editor/common/core/position.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
+import { InteractiveEditorInput } from '../../../../contrib/interactive/browser/interactiveEditorInput.js';
+import { InteractiveDocumentService, IInteractiveDocumentService } from '../../../../contrib/interactive/browser/interactiveDocumentService.js';
+import { IInteractiveHistoryService, InteractiveHistoryService } from '../../../../contrib/interactive/browser/interactiveHistoryService.js';
+import { INotebookService } from '../../../../contrib/notebook/common/notebookService.js';
+import { INotebookEditorModelResolverService } from '../../../../contrib/notebook/common/notebookEditorModelResolverService.js';
+import { Event } from '../../../../../base/common/event.js';
+import { ITextModelService, IResolvedTextEditorModel } from '../../../../../editor/common/services/resolverService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 suite('Workbench editor utils', () => {
 
@@ -454,6 +462,49 @@ suite('Workbench editor utils', () => {
 
 		assert.strictEqual(firstInput.gotDisposed, false);
 		assert.strictEqual(secondInput.gotDisposed, false);
+	});
+
+	test('reopening an interactive notebook preserves its live input document', async () => {
+		const localInstantiationService = workbenchInstantiationService(undefined, disposables);
+		const documentService = disposables.add(new InteractiveDocumentService());
+		localInstantiationService.stub(IInteractiveDocumentService, documentService);
+		localInstantiationService.stub(IInteractiveHistoryService, disposables.add(new InteractiveHistoryService()));
+		localInstantiationService.stub(INotebookService, { onDidAddNotebookDocument: Event.None, canResolve: async () => false });
+		localInstantiationService.stub(INotebookEditorModelResolverService, {});
+		const model = disposables.add(localInstantiationService.createInstance(TestServiceAccessor).modelService.createModel('', null));
+		localInstantiationService.stub(ITextModelService, {
+			createModelReference: async () => ({
+				object: new class extends mock<IResolvedTextEditorModel>() {
+					override textEditorModel = model;
+				},
+				dispose: () => { }
+			})
+		});
+		disposables.add(registerTestEditor('TestInteractiveEditor', [new SyncDescriptor(InteractiveEditorInput)]));
+		const part = await createEditorPart(localInstantiationService, disposables);
+		localInstantiationService.stub(IEditorGroupsService, part);
+		const editorService = disposables.add(localInstantiationService.createInstance(EditorService, undefined));
+		localInstantiationService.stub(IEditorService, editorService);
+		const resource = URI.parse('untitled:/test.interactive');
+		const inputResource = URI.parse('vscode-interactive-input:/test');
+		const openedInput = disposables.add(localInstantiationService.createInstance(InteractiveEditorInput, resource, inputResource, undefined, undefined));
+		const candidate = disposables.add(localInstantiationService.createInstance(InteractiveEditorInput, resource, inputResource, undefined, undefined));
+		const removed: string[] = [];
+		disposables.add(documentService.onWillRemoveInteractiveDocument(e => removed.push(e.inputUri.toString())));
+
+		await openedInput.resolveInput();
+		await editorService.openEditor(openedInput, { pinned: true });
+		await editorService.openEditor(candidate, { pinned: true });
+
+		assert.deepStrictEqual({
+			candidateDisposed: candidate.isDisposed(),
+			openedInputDisposed: openedInput.isDisposed(),
+			removed
+		}, { candidateDisposed: true, openedInputDisposed: false, removed: [] });
+
+		await part.activeGroup.closeEditor(openedInput);
+		openedInput.dispose();
+		assert.deepStrictEqual(removed, [inputResource.toString()]);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

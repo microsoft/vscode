@@ -1022,10 +1022,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				viewState: editorPane?.getViewState()
 			};
 
-			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
-			saveResults.push(result);
+			let result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 
 			if (!result) {
+				saveResults.push(result);
 				break; // failed or cancelled, abort
 			}
 
@@ -1036,12 +1036,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupsContainer.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
 				for (const targetGroup of targetGroups) {
 					if (result instanceof EditorInput) {
-						await this.replaceEditors([{ editor, replacement: result, options: editorOptions }], targetGroup);
+						const replacement: EditorInput = result;
+						await this.replaceEditors([{ editor, replacement, options: editorOptions }], targetGroup);
+
+						// Continue with the live input adopted by the group if a matching input was reused.
+						result = this.editorGroupsContainer.getGroup(targetGroup)?.editors.find(candidate => candidate.matches(replacement)) ?? result;
 					} else {
 						await this.replaceEditors([{ editor, replacement: { ...result, options: editorOptions } }], targetGroup);
 					}
 				}
 			}
+
+			saveResults.push(result);
 		}
 		return {
 			success: saveResults.every(result => !!result),
