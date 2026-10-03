@@ -583,7 +583,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 	// Slash commands
 	private _agentHostInputCompletionHandler: AgentHostInputCompletionHandler | undefined;
 	private readonly _scopedInstantiationService: IInstantiationService;
-	private readonly _newChatModelPickerService = new NewChatModelPickerService();
+	private readonly _newChatModelPickerService = new NewChatModelPickerService(() => this.focus());
 	readonly pickerVisibility = this._register(new SessionInputPickerVisibility());
 	private readonly _modelSelection: SessionModelSelection;
 	private readonly _canSendRequest: IObservable<boolean>;

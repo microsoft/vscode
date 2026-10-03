@@ -1207,6 +1207,44 @@
 	flex-shrink: 0;
 }
 
-.model-picker-workflow .action-list-header-text {
-	white-space: pre-line;
+/* Close (before any selection) and Done fill the row; Close, Back and Next otherwise stay icon-sized. */
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-close,
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-done {
+	flex: 1 1 auto;
+}
+
+.model-picker-workflow-actions .monaco-button.model-picker-workflow-icon-button {
+	flex: 0 0 auto;
+	width: auto;
+	min-width: 32px;
+	padding-left: var(--vscode-spacing-size80);
+	padding-right: var(--vscode-spacing-size80);
+}
+
+/* Choosing several models reads as checkboxes, with the chosen rows tinted. */
+.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox {
+	box-sizing: border-box;
+	flex: 0 0 14px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 14px;
+	height: 14px;
+	/* Fills the 20px icon column so labels align with the other rows. */
+	margin: 0 var(--vscode-spacing-size40) 0 var(--vscode-spacing-size20);
+	border: 1px solid var(--vscode-checkbox-border);
+	border-radius: var(--vscode-cornerRadius-small);
+	background-color: var(--vscode-checkbox-background);
+	color: var(--vscode-checkbox-foreground);
+	font-size: var(--vscode-fontSize-label3);
+}
+
+.action-widget.chat-model-picker-widget .monaco-list-row.action .icon.chat-model-picker-checkbox.checked {
+	border-color: var(--vscode-button-background);
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.action-widget.chat-model-picker-widget .monaco-list .monaco-list-row.action.chat-model-picker-workflow-checked:not(.option-disabled) {
+	background-color: var(--vscode-list-hoverBackground);
 }

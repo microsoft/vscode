@@ -11,20 +11,35 @@ import { SessionComparisonModelSelection } from '../../browser/sessionComparison
 suite('SessionComparisonModelSelection', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('one model supports two to ten independent attempts', () => {
+	function selectAttempts(selection: SessionComparisonModelSelection, ...modelIds: string[]): void {
+		for (const modelId of modelIds) {
+			selection.select(modelId);
+		}
+	}
+
+	test('Done and Next are offered only for two to ten models', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
-		const initial = selection.state.get()?.summary;
-		selection.setCount(10);
-		const count = selection.state.get()?.count?.value;
-		for (const count of [1, 11, 2.5, NaN, Infinity]) {
-			assert.throws(() => selection.setCount(count), /integer between 2 and 10/);
+		const actions = () => {
+			const state = selection.state.get();
+			return { selected: state?.selectedModelIds.length, canFinish: state?.canFinish, canGoNext: state?.canGoNext, count: state?.count };
+		};
+		const none = actions();
+		selection.select('model-0');
+		const one = actions();
+		assert.throws(() => selection.next(), /not ready/);
+		assert.throws(() => selection.finish(), /not ready/);
+		selection.select('model-1');
+		const two = actions();
+		for (let index = 2; index < 11; index++) {
+			selection.select(`model-${index}`);
 		}
-		selection.next();
-		selection.finish();
-		assert.deepStrictEqual({ initial, maximum: selection.attemptModelIds.get(), count }, {
-			initial: '2 Attempts', maximum: Array(10).fill('model'), count: 10,
+		const capped = actions();
+		assert.deepStrictEqual({ none, one, two, capped }, {
+			none: { selected: 0, canFinish: false, canGoNext: false, count: undefined },
+			one: { selected: 1, canFinish: false, canGoNext: false, count: undefined },
+			two: { selected: 2, canFinish: true, canGoNext: true, count: undefined },
+			capped: { selected: 10, canFinish: true, canGoNext: true, count: undefined },
 		});
 	});
 
@@ -34,35 +49,40 @@ suite('SessionComparisonModelSelection', () => {
 		for (let index = 0; index < 11; index++) {
 			selection.select(`model-${index}`);
 		}
-		const draft = { count: selection.state.get()?.count, next: selection.state.get()?.canGoNext };
-		selection.next();
 		selection.finish();
-		assert.deepStrictEqual({
-			attempts: selection.attemptModelIds.get(),
-			...draft,
-		}, { attempts: Array.from({ length: 10 }, (_, index) => `model-${index}`), count: undefined, next: true });
+		assert.deepStrictEqual(selection.attemptModelIds.get(), Array.from({ length: 10 }, (_, index) => `model-${index}`));
 	});
 
-	test('skipping Judge finishes an attempts-only comparison', () => {
+	test('Done finishes from any step and keeps what was chosen so far', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		assert.throws(() => selection.next(), /not ready/);
-		selection.select('model');
+		selectAttempts(selection, 'one', 'two');
+		selection.finish();
+		const attemptsOnly = {
+			state: selection.state.get(), summary: selection.summary.get(), configured: selection.configured.get(),
+			judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(),
+		};
+		selection.start();
 		selection.next();
+		const judgeWithoutChoice = { canFinish: selection.state.get()?.canFinish, canGoNext: selection.state.get()?.canGoNext };
+		selection.select('judge');
+		const judgeWithChoice = { canFinish: selection.state.get()?.canFinish, canGoNext: selection.state.get()?.canGoNext };
 		selection.finish();
 		assert.deepStrictEqual({
-			state: selection.state.get(),
-			summary: selection.summary.get(),
-			configured: selection.configured.get(),
-			judge: selection.judgeModelId.get(),
-			synthesizer: selection.synthesizerModelId.get(),
-		}, { state: undefined, summary: '2 Attempts', configured: true, judge: undefined, synthesizer: undefined });
+			attemptsOnly, judgeWithoutChoice, judgeWithChoice,
+			judge: selection.judgeModelId.get(), synthesizer: selection.synthesizerModelId.get(),
+		}, {
+			attemptsOnly: { state: undefined, summary: '2 Attempts', configured: true, judge: undefined, synthesizer: undefined },
+			judgeWithoutChoice: { canFinish: true, canGoNext: false },
+			judgeWithChoice: { canFinish: true, canGoNext: true },
+			judge: 'judge', synthesizer: undefined,
+		});
 	});
 
 	test('Judge and Synthesizer selections survive back navigation', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -77,13 +97,13 @@ suite('SessionComparisonModelSelection', () => {
 			judge: selection.judgeModelId.get(),
 			synthesizer: selection.synthesizerModelId.get(),
 			configured: selection.configured.get(),
-		}, { models: ['model', 'model'], judge: 'judge', synthesizer: 'synthesizer', configured: true });
+		}, { models: ['one', 'two'], judge: 'judge', synthesizer: 'synthesizer', configured: true });
 	});
 
 	test('Synthesizer can be skipped, and removing Judge clears Synthesizer', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -107,8 +127,7 @@ suite('SessionComparisonModelSelection', () => {
 		const available = observableValue('available', true);
 		const selection = store.add(new SessionComparisonModelSelection(available));
 		selection.start();
-		selection.select('one');
-		selection.select('two');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.finish();
 		selection.retainModels(new Set(['two']));
@@ -124,8 +143,7 @@ suite('SessionComparisonModelSelection', () => {
 		const available = derived(reader => !resolving.read(reader));
 		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
 		selection.start();
-		selection.select('attempt');
-		selection.setCount(3);
+		selectAttempts(selection, 'one', 'two', 'three');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -142,7 +160,7 @@ suite('SessionComparisonModelSelection', () => {
 		}, {
 			during: { enabled: true, configured: true, available: false },
 			enabled: true, configured: true, available: true,
-			attempts: ['attempt', 'attempt', 'attempt'], judge: 'judge', synthesizer: 'synthesizer',
+			attempts: ['one', 'two', 'three'], judge: 'judge', synthesizer: 'synthesizer',
 		});
 	});
 
@@ -151,8 +169,7 @@ suite('SessionComparisonModelSelection', () => {
 		const resolving = observableValue('resolving', false);
 		const selection = store.add(new SessionComparisonModelSelection(available, resolving));
 		selection.start();
-		selection.select('attempt');
-		selection.next();
+		selectAttempts(selection, 'one', 'two');
 		selection.finish();
 		resolving.set(true, undefined);
 		available.set(false, undefined);
@@ -168,7 +185,7 @@ suite('SessionComparisonModelSelection', () => {
 			const available = observableValue('available', true);
 			const selection = store.add(new SessionComparisonModelSelection(available));
 			selection.start();
-			selection.select('attempt');
+			selectAttempts(selection, 'one', 'two');
 			selection.next();
 			selection.select('judge');
 			selection.next();
@@ -195,8 +212,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('first-time setup stays uncommitted and cancellation does not resume unfinished work', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
-		selection.setCount(5);
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		const during = { enabled: selection.enabled.get(), summary: selection.summary.get(), attempts: selection.attemptModelIds.get() };
@@ -213,7 +229,7 @@ suite('SessionComparisonModelSelection', () => {
 	test('editing a comparison preserves committed choices until Done and cancellation restores them', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('original');
+		selectAttempts(selection, 'one', 'two');
 		selection.next();
 		selection.select('judge');
 		selection.next();
@@ -221,9 +237,7 @@ suite('SessionComparisonModelSelection', () => {
 		selection.finish();
 
 		selection.start();
-		selection.select('replacement');
-		selection.select('original');
-		selection.setCount(4);
+		selectAttempts(selection, 'three', 'one');
 		selection.next();
 		selection.select('judge');
 		const during = {
@@ -232,27 +246,26 @@ suite('SessionComparisonModelSelection', () => {
 		};
 		selection.cancel();
 		selection.start();
-		assert.deepStrictEqual({
-			during, reopened: selection.state.get()?.selectedModelIds, count: selection.state.get()?.count?.value,
-		}, {
-			during: { configured: true, attempts: ['original', 'original'], judge: 'judge', synthesizer: 'synthesizer', summary: '2 Attempts' },
-			reopened: ['original'], count: 2,
-		});
+		const reopened = selection.state.get()?.selectedModelIds;
 
-		selection.setCount(3);
+		selection.select('three');
 		selection.next();
 		selection.next();
 		selection.finish();
 		assert.deepStrictEqual({
+			during, reopened,
 			attempts: selection.attemptModelIds.get(), summary: selection.summary.get(), state: selection.state.get(),
-		}, { attempts: ['original', 'original', 'original'], summary: '3 Attempts', state: undefined });
+		}, {
+			during: { configured: true, attempts: ['one', 'two'], judge: 'judge', synthesizer: 'synthesizer', summary: '2 Attempts' },
+			reopened: ['one', 'two'],
+			attempts: ['one', 'two', 'three'], summary: '3 Attempts', state: undefined,
+		});
 	});
 
 	test('reset clears both committed and working selections', () => {
 		const selection = store.add(new SessionComparisonModelSelection(constObservable(true)));
 		selection.start();
-		selection.select('model');
-		selection.next();
+		selectAttempts(selection, 'one', 'two');
 		selection.finish();
 		selection.start();
 		selection.reset();

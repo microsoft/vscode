@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
-import { SESSION_COMPARISON_MAX_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
+import { SESSION_COMPARISON_MAX_ATTEMPTS, SESSION_COMPARISON_MIN_ATTEMPTS } from '../../../services/sessions/common/sessionComparison.js';
 
 type ComparisonStep = 'attempts' | 'judge' | 'synthesizer';
 
@@ -46,27 +46,22 @@ export class SessionComparisonModelSelection extends Disposable implements IMode
 		}
 		const step = this._step.read(reader);
 		const { models, judge, synthesizer } = draft;
-		const valid = models.length > 0;
+		// Every step can be finished once 2 to 10 distinct models are selected.
+		const valid = models.length >= SESSION_COMPARISON_MIN_ATTEMPTS;
 		return {
 			title: step === 'attempts' ? localize('comparisonPicker.attempts', "Attempts")
 				: step === 'judge' ? localize('comparisonPicker.judge', "Judge")
 					: localize('comparisonPicker.synthesizer', "Synthesizer"),
-			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Choose 2 to 10 models, or run one model 2 to 10 times.")
-				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Optionally choose a model to review the attempts and recommend a winner. Leave unselected to run attempts only.")
-					: localize('comparisonPicker.synthesizerDescription', "Optionally choose a model to combine the best parts after review. Synthesis starts only when you request it."),
+			description: step === 'attempts' ? localize('comparisonPicker.attemptsDescription', "Select two or more models to run one prompt in parallel. Compare results or have them judged and combined.")
+				: step === 'judge' ? localize('comparisonPicker.judgeDescription', "Select a model to review the attempts and pick a winner. Skip this step to compare them yourself.")
+					: localize('comparisonPicker.synthesizerDescription', "Select a model to combine the best parts of each attempt. Synthesis starts only when you ask."),
 			summary: localize('comparisonPicker.summary', "{0} Attempts", getAttemptModelIds(draft).length),
 			selectedModelIds: step === 'attempts' ? models : step === 'judge' ? judge ? [judge] : [] : synthesizer ? [synthesizer] : [],
 			multiple: step === 'attempts',
 			maxSelections: step === 'attempts' ? SESSION_COMPARISON_MAX_ATTEMPTS : 1,
 			canGoBack: step !== 'attempts',
 			canGoNext: valid && (step === 'attempts' || step === 'judge' && judge !== undefined),
-			canFinish: valid && (step === 'synthesizer' || step === 'judge' && judge === undefined),
-			count: step === 'attempts' && models.length === 1 ? {
-				label: localize('comparisonPicker.runs', "Number of Runs"),
-				value: draft.repeatCount,
-				min: 2,
-				max: SESSION_COMPARISON_MAX_ATTEMPTS,
-			} : undefined,
+			canFinish: valid,
 		};
 	});
 

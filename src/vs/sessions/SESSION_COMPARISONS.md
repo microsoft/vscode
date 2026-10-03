@@ -6,7 +6,7 @@
 
 Session comparisons run the same task through multiple Sessions providers and preserve every implementation in an isolated worktree. The workflow is provider-neutral: comparison code uses `ISessionsManagementService`, while providers remain responsible for listing and resolving their own model identifiers, creating worktrees, and deleting sessions.
 
-The new-session composer offers comparison setup in the experimental tabbed model picker, behind `sessions.chat.compareAgents.enabled`. The guided flow selects Attempts, an optional Judge, and an optional Synthesizer. A comparison runs either two to ten distinct fixed models once each, or one fixed model two to ten times. Auto/routing models are excluded. Done saves the draft configuration; the composer's Run N Attempts action launches it. The legacy single-model picker is unchanged.
+The new-session composer offers comparison setup in the experimental tabbed model picker, behind `sessions.chat.compareAgents.enabled`. The Compare Models toggle sits beside Search at the end of the picker's tab bar. The guided flow selects Attempts with checkboxes, then an optional Judge and an optional Synthesizer through the next arrow. A comparison runs two to ten distinct fixed models once each: until two models are checked the footer offers only Close, and once two to ten are checked Done is available on every step. Auto/routing models are excluded. Done saves the draft configuration, closes the picker, and returns focus to the prompt; the composer's Run N Attempts action launches it. The legacy single-model picker is unchanged.
 
 ## Ownership
 

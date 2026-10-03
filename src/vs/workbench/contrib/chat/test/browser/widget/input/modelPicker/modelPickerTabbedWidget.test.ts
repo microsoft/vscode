@@ -276,52 +276,67 @@ suite('TabbedModelPicker', () => {
 			start: () => state.set(attempts, undefined),
 			cancel: () => state.set(undefined, undefined),
 			reset: () => state.set(undefined, undefined),
-			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: true, canFinish: false, count: state.get()?.multiple ? { label: 'Number of Runs', value: 2, min: 2, max: 10 } : undefined }, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: true, canFinish: true }, undefined),
 			setCount: () => { },
 			back: () => state.set(attempts, undefined),
 			next: () => state.set({ ...attempts, title: state.get()?.title === 'Judge' ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
 			finish: () => finished = true,
 		};
 		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
-		element(popup, '[aria-label="Compare Models"]').click();
+		const hides: boolean[] = [];
+		disposables.add(picker.onDidHide(event => hides.push(event.finishedWorkflow)));
+		const toggle = element(popup, '[aria-label="Compare Models"]');
+		const toggleAlignedWithSearch = toggle.classList.contains('align-end');
+		toggle.click();
+		const buttons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')].map(button => button.getAttribute('aria-label') ?? button.textContent?.trim());
+		const button = (label: string) => {
+			const match = [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')].find(candidate => (candidate.getAttribute('aria-label') ?? candidate.textContent?.trim()) === label);
+			assert.ok(match, label);
+			return match;
+		};
 		assert.deepStrictEqual({
+			toggleAlignedWithSearch,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
 			checks: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
-		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
+			checkboxes: popup.querySelectorAll('.chat-model-picker-checkbox').length,
+			buttons: buttons(),
+		}, { toggleAlignedWithSearch: true, heading: 'Select models.', routing: false, checks: 3, checkboxes: 3, buttons: ['Close'] });
 		const list = element(popup, '.monaco-list');
 		list.focus();
 		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-		const buttons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')];
 		assert.deepStrictEqual({
 			visible: picker.isVisible, selected: selectedModels(popup).length, selections,
-			count: popup.querySelector('select')?.getAttribute('aria-label'),
-			buttons: buttons().map(button => button.textContent?.trim()),
-		}, { visible: true, selected: 1, selections: [], count: 'Number of Runs', buttons: ['Cancel', 'Next'] });
-		buttons()[1].click();
+			checked: popup.querySelectorAll('.chat-model-picker-workflow-checked .chat-model-picker-checkbox.checked').length,
+			count: popup.querySelector('select'),
+			buttons: buttons(),
+		}, { visible: true, selected: 1, selections: [], checked: 1, count: null, buttons: ['Close', 'Done', 'Next'] });
+		button('Next').click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
-			buttons: buttons().map(button => button.textContent?.trim()),
+			buttons: buttons(),
 			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
-			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
-		}, { heading: 'Judge\nOptional review.', buttons: ['Cancel', 'Back', 'Done'], radios: 3, checkboxes: 0 });
+			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"], .chat-model-picker-checkbox').length,
+		}, { heading: 'Optional review.', buttons: ['Back', 'Done'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
-		buttons()[2].click();
+		const judgeWithChoice = buttons();
+		button('Next').click();
 		assert.deepStrictEqual({
+			judgeWithChoice,
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
-			cancel: buttons()[0].textContent?.trim(),
-		}, { heading: 'Synthesizer\nOptional review.', radios: 3, cancel: 'Cancel' });
-		buttons()[1].click();
-		assert.ok(popup.querySelector('.action-list-header-text')?.textContent?.startsWith('Attempts'));
+			buttons: buttons(),
+		}, { judgeWithChoice: ['Back', 'Done', 'Next'], heading: 'Optional review.', radios: 3, buttons: ['Back', 'Done'] });
+		button('Back').click();
+		assert.strictEqual(popup.querySelector('.action-list-header-text')?.textContent, 'Select models.');
 		element(popup, '.chat-model-picker-model').click();
-		buttons()[1].click();
-		buttons()[2].click();
-		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections }, { finished: true, visible: false, selections: [] });
+		button('Next').click();
+		button('Done').click();
+		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections, hides }, { finished: true, visible: false, selections: [], hides: [true] });
 	});
 
 	for (const committed of [false, true]) {
-		for (const dismissal of ['Escape', 'click-away', 'Cancel'] as const) {
+		for (const dismissal of ['Escape', 'click-away', 'Close'] as const) {
 			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
 				const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
 				const summary = constObservable(committed ? '2 Attempts' : undefined);
@@ -343,8 +358,8 @@ suite('TabbedModelPicker', () => {
 					element(popup, '[aria-label="Compare Models"]').click();
 				}
 				element(popup, '.chat-model-picker-model').click();
-				if (dismissal === 'Cancel') {
-					element(popup, '.model-picker-workflow-actions .monaco-button').click();
+				if (dismissal === 'Close') {
+					element(popup, '.model-picker-workflow-actions .monaco-button.model-picker-workflow-close').click();
 				} else if (dismissal === 'Escape') {
 					element(popup, '.monaco-list').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
 				} else {

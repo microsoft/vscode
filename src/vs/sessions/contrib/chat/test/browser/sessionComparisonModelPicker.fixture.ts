@@ -9,28 +9,30 @@ import { renderPicker } from '../../../../../workbench/test/browser/componentFix
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { SessionComparisonModelSelection } from '../../browser/sessionComparisonModelSelection.js';
 
-function renderComparisonPicker(context: ComponentFixtureContext, step: 'attempts' | 'judge' | 'synthesizer', repeated: boolean): Promise<void> {
+type ComparisonPickerState = 'empty' | 'attempts' | 'judge' | 'synthesizer';
+
+function renderComparisonPicker(context: ComponentFixtureContext, state: ComparisonPickerState): Promise<void> {
 	const selection = context.disposableStore.add(new SessionComparisonModelSelection(constObservable(true)));
 	selection.start();
-	selection.select('copilot/gpt-5-5');
-	if (repeated) {
-		selection.setCount(10);
-	} else {
-		selection.select('copilot/claude-sonnet-5');
-	}
-	if (step !== 'attempts') {
-		selection.next();
-	}
-	if (step === 'synthesizer') {
+	if (state !== 'empty') {
 		selection.select('copilot/gpt-5-5');
+		selection.select('copilot/claude-sonnet-5');
+		selection.select('copilot/gemini-3-5-flash');
+	}
+	if (state === 'judge' || state === 'synthesizer') {
 		selection.next();
+		selection.select('copilot/gpt-5-5');
+	}
+	if (state === 'synthesizer') {
+		selection.next();
+		selection.select('copilot/claude-sonnet-5');
 	}
 	return renderPicker(context, { workflow: selection, entitlement: ChatEntitlement.Pro, motionReduced: true });
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/compareModels/' }, {
-	RepeatedAttempts: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'attempts', true) }),
-	DistinctAttempts: defineComponentFixture({ render: context => renderComparisonPicker(context, 'attempts', false) }),
-	OptionalJudge: defineComponentFixture({ render: context => renderComparisonPicker(context, 'judge', false) }),
-	OptionalSynthesizer: defineComponentFixture({ render: context => renderComparisonPicker(context, 'synthesizer', false) }),
+	NoAttemptsSelected: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'empty') }),
+	AttemptsSelected: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => renderComparisonPicker(context, 'attempts') }),
+	JudgeSelected: defineComponentFixture({ render: context => renderComparisonPicker(context, 'judge') }),
+	SynthesizerSelected: defineComponentFixture({ render: context => renderComparisonPicker(context, 'synthesizer') }),
 });

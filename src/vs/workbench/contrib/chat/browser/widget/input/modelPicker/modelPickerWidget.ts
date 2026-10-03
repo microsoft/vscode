@@ -526,12 +526,16 @@ export class ModelPickerWidget extends Disposable {
 		const picker = this._tabbedPicker.value ?? (this._tabbedPicker.value = this._instantiationService.createInstance(TabbedModelPicker));
 		const previouslyFocusedElement = dom.getActiveElement();
 		const trigger = detailsModelId ? this._configButton : this._nameButton;
-		this._tabbedPickerHideListener.value = picker.onDidHide(() => {
+		this._tabbedPickerHideListener.value = picker.onDidHide(({ finishedWorkflow }) => {
 			this._tabbedPickerHideListener.clear();
 			telemetrySession.close(whenModelConfigValuesSaved(context.configurationAccess));
 			this._nameButton?.setAttribute('aria-expanded', 'false');
 			this._configButton?.setAttribute('aria-expanded', 'false');
 			this._domNode?.classList.remove('model-picker-active');
+			if (finishedWorkflow && this._delegate.focusInput) {
+				this._delegate.focusInput();
+				return;
+			}
 			const previous = dom.isHTMLElement(previouslyFocusedElement) && previouslyFocusedElement.isConnected && previouslyFocusedElement.style.display !== 'none' ? previouslyFocusedElement : undefined;
 			const target = detailsModelId
 				? (trigger?.isConnected && trigger.style.display !== 'none' ? trigger : this._nameButton)
