@@ -15,7 +15,6 @@ import { deriveGitHubEndpoints } from '../../../../platform/github/common/github
 import { createGitHubClientMetadata } from '../../../../platform/github/common/githubRequestMetadata.js';
 import { GitHubService, IGitHubClient } from '../../../../platform/github/common/githubService.js';
 import { GitHubAuthorizationContext, GitHubClientOptions, GitHubCredentialChange, GitHubRequestError, IGitHubCredentialProvider } from '../../../../platform/github/common/githubTypes.js';
-import { RequestFetch } from '../../../../platform/github/common/types.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -112,8 +111,7 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IProductService productService: IProductService,
-		@IConfigurationService configurationService: IConfigurationService,
-		fetch: RequestFetch = request => globalThis.fetch(request),
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const credentialProvider = new WorkbenchGitHubCredentialProvider(authenticationService);
 		super({
