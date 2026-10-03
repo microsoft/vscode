@@ -51,7 +51,7 @@ import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHo
 import { toRemoteSessionMessageMetadata } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { ActionType, AuthRequiredReason, isSessionAction, isChatAction, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type SessionAction, type ChatAction as AgentHostChatAction, type TerminalAction, type INotification, type IToolCallConfirmedAction, type ITurnStartedAction, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, AHP_NOT_FOUND, ProtocolError, type DispatchActionParams, type IStateSnapshot, type JsonRpcRequest, type ProtocolMessage } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ChatInteractivity, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type AgentCustomization, type ClientPluginCustomization, type ProtectedResourceMetadata, type SessionActiveClient, type SessionOrigin, type ToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, createSessionState, createChatState, createDefaultChatSummary, createErrorResponsePart, buildChatUri, buildDefaultChatUri, parseChatUri, parseDefaultChatUri, isAhpChatChannel, createActiveTurn, isAhpRootChannel, PolicyState, ResponsePartKind, ROOT_STATE_URI, StateComponents, buildSubagentChatUri, ToolResultContentType, MessageAttachmentKind, MessageKind, PendingMessageKind, withMessageRequestHiddenFromTranscript, withSessionMultiRootMetadata, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, type SessionState, type SessionSummary, type ChatState, type ISessionWithDefaultChat, RootState, type ToolCallState, type AgentInfo, type MessageAttachment, type MessageChatAttachment } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CompletionItemKind as AhpCompletionItemKind, type CompletionsParams, type CompletionsResult, type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { sessionReducer, chatReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -3806,6 +3806,194 @@ suite('AgentHostChatContribution', () => {
 	// ---- Session list (IChatSessionItemController) ----------------------
 
 	suite('session list', () => {
+
+		suite('automation provenance', () => {
+			const origin: SessionOrigin = {
+				kind: SessionOriginKind.Automation,
+				automation: 'custom-automation:/definitions/weekly',
+				run: 'custom-run:/history/42',
+			};
+			const ordinary = {
+				session: URI.parse('copilot:/catalogue/ordinary'),
+				startTime: 1000,
+				modifiedTime: 2000,
+				summary: 'Automation review',
+			};
+			const automation = {
+				...ordinary,
+				session: URI.parse('copilot:/catalogue/automation'),
+				summary: 'Scheduled session',
+				origin,
+			};
+			const automationSummary: SessionSummary = {
+				resource: automation.session.toString(),
+				provider: 'copilot',
+				title: automation.summary,
+				status: SessionStatus.Idle,
+				createdAt: new Date(automation.startTime).toISOString(),
+				modifiedAt: new Date(automation.modifiedTime).toISOString(),
+				origin,
+			};
+
+			function createList(filterToWorkspace = true) {
+				const { instantiationService, agentHostService } = createTestServices(disposables);
+				const store = disposables.add(instantiationService.createInstance(AgentHostSessionListStore, agentHostService, { filterToWorkspace }));
+				const controller = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', store, undefined, 'local'));
+				return { agentHostService, store, controller };
+			}
+
+			test('excludes live automation additions without hiding ordinary sessions', () => {
+				const { agentHostService, store, controller } = createList();
+				const added: string[] = [];
+				disposables.add(controller.onDidChangeChatSessionItems(delta => added.push(...delta.addedOrUpdated?.map(item => item.label) ?? [])));
+				store.addPendingNewSession('copilot', AgentSession.id(automation.session));
+
+				agentHostService.fireNotification({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: automationSummary });
+				agentHostService.fireNotification({
+					type: 'root/sessionAdded',
+					channel: ROOT_STATE_URI,
+					summary: { ...automationSummary, resource: ordinary.session.toString(), title: ordinary.summary, origin: undefined },
+				});
+
+				assert.deepStrictEqual({
+					items: controller.items.map(item => item.label),
+					added,
+					pending: store.isPendingNewSession('copilot', AgentSession.id(automation.session)),
+				}, {
+					items: ['Automation review'],
+					added: ['Automation review'],
+					pending: false,
+				});
+			});
+
+			for (const filterToWorkspace of [true, false]) {
+				test(`excludes restored and discovery automation sessions with workspace filtering ${filterToWorkspace}`, async () => {
+					const { agentHostService, store, controller } = createList(filterToWorkspace);
+					store.seedSessions([ordinary, automation]);
+					const discovered = controller.items.map(item => item.label);
+					agentHostService.addSession(ordinary);
+					agentHostService.addSession(automation);
+					await controller.refresh(CancellationToken.None);
+
+					assert.deepStrictEqual({
+						discovered,
+						restored: controller.items.map(item => item.label),
+						hostSessions: (await agentHostService.listSessions()).map(session => session.session.toString()),
+						disposed: agentHostService.disposedSessions,
+					}, {
+						discovered: ['Automation review'],
+						restored: ['Automation review'],
+						hostSessions: [ordinary.session.toString(), automation.session.toString()],
+						disposed: [],
+					});
+				});
+			}
+
+			for (const source of ['sessionAdded', 'sessionSummaryChanged', 'refresh', 'discovery'] as const) {
+				test(`removes a visible session when ${source} backfills automation provenance`, async () => {
+					const { agentHostService, store, controller } = createList();
+					const legacy = { ...automation, origin: undefined };
+					if (source === 'discovery') {
+						store.seedSessions([ordinary, legacy]);
+					} else {
+						agentHostService.addSession(ordinary);
+						agentHostService.addSession(legacy);
+						await controller.refresh(CancellationToken.None);
+					}
+					const before = controller.items.map(item => item.label);
+					const removed: string[] = [];
+					const added: string[] = [];
+					disposables.add(controller.onDidChangeChatSessionItems(delta => {
+						removed.push(...delta.removed?.map(resource => resource.toString()) ?? []);
+						added.push(...delta.addedOrUpdated?.map(item => item.label) ?? []);
+					}));
+
+					switch (source) {
+						case 'sessionAdded':
+							agentHostService.fireNotification({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: automationSummary });
+							break;
+						case 'sessionSummaryChanged':
+							agentHostService.fireNotification({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: automation.session.toString(), changes: { origin } });
+							break;
+						case 'refresh':
+							agentHostService.addSession(automation);
+							store.resetCache();
+							await controller.refresh(CancellationToken.None);
+							break;
+						case 'discovery':
+							store.seedSessions([automation]);
+							break;
+					}
+					agentHostService.fireNotification({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: automation.session.toString(), changes: { title: 'Updated automation' } });
+					store.seedSessions([{ ...legacy, modifiedTime: 3000 }]);
+
+					assert.deepStrictEqual({
+						before,
+						after: controller.items.map(item => item.label),
+						removed,
+						added,
+						disposed: agentHostService.disposedSessions,
+					}, {
+						before: ['Automation review', 'Scheduled session'],
+						after: ['Automation review'],
+						removed: ['agent-host-copilot:/catalogue/automation'],
+						added: source === 'refresh' ? ['Automation review'] : [],
+						disposed: [],
+					});
+				});
+			}
+
+			for (const source of ['sessionAdded', 'sessionSummaryChanged'] as const) {
+				for (const visible of [true, false]) {
+					test(`${source} backfill rejects an in-flight stale listing with visible session ${visible}`, async () => {
+						const { agentHostService, store, controller } = createList();
+						const legacy = { ...automation, origin: undefined };
+						if (visible) {
+							store.seedSessions([legacy]);
+						}
+						const response = new DeferredPromise<IAgentSessionMetadata[]>();
+						let listCalls = 0;
+						agentHostService.listSessions = () => ++listCalls === 1 ? response.p : Promise.resolve([ordinary, automation]);
+						const refresh = controller.refresh(CancellationToken.None);
+						const added: string[] = [];
+						disposables.add(controller.onDidChangeChatSessionItems(delta => added.push(...delta.addedOrUpdated?.map(item => item.label) ?? [])));
+						if (source === 'sessionAdded') {
+							agentHostService.fireNotification({ type: 'root/sessionAdded', channel: ROOT_STATE_URI, summary: automationSummary });
+						} else {
+							agentHostService.fireNotification({ type: 'root/sessionSummaryChanged', channel: ROOT_STATE_URI, session: automation.session.toString(), changes: { origin } });
+						}
+						await response.complete([ordinary, legacy]);
+						await refresh;
+
+						assert.deepStrictEqual({
+							listCalls,
+							items: controller.items.map(item => item.label),
+							added,
+						}, {
+							listCalls: 2,
+							items: ['Automation review'],
+							added: ['Automation review'],
+						});
+					});
+				}
+			}
+
+			test('forgets cached automation provenance when the host removes the session', () => {
+				const { agentHostService, store, controller } = createList();
+				store.seedSessions([automation]);
+				const before = controller.items.map(item => item.label);
+				agentHostService.fireNotification({ type: 'root/sessionRemoved', channel: ROOT_STATE_URI, session: automation.session.toString() });
+				store.seedSessions([{ ...automation, origin: undefined }]);
+
+				assert.deepStrictEqual({
+					before,
+					after: controller.items.map(item => item.label),
+				}, {
+					before: [],
+					after: ['Scheduled session'],
+				});
+			});
+		});
 
 		test('refresh populates items from agent host', async () => {
 			const { listController, agentHostService } = createContribution(disposables);

@@ -10,6 +10,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resour
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { SessionOriginKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
@@ -67,9 +68,9 @@ export interface IAgentHostSessionListDelta {
 
 /**
  * Shared provider-agnostic cache of agent-host sessions. It owns the
- * provider-wide listSessions refresh, workspace filtering, and root session
- * notifications. Per-provider list controllers project this state into chat
- * session items.
+ * provider-wide listSessions refresh, workspace and Automation filtering, and
+ * root session notifications. Per-provider list controllers project this state
+ * into chat session items.
  */
 export class AgentHostSessionListStore extends Disposable {
 
@@ -77,6 +78,7 @@ export class AgentHostSessionListStore extends Disposable {
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
 	private readonly _entries = new Map<string, IAgentHostSessionListEntry>();
+	private readonly _automationSessions = new Set<string>();
 	/**
 	 * Backend session keys for sessions a controller created locally (via
 	 * `newChatSessionItem`) that the backend has not yet announced. Tracked here
@@ -128,9 +130,16 @@ export class AgentHostSessionListStore extends Disposable {
 		const addedOrUpdated: IAgentHostSessionListEntry[] = [];
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
-			if (entry && this._isSessionInWorkspace(entry)) {
+			if (entry) {
 				const existing = this._entries.get(this._key(entry.provider, entry.rawId));
 				if (existing && (!existing.fromDiscovery || Date.parse(entry.summary.modifiedAt) < Date.parse(existing.summary.modifiedAt))) {
+					continue;
+				}
+				if (!this._isSessionVisible(entry)) {
+					if (this._automationSessions.has(this._key(entry.provider, entry.rawId))) {
+						this._mutationGeneration++;
+						this._removeSessionFromList(entry.provider, entry.rawId);
+					}
 					continue;
 				}
 				const seed = {
@@ -237,6 +246,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// removal; invalidating that snapshot here prevents `_doRefresh` from
 		// resurrecting the just-removed session.
 		this._mutationGeneration++;
+		this._automationSessions.delete(this._key(provider, rawId));
 		this._removeSessionFromList(provider, rawId);
 	}
 
@@ -295,8 +305,10 @@ export class AgentHostSessionListStore extends Disposable {
 		for (const session of sessions) {
 			const entry = this._makeEntryFromMetadata(session);
 			if (entry) {
-				if (this._isSessionInWorkspace(entry)) {
+				if (this._isSessionVisible(entry)) {
 					nextEntries.push(entry);
+				} else if (this._automationSessions.has(this._key(entry.provider, entry.rawId))) {
+					this._pendingNewSessions.delete(this._key(entry.provider, entry.rawId));
 				}
 			}
 		}
@@ -335,7 +347,11 @@ export class AgentHostSessionListStore extends Disposable {
 				return;
 			}
 			const key = this._key(entry.provider, entry.rawId);
-			if (!this._isSessionInWorkspace(entry)) {
+			if (!this._isSessionVisible(entry)) {
+				if (this._automationSessions.has(key)) {
+					this._mutationGeneration++;
+					this._removeSessionFromList(entry.provider, entry.rawId);
+				}
 				return;
 			}
 			this._mutationGeneration++;
@@ -357,6 +373,12 @@ export class AgentHostSessionListStore extends Disposable {
 			}
 			const rawId = AgentSession.id(notification.session);
 			const key = this._key(provider, rawId);
+			if (notification.changes.origin?.kind === SessionOriginKind.Automation) {
+				this._automationSessions.add(key);
+				this._mutationGeneration++;
+				this._removeSessionFromList(provider, rawId);
+				return;
+			}
 			const cached = this._entries.get(key);
 			if (!cached) {
 				return;
@@ -373,7 +395,7 @@ export class AgentHostSessionListStore extends Disposable {
 					...(Object.prototype.hasOwnProperty.call(notification.changes, 'activity') ? { activity: activity ?? undefined } : {}),
 				},
 			};
-			if (!this._isSessionInWorkspace(updated)) {
+			if (!this._isSessionVisible(updated)) {
 				this._mutationGeneration++;
 				this._removeSessionFromList(provider, rawId);
 				return;
@@ -401,6 +423,7 @@ export class AgentHostSessionListStore extends Disposable {
 				resource: session.session.toString(),
 				provider,
 				title: session.summary ?? `Session ${rawId.substring(0, 8)}`,
+				origin: session.origin,
 				status: session.status ?? SessionStatus.Idle,
 				activity: session.activity,
 				createdAt: new Date(session.startTime).toISOString(),
@@ -439,8 +462,16 @@ export class AgentHostSessionListStore extends Disposable {
 		};
 	}
 
-	/** Uses workspace-file provenance for multi-root workspaces and path containment otherwise. */
-	private _isSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
+	/** Omits Automation sessions and matches workspace-file provenance or folder containment. */
+	private _isSessionVisible(entry: IAgentHostSessionListEntry): boolean {
+		const key = this._key(entry.provider, entry.rawId);
+		if (entry.summary.origin?.kind === SessionOriginKind.Automation) {
+			// Discovery can omit provenance after disconnecting from the authoritative host.
+			this._automationSessions.add(key);
+		}
+		if (this._automationSessions.has(key)) {
+			return false;
+		}
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
@@ -482,7 +513,7 @@ export class AgentHostSessionListStore extends Disposable {
 		// The retained projection can only narrow; a successful refresh supplies newly eligible sessions.
 		const removed: IAgentHostSessionListRemoval[] = [];
 		for (const [key, entry] of this._entries) {
-			if (!this._isSessionInWorkspace(entry)) {
+			if (!this._isSessionVisible(entry)) {
 				this._entries.delete(key);
 				this._pendingNewSessions.delete(key);
 				removed.push(this._toRemoval(entry));
