@@ -8,6 +8,15 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
 
+/**
+ * Which of the platform's clipboards to target.
+ *
+ * `primary` is the X11 PRIMARY selection: it is set by selecting text and pasted with a
+ * middle click, and exists only on Linux desktop. Every other platform, and the web, has
+ * a single clipboard, which is `system`.
+ */
+export type ClipboardTarget = 'system' | 'primary';
+
 export interface IClipboardService {
 
 	readonly _serviceBrand: undefined;
@@ -18,14 +27,15 @@ export interface IClipboardService {
 	triggerPaste(targetWindowId: number): Promise<void> | undefined;
 
 	/**
-	 * Writes text to the system clipboard.
+	 * Writes text to the clipboard, the system clipboard unless stated otherwise.
 	 */
-	writeText(text: string, type?: string): Promise<void>;
+	writeText(text: string, target?: ClipboardTarget): Promise<void>;
 
 	/**
-	 * Reads the content of the clipboard in plain text
+	 * Reads the content of the clipboard in plain text, the system clipboard unless
+	 * stated otherwise.
 	 */
-	readText(type?: string): Promise<string>;
+	readText(target?: ClipboardTarget): Promise<string>;
 
 	/**
 	 * Reads text from the system find pasteboard.
