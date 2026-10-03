@@ -12,6 +12,7 @@ import { AnchorAlignment, IContextViewProvider } from '../../../../../../base/br
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { FindInput, IFindInputOptions } from '../../../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../../../base/browser/ui/findinput/replaceInput.js';
+import { NthMatchInput } from '../../../../../../base/browser/ui/findinput/nthMatchInput.js';
 import { IMessage as InputBoxMessage } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { ISashEvent, Orientation, Sash } from '../../../../../../base/browser/ui/sash/sash.js';
@@ -33,7 +34,7 @@ import { parseReplaceString, ReplacePattern } from '../../../../../../editor/con
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenu } from '../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
 
@@ -50,19 +51,29 @@ import { ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INot
 import { NotebookFindScopeType, NotebookSetting } from '../../../common/notebookCommon.js';
 import { ICellRange } from '../../../common/notebookRange.js';
 import type { IHoverLifecycleOptions } from '../../../../../../base/browser/ui/hover/hover.js';
+import { CONTEXT_NTH_MATCH_INPUT_FOCUSED, FIND_IDS } from '../../../../../../editor/contrib/find/browser/findModel.js';
+import {
+	MATCHES_LIMIT,
+	NLS_CLOSE_BTN_LABEL,
+	NLS_FIND_INPUT_LABEL,
+	NLS_FIND_INPUT_PLACEHOLDER,
+	NLS_LAST_MATCH_BTN_LABEL,
+	NLS_MATCHES_SEPARATOR,
+	NLS_NEXT_MATCH_BTN_LABEL,
+	NLS_NTH_MATCH_INPUT_LABEL,
+	NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+	NLS_PREVIOUS_MATCH_BTN_LABEL,
+	NLS_REPLACE_ALL_BTN_LABEL,
+	NLS_REPLACE_BTN_LABEL,
+	NLS_REPLACE_INPUT_LABEL,
+	NLS_REPLACE_INPUT_PLACEHOLDER,
+	NLS_TOGGLE_REPLACE_MODE_BTN_LABEL,
+	NLS_TOGGLE_SELECTION_FIND_TITLE
+} from '../../../../../../base/browser/ui/findinput/findContants.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 
-
-const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
-const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
-const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
-const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
-const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
-const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
-const NLS_REPLACE_INPUT_PLACEHOLDER = nls.localize('placeholder.replace', "Replace");
-const NLS_REPLACE_BTN_LABEL = nls.localize('label.replaceButton', "Replace");
-const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replace All");
+const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocused', false);
+const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocused', false);
 
 export const findFilterButton = registerIcon('find-filter', Codicon.filter, nls.localize('findFilterIcon', 'Icon for Find Filter in find widget.'));
 const NOTEBOOK_FIND_FILTERS = nls.localize('notebook.find.filter.filterAction', "Find Filters");
@@ -295,19 +306,29 @@ export class NotebookFindInput extends FindInput {
 
 export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _findInput: NotebookFindInput;
+	protected readonly _findInputFocused: IContextKey<boolean>;
+	private readonly _findInputFocusTracker: dom.IFocusTracker;
+
 	private readonly _domNode: HTMLElement;
 	private readonly _innerFindDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
-	private readonly _findInputFocusTracker: dom.IFocusTracker;
+
+	protected readonly _nthMatchInput: NthMatchInput;
+	private readonly _nthMatchInputFocusTracker: dom.IFocusTracker;
+	protected readonly _nthMatchInputFocused: IContextKey<boolean>;
+
 	private readonly _updateFindHistoryDelayer: Delayer<void>;
 	protected readonly _matchesCount!: HTMLElement;
+
+	protected readonly lastMatchBtn: SimpleButton;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
 
 	protected readonly _replaceInput!: ReplaceInput;
+	protected readonly _replaceInputFocused: IContextKey<boolean>;
+	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
-	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
 	private readonly _updateReplaceHistoryDelayer: Delayer<void>;
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
@@ -335,6 +356,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
 		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
@@ -470,8 +492,26 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._replaceInput.setPreserveCase(this._state.preserveCase);
 		}));
 
+		this._nthMatchInput = this.getNthMatchInput(_contextViewService);
+
+		this.lastMatchBtn = this._register(new SimpleButton({
+			label: NLS_LAST_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.LastMatchFindAction),
+			hoverLifecycleOptions,
+			onTrigger: () => {
+				const countParts = this.lastMatchBtn.domNode.innerText?.split('+') || [];
+				const trueCount = parseInt(countParts[0]);
+				const n = !isNaN(trueCount) ? trueCount : MATCHES_LIMIT;
+				this.findNth(n);
+				this._nthMatchInput.setValue(String(n));
+			}
+		}, hoverService));
+		this.lastMatchBtn.domNode.classList.add(...['last-match-btn', 'notebook-last-match-btn']);
+
 		this._matchesCount = document.createElement('div');
 		this._matchesCount.className = 'matchesCount';
+		this._matchesCount.appendChild(this._nthMatchInput.domNode);
+		this._matchesCount.appendChild(document.createTextNode(NLS_MATCHES_SEPARATOR));
+		this._matchesCount.appendChild(this.lastMatchBtn.domNode);
 		this._updateMatchesCount();
 
 		this.prevBtn = this._register(new SimpleButton({
@@ -577,9 +617,15 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._register(this._focusTracker.onDidFocus(this.onFocusTrackerFocus.bind(this)));
 		this._register(this._focusTracker.onDidBlur(this.onFocusTrackerBlur.bind(this)));
 
+		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._findInputFocusTracker = this._register(dom.trackFocus(this._findInput.domNode));
 		this._register(this._findInputFocusTracker.onDidFocus(this.onFindInputFocusTrackerFocus.bind(this)));
 		this._register(this._findInputFocusTracker.onDidBlur(this.onFindInputFocusTrackerBlur.bind(this)));
+
+		this._nthMatchInputFocused = CONTEXT_NTH_MATCH_INPUT_FOCUSED.bindTo(contextKeyService);
+		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.domNode));
+		this._register(this._nthMatchInputFocusTracker.onDidFocus(this.onNthMatchInputFocusTrackerFocus.bind(this)));
+		this._register(this._nthMatchInputFocusTracker.onDidBlur(this.onNthMatchInputFocusTrackerBlur.bind(this)));
 
 		this._register(dom.addDisposableListener(this._innerFindDomNode, 'click', (event) => {
 			event.stopPropagation();
@@ -599,6 +645,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}, contextKeyService, false));
 		this._innerReplaceDomNode.appendChild(this._replaceInput.domNode);
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
+		this._replaceInputFocused = CONTEXT_REPLACE_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
 
@@ -698,6 +745,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
+	protected abstract findNth(n: number): void;
 	protected abstract replaceOne(): void;
 	protected abstract replaceAll(): void;
 	protected abstract onFocusTrackerFocus(): void;
@@ -706,6 +754,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected abstract onFindInputFocusTrackerBlur(): void;
 	protected abstract onReplaceInputFocusTrackerFocus(): void;
 	protected abstract onReplaceInputFocusTrackerBlur(): void;
+	protected abstract onNthMatchInputFocusTrackerFocus(): void;
+	protected abstract onNthMatchInputFocusTrackerBlur(): void;
 
 	protected get inputValue() {
 		return this._findInput.getValue();
@@ -798,6 +848,49 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected _updateMatchesCount(): void {
 	}
 
+	private getNthMatchInput(contextViewService: IContextViewService): NthMatchInput {
+		const min = 1;
+		const max = this._state.matchesCount || MATCHES_LIMIT;
+		const fullDisplayText = NLS_NTH_MATCH_INPUT_LABEL + this._keybindingLabelFor(FIND_IDS.NthMatchFindAction);
+		const input = new NthMatchInput(this._domNode, contextViewService, {
+			label: fullDisplayText,
+			tooltip: fullDisplayText,
+			placeholder: NLS_NTH_MATCH_INPUT_PLACEHOLDER,
+			type: 'text',
+			min: min,
+			max: max,
+			inputBoxStyles: defaultInputBoxStyles,
+		});
+
+		this._register(input.onStep((e) => {
+			if (e.to === 'next') {
+				this.find(false);
+			}
+			else {
+				this.find(true);
+			}
+			input.updateInputWrapperWidth();
+		}));
+
+		this._register(input.onInput((e) => {
+			if (!input.getValue()) {
+				return;
+			}
+			const n = input.getSanitizedCurrentValue();
+			input.setValue(String(n));
+			this.findNth(n);
+		}));
+
+		input.domNode.classList.add(...['monaco-inputbox', 'nth-match', 'notebook-nth-match']);
+		input.setValue(`${this._state.matchesPosition}`);
+
+		return input;
+	}
+
+	private _keybindingLabelFor(actionId: string): string {
+		return this._keybindingService.appendKeybinding('', actionId);
+	}
+
 	override dispose() {
 		super.dispose();
 
@@ -875,8 +968,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _updateReplaceViewDisplay(): void {
 		if (this._isReplaceVisible) {
 			this._innerReplaceDomNode.style.display = 'flex';
+			this._domNode.style.height = '65px';
 		} else {
 			this._innerReplaceDomNode.style.display = 'none';
+			this._domNode.style.height = '35px';
 		}
 
 		this._replaceInput.width = dom.getTotalWidth(this._findInput.domNode);
