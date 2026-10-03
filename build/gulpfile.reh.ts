@@ -9,7 +9,6 @@ import es from 'event-stream';
 import * as util from './lib/util.ts';
 import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/gulp/task.ts';
-import * as optimize from './lib/optimize.ts';
 import { inlineMeta } from './lib/inlineMeta.ts';
 import { computeNLSMetadataHash } from './lib/nlsMetadata.ts';
 import product from '../product.json' with { type: 'json' };
@@ -25,12 +24,10 @@ import { promisify } from 'util';
 import rceditCallback from 'rcedit';
 import { compileApiProposalNamesTask, copyCodiconsTask } from './lib/compilation.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
-import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
 import crypto from 'crypto';
 import log from 'fancy-log';
-import buildfile from './buildfile.ts';
-import { runEsbuildBundle } from './lib/esbuild.ts';
+import { runEsbuildBundle, getBootstrapEntryPointsForTarget } from './lib/esbuild.ts';
 import { fetchUrls } from './lib/fetch.ts';
 import { downloadFeedPackage } from './lib/azureFeed.ts';
 import { ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotTgrepExcludeFilter, getMxcExcludeFilter, getRipgrepExcludeFilter, prepareBuiltInCopilotRipgrepShim } from './lib/copilot.ts';
@@ -57,89 +54,6 @@ const BUILD_TARGETS = [
 	// legacy: we use to ship only one alpine so it was put in the arch, but now we ship
 	// multiple alpine images and moved to a better model (alpine as the platform)
 	{ platform: 'linux', arch: 'alpine' },
-];
-
-const serverResourceIncludes = [
-
-	// NLS
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
-
-	// Process monitor
-	'out-build/vs/base/node/cpuUsage.sh',
-	'out-build/vs/base/node/ps.sh',
-
-	// External Terminal
-	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-
-	// Terminal shell integration
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.ps1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/CodeTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/GitTabExpansion.psm1',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-env.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-profile.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-rc.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/shellIntegration.fish',
-	'out-build/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
-
-];
-
-const serverResourceExcludes = [
-	'!out-build/vs/**/{electron-browser,electron-main,electron-utility}/**',
-	'!out-build/vs/editor/standalone/**',
-	'!out-build/vs/workbench/**/*-tb.png',
-	'!**/test/**'
-];
-
-const serverResources = [
-	...serverResourceIncludes,
-	...serverResourceExcludes
-];
-
-const serverWithWebResourceIncludes = [
-	...serverResourceIncludes,
-	'out-build/vs/code/browser/workbench/*.html',
-	...vscodeWebResourceIncludes
-];
-
-const serverWithWebResourceExcludes = [
-	...serverResourceExcludes,
-	'!out-build/vs/code/**/*-dev.html'
-];
-
-const serverWithWebResources = [
-	...serverWithWebResourceIncludes,
-	...serverWithWebResourceExcludes
-];
-const serverEntryPoints = buildfile.codeServer;
-
-const webEntryPoints = [
-	buildfile.workerEditor,
-	buildfile.workerExtensionHost,
-	buildfile.workerNotebook,
-	buildfile.workerLanguageDetection,
-	buildfile.workerLocalFileSearch,
-	buildfile.workerOutputLinks,
-	buildfile.workerBackgroundTokenization,
-	buildfile.keyboardMaps,
-	buildfile.codeWeb
-].flat();
-
-const serverWithWebEntryPoints = [
-
-	// Include all of server
-	...serverEntryPoints,
-
-	// Include all of web
-	...webEntryPoints,
-].flat();
-
-const bootstrapEntryPoints = [
-	'out-build/server-main.js',
-	'out-build/server-cli.js',
-	'out-build/bootstrap-fork.js'
 ];
 
 function getNodeVersion() {
@@ -527,7 +441,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 		}
 
 		result = inlineMeta(result, {
-			targetPaths: bootstrapEntryPoints,
+			targetPaths: getBootstrapEntryPointsForTarget(type === 'reh' ? 'server' : 'server-web').map(entry => `${entry}.js`),
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
@@ -617,41 +531,7 @@ function prepareCopilotRipgrepShimTaskREH(platform: string, arch: string, destin
 	};
 }
 
-/**
- * @param product The parsed product.json file contents
- */
-function tweakProductForServerWeb(product: typeof import('../product.json')) {
-	const result: typeof product & { webEndpointUrlTemplate?: string } = { ...product };
-	delete result.webEndpointUrlTemplate;
-	return result;
-}
-
 ['reh', 'reh-web'].forEach(type => {
-	const bundleTask = task.define(`bundle-vscode-${type}`, task.series(
-		util.rimraf(`out-vscode-${type}`),
-		optimize.bundleTask(
-			{
-				out: `out-vscode-${type}`,
-				esm: {
-					src: 'out-build',
-					entryPoints: [
-						...(type === 'reh' ? serverEntryPoints : serverWithWebEntryPoints),
-						...bootstrapEntryPoints
-					],
-					resources: type === 'reh' ? serverResources : serverWithWebResources,
-					fileContentMapper: createVSCodeWebFileContentMapper('.build/extensions', type === 'reh-web' ? tweakProductForServerWeb(product) : product)
-				}
-			}
-		)
-	));
-
-	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
-		bundleTask,
-		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
-	));
-	task.task(minifyTask);
-
 	const target = type === 'reh' ? 'server' : 'server-web';
 	const esbuildBundleTask = task.define(`esbuild-vscode-${type}`, () => runEsbuildBundle(`out-vscode-${type}`, false, true, target));
 	const esbuildBundleMinTask = task.define(`esbuild-vscode-${type}-min`, () => runEsbuildBundle(`out-vscode-${type}-min`, true, true, target, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`));

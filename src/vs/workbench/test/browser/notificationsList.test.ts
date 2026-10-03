@@ -12,10 +12,16 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
-import { DEFAULT_NOTIFICATION_ROW_HEIGHT, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
+import { DEFAULT_NOTIFICATION_ROW_HEIGHT, NotificationRenderer, onDidChangeNotificationRowHeight, setNotificationRowHeight } from '../../browser/parts/notifications/notificationsViewer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 import { NotificationsCenter } from '../../browser/parts/notifications/notificationsCenter.js';
+import { Action, ActionRunner } from '../../../base/common/actions.js';
+import { NotificationText } from '../../../platform/notification/common/notificationMessage.js';
+import { legacyExtensionLinkParsing } from '../../../platform/notification/common/notificationLegacy.js';
+import { mock } from '../../../base/test/common/mock.js';
+import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { URI } from '../../../base/common/uri.js';
 
 suite('NotificationsList row height', () => {
 	suiteSetup(() => {
@@ -101,6 +107,105 @@ suite('NotificationsList row height', () => {
 			preservedFocusedRowViewportPosition: true,
 			rowAfterDispose: null
 		});
+	});
+});
+
+suite('NotificationRenderer', () => {
+	suiteSetup(() => {
+		const warmupDisposables = new DisposableStore();
+		const container = document.createElement('div');
+		try {
+			const instantiationService = workbenchInstantiationService(undefined, warmupDisposables);
+			const renderer = instantiationService.createInstance(NotificationRenderer, warmupDisposables.add(new ActionRunner()));
+			const templateData = renderer.renderTemplate(container);
+			renderer.disposeTemplate(templateData);
+		} finally {
+			warmupDisposables.dispose();
+		}
+	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const filename = 'README.md [Open](command:unexpected "Open README")';
+	for (const { name, message, legacy, expectedText, expectedLinks } of [
+		{ name: 'literal', message: filename, legacy: false, expectedText: filename, expectedLinks: [] },
+		{
+			name: 'structured',
+			message: NotificationText.concat(filename, ' ', NotificationText.link('Show Logs', 'command:showLogs')),
+			legacy: false,
+			expectedText: `${filename} Show Logs`,
+			expectedLinks: ['command:showLogs'],
+		},
+		{ name: 'legacy extension', message: filename, legacy: true, expectedText: 'README.md Open', expectedLinks: ['command:unexpected'] },
+	]) {
+		test(`renders ${name} text and activates only explicit links with mouse and keyboard`, () => {
+			const container = document.createElement('div');
+			const opened: string[] = [];
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opened.push(resource.toString());
+					return true;
+				}
+			});
+			const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+			const template = renderer.renderTemplate(container);
+			store.add(toDisposable(() => renderer.disposeTemplate(template)));
+			const notification = NotificationViewItem.create({ severity: Severity.Info, message, legacyExtensionLinkParsing: legacy ? legacyExtensionLinkParsing : undefined }, { global: NotificationsFilter.OFF, sources: new Map() })!;
+			store.add(toDisposable(() => notification.close()));
+			renderer.renderElement(notification, 0, template);
+
+			const anchors = [...template.message.querySelectorAll('a')];
+			for (const anchor of anchors) {
+				anchor.click();
+				anchor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				anchor.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
+			}
+
+			assert.deepStrictEqual({
+				text: template.message.textContent,
+				links: anchors.map(anchor => anchor.getAttribute('href')),
+				opened,
+			}, {
+				text: expectedText,
+				links: expectedLinks,
+				opened: expectedLinks.flatMap(href => [href, href, href]),
+			});
+		});
+	}
+
+	test('releases replaced notification action view items', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer = instantiationService.createInstance(NotificationRenderer, store.add(new ActionRunner()));
+		const templateData = renderer.renderTemplate(container);
+		store.add(toDisposable(() => renderer.disposeTemplate(templateData)));
+		const templateDisposables = (templateData.toDispose as unknown as { _toDispose: Set<object> })._toDispose;
+
+		const firstAction = store.add(new Action('first.action', 'First Action'));
+		const firstNotification = NotificationViewItem.create({
+			severity: Severity.Info,
+			message: 'First notification',
+			actions: { secondary: [firstAction] }
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => firstNotification.close()));
+
+		const replacementAction = store.add(new Action('replacement.action', 'Replacement Action'));
+		const replacementNotification = NotificationViewItem.create({
+			severity: Severity.Info,
+			message: 'Replacement notification',
+			actions: { secondary: [replacementAction] }
+		}, { global: NotificationsFilter.OFF, sources: new Map() })!;
+		store.add(toDisposable(() => replacementNotification.close()));
+
+		renderer.renderElement(firstNotification, 0, templateData);
+		const disposableCount = templateDisposables.size;
+		renderer.renderElement(replacementNotification, 0, templateData);
+
+		assert.strictEqual(templateDisposables.size, disposableCount);
 	});
 });
 

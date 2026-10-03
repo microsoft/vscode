@@ -8,7 +8,7 @@
 
 import type { Changeset } from '../channels-changeset/state.js';
 import type { AnnotationsSummary } from '../channels-annotations/state.js';
-import type { ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
+import type { ChatInteractivity, ChatOrigin, ChatSummary, ChatInputRequest, ToolCallConfirmationState, ToolCallRunningState, ToolCallAuthRequiredState } from '../channels-chat/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 import type { AutomationEntry } from '../channels-automation/state.js';
 import type { ConfigPropertySchema, ErrorInfo, Icon, ProtectedResourceMetadata, TextRange, URI } from '../common/state.js';
@@ -165,13 +165,17 @@ export interface SessionState extends SessionMetadata {
 	 * reconnecting in time, or reconnect without resubscribing to the session.
 	 */
 	activeClients: SessionActiveClient[];
-	/** Catalog of chats in this session. */
+	/**
+	 * Catalog of chats in this session.
+	 *
+	 * Order is host-authoritative and durable. Catalog order is independent of
+	 * `defaultChat`.
+	 */
 	chats: ChatSummary[];
 	/**
 	 * The chat that receives input when the user addresses the session without
-	 * selecting a specific chat. This is a UI routing hint, not a hierarchy
-	 * marker — chats remain equal peers at the protocol level. Hosts MAY change
-	 * this over the session's lifetime.
+	 * selecting a specific chat. This routing designation does not determine the
+	 * chat's catalog position. Hosts MAY change it over the session's lifetime.
 	 */
 	defaultChat?: URI;
 	/** Session configuration schema and current values */
@@ -465,7 +469,8 @@ export interface ProjectInfo {
  *   to a subset via {@link ChatSummary.workingDirectories}; aggregating these
  *   up is meaningless and SHOULD NOT be attempted.
  * - `changes`: optional roll-up across all chats. Producers MAY sum the
- *   per-chat changeset stats or report the most expensive chat's stats —
+ *   per-chat {@link ChatSummary.changes | changes summaries} or report the
+ *   most expensive chat's stats —
  *   whichever is cheaper for the host to compute.
  *
  * Sessions with a single chat trivially satisfy all of the above (the chat's
@@ -482,11 +487,11 @@ export interface SessionSummary extends SessionMetadata {
 	/** Last modification timestamp (ISO 8601, e.g. `"2025-03-10T18:42:03.123Z"`) */
 	modifiedAt: string;
 	/**
-	* Aggregate summary of file changes associated with this session. Servers
-	* may populate this to give clients a quick at-a-glance view of the
-	* session's footprint (e.g., for list rendering) without requiring the
-	* client to subscribe to a changeset.
-	*/
+	 * Aggregate summary of file changes associated with this session. Servers
+	 * may populate this to give clients a quick at-a-glance view of the
+	 * session's footprint (e.g., for list rendering) without requiring the
+	 * client to subscribe to a changeset.
+	 */
 	changes?: ChangesSummary;
 	/**
 	 * Lightweight server-defined metadata clients may use for the session
@@ -495,10 +500,63 @@ export interface SessionSummary extends SessionMetadata {
 	 * and session notifications.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Lightweight host-authoritative ordered chat catalog.
+	 */
+	chats?: SessionChatSummary[];
+	/** Chat that receives input when none is selected, independent of catalog position. */
+	defaultChat?: URI;
 }
 
 /**
- * Aggregate counts describing the file changes associated with a session.
+ * Lightweight chat information in a session catalog.
+ *
+ * @category Session State
+ */
+export interface SessionChatSummary {
+	/** Canonical chat URI */
+	resource: URI;
+	/** Human-readable chat title */
+	title: string;
+	/** How this chat was created, when known */
+	origin?: ChatOrigin;
+	/**
+	 * How the user can interact with this chat.
+	 *
+	 * Generic clients use this to omit hidden chats and disable input for
+	 * read-only chats. Absence defaults to {@link ChatInteractivity.Full} for
+	 * backward compatibility.
+	 */
+	interactivity?: ChatInteractivity;
+	/**
+	 * Current chat status, matching {@link ChatSummary.status}.
+	 *
+	 * Includes the activity bits and the orthogonal {@link SessionStatus.IsRead}
+	 * and {@link SessionStatus.IsArchived} flags. Generic clients use these bits
+	 * to present read, unread, or archived chats in session lists without
+	 * subscribing to the session or chat channel. Absence means the host did
+	 * not provide the status; clients MUST treat it as unknown, not as unread
+	 * or unarchived.
+	 */
+	status?: SessionStatus;
+	/**
+	 * @deprecated AHP 0.9 compatibility. Use {@link SessionChatSummary.status}
+	 * with {@link SessionStatus.IsArchived} in AHP 0.10 and newer.
+	 */
+	archived?: boolean;
+	/**
+	 * Aggregate summary of file changes associated with this chat.
+	 *
+	 * Servers may populate this so session lists can show per-chat change
+	 * counts without subscribing to the session or chat channel. Updates travel
+	 * with the rest of the catalog in `root/sessionSummaryChanged`.
+	 */
+	changes?: ChangesSummary;
+}
+
+/**
+ * Aggregate counts describing the file changes associated with a session or
+ * chat.
  *
  * All fields are optional so servers can populate only the metrics they
  * cheaply have available.
@@ -1310,6 +1368,17 @@ export const enum McpAuthRequiredReason {
  */
 export interface McpServerStartingState {
 	kind: McpServerStatus.Starting;
+	/**
+	 * Hosts SHOULD set this to `true` when this server's startup will hold back
+	 * the processing of new messages (for example, the next turn) while the
+	 * server's contributions — such as its tools — are discovered.
+	 *
+	 * Clients MAY dispatch
+	 * {@link SessionMcpServerBackgroundRequestedAction | `session/mcpServerBackgroundRequested`}
+	 * through an appropriate affordance to ask the host to background the
+	 * startup.
+	 */
+	blocking?: boolean;
 }
 
 /**

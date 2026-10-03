@@ -47,7 +47,8 @@ import { extractCodeblockUrisFromText, extractVulnerabilitiesFromText } from '..
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../../common/model/chatModel.js';
 import { IChatContentInlineReference, IChatMarkdownContent, IChatService, IChatUndoStop } from '../../../common/chatService/chatService.js';
-import { IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
@@ -104,6 +105,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 * The data includes the total stats and current resources across all edit pills.
 	 */
 	readonly onDidChangeDiff: Event<IChatContentPartDiffData> = this._onDidChangeDiff.event;
+	private _diffData: IChatContentPartDiffData | undefined;
+	/** The latest aggregated edit-pill diff, available even when it was emitted during construction. */
+	get diffData(): IChatContentPartDiffData | undefined { return this._diffData; }
 
 	private readonly _onDidFinishRendering = this._register(new Emitter<void>());
 	readonly onDidFinishRendering: Event<void> = this._onDidFinishRendering.event;
@@ -388,6 +392,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							source: undefined,
 							sourceRequestId: undefined,
 							isAgentHostSession: isAgentHostSessionResource(element.sessionResource),
+							provider: getAgentHostProviderForTelemetry(getChatSessionType(element.sessionResource), this.chatSessionsService),
 						})
 					};
 				}));
@@ -524,7 +529,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				});
 			}
 		}
-		this._onDidChangeDiff.fire({ added: totalAdded, removed: totalRemoved, resources });
+		this._diffData = { added: totalAdded, removed: totalRemoved, resources };
+		this._onDidChangeDiff.fire(this._diffData);
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, currentWidth: number): IDisposableReference<CodeBlockPart> {

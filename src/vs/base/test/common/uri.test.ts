@@ -379,6 +379,26 @@ suite('URI', () => {
 		assert.strictEqual(URI.parse('untitled:C:/Users/jrieken/Code/abc.txt').toString(), 'untitled:c%3A/Users/jrieken/Code/abc.txt');
 	});
 
+	test('URI#toString preserves drive-like HTTP path case', () => {
+		const schemes = ['http', 'https', 'HtTp', 'HTTPS'];
+		assert.deepStrictEqual(schemes.map(scheme => {
+			const uri = URI.parse(`${scheme}://example.test/C:/Secret`);
+			return [uri.toString(), uri.toString(true), URI.parse(uri.toString()).toString(true)];
+		}), schemes.map(scheme => [
+			`${scheme}://example.test/C%3A/Secret`,
+			`${scheme}://example.test/C:/Secret`,
+			`${scheme}://example.test/C:/Secret`,
+		]));
+	});
+
+	test('URI#toString retains non-HTTP drive-letter normalization', () => {
+		const schemes = ['file', 'untitled', 'vscode-remote', 'custom'];
+		assert.deepStrictEqual(
+			schemes.map(scheme => URI.parse(`${scheme}://server/C:/Secret`).toString(true)),
+			schemes.map(scheme => `${scheme}://server/c:/Secret`),
+		);
+	});
+
 	test('URI#toString, escape all the bits', () => {
 
 		const value = URI.file('/Users/jrieken/Code/_samples/18500/Mödel + Other Thîngß/model.js');

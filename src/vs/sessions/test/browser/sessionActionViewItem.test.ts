@@ -4,18 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as dom from '../../../base/browser/dom.js';
 import { ClickAnimation } from '../../../base/browser/ui/animations/animations.js';
+import { ActionRunner } from '../../../base/common/actions.js';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
+import { TestAccessibilityService } from '../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { MenuEntryActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { TestNotificationService } from '../../../platform/notification/test/common/testNotificationService.js';
+import { TestThemeService } from '../../../platform/theme/test/common/testThemeService.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../platform/chat/common/sessionArchiveActions.js';
+import { TestExperimentTriggerTelemetryService } from '../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { ARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
-import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions } from '../../browser/sessionActionViewItem.js';
+import { createSessionActionViewItemProvider, getSessionArchiveActionViewItemOptions, SessionArchiveActionViewItem } from '../../browser/sessionActionViewItem.js';
 
 suite('SessionActionViewItem', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,12 +46,46 @@ suite('SessionActionViewItem', () => {
 		);
 	}
 
+	function createArchiveActionViewItem(run: () => Promise<void>): MenuEntryActionViewItem {
+		const action = new MenuItemAction(
+			{ id: ARCHIVE_SESSION_COMMAND_ID, title: ARCHIVE_SESSION_COMMAND_ID },
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			new class extends mock<IContextKeyService>() {
+				override contextMatchesRules(): boolean { return true; }
+			}(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<R = unknown>(): Promise<R | undefined> {
+					await run();
+					return undefined;
+				}
+			}(),
+		);
+		const viewItem = disposables.add(new MenuEntryActionViewItem(
+			action,
+			{ onClickAnimation: ClickAnimation.Confetti },
+			new class extends mock<IKeybindingService>() { }(),
+			new TestNotificationService(),
+			new class extends mock<IContextKeyService>() { }(),
+			new TestThemeService(),
+			new class extends mock<IContextMenuService>() { }(),
+			new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return false; }
+			}(),
+		));
+		viewItem.actionRunner = disposables.add(new ActionRunner());
+		viewItem.element = dom.$('button');
+		return viewItem;
+	}
+
 	test('uses confetti for archive actions when enabled', async () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
-		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
-		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
+		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
+		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, configurationService);
 
 		assert.deepStrictEqual({
@@ -55,16 +99,46 @@ suite('SessionActionViewItem', () => {
 
 	test('uses an archive action view item when disabled', () => {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		const expected = Object.create(MenuEntryActionViewItem.prototype) as MenuEntryActionViewItem;
-		instantiationService.stubInstance<MenuEntryActionViewItem>(MenuEntryActionViewItem, expected);
+		const expected = Object.create(SessionArchiveActionViewItem.prototype) as SessionArchiveActionViewItem;
+		instantiationService.stubInstance<SessionArchiveActionViewItem>(SessionArchiveActionViewItem, expected);
 		const provider = createSessionActionViewItemProvider(instantiationService, new TestConfigurationService());
 
 		assert.strictEqual(provider(createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID), {}), expected);
 	});
 
+	for (const reducedMotion of [false, true]) {
+		test(`reports the confetti experiment trigger when Mark as Done is clicked without confetti${reducedMotion ? ', except with reduced motion' : ''}`, async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const viewItem = disposables.add(new SessionArchiveActionViewItem(
+				createMenuItemAction(ARCHIVE_SESSION_COMMAND_ID),
+				getSessionArchiveActionViewItemOptions({}, new TestConfigurationService({ [SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: false })),
+				telemetryService,
+				new class extends mock<IKeybindingService>() { }(),
+				new TestNotificationService(),
+				new class extends mock<IContextKeyService>() { }(),
+				new TestThemeService(),
+				new class extends mock<IContextMenuService>() { }(),
+				new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return reducedMotion; }
+				}(),
+			));
+			viewItem.actionRunner = disposables.add(new ActionRunner());
+			viewItem.element = dom.$('button');
+
+			const beforeClick = [...telemetryService.triggers];
+			await viewItem.onClick(new MouseEvent('click'));
+
+			assert.deepStrictEqual({ beforeClick, afterClick: telemetryService.triggers }, {
+				beforeClick: [],
+				afterClick: reducedMotion ? [] : [`config.${SESSIONS_MARK_AS_DONE_CONFETTI_SETTING}`],
+			});
+		});
+	}
+
 	test('resolves configured archive animation when clicked', async () => {
 		const configurationService = new TestConfigurationService();
 		const options = getSessionArchiveActionViewItemOptions({ icon: true }, configurationService);
+		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, false);
 		const disabled = options.onClickAnimation;
 		await configurationService.setUserConfiguration(SESSIONS_MARK_AS_DONE_CONFETTI_SETTING, true);
 		const enabled = options.onClickAnimation;
@@ -75,6 +149,91 @@ suite('SessionActionViewItem', () => {
 		}, {
 			disabled: undefined,
 			enabled: ClickAnimation.Confetti,
+		});
+	});
+
+	test('animates archive actions only after successful completion', async () => {
+		const success = new DeferredPromise<void>();
+		const successfulViewItem = createArchiveActionViewItem(() => success.p);
+		const successfulClick = successfulViewItem.onClick(new MouseEvent('click'));
+		const animationBeforeSuccess = document.body.querySelector('.animation-overlay');
+		await success.complete();
+		await successfulClick;
+		const animationAfterSuccess = document.body.querySelector('.animation-overlay');
+		animationAfterSuccess?.remove();
+
+		const failure = new DeferredPromise<void>();
+		const failingViewItem = createArchiveActionViewItem(() => failure.p);
+		const failingClick = failingViewItem.onClick(new MouseEvent('click'));
+		await failure.error(new Error('Archive failed'));
+		await failingClick;
+
+		assert.deepStrictEqual({
+			animationBeforeSuccess,
+			animationAfterSuccess: !!animationAfterSuccess,
+			animationAfterFailure: document.body.querySelector('.animation-overlay'),
+		}, {
+			animationBeforeSuccess: null,
+			animationAfterSuccess: true,
+			animationAfterFailure: null,
+		});
+	});
+
+	test('keeps confetti at the original button position when archiving disposes the view item', async () => {
+		const workbench = dom.append(document.body, dom.$('.monaco-workbench'));
+		disposables.add(toDisposable(() => workbench.remove()));
+		const row = dom.append(workbench, dom.$('div'));
+		const completion = new DeferredPromise<void>();
+		const viewItem = createArchiveActionViewItem(() => {
+			viewItem.dispose();
+			row.remove();
+			return completion.p;
+		});
+		const button = viewItem.element!;
+		button.style.cssText = 'position: fixed; left: 120px; top: 80px; width: 48px; height: 24px; box-sizing: border-box;';
+		row.appendChild(button);
+
+		const click = viewItem.onClick(new MouseEvent('click'));
+		const animationBeforeCompletion = document.querySelector('.animation-overlay');
+		await completion.complete();
+		await click;
+
+		const overlay = document.querySelector<HTMLElement>('.animation-overlay');
+		disposables.add(toDisposable(() => overlay?.remove()));
+		const particle = overlay?.querySelector<HTMLElement>('.animation-confetti-particle');
+		assert.deepStrictEqual({
+			animationBeforeCompletion,
+			element: viewItem.element,
+			buttonConnected: button.isConnected,
+			bounds: overlay && [overlay.style.left, overlay.style.top, overlay.style.width, overlay.style.height],
+			particleOrigin: particle && [particle.style.left, particle.style.top],
+			inheritsWorkbenchTheme: overlay?.parentElement === workbench,
+		}, {
+			animationBeforeCompletion: null,
+			element: undefined,
+			buttonConnected: false,
+			bounds: ['120px', '80px', '48px', '24px'],
+			particleOrigin: ['24px', '12px'],
+			inheritsWorkbenchTheme: true,
+		});
+	});
+
+	test('does not animate when archiving fails after disposing the view item', async () => {
+		const failure = new DeferredPromise<void>();
+		const viewItem = createArchiveActionViewItem(() => {
+			viewItem.dispose();
+			return failure.p;
+		});
+		const click = viewItem.onClick(new MouseEvent('click'));
+		await failure.error(new Error('Archive failed'));
+		await click;
+
+		assert.deepStrictEqual({
+			element: viewItem.element,
+			animation: document.querySelector('.animation-overlay'),
+		}, {
+			element: undefined,
+			animation: null,
 		});
 	});
 });

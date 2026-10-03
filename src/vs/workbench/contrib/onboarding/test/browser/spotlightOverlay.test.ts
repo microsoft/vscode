@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, EventType, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -158,7 +159,49 @@ suite('SpotlightOverlay', () => {
 		assert.deepStrictEqual(fired, ['skip', 'back', 'next']);
 	});
 
-	test('advanceOnTargetClick hides Next and advances when the target is clicked', () => {
+	test('primary actions and cancellation remain clickable above an expanded picker', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		const pickerBlocker = $('div');
+		pickerBlocker.style.cssText = 'position: fixed; inset: 0; z-index: 2576;';
+		container.appendChild(pickerBlocker);
+		overlay.show(target, content({ isLastStep: true, nextButtonLabel: 'Use Copilot', showEndTour: true }), { targetOverlayVisible: true, allowTargetInteraction: true });
+
+		const buttons = getButtons(container);
+		const hitTest = (button: HTMLElement) => {
+			const rect = button.getBoundingClientRect();
+			return button.contains(mainWindow.document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+		};
+		assert.deepStrictEqual({
+			labels: buttons.map(button => button.textContent),
+			clickable: buttons.map(hitTest),
+			pickerClickable: mainWindow.document.elementFromPoint(10, 10) === pickerBlocker,
+		}, {
+			labels: ['End Tour', 'Back', 'Use Copilot'],
+			clickable: [true, true, true],
+			pickerClickable: true,
+		});
+	});
+
+	test('disables a pending primary action and resets it for the next step', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 100, 100, 80, 30);
+		let actions = 0;
+		disposables.add(overlay.onDidClickNext(() => actions++));
+		overlay.show(target, content());
+		const [, , primary] = getButtons(container);
+		overlay.setPrimaryActionEnabled(false);
+		primary.click();
+		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 0, disabled: 'true' });
+
+		overlay.show(target, content());
+		primary.click();
+		assert.deepStrictEqual({ actions, disabled: primary.getAttribute('aria-disabled') }, { actions: 1, disabled: 'false' });
+	});
+
+	test('advanceOnTargetClick hides Next and advances when the target is clicked', async () => {
 		const container = createContainer();
 		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver as unknown as typeof ResizeObserver));
 		const target = createTarget(container, 100, 100, 80, 30);
@@ -173,6 +216,7 @@ suite('SpotlightOverlay', () => {
 		const viewportWidth = mainWindow.document.documentElement.clientWidth;
 		const viewportHeight = mainWindow.document.documentElement.clientHeight;
 		target.click();
+		await timeout(0);
 
 		assert.deepStrictEqual({
 			nextHidden: next.style.display === 'none',
@@ -187,6 +231,39 @@ suite('SpotlightOverlay', () => {
 				{ left: '0px', top: '94px', width: '94px', height: '42px' },
 			],
 			advanced: 1
+		});
+	});
+
+	test('advanceOnTargetClick observes a nested control that stops propagation', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const previous = $('button');
+		container.appendChild(previous);
+		previous.focus();
+		const target = createTarget(container, 100, 100, 80, 30);
+		const nestedButton = $('button');
+		target.appendChild(nestedButton);
+		const events: string[] = [];
+		nestedButton.addEventListener('click', event => {
+			event.stopPropagation();
+			nestedButton.focus();
+			events.push('control');
+		});
+		disposables.add(overlay.onDidClickNext(source => {
+			events.push(source);
+			overlay.dispose();
+		}));
+
+		overlay.show(target, content(), { advanceOnTargetClick: true });
+		nestedButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			events,
+			nestedControlRetainsFocus: mainWindow.document.activeElement === nestedButton,
+		}, {
+			events: ['control', 'target'],
+			nestedControlRetainsFocus: true,
 		});
 	});
 
@@ -278,6 +355,40 @@ suite('SpotlightOverlay', () => {
 			primaryFocused: true,
 			skipReasons: [OnboardingDismissReason.EscapeKey, OnboardingDismissReason.EscapeKey],
 			advances: ['button'],
+		});
+	});
+
+	test('Escape in external target UI skips without consuming the native dismissal', () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 0, 0, 50, 50);
+		const popup = $('div.test-spotlight-external-ui');
+		mainWindow.document.body.appendChild(popup);
+		disposables.add({ dispose: () => popup.remove() });
+		const skipReasons: OnboardingDismissReason[] = [];
+		let nativeDismissals = 0;
+		disposables.add(overlay.onDidSkip(reason => skipReasons.push(reason)));
+		disposables.add(addDisposableListener(popup, EventType.KEY_DOWN, event => {
+			if (event.key === 'Escape') {
+				nativeDismissals++;
+				popup.remove();
+			}
+		}));
+
+		overlay.show(target, content(), { targetOverlayVisible: true });
+		const event = new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true });
+		popup.dispatchEvent(event);
+
+		assert.deepStrictEqual({
+			skipReasons,
+			nativeDismissals,
+			popupConnected: popup.isConnected,
+			defaultPrevented: event.defaultPrevented,
+		}, {
+			skipReasons: [OnboardingDismissReason.EscapeKey],
+			nativeDismissals: 1,
+			popupConnected: false,
+			defaultPrevented: false,
 		});
 	});
 
@@ -379,6 +490,54 @@ suite('SpotlightOverlay', () => {
 
 		assert.deepStrictEqual(observers.length === 1 ? observers[0].observed.includes(target) && observers[0].observed.includes(container) : false, true);
 	});
+
+	test('follows position-only shifts without a resize or workbench layout event', async () => {
+		const container = createContainer();
+		const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+		const target = createTarget(container, 300, 300, 120, 30);
+		overlay.show(target, content(), { placement: 'above' });
+		const hole = container.querySelector<HTMLElement>('.spotlight-hole')!;
+		const callout = container.querySelector<HTMLElement>('.spotlight-callout')!;
+		const pointer = container.querySelector<HTMLElement>('.spotlight-callout-pointer')!;
+		const before = [hole, callout, pointer].map(element => element.offsetTop);
+
+		target.style.top = '280px';
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		await Promise.all(hole.getAnimations().map(animation => animation.finished));
+		const shifts = [hole, callout, pointer].map((element, index) => element.offsetTop - before[index]);
+		overlay.hide();
+		target.style.top = '260px';
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+
+		assert.deepStrictEqual({ shifts, hiddenHoleTop: hole.style.top }, {
+			shifts: [-20, -20, -20],
+			hiddenHoleTop: '274px',
+		});
+	});
+
+	for (const removal of ['detach', 'hide']) {
+		test(`hides rather than highlighting the origin when the target disappears (${removal})`, async () => {
+			const container = createContainer();
+			const overlay = disposables.add(new SpotlightOverlay(container, FakeResizeObserver));
+			const target = createTarget(container, 100, 100, 120, 30);
+			let lost = 0;
+			disposables.add(overlay.onDidLoseTarget(() => lost++));
+			overlay.show(target, content());
+			if (removal === 'detach') {
+				target.remove();
+			} else {
+				target.style.display = 'none';
+			}
+			await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+			overlay.layout();
+
+			assert.deepStrictEqual({
+				display: container.querySelector<HTMLElement>('.spotlight-overlay')!.style.display,
+				holeTop: container.querySelector<HTMLElement>('.spotlight-hole')!.style.top,
+				lost,
+			}, { display: 'none', holeTop: '94px', lost: 1 });
+		});
+	}
 
 	test('focus trap includes links rendered in a markdown description', () => {
 		const container = createContainer();

@@ -33,14 +33,17 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 			gitRepository: { uri: opts.repository, workTreeUri: opts.worktree, baseBranchName: undefined, gitHubInfo: constObservable(undefined) },
 		} satisfies ISessionFolder],
 		requiresWorkspaceTrust: false,
+		isVirtualWorkspace: false,
 	} : undefined;
 	const chat: IChat = {
 		resource: URI.parse('file:///session'),
 		createdAt: new Date(),
+		workspace: constObservable(workspace),
 		title: observableValue('title', 'session'),
 		updatedAt: observableValue('updatedAt', new Date()),
 		status: observableValue('status', SessionStatus.Untitled),
 		changes: observableValue('changes', []),
+		changesets: constObservable([]),
 		modelId: observableValue('modelId', undefined),
 		modelSource: observableValue('modelSource', undefined),
 		mode: observableValue('mode', undefined),
@@ -56,14 +59,15 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		resource: chat.resource,
 		providerId: 'test',
 		sessionType: 'background',
+		harness: 'copilot',
+		environment: 'local',
+		application: constObservable({ id: 'vscode', label: 'VS Code' }),
 		icon: Codicon.copilot,
 		createdAt: chat.createdAt,
 		workspace: observableValue('workspace', workspace as ISessionWorkspace | undefined),
 		title: chat.title,
-		updatedAt: chat.updatedAt,
+		updatedAt: constObservable(chat.updatedAt.get() ?? chat.createdAt),
 		status: chat.status,
-		changesets: constObservable([]),
-		changes: chat.changes,
 		modelId: chat.modelId,
 		mode: chat.mode,
 		loading: observableValue('loading', false),
@@ -100,7 +104,7 @@ suite('SessionsTasksService', () => {
 	let service: ISessionsTasksService;
 	let fileContents: Map<string, string>;
 	let jsonEdits: { uri: URI; values: IJSONValue[] }[];
-	let ranTasks: { label: string; session: ISession }[];
+	let ranTasks: { label: string; session: ISession; chat: IChat | undefined }[];
 	let storageService: InMemoryStorageService;
 	let readFileCalls: URI[];
 	let runnerCanRun: (session: ISession) => boolean;
@@ -151,7 +155,7 @@ suite('SessionsTasksService', () => {
 			id: 'fake',
 			priority: 0,
 			canRun: session => runnerCanRun(session),
-			runTask: async (task, session) => { ranTasks.push({ label: task.label, session }); },
+			runTask: async (task, session, chat) => { ranTasks.push({ label: task.label, session, chat }); },
 		};
 		store.add(registry.register(fakeRunner));
 		instantiationService.stub(ISessionTaskRunnerRegistry, registry);
@@ -191,6 +195,28 @@ suite('SessionsTasksService', () => {
 		const tasks = obs.get();
 
 		assert.deepStrictEqual(tasks.map(t => t.task.label), ['build', 'test', 'watch', 'gulp-task']);
+	});
+
+	test('getSessionTasks reads from a chat workspace', async () => {
+		const chatWorktree = URI.parse('file:///chat-worktree');
+		const chatTasksUri = URI.parse('file:///chat-worktree/.vscode/tasks.json');
+		fileContents.set(chatTasksUri.toString(), tasksJsonContent([
+			makeTask('chat-build', 'npm run build', true),
+		]));
+		const userTasksUri = URI.from({ scheme: userSettingsUri.scheme, path: '/user/tasks.json' });
+		fileContents.set(userTasksUri.toString(), tasksJsonContent([]));
+		const chat = makeSession({ worktree: chatWorktree, repository: URI.parse('file:///chat-repo') }).mainChat.get();
+
+		const tasks = service.getSessionTasks(chat);
+		await new Promise(r => setTimeout(r, 10));
+
+		assert.deepStrictEqual({
+			labels: tasks.get().map(task => task.task.label),
+			workspaceRead: readFileCalls.some(resource => resource.toString() === chatTasksUri.toString()),
+		}, {
+			labels: ['chat-build'],
+			workspaceRead: true,
+		});
 	});
 
 	test('getSessionTasks returns empty array when no worktree', async () => {
@@ -629,12 +655,14 @@ suite('SessionsTasksService', () => {
 
 	test('runTask delegates to the registry runner', async () => {
 		const session = makeSession({ worktree: worktreeUri, repository: repoUri });
+		const chat = session.mainChat.get();
 
-		await service.runTask(makeTask('build', 'npm run build'), session);
+		await service.runTask(makeTask('build', 'npm run build'), session, chat);
 
 		assert.strictEqual(ranTasks.length, 1);
 		assert.strictEqual(ranTasks[0].label, 'build');
 		assert.strictEqual(ranTasks[0].session, session);
+		assert.strictEqual(ranTasks[0].chat, chat);
 	});
 
 	test('runTask is a no-op when no runner claims the session', async () => {

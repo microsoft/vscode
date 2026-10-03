@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDefaultAccountService, IManagedSettingsCompatibilityError } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IDialogService, IPromptButton } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -246,7 +246,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private updateManagedSettingsCompatibilityState(): void {
 		this.updatePolicyGateState();
-		this.maybeShowManagedSettingsDialog();
 	}
 
 	private updateManagedSettingsPendingNotification(freshness: IManagedSettingsFreshness | undefined): void {
@@ -296,7 +295,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private getManagedSettingsDialogKey(): string | undefined {
 		if (this.defaultAccountService.managedSettingsCompatibilityError) {
-			return ManagedSettingsFreshnessFailure.UpdateRequired;
+			return undefined;
 		}
 		const freshness = this.getBlockedManagedSettingsFreshness();
 		return freshness?.failure === ManagedSettingsFreshnessFailure.UpdateRequired ? undefined : freshness?.failure;
@@ -310,10 +309,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	}
 
 	private showManagedSettingsDialog(): Promise<unknown> {
-		const compatibilityError = this.defaultAccountService.managedSettingsCompatibilityError;
-		if (compatibilityError) {
-			return this.showManagedSettingsCompatibilityDialog(compatibilityError);
-		}
 		const freshness = this.getBlockedManagedSettingsFreshness();
 		return freshness && isManagedSettingsBlockedDialogFreshness(freshness)
 			? this.showManagedSettingsBlockedDialog(freshness)
@@ -363,38 +358,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			custom: true,
 			buttons,
 			cancelButton: localize('managedSettingsRefresh.dialog.close', "Close"),
-		});
-	}
-
-	private showManagedSettingsCompatibilityDialog(error: IManagedSettingsCompatibilityError): Promise<unknown> {
-		const message = error.minimumClientVersion
-			? localize(
-				'managedSettingsUpdate.notificationWithMinimumVersion',
-				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to version {1} or later to continue using AI features.",
-				this.productService.nameShort,
-				error.minimumClientVersion
-			)
-			: localize(
-				'managedSettingsUpdate.notification',
-				"Your version of {0} cannot enforce your organization's managed settings. Update {0} to continue using AI features.",
-				this.productService.nameShort
-			);
-		return this.dialogService.prompt({
-			type: Severity.Warning,
-			title: localize('managedSettingsUpdate.dialog.title', "Update Required"),
-			message,
-			custom: true,
-			buttons: [
-				{
-					label: localize('managedSettingsUpdate.dialog.update', "Check for Updates"),
-					run: () => this.commandService.executeCommand('update.checkForUpdate'),
-				},
-				{
-					label: localize('managedSettingsUpdate.dialog.learnMore', "Learn More"),
-					run: () => this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview')),
-				},
-			],
-			cancelButton: localize('managedSettingsUpdate.dialog.close', "Close"),
 		});
 	}
 }

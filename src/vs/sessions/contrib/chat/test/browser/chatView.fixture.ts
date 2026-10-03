@@ -25,6 +25,7 @@ import { activeSessionViewBackground } from '../../../../common/theme.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 
 import '../../../../browser/media/style.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../browser/media/chatView.css';
 
@@ -94,12 +95,15 @@ const stickyAssistantResponse = [
 	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
-	container.style.width = `${fixtureWidth}px`;
-	container.style.height = `${options.height ?? fixtureHeight}px`;
+	const width = options.width ?? fixtureWidth;
+	const height = options.height ?? fixtureHeight;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
 
 	const part = withBackground
 		? createChatBackgroundPart(container, disposableStore)
@@ -110,11 +114,13 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 
 	const chatView = dom.append(part, dom.$('.chat-view'));
+	chatView.classList.toggle('chat-view-chat', experimentalComposerLayout);
+	chatView.classList.toggle('experimental-session-composer', experimentalComposerLayout);
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 
 	await renderChatWidget({ ...context, container: chatView }, {
-		width: fixtureWidth,
-		height: fixtureHeight,
+		width,
+		height,
 		listHeight: 430,
 		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
 		hostLayoutMode: 'listOnly',
@@ -126,6 +132,39 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	chatView.style.backgroundColor = 'transparent';
 	const auxiliaryBar = chatView.querySelector<HTMLElement>('.part.auxiliarybar');
 	auxiliaryBar?.classList.remove('auxiliarybar');
+}
+
+async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		width: 390,
+		height: 760,
+		listHeight: 570,
+		contentHorizontalPadding: 8,
+		hostLayoutMode: 'listOnly',
+		messages: [{
+			user: 'Keep the phone composer controls aligned.',
+			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
+		}],
+	}, true, false);
+
+	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
+	const secondaryControls = [...context.container.querySelectorAll<HTMLElement>('.chat-responsive-picker-container')]
+		.find(container => container.textContent?.includes('Default permissions'));
+	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
+	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
+	const submitBounds = submitButton?.getBoundingClientRect();
+	const inputActionBounds = inputAction?.getBoundingClientRect();
+	if (chatView
+		|| !submitBounds || !inputActionBounds
+		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
+		throw new Error('The in-chat phone composer must use the standard phone layout and align its input actions.');
+	}
+	const secondaryBounds = secondaryControls?.getBoundingClientRect();
+	if (!secondaryBounds
+		|| secondaryBounds.top < submitBounds.bottom - 1
+		|| !secondaryControls?.checkVisibility()) {
+		throw new Error('The standard active-chat composer must keep its secondary controls below the input.');
+	}
 }
 
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
@@ -151,7 +190,7 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			persistentContent.classList.add('chat-persistent-content-visible');
 			row.content.appendChild(pills.element);
 			row.observe(persistentContent);
-			row.observe(pills.element);
+			row.observe(pills.element, () => pills.getPillElements());
 		},
 	});
 }
@@ -342,6 +381,21 @@ async function renderCheckpointControlsBackground(context: ComponentFixtureConte
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	PhoneChatComposerSettingsDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerUnifiedWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With only the unified workspace picker enabled, a phone-sized active chat keeps the standard bottom-pinned composer because the experimental composer dependency is not enabled.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Even with both new-session settings enabled, a phone-sized active chat keeps the standard composer with permissions in the secondary toolbar below the input.'],
+		render: renderPhoneChatComposer,
+	}),
 	CheckpointControlsBackground: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],
@@ -375,7 +429,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 	}),
 	StickyBackgroundContinuity: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous Codicons canvas. The sticky viewport shows the same glyph coordinates as the full transcript background, opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
+		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous, static layered Codicons canvas. The background stays fixed as the transcript scrolls, and the sticky viewport preserves the same depth, pattern, and alignment. Opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
 		render: renderStickyBackgroundContinuity,
 	}),
 });

@@ -117,7 +117,7 @@ export class MultiDiffEditorWidget extends Disposable {
 	}
 
 	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
-		return new MultiDiffEditorViewModel(model, this._instantiationService);
+		return this._instantiationService.createInstance(MultiDiffEditorViewModel, model);
 	}
 
 	public setViewModel(viewModel: MultiDiffEditorViewModel | undefined, options?: { readonly preserveFocus?: boolean; readonly viewState?: IMultiDiffEditorViewState }): void {

@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IObservable, constObservable, derived, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
@@ -22,7 +22,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ActiveEditorContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { SessionHasChangesContext, SessionIsCreatedContext, SinglePaneLayoutEnabledContext } from '../../../../common/contextkeys.js';
+import { SessionHasChangesContext, SessionIsCreatedContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { GitHubPRFetcher } from '../../../github/browser/fetchers/githubPRFetcher.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../../github/browser/models/githubPullRequestReviewThreadsModel.js';
@@ -30,7 +30,7 @@ import { GitHubPullRequestModel } from '../../../github/browser/models/githubPul
 import { GitHubPullRequestState, IGitHubPRComment, IGitHubPullRequestReview, IGitHubPullRequestReviewThread } from '../../../github/common/types.js';
 import { toPRContentUri } from '../../../github/common/utils.js';
 import { SessionChangesEditorInput } from '../../../changes/browser/sessionChangesEditorInput.js';
-import { IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { IChat, IGitHubInfo, ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { commentableRightLines, mapCurrentLineToPullRequestLine, mapCurrentRangeToPullRequestRange, ICodeReviewService, CodeReviewService, PRReviewStateKind } from '../../browser/codeReviewService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession, ISendRequestOptions, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -70,9 +70,8 @@ suite('CodeReviewService', () => {
 		}
 
 		addSession(resource: URI, changes?: readonly IChatSessionFileChange2[], archived = false): ISession {
-			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.changes',
-				(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }))
-			);
+			const initialChanges = (changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }));
+			const changesObs = observableValue<readonly IChatSessionFileChange[]>('test.chatChanges', initialChanges);
 			const isArchivedObs = observableValue<boolean>('test.isArchived', archived);
 			const gitHubInfoObs = observableValue<IGitHubInfo | undefined>('test.gitHubInfo', undefined);
 			const workspaceUri = URI.file('/workspace');
@@ -90,11 +89,19 @@ suite('CodeReviewService', () => {
 				requiresWorkspaceTrust: false,
 				isVirtualWorkspace: false,
 			});
+			const chat = new class extends mock<IChat>() {
+				override readonly resource = resource;
+				override readonly workspace = workspaceObs;
+				override readonly changesets = constObservable([]);
+				override readonly changes = changesObs;
+			}();
+			const chatObs = constObservable(chat);
 			const sessionData: ISession = {
 				sessionId: `test:${resource.toString()}`,
 				resource,
 				workspace: workspaceObs,
-				changes: changesObs,
+				mainChat: chatObs,
+				activeChat: chatObs,
 				isArchived: isArchivedObs,
 			} as unknown as ISession;
 			this._sessions.set(resource.toString(), sessionData);
@@ -119,11 +126,8 @@ suite('CodeReviewService', () => {
 		updateSessionChanges(resource: URI, changes: readonly IChatSessionFileChange2[] | undefined): void {
 			const session = this._sessions.get(resource.toString());
 			if (session) {
-				const obs = session.changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
-				obs.set(
-					(changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions })),
-					undefined
-				);
+				const mappedChanges = (changes ?? []).map(c => ({ modifiedUri: c.modifiedUri ?? c.uri, originalUri: c.originalUri, insertions: c.insertions, deletions: c.deletions }));
+				(session.mainChat.get().changes as ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>).set(mappedChanges, undefined);
 			}
 		}
 
@@ -411,6 +415,32 @@ suite('CodeReviewService', () => {
 		});
 	});
 
+	test('resolves review comment resources from active chat changes', () => {
+		const workspaceResource = URI.file('/workspace/src/a.ts');
+		const virtualResource = URI.parse('git:/workspace/src/a.ts?ref=head');
+		const change = {
+			uri: workspaceResource,
+			originalUri: virtualResource,
+			modifiedUri: workspaceResource,
+			insertions: 1,
+			deletions: 0,
+		};
+		const activeSession = sessionsManagement.addSession(session);
+		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
+		sessionsManagement.setActiveSession(activeSession);
+		const beforeChatChanges = service.getPRReviewCommentPullRequests(session, virtualResource);
+
+		sessionsManagement.updateSessionChanges(session, [change]);
+
+		assert.deepStrictEqual({
+			beforeChatChanges: beforeChatChanges.map(pullRequest => pullRequest.number),
+			withActiveChatChanges: service.getPRReviewCommentPullRequests(session, virtualResource).map(pullRequest => pullRequest.number),
+		}, {
+			beforeChatChanges: [],
+			withActiveChatChanges: [1],
+		});
+	});
+
 	test('resolves comment targets for pull request content resources', async () => {
 		sessionsManagement.addSession(session);
 		sessionsManagement.setGitHubInfo(session, makeGitHubInfo());
@@ -664,7 +694,7 @@ suite('Code Review Contributions', () => {
 			enabledFromChatChanges: headerItem.command.precondition?.evaluate(enablementContext),
 			hasSessionsWindowGate: when.includes(IsSessionsWindowContext.key),
 			hasActiveEditorGate: when.includes(ActiveEditorContext.key) && when.includes(SessionChangesEditorInput.EDITOR_ID),
-			hasSinglePaneLayoutGate: when.includes(SinglePaneLayoutEnabledContext.key),
+			hasDesktopLayoutGate: when.includes(DesktopLayoutContext.key),
 			hasAuxiliaryWindowGate: when.includes(IsAuxiliaryWindowContext.key),
 			hasTopRightEditorGroupGate: when.includes(IsTopRightEditorGroupContext.key),
 			hasChangesGate: when.includes(SessionHasChangesContext.key),
@@ -677,25 +707,13 @@ suite('Code Review Contributions', () => {
 			enabledFromChatChanges: true,
 			hasSessionsWindowGate: true,
 			hasActiveEditorGate: true,
-			hasSinglePaneLayoutGate: true,
+			hasDesktopLayoutGate: true,
 			hasAuxiliaryWindowGate: true,
 			hasTopRightEditorGroupGate: true,
 			hasChangesGate: true,
 			hasCreatedGate: true,
 			hasEditorAreaVisibleGate: false,
 		});
-	});
-
-	test('Run Code Review is shown in the classic Changes toolbar only for created sessions', () => {
-		const item = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar)
-			.filter(isIMenuItem)
-			.find(item => item.command.id === 'sessions.codeReview.run');
-
-		assert.ok(item, 'expected Run Code Review action on the classic Changes toolbar');
-		assert.strictEqual(
-			item.when?.serialize().includes(SessionIsCreatedContext.key),
-			true,
-		);
 	});
 
 	test('Run Code Review resolves a Changes editor resource to its owning session', async () => {

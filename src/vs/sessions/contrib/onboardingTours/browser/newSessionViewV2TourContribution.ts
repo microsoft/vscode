@@ -6,13 +6,16 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { onboardingScenarioRegistry } from '../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenarioService } from '../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { NewSessionViewTourTrigger } from './newSessionViewTourTrigger.js';
+import { resolveNewSessionViewV2TourVariation } from './newSessionViewV2TourVariation.js';
 import { createNewSessionViewV2Tour, NEW_SESSION_VIEW_V2_TOUR_ID } from './tours/newSessionViewV2Tour.js';
 
 class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchContribution {
@@ -26,6 +29,8 @@ class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchC
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IWorkbenchAssignmentService assignmentService: IWorkbenchAssignmentService,
+		@ILogService logService: ILogService,
 	) {
 		super();
 
@@ -38,7 +43,10 @@ class NewSessionViewV2TourContribution extends Disposable implements IWorkbenchC
 			contextKeyService,
 			chatEntitlementService,
 		));
-		this._register(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(trigger.signal)));
+		this._register(onboardingScenarioRegistry.register(createNewSessionViewV2Tour(
+			trigger.signal,
+			() => resolveNewSessionViewV2TourVariation(configurationService, assignmentService, logService),
+		)));
 	}
 }
 

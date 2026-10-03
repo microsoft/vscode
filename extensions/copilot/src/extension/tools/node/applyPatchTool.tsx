@@ -18,6 +18,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { IAlternativeNotebookContentService } from '../../../platform/notebook/common/alternativeContent';
 import { IAlternativeNotebookContentEditGenerator, NotebookEditGenerationTelemtryOptions, NotebookEditGenrationSource } from '../../../platform/notebook/common/alternativeContentEditGenerator';
 import { getDefaultLanguage } from '../../../platform/notebook/common/helpers';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
 import { emitEditSurvivalEvent } from '../../../platform/otel/common/genAiEvents';
 import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
@@ -38,6 +39,7 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestEditorData, ChatResponseTextEditPart, ExtendedLanguageModelToolResult, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult, MarkdownString, Position, Range, WorkspaceEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
+import { getGitHubCopilotRequestTeForToolCall } from '../../prompt/common/toolCallRound';
 import { ApplyPatchFormatInstructions } from '../../prompts/node/agent/defaultAgentInstructions';
 import { PromptRenderer, renderPromptElementJSON } from '../../prompts/node/base/promptRenderer';
 import { Tag } from '../../prompts/node/base/tag';
@@ -274,7 +276,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				path: resolveToolInputPath(file, this.promptPathRepresentationService),
 				movePath: changes.movePath ? resolveToolInputPath(changes.movePath, this.promptPathRepresentationService) : undefined,
 			}));
-			for (const { changes, path, movePath } of fileChanges) {
+			for (const { file, changes, path, movePath } of fileChanges) {
 				const affectedUris = movePath
 					? [{ uri: path, contents: undefined }, { uri: movePath, contents: changes.newContent ?? '' }]
 					: [{ uri: path, contents: undefined }];
@@ -286,6 +288,14 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						]);
 						result.hasError = true;
 						return result;
+					}
+					if (!movePath && changes.type === ActionType.ADD) {
+						const fileExists = await this.fileSystemService.stat(uri).then(() => true, () => false);
+						if (fileExists) {
+							throw new Error(`Add File Error: File already exists: ${file}`);
+						}
+						// Match create_file: model-created files skip content exclusion checks.
+						continue;
 					}
 					await this.instantiationService.invokeFunction(accessor => assertFileNotContentExcluded(accessor, uri, undefined, contents));
 				}
@@ -433,6 +443,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 				files[0].healed = healed;
 			}
 
+			const gitHubCopilotRequestTe = getGitHubCopilotRequestTeForToolCall(this._promptContext.toolCallRounds, options.chatStreamToolCallId);
 			timeout(2000).then(() => {
 				// The tool can't wait for edits to be applied, so just wait before starting the survival tracker.
 				// TODO@roblourens see if this improves the survival metric, find a better fix.
@@ -472,6 +483,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 						});
 						res.telemetryService.sendGHTelemetryEvent('applyPatch/trackEditSurvival', {
 							headerRequestId: this._promptContext?.requestId,
+							...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 							requestSource: 'agent',
 							mapper: 'applyPatchTool',
 							headBranchName: res.workspace?.headBranchName,
@@ -673,6 +685,7 @@ export class ApplyPatchTool implements ICopilotTool<IApplyPatchToolParams> {
 			completionTextJson: options.input.input,
 			postProcessingOutcome: outcome,
 			healed: String(healed),
+			...gitHubCopilotRequestTeProperty(getGitHubCopilotRequestTeForToolCall(this._promptContext?.toolCallRounds, options.chatStreamToolCallId)),
 		}).then(properties => this.telemetryService.sendEnhancedGHTelemetryEvent('applyPatchTool', properties)).catch(() => { /* best-effort telemetry */ });
 	}
 

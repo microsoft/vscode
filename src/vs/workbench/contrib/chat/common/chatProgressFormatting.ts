@@ -74,3 +74,13 @@ export function formatChatResponseDetails(details: string | undefined, timing: s
 	}
 	return parts.join(' \u2022 ');
 }
+
+export function formatChatToolError(error: string | boolean | undefined, exitCode?: number): string | undefined {
+	if (typeof error === 'string' && error) {
+		return localize('toolExecutionFailedWithMessage', "Tool execution failed: {0}", error);
+	}
+	if (exitCode !== undefined && exitCode !== 0) {
+		return localize('toolExecutionFailedWithExitCode', "Tool execution failed with exit code {0}", exitCode);
+	}
+	return error ? localize('toolExecutionFailed', "Tool execution failed") : undefined;
+}

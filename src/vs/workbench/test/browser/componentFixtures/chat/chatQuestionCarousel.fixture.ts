@@ -5,15 +5,18 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IChatQuestion, IChatQuestionCarousel } from '../../../../contrib/chat/common/chatService/chatService.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../../../../contrib/chat/browser/widget/chatContentParts/chatQuestionCarouselPart.js';
 import { IChatContentPartRenderContext, InlineTextModelCollection } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
-import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestViewModel } from '../../../../contrib/chat/common/model/chatViewModel.js';
+import { ChatQuestionCarouselData } from '../../../../contrib/chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ITerminalChatService } from '../../../../contrib/terminal/browser/terminal.js';
 import '../../../../contrib/chat/browser/widget/chatContentParts/media/chatQuestionCarousel.css';
 
@@ -42,19 +45,23 @@ function createMockContext(): IChatContentPartRenderContext {
 	};
 }
 
-function createOptions(): IChatQuestionCarouselOptions {
+function createOptions(overrides: Partial<IChatQuestionCarouselOptions> = {}): IChatQuestionCarouselOptions {
 	return {
+		...overrides,
 		onSubmit: () => { },
 		shouldAutoFocus: false,
 	};
 }
 
-function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel): void {
+function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestionCarousel, standalone: boolean = false, options: Partial<IChatQuestionCarouselOptions> = {}, afterRender?: (part: ChatQuestionCarouselPart) => void): void {
 	const { container, disposableStore } = context;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ILabelService, new class extends mock<ILabelService>() {
+				override getUriLabel(uri: URI): string { return uri.path; }
+			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.definePartialInstance(ITerminalChatService, {
 				getTerminalInstanceByExecutionId: () => undefined,
@@ -66,8 +73,8 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 		instantiationService.createInstance(
 			ChatQuestionCarouselPart,
 			carousel,
-			createMockContext(),
-			createOptions(),
+			standalone ? undefined : createMockContext(),
+			createOptions(options),
 		)
 	);
 
@@ -83,6 +90,7 @@ function renderCarousel(context: ComponentFixtureContext, carousel: IChatQuestio
 	container.appendChild(inputPart);
 
 	widgetContainer.appendChild(part.domNode);
+	afterRender?.(part);
 }
 
 // ============================================================================
@@ -140,6 +148,35 @@ const markdownLinksQuestion: IChatQuestion = {
 	].join('\n')),
 };
 
+const harnessSwitchQuestions: IChatQuestion[] = [{
+	id: 'reason',
+	type: 'singleSelect',
+	title: 'Why did you switch harnesses?',
+	options: [
+		{ id: 'preferLocal', label: 'I prefer the Local experience', value: 'preferLocal' },
+		{ id: 'missingFeature', label: 'A feature I need was unavailable', value: 'missingFeature' },
+		{ id: 'performance', label: 'Copilot was too slow', value: 'performance' },
+		{ id: 'reliability', label: 'Copilot did not work as expected', value: 'reliability' },
+		{ id: 'other', label: 'Something else', value: 'other' },
+	],
+	allowFreeformInput: false,
+	required: true,
+}];
+
+function createHarnessSwitchCarousel(): ChatQuestionCarouselData {
+	return new ChatQuestionCarouselData(harnessSwitchQuestions, true, 'fixture.harnessSwitchSurvey');
+}
+
+const harnessSwitchCarouselOptions: Partial<IChatQuestionCarouselOptions> = {
+	dismissLabel: 'Dismiss Survey',
+	submissionAcknowledgement: {
+		message: 'Thanks, your feedback has been recorded.',
+		description: new MarkdownString('Have specific feedback? [Share it on GitHub](https://github.com/microsoft/vscode/issues).'),
+		dismissLabel: 'Dismiss Feedback Acknowledgement',
+		onDidDismiss: () => { },
+	},
+};
+
 // ============================================================================
 // Fixtures
 // ============================================================================
@@ -167,6 +204,23 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			singleSelectQuestion,
 			multiSelectQuestion,
 		])),
+	}),
+
+	HarnessSwitchSurveyReason: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions),
+	}),
+
+	HarnessSwitchSurveySubmitted: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderCarousel(context, createHarnessSwitchCarousel(), true, harnessSwitchCarouselOptions, part => {
+			const option = part.domNode.querySelector<HTMLElement>('.chat-question-list-item');
+			if (!option) {
+				throw new Error('Expected the harness switch survey reason option.');
+			}
+			option.click();
+		}),
 	}),
 
 	NoSkip: defineComponentFixture({

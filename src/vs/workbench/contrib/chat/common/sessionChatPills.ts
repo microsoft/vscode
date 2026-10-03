@@ -21,6 +21,7 @@ export const enum SessionChatPillKind {
 	Issues = 'issues',
 	Browsers = 'browsers',
 	Subagents = 'subagents',
+	BackgroundShells = 'backgroundShells',
 }
 
 /** All pill kinds, in the order they are offered in the visibility menu. */
@@ -33,7 +34,30 @@ export const SESSION_CHAT_PILL_KINDS: readonly SessionChatPillKind[] = [
 	SessionChatPillKind.Customizations,
 	SessionChatPillKind.Browsers,
 	SessionChatPillKind.Subagents,
+	SessionChatPillKind.BackgroundShells,
 ];
+
+/** Provider-neutral metadata for an active background shell owned by a chat. */
+export interface IChatBackgroundShell {
+	/** Identity of the entry, unique within the chat. */
+	readonly id: string;
+	/** The agent's own ID for the shell, when it reports one. Only shown to the user. */
+	readonly shellId?: string;
+	readonly description: string;
+	readonly command: string;
+	readonly startedAt: string;
+	/** Whether the shell is tied to its agent's lifetime, when the agent reports it. */
+	readonly attachmentMode?: 'attached' | 'detached';
+	/** The shell's live output, when the agent can show it. Only subscribes while read. */
+	readonly output?: IObservable<ChatBackgroundShellOutput>;
+}
+
+/** What a background shell's live output view shows. */
+export type ChatBackgroundShellOutput =
+	| { readonly status: 'loading' }
+	| { readonly status: 'running'; readonly text: string }
+	| { readonly status: 'exited'; readonly text: string; readonly exitCode?: number }
+	| { readonly status: 'unavailable'; readonly message: string };
 
 export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 	switch (kind) {
@@ -45,6 +69,7 @@ export function getSessionChatPillLabel(kind: SessionChatPillKind): string {
 		case SessionChatPillKind.Issues: return localize('sessionChatPills.issues', "Issues");
 		case SessionChatPillKind.Browsers: return localize('sessionChatPills.browsers', "Browsers");
 		case SessionChatPillKind.Subagents: return localize('sessionChatPills.subagents', "Subagents");
+		case SessionChatPillKind.BackgroundShells: return localize('sessionChatPills.backgroundShells', "Background Shells");
 	}
 }
 
@@ -126,22 +151,19 @@ const hiddenSessionChatPills = observableMemento<readonly string[]>({
 	},
 });
 
-const showAllSessionPullRequests = observableMemento<boolean>({
-	defaultValue: true,
-	key: 'sessions.chatPills.pullRequests.showAll',
-	toStorage: value => String(value),
-	fromStorage: value => value !== 'false',
-});
+export interface ISessionChatPillFilter {
+	readonly showAll: IObservable<boolean>;
+	setShowAll(showAll: boolean): void;
+}
 
 export const ISessionChatPillVisibilityService = createDecorator<ISessionChatPillVisibilityService>('sessionChatPillVisibilityService');
 
 export interface ISessionChatPillVisibilityService {
 	readonly _serviceBrand: undefined;
-	readonly pullRequests: {
-		readonly showAll: IObservable<boolean>;
+	readonly pullRequests: ISessionChatPillFilter & {
 		isVisible(state: ChatPullRequestState | undefined, reader: IReader | undefined): boolean;
-		setShowAll(showAll: boolean): void;
 	};
+	readonly subagents: ISessionChatPillFilter;
 	readHiddenKinds(reader: IReader | undefined): ReadonlySet<SessionChatPillKind>;
 	isVisible(kind: SessionChatPillKind, reader: IReader | undefined): boolean;
 	hide(kind: SessionChatPillKind): void;
@@ -154,6 +176,7 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	declare readonly _serviceBrand: undefined;
 
 	readonly pullRequests: ISessionChatPillVisibilityService['pullRequests'];
+	readonly subagents: ISessionChatPillFilter;
 
 	private readonly _hiddenKinds: ObservableMemento<readonly string[]>;
 
@@ -162,10 +185,23 @@ export class SessionChatPillVisibility extends Disposable implements ISessionCha
 	) {
 		super();
 		this._hiddenKinds = this._register(hiddenSessionChatPills(StorageScope.APPLICATION, StorageTarget.USER, storageService));
-		const showAll = this._register(showAllSessionPullRequests(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		const pullRequests = this._createFilter(SessionChatPillKind.PullRequests, storageService);
 		this.pullRequests = {
+			...pullRequests,
+			isVisible: (state, reader) => pullRequests.showAll.read(reader) || (state !== 'closed' && state !== 'merged'),
+		};
+		this.subagents = this._createFilter(SessionChatPillKind.Subagents, storageService);
+	}
+
+	private _createFilter(kind: SessionChatPillKind, storageService: IStorageService): ISessionChatPillFilter {
+		const showAll = this._register(observableMemento<boolean>({
+			defaultValue: true,
+			key: `sessions.chatPills.${kind}.showAll`,
+			toStorage: value => String(value),
+			fromStorage: value => value !== 'false',
+		})(StorageScope.APPLICATION, StorageTarget.USER, storageService));
+		return {
 			showAll,
-			isVisible: (state, reader) => showAll.read(reader) || (state !== 'closed' && state !== 'merged'),
 			setShowAll: value => showAll.set(value, undefined),
 		};
 	}
