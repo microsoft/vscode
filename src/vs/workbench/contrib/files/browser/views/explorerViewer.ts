@@ -1146,10 +1146,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					await timeout(0);
 
 					const ownerDocument = inputBox.inputElement.ownerDocument;
+					// A compositor grab can blur the window without moving DOM focus.
+					if (ownerDocument.activeElement === inputBox.inputElement) {
+						return;
+					}
 					if (!ownerDocument.hasFocus()) {
 						break;
-					} if (DOM.isActiveElement(inputBox.inputElement)) {
-						return;
 					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
