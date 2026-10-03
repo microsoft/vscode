@@ -10,13 +10,19 @@
  */
 
 .agent-sessions-navigation-container {
+	.monaco-list-row {
+		left: var(--vscode-spacing-size40);
+		right: var(--vscode-spacing-size40);
+		width: auto;
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
 	.monaco-list-row:is(:hover, .hovered) .session-section-label {
 		color: var(--vscode-strongForeground);
 	}
 
 	.monaco-list .monaco-list-row.session-section.focused.session-section-shortcut:is(:hover, .hovered) {
 		background-color: var(--vscode-list-hoverBackground);
-		border-radius: 0;
 	}
 
 	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
@@ -1370,27 +1376,6 @@
 		gap: var(--vscode-spacing-size40);
 	}
 
-	.session-comparison-archive.monaco-button {
-		align-items: center;
-		justify-content: center;
-		width: var(--vscode-spacing-size160);
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0;
-		border-radius: var(--vscode-cornerRadius-small);
-
-		&:not([hidden]) {
-			display: flex;
-		}
-
-		.codicon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
-	}
-}
-
-.session-group .session-comparison-archive.monaco-button[hidden] {
-	display: none;
 }
 
 .monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,

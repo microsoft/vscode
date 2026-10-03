@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { bufferToStream, VSBuffer } from '../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -1106,6 +1107,89 @@ suite('DefaultAccountProvider', () => {
 			state: ManagedSettingsFreshnessState.Blocked,
 			source: 'nativeMdm',
 			failure: ManagedSettingsFreshnessFailure.NoToken,
+		});
+	});
+
+	test('a failed session lookup keeps the signed-in account and satisfied refresh gate', async () => {
+		let sessionLookupFails = false;
+		const requestService = new TestRequestService(async options => {
+			if (options.url?.endsWith('/copilot_internal/user')) {
+				return jsonResponse({ chat_enabled: true });
+			}
+			if (options.url?.includes('/copilot_internal/managed_settings')) {
+				return jsonResponse({ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true });
+			}
+			throw new Error(`Unexpected request: ${options.url}`);
+		});
+		const provider = await createProvider(requestService, {}, {}, undefined, {
+			getSessions: async () => {
+				if (sessionLookupFails) {
+					// Mirrors the extension host restart race: the provider's RPC is torn down mid-lookup.
+					throw new CancellationError();
+				}
+				return sessions;
+			},
+		});
+		const observedSessionIds: Array<string | null> = [];
+		disposables.add(provider.onDidChangeDefaultAccount(account => observedSessionIds.push(account?.sessionId ?? null)));
+		const snapshot = () => ({
+			account: provider.defaultAccount?.sessionId,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+			forceRemoteSettingsRefresh: provider.policyData?.managedSettings?.[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY],
+		});
+		const expected = () => ({
+			account: 'session',
+			freshness: {
+				state: ManagedSettingsFreshnessState.Satisfied,
+				source: 'server',
+				scope: { accountId, authenticationProviderId: 'github', endpointOrigin: 'https://api.github.com' },
+				hasLastAttempt: true,
+				hasSatisfiedAt: true,
+			},
+			forceRemoteSettingsRefresh: true,
+		});
+		const beforeLookupFailure = snapshot();
+
+		sessionLookupFails = true;
+		await provider.refresh();
+
+		assert.deepStrictEqual({
+			beforeLookupFailure,
+			afterLookupFailure: snapshot(),
+			observedSessionIds,
+		}, {
+			beforeLookupFailure: expected(),
+			afterLookupFailure: expected(),
+			observedSessionIds: [],
+		});
+	});
+
+	test('a failed session lookup without a known account still reports a missing token', async () => {
+		const provider = await createProvider(
+			new TestRequestService(async options => {
+				throw new Error(`Unexpected request: ${options.url}`);
+			}),
+			{ [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true },
+			{},
+			undefined,
+			{
+				getSessions: async () => {
+					throw new CancellationError();
+				},
+			}
+		);
+
+		assert.deepStrictEqual({
+			account: provider.defaultAccount,
+			freshness: describeFreshness(provider.managedSettingsFreshness),
+		}, {
+			account: null,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				failure: ManagedSettingsFreshnessFailure.NoToken,
+				hasLastAttempt: false,
+			},
 		});
 	});
 

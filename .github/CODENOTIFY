@@ -58,6 +58,7 @@ src/vs/workbench/contrib/preferences/** @rzhao271
 
 # Sessions Contributions
 src/vs/sessions/contrib/browserView/** @kycutler @jruales
+src/vs/sessions/contrib/canvases/** @ulugbekna
 
 # Build
 build/azure-pipelines/** @lszomoru
@@ -80,6 +81,7 @@ src/vs/workbench/api/common/extHostQuickOpen.ts @TylerLeonhardt
 src/vs/workbench/api/browser/mainThreadSecretState.ts @TylerLeonhardt
 
 # Extensions
+extensions/copilot/assets/prompts/skills/create-canvas/** @ulugbekna
 extensions/copilot/src/extension/chatSessions/claude/** @TylerLeonhardt
 extensions/copilot/src/extension/chatSessions/vscode-node/claudeChatSession* @TylerLeonhardt
 extensions/copilot/src/extension/completions-core/** @ulugbekna

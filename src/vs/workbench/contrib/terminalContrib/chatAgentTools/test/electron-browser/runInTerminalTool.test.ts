@@ -123,7 +123,6 @@ suite('RunInTerminalTool', () => {
 		setConfig(TerminalChatAgentToolsSettingId.TerminalProfileLinux, Object.freeze({ path: 'bash' }));
 		setConfig(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, true);
 		setConfig(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests, true);
-		setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
 		sandboxEnabled = false;
 		sandboxPrereqResult = {
 			enabled: false,
@@ -1628,8 +1627,7 @@ suite('RunInTerminalTool', () => {
 			ok(result.content[0].kind === 'text' && result.content[0].value.includes('chat.agent.sandbox.allowUnsandboxedCommands'));
 		});
 
-		test('should auto-approve sandboxed commands when sandbox auto approve is enabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, true);
+		test('should auto-approve sandboxed commands', async () => {
 			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
 			sandboxEnabled = true;
 			sandboxPrereqResult = {
@@ -1646,23 +1644,6 @@ suite('RunInTerminalTool', () => {
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
 		});
 
-		test('should use existing approval flow for sandboxed commands when sandbox auto approve is disabled', async () => {
-			setConfig(AgentSandboxSettingId.AgentSandboxAllowAutoApprove, false);
-			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
-			sandboxEnabled = true;
-			sandboxPrereqResult = {
-				enabled: true,
-				sandboxConfigPath: '/tmp/sandbox.json',
-				failedCheck: undefined,
-			};
-			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-
-			const result = await executeToolTest({ command: 'rm dangerous-file.txt' });
-
-			assertConfirmationRequired(result);
-			const terminalData = result!.toolSpecificData as IChatTerminalToolInvocationData;
-			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
-		});
 	});
 
 	suite('prepareToolInvocation - auto approval behavior', () => {

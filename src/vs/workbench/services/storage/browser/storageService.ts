@@ -47,17 +47,6 @@ export class BrowserStorageService extends AbstractStorageService {
 		);
 	}
 
-	override async readApplicationSharedValue(key: string): Promise<string | undefined> {
-		await this.initialize();
-		return this.applicationSharedStorageDatabase!.getValue(key);
-	}
-
-	override async compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string): Promise<{ swapped: boolean; currentValue: string | undefined }> {
-		await this.initialize();
-		this.updateKeyTarget(key, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
-		return this.applicationSharedStorageDatabase!.compareAndSwap(key, expectedValue, newValue);
-	}
-
 	async getApplicationStorageValue(key: string): Promise<string | undefined> {
 		return (await this.applicationStoragePromise.p).indexedDb.getValue(key);
 	}

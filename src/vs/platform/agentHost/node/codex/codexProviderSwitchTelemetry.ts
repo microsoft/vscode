@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import type { ICodexAccountTelemetryContext, IAgentTurnTelemetryCorrelation } from '../../common/agentHostTelemetry.js';
+import type { ICodexAccountTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codexAccountTelemetry.js';
 
 type CodexSubscriptionProvider = 'openai' | 'copilot';
 
-type CodexProviderSwitchEvent = Partial<ICodexAccountTelemetryContext> & Partial<IAgentTurnTelemetryCorrelation> & {
+type CodexProviderSwitchEvent = Partial<ICodexAccountTelemetryContext> & {
 	fromProvider: CodexSubscriptionProvider;
 	toProvider: CodexSubscriptionProvider;
 	isDesktopThread: boolean;
@@ -19,14 +19,11 @@ type CodexProviderSwitchClassification = CodexAccountTelemetryClassification & {
 	fromProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous configured subscription provider: openai or copilot.' };
 	toProvider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The subscription provider used by the accepted turn: openai or copilot.' };
 	isDesktopThread: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether existing native metadata identifies the thread as originating in Codex Desktop, not which client last used it.' };
-	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier.' };
-	chatSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The telemetry-safe chat identifier, matching turn telemetry.' };
-	turnId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The accepted turn identifier.' };
 	owner: 'Giuspepe';
 	comment: 'Counts accepted Codex turns following an OpenAI/Copilot provider switch observed by Agent Host. Does not observe switches performed exclusively in other clients.';
 };
 
-export function reportCodexProviderSwitch(telemetryService: ITelemetryService, fromModelProvider: string | undefined, toModelProvider: string | undefined, isDesktopThread: boolean, accountContext?: ICodexAccountTelemetryContext, correlation?: IAgentTurnTelemetryCorrelation): void {
+export function reportCodexProviderSwitch(telemetryService: ITelemetryService, fromModelProvider: string | undefined, toModelProvider: string | undefined, isDesktopThread: boolean, accountContext?: ICodexAccountTelemetryContext): void {
 	const fromProvider = toSubscriptionProvider(fromModelProvider);
 	const toProvider = toSubscriptionProvider(toModelProvider);
 	if (!fromProvider || !toProvider || fromProvider === toProvider) {
@@ -34,7 +31,6 @@ export function reportCodexProviderSwitch(telemetryService: ITelemetryService, f
 	}
 
 	telemetryService.publicLog2<CodexProviderSwitchEvent, CodexProviderSwitchClassification>('agentHost.codexProviderSwitch', {
-		...correlation,
 		fromProvider,
 		toProvider,
 		isDesktopThread,

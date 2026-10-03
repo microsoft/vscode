@@ -460,7 +460,7 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
+				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
 					? MANAGED_CONFIRMATION_OPTIONS.slice()
 					: state.options
 						? state.options.slice()

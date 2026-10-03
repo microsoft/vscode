@@ -667,10 +667,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (options?.modelConfiguration && provider.supportsModelConfigurationForCreation !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support model configuration during session creation.`);
 		}
-		const permissionOption = options?.permissionId
-			? provider.getPermissionOptionsForCreation?.(sessionTypeId).find(option => option.id === options.permissionId)
-			: undefined;
-		if (options?.permissionId && (!permissionOption || permissionOption.locked)) {
+		if (options?.permissionId && provider.supportsPermissionsForCreation !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support permission '${options.permissionId}' for session type '${sessionTypeId}'.`);
 		}
 		const automationConfiguration = sessionTemplate
@@ -683,7 +680,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 				modelId: options.modelId,
 				modelConfiguration: options.modelConfiguration,
 			} : {}),
-			...(permissionOption ? { permissionId: permissionOption.id } : {}),
+			...(options?.permissionId ? { permissionId: options.permissionId } : {}),
 			...(options?.modeId ? { modeId: options.modeId } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
 		};
