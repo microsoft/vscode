@@ -67,6 +67,20 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return this._readCentral(session, repairLegacyMirror);
 	}
 
+	/** Checks the durable completion marker without discovering or restoring any chats. */
+	async hasCompletedChatSelectionRecovery(session: URI): Promise<boolean> {
+		const database = await this._sessionDataService.tryOpenDatabase(session);
+		if (!database) {
+			return false;
+		}
+		try {
+			const raw = await database.object.getMetadata('agentHost.peerChatRecovery339409');
+			return raw !== undefined && this._parseRecoveryBackup(raw).completed === true;
+		} finally {
+			database.dispose();
+		}
+	}
+
 	/** Recovers legacy peer membership only when a restored chat-selection phantom is independently verified. */
 	async recoverChatSelectionCorruption(session: URI, phantomChatIds: readonly string[]): Promise<{ readonly entries: readonly IPersistedPeerChat[]; readonly verifiedPhantomChatIds: readonly string[] } | undefined> {
 		if (session.scheme !== 'copilotcli' || session.authority || session.query || session.fragment || !isUUID(session.path.slice(1)) || !this._sessionDataService.listSessionDataIds) {

@@ -38,3 +38,9 @@ Dataset tests cover empty, partial and healthy catalogues, newer continuation me
 deletion and ownership conflicts, interrupted recovery, malformed records, missing
 databases, and the catalogue size boundary. Missing peers are restored as active:
 their previous archive flags cannot be inferred after both membership copies were erased.
+
+Recovery listing tests enable the central catalogue and seed a valid, stale projection
+containing only the default chat. The first list response must include recovered peers
+without opening the parent or materializing transcripts, including after membership
+recovery has already completed and phantom registrations have been removed. Stale
+recovered projections are refreshed through catalogue synchronization before listing.

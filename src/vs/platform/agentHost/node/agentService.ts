@@ -3368,6 +3368,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!recovered) {
 					return;
 				}
+				this._checkedRecoveredSessionProjections.delete(parentKey);
 				if (this._stateManager.getSessionState(parentKey)) {
 					await this._restorePeerChatsFromCatalog(parent, recovered.entries);
 					await this._persistOrderedListVisibleSessionState(parent, {});
@@ -3384,6 +3385,73 @@ export class AgentService extends Disposable implements IAgentService {
 			});
 		}
 		return entries.filter(entry => !removed.has(entry.session.toString()));
+	}
+
+	private readonly _checkedRecoveredSessionProjections = new Set<string>();
+
+	private async _refreshRecoveredSessionProjection(registered: IRegisteredSession, result: AgentHostCatalogListResult): Promise<AgentHostCatalogListResult> {
+		const session = registered.session;
+		const sessionKey = session.toString();
+		if (!result.eligible || registered.external || session.scheme !== 'copilotcli' || session.authority || session.query || session.fragment || this._checkedRecoveredSessionProjections.has(sessionKey)) {
+			return result;
+		}
+		return this._chatCatalogMutationSequencer.queue(sessionKey, async () => {
+			const catalog = await this._orchestratorDatabase.getSessionChatCatalog(sessionKey);
+			const projectedPeers = result.data.chats.filter(chat => chat.kind === 'peer');
+			if (!catalog || (catalog.chats.length === projectedPeers.length && catalog.chats.every((chat, index) => chat.chat === projectedPeers[index].uri.toString()))) {
+				this._checkedRecoveredSessionProjections.add(sessionKey);
+				return result;
+			}
+			if (!await this._peerChatStore.hasCompletedChatSelectionRecovery(session)) {
+				this._checkedRecoveredSessionProjections.add(sessionKey);
+				return result;
+			}
+			const synchronized = await this._catalogSyncService.synchronizeWithFactory(session, async database => {
+				const latest = await this._catalogListReader.read(registered);
+				if (!latest.eligible) {
+					throw new Error(`Cannot refresh recovered session projection for ${sessionKey}`);
+				}
+				const peers = await this._peerChatStore.tryRead(session, false);
+				if (!peers) {
+					throw new Error(`Missing recovered chat catalogue for ${sessionKey}`);
+				}
+				const data = latest.data;
+				return this._catalogSourceResolver.buildCatalogSyncRequest(session, {
+					modifiedTime: data.modifiedTime,
+					title: data.summary,
+					status: latest.metadata.status ?? SessionStatus.Idle,
+					project: data.project ? { uri: data.project.uri.toString(), displayName: data.project.displayName } : undefined,
+					workingDirectories: data.workingDirectories.map(directory => directory.toString()),
+					changes: data.changes,
+					meta: data._meta,
+					chats: [
+						...data.chats.filter(chat => chat.kind === 'default').map(chat => ({
+							uri: chat.uri.toString(),
+							kind: 'default' as const,
+							title: chat.summary,
+							workingDirectories: chat.workingDirectories?.map(directory => directory.toString()),
+						})),
+						...peers.map(peer => ({
+							uri: peer.uri,
+							kind: 'peer' as const,
+							origin: peer.origin,
+							archived: peer.archived,
+							inheritedTurnId: peer.inheritedTurnId,
+							workingDirectories: peer.workingDirectories,
+						})),
+					],
+				}, {}, true, database);
+			});
+			if (synchronized.status !== 'acknowledged') {
+				throw new Error(`Recovered session projection remains pending for ${sessionKey}: ${synchronized.reason}`);
+			}
+			const refreshed = await this._catalogListReader.read(registered);
+			if (!refreshed.eligible) {
+				throw new Error(`Recovered session projection is unreadable for ${sessionKey}`);
+			}
+			this._checkedRecoveredSessionProjections.add(sessionKey);
+			return refreshed;
+		});
 	}
 
 	private async _advanceSessionModifiedTime(session: URI, modifiedTime: number, invalidate = true): Promise<void> {
@@ -3676,7 +3744,17 @@ export class AgentService extends Disposable implements IAgentService {
 		if (centralRead.bulkReadError) {
 			this._reportCatalogBulkReadFailure(centralRead);
 		}
-		const centralResults = centralRead.results;
+		const centralResults = [...centralRead.results];
+		const recoveryProjectionCandidates = catalogCandidates.map((registered, index) => ({ registered, index }))
+			.filter(({ registered, index }) => centralResults[index].eligible && !registered.external
+				&& registered.session.scheme === 'copilotcli' && !registered.session.authority && !registered.session.query && !registered.session.fragment
+				&& !this._checkedRecoveredSessionProjections.has(registered.session.toString()));
+		if (recoveryProjectionCandidates.length > 0) {
+			const projectionLimiter = new Limiter<void>(4);
+			await Promise.all(recoveryProjectionCandidates.map(({ registered, index }) => projectionLimiter.queue(async () => {
+				centralResults[index] = await this._refreshRecoveredSessionProjection(registered, centralResults[index]);
+			})));
+		}
 		const catalogResults = catalogCandidates.map((registeredSession, index) => {
 			return {
 				registeredSession,

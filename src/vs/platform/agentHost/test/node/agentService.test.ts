@@ -20668,8 +20668,8 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('peer chat catalog persistence', () => {
 
-		for (const cold of [false, true]) {
-			test(`listing recovers erased peer membership and unregisters only verified restored phantoms without deleting data (${cold ? 'cold' : 'live'} session)`, async () => {
+		for (const [cold, completed] of [[false, false], [true, false], [true, true]]) {
+			test(`listing recovers erased peer membership and unregisters only verified restored phantoms without deleting data (${cold ? 'cold' : 'live'} session, recovery ${completed ? 'completed' : 'new'})`, async () => {
 				const originalTurn: Turn = {
 					id: 'original-turn',
 					state: TurnState.Complete,
@@ -20692,6 +20692,7 @@ suite('AgentService (node dispatcher)', () => {
 					{ _serviceBrand: undefined } as IProductService, createNoopGitService(),
 					undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
 				));
+				getConfigurationService(localService).updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
 				class MultiChatAgent extends MockAgent {
 					readonly materialized: { chat: string; providerData: string | undefined }[] = [];
 
@@ -20727,6 +20728,26 @@ suite('AgentService (node dispatcher)', () => {
 				await perSession.database(parent).setMetadata('peerChats', '[]');
 				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
 				await peerStore.reconcileLegacy(parent);
+				if (completed) {
+					await peerStore.recoverChatSelectionCorruption(parent, [selectedId]);
+					await database.unregisterSession(phantom.toString());
+				}
+				const currentRow = await database.getSessionV2(parent.toString());
+				const currentData = catalogDataOf(currentRow);
+				assert.ok(currentRow && currentData);
+				const stale = catalogEnvelope(parent, {
+					...currentData,
+					chats: currentData.chats.filter(chat => chat.kind === 'default'),
+				}, currentRow.sessionGeneration, currentRow.sourceRevision + 1);
+				await perSession.database(parent).setMetadataValuesAndCatalogSyncSnapshot({}, {
+					sessionGeneration: stale.sessionGeneration,
+					sourceRevision: stale.sourceRevision,
+					projectionVersion: stale.payloadVersion,
+					payload: stale.payload,
+					payloadHash: stale.payloadHash,
+					state: 'pending',
+				});
+				assert.strictEqual(await database.upsertSessionV2(stale, currentRow.sessionGeneration), 'applied');
 				const stateManager = getStateManager(localService);
 				stateManager.removeChat(parent.toString(), selected.toString());
 				stateManager.removeChat(parent.toString(), other.toString());
@@ -20734,7 +20755,12 @@ suite('AgentService (node dispatcher)', () => {
 					stateManager.removeSession(parent.toString());
 				}
 
+				const membershipBeforeListing = completed ? await database.getSessionChatCatalog(parent.toString()) : undefined;
+				const recoveryBeforeListing = completed ? await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409') : undefined;
 				const listed = await localService.listSessions();
+				const coldParentUnopened = !cold || stateManager.getSessionState(parent.toString()) === undefined;
+				const materializedBeforeOpen = [...agent.materialized];
+				const projectedAfterFirstList = catalogDataOf(await database.getSessionV2(parent.toString()))?.chats.map(chat => chat.uri);
 				const registered = await localService.getRegisteredSessions();
 				await localService.listSessions();
 				const lazyBeforeOpen = stateManager.getChatState(other.toString()) === undefined;
@@ -20749,6 +20775,11 @@ suite('AgentService (node dispatcher)', () => {
 					turnEvent: await perSession.database(other).getTurnEventId('original-turn'),
 					providerData: await perSession.database(other).getMetadata('agentHost.chatProviderData'),
 					lazyBeforeOpen,
+					coldParentUnopened,
+					materializedBeforeOpen,
+					projectedAfterFirstList,
+					completedRecoveryUnchanged: !completed || recoveryBeforeListing === await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409'),
+					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify(await database.getSessionChatCatalog(parent.toString())),
 					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
 					materialized: agent.materialized,
 				}, {
@@ -20762,6 +20793,11 @@ suite('AgentService (node dispatcher)', () => {
 					turnEvent: 'original-event',
 					providerData: '{"sdkSessionId":"original-sdk-session"}',
 					lazyBeforeOpen: true,
+					coldParentUnopened: true,
+					materializedBeforeOpen: [],
+					projectedAfterFirstList: [buildDefaultChatUri(parent), selected.toString(), other.toString()],
+					completedRecoveryUnchanged: true,
+					completedMembershipUnchanged: true,
 					restoredTurns: [{ id: 'original-turn', text: 'Original peer conversation' }],
 					materialized: [{ chat: other.toString(), providerData: '{"sdkSessionId":"original-sdk-session"}' }],
 				});
