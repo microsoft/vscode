@@ -587,6 +587,10 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
+	resizeSash(index: number, delta: number): void {
+		this.splitview.resizeSash(index, delta);
+	}
+
 	isChildExpanded(index: number): boolean {
 		return this.splitview.isViewExpanded(index);
 	}
@@ -1457,6 +1461,32 @@ export class GridView implements IDisposable {
 		}
 
 		this.trySet2x2();
+	}
+
+	/**
+	 * Resize the nearest ancestor boundary on the requested side of a view.
+	 * Positive amounts grow the view; negative amounts shrink it.
+	 */
+	resizeViewInDirection(location: GridLocation, orientation: Orientation, before: boolean, amount: number): void {
+		if (!Number.isFinite(amount) || amount === 0) {
+			return;
+		}
+
+		const [ancestors] = this.getNode(location);
+		for (let depth = ancestors.length - 1; depth >= 0; depth--) {
+			const parent = ancestors[depth];
+			const index = location[depth];
+			if (parent.orientation !== orientation || (before ? index === 0 : index === parent.children.length - 1)) {
+				continue;
+			}
+
+			if (this.hasMaximizedView()) {
+				this.exitMaximizedView();
+			}
+			parent.resizeSash(before ? index - 1 : index, before ? -amount : amount);
+			this.trySet2x2();
+			return;
+		}
 	}
 
 	/**

@@ -778,6 +778,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		return this.getPart(group).getSize(group);
 	}
 
+	resizeGroup(group: IEditorGroupView | GroupIdentifier, direction: GroupDirection, amount: number): void {
+		this.getPart(group).resizeGroup(group, direction, amount);
+	}
+
 	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
 		this.getPart(group).setSize(group, size);
 	}
