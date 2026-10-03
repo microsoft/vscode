@@ -17,7 +17,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 		const itemId = args[0] as number;
 		const context = args[1] as IContextMenuEvent;
 		const item = processedItems[itemId];
-		item.click?.(context);
+		item?.click?.(context);
 	};
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
@@ -26,8 +26,6 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
 		if (closedContextMenuId !== contextMenuId) {
 			return;
 		}
-
-		ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
 
 		onHide?.();
 	});
