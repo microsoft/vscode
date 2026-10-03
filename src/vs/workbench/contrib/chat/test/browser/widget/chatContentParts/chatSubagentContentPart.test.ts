@@ -1308,19 +1308,19 @@ suite('ChatSubagentContentPart', () => {
 			});
 		}
 
-		test('should hide the activity row while a confirmation is shown', () => {
+		test('should retain the named activity row through confirmation transitions', () => {
 			const action = store.add(new Action('openSubagent', 'Open Subagent'));
+			const context: IOpenSubagentChatContext = {
+				chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
+				parentSessionResource: 'agent-host-copilotcli:/session',
+				isActive: true,
+				activeToolCallId: 'tool-1',
+				activeToolLabel: 'Run npm i in VS Code repository',
+				activeToolIcon: Codicon.terminal,
+			};
 			const viewItem = store.add(instantiationService.createInstance(
 				OpenSubagentChatActionViewItem,
-				{
-					chatResource: 'ahp-chat://subagent/Y29waWxvdGNsaTovc2Vzc2lvbg/tool-call',
-					parentSessionResource: 'agent-host-copilotcli:/session',
-					isActive: true,
-					confirmationCount: 1,
-					activeToolCallId: 'tool-1',
-					activeToolLabel: 'Run npm i in VS Code repository',
-					activeToolIcon: Codicon.terminal,
-				},
+				context,
 				action,
 				{},
 				false,
@@ -1329,13 +1329,19 @@ suite('ChatSubagentContentPart', () => {
 			viewItem.render(container);
 			const activity = container.querySelector<HTMLElement>('.chat-subagent-pill-active-tool');
 
-			assert.deepStrictEqual({
-				hidden: activity?.classList.contains('hidden'),
-				ariaLabel: getPillButton(container).getAttribute('aria-label'),
-			}, {
-				hidden: true,
-				ariaLabel: 'Open Subagent. Subagent is waiting for input',
+			const snapshots = [0, 1, 2, 0].map(confirmationCount => {
+				viewItem.setActionContext({ ...context, confirmationCount });
+				return {
+					sameRow: container.querySelector('.chat-subagent-pill-active-tool') === activity,
+					hidden: activity?.classList.contains('hidden'),
+					label: activity?.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+					waiting: getPillButton(container).getAttribute('aria-label')?.includes('waiting for input'),
+					accessibleTool: getPillButton(container).getAttribute('aria-label')?.includes(context.activeToolLabel!),
+				};
 			});
+			assert.deepStrictEqual(snapshots, [false, true, true, false].map(waiting => ({
+				sameRow: true, hidden: false, label: context.activeToolLabel, waiting, accessibleTool: true,
+			})));
 		});
 
 		test('should sanitize agent-provided markdown in active tool labels', () => {
@@ -2127,6 +2133,38 @@ suite('ChatSubagentContentPart', () => {
 				secondToolIcon: 'book',
 				completedTool: undefined,
 				completedToolIcon: undefined,
+			});
+		});
+
+		test('should show generic tool names while waiting for input and refresh tool icons without changing the label', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: { kind: 'subagent', chatResource: 'ahp-chat://subagent/test/tool-call', isActive: true },
+			}), createMockRenderContext(false));
+			const pending = createMockToolInvocation({
+				toolId: 'read',
+				invocationMessage: 'read',
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+			});
+			part.trackToolState(pending);
+			const waiting = getOpenChatContext(part);
+			const child = new ChatToolInvocation(
+				{ invocationMessage: 'Inspect the project', icon: Codicon.tools },
+				{ id: 'custom_tool', displayName: 'Inspect', modelDescription: 'Inspect', source: ToolDataSource.Internal },
+				'inspect', undefined, {},
+			);
+			part.trackToolState(child);
+			const before = getOpenChatContext(part)?.activeToolIcon;
+			child.toolSpecificData = { kind: 'search' };
+			child.notifyToolSpecificDataChanged();
+			assert.deepStrictEqual({
+				pendingLabel: waiting?.activeToolLabel,
+				pendingIcon: waiting?.activeToolIcon,
+				before,
+				after: getOpenChatContext(part)?.activeToolIcon,
+				label: getOpenChatContext(part)?.activeToolLabel,
+			}, {
+				pendingLabel: 'read', pendingIcon: Codicon.book,
+				before: Codicon.tools, after: Codicon.search, label: 'Inspect the project',
 			});
 		});
 
@@ -4164,6 +4202,41 @@ suite('ChatSubagentContentPart', () => {
 				pending: 1,
 				afterConfirmation: 0,
 			});
+		});
+
+		test('persistent progress omits carousel placeholders but retains named activity and confirmation counts', () => {
+			const snapshots = [false, true].map(suppressProgressShimmer => {
+				const parent = createMockToolInvocation({
+					toolSpecificData: { kind: 'subagent', description: 'Review rendering', isActive: true, hasStarted: true },
+				});
+				const part = createPart(parent, { ...createMockRenderContext(false), suppressProgressShimmer });
+				const first = createMockToolInvocation({
+					toolId: 'terminal', invocationMessage: 'Run the rendering tests',
+					stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				});
+				const secondState = observableValue('state', createState(IChatToolInvocation.StateKind.Executing));
+				const second = { ...createMockToolInvocation({ toolId: 'read', invocationMessage: 'Read the renderer' }), state: secondState };
+				const queued: string[] = [];
+				part.enableCarouselMode(() => { }, tool => queued.push(tool.toolId), (_tool, state) => state.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				part.trackToolState(first);
+				part.trackToolState(second);
+				const snapshot = () => ({
+					placeholder: part.domNode.querySelector('.chat-subagent-confirmation-placeholder')?.textContent,
+					count: getOpenChatContext(part)?.confirmationCount,
+					activity: part.domNode.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
+				});
+				const onePending = snapshot();
+				secondState.set(createState(IChatToolInvocation.StateKind.WaitingForConfirmation), undefined);
+				const twoPending = snapshot();
+				secondState.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+				return { onePending, twoPending, oneRemaining: snapshot(), queued };
+			});
+			assert.deepStrictEqual(snapshots, [false, true].map(persistent => ({
+				onePending: { placeholder: persistent ? undefined : '1 pending confirmation', count: 1, activity: 'Read the renderer' },
+				twoPending: { placeholder: persistent ? undefined : '2 pending confirmations', count: 2, activity: 'Read the renderer' },
+				oneRemaining: { placeholder: persistent ? undefined : '1 pending confirmation', count: 1, activity: 'Read the renderer' },
+				queued: ['terminal', 'read'],
+			})));
 		});
 
 		test('should stay collapsed when the carousel owns a rich subagent confirmation', () => {

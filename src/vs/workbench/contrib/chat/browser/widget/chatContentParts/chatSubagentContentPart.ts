@@ -829,6 +829,11 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			: toolInvocation.invocationMessage;
 		const messageText = typeof message === 'string' ? message : message.value;
 		const label = messageText.replace(/\s+/g, ' ').trim();
+		if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			|| state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+			|| state?.type === IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return label || toolInvocation.toolId;
+		}
 		if (!label) {
 			return undefined;
 		}
@@ -882,9 +887,10 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			}
 			if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
 				const toolLabel = this.getToolLabel(toolInvocation, state);
-				if (toolLabel && (toolLabel !== this.currentRunningToolMessage || !equals(subagent, this.mostRecentToolPresentation?.subagent))) {
+				const toolIcon = toolLabel ? this.getToolIcon(toolInvocation, toolLabel) : undefined;
+				if (toolLabel && (toolLabel !== this.currentRunningToolMessage || !equals(toolIcon, this.currentRunningToolIcon) || !equals(subagent, this.mostRecentToolPresentation?.subagent))) {
 					this.currentRunningToolMessage = toolLabel;
-					this.currentRunningToolIcon = this.getToolIcon(toolInvocation, this.currentRunningToolMessage);
+					this.currentRunningToolIcon = toolIcon;
 					this.updateActiveToolPresentation(toolInvocation, this.currentRunningToolMessage, this.currentRunningToolIcon, state);
 					this._updateToolPresentation();
 				}
@@ -1006,6 +1012,9 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 
 	/** Shows a placeholder that jumps back to the carousel. */
 	private showConfirmationPlaceholder(): void {
+		if (this.context.suppressProgressShimmer) {
+			return;
+		}
 		if (this._confirmationPlaceholder) {
 			this.updateConfirmationPlaceholderLabel();
 			return;
