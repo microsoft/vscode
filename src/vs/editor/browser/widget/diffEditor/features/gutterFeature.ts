@@ -309,7 +309,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 			itemRange.endExclusive - itemHeight - margin
 		);
 
-		if (preferredParentRange && preferredViewPortRange && preferredParentRange.start < preferredParentRange.endExclusive) {
+		if (preferredParentRange && preferredViewPortRange && !preferredParentRange.isEmpty && !preferredViewPortRange.isEmpty) {
 			effectiveCheckboxTop = preferredViewPortRange.clip(effectiveCheckboxTop);
 			effectiveCheckboxTop = preferredParentRange.clip(effectiveCheckboxTop);
 		}
