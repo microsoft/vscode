@@ -6,6 +6,7 @@
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -21,7 +22,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
-import { CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
+import { ChatAIDisabledSettingId, CONTEXT_MODELS_EDITOR, CONTEXT_MODELS_SEARCH_FOCUS, MANAGE_CHAT_COMMAND_ID } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ModelsManagementEditor } from './chatManagementEditor.js';
 import { ModelsManagementEditorInput } from './chatManagementEditorInput.js';
@@ -86,6 +87,7 @@ async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<v
 
 	const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
+	const configurationService = accessor.get(IConfigurationService);
 	const progressService = accessor.get(IProgressService);
 
 	const localExtensions = await extensionsWorkbenchService.queryLocal();
@@ -93,11 +95,18 @@ async function ensureChatExtensionEnabled(accessor: ServicesAccessor): Promise<v
 	if (!chatExtension?.local || extensionEnablementService.isEnabled(chatExtension.local)) {
 		return;
 	}
+	const local = chatExtension.local;
 
 	await progressService.withProgress(
 		{ location: ProgressLocation.Window, title: localize('enableChatForByok', "Enabling AI features…") },
 		async () => {
-			await extensionsWorkbenchService.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+			// Enablement is derived from the setting, so it has to be cleared first.
+			if (configurationService.getValue<boolean>(ChatAIDisabledSettingId) === true) {
+				await configurationService.updateValue(ChatAIDisabledSettingId, false);
+			}
+			if (!extensionEnablementService.isEnabled(local)) {
+				await extensionsWorkbenchService.setEnablement([chatExtension], EnablementState.EnabledGlobally);
+			}
 			await extensionsWorkbenchService.updateRunningExtensions(localize('enableChatForByokReason', "Enabling AI features"));
 		}
 	);
