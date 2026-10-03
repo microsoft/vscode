@@ -260,7 +260,9 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			return;
 		}
 
-		for (const group of this.groupViews.values()) {
+		// Query the grid only for groups it actually contains: use the grid as the
+		// source of truth so transient `groupViews` entries never reach `getNeighborViews`.
+		for (const group of this.getGroups(GroupsOrder.GRID_APPEARANCE)) {
 			if (!(group instanceof EditorGroupView)) {
 				continue;
 			}
