@@ -113,6 +113,25 @@ suite('Language Configuration Parsing', () => {
 		assert.ok(parsed.folding?.markers?.start.test('#REGION'));
 		assert.ok(parsed.folding?.markers?.end.test('#ENDREGION'));
 	});
+
+	test('Auto-closing pairs support beforeText regex syntax with flags', () => {
+		const parsed = LanguageConfigurationFileHandler.extractValidConfig('testLang', {
+			autoClosingPairs: [{
+				open: 'begin',
+				close: 'end',
+				beforeText: { pattern: '(?:^|\\s)begin$', flags: 'i' }
+			}]
+		});
+
+		assert.deepStrictEqual(
+			parsed.autoClosingPairs?.map(pair => ({
+				open: pair.open,
+				close: pair.close,
+				beforeText: pair.beforeText ? { source: pair.beforeText.source, flags: pair.beforeText.flags } : undefined
+			})),
+			[{ open: 'begin', close: 'end', beforeText: { source: '(?:^|\\s)begin$', flags: 'i' } }]
+		);
+	});
 });
 
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {

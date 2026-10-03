@@ -398,6 +398,12 @@ export interface IOnEnterRuleDto {
 	previousLineText?: IRegExpDto;
 	action: EnterAction;
 }
+export interface IAutoClosingPairDto {
+	open: string;
+	close: string;
+	notIn?: string[];
+	beforeText?: IRegExpDto;
+}
 export interface ILanguageConfigurationDto {
 	comments?: CommentRule;
 	brackets?: CharacterPair[];
@@ -420,11 +426,7 @@ export interface ILanguageConfigurationDto {
 			notIn?: string[];
 		}[];
 	};
-	autoClosingPairs?: {
-		open: string;
-		close: string;
-		notIn?: string[];
-	}[];
+	autoClosingPairs?: IAutoClosingPairDto[];
 }
 
 export type GlobPattern = string | IRelativePattern;

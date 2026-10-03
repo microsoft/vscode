@@ -7168,6 +7168,7 @@ declare namespace monaco.languages {
 
 	export interface IAutoClosingPairConditional extends IAutoClosingPair {
 		notIn?: string[];
+		beforeText?: RegExp;
 	}
 
 	/**

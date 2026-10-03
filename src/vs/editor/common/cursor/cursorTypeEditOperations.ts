@@ -346,6 +346,11 @@ export class AutoClosingOpenCharTypeOperation {
 						candidateIsMatch = false;
 						break;
 					}
+					const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
+					if (!candidate.shouldAutoCloseBefore(prefix + ch)) {
+						candidateIsMatch = false;
+						break;
+					}
 				}
 				if (candidateIsMatch) {
 					result = candidate;
