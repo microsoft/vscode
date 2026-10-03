@@ -13,7 +13,7 @@ import { DEFAULT_EDITOR_ASSOCIATION } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { EditorResolverService } from '../../browser/editorResolverService.js';
 import { IEditorGroupsService } from '../../common/editorGroupsService.js';
-import { diffEditorsAssociationsAgentsWindowDefault, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, IEditorResolverService, ResolvedStatus, RegisteredEditorPriority, diffEditorsAssociationsSettingId, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId } from '../../common/editorResolverService.js';
+import { diffEditorLanguageAssociationsSettingId, diffEditorsAssociationsAgentsWindowDefault, diffEditorsAssociationsSettingId, editorLanguageAssociationsSettingId, EditorInputFactoryObject, EditorMatchRuleSource, EditorMatches, editorsAssociationsAgentsWindowDefault, editorsAssociationsSettingId, IEditorResolverService, RegisteredEditorPriority, ResolvedStatus } from '../../common/editorResolverService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { createEditorPart, ITestInstantiationService, TestFileEditorInput, TestServiceAccessor, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
@@ -1546,5 +1546,255 @@ suite('EditorResolverService', () => {
 		}
 
 		registeredEditor.dispose();
+	});
+
+	test('Language-targeted custom editor resolves for matching resource', async () => {
+		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorLanguage';
+		const [part, service, accessor] = await createEditorResolverService();
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'test-lang', extensions: ['.test-lang'] }));
+
+		const registeredEditor = service.registerEditor('*',
+			{
+				id: 'TEST_LANG_EDITOR',
+				label: 'Test Language Editor',
+				detail: 'Test Language Editor Details',
+				priority: RegisteredEditorPriority.default,
+			},
+			{ language: 'test-lang' },
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), CUSTOM_EDITOR_INPUT_ID, disposables) })
+			}
+		);
+
+		const matchingResource = URI.file('my://resource.test-lang');
+		const matchingModel = disposables.add(accessor.modelService.createModel('content', accessor.languageService.createById('test-lang'), matchingResource));
+		const nonMatchingResource = URI.file('my://resource.other');
+		const nonMatchingModel = disposables.add(accessor.modelService.createModel('content', accessor.languageService.createById('plaintext'), nonMatchingResource));
+
+		const resolved = await service.resolveEditor({ resource: matchingResource }, part.activeGroup);
+		assert.ok(resolved);
+		assert.notStrictEqual(typeof resolved, 'number');
+		if (resolved !== ResolvedStatus.ABORT && resolved !== ResolvedStatus.NONE) {
+			assert.strictEqual(resolved.editor.typeId, CUSTOM_EDITOR_INPUT_ID);
+			resolved.editor.dispose();
+		} else {
+			assert.fail('Expected matching language editor to resolve');
+		}
+
+		const resolvedOther = await service.resolveEditor({ resource: nonMatchingResource }, part.activeGroup);
+		assert.ok(resolvedOther);
+		assert.notStrictEqual(typeof resolvedOther, 'number');
+		if (resolvedOther !== ResolvedStatus.ABORT && resolvedOther !== ResolvedStatus.NONE) {
+			assert.notStrictEqual(resolvedOther.editor.typeId, CUSTOM_EDITOR_INPUT_ID);
+			resolvedOther.editor.dispose();
+		}
+
+		matchingModel.dispose();
+		nonMatchingModel.dispose();
+		registeredEditor.dispose();
+	});
+
+	test('Selector with both filenamePattern and language matches with AND semantics', async () => {
+		const CUSTOM_EDITOR_INPUT_ID = 'testCustomEditorAnd';
+		const [part, service, accessor] = await createEditorResolverService();
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'test-json', extensions: ['.custom.json'] }));
+
+		const registeredEditor = service.registerEditor('*.custom.json',
+			{
+				id: 'TEST_AND_EDITOR',
+				label: 'Test AND Editor',
+				detail: 'Test Details',
+				priority: RegisteredEditorPriority.default,
+			},
+			{ language: 'test-json' },
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), CUSTOM_EDITOR_INPUT_ID, disposables) })
+			}
+		);
+
+		// Matches both filename and language
+		const bothMatchUri = URI.file('my://file.custom.json');
+		const bothMatchModel = disposables.add(accessor.modelService.createModel('{}', accessor.languageService.createById('test-json'), bothMatchUri));
+
+		// Matches filename but not language
+		const filenameOnlyUri = URI.file('my://other.custom.json');
+		const filenameOnlyModel = disposables.add(accessor.modelService.createModel('{}', accessor.languageService.createById('plaintext'), filenameOnlyUri));
+
+		const resolvedBoth = await service.resolveEditor({ resource: bothMatchUri }, part.activeGroup);
+		assert.ok(resolvedBoth);
+		assert.notStrictEqual(typeof resolvedBoth, 'number');
+		if (resolvedBoth !== ResolvedStatus.ABORT && resolvedBoth !== ResolvedStatus.NONE) {
+			assert.strictEqual(resolvedBoth.editor.typeId, CUSTOM_EDITOR_INPUT_ID);
+			resolvedBoth.editor.dispose();
+		} else {
+			assert.fail('Expected editor matching both to resolve');
+		}
+
+		const resolvedFilenameOnly = await service.resolveEditor({ resource: filenameOnlyUri }, part.activeGroup);
+		assert.ok(resolvedFilenameOnly);
+		assert.notStrictEqual(typeof resolvedFilenameOnly, 'number');
+		if (resolvedFilenameOnly !== ResolvedStatus.ABORT && resolvedFilenameOnly !== ResolvedStatus.NONE) {
+			assert.notStrictEqual(resolvedFilenameOnly.editor.typeId, CUSTOM_EDITOR_INPUT_ID);
+			resolvedFilenameOnly.editor.dispose();
+		}
+
+		bothMatchModel.dispose();
+		filenameOnlyModel.dispose();
+		registeredEditor.dispose();
+	});
+
+	test('Precedence: explicit filename pattern overrides explicit language association', async () => {
+		const FILENAME_EDITOR_INPUT_ID = 'testFilenameEditor';
+		const LANGUAGE_EDITOR_INPUT_ID = 'testLanguageEditor';
+		const [part, service, accessor] = await createEditorResolverService();
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'precedence-lang', extensions: ['.prec'] }));
+
+		const filenameEditor = service.registerEditor('*.prec',
+			{ id: 'FILENAME_EDITOR', label: 'Filename Editor', priority: RegisteredEditorPriority.option },
+			{},
+			{ createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), FILENAME_EDITOR_INPUT_ID, disposables) }) }
+		);
+		const langEditor = service.registerEditor('*',
+			{ id: 'LANG_EDITOR', label: 'Lang Editor', priority: RegisteredEditorPriority.option },
+			{ language: 'precedence-lang' },
+			{ createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), LANGUAGE_EDITOR_INPUT_ID, disposables) }) }
+		);
+
+		const testUri = URI.file('my://file.prec');
+		const model = disposables.add(accessor.modelService.createModel('code', accessor.languageService.createById('precedence-lang'), testUri));
+
+		// Set both filename association and language association
+		await accessor.testConfigurationService.setUserConfiguration(editorsAssociationsSettingId, { '*.prec': 'FILENAME_EDITOR' });
+		await accessor.testConfigurationService.setUserConfiguration(editorLanguageAssociationsSettingId, { 'precedence-lang': 'LANG_EDITOR' });
+
+		const resolved = await service.resolveEditor({ resource: testUri }, part.activeGroup);
+		assert.ok(resolved);
+		assert.notStrictEqual(typeof resolved, 'number');
+		if (resolved !== ResolvedStatus.ABORT && resolved !== ResolvedStatus.NONE) {
+			assert.strictEqual(resolved.editor.typeId, FILENAME_EDITOR_INPUT_ID);
+			resolved.editor.dispose();
+		} else {
+			assert.fail('Expected filename editor to win by precedence');
+		}
+
+		model.dispose();
+		filenameEditor.dispose();
+		langEditor.dispose();
+	});
+
+	test('Language default setting overrides natural priority', async () => {
+		const LANG_EDITOR_INPUT_ID = 'testLangAssociationEditor';
+		const [part, service, accessor] = await createEditorResolverService();
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'lang-override', extensions: ['.override'] }));
+
+		const langEditor = service.registerEditor('*',
+			{ id: 'OPTIONAL_LANG_EDITOR', label: 'Optional Lang Editor', priority: RegisteredEditorPriority.option },
+			{ language: 'lang-override' },
+			{ createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), LANG_EDITOR_INPUT_ID, disposables) }) }
+		);
+
+		const testUri = URI.file('my://file.override');
+		const model = disposables.add(accessor.modelService.createModel('code', accessor.languageService.createById('lang-override'), testUri));
+
+		// Without setting, optional editor is not chosen over default
+		const resolvedBefore = await service.resolveEditor({ resource: testUri }, part.activeGroup);
+		if (resolvedBefore !== ResolvedStatus.ABORT && resolvedBefore !== ResolvedStatus.NONE) {
+			assert.notStrictEqual(resolvedBefore.editor.typeId, LANG_EDITOR_INPUT_ID);
+			resolvedBefore.editor.dispose();
+		}
+
+		// With language association setting, it is chosen
+		await accessor.testConfigurationService.setUserConfiguration(editorLanguageAssociationsSettingId, { 'lang-override': 'OPTIONAL_LANG_EDITOR' });
+
+		const resolvedAfter = await service.resolveEditor({ resource: testUri }, part.activeGroup);
+		assert.ok(resolvedAfter);
+		assert.notStrictEqual(typeof resolvedAfter, 'number');
+		if (resolvedAfter !== ResolvedStatus.ABORT && resolvedAfter !== ResolvedStatus.NONE) {
+			assert.strictEqual(resolvedAfter.editor.typeId, LANG_EDITOR_INPUT_ID);
+			resolvedAfter.editor.dispose();
+		} else {
+			assert.fail('Expected language association editor to be chosen');
+		}
+
+		model.dispose();
+		langEditor.dispose();
+	});
+
+	test('Diff language association overrides general editor association for diffs', async () => {
+		const GENERAL_DIFF_ID = 'generalDiffEditor';
+		const DIFF_SPECIFIC_ID = 'diffSpecificEditor';
+		const [part, service, accessor] = await createEditorResolverService();
+		disposables.add((accessor.languageService as any).registerLanguage({ id: 'diff-lang', extensions: ['.diff-lang'] }));
+
+		const generalEditor = service.registerEditor('*',
+			{ id: 'GENERAL_EDITOR', label: 'General Editor', priority: RegisteredEditorPriority.option },
+			{ language: 'diff-lang' },
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), GENERAL_DIFF_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), GENERAL_DIFF_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), GENERAL_DIFF_ID, disposables),
+						undefined)
+				})
+			}
+		);
+		const diffEditor = service.registerEditor('*',
+			{ id: 'DIFF_SPECIFIC_EDITOR', label: 'Diff Specific Editor', priority: RegisteredEditorPriority.option },
+			{ language: 'diff-lang' },
+			{
+				createEditorInput: ({ resource }) => ({ editor: constructDisposableFileEditorInput(URI.parse(resource.toString()), DIFF_SPECIFIC_ID, disposables) }),
+				createDiffEditorInput: ({ modified, original }) => ({
+					editor: accessor.instantiationService.createInstance(
+						DiffEditorInput,
+						'name',
+						'description',
+						constructDisposableFileEditorInput(URI.parse(original.toString()), DIFF_SPECIFIC_ID, disposables),
+						constructDisposableFileEditorInput(URI.parse(modified.toString()), DIFF_SPECIFIC_ID, disposables),
+						undefined)
+				})
+			}
+		);
+
+		const origUri = URI.file('my://orig.diff-lang');
+		const modUri = URI.file('my://mod.diff-lang');
+		const origModel = disposables.add(accessor.modelService.createModel('orig', accessor.languageService.createById('diff-lang'), origUri));
+		const modModel = disposables.add(accessor.modelService.createModel('mod', accessor.languageService.createById('diff-lang'), modUri));
+
+		// General language association points to GENERAL_EDITOR, diff language association points to DIFF_SPECIFIC_EDITOR
+		await accessor.testConfigurationService.setUserConfiguration(editorLanguageAssociationsSettingId, { 'diff-lang': 'GENERAL_EDITOR' });
+		await accessor.testConfigurationService.setUserConfiguration(diffEditorLanguageAssociationsSettingId, { 'diff-lang': 'DIFF_SPECIFIC_EDITOR' });
+
+		const resolved = await service.resolveEditor({ original: { resource: origUri }, modified: { resource: modUri } }, part.activeGroup);
+		assert.ok(resolved);
+		assert.notStrictEqual(typeof resolved, 'number');
+		if (resolved !== ResolvedStatus.ABORT && resolved !== ResolvedStatus.NONE) {
+			const diffInput = resolved.editor as DiffEditorInput;
+			assert.strictEqual(diffInput.primary.typeId, DIFF_SPECIFIC_ID);
+			resolved.editor.dispose();
+		} else {
+			assert.fail('Expected diff editor to resolve with diff language association');
+		}
+
+		origModel.dispose();
+		modModel.dispose();
+		generalEditor.dispose();
+		diffEditor.dispose();
+	});
+
+	test('setDefaultLanguageEditor updates language association setting and removes redundant association', async () => {
+		const [, service] = await createEditorResolverService();
+
+		service.setDefaultLanguageEditor('test-lang', 'test.customEditor');
+		let associations = service.getAllUserAssociations();
+		assert.ok(associations.some(a => a.language === 'test-lang' && a.viewType === 'test.customEditor'));
+
+		// Setting back to default text editor when no natural default exists removes the association
+		service.setDefaultLanguageEditor('test-lang', DEFAULT_EDITOR_ASSOCIATION.id);
+		associations = service.getAllUserAssociations();
+		assert.ok(!associations.some(a => a.language === 'test-lang'));
 	});
 });

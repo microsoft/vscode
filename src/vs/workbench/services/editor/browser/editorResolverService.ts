@@ -26,7 +26,10 @@ import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorIn
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { findGroup } from '../common/editorGroupFinder.js';
 import { IEditorGroup, IEditorGroupsService } from '../common/editorGroupsService.js';
-import { diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
+import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { PLAINTEXT_LANGUAGE_ID } from '../../../../editor/common/languages/modesRegistry.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
+import { diffEditorLanguageAssociationsSettingId, diffEditorsAssociationsSettingId, EditorAssociation, EditorAssociations, editorLanguageAssociationsSettingId, EditorInputFactoryObject, EditorMatchRule, EditorMatchRuleSource, editorsAssociationsSettingId, globMatchesResource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetAllEditorsOptions, IEditorResolverServiceGetEditorMatchesOptions, IEditorResolverServiceGetEditorsOptions, isUnconfiguredUniversalOptionalEditorMatch, priorityToRank, RegisteredEditorInfo, RegisteredEditorOptions, RegisteredEditorPriority, RegisteredEditorRegistrationInfo, ResolvedEditor, ResolvedStatus, toRegisteredEditorPriorityInfo } from '../common/editorResolverService.js';
 import { PreferredGroup } from '../common/editorService.js';
 
 interface RegisteredEditor {
@@ -77,7 +80,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 	// Constants
 	private static readonly configureDefaultID = 'promptOpenWith.configureDefault';
+	private static readonly configureDefaultLanguageID = 'promptOpenWith.configureDefaultLanguage';
 	private static readonly configureDefaultDiffID = 'promptOpenWith.configureDefaultDiff';
+	private static readonly configureDefaultLanguageDiffID = 'promptOpenWith.configureDefaultLanguageDiff';
 	private static readonly cacheStorageID = 'editorOverrideService.cache';
 	private static readonly conflictingDefaultsStorageID = 'editorOverrideService.conflictingDefaults';
 
@@ -96,7 +101,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILogService private readonly logService: ILogService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 		// Read in the cache on statup
@@ -112,6 +119,43 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this._register(this.extensionService.onDidRegisterExtensions(() => {
 			this.cache = undefined;
 		}));
+
+		this._register(this.modelService.onModelLanguageChanged(() => {
+			this._shouldReFlattenEditors = true;
+			this._onDidChangeEditorRegistrations.fire();
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('files.associations') ||
+				e.affectsConfiguration(editorsAssociationsSettingId) ||
+				e.affectsConfiguration(diffEditorsAssociationsSettingId) ||
+				e.affectsConfiguration(editorLanguageAssociationsSettingId) ||
+				e.affectsConfiguration(diffEditorLanguageAssociationsSettingId)) {
+				this._shouldReFlattenEditors = true;
+				this._onDidChangeEditorRegistrations.fire();
+			}
+		}));
+	}
+
+	getEffectiveLanguageId(resource: URI): string | undefined {
+		const modelLang = this.modelService.getModel(resource)?.getLanguageId();
+		if (modelLang) {
+			return modelLang;
+		}
+		const guessed = this.languageService.guessLanguageIdByFilepathOrFirstLine(resource);
+		// Normalize null/falsy to 'plaintext', matching the language that the text model
+		// will use for unrecognized files. Without this, plaintext selectors fail during
+		// initial resolution (before the model opens) and the UI shows no effective default.
+		return guessed ?? PLAINTEXT_LANGUAGE_ID;
+	}
+
+	getEffectiveLanguage(resource: URI): { readonly id: string; readonly name: string } | undefined {
+		const id = this.getEffectiveLanguageId(resource);
+		if (!id) {
+			return undefined;
+		}
+		const name = this.languageService.getLanguageName(id) ?? id;
+		return { id, name };
 	}
 
 	private resolveUntypedInputAndGroup(editor: IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined> | [IUntypedEditorInput, IEditorGroup, EditorActivation | undefined] | undefined {
@@ -296,10 +340,6 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	getAssociationsForResource(resource: URI): EditorAssociations {
-		return this.getAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
-	}
-
 	getEditorMatches(resource: URI, options?: IEditorResolverServiceGetEditorMatchesOptions): EditorMatches {
 		this._flattenedEditors = this._flattenEditorsMap();
 
@@ -347,7 +387,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				editor: editor.editorInfo,
 				priority,
 				source: EditorMatchRuleSource.Fallback,
-				associationPattern: this.getDefaultAssociationPattern(resource)
+				associationPattern: this.getDefaultAssociationPattern(resource),
+				language: editor.options?.language
 			};
 		}
 
@@ -358,7 +399,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					priority,
 					source: EditorMatchRuleSource.UserAssociation,
 					association: selection.association,
-					associationPattern: selection.association.filenamePattern ?? this.getDefaultAssociationPattern(resource, selection.editor)
+					associationPattern: selection.association.filenamePattern ?? this.getDefaultAssociationPattern(resource, selection.editor),
+					language: selection.association.language ?? editor.options?.language
 				};
 			}
 			if (selection.source === EditorSelectionSource.EditorPriority) {
@@ -367,7 +409,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 					priority,
 					source: EditorMatchRuleSource.EditorRegistration,
 					globPattern: selection.editor.globPattern,
-					associationPattern: this.getDefaultAssociationPattern(resource, selection.editor)
+					associationPattern: this.getDefaultAssociationPattern(resource, selection.editor),
+					language: selection.editor.options?.language
 				};
 			}
 		}
@@ -379,7 +422,8 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				priority,
 				source: EditorMatchRuleSource.UserAssociation,
 				association,
-				associationPattern: association.filenamePattern ?? this.getDefaultAssociationPattern(resource, editor)
+				associationPattern: association.filenamePattern ?? this.getDefaultAssociationPattern(resource, editor),
+				language: association.language ?? editor.options?.language
 			};
 		}
 
@@ -388,15 +432,20 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			priority,
 			source: EditorMatchRuleSource.EditorRegistration,
 			globPattern: editor.globPattern,
-			associationPattern: this.getDefaultAssociationPattern(resource, editor)
+			associationPattern: this.getDefaultAssociationPattern(resource, editor),
+			language: editor.options?.language
 		};
 	}
 
 	private getDefaultAssociationPattern(resource: URI, selectedEditor?: RegisteredEditor): string {
 		if (selectedEditor) {
-			return typeof selectedEditor.globPattern === 'string' && globMatchesResource(selectedEditor.globPattern, resource)
-				? selectedEditor.globPattern
-				: `*${extname(resource)}`;
+			// If the editor is language-constrained with a synthetic '*' glob, do NOT return '*' as
+			// the association pattern — that would let "Set Default for '*'" write a global wildcard
+			// association affecting every file. Instead, derive from the resource extension.
+			const isLanguageOnlySyntheticGlob = selectedEditor.options?.language && selectedEditor.globPattern === '*';
+			if (!isLanguageOnlySyntheticGlob && typeof selectedEditor.globPattern === 'string' && globMatchesResource(selectedEditor.globPattern, resource)) {
+				return selectedEditor.globPattern;
+			}
 		}
 
 		return `*${extname(resource)}`;
@@ -407,13 +456,16 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			return this.getAssociationsForResource(resource);
 		}
 
-		const modeAssociations = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
-		if (modeAssociations.length) {
-			return modeAssociations;
-		}
+		const diffFilename = this.getAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
+		const diffLanguage = this.getAssociationsForResourceFromLanguageSetting(resource, diffEditorLanguageAssociationsSettingId);
 
-		return this.getAssociationsForResource(resource)
+		const generalAssociations = this.getAssociationsForResource(resource)
 			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+
+		const generalFilename = generalAssociations.filter(a => a.filenamePattern);
+		const generalLanguage = generalAssociations.filter(a => a.language);
+
+		return [...diffFilename, ...generalFilename, ...diffLanguage, ...generalLanguage];
 	}
 
 	/**
@@ -425,21 +477,44 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return !!editor && this.getEffectivePriority(editor.editorInfo, associationType) === RegisteredEditorPriority.explicit;
 	}
 
+	getAssociationsForResource(resource: URI): EditorAssociations {
+		const filename = this.getAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
+		const language = this.getAssociationsForResourceFromLanguageSetting(resource, editorLanguageAssociationsSettingId);
+		return [...filename, ...language];
+	}
+
 	private getAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
 		return this.getMatchingAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId));
 	}
 
+	private getAssociationsForResourceFromLanguageSetting(resource: URI, settingId: string): EditorAssociations {
+		return this.getMatchingAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId, true));
+	}
+
 	private getRawAssociationsForResourceByType(resource: URI, associationType: EditorAssociationType): EditorAssociations {
 		if (associationType === EditorAssociationType.Editor) {
-			return this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
+			const filename = this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
+			const language = this.getRawAssociationsForResourceFromLanguageSetting(resource, editorLanguageAssociationsSettingId);
+			return [...filename, ...language];
 		}
 
-		const diffAssociations = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
-		return diffAssociations.length ? diffAssociations : this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId);
+		const diffFilename = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId);
+		const diffLanguage = this.getRawAssociationsForResourceFromLanguageSetting(resource, diffEditorLanguageAssociationsSettingId);
+
+		const generalFilename = this.getRawAssociationsForResourceFromSetting(resource, editorsAssociationsSettingId)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+		const generalLanguage = this.getRawAssociationsForResourceFromLanguageSetting(resource, editorLanguageAssociationsSettingId)
+			.filter(association => !this.isExplicitForAssociationType(association.viewType, associationType));
+
+		return [...diffFilename, ...generalFilename, ...diffLanguage, ...generalLanguage];
 	}
 
 	private getRawAssociationsForResourceFromSetting(resource: URI, settingId: string): EditorAssociations {
 		return this.getMatchingRawAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId));
+	}
+
+	private getRawAssociationsForResourceFromLanguageSetting(resource: URI, settingId: string): EditorAssociations {
+		return this.getMatchingRawAssociationsForResource(resource, this.getAllUserAssociationsForSetting(settingId, true));
 	}
 
 	private getMatchingAssociationsForResource(resource: URI, associations: EditorAssociations): EditorAssociations {
@@ -448,30 +523,53 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	}
 
 	private getMatchingRawAssociationsForResource(resource: URI, associations: EditorAssociations): EditorAssociations {
-		const matchingAssociations = associations.filter(association => association.filenamePattern && globMatchesResource(association.filenamePattern, resource));
-		// Sort matching associations based on glob length as a longer glob will be more specific
-		return matchingAssociations.sort((a, b) => (b.filenamePattern?.length ?? 0) - (a.filenamePattern?.length ?? 0));
+		const langId = this.getEffectiveLanguageId(resource);
+		const matchingAssociations = associations.filter(association => {
+			if (association.filenamePattern && globMatchesResource(association.filenamePattern, resource)) {
+				return true;
+			}
+			if (association.language && langId && association.language === langId) {
+				return true;
+			}
+			return false;
+		});
+		// Sort matching associations based on specificity: filenamePattern takes precedence over language,
+		// and longer glob takes precedence over shorter glob
+		return matchingAssociations.sort((a, b) => {
+			if (a.filenamePattern && !b.filenamePattern) {
+				return -1;
+			}
+			if (!a.filenamePattern && b.filenamePattern) {
+				return 1;
+			}
+			return (b.filenamePattern?.length ?? 0) - (a.filenamePattern?.length ?? 0);
+		});
 	}
 
 	getAllUserAssociations(): EditorAssociations {
-		return this.getAllUserAssociationsForSetting(editorsAssociationsSettingId);
+		return [
+			...this.getAllUserAssociationsForSetting(editorsAssociationsSettingId),
+			...this.getAllUserAssociationsForSetting(editorLanguageAssociationsSettingId, true)
+		];
 	}
 
-	private getAllUserAssociationsForSetting(settingId: string): EditorAssociations {
+	private getAllUserAssociationsForSetting(settingId: string, isLanguageSetting = false): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(settingId) || {};
 		return this.mergeEditorAssociationSettings(
 			inspectedEditorAssociations.defaultValue ?? {},
 			inspectedEditorAssociations.workspaceValue ?? {},
-			inspectedEditorAssociations.userValue ?? {}
+			inspectedEditorAssociations.userValue ?? {},
+			isLanguageSetting
 		);
 	}
 
 	private mergeEditorAssociationSettings(
 		defaultAssociations: Readonly<Record<string, string>>,
 		workspaceAssociations: Readonly<Record<string, string>>,
-		userAssociations: Readonly<Record<string, string>>
+		userAssociations: Readonly<Record<string, string>>,
+		isLanguageSetting = false
 	): EditorAssociations {
-		const rawAssociations: { [fileNamePattern: string]: string } = { ...workspaceAssociations };
+		const rawAssociations: { [key: string]: string } = { ...workspaceAssociations };
 		// We want to apply the default associations and user associations on top of the workspace associations but ignore duplicate keys.
 		for (const [key, value] of Object.entries({ ...defaultAssociations, ...userAssociations })) {
 			if (rawAssociations[key] === undefined) {
@@ -480,7 +578,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 		const associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
-			const association: EditorAssociation = {
+			const association: EditorAssociation = isLanguageSetting ? {
+				language: key,
+				viewType: value
+			} : {
 				filenamePattern: key,
 				viewType: value
 			};
@@ -503,9 +604,10 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		for (const [glob, value] of this._editors) {
 			const registeredEditors: RegisteredEditors = [];
 			for (const editors of value.values()) {
-				let registeredEditor: RegisteredEditor | undefined = undefined;
-				// Merge all editors with the same id and glob pattern together
+				const registeredEditorsByLanguage = new Map<string | undefined, RegisteredEditor>();
+				// Merge all editors with the same id, glob pattern, and language together
 				for (const editor of editors) {
+					let registeredEditor = registeredEditorsByLanguage.get(editor.options?.language);
 					if (!registeredEditor) {
 						registeredEditor = {
 							editorInfo: editor.editorInfo,
@@ -513,14 +615,13 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 							options: {},
 							editorFactoryObject: {}
 						};
+						registeredEditorsByLanguage.set(editor.options?.language, registeredEditor);
 					}
 					// Merge options and factories
 					registeredEditor.options = { ...registeredEditor.options, ...editor.options };
 					registeredEditor.editorFactoryObject = { ...registeredEditor.editorFactoryObject, ...editor.editorFactoryObject };
 				}
-				if (registeredEditor) {
-					registeredEditors.push(registeredEditor);
-				}
+				registeredEditors.push(...registeredEditorsByLanguage.values());
 			}
 			editors.set(glob, registeredEditors);
 		}
@@ -553,9 +654,25 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		this.updateUserAssociationsForSetting(settingId, associationPattern, editorID);
 	}
 
-	private updateUserAssociationsForSetting(settingId: string, globPattern: string, editorID: string): void {
-		const newSettingObject = this.toEditorAssociationSetting(this.getAllUserAssociationsForSetting(settingId));
-		newSettingObject[globPattern] = editorID;
+	setDefaultLanguageEditor(languageId: string, editorID: string, forDiffEditor?: boolean): void {
+		const settingId = forDiffEditor ? diffEditorLanguageAssociationsSettingId : editorLanguageAssociationsSettingId;
+		const currentAssociations = this.getAllUserAssociationsForSetting(settingId, true);
+		const existing = currentAssociations.find(a => a.language === languageId);
+		if (existing) {
+			const naturalEditor = this._registeredEditors.find(e => e.options?.language === languageId && e.editorInfo.priority.editor === RegisteredEditorPriority.default);
+			const naturalDefaultId = naturalEditor?.editorInfo.id ?? DEFAULT_EDITOR_ASSOCIATION.id;
+			if (editorID === naturalDefaultId) {
+				this.removeUserAssociationForSetting(settingId, languageId);
+				return;
+			}
+		}
+		this.updateUserAssociationsForSetting(settingId, languageId, editorID);
+	}
+
+	private updateUserAssociationsForSetting(settingId: string, patternOrLanguage: string, editorID: string): void {
+		const isLanguageSetting = settingId === editorLanguageAssociationsSettingId || settingId === diffEditorLanguageAssociationsSettingId;
+		const newSettingObject = this.toEditorAssociationSetting(this.getAllUserAssociationsForSetting(settingId, isLanguageSetting));
+		newSettingObject[patternOrLanguage] = editorID;
 		this.configurationService.updateValue(settingId, newSettingObject);
 	}
 
@@ -611,19 +728,21 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return undefined;
 	}
 
-	private removeUserAssociationForSetting(settingId: string, globPattern: string): void {
-		const currentAssociations = this.getAllUserAssociationsForSetting(settingId);
-		if (!currentAssociations.some(association => association.filenamePattern === globPattern)) {
+	private removeUserAssociationForSetting(settingId: string, patternOrLanguage: string): void {
+		const isLanguageSetting = settingId === editorLanguageAssociationsSettingId || settingId === diffEditorLanguageAssociationsSettingId;
+		const currentAssociations = this.getAllUserAssociationsForSetting(settingId, isLanguageSetting);
+		if (!currentAssociations.some(association => (association.filenamePattern ?? association.language) === patternOrLanguage)) {
 			return;
 		}
-		this.configurationService.updateValue(settingId, this.toEditorAssociationSetting(currentAssociations, globPattern));
+		this.configurationService.updateValue(settingId, this.toEditorAssociationSetting(currentAssociations, patternOrLanguage));
 	}
 
-	private toEditorAssociationSetting(associations: EditorAssociations, excludedPattern?: string): Record<string, string> {
+	private toEditorAssociationSetting(associations: EditorAssociations, excludedKey?: string): Record<string, string> {
 		const settingObject: Record<string, string> = Object.create(null);
 		for (const association of associations) {
-			if (association.filenamePattern && association.filenamePattern !== excludedPattern) {
-				settingObject[association.filenamePattern] = association.viewType;
+			const key = association.filenamePattern ?? association.language;
+			if (key && key !== excludedKey) {
+				settingObject[key] = association.viewType;
 			}
 		}
 		return settingObject;
@@ -632,6 +751,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 	private findMatchingEditors(resource: URI, associationType: EditorAssociationType = EditorAssociationType.Editor, userSettings = this.getAssociationsForResourceByType(resource, associationType)): RegisteredEditor[] {
 		// The user setting should be respected even if the editor doesn't specify that resource in package.json
 		const matchingEditors: RegisteredEditor[] = [];
+		const langId = this.getEffectiveLanguageId(resource);
 		// Then all glob patterns
 		for (const [key, editors] of this._flattenedEditors) {
 			for (const editor of editors) {
@@ -646,7 +766,9 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 				}
 
 				const foundInSettings = userSettings.find(setting => setting.viewType === editor.editorInfo.id);
-				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || globMatchesResource(key, resource)) {
+				const matchesFilename = globMatchesResource(key, resource);
+				const matchesLanguage = !editor.options?.language || (!!langId && editor.options.language === langId);
+				if ((foundInSettings && this.getEffectivePriority(editor.editorInfo, associationType) !== RegisteredEditorPriority.exclusive) || (matchesFilename && matchesLanguage)) {
 					matchingEditors.push(editor);
 				}
 			}
@@ -979,7 +1101,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		});
 	}
 
-	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker: boolean | undefined, associationType: EditorAssociationType, defaultAssociationType = associationType) {
+	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker: boolean | undefined, associationType: EditorAssociationType, defaultAssociationType = associationType, updateForLanguage?: boolean) {
 		const currentEditor = this.editorGroupService.activeGroup.findEditors(resource).at(0);
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled
@@ -990,7 +1112,43 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			: this.getEditorMatches(resource, { isDiffEditor: associationType === EditorAssociationType.DiffEditor }).matches.map(match => match.editor);
 		// We don't want duplicate Id entries
 		registeredEditors = distinct(registeredEditors, editor => editor.id);
-		const defaultRule = this.getEditorMatches(resource, { isDiffEditor: defaultAssociationType === EditorAssociationType.DiffEditor }).defaultRule;
+		
+		const matches = this.getEditorMatches(resource, { isDiffEditor: defaultAssociationType === EditorAssociationType.DiffEditor });
+		let defaultEditorId = matches.defaultRule.editor.id;
+
+		if (updateForLanguage) {
+			const langId = this.getEffectiveLanguageId(resource);
+			if (langId) {
+				const settingId = defaultAssociationType === EditorAssociationType.DiffEditor ? diffEditorLanguageAssociationsSettingId : editorLanguageAssociationsSettingId;
+				const langAssociations = this.getAllUserAssociationsForSetting(settingId, true);
+				let configured = langAssociations.find(a => a.language === langId);
+				if (!configured && defaultAssociationType === EditorAssociationType.DiffEditor) {
+					const generalAssociations = this.getAllUserAssociationsForSetting(editorLanguageAssociationsSettingId, true);
+					configured = generalAssociations.find(a => a.language === langId && !this.isExplicitForAssociationType(a.viewType, defaultAssociationType));
+				}
+				if (configured) {
+					defaultEditorId = configured.viewType;
+				} else {
+					// Fallback to natural default for the language: only accept language-wide
+					// registrations (no filenamePattern restriction) and the correct editor kind.
+					const isDiffKind = defaultAssociationType === EditorAssociationType.DiffEditor;
+					const naturalLangEditor = this._registeredEditors.find(e =>
+						e.options?.language === langId &&
+						(isDiffKind ? !!e.editorFactoryObject.createDiffEditorInput : true) &&
+						this.getEffectivePriority(e.editorInfo, defaultAssociationType) === RegisteredEditorPriority.default &&
+						// Only language-wide registrations (synthetic '*' glob, no filename restriction)
+						(e.globPattern === '*' || e.globPattern === '')
+					);
+					if (naturalLangEditor) {
+						defaultEditorId = naturalLangEditor.editorInfo.id;
+					} else {
+						defaultEditorId = DEFAULT_EDITOR_ASSOCIATION.id;
+					}
+				}
+			}
+		}
+
+
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		registeredEditors = registeredEditors.sort((a, b) => {
 			if (a.id === DEFAULT_EDITOR_ASSOCIATION.id) {
@@ -1009,7 +1167,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		registeredEditors.forEach(editor => {
 			const currentViewType = currentEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
 			const isActive = currentEditor ? editor.id === currentViewType : false;
-			const isDefault = editor.id === defaultRule.editor.id;
+			const isDefault = editor.id === defaultEditorId;
 			const quickPickEntry: IQuickPickItem = {
 				id: editor.id,
 				label: editor.label,
@@ -1018,30 +1176,55 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			};
 			quickPickEntries.push(quickPickEntry);
 		});
-		if (!showDefaultPicker && extname(resource) !== '') {
+		if (!showDefaultPicker) {
 			const separator: IQuickPickSeparator = { type: 'separator' };
 			quickPickEntries.push(separator);
-			const editorDefault = this.getEditorMatches(resource).defaultRule;
-			const configureDefaultEntry = {
-				id: EditorResolverService.configureDefaultID,
-				label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", editorDefault.associationPattern),
-			};
-			quickPickEntries.push(configureDefaultEntry);
+
+			if (extname(resource) !== '') {
+				const editorDefault = this.getEditorMatches(resource).defaultRule;
+				const configureDefaultEntry = {
+					id: EditorResolverService.configureDefaultID,
+					label: localize('promptOpenWith.configureDefault', "Configure default editor for '{0}'...", editorDefault.associationPattern),
+				};
+				quickPickEntries.push(configureDefaultEntry);
+			}
+
+			const langId = this.getEffectiveLanguageId(resource);
+			if (langId) {
+				const langName = this.languageService.getLanguageName(langId) ?? langId;
+				const configureDefaultLanguageEntry = {
+					id: EditorResolverService.configureDefaultLanguageID,
+					label: localize('promptOpenWith.configureDefaultLanguage', "Configure default editor for '{0}' (language)...", langName),
+				};
+				quickPickEntries.push(configureDefaultLanguageEntry);
+			}
+
 			// For diffs, additionally offer to configure a diff-only default so the choice does not
 			// affect how the resource opens as a normal editor (writes to `diffEditorAssociations`).
 			if (associationType === EditorAssociationType.DiffEditor) {
-				const diffEditorDefault = this.getEditorMatches(resource, { isDiffEditor: true }).defaultRule;
-				const configureDefaultDiffEntry = {
-					id: EditorResolverService.configureDefaultDiffID,
-					label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", diffEditorDefault.associationPattern),
-				};
-				quickPickEntries.push(configureDefaultDiffEntry);
+				if (extname(resource) !== '') {
+					const diffEditorDefault = this.getEditorMatches(resource, { isDiffEditor: true }).defaultRule;
+					const configureDefaultDiffEntry = {
+						id: EditorResolverService.configureDefaultDiffID,
+						label: localize('promptOpenWith.configureDefaultDiff', "Configure default editor (diff only) for '{0}'...", diffEditorDefault.associationPattern),
+					};
+					quickPickEntries.push(configureDefaultDiffEntry);
+				}
+
+				if (langId) {
+					const langName = this.languageService.getLanguageName(langId) ?? langId;
+					const configureDefaultLanguageDiffEntry = {
+						id: EditorResolverService.configureDefaultLanguageDiffID,
+						label: localize('promptOpenWith.configureDefaultLanguageDiff', "Configure default editor (diff only) for '{0}' (language)...", langName),
+					};
+					quickPickEntries.push(configureDefaultLanguageDiffEntry);
+				}
 			}
 		}
 		return quickPickEntries;
 	}
 
-	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean, updateAssociationType?: EditorAssociationType): Promise<IEditorOptions | undefined> {
+	private async doPickEditor(editor: IUntypedEditorInput, showDefaultPicker?: boolean, updateAssociationType?: EditorAssociationType, updateForLanguage?: boolean): Promise<IEditorOptions | undefined> {
 
 		type EditorPick = {
 			readonly item: IQuickPickItem;
@@ -1061,31 +1244,45 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		const updateSettingType = updateAssociationType ?? associationType;
 		const defaultRule = this.getEditorMatches(resource, { isDiffEditor: updateSettingType === EditorAssociationType.DiffEditor }).defaultRule;
 
-		// Persists the picked editor as the default for this resource's glob. When the user configures
-		// the general default from a diff context, any diff-only override for the same glob is cleared
-		// so that the general default also takes effect for diffs.
+		// Persists the picked editor as the default for this resource's glob or language.
 		const persistDefaultAssociation = (editorID: string) => {
-			const associationPattern = defaultRule.associationPattern;
-			this.setDefaultEditor(resource, editorID, updateSettingType === EditorAssociationType.DiffEditor);
-			if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
-				const matchingDiffAssociation = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId)
-					.find(association => association.filenamePattern === associationPattern);
-				if (matchingDiffAssociation?.filenamePattern) {
-					this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, matchingDiffAssociation.filenamePattern);
+			if (updateForLanguage) {
+				const langId = this.getEffectiveLanguageId(resource);
+				if (langId) {
+					this.setDefaultLanguageEditor(langId, editorID, updateSettingType === EditorAssociationType.DiffEditor);
+					if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
+						this.removeUserAssociationForSetting(diffEditorLanguageAssociationsSettingId, langId);
+					}
+				}
+			} else {
+				const associationPattern = defaultRule.associationPattern;
+				this.setDefaultEditor(resource, editorID, updateSettingType === EditorAssociationType.DiffEditor);
+				if (updateSettingType === EditorAssociationType.Editor && associationType === EditorAssociationType.DiffEditor) {
+					const matchingDiffAssociation = this.getRawAssociationsForResourceFromSetting(resource, diffEditorsAssociationsSettingId)
+						.find(association => association.filenamePattern === associationPattern);
+					if (matchingDiffAssociation?.filenamePattern) {
+						this.removeUserAssociationForSetting(diffEditorsAssociationsSettingId, matchingDiffAssociation.filenamePattern);
+					}
 				}
 			}
 		};
 
 		// Get all the editors for the resource as quickpick entries
-		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType, updateSettingType);
+		const editorPicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker, associationType, updateSettingType, updateForLanguage);
 
 		// Create the editor picker
 		const disposables = new DisposableStore();
 		const editorPicker = disposables.add(this.quickInputService.createQuickPick<IQuickPickItem>({ useSeparators: true }));
+		const langId = this.getEffectiveLanguageId(resource);
+		const langName = (langId ? this.languageService.getLanguageName(langId) : undefined) ?? langId ?? '';
 		const placeHolderMessage = showDefaultPicker ?
-			(updateSettingType === EditorAssociationType.DiffEditor ?
-				localize('promptOpenWith.updateDefaultDiffPlaceHolder', "Select new default editor (diff only) for '{0}'", defaultRule.associationPattern) :
-				localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", defaultRule.associationPattern)) :
+			(updateForLanguage ?
+				(updateSettingType === EditorAssociationType.DiffEditor ?
+					localize('promptOpenWith.updateDefaultLanguageDiffPlaceHolder', "Select new default editor (diff only) for '{0}' (language)", langName) :
+					localize('promptOpenWith.updateDefaultLanguagePlaceHolder', "Select new default editor for '{0}' (language)", langName)) :
+				(updateSettingType === EditorAssociationType.DiffEditor ?
+					localize('promptOpenWith.updateDefaultDiffPlaceHolder', "Select new default editor (diff only) for '{0}'", defaultRule.associationPattern) :
+					localize('promptOpenWith.updateDefaultPlaceHolder', "Select new default editor for '{0}'", defaultRule.associationPattern))) :
 			localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 		editorPicker.placeholder = placeHolderMessage;
 		editorPicker.canAcceptInBackground = true;
@@ -1145,12 +1342,18 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
 			if (picked.item.id === EditorResolverService.configureDefaultID) {
-				return this.doPickEditor(editor, true, EditorAssociationType.Editor);
+				return this.doPickEditor(editor, true, EditorAssociationType.Editor, false);
+			}
+			if (picked.item.id === EditorResolverService.configureDefaultLanguageID) {
+				return this.doPickEditor(editor, true, EditorAssociationType.Editor, true);
 			}
 			// The diff-only variant writes to `diffEditorAssociations` so it does not change how the
 			// resource opens as a normal editor.
 			if (picked.item.id === EditorResolverService.configureDefaultDiffID) {
-				return this.doPickEditor(editor, true, EditorAssociationType.DiffEditor);
+				return this.doPickEditor(editor, true, EditorAssociationType.DiffEditor, false);
+			}
+			if (picked.item.id === EditorResolverService.configureDefaultLanguageDiffID) {
+				return this.doPickEditor(editor, true, EditorAssociationType.DiffEditor, true);
 			}
 
 			// Figure out options
@@ -1172,26 +1375,58 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 
 		// Store just the relative pattern pieces without any path info
 		for (const [globPattern, contribPoint] of this._flattenedEditors) {
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority.editor !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
-			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
-			if (!nonOptional) {
-				continue;
+			// Check if any non-optional, non-default registration has no language constraint.
+			// Language-only registrations use '*' as a synthetic glob — we must NOT cache that '*'
+			// since it would match every file on startup and block all file opens unnecessarily.
+			const hasNonOptionalGlobBoundRegistration = !!contribPoint.find(c =>
+				c.editorInfo.priority.editor !== RegisteredEditorPriority.option &&
+				c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id &&
+				!c.options?.language  // only non-language-constrained registrations should cache their glob
+			);
+
+			if (hasNonOptionalGlobBoundRegistration) {
+				if (glob.isRelativePattern(globPattern)) {
+					cacheStorage.add(`${globPattern.pattern}`);
+				} else {
+					cacheStorage.add(globPattern as string);
+				}
 			}
-			if (glob.isRelativePattern(globPattern)) {
-				cacheStorage.add(`${globPattern.pattern}`);
-			} else {
-				cacheStorage.add(globPattern);
+
+			// Always store language-constrained registrations as lang: entries.
+			// This is safe because resourceMatchesCache handles lang: entries by language matching.
+			for (const c of contribPoint) {
+				if (
+					c.options?.language &&
+					c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id &&
+					(priorityToRank(c.editorInfo.priority.editor) >= priorityToRank(RegisteredEditorPriority.builtin) ||
+						(!!c.editorFactoryObject.createDiffEditorInput && priorityToRank(c.editorInfo.priority.diff) >= priorityToRank(RegisteredEditorPriority.builtin)))
+				) {
+					cacheStorage.add(`lang:${c.options.language}`);
+					// Also cache the language's known extensions and filenames. On the next startup,
+					// the language might not be registered yet when resourceMatchesCache runs,
+					// so we need these pre-registration-matchable selectors to trigger the wait.
+					for (const ext of this.languageService.getExtensions(c.options.language)) {
+						cacheStorage.add(`*${ext}`);
+					}
+					for (const filename of this.languageService.getFilenames(c.options.language)) {
+						cacheStorage.add(filename);
+					}
+				}
 			}
 		}
 
 		// Also store the users settings as those would have to activate on startup as well
 		const userAssociations = [
 			...this.getAllUserAssociations(),
-			...this.getAllUserAssociationsForSetting(diffEditorsAssociationsSettingId)
+			...this.getAllUserAssociationsForSetting(diffEditorsAssociationsSettingId),
+			...this.getAllUserAssociationsForSetting(diffEditorLanguageAssociationsSettingId, true)
 		];
 		for (const association of userAssociations) {
 			if (association.filenamePattern) {
 				cacheStorage.add(association.filenamePattern);
+			}
+			if (association.language) {
+				cacheStorage.add(`lang:${association.language}`);
 			}
 		}
 		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
@@ -1219,7 +1454,11 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		}
 
 		for (const cacheEntry of this.cache) {
-			if (globMatchesResource(cacheEntry, resource)) {
+			if (cacheEntry.startsWith('lang:')) {
+				if (this.getEffectiveLanguageId(resource) === cacheEntry.slice(5)) {
+					return true;
+				}
+			} else if (globMatchesResource(cacheEntry, resource)) {
 				return true;
 			}
 		}
