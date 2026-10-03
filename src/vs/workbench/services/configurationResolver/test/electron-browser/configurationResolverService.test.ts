@@ -783,6 +783,23 @@ suite('Configuration Resolver Service', () => {
 		const result = await configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks');
 		assert.strictEqual(result, undefined);
 	});
+
+	test('canceled input command', async () => {
+		stub(mockCommandService, 'executeCommand').resolves(undefined);
+
+		const configuration = {
+			'name': 'Attach to Process',
+			'type': 'node',
+			'request': 'attach',
+			'processId': '${input:input4}',
+			'port': 5858,
+			'sourceMaps': false,
+			'outDir': null
+		};
+
+		const result = await configurationResolverService!.resolveWithInteractionReplace(workspace, configuration, 'tasks');
+		assert.strictEqual(result, undefined);
+	});
 });
 
 
