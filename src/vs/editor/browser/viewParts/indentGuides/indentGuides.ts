@@ -136,7 +136,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 						? leftOffset + (guide.visibleColumn - 1) * this._spaceWidth
 						: ctx.visibleRangeForPosition(
 							new Position(lineNumber, guide.column)
-						)!.left;
+						)?.left ?? leftOffset;
 
 				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
 					break;
