@@ -59,8 +59,6 @@ import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agen
 import { CustomizationMcpServerCompatibilityKind, getCustomizationDisabledLabel, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { CustomizationEnablementKind, McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AgentHostGitHubMcpServerEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
-import { GITHUB_MCP_SERVER_NAME } from '../../../../../platform/agentHost/common/githubEndpoints.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
@@ -1203,18 +1201,22 @@ export function getActiveSessionServerProvenance(server: AgentHostMcpServer, age
 
 /**
  * Explains why a host-reported server has no definition to show: the agent sets it up or manages it
- * itself and never shares the definition. The official GitHub server links to the setting that
- * includes it in agent sessions.
+ * itself and never shares the definition. Links to the setting that controls the server only when the
+ * providing host declares one; the server's name alone says nothing about which host added it.
  */
 export function getActiveSessionServerDefinitionUnavailable(server: AgentHostMcpServer, agentLabel: string): IMcpServerDefinitionUnavailable | undefined {
+	const settingId = server.controllingSettingId;
 	switch (server.source) {
 		case 'builtin':
 			return {
 				message: localize('mcpDefinitionBuiltin', "{0} configures this server automatically, so its definition can't be viewed or edited.", agentLabel),
-				...(server.name === GITHUB_MCP_SERVER_NAME && !server.sourcePluginName ? { settingId: AgentHostGitHubMcpServerEnabledSettingId } : {}),
+				...(settingId ? { settingId } : {}),
 			};
 		case 'managed':
-			return { message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel) };
+			return {
+				message: localize('mcpDefinitionManaged', "{0} manages this server, so its definition can't be viewed or edited.", agentLabel),
+				...(settingId ? { settingId } : {}),
+			};
 		default:
 			return undefined;
 	}
@@ -1733,6 +1735,10 @@ export class McpListWidget extends Disposable {
 	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerDetailInput>());
 	readonly onDidSelectServer = this._onDidSelectServer.event;
 
+	private readonly _onDidUpdateServerDetail = this._register(new Emitter<void>());
+	/** Fires when host-reported presentation may have changed; read updates with {@link getUpdatedServerDetail}. */
+	readonly onDidUpdateServerDetail = this._onDidUpdateServerDetail.event;
+
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
@@ -2124,6 +2130,8 @@ export class McpListWidget extends Disposable {
 			if (!hasSameMcpMembership(previousMembership, this.getInstalledEntryMembershipSignature())) {
 				this.renderFilteredServers();
 			}
+			// A restored server is enriched by the host's inventory later, so an open detail must be refreshed.
+			this._onDidUpdateServerDetail.fire();
 		}));
 
 	}
@@ -2396,6 +2404,19 @@ export class McpListWidget extends Disposable {
 	private getMcpServerCompatibilityKind(entry: IMcpInstalledEntry, reader?: IReader): CustomizationMcpServerCompatibilityKind | undefined {
 		const id = getMcpServerCompatibilityId(entry);
 		return id ? (reader ? this.mcpServerCompatibility.read(reader) : this.mcpServerCompatibility.get()).get(id) : undefined;
+	}
+
+	/**
+	 * Rebuilds the detail input of the installed server whose detail id is `id`, reflecting the latest
+	 * host-reported presentation, or returns `undefined` when that server is no longer listed.
+	 */
+	getUpdatedServerDetail(id: string): IMcpServerDetailInput | undefined {
+		for (const { entry } of this.installedEntries) {
+			if (entry.type === 'server-item' ? entry.server.id === id : getMcpRowKey(entry) === id) {
+				return this.createInstalledMcpServerDetailInput(entry);
+			}
+		}
+		return undefined;
 	}
 
 	private createInstalledMcpServerDetailInput(entry: IMcpInstalledEntry): IMcpServerDetailInput {

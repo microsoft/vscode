@@ -12,7 +12,7 @@ import { readSessionSandboxPolicy, withSessionSandboxPolicy } from '../../common
 import { readChatInputState, withChatInputState } from '../../common/meta/agentHostChatInputState.js';
 import { createEditorInlineChatInstruction, createTerminalChatInstruction, readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
-import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
@@ -137,7 +137,7 @@ suite('Agent host _meta readers', () => {
 		});
 	});
 
-	test('validates MCP display names and source plugins and removes them once they no longer apply', () => {
+	test('validates MCP display names, source plugins and controlling settings and removes them once they no longer apply', () => {
 		const customization = (meta: Record<string, unknown> | undefined): McpServerCustomization => ({
 			type: CustomizationType.McpServer,
 			id: 'server',
@@ -147,21 +147,23 @@ suite('Agent host _meta readers', () => {
 			_meta: meta,
 		});
 		const opaque = { 'test.opaque': 'kept' };
-		const recorded = withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(opaque, 'Linear'), 'computer-use');
+		const recorded = withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(opaque, 'Linear'), 'computer-use'), 'chat.example.enabled');
 
 		assert.deepStrictEqual({
-			read: [readMcpServerDisplayName(customization(recorded)), readMcpServerSourcePlugin(customization(recorded))],
+			read: [readMcpServerDisplayName(customization(recorded)), readMcpServerSourcePlugin(customization(recorded)), readMcpServerControllingSetting(customization(recorded))],
 			invalidDisplayNames: [undefined, '', ' ', 1, {}, ['Linear']].map(value => readMcpServerDisplayName(customization({ 'agentHost.mcpServerDisplayName': value }))),
 			invalidPlugins: [undefined, '', 1].map(value => readMcpServerSourcePlugin(customization({ 'agentHost.mcpServerSourcePlugin': value }))),
+			invalidSettings: [undefined, '', 1, {}].map(value => readMcpServerControllingSetting(customization({ 'vscode.mcpServerControllingSetting': value }))),
 			recorded,
-			cleared: withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(recorded, undefined), undefined),
+			cleared: withMcpServerControllingSettingMeta(withMcpServerSourcePluginMeta(withMcpServerDisplayNameMeta(recorded, undefined), undefined), undefined),
 			emptied: withMcpServerDisplayNameMeta({ 'agentHost.mcpServerDisplayName': 'Linear' }, undefined),
 			unchanged: withMcpServerDisplayNameMeta(opaque, undefined) === opaque && withMcpServerDisplayNameMeta(recorded, 'Linear') === recorded,
 		}, {
-			read: ['Linear', 'computer-use'],
+			read: ['Linear', 'computer-use', 'chat.example.enabled'],
 			invalidDisplayNames: [undefined, undefined, undefined, undefined, undefined, undefined],
 			invalidPlugins: [undefined, undefined, undefined],
-			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerDisplayName': 'Linear', 'agentHost.mcpServerSourcePlugin': 'computer-use' },
+			invalidSettings: [undefined, undefined, undefined, undefined],
+			recorded: { 'test.opaque': 'kept', 'agentHost.mcpServerDisplayName': 'Linear', 'agentHost.mcpServerSourcePlugin': 'computer-use', 'vscode.mcpServerControllingSetting': 'chat.example.enabled' },
 			cleared: { 'test.opaque': 'kept' },
 			emptied: undefined,
 			unchanged: true,

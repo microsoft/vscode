@@ -14,7 +14,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -307,21 +307,26 @@ suite('AbstractAgentHostCustomizationService', () => {
 		})), sources.map(source => ({ source, sourceUri: undefined })));
 	});
 
-	test('exposes host-reported display names and source plugins only when the host publishes them', () => {
+	test('exposes host-reported display names, source plugins and controlling settings only when the host publishes them', () => {
 		const sut = createSut();
 		const session = URI.parse('vscode-agent-session:///session-1');
 		sut.setTarget(session, new FakeTarget([
 			{ ...mcpServer('host-id-7f3a', 'catalog-entry-7f3a'), _meta: withMcpServerDisplayNameMeta(withMcpServerSourceMeta(undefined, 'managed'), 'Linear') },
 			{ ...mcpServer('host-id-9c1e', 'computer-use'), _meta: withMcpServerSourcePluginMeta(withMcpServerSourceMeta(undefined, 'builtin'), 'computer-use') },
 			mcpServer('host-id-2b4d', 'without-extension'),
+			{ ...mcpServer('vscode-host-github', 'github-mcp-server'), _meta: withMcpServerControllingSettingMeta(withMcpServerSourceMeta(undefined, 'builtin'), 'chat.agentHost.githubMcpServer.enabled') },
+			// A conforming non-VS Code host may bundle its own server under the same name without declaring a setting.
+			{ ...mcpServer('urn:other-host:servers/0', 'github-mcp-server'), uri: 'https://other-host.example/servers/github', _meta: withMcpServerSourceMeta(undefined, 'builtin') },
 		]));
 
 		assert.deepStrictEqual(sut.getMcpServers(session).map(server => ({
-			name: server.name, displayName: server.displayName, sourcePluginName: server.sourcePluginName,
+			name: server.name, displayName: server.displayName, sourcePluginName: server.sourcePluginName, controllingSettingId: server.controllingSettingId,
 		})), [
-			{ name: 'catalog-entry-7f3a', displayName: 'Linear', sourcePluginName: undefined },
-			{ name: 'computer-use', displayName: undefined, sourcePluginName: 'computer-use' },
-			{ name: 'without-extension', displayName: undefined, sourcePluginName: undefined },
+			{ name: 'catalog-entry-7f3a', displayName: 'Linear', sourcePluginName: undefined, controllingSettingId: undefined },
+			{ name: 'computer-use', displayName: undefined, sourcePluginName: 'computer-use', controllingSettingId: undefined },
+			{ name: 'without-extension', displayName: undefined, sourcePluginName: undefined, controllingSettingId: undefined },
+			{ name: 'github-mcp-server', displayName: undefined, sourcePluginName: undefined, controllingSettingId: 'chat.agentHost.githubMcpServer.enabled' },
+			{ name: 'github-mcp-server', displayName: undefined, sourcePluginName: undefined, controllingSettingId: undefined },
 		]);
 	});
 

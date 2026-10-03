@@ -8,6 +8,7 @@ import type { McpServerCustomization } from '../../state/protocol/state.js';
 const sourceKey = 'agentHost.mcpServerSource';
 const displayNameKey = 'agentHost.mcpServerDisplayName';
 const sourcePluginKey = 'agentHost.mcpServerSourcePlugin';
+const controllingSettingKey = 'vscode.mcpServerControllingSetting';
 
 export type McpServerSource =
 	| 'user' // Defined in user-level configuration.
@@ -69,6 +70,23 @@ export function readMcpServerSourcePlugin(customization: McpServerCustomization 
  */
 export function withMcpServerSourcePluginMeta(meta: Record<string, unknown> | undefined, sourcePlugin: string | undefined): Record<string, unknown> | undefined {
 	return withMetaEntry(meta, sourcePluginKey, sourcePlugin);
+}
+
+/**
+ * Reads the VS Code setting a VS Code agent host declares as controlling whether it includes a server.
+ * Only the host that owns the server can declare this; clients must not infer it from the server's name,
+ * because another host can publish a server with the same name that the setting cannot control.
+ */
+export function readMcpServerControllingSetting(customization: McpServerCustomization | undefined): string | undefined {
+	return readNonEmptyString(customization?._meta?.[controllingSettingKey]);
+}
+
+/**
+ * Records the VS Code setting that controls whether the host includes a server. An absent setting removes a
+ * previously recorded one; every other entry is preserved.
+ */
+export function withMcpServerControllingSettingMeta(meta: Record<string, unknown> | undefined, settingId: string | undefined): Record<string, unknown> | undefined {
+	return withMetaEntry(meta, controllingSettingKey, settingId);
 }
 
 function readNonEmptyString(value: unknown): string | undefined {

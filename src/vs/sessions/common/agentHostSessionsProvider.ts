@@ -116,6 +116,11 @@ export interface IAgentHostMcpServer {
 	 * (for example with MCP: Add Server > Add to Current Agent Session) rather than in a file.
 	 */
 	readonly hostConfiguration?: IMcpServerConfiguration;
+	/**
+	 * VS Code setting the host declares as controlling whether it includes this server. Present only when
+	 * the providing host says so; never inferred from the server's name.
+	 */
+	readonly controllingSettingId?: string;
 	readonly enabled: boolean;
 	readonly enablement?: readonly CustomizationEnablement[];
 	readonly isPluginProvided?: boolean;

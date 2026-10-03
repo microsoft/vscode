@@ -219,4 +219,74 @@ suite('EmbeddedMcpServerDetail', () => {
 			executedCommands: [['workbench.action.openSettings', '@id:chat.agentHost.githubMcpServer.enabled']],
 		});
 	});
+
+	test('updates an open detail when the host enriches a restored server, keeping migration state', () => {
+		const { detail } = createDetail();
+		const name = () => detail.element.querySelector('.editor-item-name')?.textContent;
+		const path = () => detail.element.querySelector('.editor-item-path')?.textContent;
+		const message = () => detail.element.querySelector('.mcp-detail-definition-message')?.textContent;
+		const settingsLink = () => detail.element.querySelector('.mcp-detail-definition-settings-link')?.textContent;
+		const read = () => ({ name: name(), path: path(), message: message(), settingsLink: settingsLink() });
+		const restored: IMcpServerDetailInput = {
+			id: 'session:server-7', name: 'github-copilot-connector-1', label: 'github-copilot-connector-1',
+			installState: McpServerInstallState.Installed,
+		};
+		const enriched: IMcpServerDetailInput = {
+			...restored,
+			label: 'Linear',
+			provenance: { label: 'Managed by Copilot' },
+			definitionUnavailable: { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.', settingId: 'chat.example.enabled' },
+		};
+
+		detail.setInput(restored);
+		detail.setMigratable(true);
+		const before = read();
+		const definitionEmpty = detail.element.querySelector('.mcp-detail-definition-message');
+		detail.updateInput({ ...enriched, id: 'session:other-server', label: 'Other' });
+		const otherServer = read();
+		detail.updateInput(enriched);
+		const after = read();
+		const migration = detail.element.querySelector<HTMLElement>('.mcp-detail-diagnostic-card.migration')?.closest<HTMLElement>('section')?.style.display;
+		const renderedMessage = detail.element.querySelector('.mcp-detail-definition-message');
+		detail.updateInput({ ...enriched, provenance: { label: 'Managed by Copilot' }, error: undefined });
+
+		assert.deepStrictEqual({
+			before,
+			otherServer,
+			after,
+			migrationKept: migration !== 'none',
+			rerendered: definitionEmpty !== renderedMessage,
+			unchangedKeepsNodes: detail.element.querySelector('.mcp-detail-definition-message') === renderedMessage,
+		}, {
+			before: { name: 'github-copilot-connector-1', path: '', message: 'No definition is available for this MCP server.', settingsLink: undefined },
+			otherServer: { name: 'github-copilot-connector-1', path: '', message: 'No definition is available for this MCP server.', settingsLink: undefined },
+			after: { name: 'Linear', path: 'Managed by Copilot', message: 'Copilot manages this server, so its definition can\'t be viewed or edited.', settingsLink: 'Open Settings' },
+			migrationKept: true,
+			rerendered: true,
+			unchangedKeepsNodes: true,
+		});
+	});
+
+	test('shows a host configuration that arrives after the detail opened', () => {
+		const { detail, snapshot } = createDetail();
+		const read = () => ({ ...snapshot(), path: detail.element.querySelector('.editor-item-path')?.textContent });
+		const restored: IMcpServerDetailInput = {
+			id: 'session:server-8', name: 'my-mcp-server', label: 'my-mcp-server',
+			installState: McpServerInstallState.Installed,
+		};
+
+		detail.setInput(restored);
+		const before = read();
+		detail.updateInput({ ...restored, provenance: { label: 'Agent host configuration' }, config: { type: McpServerType.LOCAL, command: 'my-mcp-server' } });
+
+		assert.deepStrictEqual({ before, after: read() }, {
+			before: { definition: undefined, emptyMessage: 'No definition is available for this MCP server.', editorVisible: false, path: '' },
+			after: {
+				definition: '{\n\t"servers": {\n\t\t"my-mcp-server": {\n\t\t\t"type": "stdio",\n\t\t\t"command": "my-mcp-server"\n\t\t}\n\t}\n}\n',
+				emptyMessage: 'No definition is available for this MCP server.',
+				editorVisible: true,
+				path: 'Agent host configuration',
+			},
+		});
+	});
 });

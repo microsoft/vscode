@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { McpServerSource, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { McpServerSource, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { parseChatUri } from '../../common/state/sessionState.js';
@@ -49,13 +49,13 @@ export interface ISdkMcpServer {
 }
 
 /** Where a top-level server comes from, as last reported by its provider. */
-interface ITopLevelProvenance {
+export interface ISdkMcpServerProvenance {
 	readonly source: McpServerSource | undefined;
 	readonly displayName: string | undefined;
 	readonly sourcePlugin: string | undefined;
 }
 
-function readTopLevelProvenance(customization: McpServerCustomization | undefined): ITopLevelProvenance {
+function readTopLevelProvenance(customization: McpServerCustomization | undefined): ISdkMcpServerProvenance {
 	return {
 		source: readMcpServerSource(customization),
 		displayName: readMcpServerDisplayName(customization),
@@ -142,6 +142,11 @@ export interface IMcpCustomizationControllerOptions {
 	readonly pluginMcpServerSources?: () => ReadonlyMap<string, string> | undefined;
 	/** Resolves the scoped enablement to publish for a temporarily top-level server. */
 	readonly resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
+	/**
+	 * Returns the VS Code setting that controls whether this host includes a server it adds itself, given the
+	 * server's current provenance. Published so clients can offer the setting without guessing from the name.
+	 */
+	readonly controllingSetting?: (serverName: string, provenance: ISdkMcpServerProvenance) => string | undefined;
 	/**
 	 * MCP App capabilities to advertise on every ready server. Defaults
 	 * to {@link DEFAULT_MCP_APP_CAPABILITIES}.
@@ -410,7 +415,7 @@ export class McpCustomizationController extends Disposable {
 		}
 		// Lifecycle updates carry no provenance, so keep what was last reported or restored.
 		const known = readTopLevelProvenance(previous?.topLevelCustomization ?? this._findPublishedTopLevel(topLevelId));
-		const provenance: ITopLevelProvenance = {
+		const provenance: ISdkMcpServerProvenance = {
 			source: server.source ?? known.source,
 			displayName: server.displayName !== undefined ? server.displayName ?? undefined : known.displayName,
 			sourcePlugin: server.pluginName !== undefined ? server.pluginName ?? undefined : known.sourcePlugin,
@@ -542,7 +547,7 @@ export class McpCustomizationController extends Disposable {
 		return buildMcpChannel(this._chatUri, serverName);
 	}
 
-	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, provenance: ITopLevelProvenance, sourceUri?: string | null): McpServerCustomization {
+	private _buildTopLevel(id: string, serverName: string, state: McpServerState, enabled: boolean, provenance: ISdkMcpServerProvenance, sourceUri?: string | null): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
 		const owningPluginUri = this.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
@@ -555,9 +560,12 @@ export class McpCustomizationController extends Disposable {
 			: DEFAULT_MCP_APP;
 		const existing = this._findPublishedTopLevel(id);
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
-		const meta = withMcpServerSourcePluginMeta(
-			withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source), provenance.displayName),
-			provenance.sourcePlugin,
+		const meta = withMcpServerControllingSettingMeta(
+			withMcpServerSourcePluginMeta(
+				withMcpServerDisplayNameMeta(withMcpServerSourceMeta(existing?._meta, provenance.source), provenance.displayName),
+				provenance.sourcePlugin,
+			),
+			this._options.controllingSetting?.(serverName, provenance),
 		);
 		const uri = (sourceUri === undefined ? existing?.uri : sourceUri) ?? this._mintTopLevelId(serverName);
 		const customization: McpServerCustomization = {

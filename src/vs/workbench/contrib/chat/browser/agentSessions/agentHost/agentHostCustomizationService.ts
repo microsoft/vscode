@@ -16,7 +16,7 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
-import { readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -254,6 +254,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					source: readMcpServerSource(server),
 					sourcePluginName: readMcpServerSourcePlugin(server),
 					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
+					controllingSettingId: readMcpServerControllingSetting(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,

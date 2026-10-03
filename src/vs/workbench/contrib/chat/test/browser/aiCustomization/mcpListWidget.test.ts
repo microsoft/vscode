@@ -849,22 +849,24 @@ suite('mcpListWidget', () => {
 		});
 	});
 
-	test('explains why the agent\'s own MCP servers have no definition and links the GitHub server to its setting', () => {
+	test('explains why the agent\'s own MCP servers have no definition and links only a setting the host declares', () => {
 		const explain = (overrides: Partial<AgentHostMcpServer>) => getActiveSessionServerDefinitionUnavailable(createAgentHostServer(overrides), 'Copilot');
+		const builtinMessage = 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.';
 
 		assert.deepStrictEqual([
+			explain({ name: 'github-mcp-server', source: 'builtin', controllingSettingId: 'chat.agentHost.githubMcpServer.enabled' }),
+			// Another conforming host can publish a built-in server with the same name that VS Code's setting cannot control.
 			explain({ name: 'github-mcp-server', source: 'builtin' }),
-			explain({ name: 'github-mcp-server', source: 'builtin', sourcePluginName: 'acme' }),
 			explain({ name: 'computer-use', source: 'builtin', sourcePluginName: 'computer-use' }),
 			explain({ name: 'github-copilot-connector-1', source: 'managed', displayName: 'Linear' }),
-			explain({ name: 'github-mcp-server', source: 'user' }),
+			explain({ name: 'github-mcp-server', source: 'user', controllingSettingId: 'chat.agentHost.githubMcpServer.enabled' }),
 			explain({ name: 'workspace-server', source: 'workspace' }),
 			explain({ name: 'plugin-server', source: 'plugin', sourcePluginName: 'acme' }),
 			explain({ name: 'github-mcp-server' }),
 		], [
-			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.', settingId: 'chat.agentHost.githubMcpServer.enabled' },
-			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.' },
-			{ message: 'Copilot configures this server automatically, so its definition can\'t be viewed or edited.' },
+			{ message: builtinMessage, settingId: 'chat.agentHost.githubMcpServer.enabled' },
+			{ message: builtinMessage },
+			{ message: builtinMessage },
 			{ message: 'Copilot manages this server, so its definition can\'t be viewed or edited.' },
 			undefined,
 			undefined,
@@ -1776,6 +1778,8 @@ suite('mcpListWidget', () => {
 				cardListControllers: Map<HTMLElement, CustomizationCardListController>;
 				appendInstalledServerRow(parent: HTMLElement, presentation: { entry: Entry }): void;
 				createInstalledMcpServerDetailInput(entry: Entry): ReturnType<typeof createInstalledMcpServerDetailInput>;
+				getUpdatedServerDetail(id: string): ReturnType<typeof createInstalledMcpServerDetailInput> | undefined;
+				installedEntries: { entry: Entry }[];
 				getMcpEntryAriaLabel(entry: Entry): IObservable<string>;
 				getMcpServerActions(entry: Entry, store: DisposableStore): IAction[];
 				renderMcpListActions(getEntry: () => Entry | undefined, actions: HTMLElement, store: DisposableStore, updateTabbability: () => void): void;
@@ -1815,6 +1819,10 @@ suite('mcpListWidget', () => {
 				menuActions: () => menuActions,
 				activeSessionResource,
 				detailInput: (entry: Entry) => widget.createInstalledMcpServerDetailInput(entry),
+				updatedDetail: (entries: readonly Entry[], id: string) => {
+					widget.installedEntries = entries.map(entry => ({ entry }));
+					return widget.getUpdatedServerDetail(id);
+				},
 				setAriaProvider: (provider: (entry: Entry) => IObservable<string>) => { widget.getMcpEntryAriaLabel = provider; },
 				setRuntimeServers: (next: readonly IMcpServer[]) => runtimeServers.set(next, undefined),
 				menu: (entry: Entry, localServer?: IMcpServer) => {
@@ -2148,6 +2156,32 @@ suite('mcpListWidget', () => {
 				ariaLabel: 'GitHub, configured in Built-in: GitHub Copilot Chat',
 				detail: { source: undefined, label: 'Built-in: GitHub Copilot Chat', ariaLabel: 'Open extension details for GitHub Copilot Chat' },
 				openedExtensions: ['GitHub.copilot-chat', 'GitHub.copilot-chat'],
+			});
+		});
+
+		test('rebuilds an open detail from the latest host metadata after the inventory enriches a restored server', () => {
+			const restored = createAgentHostServer({ id: 'server-7', name: 'github-copilot-connector-1' });
+			const ctx = createRenderer(restored, false);
+			disposables.add(ctx.store);
+			const opened = ctx.detailInput(createBuiltinActiveSessionMcpEntries([restored])[0]);
+			const enrichedServer = createAgentHostServer({ id: 'server-7', name: 'github-copilot-connector-1', displayName: 'Linear', source: 'managed', controllingSettingId: 'chat.example.enabled' });
+			const updated = ctx.updatedDetail(createBuiltinActiveSessionMcpEntries([enrichedServer]), opened.id);
+			const removed = ctx.updatedDetail([], opened.id);
+
+			assert.deepStrictEqual({
+				opened: { id: opened.id, label: opened.label, provenance: opened.provenance, definitionUnavailable: opened.definitionUnavailable },
+				updated: updated && { id: updated.id, name: updated.name, label: updated.label, provenance: updated.provenance, definitionUnavailable: updated.definitionUnavailable },
+				removed,
+			}, {
+				opened: { id: 'session:server-7', label: 'github-copilot-connector-1', provenance: undefined, definitionUnavailable: undefined },
+				updated: {
+					id: 'session:server-7',
+					name: 'github-copilot-connector-1',
+					label: 'Linear',
+					provenance: { label: 'Managed by Copilot' },
+					definitionUnavailable: { message: 'Copilot manages this server, so its definition can\'t be viewed or edited.', settingId: 'chat.example.enabled' },
+				},
+				removed: undefined,
 			});
 		});
 

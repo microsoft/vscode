@@ -11,7 +11,8 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { findNodeAtLocation, parseTree } from '../../../../../base/common/json.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -26,7 +27,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IMcpServerConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { CustomizationMarketplaceIcon } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceIcon, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditorOptions.js';
@@ -250,6 +251,24 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	setInput(server: IMcpServerDetailInput): void {
 		this.current = server;
+		this.bindDiagnostics();
+		this.renderItem();
+	}
+
+	/**
+	 * Replaces the current server's presentation (label, source, provenance, definition) after the host
+	 * reports new metadata, keeping migration state and leaving the view untouched when nothing changed.
+	 */
+	updateInput(server: IMcpServerDetailInput): void {
+		const current = this.current;
+		if (!current || current.id !== server.id) {
+			return;
+		}
+		const next: IMcpServerDetailInput = { ...server, migratable: current.migratable };
+		if (isSameMcpServerDetailPresentation(current, next)) {
+			return;
+		}
+		this.current = next;
 		this.bindDiagnostics();
 		this.renderItem();
 	}
@@ -644,6 +663,26 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}
 		return this.definitionEditor;
 	}
+}
+
+/**
+ * Whether two inputs for the same server present the same thing. Ignores the error observable and link
+ * callbacks, which are recreated on every rebuild without changing what the detail shows.
+ */
+function isSameMcpServerDetailPresentation(a: IMcpServerDetailInput, b: IMcpServerDetailInput): boolean {
+	return a.name === b.name
+		&& a.label === b.label
+		&& a.installState === b.installState
+		&& a.compatibilityId === b.compatibilityId
+		&& a.migratable === b.migratable
+		&& equals(a.config, b.config)
+		&& isEqual(a.source?.uri, b.source?.uri)
+		&& equals(a.source?.range, b.source?.range)
+		&& a.provenance?.label === b.provenance?.label
+		&& a.provenance?.ariaLabel === b.provenance?.ariaLabel
+		&& !a.provenance?.open === !b.provenance?.open
+		&& equals(a.definitionUnavailable, b.definitionUnavailable)
+		&& isCustomizationMarketplaceIconEqual(a.icon, b.icon);
 }
 
 function resolveCompatibilityState(resolved: boolean, compatibility: ICustomizationMcpServerCompatibility | undefined): McpDetailCompatibilityState {
