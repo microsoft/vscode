@@ -40,6 +40,7 @@ import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
+import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
 
 export interface IChatRequest {
 	message: string;
@@ -183,6 +184,17 @@ export interface IChatUsageModelTotal {
 }
 
 export interface IChatUsage {
+	readonly contextUsage?: { readonly currentTokens: number; readonly tokenLimit: number };
+	/** Optional latest-call diagnostics; costs here must not be added as turn totals. */
+	latestModelCall?: {
+		readonly cost?: number;
+		readonly reasoningTokens?: number;
+		readonly cacheWriteTokens?: number;
+		readonly duration?: number;
+		readonly timeToFirstTokenMs?: number;
+		readonly providerCallId?: string;
+		readonly serviceRequestId?: string;
+	};
 	promptTokens: number;
 	completionTokens: number;
 	outputBuffer?: number;
@@ -390,6 +402,11 @@ export interface IChatTaskResult {
 export interface IChatWarningMessage {
 	content: IMarkdownString;
 	kind: 'warning';
+	/**
+	 * Keeps the warning visible instead of folding it into a completed
+	 * response's collapsed steps.
+	 */
+	keepVisibleWhenCollapsed?: boolean;
 }
 
 export interface IChatInfoMessage {
@@ -859,13 +876,17 @@ export const enum ToolConfirmKind {
 	Skipped
 }
 
+/** Explicit origin of a denial or skip; absence does not identify an actor. */
+export type ToolConfirmationSource = 'user' | 'hook' | 'riskAssessment';
+
+export type ToolDeniedReason = { type: ToolConfirmKind.Denied | ToolConfirmKind.Skipped; source?: ToolConfirmationSource };
+
 export type ConfirmedReason =
-	| { type: ToolConfirmKind.Denied }
+	| ToolDeniedReason
 	| { type: ToolConfirmKind.ConfirmationNotNeeded; reason?: string | IMarkdownString }
 	| { type: ToolConfirmKind.Setting; id: string }
 	| { type: ToolConfirmKind.LmServicePerTool; scope: 'session' | 'workspace' | 'profile' }
-	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind }
-	| { type: ToolConfirmKind.Skipped };
+	| { type: ToolConfirmKind.UserAction; selectedButton?: string; selectedButtonKind?: ConfirmationOptionKind };
 
 /**
  * Active-only controls for a tool call executing on another connected client.
@@ -972,6 +993,7 @@ export namespace IChatToolInvocation {
 	interface IChatToolInvocationCancelledState extends IChatToolInvocationStateBase, IChatToolInvocationPostStreamState {
 		type: StateKind.Cancelled;
 		reason: ToolConfirmKind.Denied | ToolConfirmKind.Skipped;
+		source?: ToolConfirmationSource;
 		/** Optional message explaining why the tool was cancelled (e.g., from hook denial) */
 		reasonMessage?: string | IMarkdownString;
 	}
@@ -998,7 +1020,7 @@ export namespace IChatToolInvocation {
 			return undefined; // don't know yet
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return state.confirmed;
@@ -1036,7 +1058,7 @@ export namespace IChatToolInvocation {
 			return state.postConfirmed || { type: ToolConfirmKind.ConfirmationNotNeeded };
 		}
 		if (state.type === StateKind.Cancelled) {
-			return { type: state.reason };
+			return { type: state.reason, ...(state.source !== undefined ? { source: state.source } : {}) };
 		}
 
 		return undefined;
@@ -1231,6 +1253,8 @@ export interface IChatSubagentToolInvocationData {
 	/** Chat-layer model identifier (raw provider id for phases), independent of its display name. */
 	modelId?: string;
 	modelName?: string;
+	modelConfiguration?: Record<string, unknown>;
+	runtimeModelConfiguration?: IAgentRuntimeModelConfiguration;
 	credits?: number;
 	/** Millisecond timestamp when the subagent's first turn started. */
 	startedAt?: number;

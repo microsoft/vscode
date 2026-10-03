@@ -17,7 +17,7 @@ import { IAgentHostConnectionsService } from '../../../../../../platform/agentHo
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostFileSystemService.js';
 import { createAgentHostResourceUriMapper, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -29,7 +29,7 @@ import { buildDefaultChatUri, buildSubagentChatUri, Changeset, ChangesetState, C
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
 import { TestClipboardService } from '../../../../../../platform/clipboard/test/common/testClipboardService.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
@@ -41,9 +41,10 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { BrowserEditorInput } from '../../../../browserView/common/browserEditorInput.js';
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../browserView/common/browserView.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM } from '../../../common/constants.js';
-import { type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { IChatWidgetService, type IChatWidgetViewModelChangeEvent } from '../../../browser/chat.js';
+import { getSubagentEditorResource } from '../../../browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { AgentHostSessionInputPills, getAgentHostSessionBrowserOwnerIds, getAgentHostSessionPillMetadata, resolveAgentHostChangeset } from '../../../browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { ISessionChatPillVisibilityService, SESSION_CHAT_PILL_KINDS, SessionChatPillKind, SessionChatPillVisibility } from '../../../common/sessionChatPills.js';
@@ -148,7 +149,7 @@ suite('AgentHostSessionInputPills', () => {
 						}
 					}
 					return {
-						account: { host: 'github.com', accountId: 'test' },
+						account: { host: 'api.github.com', accountId: 'test' },
 						token: 'token',
 						generation: 1,
 						signal,
@@ -237,10 +238,13 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	};
 
-	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local') {
+	function createActivityPills(initialSession: SessionState, initialChat?: ChatState, gitHubService?: IGitHubService, connectionAuthority = 'local', workbenchGitHubService?: IWorkbenchGitHubService) {
 		const instantiationService = createInstantiationService();
 		if (gitHubService) {
 			instantiationService.stub(IGitHubService, gitHubService);
+		}
+		if (workbenchGitHubService) {
+			instantiationService.stub(IWorkbenchGitHubService, workbenchGitHubService);
 		}
 		const states = new Map<StateComponents, SessionState | ChatState>([[StateComponents.Session, initialSession]]);
 		if (initialChat) {
@@ -295,22 +299,25 @@ suite('AgentHostSessionInputPills', () => {
 				return undefined;
 			},
 		}));
-		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; select(): void }[] = [];
+		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; readonly hover: IActionListItem<object>['hover']; select(): void }[] = [];
 		let hideDropdown = () => { };
+		const toDropdownItems = <T>(items: readonly IActionListItem<T>[], delegate?: IActionListDelegate<T>) => items.map(item => ({
+			label: item.label,
+			description: item.ariaDescription,
+			hover: item.hover,
+			select: () => {
+				if (item.item) {
+					delegate?.onSelect(item.item);
+				}
+			},
+		}));
 		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
 			isVisible: false,
 			show: (_user, _supportsPreview, items, delegate) => {
 				hideDropdown = () => delegate.onHide();
-				dropdownItems = items.map(item => ({
-					label: item.label,
-					description: item.ariaDescription,
-					select: () => {
-						if (item.item) {
-							delegate.onSelect(item.item);
-						}
-					},
-				}));
+				dropdownItems = toDropdownItems(items, delegate);
 			},
+			updateItems: items => { dropdownItems = toDropdownItems(items); },
 			hide: () => hideDropdown(),
 		}));
 		let menuActions: readonly IAction[] = [];
@@ -322,8 +329,9 @@ suite('AgentHostSessionInputPills', () => {
 		});
 		const pills = store.add(instantiationService.createInstance(AgentHostSessionInputPills, widget, false));
 		return {
-			connection, sessionResource, persistentContent, visibility, commands, pills,
+			instantiationService, connection, sessionResource, persistentContent, visibility, commands, pills,
 			labels: () => [...persistentContent.querySelectorAll('.chat-pill-label')].map(label => label.textContent),
+			dropdownItems: () => dropdownItems,
 			dropdown: (label: string) => {
 				const button = [...persistentContent.querySelectorAll<HTMLElement>('.chat-dropdown-pill-button')].find(button => button.textContent?.includes(label));
 				assert.ok(button, `Missing ${label} pill`);
@@ -346,6 +354,59 @@ suite('AgentHostSessionInputPills', () => {
 			inputFocused: () => inputFocused,
 		};
 	}
+
+	test('opens single subagent input pills and every dropdown entry to the side', async () => {
+		const mainChat = 'vendor-chat:/conversations/main';
+		const children: ChatSummary[] = [
+			{ title: 'Running', status: SessionStatus.InProgress },
+			{ title: 'Waiting', status: SessionStatus.InputNeeded },
+			{ title: 'Completed', status: SessionStatus.Idle },
+		].map(({ title, status }) => ({
+			resource: `vendor-chat:/workers/${title}`,
+			title,
+			status,
+			modifiedAt: '2026-09-01T00:00:00.000Z',
+			origin: { kind: ChatOriginKind.Tool, chat: mainChat, toolCallId: title },
+		}));
+		const session = upcastPartial<SessionState>({ defaultChat: mainChat, chats: [children[0]] });
+		const harness = createActivityPills(session);
+		const opened: Parameters<IChatWidgetService['openSession']>[] = [];
+		harness.instantiationService.stub(IChatWidgetService, {
+			openSession: async (...args) => {
+				opened.push(args);
+				return undefined;
+			},
+		});
+		const executeCommand: ICommandService['executeCommand'] = async (id, ...args) => {
+			const command = CommandsRegistry.getCommand(id);
+			assert.ok(command);
+			await harness.instantiationService.invokeFunction(command.handler, ...args);
+			return undefined;
+		};
+		harness.instantiationService.stub(ICommandService, harness.instantiationService.get(ICommandService), 'executeCommand', executeCommand);
+		harness.visibility.toggle(SessionChatPillKind.Subagents);
+		const singleLabels = harness.labels();
+		harness.dropdown('Running');
+		await timeout(0);
+		harness.connection.setState(StateComponents.Session, { ...session, chats: children });
+		const multipleLabels = harness.labels();
+		for (const child of children) {
+			const entry = harness.dropdown('3 Subagents').find(item => item.label === child.title);
+			assert.ok(entry);
+			entry.select();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
+			singleLabels: ['Running'],
+			multipleLabels: ['3 Subagents'],
+			opened: [children[0], ...children].map(child => [
+				getSubagentEditorResource({ chatResource: child.resource, parentSessionResource: harness.sessionResource.toString() }),
+				SIDE_GROUP,
+				{ pinned: true, revealIfOpened: true, title: { preferred: child.title } },
+			]),
+		});
+	});
 
 	test('offers the complete shared catalog and live subagents for host-advertised chat identities', async () => {
 		const mainChat = 'vendor-chat:/conversations/main';
@@ -751,6 +812,66 @@ suite('AgentHostSessionInputPills', () => {
 			// Only artifacts are promoted; references stay listed newest first, even when the pull request pill shows their link.
 			referenceIds: ['resource', 'issue-reference', 'pr-reference', 'duplicate-pr'],
 		});
+	});
+
+	test('resolves rich GitHub reference metadata only after hover intent', async () => {
+		const credentialState = { fail: false, calls: 0 };
+		const activity = createActivityPills({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, [{
+				id: 'reference',
+				type: SessionArtifactType.PullRequest,
+				label: 'Related pull request',
+				link: 'https://github.com/microsoft/vscode/pull/2',
+				isGitHub: true,
+				isArtifact: false,
+			}]),
+		} as unknown as SessionState, undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
+		await timeout(0);
+
+		const beforeHover = credentialState.calls;
+		const entry = activity.dropdown('Reference').find(item => item.label?.includes('pull request #2'));
+		const content = entry?.hover?.content;
+		const hoverElement = typeof content === 'function' ? content() : undefined;
+		await timeout(0);
+		const resolvedEntry = activity.dropdownItems().find(item => item.label === 'Live pull request 2');
+		const resolvedContent = resolvedEntry?.hover?.content;
+
+		assert.deepStrictEqual({
+			beforeHover,
+			afterHover: credentialState.calls,
+			resolvedLabel: resolvedEntry?.label,
+			preservedHover: typeof resolvedContent === 'function' && resolvedContent() === hoverElement,
+			className: hoverElement?.className,
+			text: hoverElement?.textContent,
+			labels: activity.labels(),
+		}, {
+			beforeHover: 0,
+			afterHover: 2,
+			resolvedLabel: 'Live pull request 2',
+			preservedHover: true,
+			className: 'sessions-pr-hover compact',
+			text: 'microsoft/vscodeon Sep 1Live pull request 2 #2OpenLive pull request bodymain←feature@pr-author opened this pull request',
+			labels: ['1 Reference'],
+		});
+	});
+
+	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main',
+			chats: [],
+			_meta: withSessionArtifacts(undefined, links.map((link, index) => ({
+				id: `reference-${index}`, type: index === 0 ? SessionArtifactType.PullRequest : SessionArtifactType.Issue,
+				label: 'Related item', link, isGitHub: true, isArtifact: false,
+			}))),
+		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
+		activity.dropdown('Reference');
+		await timeout(0);
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label?.startsWith('https://')).map(item => ({
+			label: item.label, description: item.description,
+		})), links.map(label => ({ label, description: undefined })));
 	});
 
 	test('lists each pill newest first, within the section it belongs to', () => {

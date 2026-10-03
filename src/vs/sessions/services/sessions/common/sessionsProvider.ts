@@ -15,7 +15,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -183,6 +183,7 @@ export interface ISessionsProvider {
 	 * A human-readable label for the provider, used in the UI.
 	 */
 	readonly label: string;
+	readonly environment: ISessionEnvironment;
 
 	/**
 	 * Icon for the provider, used in the UI.
@@ -238,7 +239,7 @@ export interface ISessionsProvider {
 	 */
 	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
-	 * Optional. Prepares a known session before it is opened or restored.
+	 * Optional. Prepares a known session for opening or restoration; it may already be visible.
 	 * Startup restoration invokes this only for the active session.
 	 */
 	prepareSessionForOpen?(session: ISession, reason: SessionResourceResolveReason): Promise<void>;
@@ -255,6 +256,12 @@ export interface ISessionsProvider {
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+
+	/**
+	 * Whether this provider participates in workspace selection for new sessions and Automations.
+	 * Defaults to true; opting out does not prevent resolution of existing session workspaces.
+	 */
+	readonly supportsWorkspaceSelection?: boolean;
 
 	/**
 	 * Whether this provider can resolve and run sessions against local file-system workspaces.
@@ -287,7 +294,7 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
-	/** Provider-owned Automation entities, persistence, and run history. */
+	/** Provider-owned Automation entities, persistence, and run history; absent for providers that do not participate in Automations. */
 	readonly automations?: ISessionsProviderAutomations;
 
 	/**

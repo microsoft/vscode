@@ -394,6 +394,16 @@ const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReadPowerShell,
 ]);
 
+/** Set of tool names that read from, write to, or stop a shell started by an earlier shell tool call. */
+const SHELL_HELPER_TOOL_NAMES: ReadonlySet<string> = new Set([
+	...READ_SHELL_TOOL_NAMES,
+	...WRITE_SHELL_TOOL_NAMES,
+	CopilotToolName.StopBash,
+	CopilotToolName.BashShutdown,
+	CopilotToolName.StopPowerShell,
+	CopilotToolName.PowerShellShutdown,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
@@ -499,6 +509,14 @@ export function getToolMarkdownContent(toolName: string, parameters: Record<stri
  */
 export function isShellTool(toolName: string): boolean {
 	return SHELL_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool reads from, writes to, or stops a shell that an
+ * earlier shell tool call started.
+ */
+export function isShellHelperTool(toolName: string): boolean {
+	return SHELL_HELPER_TOOL_NAMES.has(toolName);
 }
 
 /**

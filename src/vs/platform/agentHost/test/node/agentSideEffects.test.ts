@@ -26,6 +26,7 @@ import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolv
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -38,7 +39,10 @@ import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractiv
 import { IProductService } from '../../../product/common/productService.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
-import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
+import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
+import { AgentHostOverlapProviderPreparationSettingId } from '../../common/agentService.js';
+import { CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostOverlapProviderPreparationConfigKey, AgentHostTelemetryLevelConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, platformSessionSchema, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostTelemetryService } from '../../node/agentHostTelemetryService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
@@ -123,6 +127,8 @@ class FakeChangesetService implements IAgentHostChangesetService {
 	onSessionTruncated(session: string): void {
 		this.truncates.push(session);
 	}
+	ensureChatChangesSummary(): void { }
+	refreshChatChangesSummary(): void { }
 }
 
 class NoopGitStateService implements IAgentHostGitStateService {
@@ -680,6 +686,128 @@ suite('AgentSideEffects', () => {
 			captured: 1,
 			discarded: 1,
 			sends: 0,
+		});
+	});
+
+	suite('overlapped provider preparation', () => {
+
+		const turnStarted = {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'hello', origin: { kind: MessageKind.User } },
+		} as const;
+
+		function createOverlapSideEffects(checkpointService: IAgentHostCheckpointService, telemetry: ITelemetryService = NullTelemetryService): AgentSideEffects {
+			const workingDirectory = URI.file('/wd');
+			setupSession(workingDirectory.toString());
+			const localSideEffects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => agent,
+				agents: agentList,
+				sessionDataService: createNullSessionDataService(),
+				resolveWorkingDirectoryBeforeSend: async () => [workingDirectory],
+			}, undefined, telemetry, new FakeChangesetService(), undefined, checkpointService);
+			disposables.add(localSideEffects.registerProgressListener(agent));
+			return localSideEffects;
+		}
+
+		function setRootConfig(values: Record<string, unknown>): void {
+			stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: values });
+		}
+
+		test('prepares the provider alongside the turn-start checkpoint and dispatches only once both settle', async () => {
+			const capture = new DeferredPromise<void>();
+			const preparation = new DeferredPromise<void>();
+			const order: string[] = [];
+			const localSideEffects = createOverlapSideEffects({
+				...NULL_CHECKPOINT_SERVICE,
+				captureTurnStartCheckpoint: async () => {
+					order.push('checkpoint:start');
+					await capture.p;
+					order.push('checkpoint:end');
+				},
+			});
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			const prepared: { turnId: string; directories: string[] | undefined }[] = [];
+			agent.chats.prepareTurn = async (_chat, turnId, workingDirectories) => {
+				prepared.push({ turnId, directories: workingDirectories?.map(directory => directory.toString()) });
+				order.push('prepare:start');
+				await preparation.p;
+				order.push('prepare:end');
+			};
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await timeout(0);
+			const whileBothPending = { order: [...order], sends: agent.sendMessageCalls.length };
+			preparation.complete();
+			await timeout(0);
+			const whileCapturing = { order: [...order], sends: agent.sendMessageCalls.length };
+			capture.complete();
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({ whileBothPending, whileCapturing, prepared }, {
+				whileBothPending: { order: ['checkpoint:start', 'prepare:start'], sends: 0 },
+				whileCapturing: { order: ['checkpoint:start', 'prepare:start', 'prepare:end'], sends: 0 },
+				prepared: [{ turnId: 'turn-1', directories: [URI.file('/wd').toString()] }],
+			});
+		});
+
+		test('prepares only when enabled and reports the experiment trigger in both arms', async () => {
+			const results: Record<string, { prepared: number; sends: number; triggers: readonly string[] }> = {};
+			for (const enabled of [true, false]) {
+				const telemetry = new TestExperimentTriggerTelemetryService();
+				const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, telemetry);
+				setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: enabled, [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+				let prepared = 0;
+				agent.chats.prepareTurn = async () => { prepared++; };
+				const sendsBefore = agent.sendMessageCalls.length;
+
+				stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+				localSideEffects.handleAction(defaultChatUri, turnStarted);
+				await waitForSendMessageCalls(sendsBefore + 1);
+				results[enabled ? 'enabled' : 'disabled'] = { prepared, sends: agent.sendMessageCalls.length - sendsBefore, triggers: telemetry.triggers };
+				stateManager.removeSession(sessionUri.toString());
+			}
+
+			const trigger = [`config.${AgentHostOverlapProviderPreparationSettingId}`];
+			assert.deepStrictEqual(results, {
+				enabled: { prepared: 1, sends: 1, triggers: trigger },
+				disabled: { prepared: 0, sends: 1, triggers: trigger },
+			});
+		});
+
+		test('still sends when provider preparation fails', async () => {
+			const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE);
+			setRootConfig({ [AgentHostOverlapProviderPreparationConfigKey]: true });
+			agent.chats.prepareTurn = async () => { throw new Error('preparation failed'); };
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+
+			assert.deepStrictEqual({
+				sends: agent.sendMessageCalls.length,
+				error: stateManager.getChatState(defaultChatUri)?.turns.at(-1)?.state === TurnState.Error,
+			}, { sends: 1, error: false });
+		});
+
+		test('holds the overlap experiment trigger until the assignment context arrives', async () => {
+			const telemetry = new TestExperimentTriggerTelemetryService();
+			const localSideEffects = createOverlapSideEffects(NULL_CHECKPOINT_SERVICE, telemetry);
+			agent.chats.prepareTurn = async () => { };
+
+			stateManager.dispatchServerAction(defaultChatUri, turnStarted);
+			localSideEffects.handleAction(defaultChatUri, turnStarted);
+			await waitForSendMessageCalls(1);
+			const beforeContext = [...telemetry.triggers];
+			setRootConfig({ [CopilotCliVSCodeAssignmentContextKey]: 'assignment-context' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetry.triggers }, {
+				beforeContext: [],
+				afterContext: [`config.${AgentHostOverlapProviderPreparationSettingId}`],
+			});
 		});
 	});
 
@@ -3649,6 +3777,30 @@ suite('AgentSideEffects', () => {
 	// ---- handleAction: chat/turnStarted model selection --------------------
 
 	suite('handleAction — chat/turnStarted model selection', () => {
+		function createCodexTurnHarness(meta?: Record<string, unknown>) {
+			const codexAgent = new MockAgent('codex');
+			disposables.add(toDisposable(() => codexAgent.dispose()));
+			const session = AgentSession.uri('codex', 'model-session');
+			const defaultChat = buildDefaultChatUri(session);
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'codex',
+				title: 'Codex model session',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				_meta: meta,
+			});
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			const agents = observableValue<readonly IAgent[]>('codexAgents', [codexAgent]);
+			const effects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => codexAgent,
+				agents,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+			return { codexAgent, defaultChat, effects, session };
+		}
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
@@ -3739,6 +3891,75 @@ suite('AgentSideEffects', () => {
 				model: call.model,
 				chat: call.chat?.toString(),
 			})), [{ session: sessionUri.toString(), model: { id: 'gpt-5' }, chat: chatChannel }]);
+		});
+
+		test('stamps a successful default-chat Codex model selection before provider send', async () => {
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness();
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			codexAgent.chatModel = model;
+			let modelAtSend: string | undefined;
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => {
+				modelAtSend = readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id;
+				sent.complete();
+			};
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await sent.p;
+
+			assert.deepStrictEqual({
+				modelAtSend,
+				modelInState: readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id,
+			}, {
+				modelAtSend: model.id,
+				modelInState: model.id,
+			});
+		});
+
+		test('does not stamp a rejected Codex model selection', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			codexAgent.chats.changeModel = async () => { throw new Error('model selection failed'); };
+			const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatError));
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await failed;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
+		});
+
+		test('does not overwrite the session model from a Codex peer chat', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			const peer = buildChatUri(session.toString(), 'peer-1');
+			stateManager.addChat(session.toString(), peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => { sent.complete(); };
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(peer, action);
+			effects.handleAction(peer, action);
+			await sent.p;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
 		});
 	});
 
@@ -4273,6 +4494,29 @@ suite('AgentSideEffects', () => {
 				senderClientId: 'client-editor',
 				senderClientType: AgentHostClientType.EditorWindow,
 			});
+		});
+
+		test('syncs server-dispatched steering message to agent', () => {
+			setupSession();
+
+			stateManager.dispatchServerAction(defaultChatUri, {
+				type: ActionType.ChatPendingMessageSet,
+				kind: PendingMessageKind.Steering,
+				id: 'server-steer',
+				message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } },
+			});
+
+			assert.deepStrictEqual(agent.setPendingMessagesCalls.map(call => ({
+				chat: call.chat.toString(),
+				steeringMessage: call.steeringMessage,
+				queuedMessages: call.queuedMessages,
+				steeringSender: call.steeringSender,
+			})), [{
+				chat: defaultChatUri,
+				steeringMessage: { id: 'server-steer', message: { text: 'focus on tests', origin: { kind: MessageKind.Agent } } },
+				queuedMessages: [],
+				steeringSender: undefined,
+			}]);
 		});
 
 		test('syncs a peer chat steering message addressed by the peer chat URI', () => {
@@ -5705,10 +5949,11 @@ suite('AgentSideEffects', () => {
 				approved: true,
 				confirmed: 'user-action' as const,
 				selectedOptionId: 'allow-session',
+				_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
 			} as ChatAction, 'test-client', undefined, undefined, false, 7);
 
 			assert.deepStrictEqual(responses, [
-				['tc-peer-perm', true, { selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
+				['tc-peer-perm', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
 		});

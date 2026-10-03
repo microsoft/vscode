@@ -143,6 +143,9 @@ export interface IAgentHostConnectionsService {
 	 */
 	registerSessionResolutionPolicy(authority: string, policy: IAgentHostSessionResolutionPolicy): IDisposable;
 
+	/** Maps a backend session through provider policy, preserving every component except its routing scheme. */
+	getSessionResource(backendSession: URI, authority?: string): URI;
+
 	/**
 	 * Resolves an agent-host chat-session resource to its connection authority
 	 * and backend session URI without requiring the host to be connected.

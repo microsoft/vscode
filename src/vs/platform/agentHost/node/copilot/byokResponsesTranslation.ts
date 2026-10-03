@@ -18,6 +18,9 @@ interface IResponsesContentPart {
 	readonly type?: string;
 	readonly text?: string;
 	readonly image_url?: string;
+	readonly filename?: string;
+	readonly file_data?: string;
+	readonly file_id?: string;
 }
 
 interface IResponsesSummaryPart {
@@ -88,6 +91,20 @@ function toBridgeRole(role: string | undefined): 'system' | 'developer' | 'user'
 	}
 }
 
+/**
+ * The Copilot runtime sends document attachments (e.g. a referenced PDF) as
+ * Responses `input_file` parts. BYOK models are served through the LM API,
+ * which has no capability declaring document input, so the file is replaced
+ * with a note telling the model it was omitted rather than failing the turn.
+ * The note is wrapped in newlines because the renderer concatenates adjacent
+ * text parts verbatim.
+ */
+function omittedFileText(part: IResponsesContentPart): string {
+	const mimeType = part.file_data ? /^data:(?<mimeType>[^;,]+)/.exec(part.file_data)?.groups?.mimeType : undefined;
+	const name = part.filename || part.file_id || 'file';
+	return `\n[${name}${mimeType ? ` (${mimeType})` : ''} omitted: this model does not accept file inputs]\n`;
+}
+
 function toContentParts(content: string | IResponsesContentPart[] | undefined, itemIndex: number): IByokLmContentPart[] {
 	if (typeof content === 'string') {
 		return content ? [{ type: 'text', text: content }] : [];
@@ -117,6 +134,9 @@ function toContentParts(content: string | IResponsesContentPart[] | undefined, i
 				};
 			}
 			throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}].image_url`);
+		}
+		if (part.type === 'input_file') {
+			return { type: 'text' as const, text: omittedFileText(part) };
 		}
 		throw new ResponsesTranslationError(`Unsupported input[${itemIndex}].content[${contentIndex}] type '${part.type ?? ''}'`);
 	});
@@ -236,6 +256,44 @@ export function responsesRequestToBridge(vendor: string, body: IResponsesRequest
 		previousResponseId: body.previous_response_id,
 		reasoningEffort: body.reasoning?.effort,
 		modelOptions: Object.keys(modelOptions).length ? modelOptions : undefined,
+	};
+}
+
+/**
+ * Most tools a BYOK request may carry. OpenAI-compatible providers reject
+ * requests with more, and the Copilot SDK runtime only defers tools behind
+ * tool search for models it serves natively, so BYOK requests are capped here.
+ */
+export const BYOK_MAX_TOOLS = 128;
+
+/**
+ * Trims {@link IByokLmChatRequest.tools} to at most {@link maxTools}. Tools the
+ * conversation already called are kept first so their calls stay valid; the
+ * remaining budget follows the runtime's order, which lists its built-in tools
+ * before client, MCP, and extension tools. The kept tools stay in their original
+ * order so the request prefix remains stable across turns.
+ */
+export function capBridgeTools(request: IByokLmChatRequest, maxTools = BYOK_MAX_TOOLS): { readonly request: IByokLmChatRequest; readonly droppedToolNames: readonly string[] } {
+	const tools = request.tools;
+	if (!tools || tools.length <= maxTools) {
+		return { request, droppedToolNames: [] };
+	}
+	const calledToolNames = new Set(request.input.flatMap(item => item.type === 'function_call' || item.type === 'custom_tool_call' ? [item.name] : []));
+	const kept = new Set<IByokLmTool>();
+	for (const tool of tools) {
+		if (kept.size < maxTools && calledToolNames.has(tool.name)) {
+			kept.add(tool);
+		}
+	}
+	for (const tool of tools) {
+		if (kept.size >= maxTools) {
+			break;
+		}
+		kept.add(tool);
+	}
+	return {
+		request: { ...request, tools: tools.filter(tool => kept.has(tool)) },
+		droppedToolNames: tools.filter(tool => !kept.has(tool)).map(tool => tool.name),
 	};
 }
 

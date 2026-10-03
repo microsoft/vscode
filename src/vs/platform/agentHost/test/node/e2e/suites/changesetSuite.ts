@@ -1007,23 +1007,33 @@ export function defineChangesetTests(context: IAgentHostE2ETestContext): void {
 		}
 	});
 
-	conformanceTest(context, 'a folder session advertises commit on its branch changeset', async function () {
+	conformanceTest(context, 'a folder session advertises commit only on its uncommitted changeset', async function () {
 		const workspace = createGitWorkspace('ahp-changeset-branch-commit-');
 		const sessionUri = await createSessionIn(workspace, 'changeset-branch-commit');
 		const branchUri = await getBranchChangesetUri(context, sessionUri);
+		const uncommittedUri = buildUncommittedChangesetUri(sessionUri);
 		await context.client.call<SubscribeResult>('subscribe', { channel: branchUri });
-		await runBangTurn(sessionUri, 'turn-changeset-branch-commit', writeFileCommand('branch-commit.txt', 'COMMIT'), 1);
+		await context.client.call<SubscribeResult>('subscribe', { channel: uncommittedUri });
 
-		const operation = await waitForOperation(branchUri, 'commit');
+		context.client.clearReceived();
+		const turnId = 'turn-changeset-branch-commit';
+		dispatchTurn(context.client, sessionUri, turnId, writeFileCommand('branch-commit.txt', 'COMMIT'), 1);
+		await waitForFileInChangeset(branchUri, 'branch-commit.txt');
+		await waitForTurnComplete(sessionUri, turnId);
+
+		// Commit always commits every uncommitted change, so it belongs only to
+		// the changeset that shows exactly those changes. Operations for all of
+		// the session's changesets are recomputed together, so once the
+		// uncommitted changeset offers Commit the branch changeset is settled.
+		const operation = await waitForOperation(uncommittedUri, 'commit');
+		const branchOperationIds = ((await changesetState(branchUri)).operations ?? []).map(candidate => candidate.id);
 
 		assert.deepStrictEqual({
-			id: operation.id,
-			group: operation.group,
-			scopes: operation.scopes,
+			uncommitted: { id: operation.id, group: operation.group, scopes: operation.scopes },
+			branchAdvertisesCommit: branchOperationIds.includes('commit'),
 		}, {
-			id: 'commit',
-			group: 'commit',
-			scopes: ['changeset'],
+			uncommitted: { id: 'commit', group: 'commit', scopes: ['changeset'] },
+			branchAdvertisesCommit: false,
 		});
 	});
 

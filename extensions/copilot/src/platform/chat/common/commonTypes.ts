@@ -127,8 +127,11 @@ export function isVisionAttachmentInaccessibleError(input: { type: ChatFetchResp
 /**
  * CAPI's `X-Copilot-Service-Request-Id` from the response that produced this result. Joins the
  * client-side event with CAPI's server-side logs, traces and Sentry reports.
+ *
+ * `gitHubCopilotRequestTe` is the raw CAPI `X-GitHub-Copilot-Request-Te` value from the same
+ * response, forwarded unmodified to telemetry; absent when the header was not sent.
  */
-type WithCopilotServiceRequestId = { copilotServiceRequestId?: string };
+type WithCopilotServiceRequestId = { copilotServiceRequestId?: string; gitHubCopilotRequestTe?: string };
 
 export type ChatFetchError = WithCopilotServiceRequestId & (
 	/**

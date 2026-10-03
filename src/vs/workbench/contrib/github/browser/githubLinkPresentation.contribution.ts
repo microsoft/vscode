@@ -14,7 +14,7 @@ import { IWorkbenchGitHubService } from '../../../services/github/common/githubS
 import { GitHubHydratableResourceRef, GitHubIssue, GitHubIssueRef, GitHubRepository } from '../../../../platform/github/common/githubQueryService.js';
 import { FragmentState, PullRequestCheck, PullRequestCore, PullRequestRef, PullRequestSnapshot } from '../../../../platform/github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTransport.js';
-import { GitHubAccountHandle, GitHubRequestErrorKind } from '../../../../platform/github/common/githubTypes.js';
+import { AccountHandle, RequestErrorKind } from '../../../../platform/github/common/types.js';
 import { GitHubLinkTarget, parseGitHubLinkTarget } from '../../../../platform/github/common/githubUrls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../platform/notification/common/notification.js';
@@ -148,7 +148,7 @@ class GitHubLinkPresentationHydrator extends Disposable {
 		this._register(toDisposable(() => this._controller.abort()));
 	}
 
-	hydrate(target: GitHubLinkTarget, account: GitHubAccountHandle, client: IGitHubClient): Promise<void> {
+	hydrate(target: GitHubLinkTarget, account: AccountHandle, client: IGitHubClient): Promise<void> {
 		if (target.kind === 'pullRequest') {
 			return Promise.resolve();
 		}
@@ -307,7 +307,7 @@ class GitHubLinkPresentationWatcher extends Disposable implements ILinkPresentat
 		}
 	}
 
-	private _setPresentation(presentation: ILinkPresentation | undefined, error: { readonly kind: GitHubRequestErrorKind; readonly message: string } | undefined): void {
+	private _setPresentation(presentation: ILinkPresentation | undefined, error: { readonly kind: RequestErrorKind; readonly message: string } | undefined): void {
 		if (error) {
 			this._logService.warn(`[GitHubLinkPresentation] ${formatTarget(this._target)} failed with '${error.kind}': ${error.message}`);
 		}
@@ -416,7 +416,7 @@ function pullRequestChecksStatus(checks: readonly PullRequestCheck[] | undefined
 	return { kind: 'success', label: localize('github.checks.passed', "Checks passed") };
 }
 
-function failurePresentation(kind: LinkPresentationKind, errorKind: GitHubRequestErrorKind | undefined): ILinkPresentation {
+function failurePresentation(kind: LinkPresentationKind, errorKind: RequestErrorKind | undefined): ILinkPresentation {
 	const label = errorKind === 'rateLimit'
 		? localize('github.failure.rateLimited', "Rate limited")
 		: errorKind === 'authentication'

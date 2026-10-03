@@ -18,7 +18,11 @@ Both windows use [CloudSandboxSessionContribution](../../../../workbench/contrib
 
 Sandbox session discovery is window-owned and does not establish host connections. A full refresh reconciles absent disconnected environments; incremental refreshes retain absent entries and reconcile only explicitly removed or replaced tasks. Both preserve connected and provisioning environments. Failed or cancelled scans must not advance incremental discovery progress.
 
+Cloud sandbox environments are automatically trusted like Codespaces. The sandbox contribution registers each environment's exact filesystem scheme and authority with workspace trust before publishing its provider, including cached offline providers, and releases that registration when the environment is removed. Registrations do not persist user-granted folder trust or trust other authorities. The connection customization also exempts sandbox message sending from the current window's workspace-trust gate.
+
 Remote providers may delegate deletion to their inventory owner instead of AHP. In both windows, sandbox deletion addresses the owning Mission Control task without connecting to the environment; successful deletion removes the cached session, persisted discovery inventory, and environment provider. Failed deletion retains those entries, and stale discovery responses cannot restore a successfully deleted task.
+
+In the Agents Window, renaming a discovered sandbox session updates its owning Mission Control task without waking the environment. After success, the provider updates the local title and sends an AHP rename only if already connected; offline renames are not queued for replay. Host-reported titles remain authoritative on connection. Sessions sharing the environment but not owned by the discovered task continue to use AHP.
 
 The sandbox contribution saves a minimal discovery inventory in machine-local profile storage, separately for each authentication provider and account. Once the current account is known, it restores providers and cached rows before awaiting network discovery, without waking environments. Failed or partial discovery retains unconfirmed entries. Account changes remove the previous account's providers; credential refreshes for the same account preserve them. No credentials are stored in the inventory.
 

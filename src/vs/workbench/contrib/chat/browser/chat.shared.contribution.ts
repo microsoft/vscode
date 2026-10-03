@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './agentSessions/agentHost/codexContinuation.contribution.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -16,11 +17,10 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import '../../../../platform/agentHost/browser/agentHostEnablementService.js';
 import '../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostMapLegacySettingsToManagedSettingsSettingId } from '../../../../platform/agentHost/common/agentHostManagedSettings.js';
 import { AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../../../platform/agentHost/common/agentHostSchema.js';
 import '../../../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { AgentMergeSettingId } from '../../../../platform/agentHost/common/agentMerge.js';
-import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, AgentHostSdkSandboxEnabledSettingId, AgentHostSdkSandboxWindowsEnabledSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentHostAhpJsonlLoggingSettingId, AgentHostAllowSignedOutWhenUsableSettingId, CodexPreferAgentHostEditorSettingId } from '../../../../platform/agentHost/common/agentService.js';
 import { AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotRuntimePathSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostCustomTerminalToolEnabledSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotSkillCharBudgetSettingId, CopilotTgrepEnabledSettingId, copilotSdkLogLevelSettingValues, DEFAULT_COPILOT_SKILL_CHAR_BUDGET, normalizeSkillCharBudget } from '../../../../platform/agentHost/common/copilotCliConfig.js';
 import { CopilotSemanticSearchEnabledSettingId } from '../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } from '../../../../platform/chat/common/chatSettings.js';
@@ -42,7 +42,7 @@ import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/
 import { COPILOT_ALLOWED_MCP_SERVERS_KEY, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_CONFIG, COPILOT_ALLOW_MANAGED_MCP_SERVERS_ONLY_KEY, COPILOT_DENIED_MCP_SERVERS_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_EXTRA_MARKETPLACES_KEY, COPILOT_MODEL_KEY, COPILOT_STRICT_MARKETPLACES_KEY, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, managedModelValue, managedSettingsDisabledValue, managedSettingValue } from '../../../../platform/policy/common/copilotManagedSettings.js';
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxSettingId } from '../../../../platform/sandbox/common/settings.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { type ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -191,6 +191,7 @@ import { ChatEditorInput, ChatEditorInputSerializer } from './widgetHosts/editor
 
 import { ILanguageModelsConfigurationService } from '../common/languageModelsConfiguration.js';
 import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepositoryService.js';
+import { AgentPluginEnablementService, IAgentPluginEnablementService } from '../common/plugins/agentPluginEnablement.js';
 import { AgentPluginService, ConfiguredAgentPluginDiscovery, CopilotCliAgentPluginDiscovery, ExtensionAgentPluginDiscovery, MarketplaceAgentPluginDiscovery } from '../common/plugins/agentPluginServiceImpl.js';
 import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
@@ -201,6 +202,7 @@ import { VALID_PROMPT_FOLDER_PATTERN } from '../common/promptSyntax/utils/prompt
 import { IToolResultCompressor } from '../common/tools/toolResultCompressor.js';
 import { ChatResponseAccessibleView } from './accessibility/chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './accessibility/chatTerminalOutputAccessibleView.js';
+import { ChatBackgroundShellOutputAccessibleView } from './accessibility/chatBackgroundShellOutputAccessibleView.js';
 import { AgentPluginCommandsContribution } from './agentPluginCommands.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
@@ -326,7 +328,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: {
 			type: 'boolean',
 			description: nls.localize('chat.experimentalModePermissionsPicker', "Shows mode and permissions in a combined picker with expandable permission choices for Copilot Agent Host sessions."),
-			default: product.quality !== 'stable',
+			default: true,
 			tags: ['experimental'],
 		},
 		'chat.fontSize': {
@@ -752,7 +754,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.PermissionsSandboxToggleEnabled]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option. Local and remote Copilot Agent Host sessions show it as a session-specific setting that applies to every permission mode; changing it saves the choice only for that session. New Copilot Agent Host sessions initially follow `#chat.agent.sandbox.enabled#` or `#chat.agent.sandbox.enabledWindows#` based on the host's operating system, for both the SDK's built-in shell tool and the Agent Host terminal tool."),
+			markdownDescription: nls.localize('chat.experimental.permissionsSandboxToggle.enabled', "Controls whether the permissions picker shows a \"Sandboxing for terminal\" toggle. Local sessions show it on the Default permissions option. Local and remote Copilot Agent Host sessions show it as a session-specific setting that applies to every permission mode; changing it saves the choice only for that session. New Copilot Agent Host sessions initially follow `#chat.agent.sandbox.enabled#` on all operating systems, for both the SDK's built-in shell tool and the Agent Host terminal tool."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1718,13 +1720,6 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental', 'advanced'],
 			scope: ConfigurationScope.APPLICATION,
 		},
-		[AgentHostMapLegacySettingsToManagedSettingsSettingId]: {
-			type: 'boolean',
-			markdownDescription: nls.localize('chat.agentHost.copilot.mapLegacySettingsToManagedSettings', "When enabled, maps supported legacy VS Code settings to equivalent Copilot SDK managed settings for local Agent Host sessions. Only restrictions are mapped, and only from globally-scoped values — workspace and folder values are ignored. Applies to local sessions using the Copilot agent; remote hosts and other agents are unaffected. This compatibility bridge is temporary and is not used for new settings."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION_MACHINE,
-			tags: ['experimental', 'advanced'],
-		},
 		[AgentHostOpus48PromptEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.opus48Prompt.enabled', "When enabled, Copilot SDK sessions running a Claude Opus 4.8 model apply Opus 4.8-tuned system-prompt section overrides on top of the default system message."),
@@ -1847,22 +1842,6 @@ configurationRegistry.registerConfiguration({
 			// treatment stops the background check in running windows too. A dialog reads the value
 			// once when it opens, so an open dialog never changes underneath the user.
 			experiment: { mode: 'auto' }
-		},
-		[AgentHostSdkSandboxEnabledSettingId]: {
-			type: 'string',
-			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabled.description', "Deprecated sandbox mode for the Copilot SDK's built-in shell tool on macOS and Linux."),
-			markdownDeprecationMessage: nls.localize('chat.agentHost.sdkSandbox.enabled.deprecated', "This setting no longer has any effect. Use `#chat.agent.sandbox.enabled#` for both the SDK's built-in shell tool and the Agent Host's custom terminal tool."),
-			default: AgentSandboxEnabledValue.Off,
-			tags: ['experimental', 'advanced'],
-		},
-		[AgentHostSdkSandboxWindowsEnabledSettingId]: {
-			type: 'string',
-			enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
-			markdownDescription: nls.localize('chat.agentHost.sdkSandbox.enabledWindows.description', "Deprecated sandbox mode for the Copilot SDK's built-in shell tool on Windows."),
-			markdownDeprecationMessage: nls.localize('chat.agentHost.sdkSandbox.enabledWindows.deprecated', "This setting no longer has any effect. Use `#chat.agent.sandbox.enabledWindows#` for both the SDK's built-in shell tool and the Agent Host's custom terminal tool."),
-			default: AgentSandboxEnabledValue.Off,
-			tags: ['experimental', 'advanced'],
 		},
 		[ChatConfiguration.ToolConfirmationCarousel]: {
 			type: 'boolean',
@@ -3296,6 +3275,7 @@ class ChatSpeechToTextInitContribution implements IWorkbenchContribution {
 }
 
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
+AccessibleViewRegistry.register(new ChatBackgroundShellOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
@@ -3436,6 +3416,7 @@ registerSingleton(IChatSlashCommandService, ChatSlashCommandService, Instantiati
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(IAgentPluginEnablementService, AgentPluginEnablementService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Delayed);
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
 registerSingleton(IWorkspacePluginSettingsService, WorkspacePluginSettingsService, InstantiationType.Delayed);
