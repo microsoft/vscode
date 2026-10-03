@@ -34,13 +34,13 @@ async page => {
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
-	const focusIfNeeded = async (input, selector) => {
+	const focusIfNeeded = async (input, selector, fallbackState = 'Initial') => {
 		if (await isFocused(input)) {
 			return false;
 		}
 		await input.focus();
 		if (!await isFocused(input)) {
-			throw new Error(`Chat input did not retain focus (Platform: ${platform}, Selector: ${selector})`);
+			throw new Error(`Chat input did not retain focus (Platform: ${platform}, Selector: ${selector}, FallbackState: ${fallbackState})`);
 		}
 		return true;
 	};
@@ -57,7 +57,7 @@ async page => {
 
 	let match = await findVisibleChatInput();
 	if (match) {
-		const focusInvoked = await focusIfNeeded(match.input, match.selector);
+		const focusInvoked = await focusIfNeeded(match.input, match.selector, 'Initial');
 		return { focused: true, focusChanged: focusInvoked, focusInvoked, shortcutInvoked: false, commandPaletteFallbackInvoked: false, selector: match.selector };
 	}
 
@@ -83,9 +83,10 @@ async page => {
 	}
 
 	if (!match) {
-		throw new Error(`No visible chat input found after invoking shortcut (${shortcut}) and the command palette fallback (Platform: ${platform}, Tested Selectors: ${selectors.length})`);
+		throw new Error(`No visible chat input found after invoking shortcut (${shortcut}) and the command palette fallback (Platform: ${platform}, Tested Selectors: [${selectors.join(', ')}])`);
 	}
 
-	const focusInvoked = await focusIfNeeded(match.input, match.selector);
+	const fallbackState = commandPaletteFallbackInvoked ? 'CommandPaletteFallback' : 'Shortcut';
+	const focusInvoked = await focusIfNeeded(match.input, match.selector, fallbackState);
 	return { focused: true, focusChanged: true, focusInvoked, shortcutInvoked: true, commandPaletteFallbackInvoked, selector: match.selector };
 }
