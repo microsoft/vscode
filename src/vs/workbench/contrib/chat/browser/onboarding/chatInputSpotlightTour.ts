@@ -99,6 +99,16 @@ export function createChatInputTour(signal: IObservable<boolean>): IOnboardingSc
 /** A section of the combined mode and permissions picker's menu. */
 type ChatInputTourPickerSection = 'mode' | 'permissions';
 
+/**
+ * Returns the ID of `section`'s header in the combined mode and permissions menu. The picker
+ * collapses the mode section when it opens on permissions, and the permissions section
+ * otherwise, so its options name each section's header.
+ */
+function getSectionHeaderId(section: ChatInputTourPickerSection): string | undefined {
+	const [headerId] = getModePermissionsPickerOptions(section === 'mode').collapsedByDefault ?? [];
+	return headerId;
+}
+
 /** How the tour opens and highlights the chat input's Agent Host pickers. */
 interface IChatInputTourPickerActions {
 	/** The picker's open menu, which the spotlight highlights together with the picker. */
@@ -224,7 +234,8 @@ export class ChatInputSpotlightTour extends Disposable {
 	 * Shows `section` of the picker's menu. When the menu is still open on the other
 	 * section, as it is after Next or Back, collapses that section first and expands
 	 * `section` once the collapse has been visible, so the step change reads as one
-	 * menu moving between sections. Otherwise opens the menu on `section`.
+	 * menu moving between sections. Otherwise opens the menu on `section`. Either way
+	 * focuses the header of `section`, so every step highlights its section's name.
 	 */
 	private async _openSection(picker: AgentHostChatInputPicker, section: ChatInputTourPickerSection): Promise<void> {
 		if (await this._setSectionExpanded(picker, section === 'mode' ? 'permissions' : 'mode', false)) {
@@ -235,8 +246,17 @@ export class ChatInputSpotlightTour extends Disposable {
 		}
 		await this._whenMenuClosed();
 		const trigger = picker.triggerElement;
-		if (trigger) {
-			picker.show(trigger, section === 'permissions');
+		if (!trigger) {
+			return;
+		}
+		picker.show(trigger, section === 'permissions');
+		// The menu focuses the selected item when it opens, so move focus to the header once it shows.
+		for (let attempt = 0; !picker.isOpen && attempt < ChatInputSpotlightTour.MENU_CLOSE_ATTEMPTS; attempt++) {
+			await timeout(ChatInputSpotlightTour.MENU_CLOSE_DELAY_MS);
+		}
+		const headerId = getSectionHeaderId(section);
+		if (picker.isOpen && picker.combinesPermissions && headerId) {
+			this.actionWidgetService.focusItemById(headerId);
 		}
 	}
 
@@ -248,9 +268,7 @@ export class ChatInputSpotlightTour extends Disposable {
 		if (!picker.isOpen || !picker.combinesPermissions) {
 			return false;
 		}
-		// The picker collapses the mode section when it opens on permissions, and the permissions
-		// section otherwise, so its options name each section's header.
-		const [headerId] = getModePermissionsPickerOptions(section === 'mode').collapsedByDefault ?? [];
+		const headerId = getSectionHeaderId(section);
 		if (!headerId) {
 			return false;
 		}
