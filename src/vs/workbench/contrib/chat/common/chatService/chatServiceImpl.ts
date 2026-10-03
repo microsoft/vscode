@@ -893,11 +893,18 @@ export class ChatService extends Disposable implements IChatService {
 			}
 			lastResponseCompletedAt = undefined;
 		};
-		const applyHistory = (history: readonly IChatSessionHistoryItem[]) => {
+		const applyHistory = (history: readonly IChatSessionHistoryItem[], localRequests?: ReadonlyMap<string, ChatRequestModel>, insertionIndex?: number) => {
 			for (const message of history) {
 				if (message.type === 'request') {
 					if (lastRequest) {
 						completeLastResponse();
+					}
+
+					const localRequest = message.id ? localRequests?.get(message.id) : undefined;
+					if (localRequest) {
+						insertionIndex = model.getRequests().indexOf(localRequest) + 1;
+						lastRequest = undefined;
+						continue;
 					}
 
 					const requestText = message.prompt;
@@ -937,7 +944,11 @@ export class ChatService extends Disposable implements IChatService {
 						getRestoredChatRequestSource(message, requestText),
 						message.modelConfiguration,
 						message.metadata,
+						insertionIndex,
 					);
+					if (insertionIndex !== undefined) {
+						insertionIndex++;
+					}
 				} else {
 					// response
 					if (lastRequest) {
@@ -969,7 +980,7 @@ export class ChatService extends Disposable implements IChatService {
 					return;
 				}
 				pendingHistory = undefined;
-				const requests = model.getRequests();
+				const requests = [...model.getRequests()];
 				let common = 0;
 				while (common < history.length && common < lastHistory.length && equals(history[common], lastHistory[common])) {
 					common++;
@@ -984,21 +995,23 @@ export class ChatService extends Disposable implements IChatService {
 						localRequestIds.add(request.id);
 					}
 				}
-				for (const request of [...requests]) {
+				let insertionIndex: number | undefined;
+				for (const request of requests) {
 					if (!retained.has(request.id) && previousIds.has(request.id) && !localRequestIds.has(request.id)) {
+						insertionIndex = Math.min(insertionIndex ?? model.getRequests().length, model.getRequests().indexOf(request));
 						model.removeRequest(request.id);
 					}
 				}
-				let skipLocal = false;
-				const changedHistory = history.slice(common).filter(item => {
-					if (item.type === 'request') {
-						skipLocal = item.id !== undefined && localRequestIds.has(item.id);
+				const localRequests = new Map(requests.filter(request => localRequestIds.has(request.id)).map(request => [request.id, request]));
+				const changedHistory = history.slice(common);
+				for (const item of changedHistory) {
+					if (item.type === 'request' && item.id && localRequests.has(item.id)) {
+						insertionIndex = Math.min(insertionIndex ?? model.getRequests().length, model.getRequests().findIndex(request => request.id === item.id));
 					}
-					return !skipLocal;
-				});
+				}
 				lastRequest = undefined;
 				lastResponseCompletedAt = undefined;
-				applyHistory(changedHistory);
+				applyHistory(changedHistory, localRequests, insertionIndex);
 				completeLastResponse();
 				lastHistory = history;
 			};

@@ -268,6 +268,41 @@ suite('ChatModel', () => {
 		});
 	});
 
+	for (const index of [0, 1, 2]) {
+		test(`inserts historical requests at index ${index} and preserves operation log order`, () => {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const first = model.addRequest({ text: 'First', parts: [] }, { variables: [] }, 0);
+			const second = model.addRequest({ text: 'Second', parts: [] }, { variables: [] }, 0);
+			const writer = new ChatSessionOperationLog();
+			const initial = writer.createInitial(model);
+			const args: Parameters<ChatModel['addRequest']> = [{ text: 'Historical', parts: [] }, { variables: [] }, 0];
+			args[24] = index;
+			const inserted = model.addRequest(...args);
+			const update = writer.write(model);
+			writer.confirmWrite();
+			const reader = new ChatSessionOperationLog();
+			const data = reader.read(update.op === 'replace' ? update.data : VSBuffer.concat([initial, update.data]));
+			const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: data, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const expected = [first, second];
+			expected.splice(index, 0, inserted);
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => request.id),
+				restored: restored.getRequests().map(request => request.id),
+				lastRequest: model.lastRequest?.id,
+			}, { requests: expected.map(request => request.id), restored: expected.map(request => request.id), lastRequest: expected.at(-1)?.id });
+		});
+	}
+
+	test('rejects invalid historical request insertion indices without mutating the model', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		for (const index of [-1, 1, 0.5, NaN, Infinity]) {
+			const args: Parameters<ChatModel['addRequest']> = [{ text: 'Invalid', parts: [] }, { variables: [] }, 0];
+			args[24] = index;
+			assert.throws(() => model.addRequest(...args), RangeError);
+		}
+		assert.deepStrictEqual(model.getRequests(), []);
+	});
+
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 

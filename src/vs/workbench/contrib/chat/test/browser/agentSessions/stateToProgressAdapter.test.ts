@@ -1243,6 +1243,19 @@ suite('stateToProgressAdapter', () => {
 			);
 		});
 
+		test('session context usage moves from a restored turn to a newly completed turn', () => {
+			const first = createTurn({ id: 'first', state: TurnState.Cancelled, usage: { inputTokens: 100, outputTokens: 10 } });
+			const second = createTurn({ id: 'second', usage: { inputTokens: 200, outputTokens: 20 } });
+			const context = { currentTokens: 300, tokenLimit: 1000, messagesLength: 4 };
+			const snapshots = [[first], [first, second]].map(turns =>
+				rawTurnsToHistory(URI.file('/'), turns, 'p', 'local', undefined, undefined, undefined, undefined, undefined, undefined, context));
+			assert.deepStrictEqual(snapshots.map(history => history.filter(item => item.type === 'response').map(item =>
+				item.parts.find(part => part.kind === 'usage')?.contextUsage)), [
+				[{ currentTokens: 300, tokenLimit: 1000 }],
+				[undefined, { currentTokens: 300, tokenLimit: 1000 }],
+			]);
+		});
+
 		test('request history includes restored model id', () => {
 			const turn = createTurn({
 				message: message('Use restored model'),

@@ -318,10 +318,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._register(_model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
 				const requestModel = this.instantiationService.createInstance(ChatRequestViewModel, e.request);
-				this._items.push(requestModel);
+				const nextRequest = e.index === undefined ? undefined : this._items.filter(isRequestVM)[e.index];
+				const index = nextRequest ? this._items.indexOf(nextRequest) : this._items.length;
+				this._items.splice(index, 0, requestModel);
 
 				if (e.request.response) {
-					this.onAddResponse(e.request.response);
+					this.onAddResponse(e.request.response, index + 1);
 				}
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
@@ -350,12 +352,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		}));
 	}
 
-	private onAddResponse(responseModel: IChatResponseModel) {
+	private onAddResponse(responseModel: IChatResponseModel, index = this._items.length) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel, this);
 		this._register(response.onDidChange(() => {
 			return this._onDidChange.fire(null);
 		}));
-		this._items.push(response);
+		this._items.splice(index, 0, response);
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {

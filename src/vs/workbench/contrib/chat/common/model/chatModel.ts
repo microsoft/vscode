@@ -2531,6 +2531,8 @@ export type IChatChangeEvent =
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
+	/** Request position when inserting history before existing requests. */
+	index?: number;
 }
 
 export interface IChatChangedRequestEvent {
@@ -3350,6 +3352,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
+	/** Adds a request at the end, or at the supplied history insertion index. */
 	addRequest(
 		message: IParsedChatRequest,
 		variableData: IChatRequestVariableData,
@@ -3375,7 +3378,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
 		agentHostMetadata?: Record<string, unknown>,
+		index?: number,
 	): ChatRequestModel {
+		if (index !== undefined && (!Number.isInteger(index) || index < 0 || index > this._requests.length)) {
+			throw new RangeError(`Invalid chat request insertion index: ${index}`);
+		}
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const requestTimestamp = timestamp === undefined
@@ -3419,9 +3426,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
-		this._requests.push(request);
+		this._requests.splice(index ?? this._requests.length, 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
-		this._onDidChange.fire({ kind: 'addRequest', request });
+		this._onDidChange.fire({ kind: 'addRequest', request, ...(index !== undefined ? { index } : {}) });
 		return request;
 	}
 
