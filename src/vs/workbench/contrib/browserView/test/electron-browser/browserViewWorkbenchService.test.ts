@@ -178,6 +178,23 @@ suite('BrowserViewWorkbenchService', () => {
 		});
 	}
 
+	test('transfers late creation cleanup to a lazy replacement', async () => {
+		const { service, created, requested, reply, info, destroyed } = createService();
+		const input = service.getOrCreateLazy({ id: info.id });
+		const resolution = input.resolve();
+		await requested.p;
+		input.dispose();
+		created.fire({ info });
+		assert.strictEqual(service.getKnownBrowserViews().size, 0);
+		const replacement = service.getOrCreateLazy({ id: info.id });
+		await reply.complete(info);
+		await assert.rejects(resolution, isCancellationError);
+		assert.strictEqual(service.getKnownBrowserViews().get(info.id), replacement);
+		assert.deepStrictEqual(destroyed, []);
+		replacement.dispose();
+		assert.deepStrictEqual({ known: service.getKnownBrowserViews().size, destroyed }, { known: 0, destroyed: [info.id] });
+	});
+
 	test('preserves creation failures after disposal', async () => {
 		const { service, requested, reply, info, destroyed } = createService();
 		const input = service.getOrCreateLazy({ id: info.id });

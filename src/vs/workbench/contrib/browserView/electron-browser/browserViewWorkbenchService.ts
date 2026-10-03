@@ -393,9 +393,11 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 							openSource: createOptions?.openSource
 						}
 					);
-					// A replacement input may now own the same native view.
+					// Transfer cleanup to a replacement, even if it has not been resolved.
 					if (input.isDisposed()) {
-						if (!this._known.has(id)) {
+						if (this._known.has(id)) {
+							this._createModel(info);
+						} else {
 							await this._browserViewService.destroyBrowserView(id);
 						}
 						throw new CancellationError();
