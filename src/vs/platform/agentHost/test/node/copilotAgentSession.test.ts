@@ -39,6 +39,7 @@ import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanR
 import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedbackAttachments.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { readMcpServerSource } from '../../common/meta/mcpCustomizationMeta.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
@@ -12207,6 +12208,95 @@ Use the attached image as context.
 				kind: ResponsePartKind.Markdown,
 				content: 'I will inspect the file.',
 			}]);
+		});
+
+		test('image function tools retain streamed text and precede the final answer', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-image-order');
+			const message = {
+				messageId: 'image-request',
+				content: 'I will create an image.',
+				toolRequests: [{ toolCallId: 'image-1', name: 'image_generation', arguments: { prompt: 'Draw a puppy' } }],
+			};
+			mockSession.fire('assistant.message_delta', {
+				messageId: message.messageId,
+				deltaContent: message.content,
+			});
+			mockSession.fire('assistant.message', message);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'image-1',
+				toolName: 'image_generation',
+				arguments: { prompt: 'Draw a puppy' },
+			});
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'image-1',
+				success: true,
+				result: {
+					content: 'Image data was returned to the client.',
+					contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }],
+				},
+			});
+			mockSession.fire('assistant.message', { messageId: 'after-image', content: 'Image generation completed.' });
+
+			assert.deepStrictEqual(getActions(signals).flatMap(action => {
+				if (action.type === ActionType.ChatToolCallComplete) {
+					return [action.toolCallId];
+				}
+				return action.type === ActionType.ChatResponsePart && action.part.kind === ResponsePartKind.Markdown
+					? [action.part.content] : [];
+			}), [message.content, 'image-1', 'Image generation completed.']);
+		});
+
+		test('tool completion preserves generated image bytes without advertising opaque resource links', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-image');
+			const uri = 'generated-images:/session/generated-image.png?version=1';
+			const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-image',
+				toolName: 'image_generation',
+				model: 'claude-sonnet-5',
+			});
+			const progress = {
+				toolCallId: 'tc-image',
+				progressMessage: 'Generating image',
+				structuredContent: { imageGeneration },
+			};
+			mockSession.fire('tool.execution_progress', progress);
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-image',
+				success: true,
+				result: {
+					content: 'Generated images.',
+					structuredContent: { imageGeneration },
+					contents: [
+						{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+						{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 },
+					],
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+			const progressActions = () => getActions(signals).filter(action => action.type === ActionType.ChatToolCallContentChanged);
+			const progressAction = progressActions()[0];
+			mockSession.fire('tool.execution_progress', progress);
+			assert.deepStrictEqual({
+				content: completed?.result.content,
+				title: completed?.result.pastTenseMessage,
+				completedModel: completed && readImageGenerationToolMetadata(completed),
+				runningModel: progressAction && readImageGenerationToolMetadata(progressAction),
+				progressActionsAfterCompletion: progressActions().length,
+			}, {
+				content: [
+					{ type: ToolResultContentType.Text, text: 'Generated images.' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+				],
+				title: 'Generated image with Image Preview',
+				completedModel: imageGeneration,
+				runningModel: imageGeneration,
+				progressActionsAfterCompletion: 1,
+			});
 		});
 
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {

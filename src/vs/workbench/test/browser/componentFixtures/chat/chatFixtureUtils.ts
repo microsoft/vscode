@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -24,6 +24,7 @@ import { IUpdateService, StateType } from '../../../../../platform/update/common
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IAccessibleViewService } from '../../../../../platform/accessibility/browser/accessibleView.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -486,4 +487,26 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 		override setTodos() { }
 		override migrateTodos() { }
 	}());
+}
+
+/**
+ * Makes script-driven fixture animations honor the same motion classes as CSS animations.
+ */
+export class FixtureMotionAccessibilityService extends TestAccessibilityService {
+
+	override onDidChangeReducedMotion: Event<void>;
+	constructor(private readonly container: HTMLElement, store: DisposableStore) {
+		super();
+		const onDidChangeReducedMotion = store.add(new Emitter<void>());
+		this.onDidChangeReducedMotion = onDidChangeReducedMotion.event;
+		const observer = new MutationObserver(() => onDidChangeReducedMotion.fire());
+		for (let element: HTMLElement | null = container; element; element = element.parentElement) {
+			observer.observe(element, { attributes: true, attributeFilter: ['class'] });
+		}
+		store.add(toDisposable(() => observer.disconnect()));
+	}
+
+	override isMotionReduced(): boolean {
+		return !this.container.closest('.monaco-enable-motion') || !!this.container.closest('.monaco-reduce-motion, .disable-animations');
+	}
 }

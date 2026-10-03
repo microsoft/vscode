@@ -8,7 +8,7 @@ import { CancellationTokenSource } from '../../../../../../base/common/cancellat
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind, ToolDeniedReason } from '../../../common/chatService/chatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { IToolData, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
+import { IToolData, IToolResultInputOutputDetails, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 
 suite('ChatToolInvocation permission provenance', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -68,6 +68,33 @@ suite('ChatToolInvocation permission provenance', () => {
 			results.push(await confirmation);
 		}
 		assert.deepStrictEqual(results, reasons);
+	});
+
+	test('provider cancellation retains details and cannot be overwritten by a late completion', async () => {
+		const invocation = new ChatToolInvocation({ invocationMessage: 'Run tool' }, tool, 'running', undefined, { prompt: 'Draw a puppy' });
+		const reason = { type: ToolConfirmKind.Skipped, source: 'user' } as const;
+		const details: IToolResultInputOutputDetails = {
+			input: '{"prompt":"Draw a puppy"}',
+			output: [{ type: 'embed', value: 'Stopped by the user', isText: true }],
+			isError: true,
+		};
+		invocation.didCancelTool(reason, 'Stopped by the user', details);
+		const cancelledState = invocation.state.get();
+		await invocation.didExecuteTool({ content: [] });
+		invocation.didCancelTool({ type: ToolConfirmKind.Denied });
+		assert.deepStrictEqual({
+			state: invocation.state.get().type,
+			sameState: invocation.state.get() === cancelledState,
+			confirmation: IChatToolInvocation.executionConfirmedOrDenied(invocation),
+			details: IChatToolInvocation.resultDetails(invocation),
+			serializedDetails: invocation.toJSON().resultDetails,
+		}, {
+			state: IChatToolInvocation.StateKind.Cancelled,
+			sameState: true,
+			confirmation: reason,
+			details,
+			serializedDetails: details,
+		});
 	});
 
 	test('token cancellation and legacy denials remain unattributed', async () => {

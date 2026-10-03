@@ -1678,7 +1678,299 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('image generation', () => {
+		test('preserves metadata-only image failure details and classification in live and restored state', () => {
+			const backendSession = URI.parse('other-host:/opaque-image-session');
+			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
+			const running = createToolCallState({
+				toolName: 'remote_create_image',
+				toolInput: undefined,
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [],
+				error: { message: 'The image service rejected the request.' },
+			});
+			const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+			const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+			const expected = {
+				title: 'Generated image failed',
+				data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				details: {
+					input: '',
+					inputLanguage: 'json',
+					output: [{ type: 'embed', value: 'The image service rejected the request.', isText: true, mimeType: 'text/plain' }],
+					isError: true,
+					mcpOutput: undefined,
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(part => ({
+				title: part.pastTenseMessage,
+				data: part.toolSpecificData,
+				details: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+			})), [expected, expected]);
+		});
+
+		for (const streaming of [false, true]) {
+			test(`preserves metadata-only image cancellation in history (streaming=${streaming})`, () => {
+				const backendSession = URI.parse('other-host:/opaque-image-session');
+				const imageGeneration = { requestedModel: { id: 'remote/image-model' } };
+				const cancelled: ICompletedToolCall = {
+					toolCallId: 'remote-image',
+					toolName: 'remote_create_image',
+					displayName: 'Remote Image',
+					invocationMessage: 'Working on an image',
+					status: ToolCallStatus.Cancelled,
+					reason: ToolCallCancellationReason.Denied,
+					reasonMessage: 'Stopped by the user',
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				};
+				const live = streaming
+					? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'other-host')
+					: rawToolCallStateToInvocation(createToolCallState({ toolName: cancelled.toolName, _meta: cancelled._meta }), undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, cancelled, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'other-host');
+				const expected = {
+					title: 'Image generation cancelled',
+					data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				};
+				assert.deepStrictEqual([live, restored].map(part => ({ title: part.pastTenseMessage, data: part.toolSpecificData })), [expected, expected]);
+			});
+		}
+
+		for (const toolInput of [undefined, '']) {
+			test(`does not give ordinary output-only tools an empty input dropdown (input=${toolInput})`, () => {
+				const backendSession = URI.parse('other-host:/ordinary-session');
+				const running = createToolCallState({ toolName: 'ordinary_tool', toolInput });
+				const completed = createCompletedToolCall({ toolName: running.toolName, toolInput, content: [{ type: ToolResultContentType.Text, text: 'Finished waiting.' }] });
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual([IChatToolInvocation.resultDetails(live), restored.resultDetails], [undefined, undefined]);
+			});
+		}
+
+		for (const toolName of ['image_generation', 'image_gen.imagegen', 'test_tool']) {
+			for (const streaming of [true, false]) {
+				test(`preserves the cancelled ${toolName} label from ${streaming ? 'streaming' : 'running'} across live and restored history`, () => {
+					const backendSession = URI.parse('copilot:/cancelled-image');
+					const invocationMessage = 'Running test tool...';
+					const cancelled: ICompletedToolCall = {
+						toolCallId: 'cancelled-tool',
+						toolName,
+						displayName: 'Test Tool',
+						invocationMessage,
+						status: ToolCallStatus.Cancelled,
+						reason: ToolCallCancellationReason.Denied,
+						reasonMessage: 'Stopped by the user',
+					};
+					const live = streaming
+						? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'local')
+						: rawToolCallStateToInvocation(createToolCallState({ toolCallId: cancelled.toolCallId, toolName, invocationMessage }), undefined, backendSession, 'local');
+					rawFinalizeToolInvocation(live, cancelled, backendSession, 'local');
+					const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'local');
+					const message = toolName === 'test_tool' ? invocationMessage : 'Image generation cancelled';
+					assert.deepStrictEqual({
+						liveMessage: live.pastTenseMessage ?? live.invocationMessage,
+						liveComplete: IChatToolInvocation.isComplete(live),
+						restoredMessage: restored.pastTenseMessage,
+						restoredComplete: restored.isComplete,
+					}, {
+						liveMessage: message,
+						liveComplete: true,
+						restoredMessage: message,
+						restoredComplete: true,
+					});
+				});
+			}
+		}
+
+		for (const [toolName, success] of [
+			['image_generation', true],
+			['image_generation', false],
+			['image_gen.imagegen', true],
+			['image_gen.imagegen', false],
+		] as const) {
+			test(`preserves the ${success ? 'completed' : 'failed'} ${toolName} label across live and restored history`, () => {
+				const backendSession = URI.parse('copilot:/image-state');
+				const pastTenseMessage = success ? 'Generated image' : '"Generate Image" failed';
+				const expectedMessage = success ? pastTenseMessage : 'Generated image failed';
+				const completed = createCompletedToolCall({
+					toolName,
+					invocationMessage: 'Generating image',
+					pastTenseMessage,
+					success,
+					toolInput: undefined,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }] : [],
+					error: success ? undefined : { message: 'Image generation returned no usable image.' },
+				});
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolName,
+					invocationMessage: 'Generating image',
+				}), undefined, backendSession, 'local');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'local');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'local');
+				const expectedDetails = {
+					input: '',
+					inputLanguage: 'json',
+					output: success
+						? [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }]
+						: [{ type: 'embed', value: 'Image generation returned no usable image.', isText: true, mimeType: 'text/plain' }],
+					isError: !success,
+					mcpOutput: undefined,
+				};
+				assert.deepStrictEqual({
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					complete: restored.isComplete,
+					details: [IChatToolInvocation.resultDetails(live), restored.resultDetails],
+				}, { live: expectedMessage, restored: expectedMessage, complete: true, details: [expectedDetails, expectedDetails] });
+			});
+		}
+
+		for (const name of [undefined, 'Image Preview']) {
+			test(`uses structured image identity with ${name ? 'a display name' : 'an id fallback'} on a non-VS Code host`, () => {
+				const backendSession = URI.parse('other-host:/opaque-resource');
+				const expectedName = name ?? 'provider/image-preview';
+				const metadata = { 'vscode.imageGeneration': { requestedModel: { id: 'provider/image-preview', name } } };
+				const running = createToolCallState({
+					toolName: 'remote_create_image',
+					_meta: metadata,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				const state = live.state.get();
+				assert.ok(state.type === IChatToolInvocation.StateKind.Executing);
+				const progress = state.progress.get().message;
+				const completed = createCompletedToolCall({
+					toolName: running.toolName,
+					_meta: metadata,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				});
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual({
+					progress,
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					imageData: restored.toolSpecificData,
+				}, {
+					progress: `Generating image with ${expectedName}`,
+					live: `Generated image with ${expectedName}`,
+					restored: `Generated image with ${expectedName}`,
+					imageData: { kind: 'generatedImage' },
+				});
+			});
+		}
+
+		for (const toolName of ['image_gen.imagegen', 'image_generation']) {
+			for (const resourceReference of [false, true]) {
+				for (const toolInput of [undefined, '{"prompt":"Draw a puppy"}']) {
+					test(`${toolName} preserves ${resourceReference ? 'referenced' : 'embedded'} images ${toolInput ? 'with' : 'without'} input across live, reconnect, and history`, () => {
+						const backendSession = URI.parse('copilot:/image-session');
+						const connectionAuthority = 'ssh__image-host';
+						const uri = 'generated-images:/session/generated-image.png?version=1';
+						const content: ToolResultContent[] = resourceReference
+							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
+							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
+						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
+						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
+						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+						const reconnected = activeTurnToProgress(backendSession, {
+							id: 'turn-image',
+							startedAt: '2026-01-01T00:00:00.000Z',
+							message: message('Draw a puppy'),
+							responseParts,
+							usage: undefined,
+						}, connectionAuthority)[0];
+						const history = rawTurnsToHistory(backendSession, [createTurn({ responseParts })], 'participant', connectionAuthority)[1];
+						assert.ok(reconnected.kind === 'toolInvocationSerialized' && history.type === 'response');
+						const restored = history.parts[0];
+						assert.ok(restored.kind === 'toolInvocationSerialized');
+
+						const expected = {
+							toolSpecificData: { kind: 'generatedImage' },
+							resultDetails: {
+								input: toolInput ?? '',
+								inputLanguage: 'json',
+								output: resourceReference
+									? [{ type: 'ref', uri: toAgentHostContentUri(URI.parse(uri), connectionAuthority), mimeType: 'image/png' }]
+									: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+								isError: false,
+								mcpOutput: undefined,
+							},
+						};
+						assert.deepStrictEqual([live, reconnected, restored].map(part => ({
+							toolSpecificData: part.toolSpecificData,
+							resultDetails: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+						})), [expected, expected, expected]);
+					});
+				}
+			}
+		}
+
+		test('keeps local file image references directly accessible', () => {
+			const uri = 'file:///session/generated-image.png';
+			const result = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'image_generation',
+				content: [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }],
+			}), undefined, URI.file('/'), 'local');
+			assertInputOutputDetails(result.resultDetails);
+			assert.deepStrictEqual({
+				toolSpecificData: result.toolSpecificData,
+				output: result.resultDetails.output,
+			}, {
+				toolSpecificData: { kind: 'generatedImage' },
+				output: [{ type: 'ref', uri: URI.parse(uri), mimeType: 'image/png' }],
+			});
+		});
+
+		test('does not promote failed, empty, non-image, or image-viewing results to generated images', () => {
+			const image: ToolResultContent = { type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' };
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', success: false, content: [image] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ ...image, data: '' }] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/result', contentType: 'application/pdf' }] }),
+				createCompletedToolCall({ toolName: 'view_image', content: [image] }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').toolSpecificData?.kind), ['input', 'input', 'input', 'input', undefined]);
+		});
+
+		test('keeps image tool output-only results without introducing empty details', () => {
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Text, text: 'Output without arguments' }] }),
+				createCompletedToolCall({ toolName: 'image_generation' }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').resultDetails), [{
+				input: '',
+				inputLanguage: 'json',
+				output: [{ type: 'embed', value: 'Output without arguments', isText: true, mimeType: 'text/plain' }],
+				isError: false,
+				mcpOutput: undefined,
+			}, undefined]);
+		});
+	});
+
 	suite('toolCallStateToInvocation', () => {
+
+		test('keeps image prompt input and image identity while running and reconnecting', () => {
+			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
+			const tc = createToolCallState({
+				toolName: 'image_generation',
+				toolInput: '{"prompt":"A puppy","quality":"low"}',
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const expected = { kind: 'input', rawInput: tc.toolInput, editable: false, imageGeneration };
+			const restoredRunning = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual([live.toolSpecificData, restoredRunning.toolSpecificData], [expected, expected]);
+		});
 
 		test('creates ChatToolInvocation for running tool', () => {
 			const tc = createToolCallState({

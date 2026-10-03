@@ -1171,6 +1171,27 @@ suite('mapSessionEvents — history replay', () => {
 		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
 	});
 
+	test('restores image function tools before the final answer', async () => {
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'user.message', data: { content: 'Draw a puppy.' } },
+			{ type: 'assistant.message', data: { messageId: 'image-request', content: 'I will create an image.', toolRequests: [{ toolCallId: 'image-1', name: 'image_generation' }] } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'image-1', toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' } } },
+			{ type: 'tool.execution_complete', data: { toolCallId: 'image-1', success: true, result: { contents: [{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' }] } } },
+			{ type: 'assistant.message', data: { messageId: 'image-result', content: 'Image generation completed.' } },
+		]));
+
+		assert.deepStrictEqual(turns[0].responseParts.map(part => {
+			if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed) {
+				return { kind: part.kind, toolCallId: part.toolCall.toolCallId, success: part.toolCall.success };
+			}
+			return part.kind === ResponsePartKind.Markdown ? { kind: part.kind, content: part.content } : { kind: part.kind };
+		}), [
+			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
+			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
+			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
+	});
+
 	test('maps SDK image content to an embedded resource on replayed tool completion', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'view the image' } },
@@ -1198,6 +1219,42 @@ suite('mapSessionEvents — history replay', () => {
 			{ type: ToolResultContentType.Text, text: 'Viewed image file successfully.' },
 			{ type: ToolResultContentType.EmbeddedResource, data: 'iVBORw0KGgo=', contentType: 'image/png' },
 		]);
+	});
+
+	test('does not advertise opaque SDK resource links as readable host content on replay', async () => {
+		const uri = 'generated-images:/session/generated-image.png?version=1';
+		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
+		const events: ISessionEvent[] = [
+			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete',
+				data: {
+					toolCallId: 'tc-image',
+					success: true,
+					result: {
+						content: 'Generated an image.',
+						structuredContent: { imageGeneration },
+						contents: [{ type: 'resource_link', uri, name: 'generated-image.png', mimeType: 'image/png', size: 128 }],
+					},
+				},
+			},
+		];
+
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual({
+			content: part.toolCall.content,
+			title: part.toolCall.pastTenseMessage,
+			meta: part.toolCall._meta,
+		}, {
+			content: [
+				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
+			],
+			title: 'Generated image with Image Preview',
+			meta: { 'vscode.imageGeneration': imageGeneration },
+		});
 	});
 
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
@@ -2081,6 +2138,16 @@ suite('appendSdkToolResultContent', () => {
 			});
 		}
 	}
+
+	test('does not convert unsupported SDK links into host-readable resources', () => {
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [
+			{ type: 'resource_link', uri: 'generated-images:/session/result', name: 'result' },
+			{ type: 'resource_link', uri: 'https://example.com/image.png', name: 'image', mimeType: 'image/png' },
+			{ type: 'resource_link', uri: 'mcp:/document', name: 'document', mimeType: 'text/plain' },
+		]);
+		assert.deepStrictEqual(content, []);
+	});
 
 	test('folds shell_exit into an existing terminal block instead of adding a second one', () => {
 		const content: ToolResultContent[] = [

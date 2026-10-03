@@ -6,11 +6,13 @@
 import assert from 'assert';
 import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { retry, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
+import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -26,7 +28,7 @@ import { WorkbenchListSupportsFind } from '../../../../../../platform/list/brows
 import { scrollbarShadow } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAccessibilityService, isChatContextMenuActionContext } from '../../../browser/chat.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { computeScrollDownState, getAnchoredScrollTop, AutoScrollHolds, UserToggleResizeState, ChatListWidget, IChatListWidgetOptions, getChatContextMenuTargetContext, isChatBackgroundContextMenuTarget, shouldShowChatLinkOpenWith } from '../../../browser/widget/chatListWidget.js';
@@ -276,8 +278,194 @@ suite('ChatListWidget', () => {
 		}));
 		widget.setViewModel(viewModel);
 		widget.setVisible(true);
-		return { disposables, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
+		return { disposables, instantiationService, model, viewModel, container, widget, contextKeyService: instantiationService.get(IContextKeyService) };
 	}
+
+	suite('generated image preview retention', () => {
+		for (const width of [280, 500]) {
+			test(`virtualized images retain their row and scroll height while reloading (${width}px)`, async () => {
+				const { disposables, instantiationService, model, viewModel, container, widget } = createWidget({}, undefined, true);
+				container.style.width = `${width}px`;
+				container.classList.add('interactive-list');
+				const canvas = mainWindow.document.createElement('canvas');
+				canvas.width = 800;
+				canvas.height = 1600;
+				const imageData = decodeBase64(canvas.toDataURL('image/png').split(',')[1]);
+				const imageResource = URI.parse('generated-images:/virtualized/image.png');
+				const reloadedImage = new DeferredPromise<typeof imageData>();
+				let delayReads = false;
+				disposables.add(toDisposable(() => {
+					if (!reloadedImage.isSettled) {
+						void reloadedImage.complete(imageData);
+					}
+				}));
+				instantiationService.stub(IFileService, disposables.add(new class extends TestFileService {
+					override async readFile(resource: URI) {
+						const file = await super.readFile(resource);
+						return isEqual(resource, imageResource)
+							? { ...file, value: delayReads ? await reloadedImage.p : imageData }
+							: file;
+					}
+				}()));
+				const addRequest = (text: string) => model.addRequest({
+					text,
+					parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+				}, { variables: [] }, 0);
+				const request = addRequest('Generate a portrait image.');
+				const tool = new ChatToolInvocation({
+					invocationMessage: 'Generating image',
+					pastTenseMessage: 'Generated image',
+				}, {
+					id: 'image_generation',
+					displayName: 'Generate Image',
+					modelDescription: 'Generate Image',
+					source: ToolDataSource.Internal,
+				}, 'virtualized-image', undefined, {}, {}, request.id);
+				await tool.didExecuteTool({
+					content: [],
+					toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'ref', uri: imageResource, mimeType: 'image/png' }] },
+				});
+				model.acceptResponseProgress(request, tool);
+				request.response?.complete();
+				widget.refresh();
+				widget.layout(300, width);
+				const selector = '.chat-generated-image-result img';
+				const firstImage = container.querySelector<HTMLImageElement>(selector);
+				assert.ok(firstImage);
+				await retry(async () => assert.ok(firstImage.complete && firstImage.naturalWidth > 0), 20, 50);
+				await waitForStableLayout(widget);
+				const response = viewModel.getItems().filter(isResponseVM)[0];
+				const measuredHeight = response.currentRenderedHeight;
+				const loadedHeight = firstImage.getBoundingClientRect().height;
+				for (let index = 0; index < 8; index++) {
+					const followup = addRequest(`Follow-up ${index}`);
+					model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString(`Response ${index}.\n\n`.repeat(20)) });
+					followup.response?.complete();
+				}
+				widget.refresh();
+				widget.scrollToEnd();
+				await waitForStableLayout(widget);
+				const wasVirtualized = !firstImage.isConnected;
+				const scrollHeight = widget.scrollHeight;
+				const scrollHeights: number[] = [];
+				disposables.add(widget.onDidChangeContentHeight(() => scrollHeights.push(widget.scrollHeight)));
+				delayReads = true;
+				widget.reveal(response, 0);
+				const readerScrollTop = widget.scrollTop;
+				const nextImage = container.querySelector<HTMLImageElement>(selector);
+				assert.ok(nextImage);
+				const pendingHeight = nextImage.getBoundingClientRect().height;
+				await waitForStableLayout(widget);
+				const beforeLoad = { rowHeight: response.currentRenderedHeight, scrollTop: widget.scrollTop, busy: nextImage.closest('.image-attachment')?.getAttribute('aria-busy') };
+				await reloadedImage.complete(imageData);
+				await retry(async () => assert.ok(nextImage.complete && nextImage.naturalWidth > 0), 20, 50);
+				await waitForStableLayout(widget);
+
+				assert.deepStrictEqual({
+					wasVirtualized,
+					remounted: nextImage !== firstImage,
+					reservedImageHeight: Math.abs(pendingHeight - loadedHeight) <= 1,
+					beforeLoad,
+					finalRowHeight: response.currentRenderedHeight,
+					finalScrollTop: widget.scrollTop,
+					maxScrollHeightChange: Math.max(0, ...scrollHeights.map(height => Math.abs(height - scrollHeight))),
+				}, {
+					wasVirtualized: true,
+					remounted: true,
+					reservedImageHeight: true,
+					beforeLoad: { rowHeight: measuredHeight, scrollTop: readerScrollTop, busy: 'true' },
+					finalRowHeight: measuredHeight,
+					finalScrollTop: readerScrollTop,
+					maxScrollHeightChange: 0,
+				});
+			});
+		}
+
+		for (const toolId of ['image_generation', 'image_gen.imagegen']) {
+			for (const height of [300, 650]) {
+				test(`${toolId} preserves a loaded image while a follow-up starts and streams (height=${height})`, async () => {
+					const { model, container, widget } = createWidget({}, configuration => {
+						configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Draw);
+					}, true);
+					container.style.height = `${height}px`;
+					container.classList.add('interactive-list');
+					const text = 'Generate a portrait image.';
+					const request = model.addRequest({
+						text,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)],
+					}, { variables: [] }, 0);
+					model.acceptResponseProgress(request, { kind: 'thinking', value: 'Evaluating image generation skills', id: 'thinking' });
+					const tool = new ChatToolInvocation({
+						invocationMessage: 'Generating image',
+						pastTenseMessage: 'Generated image',
+					}, {
+						id: toolId,
+						displayName: 'Generate Image',
+						modelDescription: 'Generate Image',
+						source: ToolDataSource.Internal,
+					}, 'image', undefined, {}, {}, request.id);
+					const canvas = mainWindow.document.createElement('canvas');
+					canvas.width = 800;
+					canvas.height = 1200;
+					const imageData = canvas.toDataURL('image/png').split(',')[1];
+					model.acceptResponseProgress(request, tool);
+					await tool.didExecuteTool({
+						content: [],
+						toolSpecificData: { kind: 'generatedImage' },
+						toolResultDetails: { input: '{}', output: [{ type: 'embed', value: imageData, mimeType: 'image/png' }] },
+					});
+					model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('Task completed: Generated the requested image.') });
+					request.response?.complete();
+					widget.refresh();
+					widget.layout(height, 500);
+					const imageSelector = '.chat-generated-image-result img';
+					const image = container.querySelector<HTMLImageElement>(imageSelector);
+					assert.ok(image);
+					await image.decode();
+					await waitForStableLayout(widget);
+					widget.scrollToEnd();
+					await waitForStableLayout(widget);
+					const source = image.src;
+					const capture = () => ({
+						sameImage: container.querySelector(imageSelector) === image,
+						connected: image.isConnected,
+						sameSource: image.src === source,
+						loaded: image.complete && image.naturalWidth === 800,
+						busy: image.closest('.image-attachment')?.getAttribute('aria-busy'),
+					});
+					const states = [capture()];
+
+					const followupText = 'Thanks';
+					const followup = model.addRequest({
+						text: followupText,
+						parts: [new ChatRequestTextPart(new OffsetRange(0, followupText.length), new Range(1, 1, 1, followupText.length + 1), followupText)],
+					}, { variables: [] }, 0);
+					widget.refresh();
+					widget.scrollToEnd();
+					states.push(capture());
+					await waitForStableLayout(widget);
+					states.push(capture());
+					model.acceptResponseProgress(followup, { kind: 'markdownContent', content: new MarkdownString('You are welcome.') });
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+					followup.response?.complete();
+					widget.refresh();
+					await waitForStableLayout(widget);
+					states.push(capture());
+
+					assert.deepStrictEqual(states, Array.from({ length: 5 }, () => ({
+						sameImage: true,
+						connected: true,
+						sameSource: true,
+						loaded: true,
+						busy: 'false',
+					})));
+				});
+			}
+		}
+	});
 
 	async function measureFirstRequestPushOut(firstText: string) {
 		const { disposables, model, viewModel, container, widget } = createWidget({}, configurationService => {

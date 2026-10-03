@@ -206,6 +206,112 @@ suite('ListView', function () {
 		}
 	});
 
+	test('preserves existing rows while measuring overestimated appended rows', function () {
+		const container = document.createElement('div');
+		container.style.height = '300px';
+		container.style.width = '200px';
+		document.body.appendChild(container);
+
+		type TestElement = { height: number };
+		type Template = { container: HTMLElement; element?: TestElement };
+		const delegate = new class extends CachedListVirtualDelegate<TestElement> {
+			protected estimateHeight() { return 200; }
+			getTemplateId() { return 'template'; }
+			hasDynamicHeight() { return true; }
+		};
+		const renderer: IListRenderer<TestElement, Template> = {
+			templateId: 'template',
+			renderTemplate(container) { return { container }; },
+			renderElement(element, _index, template) {
+				if (template.element !== element) {
+					template.element = element;
+					const content = document.createElement('div');
+					content.style.height = `${element.height}px`;
+					template.container.replaceChildren(content);
+				}
+			},
+			disposeTemplate() { }
+		};
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		try {
+			listView.layout(300, 200);
+			listView.splice(0, 0, [{ height: 400 }]);
+			listView.scrollTop = listView.scrollHeight;
+			const originalContent = listView.domElement(0)?.firstElementChild;
+			assert.ok(originalContent);
+
+			listView.splice(1, 0, [{ height: 30 }, { height: 20 }]);
+			listView.scrollTop = listView.scrollHeight;
+
+			assert.deepStrictEqual({
+				sameContent: listView.domElement(0)?.firstElementChild === originalContent,
+				connected: originalContent.isConnected,
+				contentHeight: listView.contentHeight,
+				scrollTop: listView.scrollTop,
+			}, {
+				sameContent: true,
+				connected: true,
+				contentHeight: 450,
+				scrollTop: 150,
+			});
+		} finally {
+			listView.dispose();
+			container.remove();
+		}
+	});
+
+	test('reuses a bounded row pool while measuring appended rows', function () {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+
+		type TestElement = { height: number };
+		const delegate = new class extends CachedListVirtualDelegate<TestElement> {
+			protected estimateHeight() { return 200; }
+			getTemplateId() { return 'template'; }
+			hasDynamicHeight() { return true; }
+		};
+		let templatesCount = 0;
+		const renderer: IListRenderer<TestElement, HTMLElement> = {
+			templateId: 'template',
+			renderTemplate(container) {
+				templatesCount++;
+				const content = document.createElement('div');
+				container.appendChild(content);
+				return content;
+			},
+			renderElement(element, _index, content) {
+				content.style.height = `${element.height}px`;
+			},
+			disposeTemplate() { templatesCount--; }
+		};
+		const listView = new ListView<TestElement>(container, delegate, [renderer], { supportDynamicHeights: true });
+		let warmedTemplatesCount = 0;
+		let finalTemplatesCount = 0;
+		try {
+			listView.layout(300, 200);
+			for (let batch = 0; batch < 100; batch++) {
+				listView.splice(listView.length, 0, [{ height: 30 }, { height: 20 }]);
+				listView.scrollTop = listView.scrollHeight;
+				if (batch === 49) {
+					warmedTemplatesCount = templatesCount;
+				}
+			}
+			finalTemplatesCount = templatesCount;
+		} finally {
+			listView.dispose();
+			container.remove();
+		}
+		assert.deepStrictEqual({
+			allocatedTemplates: warmedTemplatesCount > 0,
+			templatesAfterMoreRows: finalTemplatesCount,
+			templatesAfterDisposal: templatesCount,
+		}, {
+			allocatedTemplates: true,
+			templatesAfterMoreRows: warmedTemplatesCount,
+			templatesAfterDisposal: 0,
+		});
+	});
+
 	test('cleans up retained dynamic height rows after a render error', function () {
 		const element = document.createElement('div');
 		element.style.height = '100px';
