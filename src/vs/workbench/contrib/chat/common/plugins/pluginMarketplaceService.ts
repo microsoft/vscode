@@ -116,6 +116,8 @@ export interface IMarketplacePlugin {
 	/** The type of marketplace this plugin comes from. */
 	readonly marketplaceType: MarketplaceType;
 	readonly readmeUri?: URI;
+	/** Search keywords for the plugin. */
+	readonly keywords?: readonly string[];
 }
 
 /** Raw JSON shape of a remote plugin source object in marketplace.json. */
@@ -140,9 +142,9 @@ interface IMarketplaceJson {
 		readonly description?: string;
 		readonly version?: string;
 		readonly source?: string | IJsonPluginSource;
+		readonly keywords?: readonly string[];
 	}[];
 }
-
 export interface IMarketplaceInstalledPlugin {
 	readonly pluginUri: URI;
 	readonly plugin: IMarketplacePlugin;
@@ -923,7 +925,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		}
 
 		return json.plugins
-			.filter((p): p is { name: string; description?: string; version?: string; source?: string | IJsonPluginSource } =>
+			.filter((p): p is { name: string; description?: string; version?: string; source?: string | IJsonPluginSource; keywords?: readonly string[] } =>
 				typeof p.name === 'string' && !!p.name
 			)
 			.flatMap(p => {
@@ -937,6 +939,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				}
 
 				const source = sourceDescriptor.kind === PluginSourceKind.RelativePath ? sourceDescriptor.path : '';
+				const keywords = Array.isArray(p.keywords) ? p.keywords.filter((k): k is string => typeof k === 'string') : undefined;
 
 				return [{
 					name: p.name,
@@ -948,6 +951,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					marketplaceReference: reference,
 					marketplaceType,
 					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),
+					keywords,
 				}];
 			});
 	}
@@ -1116,7 +1120,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 			const manifestName = typeof manifest['name'] === 'string' && manifest['name'] ? manifest['name'] as string : reference.displayLabel;
 			const manifestDescription = typeof manifest['description'] === 'string' ? manifest['description'] as string : '';
 			const manifestVersion = typeof manifest['version'] === 'string' ? manifest['version'] as string : '';
-
+			const manifestKeywords = Array.isArray(manifest['keywords']) ? (manifest['keywords'] as unknown[]).filter((k): k is string => typeof k === 'string') : undefined;
 			return {
 				name: manifestName,
 				description: manifestDescription,
@@ -1126,6 +1130,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				marketplace: reference.displayLabel,
 				marketplaceReference: reference,
 				marketplaceType: def.type,
+				keywords: manifestKeywords,
 			};
 		}
 
