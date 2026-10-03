@@ -119,7 +119,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	get currentTitle(): string { return this._windowsShellHelper?.shellTitle || this._currentTitle; }
 	get shellType(): TerminalShellType | undefined { return isWindows ? this._windowsShellHelper?.shellType : posixShellTypeMap.get(this._currentTitle) || generalShellTypeMap.get(this._currentTitle); }
-	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses || false; }
+	/**
+	 * Fail-open when the monitor is not yet created: assume children exist so
+	 * {@link shouldStripMouseTrackingOnReplay} does not strip live nested TUIs.
+	 * (`|| false` would report "no children" and false-strip on Windows Reload.)
+	 */
+	get hasChildProcesses(): boolean { return this._childProcessMonitor?.hasChildProcesses ?? true; }
+	/** True after node-pty onExit (root process known dead or exiting). */
+	get hasExited(): boolean { return this._exitCode !== undefined; }
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	readonly onProcessData = this._onProcessData.event;
