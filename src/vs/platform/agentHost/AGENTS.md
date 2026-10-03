@@ -622,6 +622,14 @@ enablement, bypass, and outbound-network toggles against the runtime-resolved fl
 Managed enablement forces on; managed bypass and outbound denial force off, while
 managed permission never widens a local restriction. Filesystem settings remain
 local inputs and are not intersected or unioned by this helper.
+Copilot Agent Host reads filesystem permissions only from
+`chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as
+`sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`,
+and `deniedPaths` arrays apply on all host operating systems, with path separators
+normalized on the executing host. Denied paths take precedence over read-only
+paths, which take precedence over read/write paths. There is no migration or
+fallback from the deprecated per-OS filesystem settings; those remain inputs to
+the existing terminal sandbox engine, not the Copilot SDK sandbox.
 The SDK configuration builder forwards enablement, configured
 bypass/network choices, filesystem rules, and required host-generated read paths.
 It leaves optional working-directory grants, developer-tool access, credential
@@ -635,21 +643,12 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
-through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
-local and remote hosts independently of the legacy managed-permissions bridge.
-The host owns these transient, handler-scoped client contributions and requires
-sandboxing while any contributing client requires it. Ordinary root settings
-cannot change that floor; withdrawal or disconnect-grace expiry removes only the
-owning client's contribution. On macOS/Linux, the configuration service combines
-that VS Code policy requirement with the runtime floor before resolving
-session overrides or publishing policy metadata. Ordinary user `on` remains
-overridable; Windows continues to use its independent enablement setting.
-Runtime bypass/outbound restrictions cannot be weakened by this requirement.
-Approved bypass also requires the local `allowUnsandboxedCommands` setting.
-An explicit VS Code requirement does not offer the unresolved-runtime-policy
-retry-Off path. Removing it restores the underlying runtime floor, not an
-unconditional permission to disable sandboxing.
+Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host
+sandbox requirement. The existing sandbox-settings forwarder still sends the
+effective setting, including a legacy policy value, as an overridable root default.
+Session `off` may override that default unless runtime-native managed settings
+require sandboxing. The runtime's `sandbox.enabled` managed setting is the
+authoritative enterprise requirement on every supported platform.
 Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
@@ -662,15 +661,18 @@ RPC also completes the permission request. Host-generated terminal prompts canno
 offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
 successful re-enablement locks direct disabling again.
 
-The host publishes the resolved floor in the optional `vscode.sandboxPolicy`
+The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
 session `_meta` slot through the server-only `SessionMetaChanged` action, including
-the optional outbound-network restriction.
+the required `enabled` flag and optional `allowBypass`, `allowOutbound`,
+`allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`,
+and `failClosed` flags. These describe bypass, outbound and local-network access,
+developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions.
 Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
+Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Native managed settings remain runtime-enforced;
-the forwarded VS Code requirement is enforced in host session configuration.
+evidence of an enforced floor. Native managed settings remain runtime-enforced.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 

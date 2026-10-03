@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
@@ -79,6 +80,7 @@ suite('Files - ExplorerView', () => {
 		let target: ExplorerItem;
 		let opened: ExplorerItem[];
 		let controllers: Map<ExplorerItem, ICompressedNavigationController[]>;
+		let refreshGate: DeferredPromise<void> | undefined;
 
 		setup(async () => {
 			const createItem = (path: string, isDirectory = false) => new ExplorerItem(URI.file(path), fileService, configService, NullFilesConfigurationService, undefined, isDirectory);
@@ -95,6 +97,7 @@ suite('Files - ExplorerView', () => {
 			menuShown = ds.add(new Emitter<void>());
 			opened = [];
 			controllers = new Map();
+			refreshGate = undefined;
 
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({ explorer: { autoReveal: false, compactFolders: false } }),
@@ -107,6 +110,7 @@ suite('Files - ExplorerView', () => {
 				roots: [root],
 				registerView: () => { },
 				findClosest: () => root,
+				findClosestRoot: () => root,
 				isEditable: () => false,
 				getEditable: () => undefined,
 			});
@@ -150,7 +154,10 @@ suite('Files - ExplorerView', () => {
 				}],
 				{
 					hasChildren: item => Array.isArray(item) || item.children.size > 0,
-					getChildren: item => Array.isArray(item) ? item : [...item.children.values()],
+					getChildren: async item => {
+						await refreshGate?.p;
+						return Array.isArray(item) ? item : [...item.children.values()];
+					},
 				},
 				{
 					compressionEnabled: false,
@@ -179,6 +186,55 @@ suite('Files - ExplorerView', () => {
 				dispose: () => { },
 			});
 			view.renderForTesting(container);
+		});
+
+		test('waits for a newly queued tree refresh before selecting a folder', async () => {
+			view.setVisible(true);
+			await view.setTreeInput();
+			tree.setFocus([target]);
+			tree.setSelection([target]);
+			refreshGate = new DeferredPromise<void>();
+			const refresh = view.setTreeInput();
+			let selected = false;
+			const selection = view.selectResource(folder.resource, 'force').then(() => { selected = true; });
+			await timeout(0);
+			const selectedBeforeRefresh = selected;
+			await refreshGate.complete();
+			await Promise.all([refresh, selection]);
+			assert.deepStrictEqual({
+				selectedBeforeRefresh,
+				focus: tree.getFocus().map(item => item.resource),
+				selection: tree.getSelection().map(item => item.resource),
+			}, {
+				selectedBeforeRefresh: false,
+				focus: [folder.resource],
+				selection: [folder.resource],
+			});
+		});
+
+		test('preserves folder selection after reopening a hidden Explorer', async () => {
+			view.setVisible(true);
+			await view.setTreeInput();
+			tree.setFocus([target]);
+			tree.setSelection([target]);
+			view.setVisible(false);
+			refreshGate = new DeferredPromise<void>();
+			view.setVisible(true);
+			let selected = false;
+			const selection = view.selectResource(folder.resource, 'force').then(() => { selected = true; });
+			await timeout(0);
+			const selectedBeforeRefresh = selected;
+			await refreshGate.complete();
+			await selection;
+			assert.deepStrictEqual({
+				selectedBeforeRefresh,
+				focus: tree.getFocus().map(item => item.resource),
+				selection: tree.getSelection().map(item => item.resource),
+			}, {
+				selectedBeforeRefresh: false,
+				focus: [folder.resource],
+				selection: [folder.resource],
+			});
 		});
 
 		function getContextMenuTarget(item: ExplorerItem | null): HTMLElement {

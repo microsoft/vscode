@@ -15,6 +15,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../../services/configurationResolver/common/configurationResolver.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService, ICustomizationMcpServerMigrationProvider } from '../../../common/customizationHarnessService.js';
@@ -45,6 +46,7 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IMcpCopilotGlobalConfigurationService private readonly copilotGlobalConfigurationService: IMcpCopilotGlobalConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 	) {
 		super();
 		this.mcpServerMigration = new McpServerCustomizationMigrator(fileService, logService, configurationResolverService);
@@ -165,13 +167,9 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			}
 
 			this.logService.info(`[MCP Customization Migration] Starting: selected=${requestedCandidates.length}, eligible=${eligibleCandidates.length}, stale=${failures.length}`);
-			const result = await this.mcpServerMigration.migrate(eligibleCandidates, {
-				isContextCurrent: isExecutionCurrent,
-				roots,
-				userTarget,
-			});
+			const result = await this.migrateKeepingPrecedence(supportSnapshot, eligibleCandidates, isExecutionCurrent, userTarget);
 			const combined = { migratedCount: result.migratedCount, failures: [...failures, ...result.failures] };
-			this.preserveMigratedEnablement(supportSnapshot, roots, eligibleCandidates, combined.failures);
+			this.preserveMigratedEnablement(supportSnapshot, eligibleCandidates, combined.failures);
 			for (const failure of combined.failures) {
 				if (failure.error) {
 					this.logService.error(`[MCP Customization Migration] Failed: reason=${failure.reason}, server=${failure.name}`, failure.error);
@@ -184,6 +182,46 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		} finally {
 			scope.dispose();
 		}
+	}
+
+	/**
+	 * Migrates candidates without changing which same-named workspace-folder server the session uses.
+	 * The client registers one `.vscode/mcp.json` server per name and forwards it ahead of root `.mcp.json`
+	 * servers. Moving that server while a server it shadows stays behind would let the shadowed one take over,
+	 * so shadowed servers migrate first and the server shadowing them only migrates once they all have.
+	 */
+	private async migrateKeepingPrecedence(
+		snapshot: IAgentHostMcpServerSupportSnapshot,
+		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
+		isContextCurrent: (candidates: readonly IMcpServerCustomizationMigrationCandidate[]) => Promise<boolean>,
+		userTarget: URI | undefined,
+	): Promise<IMcpServerCustomizationMigrationResult> {
+		const shadowedIds = new Map<string, string[]>();
+		for (const server of snapshot.servers) {
+			if (server.shadowedBy !== undefined && server.applicability === AgentHostMcpServerApplicability.Applicable) {
+				shadowedIds.set(server.shadowedBy, [...shadowedIds.get(server.shadowedBy) ?? [], server.id]);
+			}
+		}
+		const shadowing = candidates.filter(candidate => shadowedIds.has(candidate.id));
+		const first = await this.mcpServerMigration.migrate(candidates.filter(candidate => !shadowedIds.has(candidate.id)), { isContextCurrent, userTarget });
+		const failedIds = new Set(first.failures.map(failure => failure.id));
+		const migratedIds = new Set(candidates.filter(candidate => !shadowedIds.has(candidate.id) && !failedIds.has(candidate.id)).map(candidate => candidate.id));
+		const ready = shadowing.filter(candidate => shadowedIds.get(candidate.id)!.every(id => migratedIds.has(id)));
+		const blocked = shadowing.filter(candidate => !ready.includes(candidate)).map((candidate): IMcpServerCustomizationMigrationFailure => ({
+			storage: candidate.storage,
+			id: candidate.id,
+			name: candidate.name,
+			sourceUri: candidate.sourceUri,
+			targetUri: candidate.targetUri,
+			reason: McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated,
+		}));
+		const second = ready.length > 0
+			? await this.mcpServerMigration.migrate(ready, { isContextCurrent, userTarget })
+			: { migratedCount: 0, failures: [] };
+		return {
+			migratedCount: first.migratedCount + second.migratedCount,
+			failures: [...first.failures, ...blocked, ...second.failures],
+		};
 	}
 
 	private getUserTarget(sessionResource: URI, snapshot: IAgentHostMcpServerSupportSnapshot): Promise<URI | undefined> {
@@ -237,7 +275,6 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 
 	private preserveMigratedEnablement(
 		snapshot: IAgentHostMcpServerSupportSnapshot,
-		roots: readonly URI[],
 		candidates: readonly IMcpServerCustomizationMigrationCandidate[],
 		failures: readonly IMcpServerCustomizationMigrationFailure[],
 	): void {
@@ -247,22 +284,31 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			if (failedIds.has(candidate.id)) {
 				continue;
 			}
-			const state = servers.get(candidate.id)?.enablement.state;
+			const server = servers.get(candidate.id);
+			const state = server?.enablement.state;
 			const targetState = state === AgentHostMcpServerEnablementState.DisabledProfile
 				? ContributionEnablementState.DisabledProfile
 				: state === AgentHostMcpServerEnablementState.DisabledWorkspace
 					? ContributionEnablementState.DisabledWorkspace
-					: undefined;
+					: server?.shadowedBy !== undefined
+						// Shadowed servers are unregistered, so their enablement is only recorded in the model.
+						? this.getDisabledEnablementState(this.mcpService.enablementModel.readEnabled(candidate.id))
+						: undefined;
 			if (targetState === undefined) {
 				continue;
 			}
-			const rootIndex = roots.findIndex(root => isEqual(candidate.targetUri, URI.joinPath(root, '.mcp.json')));
-			if (rootIndex < 0) {
+			// Root `.mcp.json` collections are keyed by workspace folder index, which can differ from the session's root order.
+			const folder = this.workspaceContextService.getWorkspace().folders.find(folder => isEqual(candidate.targetUri, URI.joinPath(folder.uri, '.mcp.json')));
+			if (!folder) {
 				continue;
 			}
-			this.mcpService.enablementModel.setEnabled(`${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${rootIndex}.${candidate.name}`, targetState);
+			this.mcpService.enablementModel.setEnabled(`${WORKSPACE_DOT_MCP_COLLECTION_ID_PREFIX}${folder.index}.${candidate.name}`, targetState);
 			this.mcpService.enablementModel.remove(candidate.id);
 		}
+	}
+
+	private getDisabledEnablementState(state: ContributionEnablementState): ContributionEnablementState | undefined {
+		return state === ContributionEnablementState.DisabledProfile || state === ContributionEnablementState.DisabledWorkspace ? state : undefined;
 	}
 
 	private isExecutionContextCurrent(sessionResource: URI, roots: readonly URI[], generation: number): boolean {
