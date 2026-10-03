@@ -269,6 +269,8 @@ The lease also owns isolated data directories. Servers normally share one direct
 
 On Windows, test-server cleanup records descendants before requesting graceful shutdown and terminates any survivors after the server exits, before temporary directories are removed. Recording descendants and waiting for graceful exit share the existing shutdown deadline.
 
+Passive read/archive changes synchronize the central session catalog before publishing the root summary notification. Restart tests must retain their immediate post-notification assertions: a notification must not expose a flag that only queued background work will make durable. If a central write fails, the host retains a durable pending catalog snapshot for replay.
+
 - **Per-test** (always while recording) — fork a fresh server + proxy for every test and kill it in teardown. Full isolation: nothing carries over between tests. The cost is that every test re-pays the server fork **and** the provider SDK/CLI cold start (`_ensureClient` spawns and caches the CLI subprocess per server).
 
 - **Shared** (the default in replay, for every provider) — reuse a server + proxy across tests, swapping the per-test fixture and reconnecting a fresh client. The lease recycles after 25 model-backed tests or 40 total tests, whichever comes first. The model cap bounds provider-process load; the total cap bounds host-owned terminals, watchers, subscriptions, and other resource accumulation in host-only suites.
@@ -296,6 +298,8 @@ Failed kills are rechecked only after all concurrent kills finish, while the pro
 A failed test or teardown retains all available Agent Host process logs, including the host incarnations before a restart, and Copilot runtime logs under `.build/logs/integration-tests/agent-host-e2e-<runner-pid>-<isolated-home-directory>/`. The `failures.log` file identifies the failed test or cleanup operation. Teardown captures logs on its first cleanup error and again after shutdown; suite-cleanup failures capture logs before the isolated home is removed. These files survive isolated-home cleanup and are included in the CI logs artifact even when Windows Electron does not forward the failure-log tail to stdout.
 
 A failed test, a failed teardown, routine recycling, or a test that restarted its host makes the next test use fresh home, user-data, and Codex directories. Restarting only the process would retain provider-native conversations discovered during earlier restarts and could contaminate later session-list assertions or protocol snapshots. Retired directories remain available for diagnostics until suite teardown removes all of them. Intentional within-test `restart()` / `crashAndRestart()` calls preserve persistent state for the remainder of that test.
+
+Directory-removal failures include each underlying filesystem error and affected path in the suite error, not only in nested `AggregateError.errors`, so CI reports distinguish permissions, read-only files, and live handles.
 
 Remove test workspaces only after disposing the shared server lease in suite teardown. A provider can retain directory watchers after an individual session is released, preventing workspace deletion on Windows while its process is still alive.
 

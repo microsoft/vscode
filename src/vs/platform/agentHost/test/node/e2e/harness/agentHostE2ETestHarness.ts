@@ -145,7 +145,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (Date.now() >= deadline) {
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.map(dir => `${dir}: ${errors.get(dir)?.message}`).join('; ')}`,
 			);
 		}
 		await timeout(500);

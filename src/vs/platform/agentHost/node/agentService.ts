@@ -6733,23 +6733,22 @@ export class AgentService extends Disposable implements IAgentService {
 			[key]: set ? 'true' : '',
 			...(action.type === ActionType.SessionIsArchivedChanged && !action.isArchived ? { [AH_META_AUTO_ARCHIVED_AT_DB_KEY]: '' } : {}),
 		});
+		const payloadDirty = this._markCatalogPayloadDirty(session);
+		await Promise.all([payloadDirty, this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set })]);
 		this._invalidateSessionList();
 		this._stateManager.setSurfacedSessionStatusFlag(session, flag, set);
-		const payloadDirty = this._markCatalogPayloadDirty(session);
-		this._queuePassiveSessionMetadataSynchronization(sessionUri, { key, flag, set });
-		await payloadDirty;
 		return true;
 	}
 
-	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): void {
+	private _queuePassiveSessionMetadataSynchronization(session: URI, update: IPassiveSessionMetadataUpdate): Promise<void> {
 		if (this._catalogSyncService.isSessionDeletionFenced(session)) {
-			return;
+			return Promise.resolve();
 		}
 		const sessionKey = session.toString();
 		const existing = this._backgroundPassiveSessionMetadataWrites.get(sessionKey);
 		if (existing) {
 			existing.pending.set(update.key, update);
-			return;
+			return existing.promise;
 		}
 		const write: IBackgroundPassiveSessionMetadataWrite = {
 			promise: Promise.resolve(),
@@ -6757,6 +6756,7 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 		this._backgroundPassiveSessionMetadataWrites.set(sessionKey, write);
 		write.promise = this._drainPassiveSessionMetadataSynchronization(session, write);
+		return write.promise;
 	}
 
 	private async _drainPassiveSessionMetadataSynchronization(session: URI, write: IBackgroundPassiveSessionMetadataWrite): Promise<void> {
@@ -6769,6 +6769,7 @@ export class AgentService extends Disposable implements IAgentService {
 					await this._synchronizePassiveSessionMetadata(session, updates);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to synchronize passive session metadata for ${sessionKey}`, error);
+					throw error;
 				}
 			}
 			this._catalogReconciliationService.schedule();

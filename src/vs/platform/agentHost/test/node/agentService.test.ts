@@ -15913,7 +15913,7 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}));
 
-		test('drains published passive metadata updates before closing the central catalog', async () => {
+		test('drains dispatched passive metadata updates before closing the central catalog', async () => {
 			const catalogDatabase = new TestAgentHostOrchestratorDatabase();
 			const svc = disposables.add(createTestAgentService(
 				new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
@@ -15931,6 +15931,9 @@ suite('AgentService (node dispatcher)', () => {
 					runExclusive(session: URI, operation: () => Promise<void>): Promise<void>;
 				};
 			};
+			const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
+			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+			await changed;
 			const blockerStarted = new DeferredPromise<void>();
 			const releaseBlocker = new DeferredPromise<void>();
 			const blocker = internals._catalogSyncService.runExclusive(session, async () => {
@@ -15938,13 +15941,9 @@ suite('AgentService (node dispatcher)', () => {
 				await releaseBlocker.p;
 			});
 			await blockerStarted.p;
-			const changed = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
-			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			await changed;
 			const isRead = (stateManager.getSurfacedSessionSummary(sessionKey)!.status & SessionStatus.IsRead) === 0;
-			const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'));
+			const readChanged = Event.toPromise(Event.filter(svc.onDidNotification, notification => notification.type === 'root/sessionSummaryChanged'), disposables);
 			svc.dispatchAction(sessionKey, { type: ActionType.SessionIsReadChanged, isRead }, 'test-client', 2, AgentHostClientType.EditorWindow);
-			await readChanged;
 
 			let closed: AgentHostCatalogData | undefined;
 			catalogDatabase.close = async () => {
@@ -15955,7 +15954,7 @@ suite('AgentService (node dispatcher)', () => {
 			await timeout(0);
 			const shutdownBeforeRelease = shutdownComplete;
 			releaseBlocker.complete();
-			await Promise.all([blocker, shutdown]);
+			await Promise.all([blocker, readChanged, shutdown]);
 			await svc.whenCatalogReconciliationIdle();
 
 			assert.deepStrictEqual({
@@ -17581,9 +17580,25 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
-		test('passive metadata publishes before central catalog synchronization completes', async () => {
+		test('passive metadata waits for catalog synchronization before publishing durable state', async () => {
+			const dirtyMarked = new DeferredPromise<void>();
+			class ObservedCatalogDatabase extends TestAgentHostOrchestratorDatabase {
+				observe = false;
+
+				override async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
+					const result = await super.markSessionV2PayloadDirty(session);
+					if (this.observe) {
+						dirtyMarked.complete();
+					}
+					return result;
+				}
+			}
 			const db = new TestSessionDatabase();
-			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const catalogDatabase = new ObservedCatalogDatabase();
+			const localService = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, catalogDatabase,
+			));
 			registerTestAgentProvider(localService, copilotAgent);
 			const session = await localService.createSession({ provider: 'copilot' });
 			await localService.whenCatalogReconciliationIdle();
@@ -17605,12 +17620,17 @@ suite('AgentService (node dispatcher)', () => {
 			});
 			await blockerStarted.p;
 			const notifications: INotification[] = [];
-			const listener = localService.onDidNotification(notification => notifications.push(notification));
+			let catalogAtPublish: Promise<IAgentHostDatabaseSessionV2 | undefined> | undefined;
+			const listener = disposables.add(localService.onDidNotification(notification => {
+				notifications.push(notification);
+				if (notification.type === 'root/sessionSummaryChanged') {
+					catalogAtPublish = internals._orchestratorDatabase.getSessionV2(sessionKey);
+				}
+			}));
 
+			catalogDatabase.observe = true;
 			localService.dispatchAction(sessionKey, { type: ActionType.SessionIsArchivedChanged, isArchived: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
-			for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
-				await timeout(0);
-			}
+			await dirtyMarked.p;
 			const publishedBeforeRelease = notifications.some(notification => notification.type === 'root/sessionSummaryChanged');
 			const persistedBeforeRelease = await db.getMetadata(AH_META_IS_ARCHIVED_DB_KEY);
 			releaseBlocker.complete();
@@ -17622,10 +17642,12 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({
 				publishedBeforeRelease,
 				persistedBeforeRelease,
+				catalogArchivedAtPublish: catalogDataOf(await catalogAtPublish)?.isArchived,
 				catalogArchived: catalogDataOf(catalog)?.isArchived,
 			}, {
-				publishedBeforeRelease: true,
+				publishedBeforeRelease: false,
 				persistedBeforeRelease: 'true',
+				catalogArchivedAtPublish: true,
 				catalogArchived: true,
 			});
 		});
