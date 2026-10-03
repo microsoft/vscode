@@ -204,7 +204,7 @@ export interface IAgentHostProtocolClientOptions {
 	readonly prepareReconnect?: () => Promise<void>;
 	/** Prepare credentials before initial authentication or restoration; transient failures remain reconnectable. */
 	readonly prepareAuthentication?: () => Promise<void>;
-	/** Resolves authentication to restore immediately after every fresh initialize. */
+	/** Resolves required authentication before initialization or transport recovery becomes ready. */
 	readonly resolveInitialAuthentication?: () => Promise<AuthenticateParams | undefined>;
 	/** Releases resources owned by the logical protocol client after its final disposal. */
 	readonly onDispose?: () => void;
@@ -355,28 +355,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	private _livenessDeferred = false;
 	private _livenessDeferredSince: number | undefined;
 
-	/**
-	 * Channels that owe a fresh snapshot because the host forgot this client
-	 * (a host restart) and the fresh initialize did not carry their state.
-	 * Entries persist across reconnect attempts until the channel is
-	 * re-subscribed: a later `reconnect` resolves against the *new* host's
-	 * sequence and can legitimately answer with a `replay`, which carries
-	 * deltas only — so a channel dropped from this set before it was
-	 * re-snapshotted would keep serving pre-restart state forever.
-	 */
+	/** Channels awaiting a post-authentication snapshot. Entries survive interrupted recovery attempts. */
 	private readonly _subscriptionsAwaitingRestore = new Set<string>();
 
-	/**
-	 * Set while an authentication-restore pass is in flight, cleared only once
-	 * the whole pass completes.
-	 *
-	 * Authentication state on the host is process-global and survives a
-	 * transport drop, so an ordinary reconnect needs no re-authentication. But
-	 * a drop *during* the restore pass leaves the host holding whichever
-	 * credentials happened to arrive first, and the next reconnect usually
-	 * resolves to a `replay` — which never re-runs authentication. This flag
-	 * carries that debt forward so the next successful attempt finishes it.
-	 */
+	/** Keeps an interrupted authentication pass pending until a replacement connection finishes it. */
 	private _authenticationRestorePending = false;
 
 	/**
@@ -711,7 +693,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			}
 			if (this._resolveInitialAuthentication || this._authentication.size > 0) {
 				stage = 'authentication';
-				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Connecting));
+				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Connecting));
 				if (this._state.kind !== AgentHostClientState.Connecting) {
 					throw transportLostError(this._address);
 				}
@@ -970,17 +952,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				return;
 			}
 
-			this._applyReconnectResult(result, freshInitialize);
+			const restoreAuthentication = freshInitialize || !!this._resolveInitialAuthentication || this._authentication.size > 0 || this._authenticationRestorePending;
+			this._applyReconnectResult(result, freshInitialize, restoreAuthentication);
 			this._updateManagedSettingsPermissions(true);
-			// Re-authenticate on a fresh initialize (the new process holds no
-			// credentials), or when an earlier pass was cut short by a transport
-			// drop — that attempt may have delivered only some of them, and an
-			// ordinary `replay` reconnect never revisits authentication.
-			if ((freshInitialize && result.type === ReconnectResultType.Snapshot) || this._authenticationRestorePending) {
-				if (freshInitialize && result.type === ReconnectResultType.Snapshot) {
+			// A replacement transport may need authentication even when the host remembers this client.
+			if (restoreAuthentication) {
+				if (result.type === ReconnectResultType.Snapshot) {
 					this._markSubscriptionsAwaitingRestore(result.snapshots);
 				}
-				await this._traceConnection('protocol.authentication', () => this._restoreAuthenticationAfterFreshInitialize(AgentHostClientState.Reconnecting));
+				await this._traceConnection('protocol.authentication', () => this._restoreAuthentication(AgentHostClientState.Reconnecting));
 				if (!this._checkReconnectState(reconnect)) {
 					return;
 				}
@@ -1083,15 +1063,9 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		};
 	}
 
-	/**
-	 * Record every active subscription the fresh initialize did not carry a
-	 * snapshot for. The host forgot this client, so those channels still hold
-	 * state produced by the previous host process and cannot be trusted until
-	 * they have been re-subscribed. Rebuilt from scratch so a channel the
-	 * host has since snapshotted stops being re-requested.
-	 */
-	private _markSubscriptionsAwaitingRestore(initialSnapshots: readonly IStateSnapshot[]): void {
-		const restored = new Set(initialSnapshots.map(snapshot => snapshot.resource));
+	/** Restore subscriptions omitted from a handshake snapshot after authentication is re-established. */
+	private _markSubscriptionsAwaitingRestore(snapshots: readonly IStateSnapshot[]): void {
+		const restored = new Set(snapshots.map(snapshot => snapshot.resource));
 		this._subscriptionsAwaitingRestore.clear();
 		for (const subscription of this._subscriptionManager.getActiveSubscriptions()) {
 			const resource = subscription.resource.toString();
@@ -1154,7 +1128,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 						this._subscriptionManager.cancelSnapshotRefresh(subscription.resource);
 						throw error;
 					}
-					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${resource} after host restart: ${error instanceof Error ? error.message : String(error)}`);
+					this._logService.warn(`[AgentHostProtocolClient] Failed to restore subscription ${resource} after reconnect: ${error instanceof Error ? error.message : String(error)}`);
 					this._subscriptionManager.cancelSnapshotRefresh(subscription.resource);
 					this._subscriptionManager.markSubscriptionsMissing([subscription.resource]);
 					this._subscriptionsAwaitingRestore.delete(resource);
@@ -1169,7 +1143,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		]);
 	}
 
-	private async _restoreAuthenticationAfterFreshInitialize(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
+	private async _restoreAuthentication(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
 		const state = this._state;
 		this._authenticationRestorePending = true;
 		if (this._prepareAuthentication) {
@@ -1233,7 +1207,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				if (key === initialAuthenticationKey) {
 					throw new InitialAuthenticationError(error);
 				}
-				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource} after host restart: ${error instanceof Error ? error.message : String(error)}`);
+				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource}: ${error instanceof Error ? error.message : String(error)}`);
 			}
 		}));
 		this._authenticationRestorePending = false;
@@ -1318,7 +1292,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	 * `snapshot` we reseat each named subscription with the fresh state and
 	 * advance the server seq cursor accordingly.
 	 */
-	private _applyReconnectResult(result: CommandMap['reconnect']['result'], preservePending = false): void {
+	private _applyReconnectResult(result: CommandMap['reconnect']['result'], preservePending = false, restoreMissingSubscriptions = false): void {
 		if (result.type === ReconnectResultType.Replay) {
 			let maxSeq = this._serverSeq;
 			for (const envelope of result.actions) {
@@ -1340,10 +1314,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 			this._serverSeq = maxSeq;
 			if (result.missing.length > 0) {
 				this._logService.info(`[RemoteAgentHostProtocol] Server cannot resume ${result.missing.length} subscription(s) after reconnect.`);
-				this._subscriptionManager.markSubscriptionsMissing(result.missing.map(u => URI.parse(u)));
-				// A channel the server cannot resume can never be reseated.
-				for (const resource of result.missing) {
-					this._subscriptionsAwaitingRestore.delete(resource);
+				if (restoreMissingSubscriptions) {
+					for (const resource of result.missing) {
+						this._subscriptionsAwaitingRestore.add(resource);
+					}
+				} else {
+					this._subscriptionManager.markSubscriptionsMissing(result.missing.map(u => URI.parse(u)));
+					for (const resource of result.missing) {
+						this._subscriptionsAwaitingRestore.delete(resource);
+					}
 				}
 			}
 		} else {
