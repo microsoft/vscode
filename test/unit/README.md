@@ -42,7 +42,7 @@ On Windows (PowerShell):
 
     $env:VSCODE_TEST_QUALITY = 'insider'; .\scripts\test.bat
 
-Accepted values are `insider`, `stable`, and `exploration`. GitHub PR CI runs unit tests with `insider`. The browser unit test runner doesn't read `product.json`, so `product.quality` is always `undefined` there, including in official builds.
+Accepted values are `insider`, `stable`, and `exploration`. GitHub PR CI runs unit tests with `insider`, plus one Linux job with `stable`. The browser unit test runner doesn't read `product.json`, so `product.quality` is always `undefined` there, including in official builds.
 
 ## Coverage
 
