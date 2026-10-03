@@ -7,7 +7,7 @@ import assert from 'assert';
 import { WordCharacterClassifier } from '../../../../common/core/wordCharacterClassifier.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { DefaultEndOfLine, ITextSnapshot, SearchData } from '../../../../common/model.js';
+import { DefaultEndOfLine, EndOfLinePreference, ITextSnapshot, SearchData } from '../../../../common/model.js';
 import { PieceTreeBase } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeBase.js';
 import { PieceTreeTextBuffer } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBuffer.js';
 import { PieceTreeTextBufferBuilder } from '../../../../common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder.js';
@@ -2121,5 +2121,60 @@ suite('chunk based search', () => {
 		ret = pieceTable.findMatchesLineByLine(new Range(2, 2, 2, 5), new SearchData(/a/gi, null, 'a'), true, 1000);
 		assert.strictEqual(ret.length, 1);
 		assert.deepStrictEqual(ret[0].range, new Range(2, 2, 2, 3));
+	});
+});
+
+suite('CR line endings', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('CR-only file is detected and preserved', () => {
+		const pieceTree = createTextBuffer(['line1\rline2\rline3'], true);
+		ds.add(pieceTree);
+		assert.strictEqual(pieceTree.getEOL(), '\r');
+		assert.strictEqual(pieceTree.getLineCount(), 3);
+		assert.strictEqual(pieceTree.getLineContent(1), 'line1');
+		assert.strictEqual(pieceTree.getLineContent(2), 'line2');
+		assert.strictEqual(pieceTree.getLineContent(3), 'line3');
+	});
+
+	test('setEOL to CR normalizes line endings', () => {
+		const pieceTree = createTextBuffer(['line1\nline2\nline3'], true);
+		ds.add(pieceTree);
+		assert.strictEqual(pieceTree.getEOL(), '\n');
+
+		pieceTree.setEOL('\r');
+		assert.strictEqual(pieceTree.getEOL(), '\r');
+		assert.strictEqual(pieceTree.getLineCount(), 3);
+		assert.strictEqual(pieceTree.getLineContent(1), 'line1');
+		assert.strictEqual(pieceTree.getLineContent(2), 'line2');
+		assert.strictEqual(pieceTree.getLineContent(3), 'line3');
+	});
+
+	test('CR buffer factory with DefaultEndOfLine.CR', () => {
+		const bufferBuilder = new PieceTreeTextBufferBuilder();
+		bufferBuilder.acceptChunk('hello');
+		const factory = bufferBuilder.finish(true);
+		const { textBuffer, disposable } = factory.create(DefaultEndOfLine.CR);
+		ds.add(disposable);
+		assert.strictEqual(textBuffer.getEOL(), '\r');
+	});
+
+	test('CR detection prefers CR when file has only CR endings', () => {
+		const bufferBuilder = new PieceTreeTextBufferBuilder();
+		bufferBuilder.acceptChunk('a\rb\rc\r');
+		const factory = bufferBuilder.finish(true);
+		const { textBuffer, disposable } = factory.create(DefaultEndOfLine.LF);
+		ds.add(disposable);
+		assert.strictEqual(textBuffer.getEOL(), '\r');
+		assert.strictEqual(textBuffer.getLineCount(), 4);
+	});
+
+	test('getValue with CR line endings round-trips', () => {
+		const pieceTree = createTextBuffer(['hello\rworld\r'], true);
+		ds.add(pieceTree);
+		assert.strictEqual(pieceTree.getEOL(), '\r');
+		const lineCount = pieceTree.getLineCount();
+		const value = pieceTree.getValueInRange(new Range(1, 1, lineCount, pieceTree.getLineMaxColumn(lineCount)), EndOfLinePreference.TextDefined);
+		assert.strictEqual(value, 'hello\rworld\r');
 	});
 });
