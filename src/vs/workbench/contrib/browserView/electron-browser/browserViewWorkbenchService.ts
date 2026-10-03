@@ -75,6 +75,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private readonly _browserViewService: IBrowserViewService;
 	private readonly _known = new Map<string, BrowserEditorInput>();
+	private readonly _pendingCreations = new Map<string, number>();
 	private readonly _remoteEvents = this._register(new DisposableMap<string, IDisposable & { emitters: BrowserViewEventEmitters }>());
 	private readonly _contextualFilters = new Set<IBrowserViewContextualFilter>();
 	private readonly _openHandlers = new Set<IBrowserViewOpenHandler>();
@@ -199,6 +200,9 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			if (event.type === 'created') {
 				const e = event.data;
 				if (e.info.presentation === BrowserViewPresentation.Unlisted) {
+					return;
+				}
+				if (this._pendingCreations.has(e.info.id) && !this._known.has(e.info.id)) {
 					return;
 				}
 				this._createModel(reviveBrowserViewInfo(e.info, screenshots[0]), e.initialUrl ?? this._known.get(e.info.id)?.url);
@@ -414,25 +418,44 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		if (!this._known.has(id)) {
 			const input = this.instantiationService.createInstance(BrowserEditorInput, data, async () => {
 				await this._browserViewsReady.p;
-				await this._browserViewService.getOrCreateBrowserView(
-					id,
-					{
-						host: {
-							windowId: this._mainWindowId
-						},
-						owner: createOptions?.owner ?? { type: 'user' },
-						associatedResource,
-						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
-						initialAudiences: createOptions?.initialAudiences,
-						initialUrl: createOptions ? createOptions.initialUrl : data.url,
-						openSource: createOptions?.openSource
+				this._pendingCreations.set(id, (this._pendingCreations.get(id) ?? 0) + 1);
+				try {
+					const info = await this._browserViewService.getOrCreateBrowserView(
+						id,
+						{
+							host: {
+								windowId: this._mainWindowId
+							},
+							owner: createOptions?.owner ?? { type: 'user' },
+							associatedResource,
+							session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
+							initialAudiences: createOptions?.initialAudiences,
+							initialUrl: createOptions ? createOptions.initialUrl : data.url,
+							openSource: createOptions?.openSource
+						}
+					);
+					// Transfer cleanup to a replacement, even if it has not been resolved.
+					if (input.isDisposed()) {
+						if (this._known.has(id)) {
+							this._createModel(info);
+						} else {
+							await this._browserViewService.destroyBrowserView(id);
+						}
+						throw new CancellationError();
 					}
-				);
-				const model = this._known.get(id)?.model;
-				if (!model) {
-					throw new Error(`Browser view ${id} closed during creation`);
+					const model = this._known.get(id)?.model;
+					if (!model) {
+						throw new Error(`Browser view ${id} closed during creation`);
+					}
+					return model;
+				} finally {
+					const remaining = this._pendingCreations.get(id)! - 1;
+					if (remaining) {
+						this._pendingCreations.set(id, remaining);
+					} else {
+						this._pendingCreations.delete(id);
+					}
 				}
-				return model;
 			});
 			Event.once(input.onWillDispose)(() => {
 				this._known.delete(id);
