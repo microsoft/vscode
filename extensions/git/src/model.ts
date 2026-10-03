@@ -477,13 +477,28 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.filter(repository => !!repository) as Repository[];
 
 			const activeRepositories = new Set<Repository>(activeRepositoriesList);
-			const openRepositoriesToDispose = removed
-				.map(folder => this.getOpenRepository(folder.uri))
-				.filter(r => !!r)
-				.filter(r => !activeRepositories.has(r!.repository))
-				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
+
+			// Find all open repositories whose root is at or inside a removed workspace folder.
+			// The original check only used getOpenRepository(folder.uri) which relies on isDescendant
+			// and misses the common case where the repo root IS the workspace folder itself.
+			const openRepositoriesToDispose = this.openRepositories
+				.filter(r => removed.some(folder => isDescendant(folder.uri.fsPath, r.repository.root) || r.repository.root === folder.uri.fsPath))
+				.filter(r => !activeRepositories.has(r.repository))
+				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r.repository.root)));
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
+
+			// Prune stale closedRepositories entries for the removed workspace folders so that
+			// manually-closed repos don't ghost back the next time the workspace is opened.
+			for (const folder of removed) {
+				for (const closedRepo of this._closedRepositoriesManager.repositories) {
+					if (isDescendant(folder.uri.fsPath, closedRepo) || closedRepo === folder.uri.fsPath) {
+						this._closedRepositoriesManager.deleteRepository(closedRepo);
+						this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Pruned stale closed repository: ${closedRepo}`);
+					}
+				}
+			}
+
 			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
@@ -491,6 +506,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
 		}
 	}
+
 
 	private async onDidChangeWorkspaceTrustedFolders(): Promise<void> {
 		try {
