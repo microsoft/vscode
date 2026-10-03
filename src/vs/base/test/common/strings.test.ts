@@ -763,6 +763,12 @@ suite('Strings', () => {
 		assert.ok(strings.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
+	test('convertSimple2RegExpPattern', () => {
+		assert.strictEqual(strings.convertSimple2RegExpPattern('*a*'), '.*a.*');
+		assert.strictEqual(strings.convertSimple2RegExpPattern('**'), '.*');
+		assert.strictEqual(strings.convertSimple2RegExpPattern('a**b'), 'a.*b');
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
