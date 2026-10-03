@@ -1,0 +1,3935 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Explorer Gateway API",
+    "description": "Blockchain explorer gateway — Solana, Bitcoin, Bitcoin Cash, Ethereum",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.blockchain.info/explorer-gateway-kt",
+      "description": "REST API"
+    },
+    {
+      "url": "wss://ws.blockchain.info",
+      "description": "WebSocket API"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Bitcoin"
+    },
+    {
+      "name": "Bitcoin Cash"
+    },
+    {
+      "name": "Ethereum"
+    },
+    {
+      "name": "Solana"
+    },
+    {
+      "name": "Charts"
+    }
+  ],
+  "paths": {
+    "/sol/blocks": {
+      "post": {
+        "summary": "Latest blocks",
+        "operationId": "getLatestBlocks",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetLatestBlocksRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "limit": 10
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Latest blocks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetLatestBlocksResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/block": {
+      "post": {
+        "summary": "Block",
+        "operationId": "getBlock",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetBlockRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "blockId": 280000000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Block details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetBlockResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/transaction": {
+      "post": {
+        "summary": "Transaction",
+        "operationId": "getTransaction",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetTransactionRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "txId": "5j7s8K..."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTransactionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/transaction/instructions": {
+      "post": {
+        "summary": "Transaction instructions",
+        "operationId": "getTransactionInstructions",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetTransactionRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "txId": "5j7s8K..."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Parsed transaction with instructions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTransactionInstructionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/transaction/raw": {
+      "post": {
+        "summary": "Raw transaction",
+        "operationId": "getTransactionRaw",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetTransactionRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "txId": "5j7s8K..."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Raw Solana transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RawTransaction"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/address": {
+      "post": {
+        "summary": "Address",
+        "operationId": "getAddress",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetAddressRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "address": "4Qkev8aNZcqFNSRkR37YKd3MagFStkvv9k8gqn87gSo",
+                "limit": 10
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Address details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAddressResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/sol/address/tokens": {
+      "post": {
+        "summary": "Token accounts",
+        "operationId": "getAddressTokens",
+        "tags": [
+          "Solana"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetAddressTokensRequest"
+              },
+              "example": {
+                "network": "SOL",
+                "address": "4Qkev8aNZcqFNSRkR37YKd3MagFStkvv9k8gqn87gSo"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token balances for the address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetAddressTokensResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/address": {
+      "post": {
+        "summary": "Address balance",
+        "operationId": "getBtcAddress",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinAddressRequest"
+              },
+              "example": {
+                "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Address balance info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinAddressResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/address/transactions": {
+      "post": {
+        "summary": "Address transactions",
+        "operationId": "getBtcAddressTransactions",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinAddressTransactionsRequest"
+              },
+              "example": {
+                "address": "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+                "limit": 20,
+                "offset": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paginated transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinAddressTransactionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/transaction": {
+      "post": {
+        "summary": "Transaction",
+        "operationId": "getBtcTransaction",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinTransactionRequest"
+              },
+              "example": {
+                "txId": "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinTransactionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/transactions": {
+      "post": {
+        "summary": "Transactions (batch)",
+        "operationId": "getBtcTransactions",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinTransactionsRequest"
+              },
+              "example": {
+                "txIds": [
+                  "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinTransactionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/address": {
+      "post": {
+        "summary": "Address balance",
+        "operationId": "getBchAddress",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinAddressRequest"
+              },
+              "example": {
+                "address": "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Address balance info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinAddressResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/address/transactions": {
+      "post": {
+        "summary": "Address transactions",
+        "operationId": "getBchAddressTransactions",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinAddressTransactionsRequest"
+              },
+              "example": {
+                "address": "bitcoincash:qp3wjpa3tjlj042z2wv7hahsldgwhwy0rq9sywjpyy",
+                "limit": 20,
+                "offset": 0
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Paginated transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinAddressTransactionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/transaction": {
+      "post": {
+        "summary": "Transaction",
+        "operationId": "getBchTransaction",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinTransactionRequest"
+              },
+              "example": {
+                "txId": "abc123..."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinTransactionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/transactions": {
+      "post": {
+        "summary": "Transactions (batch)",
+        "operationId": "getBchTransactions",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinTransactionsRequest"
+              },
+              "example": {
+                "txIds": [
+                  "abc123..."
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinTransactionsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/block": {
+      "post": {
+        "summary": "Block",
+        "operationId": "getBtcBlock",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinBlockRequest"
+              },
+              "examples": {
+                "byHash": {
+                  "summary": "Lookup by block hash",
+                  "value": {
+                    "hash": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+                  }
+                },
+                "byHeight": {
+                  "summary": "Lookup by block height",
+                  "value": {
+                    "height": 850000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Full block data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinBlockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/btc/blocks": {
+      "post": {
+        "summary": "Latest blocks",
+        "operationId": "getBtcLatestBlocks",
+        "tags": [
+          "Bitcoin"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinLatestBlocksRequest"
+              },
+              "examples": {
+                "tip": {
+                  "summary": "Latest 10 blocks from chain tip",
+                  "value": {
+                    "limit": 10
+                  }
+                },
+                "paginated": {
+                  "summary": "Next page after block 849900",
+                  "value": {
+                    "limit": 20,
+                    "after": 849900
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Latest blocks with transaction count per block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinLatestBlocksResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/block": {
+      "post": {
+        "summary": "Block",
+        "operationId": "getBchBlock",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinBlockRequest"
+              },
+              "examples": {
+                "byHash": {
+                  "summary": "Lookup by block hash",
+                  "value": {
+                    "hash": "000000000000000000651ef99cb9fcbe0dadde1d424bd9f15ff20136191a5eec"
+                  }
+                },
+                "byHeight": {
+                  "summary": "Lookup by block height",
+                  "value": {
+                    "height": 850000
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Full block data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinBlockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/bch/blocks": {
+      "post": {
+        "summary": "Latest blocks",
+        "operationId": "getBchLatestBlocks",
+        "tags": [
+          "Bitcoin Cash"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HaskoinLatestBlocksRequest"
+              },
+              "examples": {
+                "tip": {
+                  "summary": "Latest 10 blocks from chain tip",
+                  "value": {
+                    "limit": 10
+                  }
+                },
+                "paginated": {
+                  "summary": "Next page after block 849900",
+                  "value": {
+                    "limit": 20,
+                    "after": 849900
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Latest blocks with transaction count per block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HaskoinLatestBlocksResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/address": {
+      "post": {
+        "summary": "Address",
+        "operationId": "getEthWallet",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthWalletRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "address": "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+                "page": 0,
+                "size": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Address wallet info with transactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthWalletResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/address/tokens": {
+      "post": {
+        "summary": "Token holdings",
+        "operationId": "getEthAddressTokens",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthAddressTokensRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "address": "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token holdings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthAddressTokensResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/address/internal-transactions": {
+      "post": {
+        "summary": "Internal transactions",
+        "operationId": "getEthAddressInternalTransactions",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthAddressInternalTxsRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "address": "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+                "page": 0,
+                "size": 20
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Internal transactions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthAddressInternalTxsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/transaction": {
+      "post": {
+        "summary": "Transaction",
+        "operationId": "getEthTransaction",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthTransactionRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "txId": "0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthTransactionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/blocks": {
+      "post": {
+        "summary": "Latest blocks",
+        "operationId": "getEthLatestBlocks",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthLatestBlocksRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "limit": 10
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Latest blocks",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthLatestBlocksResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/eth/block": {
+      "post": {
+        "summary": "Block",
+        "operationId": "getEthBlock",
+        "tags": [
+          "Ethereum"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetEthBlockRequest"
+              },
+              "example": {
+                "network": "ETH",
+                "blockId": 21000000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Block details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEthBlockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/hash-rate": {
+      "post": {
+        "summary": "Hash rate",
+        "operationId": "getHashRateChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetChartRequest"
+              },
+              "example": {
+                "timespan": "1y",
+                "sampled": true,
+                "metadata": false,
+                "rollingAverage": "8h",
+                "cors": false,
+                "format": "json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hash rate chart data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetChartResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "name": "Hash Rate",
+                  "unit": "GH/s",
+                  "period": "day",
+                  "description": "The estimated number of gigahashes per second the bitcoin network is performing",
+                  "values": [
+                    {
+                      "x": 1704067200,
+                      "y": 512345678.9
+                    },
+                    {
+                      "x": 1704153600,
+                      "y": 515234567.85
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "1704067200,512345678.90\n1704153600,515234567.85\n1704240000,518123456.78\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "timespan parameter is invalid"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/avg-confirmation-time": {
+      "post": {
+        "summary": "Avg confirmation time",
+        "operationId": "getAvgConfirmationTimeChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetChartRequest"
+              },
+              "example": {
+                "timespan": "1y",
+                "sampled": true,
+                "metadata": false,
+                "rollingAverage": "8h",
+                "cors": false,
+                "format": "json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Average confirmation time chart data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetChartResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "name": "Average Confirmation Time",
+                  "unit": "minutes",
+                  "period": "day",
+                  "description": "The average time to confirm a Bitcoin transaction",
+                  "values": [
+                    {
+                      "x": 1704067200,
+                      "y": 9.5
+                    },
+                    {
+                      "x": 1704153600,
+                      "y": 10.2
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "1704067200,9.5\n1704153600,10.2\n1704240000,8.8\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "rollingAverage parameter is invalid"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/total-bitcoins": {
+      "post": {
+        "summary": "Total bitcoins",
+        "operationId": "getTotalBitcoinsChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetChartRequest"
+              },
+              "example": {
+                "timespan": "1y",
+                "sampled": true,
+                "metadata": false,
+                "rollingAverage": "8h",
+                "cors": false,
+                "format": "json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Total bitcoins chart data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetChartResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "name": "Total Bitcoins",
+                  "unit": "BTC",
+                  "period": "day",
+                  "description": "The total number of bitcoins that have been mined",
+                  "values": [
+                    {
+                      "x": 1704067200,
+                      "y": 19589375
+                    },
+                    {
+                      "x": 1704153600,
+                      "y": 19589500
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "1704067200,19589375.0\n1704153600,19589500.0\n1704240000,19589625.0\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "timespan parameter is invalid"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/difficulty": {
+      "post": {
+        "summary": "Difficulty",
+        "operationId": "getDifficultyChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetChartRequest"
+              },
+              "example": {
+                "timespan": "1y",
+                "sampled": true,
+                "metadata": false,
+                "rollingAverage": "8h",
+                "cors": false,
+                "format": "json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mining difficulty chart data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetChartResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "name": "Difficulty",
+                  "unit": "difficulty",
+                  "period": "day",
+                  "description": "The estimated difficulty of the bitcoin network",
+                  "values": [
+                    {
+                      "x": 1704067200,
+                      "y": 72000000000000
+                    },
+                    {
+                      "x": 1704153600,
+                      "y": 72100000000000
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "1704067200,72000000000000.0\n1704153600,72100000000000.0\n1704240000,72200000000000.0\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "timespan parameter is invalid"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/n-transactions": {
+      "post": {
+        "summary": "Transaction count",
+        "operationId": "getNTransactionsChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetChartRequest"
+              },
+              "example": {
+                "timespan": "1y",
+                "sampled": true,
+                "metadata": false,
+                "rollingAverage": "8h",
+                "cors": false,
+                "format": "json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Number of transactions chart data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetChartResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "name": "Number of Transactions",
+                  "unit": "transactions",
+                  "period": "day",
+                  "description": "The number of daily confirmed Bitcoin transactions",
+                  "values": [
+                    {
+                      "x": 1704067200,
+                      "y": 275000
+                    },
+                    {
+                      "x": 1704153600,
+                      "y": 280000
+                    }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "1704067200,275000.0\n1704153600,280000.0\n1704240000,285000.0\n"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "timespan parameter is invalid"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/charts/pools": {
+      "post": {
+        "summary": "Mining pools",
+        "operationId": "getPoolsChart",
+        "tags": [
+          "Charts"
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GetPoolsRequest"
+              },
+              "example": {
+                "timespan": "4d"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mining pools distribution as a map of pool name to block count",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPoolsResponse"
+                },
+                "example": {
+                  "Foundry USA": 3420,
+                  "AntPool": 2156,
+                  "F2Pool": 1823,
+                  "Binance Pool": 1245,
+                  "ViaBTC": 892
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": "BAD_REQUEST",
+                    "message": "timespan parameter is too big"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Explorer-Auth-Key",
+        "description": "Optional. Send your Explorer API key in the `X-Explorer-Auth-Key` header. Requests sent without a key fall back to the default rate limits."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "FETCH_ERROR"
+              },
+              "message": {
+                "type": "string",
+                "example": "Transaction not found"
+              }
+            }
+          }
+        }
+      },
+      "GetLatestBlocksRequest": {
+        "type": "object",
+        "required": [
+          "network"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "SOL"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 20
+          }
+        }
+      },
+      "GetLatestBlocksResponse": {
+        "type": "object",
+        "required": [
+          "currentBlockId",
+          "blocks"
+        ],
+        "properties": {
+          "currentBlockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockSummary"
+            }
+          }
+        }
+      },
+      "BlockSummary": {
+        "type": "object",
+        "required": [
+          "blockId",
+          "hash",
+          "transactionCount",
+          "parentBlockId",
+          "totalRewards"
+        ],
+        "properties": {
+          "blockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionCount": {
+            "type": "integer"
+          },
+          "parentBlockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalRewards": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all reward lamports distributed in this block"
+          }
+        }
+      },
+      "GetBlockRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "blockId"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "SOL"
+          },
+          "blockId": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "GetBlockResponse": {
+        "type": "object",
+        "required": [
+          "blockId",
+          "hash",
+          "parentHash",
+          "parentBlockId",
+          "transactionCount",
+          "successfulTransactionCount",
+          "totalAmountSent",
+          "transactions",
+          "rewards",
+          "totalComputeUnitsConsumed",
+          "transactionCostUtilization",
+          "reservedComputeUnits",
+          "reservedComputeUnitsUtilization",
+          "epoch"
+        ],
+        "properties": {
+          "blockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "parentHash": {
+            "type": "string"
+          },
+          "parentBlockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionCount": {
+            "type": "integer"
+          },
+          "successfulTransactionCount": {
+            "type": "integer"
+          },
+          "totalAmountSent": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of all outgoing lamports in successful transactions"
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GetTransactionResponse"
+            }
+          },
+          "rewards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockReward"
+            }
+          },
+          "totalComputeUnitsConsumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of compute units consumed by all transactions in the block"
+          },
+          "transactionCostUtilization": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage of the block compute limit consumed (0-100+). Limit is epoch-dependent: <770 → 48M, 770-821 → 50M, ≥822 → 60M CU",
+            "example": 46.1
+          },
+          "reservedComputeUnits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Sum of compute unit limits requested by all transactions (via ComputeBudget::SetComputeUnitLimit; defaults to 200,000 per tx if not set). Can exceed the block limit."
+          },
+          "reservedComputeUnitsUtilization": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage of the block compute limit reserved by all transactions (reservedComputeUnits / blockComputeLimit * 100)",
+            "example": 52.3
+          },
+          "epoch": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Solana epoch this block belongs to (slot / 432,000)"
+          }
+        }
+      },
+      "GetTransactionRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "txId"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "SOL"
+          },
+          "txId": {
+            "type": "string"
+          }
+        }
+      },
+      "GetTransactionResponse": {
+        "type": "object",
+        "required": [
+          "txId",
+          "status",
+          "movements",
+          "computeUnitsConsumed",
+          "reservedComputeUnits",
+          "computeUnitsUtilization"
+        ],
+        "properties": {
+          "txId": {
+            "type": "string"
+          },
+          "blockId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "fee": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed"
+            ]
+          },
+          "feePayer": {
+            "type": "string",
+            "nullable": true
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Movement"
+            }
+          },
+          "computeUnitsConsumed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Actual compute units consumed by this transaction"
+          },
+          "reservedComputeUnits": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Compute unit limit requested via ComputeBudget::SetComputeUnitLimit (defaults to 200,000 if not set)"
+          },
+          "computeUnitsUtilization": {
+            "type": "number",
+            "format": "double",
+            "description": "Percentage of reserved compute units actually consumed (computeUnitsConsumed / reservedComputeUnits * 100)",
+            "example": 75.3
+          }
+        }
+      },
+      "GetTransactionInstructionsResponse": {
+        "type": "object",
+        "required": [
+          "instructions"
+        ],
+        "properties": {
+          "instructions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ParsedInstruction"
+            }
+          }
+        }
+      },
+      "ParsedInstruction": {
+        "type": "object",
+        "required": [
+          "programId",
+          "accounts",
+          "data"
+        ],
+        "properties": {
+          "programId": {
+            "type": "string",
+            "description": "Program account address"
+          },
+          "programName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Human-readable program name (e.g. \"System Program\", \"SPL Token\")"
+          },
+          "instructionType": {
+            "type": "string",
+            "nullable": true,
+            "description": "Decoded instruction type (e.g. \"Transfer\", \"InitializeAccount\")"
+          },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ordered list of account addresses involved in the instruction"
+          },
+          "data": {
+            "type": "string",
+            "description": "Raw instruction data in base58"
+          },
+          "parsed": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Key-value pairs decoded from instruction data; keys vary by instructionType"
+          }
+        }
+      },
+      "BlockReward": {
+        "type": "object",
+        "required": [
+          "pubkey",
+          "amount"
+        ],
+        "properties": {
+          "pubkey": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Amount in lamports"
+          },
+          "rewardType": {
+            "type": "string",
+            "nullable": true,
+            "example": "Fee"
+          }
+        }
+      },
+      "Movement": {
+        "type": "object",
+        "required": [
+          "identifier",
+          "address",
+          "amount",
+          "type"
+        ],
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "description": "\"native\" for SOL, mint address for SPL tokens",
+            "example": "native"
+          },
+          "symbol": {
+            "type": "string",
+            "nullable": true,
+            "description": "Token symbol (e.g. \"SOL\", \"USDC\"); null if unknown",
+            "example": "SOL"
+          },
+          "address": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Absolute amount in base units (lamports / token decimals)"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "received"
+            ]
+          }
+        }
+      },
+      "RawTransaction": {
+        "type": "object",
+        "required": [
+          "transaction",
+          "meta"
+        ],
+        "properties": {
+          "transaction": {
+            "type": "object",
+            "properties": {
+              "signatures": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "message": {
+                "type": "object",
+                "properties": {
+                  "accountKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "instructions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "accounts": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "data": {
+                          "type": "string"
+                        },
+                        "programIdIndex": {
+                          "type": "integer"
+                        },
+                        "stackHeight": {
+                          "type": "integer",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "fee": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "preBalances": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "postBalances": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "preTokenBalances": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/TokenBalance"
+                }
+              },
+              "postTokenBalances": {
+                "type": "array",
+                "nullable": true,
+                "items": {
+                  "$ref": "#/components/schemas/TokenBalance"
+                }
+              },
+              "loadedAddresses": {
+                "nullable": true,
+                "type": "object",
+                "properties": {
+                  "writable": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "readonly": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "err": {
+                "nullable": true
+              }
+            }
+          },
+          "blockTime": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "slot": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "TokenBalance": {
+        "type": "object",
+        "required": [
+          "accountIndex",
+          "mint",
+          "uiTokenAmount"
+        ],
+        "properties": {
+          "accountIndex": {
+            "type": "integer"
+          },
+          "mint": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "nullable": true
+          },
+          "programId": {
+            "type": "string",
+            "nullable": true
+          },
+          "uiTokenAmount": {
+            "type": "object",
+            "properties": {
+              "amount": {
+                "type": "string"
+              },
+              "decimals": {
+                "type": "integer"
+              },
+              "uiAmountString": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "GetAddressRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "address"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "SOL"
+          },
+          "address": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50
+          },
+          "before": {
+            "type": "string",
+            "nullable": true,
+            "description": "Transaction signature cursor — returns transactions older than this value"
+          }
+        }
+      },
+      "GetAddressResponse": {
+        "type": "object",
+        "required": [
+          "address",
+          "balance",
+          "transactions"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Balance in lamports"
+          },
+          "owner": {
+            "type": "string",
+            "nullable": true,
+            "description": "Program that owns this account"
+          },
+          "executable": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "rentEpoch": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Next epoch when rent is due; null means rent-exempt"
+          },
+          "space": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Account data size in bytes"
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddressTransaction"
+            }
+          },
+          "nextPageCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Pass as \"before\" in the next request to fetch older transactions; null means no more pages"
+          }
+        }
+      },
+      "GetAddressTokensRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "address"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "SOL"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
+      },
+      "GetAddressTokensResponse": {
+        "type": "object",
+        "required": [
+          "tokens"
+        ],
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TokenAccount"
+            }
+          }
+        }
+      },
+      "TokenAccount": {
+        "type": "object",
+        "required": [
+          "wallet",
+          "mint",
+          "balance",
+          "decimals"
+        ],
+        "properties": {
+          "wallet": {
+            "type": "string",
+            "description": "Token account address"
+          },
+          "mint": {
+            "type": "string",
+            "description": "Token mint address"
+          },
+          "balance": {
+            "type": "string",
+            "description": "Raw token balance in base units"
+          },
+          "decimals": {
+            "type": "integer"
+          },
+          "symbol": {
+            "type": "string",
+            "nullable": true
+          },
+          "uri": {
+            "type": "string",
+            "nullable": true,
+            "description": "Metadata URI for the token (e.g. link to JSON with name/image)"
+          }
+        }
+      },
+      "AddressTransaction": {
+        "type": "object",
+        "required": [
+          "txId",
+          "blockId"
+        ],
+        "properties": {
+          "txId": {
+            "type": "string"
+          },
+          "blockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "confirmationStatus": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "processed",
+              "confirmed",
+              "finalized"
+            ]
+          },
+          "memo": {
+            "type": "string",
+            "nullable": true
+          },
+          "feePayer": {
+            "type": "string",
+            "nullable": true
+          },
+          "fee": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "success",
+              "failed"
+            ]
+          }
+        }
+      },
+      "HaskoinAddressRequest": {
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "description": "Bitcoin or Bitcoin Cash address"
+          }
+        }
+      },
+      "HaskoinAddressResponse": {
+        "type": "object",
+        "required": [
+          "address",
+          "confirmed",
+          "unconfirmed",
+          "utxo",
+          "txCount",
+          "received"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Confirmed balance in satoshis"
+          },
+          "unconfirmed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unconfirmed balance in satoshis"
+          },
+          "utxo": {
+            "type": "integer",
+            "description": "Number of unspent outputs"
+          },
+          "txCount": {
+            "type": "integer",
+            "description": "Total number of transactions"
+          },
+          "received": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total received in satoshis"
+          }
+        }
+      },
+      "HaskoinAddressTransactionsRequest": {
+        "type": "object",
+        "required": [
+          "address"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 50
+          },
+          "offset": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0
+          }
+        }
+      },
+      "HaskoinAddressTransactionsResponse": {
+        "type": "object",
+        "required": [
+          "transactions",
+          "limit",
+          "offset"
+        ],
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinTransactionResponse"
+            }
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          }
+        }
+      },
+      "HaskoinTransactionRequest": {
+        "type": "object",
+        "required": [
+          "txId"
+        ],
+        "properties": {
+          "txId": {
+            "type": "string"
+          }
+        }
+      },
+      "HaskoinTransactionsRequest": {
+        "type": "object",
+        "required": [
+          "txIds"
+        ],
+        "properties": {
+          "txIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50
+          }
+        }
+      },
+      "HaskoinTransactionsResponse": {
+        "type": "object",
+        "required": [
+          "transactions"
+        ],
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinTransactionResponse"
+            }
+          }
+        }
+      },
+      "HaskoinTransactionResponse": {
+        "type": "object",
+        "required": [
+          "txId",
+          "mempool",
+          "rbf",
+          "inputs",
+          "outputs"
+        ],
+        "properties": {
+          "txId": {
+            "type": "string"
+          },
+          "blockHeight": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Block height; null if unconfirmed"
+          },
+          "blockPosition": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Position within the block"
+          },
+          "mempool": {
+            "type": "boolean",
+            "description": "True if the transaction is unconfirmed"
+          },
+          "mempoolTime": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Unix timestamp when the tx entered the mempool"
+          },
+          "time": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Block timestamp"
+          },
+          "fee": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Fee in satoshis"
+          },
+          "size": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Transaction size in bytes"
+          },
+          "weight": {
+            "type": "integer",
+            "nullable": true,
+            "description": "SegWit weight units"
+          },
+          "rbf": {
+            "type": "boolean",
+            "description": "Replace-by-fee flag"
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinInput"
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinOutput"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Transaction version"
+          },
+          "locktime": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Transaction locktime"
+          },
+          "deleted": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "True if the transaction has been deleted/replaced"
+          }
+        }
+      },
+      "HaskoinInput": {
+        "type": "object",
+        "required": [
+          "coinbase",
+          "witness"
+        ],
+        "properties": {
+          "coinbase": {
+            "type": "boolean"
+          },
+          "txid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Spending transaction ID; null for coinbase"
+          },
+          "output": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Output index being spent"
+          },
+          "sigscript": {
+            "type": "string",
+            "nullable": true,
+            "description": "Signature script (scriptSig)"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Input sequence number"
+          },
+          "pkscript": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public key script of the output being spent"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Input value in satoshis"
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "witness": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "SegWit witness data"
+          }
+        }
+      },
+      "HaskoinOutput": {
+        "type": "object",
+        "required": [
+          "spent"
+        ],
+        "properties": {
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "pkscript": {
+            "type": "string",
+            "nullable": true,
+            "description": "Public key script (scriptPubKey)"
+          },
+          "value": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Output value in satoshis"
+          },
+          "spent": {
+            "type": "boolean"
+          },
+          "spender": {
+            "type": "object",
+            "nullable": true,
+            "description": "Transaction that spent this output",
+            "properties": {
+              "txid": {
+                "type": "string"
+              },
+              "input": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "HaskoinLatestBlocksRequest": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Number of blocks to return (capped at 50)"
+          },
+          "after": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Cursor for pagination — block height to start from (inclusive, descending). Omit to start from the current chain tip."
+          }
+        }
+      },
+      "HaskoinLatestBlocksResponse": {
+        "type": "object",
+        "required": [
+          "currentHeight",
+          "blocks"
+        ],
+        "properties": {
+          "currentHeight": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinBlockSummary"
+            }
+          }
+        }
+      },
+      "HaskoinBlockSummary": {
+        "type": "object",
+        "required": [
+          "hash",
+          "height",
+          "mainchain",
+          "txCount"
+        ],
+        "description": "Block header with transaction count — returned by the latest-blocks endpoint.",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Block hash"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "mainchain": {
+            "type": "boolean",
+            "description": "True if this block is on the main chain"
+          },
+          "previous": {
+            "type": "string",
+            "nullable": true,
+            "description": "Previous block hash"
+          },
+          "time": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Unix timestamp of the block"
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true
+          },
+          "bits": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Difficulty target in compact form"
+          },
+          "nonce": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "size": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Block size in bytes"
+          },
+          "weight": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Block weight (SegWit)"
+          },
+          "merkle": {
+            "type": "string",
+            "nullable": true,
+            "description": "Merkle root hash"
+          },
+          "subsidy": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Coinbase subsidy in satoshis"
+          },
+          "fees": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Total fees collected in satoshis"
+          },
+          "outputs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Total output value in satoshis"
+          },
+          "work": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cumulative chain work (hex)"
+          },
+          "txCount": {
+            "type": "integer",
+            "description": "Number of transactions in the block"
+          },
+          "coinBaseTx": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HaskoinTransactionResponse"
+              }
+            ],
+            "description": "Full details of the coinbase (first) transaction in the block; null if unavailable"
+          }
+        }
+      },
+      "HaskoinBlockRequest": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Block hash — exactly 64 hex characters. Provide either hash or height, not both.",
+            "example": "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Block height (non-negative integer). Provide either hash or height, not both.",
+            "example": 850000
+          }
+        }
+      },
+      "HaskoinBlockResponse": {
+        "type": "object",
+        "required": [
+          "hash",
+          "height",
+          "mainchain",
+          "txs"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Block hash"
+          },
+          "height": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Block height"
+          },
+          "mainchain": {
+            "type": "boolean",
+            "description": "True if this block is on the main chain"
+          },
+          "previous": {
+            "type": "string",
+            "nullable": true,
+            "description": "Previous block hash"
+          },
+          "time": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Unix timestamp of the block"
+          },
+          "version": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Block version"
+          },
+          "bits": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Difficulty target in compact form"
+          },
+          "nonce": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Proof-of-work nonce"
+          },
+          "size": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Block size in bytes"
+          },
+          "weight": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Block weight (SegWit)"
+          },
+          "txs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HaskoinTransactionResponse"
+            },
+            "description": "Full transaction details for all transactions in the block"
+          },
+          "merkle": {
+            "type": "string",
+            "nullable": true,
+            "description": "Merkle root hash"
+          },
+          "subsidy": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Coinbase subsidy in satoshis"
+          },
+          "fees": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Total fees collected in satoshis"
+          },
+          "outputs": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Total output value in satoshis"
+          },
+          "work": {
+            "type": "string",
+            "nullable": true,
+            "description": "Cumulative chain work (hex)"
+          }
+        }
+      },
+      "GetEthWalletRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "address"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "address": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "default": 1,
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 50
+          }
+        }
+      },
+      "GetEthWalletResponse": {
+        "type": "object",
+        "required": [
+          "address",
+          "balance",
+          "transactions",
+          "page"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "string",
+            "description": "Balance in Wei"
+          },
+          "nonce": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionCount": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalTransactionCount": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalSent": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalReceived": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalFees": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthAddressTransaction"
+            }
+          },
+          "page": {
+            "type": "integer"
+          }
+        }
+      },
+      "EthAddressTransaction": {
+        "type": "object",
+        "required": [
+          "hash",
+          "value"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "blockHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockNumber": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value transferred in Wei"
+          },
+          "nonce": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionIndex": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasPrice": {
+            "type": "string",
+            "nullable": true,
+            "description": "Gas price in Wei"
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "fee": {
+            "type": "string",
+            "nullable": true,
+            "description": "Total fee paid in Wei (gasUsed * gasPrice)"
+          },
+          "success": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "firstSeen": {
+            "type": "string",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "example": "CONFIRMED"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "GetEthAddressTokensRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "address"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "address": {
+            "type": "string"
+          }
+        }
+      },
+      "GetEthAddressTokensResponse": {
+        "type": "object",
+        "required": [
+          "address",
+          "tokens"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthTokenHolding"
+            }
+          }
+        }
+      },
+      "EthTokenHolding": {
+        "type": "object",
+        "required": [
+          "contractAddress",
+          "balance"
+        ],
+        "properties": {
+          "contractAddress": {
+            "type": "string",
+            "description": "ERC-20 contract address"
+          },
+          "balance": {
+            "type": "string",
+            "description": "Raw token balance in base units"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "symbol": {
+            "type": "string",
+            "nullable": true
+          },
+          "decimals": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "GetEthAddressInternalTxsRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "address"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "address": {
+            "type": "string"
+          },
+          "page": {
+            "type": "integer",
+            "default": 0,
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 50
+          }
+        }
+      },
+      "GetEthAddressInternalTxsResponse": {
+        "type": "object",
+        "required": [
+          "address",
+          "internalTransactions",
+          "page",
+          "size"
+        ],
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "internalTransactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthInternalTransaction"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "integer"
+          }
+        }
+      },
+      "EthInternalTransaction": {
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "transactionHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockNumber": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value transferred in Wei"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "example": "CALL"
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "GetEthLatestBlocksRequest": {
+        "type": "object",
+        "required": [
+          "network"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 10,
+            "minimum": 0,
+            "maximum": 20,
+            "description": "Number of blocks to return (0 is treated as 1; values above 20 are capped at 20)"
+          }
+        }
+      },
+      "GetEthLatestBlocksResponse": {
+        "type": "object",
+        "required": [
+          "currentBlockId",
+          "blocks"
+        ],
+        "properties": {
+          "currentBlockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthBlockSummary"
+            }
+          }
+        }
+      },
+      "EthBlockSummary": {
+        "type": "object",
+        "required": [
+          "blockId"
+        ],
+        "properties": {
+          "blockId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "sha3Uncles": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionsRoot": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateRoot": {
+            "type": "string",
+            "nullable": true
+          },
+          "logsBloom": {
+            "type": "string",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalDifficulty": {
+            "type": "string",
+            "nullable": true
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "extraData": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "miner": {
+            "type": "string",
+            "nullable": true
+          },
+          "nonce": {
+            "type": "string",
+            "nullable": true
+          },
+          "staticReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalUncleReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalFees": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "internalTransactionCount": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "GetEthBlockRequest": {
+        "type": "object",
+        "required": [
+          "network"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "blockId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0,
+            "description": "Block number (non-negative); provide this or hash"
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true,
+            "description": "Block hash; provide this or blockId",
+            "example": "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3"
+          }
+        }
+      },
+      "GetEthBlockResponse": {
+        "type": "object",
+        "properties": {
+          "blockId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true
+          },
+          "parentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "sha3Uncles": {
+            "type": "string",
+            "nullable": true
+          },
+          "transactionsRoot": {
+            "type": "string",
+            "nullable": true
+          },
+          "stateRoot": {
+            "type": "string",
+            "nullable": true
+          },
+          "logsBloom": {
+            "type": "string",
+            "nullable": true
+          },
+          "miner": {
+            "type": "string",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalDifficulty": {
+            "type": "string",
+            "nullable": true
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "extraData": {
+            "type": "string",
+            "nullable": true
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "nonce": {
+            "type": "string",
+            "nullable": true
+          },
+          "staticReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalUncleReward": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalFees": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "internalTransactionCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "transactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthBlockTransaction"
+            }
+          },
+          "internalTransactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthBlockInternalTransaction"
+            }
+          }
+        }
+      },
+      "EthBlockTransaction": {
+        "type": "object",
+        "required": [
+          "hash",
+          "value"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "blockHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockNumber": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value transferred in Wei"
+          },
+          "fee": {
+            "type": "string",
+            "nullable": true,
+            "description": "Total fee paid in Wei (gasUsed * gasPrice)"
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasPrice": {
+            "type": "string",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "nonce": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionIndex": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "nullable": true,
+            "description": "1 = success, 0 = failed"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "success": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "example": "CONFIRMED"
+          },
+          "data": {
+            "type": "string",
+            "nullable": true,
+            "description": "Input data (hex-encoded)"
+          },
+          "internalTransactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthInternalTransaction"
+            }
+          }
+        }
+      },
+      "EthBlockInternalTransaction": {
+        "type": "object",
+        "required": [
+          "transactionHash",
+          "value"
+        ],
+        "properties": {
+          "transactionHash": {
+            "type": "string"
+          },
+          "parentHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockNumber": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value transferred in Wei"
+          },
+          "type": {
+            "type": "string",
+            "nullable": true,
+            "example": "CALL"
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        }
+      },
+      "GetEthTransactionRequest": {
+        "type": "object",
+        "required": [
+          "network",
+          "txId"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "example": "ETH"
+          },
+          "txId": {
+            "type": "string"
+          }
+        }
+      },
+      "GetEthTransactionResponse": {
+        "type": "object",
+        "required": [
+          "hash",
+          "value",
+          "internalTransactions"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string"
+          },
+          "blockHash": {
+            "type": "string",
+            "nullable": true
+          },
+          "blockNumber": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "from": {
+            "type": "string",
+            "nullable": true
+          },
+          "to": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "description": "Value transferred in Wei"
+          },
+          "fee": {
+            "type": "string",
+            "nullable": true,
+            "description": "Total fee paid in Wei (gasUsed * gasPrice)"
+          },
+          "gasLimit": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "gasPrice": {
+            "type": "string",
+            "nullable": true,
+            "description": "Gas price in Wei"
+          },
+          "gasUsed": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "nonce": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "transactionIndex": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "nullable": true,
+            "description": "1 = success, 0 = failed"
+          },
+          "success": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "example": "CONFIRMED"
+          },
+          "data": {
+            "type": "string",
+            "nullable": true,
+            "description": "Input data (hex-encoded)"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "internalTransactions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EthInternalTransaction"
+            }
+          }
+        }
+      },
+      "GetChartRequest": {
+        "type": "object",
+        "properties": {
+          "timespan": {
+            "type": "string",
+            "default": "1y",
+            "description": "Time period (e.g., \"24h\", \"7d\", \"1y\", \"3y\")",
+            "example": "1y"
+          },
+          "sampled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Apply sampling to reduce data points"
+          },
+          "metadata": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include metadata in response"
+          },
+          "rollingAverage": {
+            "type": "string",
+            "default": "8h",
+            "description": "Rolling average window (e.g., \"8h\", \"24h\")",
+            "example": "8h"
+          },
+          "cors": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable CORS headers"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ChartFormat"
+          }
+        }
+      },
+      "GetPoolsRequest": {
+        "type": "object",
+        "properties": {
+          "timespan": {
+            "$ref": "#/components/schemas/PoolTimespan"
+          }
+        }
+      },
+      "GetChartResponse": {
+        "type": "object",
+        "required": [
+          "status",
+          "name",
+          "unit",
+          "period",
+          "description",
+          "values"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Response status",
+            "example": "ok"
+          },
+          "name": {
+            "type": "string",
+            "description": "Chart name",
+            "example": "Hash Rate"
+          },
+          "unit": {
+            "type": "string",
+            "description": "Unit of measurement for chart values",
+            "example": "GH/s"
+          },
+          "period": {
+            "type": "string",
+            "description": "Time period of the data",
+            "example": "day"
+          },
+          "description": {
+            "type": "string",
+            "description": "Chart description",
+            "example": "The estimated number of gigahashes per second the bitcoin network is performing in the last 24 hours."
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChartValue"
+            },
+            "description": "Array of time-series data points"
+          }
+        }
+      },
+      "ChartValue": {
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "properties": {
+          "x": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unix timestamp in seconds",
+            "example": 1704067200
+          },
+          "y": {
+            "type": "number",
+            "format": "double",
+            "description": "Chart value at this timestamp",
+            "example": 512345678.9
+          }
+        }
+      },
+      "ChartFormat": {
+        "type": "string",
+        "enum": [
+          "json",
+          "csv"
+        ],
+        "default": "json",
+        "description": "Response format:\n- `json` — Returns structured JSON with metadata and values\n- `csv` — Returns raw CSV data with timestamp and value columns (no metadata)\n"
+      },
+      "PoolTimespan": {
+        "type": "string",
+        "enum": [
+          "24h",
+          "2d",
+          "4d",
+          "7d",
+          "10d",
+          "6m",
+          "1y",
+          "2y",
+          "3y"
+        ],
+        "default": "4d",
+        "description": "Time period for pool statistics:\n- \"24h\" — Last 24 hours\n- \"2d\" — Last 2 days\n- \"4d\" — Last 4 days (default)\n- \"7d\" — Last 7 days\n- \"10d\" — Last 10 days\n- \"6m\" — Last 6 months\n- \"1y\" — Last year\n- \"2y\" — Last 2 years\n- \"3y\" — Last 3 years (maximum for pools endpoint)\n"
+      },
+      "GetPoolsResponse": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "description": "Map of pool names to block count",
+        "example": {
+          "Foundry USA": 3420,
+          "AntPool": 2156,
+          "F2Pool": 1823,
+          "Binance Pool": 1245,
+          "ViaBTC": 892
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    },
+    {}
+  ]
+}
