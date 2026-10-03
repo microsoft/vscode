@@ -1337,7 +1337,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._backgroundedTerminalInstances.splice(index, 1);
 		this._backgroundedTerminalDisposables.deleteAndDispose(instance.instanceId);
 		if (instance.target === TerminalLocation.Panel) {
-			this._terminalGroupService.createGroup(instance);
+			const parentTerminalId = instance.shellLaunchConfig.parentTerminalId;
+			const parentTerminal = parentTerminalId ? this.getInstanceFromId(parentTerminalId) : undefined;
+			const parentGroup = parentTerminal ? this._terminalGroupService.getGroupForInstance(parentTerminal) : undefined;
+			if (parentGroup) {
+				parentGroup.addInstance(instance, parentTerminalId);
+			} else {
+				this._terminalGroupService.createGroup(instance);
+			}
 
 			// Make active automatically if it's the first instance
 			if (this.instances.length === 1 && !suppressSetActive) {
