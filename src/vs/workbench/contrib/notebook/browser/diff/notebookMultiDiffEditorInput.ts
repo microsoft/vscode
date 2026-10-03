@@ -6,7 +6,9 @@
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, type IMultiDiffSourceResolver } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { NotebookDiffViewModel } from './notebookDiffViewModel.js';
@@ -42,8 +44,10 @@ export class NotebookMultiDiffEditorWidgetInput extends MultiDiffEditorInput imp
 		@IInstantiationService _instantiationService: IInstantiationService,
 		@IMultiDiffSourceResolverService _multiDiffSourceResolverService: IMultiDiffSourceResolverService,
 		@ITextFileService _textFileService: ITextFileService,
+		@IConfigurationService _configurationService: IConfigurationService,
+		@INotificationService _notificationService: INotificationService,
 	) {
-		super(multiDiffSource, undefined, undefined, true, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService);
+		super(multiDiffSource, undefined, undefined, true, _textModelService, _textResourceConfigurationService, _instantiationService, _multiDiffSourceResolverService, _textFileService, _configurationService, _notificationService);
 		this._register(_multiDiffSourceResolverService.registerResolver(this));
 	}
 
