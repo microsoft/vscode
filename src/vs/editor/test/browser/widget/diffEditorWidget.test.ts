@@ -12,13 +12,17 @@ import { IAccessibilitySignalService } from '../../../../platform/accessibilityS
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { IDiffEditorConstructionOptions } from '../../../browser/editorBrowser.js';
 import { IDiffProviderFactoryService } from '../../../browser/widget/diffEditor/diffProviderFactoryService.js';
 import { DiffEditorOptions } from '../../../browser/widget/diffEditor/diffEditorOptions.js';
 import { DiffEditorWidget } from '../../../browser/widget/diffEditor/diffEditorWidget.js';
 import { DiffEditorViewModel, UnchangedRegion } from '../../../browser/widget/diffEditor/diffEditorViewModel.js';
 import { RefCounted } from '../../../browser/widget/diffEditor/utils.js';
+import { Position } from '../../../common/core/position.js';
 import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { DetailedLineRangeMapping } from '../../../common/diff/rangeMapping.js';
+import { IDiffEditorViewState } from '../../../common/editorCommon.js';
+import { ITextModel } from '../../../common/model.js';
 import { instantiateTextModel } from '../../common/testTextModel.js';
 import { TestDiffProviderFactoryService } from '../diff/testDiffProviderFactoryService.js';
 import { createCodeEditorServices } from '../testCodeEditor.js';
@@ -165,6 +169,148 @@ suite('DiffEditorWidget2', () => {
 				narrow: false,
 				wideAfterLayoutChange: true,
 			});
+		});
+	});
+
+	suite('hide unchanged regions', () => {
+		function createDiffEditor(options: IDiffEditorConstructionOptions) {
+			const services = new ServiceCollection();
+			services.set(IAccessibilitySignalService, new class extends mock<IAccessibilitySignalService>() { }());
+			services.set(IEditorProgressService, new class extends mock<IEditorProgressService>() {
+				override show() { return emptyProgressRunner; }
+			}());
+			services.set(IDiffProviderFactoryService, new TestDiffProviderFactoryService());
+			const instantiationService = createCodeEditorServices(disposables, services);
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const widget = disposables.add(instantiationService.createInstance(DiffEditorWidget, container, {
+				renderGutterMenu: false,
+				...options,
+			}, {
+				originalEditor: { contributions: [] },
+				modifiedEditor: { contributions: [] },
+			}));
+			widget.layout(new Dimension(1200, 500));
+			const createModel = (changedLines: number[], insertedLineCount = 0) => disposables.add(instantiateTextModel(instantiationService, [
+				...Array.from({ length: insertedLineCount }, (_, i) => `inserted ${i + 1}`),
+				...Array.from({ length: 100 }, (_, i) => changedLines.includes(i + 1) ? `changed ${i + 1}` : `line ${i + 1}`),
+			].join('\n')));
+			return { widget, createModel };
+		}
+
+		/** Like `TextDiffEditor.setInput`, which computes the diff before setting the model. */
+		async function openDiff(widget: DiffEditorWidget, original: ITextModel, modified: ITextModel, viewState?: IDiffEditorViewState): Promise<DiffEditorViewModel> {
+			const viewModel = disposables.add(RefCounted.create(widget.createViewModel({ original, modified })));
+			await viewModel.object.waitForDiff();
+			widget.setDiffModel(viewModel);
+			if (viewState) {
+				widget.restoreViewState(viewState);
+			}
+			return viewModel.object as DiffEditorViewModel;
+		}
+
+		function getUnchangedRegions(viewModel: DiffEditorViewModel): string[] {
+			return viewModel.unchangedRegions.get().map(r => `${r.modifiedUnchangedRange} top: ${r.visibleLineCountTop.get()}, bottom: ${r.visibleLineCountBottom.get()}`);
+		}
+
+		test('moving the cursor while unchanged regions are shown does not reveal them once they are hidden', async () => {
+			const { widget, createModel } = createDiffEditor({ hideUnchangedRegions: { enabled: false } });
+			try {
+				const viewModel = await openDiff(widget, createModel([]), createModel([50]));
+				widget.getModifiedEditor().setPosition(new Position(10, 1));
+				widget.getModifiedEditor().setPosition(new Position(90, 1));
+				widget.getOriginalEditor().setPosition(new Position(20, 1));
+				widget.updateOptions({ hideUnchangedRegions: { enabled: true } });
+
+				assert.deepStrictEqual(getUnchangedRegions(viewModel), [
+					'[1,47) top: 0, bottom: 0',
+					'[54,101) top: 0, bottom: 0',
+				]);
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+
+		test('moving the cursor in the original editor reveals up to that line', async () => {
+			const { widget, createModel } = createDiffEditor({ hideUnchangedRegions: { enabled: true } });
+			try {
+				// The inserted lines shift the line numbers of the modified side
+				const viewModel = await openDiff(widget, createModel([]), createModel([50], 3));
+				widget.getOriginalEditor().setPosition(new Position(10, 1));
+				widget.getOriginalEditor().setPosition(new Position(80, 1));
+
+				assert.deepStrictEqual(getUnchangedRegions(viewModel), [
+					'[7,50) top: 7, bottom: 0',
+					'[57,104) top: 0, bottom: 21',
+				]);
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+
+		test('view state saved while unchanged regions are shown does not reveal them once they are hidden', async () => {
+			const { widget, createModel } = createDiffEditor({ hideUnchangedRegions: { enabled: false } });
+			const original = createModel([]);
+			const modified = createModel([50]);
+			try {
+				await openDiff(widget, original, modified);
+				widget.getModifiedEditor().setPosition(new Position(80, 1));
+				const viewState = widget.saveViewState();
+
+				widget.updateOptions({ hideUnchangedRegions: { enabled: true } });
+				const viewModel = await openDiff(widget, original, modified, viewState);
+
+				assert.deepStrictEqual(getUnchangedRegions(viewModel), [
+					'[1,47) top: 0, bottom: 0',
+					'[54,101) top: 0, bottom: 0',
+				]);
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+
+		test('view state restored while unchanged regions are shown does not reveal them once they are hidden', async () => {
+			const { widget, createModel } = createDiffEditor({ hideUnchangedRegions: { enabled: true } });
+			const original = createModel([]);
+			const modified = createModel([50]);
+			try {
+				const viewModel1 = await openDiff(widget, original, modified);
+				viewModel1.unchangedRegions.get()[0].showMoreBelow(5, undefined);
+				const viewState = widget.saveViewState();
+
+				widget.updateOptions({ hideUnchangedRegions: { enabled: false } });
+				const viewModel2 = await openDiff(widget, original, modified, viewState);
+				widget.updateOptions({ hideUnchangedRegions: { enabled: true } });
+
+				assert.deepStrictEqual(getUnchangedRegions(viewModel2), [
+					'[1,47) top: 0, bottom: 0',
+					'[54,101) top: 0, bottom: 0',
+				]);
+			} finally {
+				widget.setDiffModel(null);
+			}
+		});
+
+		test('restoring a view state only restores unchanged regions that did not change', async () => {
+			const { widget, createModel } = createDiffEditor({ hideUnchangedRegions: { enabled: true } });
+			const original = createModel([]);
+			try {
+				const viewModel1 = await openDiff(widget, original, createModel([30, 60]));
+				widget.getModifiedEditor().setPosition(new Position(80, 1));
+				widget.collapseAllUnchangedRegions();
+				viewModel1.unchangedRegions.get()[0].showMoreBelow(5, undefined);
+				const viewState = widget.saveViewState();
+
+				const viewModel2 = await openDiff(widget, original, createModel([30]), viewState);
+
+				assert.deepStrictEqual(getUnchangedRegions(viewModel2), [
+					'[1,27) top: 0, bottom: 5',
+					'[34,101) top: 0, bottom: 0',
+				]);
+			} finally {
+				widget.setDiffModel(null);
+			}
 		});
 	});
 
