@@ -124,13 +124,14 @@ function mcpResource(): ICustomizationMarketplaceResource {
 	});
 }
 
-function connectorResource(): ICustomizationMarketplaceResource {
+function connectorResource(overrides: Partial<ICustomizationMarketplaceResource> = {}): ICustomizationMarketplaceResource {
 	return resource({
 		sourceId: 'copilotConnectors',
 		identifier: 'mail',
 		displayName: 'Mail',
 		mediaType: CustomizationMarketplaceMediaType.McpServer,
 		installation: { kind: 'copilotConnector', name: 'mail' },
+		...overrides,
 	});
 }
 
@@ -444,6 +445,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			readonly disconnectCalls: string[] = [];
 			statusOverride: CopilotConnectorConnectionStatus | undefined;
 			statusDetailOverride: CopilotConnectorConnectionStatusDetail | undefined;
+			documentationOverride: URI | undefined;
 			catalogVisible = true;
 			onConnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
 			onDisconnect: ((name: string, token: CancellationToken) => Promise<void>) | undefined;
@@ -458,6 +460,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					representativeQueries: [],
 					connectionStatus: this.statusOverride ?? (connectedConnectors.has('mail') ? 'connected' as const : 'not_connected' as const),
 					connectionStatusDetail: this.statusDetailOverride,
+					documentation: this.documentationOverride,
 					scopes: [],
 					mcpServers: [],
 				}] : [];
@@ -1163,7 +1166,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			const records = store.add(new CustomizationMarketplaceInstallationRecordStore(storage, store.add(new NullLogService()))).records;
 
-			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.description.length }, {
+			assert.deepStrictEqual({ count: records.size, largeDescriptionLength: records.values().next().value?.catalogue.description.length }, {
 				count: 1001,
 				largeDescriptionLength: 9000,
 			});
@@ -1202,7 +1205,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 			assert.deepStrictEqual({
 				records: records.map(record => ({
-					id: record.id,
+					id: record.installationId,
 					icon: URI.isUri(record.icon) ? record.icon.toString() : record.icon,
 				})),
 				warnings,
@@ -1245,7 +1248,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 
 		test('persists exact targets and reconciles a missing skill after service recreation', async () => {
 			const fixture = await createFixture();
-			const candidate = resource({ version: '1.0.0', icon: URI.parse('https://example.com/review.png') });
+			const candidate = resource({
+				version: '1.0.0',
+				url: URI.parse('https://example.com/a%2Fb'),
+				externalUrl: 'https://example.com/a%2Fb',
+				icon: URI.parse('https://example.com/review.png'),
+			});
 			await fixture.service.install(candidate);
 			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
 			assert.ok(storageKey);
@@ -1260,9 +1268,12 @@ suite('CustomizationMarketplaceInstallService', () => {
 			assert.deepStrictEqual({
 				record: {
 					version: stored.version,
-					sourceId: storedRecord?.sourceId,
-					identifier: storedRecord?.identifier,
-					resourceVersion: storedRecord?.version,
+					schemaVersion: storedRecord?.schemaVersion,
+					installationId: /^[0-9a-f]{64}$/.test(storedRecord?.installationId),
+					operationId: /^[0-9a-f]{32}$/.test(storedRecord?.operationId),
+					installedAt: typeof storedRecord?.installedAt === 'string' && new Date(storedRecord.installedAt).toISOString() === storedRecord.installedAt,
+					mediaType: storedRecord?.mediaType,
+					catalogue: storedRecord?.catalogue,
 					icon: storedRecord?.icon,
 					targetKind: storedRecord?.target.kind,
 					targetUri: storedRecord?.target.uri,
@@ -1274,10 +1285,20 @@ suite('CustomizationMarketplaceInstallService', () => {
 				recordedIcon: URI.isUri(recordedIcon) ? recordedIcon.toString() : undefined,
 			}, {
 				record: {
-					version: 1,
-					sourceId: 'testSource',
-					identifier: 'skill-resource',
-					resourceVersion: '1.0.0',
+					version: 2,
+					schemaVersion: 1,
+					installationId: true,
+					operationId: true,
+					installedAt: true,
+					mediaType: CustomizationMarketplaceMediaType.Skill,
+					catalogue: {
+						resourceId: 'skill-resource',
+						itemUrl: 'https://example.com/a%2Fb',
+						displayName: 'Demo Skill',
+						description: 'A skill with scripts and assets',
+						version: '1.0.0',
+						source: 'testSource',
+					},
 					icon: 'https://example.com/review.png',
 					targetKind: 'skill',
 					targetUri: joinPath(skillDestination, SKILL_FILENAME).toString(),
@@ -1290,7 +1311,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 			});
 		});
 
-		test('persists themed icon variants while retaining the v1 scalar icon field', async () => {
+		test('persists themed icon variants while retaining the scalar icon field', async () => {
 			const fixture = await createFixture();
 			const candidate = resource({
 				icon: {
@@ -1316,7 +1337,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 					dark: restoredIcon?.dark.toString(),
 				},
 			}, {
-				storedVersion: 1,
+				storedVersion: 2,
 				storedLight: 'https://example.com/review-light.png',
 				storedDark: 'https://example.com/review-dark.png',
 				restored: {
@@ -2482,6 +2503,47 @@ suite('CustomizationMarketplaceInstallService', () => {
 					installation: { kind: 'copilotConnector', name: 'mail' },
 				}],
 				installationRecordCount: 1,
+			});
+		});
+
+		test('refreshes connector installation record URL and publisher metadata', async () => {
+			const fixture = await createFixture();
+			const firstDocumentation = URI.parse('https://example.com/connector');
+			fixture.connectorsService.documentationOverride = firstDocumentation;
+			await fixture.service.install(connectorResource({
+				url: firstDocumentation,
+				externalUrl: firstDocumentation.toString(true),
+			}));
+			const storageKey = fixture.storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).find(key => key.includes('customizations.marketplace.installationRecord.v1'));
+			assert.ok(storageKey);
+
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const afterPublisherRefresh = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!).record.catalogue;
+
+			fixture.connectorsService.documentationOverride = URI.parse('https://example.com/updated-connector');
+			fixture.connectorChanges.fire();
+			await timeout(0);
+			const afterUrlRefresh = JSON.parse(fixture.storageService.get(storageKey, StorageScope.PROFILE)!).record.catalogue;
+
+			assert.deepStrictEqual({
+				afterPublisherRefresh: {
+					itemUrl: afterPublisherRefresh.itemUrl,
+					publisher: afterPublisherRefresh.publisher,
+				},
+				afterUrlRefresh: {
+					itemUrl: afterUrlRefresh.itemUrl,
+					publisher: afterUrlRefresh.publisher,
+				},
+			}, {
+				afterPublisherRefresh: {
+					itemUrl: 'https://example.com/connector',
+					publisher: 'GitHub Copilot',
+				},
+				afterUrlRefresh: {
+					itemUrl: 'https://example.com/updated-connector',
+					publisher: 'GitHub Copilot',
+				},
 			});
 		});
 
