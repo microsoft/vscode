@@ -12,6 +12,8 @@ async page => {
 		'.monaco-workbench .interactive-session .chat-input-container :is(.native-edit-context, textarea.inputarea)'
 	];
 
+	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
+
 	const findVisibleChatInput = async () => {
 		let firstVisible;
 		for (const selector of selectors) {
@@ -32,13 +34,13 @@ async page => {
 	};
 
 	const isFocused = input => input.evaluate(element => document.activeElement === element);
-	const focusIfNeeded = async input => {
+	const focusIfNeeded = async (input, selector) => {
 		if (await isFocused(input)) {
 			return false;
 		}
 		await input.focus();
 		if (!await isFocused(input)) {
-			throw new Error('Chat input did not retain focus');
+			throw new Error(`Chat input did not retain focus (Platform: ${platform}, Selector: ${selector})`);
 		}
 		return true;
 	};
@@ -55,11 +57,10 @@ async page => {
 
 	let match = await findVisibleChatInput();
 	if (match) {
-		const focusInvoked = await focusIfNeeded(match.input);
+		const focusInvoked = await focusIfNeeded(match.input, match.selector);
 		return { focused: true, focusChanged: focusInvoked, focusInvoked, shortcutInvoked: false, commandPaletteFallbackInvoked: false, selector: match.selector };
 	}
 
-	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
 	const shortcut = /^mac/i.test(platform) ? 'Control+Meta+i' : 'Control+Alt+i';
 	await page.keyboard.press(shortcut);
 	match = await waitForVisibleChatInput(10);
@@ -74,7 +75,7 @@ async page => {
 		try {
 			await commandPaletteInput.waitFor({ state: 'visible', timeout: 1000 });
 		} catch {
-			throw new Error('F1 did not open the Command Palette; check the cloned profile keybindings');
+			throw new Error(`F1 did not open the Command Palette (Platform: ${platform}, Command: ${commandId}); check the cloned profile keybindings`);
 		}
 		await commandPaletteInput.fill(`>${commandId}`);
 		await page.keyboard.press('Enter');
@@ -82,9 +83,9 @@ async page => {
 	}
 
 	if (!match) {
-		throw new Error(`No visible chat input found after invoking ${shortcut} and the command palette fallback`);
+		throw new Error(`No visible chat input found after invoking shortcut (${shortcut}) and the command palette fallback (Platform: ${platform}, Tested Selectors: ${selectors.length})`);
 	}
 
-	const focusInvoked = await focusIfNeeded(match.input);
+	const focusInvoked = await focusIfNeeded(match.input, match.selector);
 	return { focused: true, focusChanged: true, focusInvoked, shortcutInvoked: true, commandPaletteFallbackInvoked, selector: match.selector };
 }
