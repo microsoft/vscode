@@ -774,7 +774,7 @@ suite('ExtensionEnablementService Test', () => {
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);
 	});
 
-	test('test extension without any value for virtual worksapce is enabled in virtual workspace', async () => {
+	test('test extension without any value for virtual workspace is enabled in virtual workspace', async () => {
 		const extension = aLocalExtension2('pub.a');
 		instantiationService.stub(IWorkspaceContextService, 'getWorkspace', <IWorkspace>{ folders: [{ uri: URI.file('worskapceA').with(({ scheme: 'virtual' })) }] });
 		testObject = disposableStore.add(new TestExtensionEnablementService(instantiationService));
