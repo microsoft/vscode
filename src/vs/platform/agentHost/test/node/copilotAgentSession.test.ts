@@ -8532,6 +8532,38 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('approves a permissive retry without disabling the session sandbox', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+				sandboxPolicy: { enabled: true, allowBypass: true },
+			});
+			const request = { ...createShellPermissionRequest(), requestSandboxBypass: true, requestSandboxPermissive: true };
+			const resultPromise = runtime.handlePermissionRequest(request);
+			const signal = await waitForSignal(signal => signal.kind === 'pending_confirmation');
+
+			assert.ok(session.respondToPermissionRequest(request.toolCallId, true, {
+				selectedOptionId: 'allow-session',
+				decisionSource: 'human_response',
+			}));
+
+			assert.deepStrictEqual({
+				result: await resultPromise,
+				signal: signal.kind === 'pending_confirmation' ? {
+					requestSandboxBypass: signal.requestSandboxBypass,
+					requestSandboxPermissive: signal.requestSandboxPermissive,
+					canAllowSessionSandboxBypass: signal.canAllowSessionSandboxBypass,
+				} : undefined,
+				sandboxDisableRequests: mockSession.sandboxDisableRequests,
+			}, {
+				result: { kind: 'approve-once' },
+				signal: {
+					requestSandboxBypass: true,
+					requestSandboxPermissive: true,
+					canAllowSessionSandboxBypass: false,
+				},
+				sandboxDisableRequests: [],
+			});
+		});
+
 		for (const followUp of ['another tool call', 'another permission kind', 'a denied shell request', 'a custom shell tool'] as const) {
 			test(`does not reuse shell approval for ${followUp}`, async () => {
 				const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
