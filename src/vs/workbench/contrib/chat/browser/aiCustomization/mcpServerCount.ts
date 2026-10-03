@@ -29,7 +29,7 @@ export class ActiveSessionMcpServerMatcher {
 		for (const server of servers) {
 			const separator = server.id.indexOf('/');
 			const rawId = separator >= 0 ? server.id.slice(separator + 1) : server.id;
-			for (const key of getUniqueMcpMatchKeys([rawId, server.name, server.displayName])) {
+			for (const key of getUniqueMcpMatchKeys([rawId, server.name])) {
 				let bucket = this.byKey.get(key);
 				if (!bucket) {
 					bucket = [];
@@ -47,6 +47,20 @@ export class ActiveSessionMcpServerMatcher {
 				this.matchedIds.add(matches[0].id);
 				return matches[0];
 			}
+		}
+		return undefined;
+	}
+
+	takeConnector(keys: readonly (string | undefined)[], displayNames: readonly (string | undefined)[]): AgentHostMcpServer | undefined {
+		const exactMatch = this.take(keys);
+		if (exactMatch) {
+			return exactMatch;
+		}
+		const names = new Set(getUniqueMcpMatchKeys(displayNames));
+		const matches = this.servers.filter(server => !this.matchedIds.has(server.id) && server.displayName !== undefined && names.has(server.displayName));
+		if (matches.length === 1) {
+			this.matchedIds.add(matches[0].id);
+			return matches[0];
 		}
 		return undefined;
 	}

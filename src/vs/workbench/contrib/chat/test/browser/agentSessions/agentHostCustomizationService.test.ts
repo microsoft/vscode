@@ -137,7 +137,7 @@ class TestSessionSubscription extends mock<IAgentSubscription<SessionState>>() {
 suite('AbstractAgentHostCustomizationService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createSut(authenticationError?: Error): TestAgentHostCustomizationService {
+	function createSut(authenticationError?: Error, authenticationTargets?: Array<{ id: string; name: string }>): TestAgentHostCustomizationService {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILoggerService, store.add(new NullLoggerService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -153,7 +153,9 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 		instantiationService.stub(IAuthenticationMcpAccessService, { isAccessAllowedForUrl: () => true });
 		instantiationService.stub(IAuthenticationMcpService, { getAccountPreference: () => undefined });
-		instantiationService.stub(IAuthenticationMcpUsageService, { addAccountUsage: () => { } });
+		instantiationService.stub(IAuthenticationMcpUsageService, {
+			addAccountUsage: (_providerId, _accountName, _scopes, id, name) => authenticationTargets?.push({ id, name }),
+		});
 		instantiationService.stub(IDynamicAuthenticationProviderStorageService, {});
 		instantiationService.stub(IOutputService, {
 			getChannel: () => undefined,
@@ -368,10 +370,12 @@ suite('AbstractAgentHostCustomizationService', () => {
 	});
 
 	test('starts an unchanged auth-required server before forwarding root authentication results', async () => {
-		const sut = createSut();
+		const authenticationTargets: Array<{ id: string; name: string }> = [];
+		const sut = createSut(undefined, authenticationTargets);
 		const session = URI.parse('vscode-agent-session:///session-1');
 		const target = new FakeTarget([{
 			...mcpServer('server-1', 'Server One'),
+			_meta: withMcpServerDisplayNameMeta(undefined, 'Connector One'),
 			state: {
 				kind: McpServerStatus.AuthRequired,
 				reason: McpAuthRequiredReason.Required,
@@ -389,6 +393,7 @@ suite('AbstractAgentHostCustomizationService', () => {
 			startCalls: target.startCalls,
 			operationLog: target.operationLog,
 			authenticateCalls: target.authenticateCalls,
+			authenticationTargets,
 		}, {
 			authentication: [true, true],
 			startCalls: ['server-1', 'server-1'],
@@ -396,6 +401,10 @@ suite('AbstractAgentHostCustomizationService', () => {
 			authenticateCalls: [
 				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
 				{ resource: 'https://mcp.example.com', scopes: [], token: 'token' },
+			],
+			authenticationTargets: [
+				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One' },
+				{ id: 'agent-host-mcp:/Server%20One/https%3A%2F%2Fmcp.example.com', name: 'Connector One' },
 			],
 		});
 

@@ -691,6 +691,25 @@ suite('mcpListWidget', () => {
 		}, { matched: servers.slice(0, 2).map(server => server.id), rows: 13, enabled: 11 });
 	});
 
+	test('restricts display-name matching to connector rows', () => {
+		const connectorServer = createAgentHostServer({
+			id: 'session/github-copilot-connector-94d26095770df60673dd',
+			name: 'github-copilot-connector-94d26095770df60673dd',
+			displayName: 'GitHub',
+		});
+		const matcher = new ActiveSessionMcpServerMatcher([connectorServer]);
+
+		assert.deepStrictEqual({
+			genericMatch: matcher.take(['GitHub'])?.id,
+			connectorMatch: matcher.takeConnector(['github-mcp'], ['github', 'GitHub'])?.id,
+			unmatched: matcher.unmatched('').map(server => server.id),
+		}, {
+			genericMatch: undefined,
+			connectorMatch: connectorServer.id,
+			unmatched: [],
+		});
+	});
+
 	test('classifies active-session-only MCP servers as built-in entries', () => {
 		const server = createAgentHostServer({ name: 'node_repl' });
 

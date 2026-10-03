@@ -3056,7 +3056,7 @@ export class McpListWidget extends Disposable {
 					server.connector.description,
 					server.serverName,
 				].some(value => value.toLowerCase().includes(query)))
-				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.take([server.serverName, server.connector.name, server.connector.displayName])))
+				.map(server => createConnectorMcpEntry(server, activeSessionMatcher.takeConnector([server.serverName], [server.connector.name, server.connector.displayName])))
 			: [];
 		const activeSessionOnlyServers = activeSessionMatcher.unmatched(query);
 		const activeSessionBuiltinEntries = createBuiltinActiveSessionMcpEntries(activeSessionOnlyServers);

@@ -348,7 +348,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
-				mcpServerName: server.name,
+				mcpServerName: readMcpServerDisplayName(server) ?? server.name,
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],
