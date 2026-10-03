@@ -406,6 +406,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 	private readonly _sessionStates: ResourceMap<ISessionState>;
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
+	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
 	private readonly _navigation: SessionsNavigation;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
@@ -507,18 +508,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const activeSession = this.activeSession.read(reader);
 			if (activeSession) {
 				reader.store.add(this._activeSessionViewListeners(activeSession));
-			}
-		}));
-
-		// Honor explicit unread marks until the user leaves the session and returns.
-		let previousActiveSessionId: string | undefined;
-		this._register(autorun(reader => {
-			const activeSession = this.activeSession.read(reader);
-			const isRead = activeSession?.isRead.read(reader);
-			const activeSessionChanged = activeSession?.sessionId !== previousActiveSessionId;
-			previousActiveSessionId = activeSession?.sessionId;
-			if (activeSession && (activeSessionChanged || !isRead)) {
-				this.sessionsManagementService.markRead(activeSession, { preserveExplicitUnread: !activeSessionChanged }).catch(onUnexpectedError);
 			}
 		}));
 
@@ -664,6 +653,44 @@ export class SessionsService extends Disposable implements ISessionsService {
 					activeChatResource: chat.resource.toString(),
 					activeChatOrigin: chat.origin?.kind,
 				});
+			}
+		}));
+
+		let previousActiveChat: URI | undefined;
+		let lastReadRequest: { readonly chat: URI; readonly version: number | undefined } | undefined;
+		disposables.add(autorun(reader => {
+			const chat = activeSession.activeChat.read(reader);
+			const mainChat = activeSession.mainChat.read(reader);
+			const hasMultipleAggregateChats = activeSession.chats.read(reader)
+				.filter(candidate => candidate.origin?.kind !== ChatOriginKind.Tool && candidate.interactivity.read(reader) !== ChatInteractivity.Hidden)
+				.length > 1;
+			const activeChatChanged = !chat || !previousActiveChat || !this.uriIdentityService.extUri.isEqual(chat.resource, previousActiveChat);
+			previousActiveChat = chat?.resource;
+			if (activeChatChanged) {
+				lastReadRequest = undefined;
+			}
+			if (!chat || chat.isRead.read(reader)) {
+				return;
+			}
+			const pendingExplicitChat = this._pendingExplicitChatOpens.get(activeSession.resource)?.chatResource;
+			if (pendingExplicitChat && !this.uriIdentityService.extUri.isEqual(chat.resource, pendingExplicitChat)) {
+				return;
+			}
+			const version = (chat.lastTurnEnd?.read(reader) ?? chat.updatedAt.read(reader))?.getTime();
+			// Deduplicate stale read-state echoes without suppressing the next completed turn in the active chat.
+			if (lastReadRequest
+				&& this.uriIdentityService.extUri.isEqual(lastReadRequest.chat, chat.resource)
+				&& lastReadRequest.version === version) {
+				return;
+			}
+			lastReadRequest = { chat: chat.resource, version };
+			if (!hasMultipleAggregateChats && this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)) {
+				this.sessionsManagementService.markRead(activeSession, {
+					preserveExplicitUnread: !activeChatChanged,
+					chatVersion: version,
+				}).catch(onUnexpectedError);
+			} else {
+				this.sessionsManagementService.markChatRead(activeSession, chat).catch(onUnexpectedError);
 			}
 		}));
 
@@ -835,41 +862,49 @@ export class SessionsService extends Disposable implements ISessionsService {
 	}
 
 	private async _openChat(session: ISession, chatUri: URI, preserveFocus: boolean | undefined, token: CancellationToken, startTime: number, telemetryAttempt?: ISessionOpenTelemetryAttempt): Promise<void> {
-		if (telemetryAttempt) {
-			this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
-		}
-		this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
-		this._activate(session, preserveFocus);
-		if (!await this._waitForSessionToLoad(session, token)) {
-			this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
-			return;
-		}
+		const pendingOpen = { chatResource: chatUri, token };
+		this._pendingExplicitChatOpens.set(session.resource, pendingOpen);
+		try {
+			if (telemetryAttempt) {
+				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chatUri);
+			}
+			this.logService.trace(`[SessionsView] openChat start uri=${chatUri.toString()} provider=${session.providerId}`);
+			this._activate(session, preserveFocus);
+			if (!await this._waitForSessionToLoad(session, token)) {
+				this.logService.trace(`[SessionsView] openChat cancelled while waiting for session to load uri=${chatUri.toString()}`);
+				return;
+			}
 
-		// Find the chat and update active chat
-		let chat: IChat | undefined;
-		const activeSession = this._visibility.activeSession.get();
-		if (activeSession) {
-			chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
-			if (chat) {
-				// Opening a chat also un-hides it if it was previously closed.
-				this._visibility.openChat(session, chat);
-				this._visibility.setActiveChat(session, chat);
-				this._setChatVisibilityState(session, chat, true);
+			// Find the chat and update active chat
+			let chat: IChat | undefined;
+			const activeSession = this._visibility.activeSession.get();
+			if (activeSession) {
+				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
+				if (chat) {
+					// Opening a chat also un-hides it if it was previously closed.
+					this._visibility.openChat(session, chat);
+					this._visibility.setActiveChat(session, chat);
+					this._setChatVisibilityState(session, chat, true);
+				}
+			}
+			if (telemetryAttempt) {
+				if (chat) {
+					this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
+				}
+				this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
+			}
+
+			if (chat && chat.status.get() === SessionStatus.Untitled) {
+				this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
+				return;
+			}
+
+			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
+		} finally {
+			if (this._pendingExplicitChatOpens.get(session.resource) === pendingOpen) {
+				this._pendingExplicitChatOpens.delete(session.resource);
 			}
 		}
-		if (telemetryAttempt) {
-			if (chat) {
-				this.sessionOpenTelemetryService.sessionActivated(telemetryAttempt, chat.resource);
-			}
-			this.sessionOpenTelemetryService.sessionLoaded(telemetryAttempt);
-		}
-
-		if (chat && chat.status.get() === SessionStatus.Untitled) {
-			this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()} path=untitled`);
-			return;
-		}
-
-		this.logService.trace(`[SessionsView] openChat done total=${Date.now() - startTime}ms uri=${chatUri.toString()}`);
 	}
 
 	async closeChat(session: IActiveSession, chat: IChat, options?: ICloseChatOptions): Promise<void> {

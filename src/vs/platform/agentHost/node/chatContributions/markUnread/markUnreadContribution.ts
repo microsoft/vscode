@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ILogService } from '../../../../log/common/log.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { isAhpChatChannel, isDefaultChatUri, SessionStatus } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isChatInSessionReadAggregate, SessionStatus } from '../../../common/state/sessionState.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
-import { IAgentHostPeerChatPersistenceService } from '../../agentHostPeerChatStore.js';
 
 /** Marks a read session unread after a terminal turn outcome. */
 export class MarkUnreadContribution extends Disposable implements IAgentHostChatContribution {
@@ -23,8 +20,6 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 	constructor(
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
-		@IAgentHostPeerChatPersistenceService private readonly _peerChatPersistenceService: IAgentHostPeerChatPersistenceService,
-		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 	}
@@ -34,13 +29,17 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 		if (turn.reason.kind === 'localCommand' || turn.reason.kind === 'rejected') {
 			return;
 		}
-		if (isAhpChatChannel(turn.channel) && !isDefaultChatUri(turn.channel)) {
-			void this._peerChatPersistenceService.setRead(URI.parse(turn.session), URI.parse(turn.channel), false)
-				.catch(error => this._logService.error(error, `[MarkUnreadContribution] Failed to persist unread state for ${turn.channel}`));
+		const session = this._stateManager.getSessionState(turn.session);
+		const chatSummary = isAhpChatChannel(turn.channel)
+			? session?.chats.find(chat => chat.resource === turn.channel)
+			: undefined;
+		const isKnownChat = !!chatSummary;
+		if (isKnownChat) {
+			this._stateManager.dispatchServerAction(turn.channel, { type: ActionType.ChatIsReadChanged, isRead: false });
 		}
-		// Route subagent turns to their owning session too (a background subagent
-		// can complete after the parent turn). Each client keeps its active session
-		// read; marking it unread is idempotent.
+		if (!isChatInSessionReadAggregate(turn.channel, chatSummary?.origin)) {
+			return;
+		}
 		const status = this._stateManager.getSessionSummary(turn.session)?.status ?? 0;
 		if (!(status & SessionStatus.IsRead)) {
 			return;

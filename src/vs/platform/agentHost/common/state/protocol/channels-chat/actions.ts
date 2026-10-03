@@ -819,6 +819,27 @@ export interface ChatDraftChangedAction {
 }
 
 /**
+ * The read state of the chat changed.
+ *
+ * Dispatched by a client to mark any known chat, including the owning
+ * session's default chat, as read (e.g. after viewing it) or unread. This
+ * changes only the addressed chat; it does not change the read state of its
+ * owning session or sibling chats. Use `session/isReadChanged` only to change
+ * the owning session's independent read state. After accepting this action,
+ * the host also synchronizes the addressed chat's `ChatSummary.status` and
+ * `SessionChatSummary.status` projections.
+ *
+ * @category Chat Actions
+ * @version 1
+ * @clientDispatchable
+ */
+export interface ChatIsReadChangedAction {
+	type: ActionType.ChatIsReadChanged;
+	/** Whether the chat has been read */
+	isRead: boolean;
+}
+
+/**
  * The archived state of the chat changed.
  *
  * Dispatched by a client to archive a chat independently of its owning
@@ -926,6 +947,7 @@ export type ChatAction =
 	| ChatPendingMessageRemovedAction
 	| ChatQueuedMessagesReorderedAction
 	| ChatDraftChangedAction
+	| ChatIsReadChangedAction
 	| ChatIsArchivedChangedAction
 	| ChatInputRequestedAction
 	| ChatInputAnswerChangedAction

@@ -147,11 +147,6 @@ export interface ICreateNewChatInSessionOptions {
 	readonly forceNew?: boolean;
 }
 
-export interface IMarkSessionReadOptions {
-	/** Keep an explicit unread mark during automatic updates within the current visit. */
-	readonly preserveExplicitUnread?: boolean;
-}
-
 /**
  * Event fired when sessions change within a provider.
  */
@@ -238,11 +233,14 @@ export interface IRecentlyOpenedSessions {
 	readonly other: ISession[];
 }
 
-/**
- * An active session item extends IChatSessionItem with repository information.
- * - For agent session items: repository is the workingDirectory from metadata
- * - For new sessions: repository comes from the session option with id 'repository'
- */
+/** Controls automatic read transitions for an active single-chat session. */
+export interface IMarkSessionReadOptions {
+	/** Preserve a user-requested unread state until the active chat advances. */
+	readonly preserveExplicitUnread?: boolean;
+	/** Version of the active chat used to detect a newly completed turn. */
+	readonly chatVersion?: number;
+}
+
 export interface ISessionsManagementService {
 	readonly _serviceBrand: undefined;
 
@@ -576,6 +574,9 @@ export interface ISessionsManagementService {
 	 * persists the read state and reflects it on {@link ISession.isRead}.
 	 */
 	setSessionReadState(session: ISession, isRead: boolean): Promise<void>;
+
+	/** Mark a chat as read through its provider when it supports independent chat read state. */
+	markChatRead(session: ISession, chat: IChat): Promise<void>;
 
 	/** Mark a session as read through its provider. */
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void>;

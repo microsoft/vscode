@@ -34,7 +34,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ChatOriginKind, MessageAttachmentKind } from '../../common/state/protocol/state.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatInteractivity, MessageKind, PendingMessageKind, ResponsePartKind, SessionStatus, TurnState, withSessionExternal, type ISessionGitHubState, type Message, type PendingMessage, type Turn } from '../../common/state/sessionState.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
@@ -56,6 +56,7 @@ import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentSessionRegistry, IAgentSessionRegistry } from '../../node/agentSessionRegistry.js';
 import { AdditionalWorktreeLifecycleService, IAdditionalWorktreeLifecycleService } from '../../node/chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { ChatArchiveContribution } from '../../node/chatContributions/chatArchive/chatArchiveContribution.js';
+import { ChatReadContribution } from '../../node/chatContributions/chatRead/chatReadContribution.js';
 import { LocalCommandContribution } from '../../node/chatContributions/localCommand/localCommandContribution.js';
 import { MarkUnreadContribution } from '../../node/chatContributions/markUnread/markUnreadContribution.js';
 import { QueueDrainContribution } from '../../node/chatContributions/queueDrain/queueDrainContribution.js';
@@ -1127,8 +1128,22 @@ suite('AgentHostChatContributions', () => {
 				persisted.push({ session: session.toString(), chat: chat.toString(), archived });
 			},
 		};
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		stateManager.createSession({
+			resource: session,
+			provider: 'test',
+			title: 'Archive',
+			status: SessionStatus.IsRead,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+		});
+		stateManager.addChat(session, peerChat);
+		stateManager.addChat(session, failingChat);
+		stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+		stateManager.dispatchServerAction(failingChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 		const services = new ServiceCollection(
 			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
 			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
@@ -1145,20 +1160,23 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual({
 			persisted,
 			errors,
+			peerRead: !!((stateManager.getChatState(peerChat)?.status ?? 0) & SessionStatus.IsRead),
+			failingRead: !!((stateManager.getChatState(failingChat)?.status ?? 0) & SessionStatus.IsRead),
 		}, {
 			persisted: [
 				{ session, chat: peerChat, archived: true },
 				{ session, chat: peerChat, archived: false },
 			],
 			errors: [`Error: write failed [ChatArchiveContribution] Failed to persist archived state for ${failingChat}`],
+			peerRead: true,
+			failingRead: true,
 		});
 	});
 
-	test('mark unread contribution persists each completed peer while the session is already unread', () => {
+	test('mark unread contribution updates each completed chat while the session is already unread', () => {
 		const session = 'agent-host-session://unread';
 		const firstPeer = buildChatUri(session, 'first-peer');
 		const secondPeer = buildChatUri(session, 'second-peer');
-		const persisted: { session: string; chat: string; isRead: boolean }[] = [];
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		stateManager.createSession({
@@ -1171,17 +1189,15 @@ suite('AgentHostChatContributions', () => {
 		});
 		stateManager.addChat(session, firstPeer);
 		stateManager.addChat(session, secondPeer);
-		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
-			_serviceBrand: undefined,
-			setRead: async (session: URI, chat: URI, isRead: boolean) => {
-				persisted.push({ session: session.toString(), chat: chat.toString(), isRead });
-			},
-			setArchived: async () => { },
-		};
+		const chatReadChanges: { chat: string; isRead: boolean }[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.ChatIsReadChanged) {
+				chatReadChanges.push({ chat: envelope.channel, isRead: envelope.action.isRead });
+			}
+		}));
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
-			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
 		);
 		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1192,10 +1208,106 @@ suite('AgentHostChatContributions', () => {
 		contributions.turnEnd({ session, channel: buildDefaultChatUri(session), turnId: 'default', reason: { kind: 'success' } });
 		contributions.turnEnd({ session, channel: firstPeer, turnId: undefined, reason: { kind: 'rejected', error: { errorType: 'requestFailed', message: 'rejected' } } });
 
-		assert.deepStrictEqual(persisted, [
-			{ session, chat: firstPeer, isRead: false },
-			{ session, chat: secondPeer, isRead: false },
-		]);
+		assert.deepStrictEqual({
+			chatReadChanges,
+			defaultChatIsRead: !!(stateManager.getChatState(buildDefaultChatUri(session))!.status & SessionStatus.IsRead),
+			firstPeerIsRead: !!(stateManager.getChatState(firstPeer)!.status & SessionStatus.IsRead),
+			secondPeerIsRead: !!(stateManager.getChatState(secondPeer)!.status & SessionStatus.IsRead),
+			sessionIsRead: !!(stateManager.getSessionState(session)!.status & SessionStatus.IsRead),
+		}, {
+			chatReadChanges: [
+				{ chat: firstPeer, isRead: false },
+				{ chat: secondPeer, isRead: false },
+				{ chat: buildDefaultChatUri(session), isRead: false },
+			],
+			defaultChatIsRead: false,
+			firstPeerIsRead: false,
+			secondPeerIsRead: false,
+			sessionIsRead: false,
+		});
+	});
+
+	test('mark unread contribution leaves the parent read when a tool chat completes', () => {
+		const session = 'agent-host-session://tool-unread';
+		const toolChat = buildChatUri(session, 'tool');
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		stateManager.createSession({
+			resource: session,
+			provider: 'test',
+			title: 'Tool unread',
+			status: SessionStatus.IsRead,
+			createdAt: '2025-01-01T00:00:00.000Z',
+			modifiedAt: '2025-01-01T00:00:00.000Z',
+		});
+		stateManager.addChat(session, toolChat, {
+			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-call' },
+		});
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostStateManager, stateManager],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(MarkUnreadContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.turnEnd({ session, channel: toolChat, turnId: 'tool-turn', reason: { kind: 'success' } });
+
+		assert.deepStrictEqual({
+			sessionIsRead: !!(stateManager.getSessionState(session)!.status & SessionStatus.IsRead),
+			toolChatIsRead: !!(stateManager.getChatState(toolChat)!.status & SessionStatus.IsRead),
+		}, {
+			sessionIsRead: true,
+			toolChatIsRead: false,
+		});
+	});
+
+	test('chat read contribution persists accepted default and peer chat actions and logs failures', async () => {
+		const session = 'agent-host-session://read';
+		const peerChat = buildChatUri(session, 'peer');
+		const failingChat = buildChatUri(session, 'failing-peer');
+		const persisted: { session: string; chat: string; isRead: boolean }[] = [];
+		const errors: string[] = [];
+		const logService = new class extends NullLogService {
+			override error(message: string | Error, ...args: unknown[]): void {
+				errors.push([message, ...args].map(value => String(value)).join(' '));
+			}
+		};
+		const peerChatPersistenceService: IAgentHostPeerChatPersistenceService = {
+			_serviceBrand: undefined,
+			setRead: async (session: URI, chat: URI, isRead: boolean) => {
+				if (chat.toString() === failingChat) {
+					throw new Error('write failed');
+				}
+				persisted.push({ session: session.toString(), chat: chat.toString(), isRead });
+			},
+			setArchived: async () => { },
+		};
+		const database = new TestSessionDatabase();
+		const services = new ServiceCollection(
+			[ILogService, logService],
+			[IAgentHostPeerChatPersistenceService, peerChatPersistenceService],
+			[ISessionDataService, createSessionDataService(database)],
+		);
+		const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
+		const contributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
+		disposables.add(contributions.registerContribution(ChatReadContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
+
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsReadChanged, isRead: false }));
+		contributions.didDispatchAction(dispatchedAction(peerChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }, 'rejected'));
+		contributions.didDispatchAction(dispatchedAction(buildDefaultChatUri(session), session, { type: ActionType.ChatIsReadChanged, isRead: true }));
+		contributions.didDispatchAction(dispatchedAction(failingChat, session, { type: ActionType.ChatIsReadChanged, isRead: true }));
+		await Promise.resolve();
+
+		assert.deepStrictEqual({ persisted, defaultChatMetadata: database.setMetadataCalls, errors }, {
+			persisted: [
+				{ session, chat: peerChat, isRead: true },
+				{ session, chat: peerChat, isRead: false },
+			],
+			defaultChatMetadata: [{ key: AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, value: 'true' }],
+			errors: [`Error: write failed [ChatReadContribution] Failed to persist read state for ${failingChat}`],
+		});
 	});
 
 	test('deleteMemento drops a keyed entry so it is recreated from its factory', () => {

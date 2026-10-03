@@ -134,6 +134,7 @@ export class AgentHostCatalogListReader {
 				origin: fromCatalogChatOrigin(chat.origin),
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.isRead !== undefined ? { isRead: chat.isRead } : {}),
 			})),
 			...(meta !== undefined ? { _meta: meta } : {}),
 		};

@@ -349,6 +349,8 @@ async function normalizePreReleaseCatalogSchema(database: Database, currentVersi
 		const hasArchived = chatColumns.some(column => column.name === 'archived');
 		const hasRead = chatColumns.some(column => column.name === 'is_read');
 		if (currentVersion >= CHAT_READ_MIGRATION_VERSION) {
+			// Temporary compatibility for development profiles shared by worktrees
+			// whose pre-release schema versions can advance independently.
 			if (!hasArchived) {
 				await exec(database, chatArchiveMigrationSql);
 			}

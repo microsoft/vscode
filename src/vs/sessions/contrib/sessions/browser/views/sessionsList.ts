@@ -1616,11 +1616,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// CSS spin animation.
 		let agentMergeConfiguration: IObservable<ISessionAgentMergeConfiguration | undefined> | undefined;
 		template.elementDisposables.add(autorun(reader => {
+			const collapsed = this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const sessionStatus = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options.deriveStatusFromMainChat,
-				this.options.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			template.statusContext.set(sessionStatus);
 			const sessionIsRead = element.isRead.read(reader);
@@ -2952,11 +2953,12 @@ class SessionsAccessibilityProvider {
 			} else {
 				label = updatedAt ? localize('sessionItemAria', "{0}, updated {1}", title, fromNow(updatedAt, true)) : title;
 			}
+			const collapsed = this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true;
 			const status = getSessionRowStatus(
 				element,
 				reader,
 				!!this.options?.deriveStatusFromMainChat,
-				this.options?.collapsedSessionIds?.read(reader).has(element.sessionId) ?? true,
+				collapsed,
 			);
 			if (this.options?.deriveStatusFromMainChat) {
 				label = localize('sessionItemStatusAria', "{0}, {1}", label, getSessionConversationStatusAriaLabel(status));
@@ -5298,7 +5300,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 		if (this.pendingOpenRequest !== request) {
 			return false;
 		}
-		if (this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
+		const sessionRowRepresentsSession = getSessionListChats(session).length === 0 || this.collapsedSessionIds.get().has(session.sessionId);
+		if (!request.chat && sessionRowRepresentsSession && this._sessionsService.activeSession.get()?.sessionId !== session.sessionId) {
 			this.markRead(session);
 		}
 		this.invokeOpenRequest(request);

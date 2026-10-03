@@ -33,7 +33,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, parseChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, parseChatUri, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '../common/state/protocol/version/registry.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
@@ -1904,7 +1904,10 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				kind: s.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
 				origin: chat.origin,
 				...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
-				...(chat.archived === true ? { archived: true } : {}),
+				...(chat.status !== undefined ? {
+					archived: isSessionStatusArchived(chat.status),
+					isRead: isSessionStatusRead(chat.status),
+				} : {}),
 			})),
 			// Carry durable host provenance for sessions first materialized from a listing.
 			...(s._meta !== undefined ? { _meta: s._meta } : {}),

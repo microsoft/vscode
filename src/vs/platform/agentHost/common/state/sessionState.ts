@@ -36,6 +36,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type ChatOrigin,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -2339,11 +2340,13 @@ export const AH_META_AUTO_ARCHIVED_AT_DB_KEY = 'agentHost.autoArchivedAt';
 export const AH_META_IS_DONE_DB_KEY = 'isDone';
 
 /**
- * Session-database metadata key recording whether a session has been read. This is
- * the only durable representation of read state; the in-memory truth is
- * {@link SessionStatus.IsRead}. The host owns it — no agent SDK tracks read state.
+ * Session-database metadata key recording the session aggregate read state. The
+ * in-memory truth is {@link SessionStatus.IsRead}; chat state is stored separately.
  */
 export const AH_META_IS_READ_DB_KEY = 'isRead';
+
+/** Session-database metadata key recording the default chat's independent read state. */
+export const AH_META_DEFAULT_CHAT_IS_READ_DB_KEY = 'defaultChatIsRead';
 
 /** Returns `status` with `flag` set or cleared. */
 export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus, set: boolean): SessionStatus {
@@ -2353,6 +2356,14 @@ export function withSessionStatusFlag(status: SessionStatus, flag: SessionStatus
 /** Whether the {@link SessionStatus.IsRead} flag bit is set. */
 export function isSessionStatusRead(status: SessionStatus | undefined): boolean {
 	return status !== undefined && (status & SessionStatus.IsRead) !== 0;
+}
+
+/**
+ * Whether a chat participates in the containing session's aggregate read state.
+ * Tool/subagent chats retain exact per-chat state without making the session unread.
+ */
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin): boolean {
+	return origin?.kind !== ChatOriginKind.Tool && !isSubagentChatUri(resource);
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */

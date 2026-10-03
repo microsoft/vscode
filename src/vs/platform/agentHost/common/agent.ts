@@ -186,6 +186,8 @@ export interface IAgentSessionChatMetadata {
 	readonly origin?: ChatOrigin;
 	readonly interactivity?: ChatInteractivity;
 	readonly archived?: boolean;
+	/** Exact chat read state when known; absence means the provider did not supply it. */
+	readonly isRead?: boolean;
 }
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {

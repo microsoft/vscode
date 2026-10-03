@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -68,6 +68,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+	private readonly _explicitlyMarkedUnreadSessions = new ResourceMap<number | null>();
 
 	private readonly _onDidDiscardNewSession = this._register(new Emitter<ISession>());
 	readonly onDidDiscardNewSession: Event<ISession> = this._onDidDiscardNewSession.event;
@@ -88,8 +89,6 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _disposeCts = this._register(new CancellationTokenSource());
 	private readonly _unlistedNewSessions = new ResourceMap<ISession>();
 	private readonly _inFlightNewSessionRequests = new ResourceMap<{ readonly session: ISession; readonly input?: Pick<ISendRequestOptions, 'query' | 'attachedContext'>; readonly published: boolean; count: number }>();
-	private readonly _explicitlyMarkedUnreadSessions = new ResourceSet();
-
 	/**
 	 * Chat resources for which this service has just kicked off a
 	 * `provider.sendRequest` and will emit `_onDidSendRequest` manually after
@@ -177,6 +176,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _handleDidReplaceSession(from: ISession, to: ISession): void {
+		this._explicitlyMarkedUnreadSessions.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
 		this._onDidReplaceSession.fire({ from, to });
@@ -1328,24 +1328,48 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	async setSessionReadState(session: ISession, isRead: boolean): Promise<void> {
-		// Record intent before the provider can synchronously notify active-session observers.
 		if (isRead) {
 			this._explicitlyMarkedUnreadSessions.delete(session.resource);
-		} else {
-			this._explicitlyMarkedUnreadSessions.add(session.resource);
 		}
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
+	async markChatRead(session: ISession, chat: IChat): Promise<void> {
+		await this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true);
+	}
+
 	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void> {
-		if (options?.preserveExplicitUnread && this._explicitlyMarkedUnreadSessions.has(session.resource)) {
-			return Promise.resolve();
+		const explicitUnreadVersion = this._explicitlyMarkedUnreadSessions.get(session.resource);
+		if (options?.preserveExplicitUnread && explicitUnreadVersion !== undefined) {
+			if (explicitUnreadVersion === null) {
+				this._explicitlyMarkedUnreadSessions.set(session.resource, options.chatVersion ?? null);
+				return Promise.resolve();
+			}
+			if (explicitUnreadVersion === options.chatVersion) {
+				return Promise.resolve();
+			}
 		}
 		return this.setSessionReadState(session, true);
 	}
 
-	markUnread(session: ISession): Promise<void> {
-		return this.setSessionReadState(session, false);
+	async markUnread(session: ISession): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			return;
+		}
+		const hadExplicitUnread = this._explicitlyMarkedUnreadSessions.has(session.resource);
+		const previousVersion = this._explicitlyMarkedUnreadSessions.get(session.resource);
+		this._explicitlyMarkedUnreadSessions.set(session.resource, null);
+		try {
+			await provider.setSessionReadState(session.sessionId, false);
+		} catch (error) {
+			if (hadExplicitUnread) {
+				this._explicitlyMarkedUnreadSessions.set(session.resource, previousVersion ?? null);
+			} else {
+				this._explicitlyMarkedUnreadSessions.delete(session.resource);
+			}
+			throw error;
+		}
 	}
 
 	async markAllRead(sessions: readonly ISession[]): Promise<void> {

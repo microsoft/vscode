@@ -48,7 +48,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentMergeConfigKey, readAgentMergeSessionState } from '../../common/agentMerge.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, ActionEnvelope, NotificationType, type INotification, type SessionSummaryChanges } from '../../common/state/sessionActions.js';
-import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, readSessionEhcliAdopted, AH_META_IS_ARCHIVED_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ChangesetStatus, CustomizationType, MessageAttachmentKind, MessageKind, SessionActiveClient, ResponsePartKind, ROOT_STATE_URI, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_MULTI_ROOT_KEY, SessionLifecycle, SessionSourceControlOutcome, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, customizationId, isDefaultChatUri, isMessageRequestHiddenFromTranscript, isSessionStatusArchived, isSessionStatusRead, isSubagentSession, parseChatUri, parseSubagentSessionUri, readSessionCreationReference, readSessionEhcliAdoptable, readSessionExternal, readSessionGitHubData, readSessionGitHubState, readSessionGitState, readWorkingDirectoryKeys, readWorkingDirectoryScopeIds, SESSION_META_GITHUB_DATA_KEY, readSessionMultiRootMetadata, readSessionFolderPickerDecision, readSessionSourceControlState, readSessionWorkspaceless, withSessionEhcliAdoptable, withSessionExternal, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, ChatOriginKind, type ChangesetState, type ISessionFolderPickerDecision, type ISessionWithDefaultChat, type MarkdownResponsePart, type SessionState, type SessionSummary, type SessionSummaryMeta, type ToolCallCompletedState, type ToolCallResponsePart, type Turn } from '../../common/state/sessionState.js';
 import { BackgroundWorkKind, ChatInteractivity, PendingMessageKind, type BackgroundWork, type Message, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
 import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
@@ -3724,6 +3724,65 @@ suite('AgentService (node dispatcher)', () => {
 				rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
 				chatArchived: false,
 				sessionArchived: false,
+			});
+		});
+
+		test('applies independent read actions to the default chat only', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const defaultChat = buildDefaultChatUri(session.toString());
+			const peerChat = buildChatUri(session, 'peer');
+			getStateManager(svc).addChat(session.toString(), peerChat);
+			getStateManager(svc).dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(defaultChat, {
+				type: ActionType.ChatIsReadChanged,
+				isRead: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+			const metadata = (await svc.listSessions()).find(candidate => candidate.session.toString() === session.toString());
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chatRead: ((getStateManager(svc).getChatState(defaultChat)?.status ?? 0) & SessionStatus.IsRead) !== 0,
+				sessionRead: ((getStateManager(svc).getSessionState(session.toString())?.status ?? 0) & SessionStatus.IsRead) !== 0,
+				listChatReadState: metadata?.chats?.map(chat => ({ kind: chat.kind, isRead: chat.isRead })),
+			}, {
+				rejectionReason: undefined,
+				chatRead: true,
+				sessionRead: false,
+				listChatReadState: [
+					{ kind: 'default', isRead: true },
+					{ kind: 'peer', isRead: false },
+				],
+			});
+		});
+
+		test('rejects independent read actions for an unknown chat', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const unknownChat = buildChatUri(session, 'unknown');
+			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+
+			svc.dispatchAction(unknownChat, {
+				type: ActionType.ChatIsReadChanged,
+				isRead: true,
+			}, 'test-client', 1);
+			const envelope = await envelopePromise;
+
+			assert.deepStrictEqual({
+				rejectionReason: envelope.rejectionReason,
+				chat: getStateManager(svc).getChatState(unknownChat),
+			}, {
+				rejectionReason: 'Only a known chat can change its read state.',
+				chat: undefined,
 			});
 		});
 
@@ -17406,6 +17465,73 @@ suite('AgentService (node dispatcher)', () => {
 			}
 		});
 
+		test('a passive read toggle synchronizes a sole default chat and clamps an unread normal peer', async () => {
+			for (const { id, chats, expectedSessionRead, expectedDefaultRead } of [
+				{
+					id: 'single',
+					chats: [{ resource: '', title: '', status: SessionStatus.Idle }],
+					expectedSessionRead: true,
+					expectedDefaultRead: true,
+				},
+				{
+					id: 'multi',
+					chats: [
+						{ resource: '', title: '', status: SessionStatus.Idle | SessionStatus.IsRead },
+						{ resource: 'peer', title: 'Peer', status: SessionStatus.Idle },
+					],
+					expectedSessionRead: false,
+					expectedDefaultRead: true,
+				},
+			]) {
+				const db = new TestSessionDatabase();
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				registerTestAgentProvider(localService, disposables.add(new MockAgent('copilot')));
+				const session = AgentSession.uri('copilot', `passive-read-${id}`);
+				const sessionStr = session.toString();
+				const summary = {
+					resource: sessionStr,
+					provider: 'copilot',
+					title: 'Idle',
+					status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(),
+					modifiedAt: new Date().toISOString(),
+					chats: chats.map((chat, index) => ({
+						...chat,
+						resource: index === 0 ? buildDefaultChatUri(sessionStr) : buildChatUri(sessionStr, chat.resource),
+					})),
+				};
+				getStateManager(localService).announceSurfacedSession(summary);
+				getStateManager(localService).prepareSessionSummariesForListing([summary]);
+				const notifications: INotification[] = [];
+				const listener = localService.onDidNotification(notification => notifications.push(notification));
+
+				localService.dispatchAction(sessionStr, { type: ActionType.SessionIsReadChanged, isRead: true }, 'test-client', 1, AgentHostClientType.EditorWindow);
+				for (let attempt = 0; attempt < 20 && !notifications.some(notification => notification.type === 'root/sessionSummaryChanged'); attempt++) {
+					await timeout(0);
+				}
+				listener.dispose();
+
+				const changed = notifications.find(notification => notification.type === 'root/sessionSummaryChanged');
+				assert.deepStrictEqual({
+					id,
+					persistedSession: await db.getMetadata(AH_META_IS_READ_DB_KEY),
+					persistedDefault: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+					publishedSessionRead: changed?.type === 'root/sessionSummaryChanged'
+						? !!(changed.changes.status! & SessionStatus.IsRead)
+						: undefined,
+					publishedChats: changed?.type === 'root/sessionSummaryChanged'
+						? changed.changes.chats?.map(chat => chat.status === undefined ? undefined : isSessionStatusRead(chat.status))
+						: undefined,
+				}, {
+					id,
+					persistedSession: expectedSessionRead ? 'true' : '',
+					persistedDefault: id === 'single' && expectedDefaultRead ? 'true' : undefined,
+					publishedSessionRead: expectedSessionRead,
+					publishedChats: id === 'single' ? [expectedDefaultRead] : undefined,
+				});
+			}
+		});
+
 		test('passive metadata publishes before central catalog synchronization completes', async () => {
 			const db = new TestSessionDatabase();
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
@@ -21425,6 +21551,34 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				sessionTitle: 'Session B',
 				defaultChatTitle: 'Default A',
+			});
+		});
+
+		test('restores an unread default chat with an unread session aggregate', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+
+			getStateManager(localService).dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true }, 'test-client', 1);
+			localService.dispatchAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: false }, 'test-client', 2);
+			await waitForMetadata(db, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, '');
+
+			getStateManager(localService).deleteSession(sessionUri);
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				sessionIsRead: !!(getStateManager(localService).getSessionState(sessionUri)!.status & SessionStatus.IsRead),
+				defaultChatIsRead: !!(getStateManager(localService).getChatState(defaultChat)!.status & SessionStatus.IsRead),
+				persistedDefaultChatIsRead: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			}, {
+				sessionIsRead: false,
+				defaultChatIsRead: false,
+				persistedDefaultChatIsRead: '',
 			});
 		});
 

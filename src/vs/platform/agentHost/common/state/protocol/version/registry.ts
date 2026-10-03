@@ -142,6 +142,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
 	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
 	[ActionType.ChatDraftChanged]: '0.5.0',
+	[ActionType.ChatIsReadChanged]: '0.9.0',
 	[ActionType.ChatIsArchivedChanged]: '0.9.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
