@@ -23,7 +23,9 @@ import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
 import { normalizeVolatileText } from '../harness/capiWireCodec.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
-const clearedOtlpTlsEnv = {
+const otelTestEnv = {
+	// Keep native batch export within the bounded wait, independent of inherited or default scheduling.
+	OTEL_BSP_SCHEDULE_DELAY: '100',
 	OTEL_EXPORTER_OTLP_CERTIFICATE: '',
 	OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE: '',
 	OTEL_EXPORTER_OTLP_CLIENT_KEY: '',
@@ -83,7 +85,7 @@ suite('Agent Host E2E — Copilot managed telemetry', function () {
 		endpoint = collector.baseUrl;
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
-				...clearedOtlpTlsEnv,
+				...otelTestEnv,
 				COPILOT_CACHE_HOME: cacheHome,
 				COPILOT_MANAGED_SETTINGS_CACHE: 'true',
 				COPILOT_OTEL_ENABLED: 'false',
@@ -203,7 +205,7 @@ suite('Agent Host E2E — Copilot OTel file exporter', function () {
 		exportFile = join(directory, 'spans.jsonl');
 		lease = new AgentHostE2EServerLease(COPILOT_CONFIG, {
 			env: {
-				...clearedOtlpTlsEnv,
+				...otelTestEnv,
 				COPILOT_OTEL_ENABLED: 'true',
 				COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true',
 				COPILOT_OTEL_EXPORTER_TYPE: 'file',
