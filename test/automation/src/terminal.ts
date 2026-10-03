@@ -25,6 +25,7 @@ export enum Selector {
 	EditorTab = '.terminal-tab',
 	SingleTab = '.single-terminal-tab',
 	Tabs = '.tabs-list .monaco-list-row',
+	HorizontalTabs = '.terminal-tabs-bar-tab',
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
 	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
@@ -209,6 +210,12 @@ export class Terminal {
 				}
 			}
 		}
+	}
+
+	async assertHorizontalTabNames(names: (string | undefined)[]): Promise<void> {
+		await this.code.waitForElements(`${Selector.HorizontalTabs} ${Selector.Name}`, true, entries =>
+			entries.length === names.length && names.every((name, index) => name === undefined || entries[index].textContent.trim() === name)
+		);
 	}
 
 	async getTerminalGroups(): Promise<TerminalGroup[]> {

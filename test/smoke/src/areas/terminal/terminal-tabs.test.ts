@@ -106,5 +106,36 @@ export function setup(options?: { skipSuite: boolean }) {
 			await terminal.runCommand(TerminalCommandId.MoveToEditor);
 			await terminal.assertEditorGroupCount(1);
 		});
+
+		for (const location of ['top', 'bottom']) {
+			it(`should support ${location} tabs with splits, keyboard rename, and full terminal width`, async function () {
+				const app = this.app as Application;
+				await settingsEditor.clearUserSettings();
+				await setTerminalTestSettings(app, [['terminal.integrated.tabs.location', `"${location}"`]]);
+				try {
+					await app.workbench.quickaccess.runCommand('workbench.action.closeAllEditors');
+					await terminal.createTerminal();
+					await terminal.runCommand(TerminalCommandId.Split);
+					await terminal.assertHorizontalTabNames([undefined, undefined]);
+					const page = await terminal.getPage();
+					await app.workbench.quickaccess.runCommand('workbench.action.terminal.focusTabs');
+					await page.keyboard.press('Home');
+					await page.keyboard.press(process.platform === 'darwin' ? 'Enter' : 'F2');
+					const input = page.locator('.terminal-tabs-bar-tab input');
+					await input.fill(`horizontal-${location}`);
+					await input.press('Enter');
+					await terminal.assertHorizontalTabNames([`horizontal-${location}`, undefined]);
+					await page.waitForFunction((expectedLocation: string) => {
+						const tabs = document.querySelector('.pane-body.integrated-terminal .terminal-tabs-bar')?.getBoundingClientRect();
+						const terminal = document.querySelector('.pane-body.integrated-terminal .terminal-outer-container')?.getBoundingClientRect();
+						return tabs && terminal && Math.abs(tabs.width - terminal.width) < 1 &&
+							(expectedLocation === 'top' ? tabs.bottom <= terminal.top + 1 : terminal.bottom <= tabs.top + 1);
+					}, location);
+				} finally {
+					await settingsEditor.clearUserSettings();
+					await setTerminalTestSettings(app);
+				}
+			});
+		}
 	});
 }

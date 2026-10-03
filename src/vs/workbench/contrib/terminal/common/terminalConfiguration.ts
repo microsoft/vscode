@@ -60,7 +60,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		scope: ConfigurationScope.RESOURCE
 	},
 	[TerminalSettingId.TabsEnabled]: {
-		description: localize('terminal.integrated.tabs.enabled', 'Controls whether terminal tabs display as a list to the side of the terminal. When this is disabled a dropdown will display instead.'),
+		description: localize('terminal.integrated.tabs.enabled', "Controls whether terminal tabs are displayed. When this is disabled a dropdown will display instead."),
 		type: 'boolean',
 		default: true,
 	},
@@ -106,13 +106,15 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	},
 	[TerminalSettingId.TabsLocation]: {
 		type: 'string',
-		enum: ['left', 'right'],
+		enum: ['left', 'right', 'top', 'bottom'],
 		enumDescriptions: [
 			localize('terminal.integrated.tabs.location.left', "Show the terminal tabs view to the left of the terminal"),
-			localize('terminal.integrated.tabs.location.right', "Show the terminal tabs view to the right of the terminal")
+			localize('terminal.integrated.tabs.location.right', "Show the terminal tabs view to the right of the terminal"),
+			localize('terminal.integrated.tabs.location.top', "Show terminal tabs in a horizontal row above the terminal"),
+			localize('terminal.integrated.tabs.location.bottom', "Show terminal tabs in a horizontal row below the terminal")
 		],
 		default: 'right',
-		description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs. Tabs on the left or right form a vertical list; tabs on the top or bottom form a horizontally scrolling row.")
 	},
 	[TerminalSettingId.DefaultLocation]: {
 		type: 'string',
