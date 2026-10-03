@@ -8513,6 +8513,7 @@ export class AgentService extends Disposable implements IAgentService {
 			isRead = adoptionListVisible.isRead;
 			defaultChatIsRead ??= adoptionListVisible.isRead;
 		}
+		defaultChatIsRead ??= isRead;
 
 		let turns: readonly Turn[];
 		try {

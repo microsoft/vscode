@@ -21855,6 +21855,30 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores a legacy read session with its default chat read', async () => {
+			const db = new TestSessionDatabase();
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(db), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(localService, agent);
+			const session = await localService.createSession({ provider: 'copilot' });
+			const sessionUri = session.toString();
+			const defaultChat = buildDefaultChatUri(session);
+			await db.setMetadata(AH_META_IS_READ_DB_KEY, 'true');
+
+			getStateManager(localService).deleteSession(sessionUri);
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				sessionIsRead: !!(getStateManager(localService).getSessionState(sessionUri)!.status & SessionStatus.IsRead),
+				defaultChatIsRead: !!(getStateManager(localService).getChatState(defaultChat)!.status & SessionStatus.IsRead),
+				persistedDefaultChatIsRead: await db.getMetadata(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY),
+			}, {
+				sessionIsRead: true,
+				defaultChatIsRead: true,
+				persistedDefaultChatIsRead: undefined,
+			});
+		});
+
 		test('a session rename retitles the sole default chat in the live session and across restore', async () => {
 			// Separate databases per channel, matching production: the chat-local title
 			// writes must be observable independently of the session's own metadata.

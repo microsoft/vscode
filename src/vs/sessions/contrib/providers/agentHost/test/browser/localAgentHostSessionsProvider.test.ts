@@ -8732,6 +8732,75 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('single default chat read state updates optimistically and dispatches to the host', async () => {
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'single-chat-read');
+			const sessionUri = AgentSession.uri('copilotcli', 'single-chat-read').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('single-chat-read', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			const main = session.mainChat.get();
+			const before = { session: session.isRead.get(), main: main.isRead.get() };
+
+			await provider.setChatReadState(session.sessionId, main.resource, true);
+			const afterRead = { session: session.isRead.get(), main: main.isRead.get() };
+			await provider.setChatReadState(session.sessionId, main.resource, false);
+
+			assert.deepStrictEqual({
+				before,
+				afterRead,
+				afterUnread: { session: session.isRead.get(), main: main.isRead.get() },
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				before: { session: false, main: false },
+				afterRead: { session: true, main: true },
+				afterUnread: { session: false, main: false },
+				actions: [
+					{ channel: defaultChat, isRead: true },
+					{ channel: defaultChat, isRead: false },
+				],
+			});
+		});
+
+		test('default chat read state dispatches before session state hydrates', async () => {
+			const rawId = 'default-chat-read-before-hydration';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const defaultChat = URI.parse(buildDefaultChatUri(sessionUri));
+			agentHost.addSession(createSession(rawId, {
+				status: ProtocolSessionStatus.Idle,
+				chats: [
+					{ chat: defaultChat, kind: 'default', summary: 'Default', isRead: false },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions().find(session => AgentSession.id(session.resource.toString()) === rawId);
+			assert.ok(session);
+
+			await provider.setChatReadState(session.sessionId, session.mainChat.get().resource, true);
+
+			assert.deepStrictEqual({
+				session: session.isRead.get(),
+				main: session.mainChat.get().isRead.get(),
+				actions: agentHost.dispatchedActions
+					.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged)
+					.map(dispatch => ({
+						channel: dispatch.channel,
+						isRead: dispatch.action.type === ActionType.ChatIsReadChanged ? dispatch.action.isRead : undefined,
+					})),
+			}, {
+				session: true,
+				main: true,
+				actions: [{ channel: defaultChat.toString(), isRead: true }],
+			});
+		});
+
 		test('explicit session read marks every aggregate chat and the session read', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'default-chat-read');
