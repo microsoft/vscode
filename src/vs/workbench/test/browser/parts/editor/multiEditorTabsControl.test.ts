@@ -376,6 +376,46 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
+	test('connected fit tabs always display full names and icons', async () => {
+		const group = connectedGroup();
+		const iconStyle = document.createElement('style');
+		iconStyle.textContent = '.connected-tabs-labels .tab-label::before { content: ""; }';
+		group.appendChild(iconStyle);
+		for (let i = 2; i < 10; i++) {
+			const editor = disposables.add(new class extends TestFileEditorInput {
+				override getName(): string { return `file${i}.txt`; }
+			}(URI.file(`/path/file${i}.txt`), 'testEditorInput'));
+			model.openEditor(editor, { pinned: true, active: false });
+		}
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', hasIcons: true, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const states = [];
+		for (const width of [1200, 420, 1200, 420]) {
+			await layoutConnectedGroup(group, width);
+			const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+			states.push({
+				collapsedIcons: tabs.filter(tab => tab.classList.contains('connected-tab-narrow')).length,
+				trimmedNames: tabs.filter(tab => {
+					const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+					return name.scrollWidth > name.clientWidth;
+				}).length,
+				preservedExtensions: tabs.every(tab => {
+					const suffix = tab.querySelector<HTMLElement>('.label-suffix')!;
+					const action = tab.querySelector<HTMLElement>('.tab-actions')!;
+					return suffix.textContent === '.txt' && suffix.getBoundingClientRect().right <= action.getBoundingClientRect().left;
+				}),
+			});
+		}
+		assert.deepStrictEqual(states, [
+			{ collapsedIcons: 0, trimmedNames: 0, preservedExtensions: true },
+			{ collapsedIcons: 0, trimmedNames: 0, preservedExtensions: true },
+			{ collapsedIcons: 0, trimmedNames: 0, preservedExtensions: true },
+			{ collapsedIcons: 0, trimmedNames: 0, preservedExtensions: true },
+		]);
+	});
+
 	test('protects extensions only when the tab title matches the resource filename', async () => {
 		const group = connectedGroup();
 		const cases = [
