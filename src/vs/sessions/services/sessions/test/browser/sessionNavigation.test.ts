@@ -18,6 +18,17 @@ import { SessionsNavigation } from '../../browser/sessionNavigation.js';
 import { SessionsRecencyHistory } from '../../browser/sessionsRecencyHistory.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ISendRequestOptions } from '../../common/sessionsProvider.js';
+import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { AbstractCustomView } from '../../../customView/browser/customView.js';
+import { CustomViewService, ICustomViewService } from '../../../customView/browser/customViewService.js';
+
+const AUTOMATIONS_VIEW_ID = 'test.automations';
+
+class TestCustomView extends AbstractCustomView {
+	readonly title: IObservable<string> = constObservable('Automations');
+	render(): void { }
+	layout(): void { }
+}
 
 const stubChat = {
 	resource: URI.parse('test:///chat'),
@@ -120,6 +131,9 @@ class MockSessionStore implements ISessionsManagementService {
 	private _openedChatResource: URI | undefined;
 	private _openedNewSession = false;
 
+	/** Mirrors the view service, which hides the custom view when opening a session. */
+	customViewService: ICustomViewService | undefined;
+
 	get lastOpenedResource(): URI | undefined { return this._openedResource; }
 	get lastOpenedChatResource(): URI | undefined { return this._openedChatResource; }
 	get lastOpenedNewSession(): boolean { return this._openedNewSession; }
@@ -196,6 +210,7 @@ class MockSessionStore implements ISessionsManagementService {
 	resolveWorkspace(_folderUri: URI): { providerId: string; workspace: ISessionWorkspace } | undefined { return undefined; }
 
 	async openSession(sessionResource: URI): Promise<void> {
+		this.customViewService?.hideCustomView();
 		this._openedResource = sessionResource;
 		this._openedChatResource = undefined;
 		this._openedNewSession = false;
@@ -214,6 +229,7 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	async openChat(session: ISession, chatUri: URI): Promise<void> {
+		this.customViewService?.hideCustomView();
 		this._openedResource = session.resource;
 		this._openedChatResource = chatUri;
 		this._openedNewSession = false;
@@ -272,6 +288,7 @@ suite('SessionsNavigation', () => {
 	let store: MockSessionStore;
 	let nav: SessionsNavigation;
 	let contextKeyService: MockContextKeyService;
+	let customViewService: CustomViewService;
 
 	setup(() => {
 		const disposables = ds.add(new DisposableStore());
@@ -282,11 +299,16 @@ suite('SessionsNavigation', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		const recency = disposables.add(new SessionsRecencyHistory(storageService, new NullLogService()));
 
+		customViewService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(customViewService.registerCustomView({ id: AUTOMATIONS_VIEW_ID, ctor: new SyncDescriptor(TestCustomView) }));
+		store.customViewService = customViewService;
+
 		nav = disposables.add(new SessionsNavigation(
 			store,
 			store.activeSession,
 			store,
 			recency,
+			customViewService,
 			contextKeyService,
 			new NullLogService(),
 		));
@@ -298,6 +320,22 @@ suite('SessionsNavigation', () => {
 
 	function canGoForward(): boolean {
 		return contextKeyService.getContextKeyValue('sessionsCanGoForward') ?? false;
+	}
+
+	/** Mirrors an explicit open through the view service (e.g. clicking an automation run). */
+	function openExplicitly(session: ISession): void {
+		nav.onWillNavigateExplicitly();
+		customViewService.hideCustomView();
+		store.setActiveSession(session);
+	}
+
+	/** Where the user currently is: the shown custom view, else the active session. */
+	function location(): string | undefined {
+		return customViewService.activeCustomView.get()?.id ?? store.activeSession.get()?.sessionId;
+	}
+
+	function state() {
+		return { location: location(), canGoBack: canGoBack(), canGoForward: canGoForward() };
 	}
 
 	test('initially cannot go back or forward', () => {
@@ -595,5 +633,80 @@ suite('SessionsNavigation', () => {
 		await nav.goBack();
 		assert.strictEqual(store.lastOpenedResource?.toString(), s1.resource.toString());
 		assert.strictEqual(store.lastOpenedChatResource, undefined, 'should not open a stale chat');
+	});
+
+	test('Back and Forward traverse a custom view left by opening a session', async () => {
+		const s1 = stubSession('s1');
+		const run = stubSession('run');
+		store.addSession(s1);
+		store.addSession(run);
+
+		store.setActiveSession(s1);
+		customViewService.showCustomView(AUTOMATIONS_VIEW_ID);
+		openExplicitly(run);
+
+		const steps = [state()];
+		await nav.goBack();
+		steps.push(state());
+		await nav.goBack();
+		steps.push(state());
+		await nav.goForward();
+		steps.push(state());
+		await nav.goForward();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			{ location: 'run', canGoBack: true, canGoForward: false },
+			{ location: AUTOMATIONS_VIEW_ID, canGoBack: true, canGoForward: true },
+			{ location: 's1', canGoBack: false, canGoForward: true },
+			{ location: AUTOMATIONS_VIEW_ID, canGoBack: true, canGoForward: true },
+			{ location: 'run', canGoBack: true, canGoForward: false },
+		]);
+	});
+
+	test('Back from a custom view returns to the session it was opened from', async () => {
+		const s1 = stubSession('s1');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(s2);
+
+		store.setActiveSession(s1);
+		store.setActiveSession(s2);
+		customViewService.showCustomView(AUTOMATIONS_VIEW_ID);
+
+		const steps = [state()];
+		await nav.goBack();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			{ location: AUTOMATIONS_VIEW_ID, canGoBack: true, canGoForward: false },
+			{ location: 's2', canGoBack: true, canGoForward: true },
+		]);
+	});
+
+	test('another explicit navigation drops the custom view from Back', async () => {
+		const s1 = stubSession('s1');
+		const run = stubSession('run');
+		const s2 = stubSession('s2');
+		store.addSession(s1);
+		store.addSession(run);
+		store.addSession(s2);
+
+		store.setActiveSession(s1);
+		customViewService.showCustomView(AUTOMATIONS_VIEW_ID);
+		openExplicitly(run);
+		openExplicitly(s2);
+
+		const steps = [state()];
+		await nav.goBack();
+		steps.push(state());
+		await nav.goBack();
+		steps.push(state());
+
+		assert.deepStrictEqual(steps, [
+			{ location: 's2', canGoBack: true, canGoForward: false },
+			{ location: 'run', canGoBack: true, canGoForward: true },
+			{ location: 's1', canGoBack: false, canGoForward: true },
+		]);
 	});
 });
