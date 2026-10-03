@@ -3,19 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableTimeout, raceCancellationError } from '../../../../base/common/async.js';
+import { CancellationTokenSource, cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { ISharedProcessGitHubService } from '../../../../platform/github/common/githubIpc.js';
+import { GitHubAnonymousReadOptions, GitHubRestResponse } from '../../../../platform/github/common/githubTransport.js';
+import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
-import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
@@ -28,6 +34,8 @@ import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { IssueReporter } from './issueReporterService.js';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
+
+	private readonly gitHubSearchCancellation = cancelOnDispose(this._store);
 
 	/**
 	 * Holds the currently-rendered legacy IssueReporter so its listeners on long-lived services
@@ -54,8 +62,35 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IGitHubService gitHubService: IGitHubService,
+		@ISharedProcessGitHubService private readonly sharedProcessGitHubService: ISharedProcessGitHubService,
 	) {
 		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, openerService, fileService, githubUploadService, editorService, clipboardService, gitHubService);
+	}
+
+	protected override async getGitHubSearchResponse(path: string, signal: AbortSignal, options: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<unknown>> {
+		const lifetime = new DisposableStore();
+		const cancellation = lifetime.add(new CancellationTokenSource(this.gitHubSearchCancellation));
+		lifetime.add(Event.once(Event.fromDOMEventEmitter(signal, 'abort'))(() => cancellation.cancel()));
+		let timedOut = false;
+		if (options.deadline !== undefined) {
+			lifetime.add(disposableTimeout(() => {
+				timedOut = true;
+				cancellation.cancel();
+			}, Math.max(0, options.deadline - Date.now())));
+		}
+		try {
+			signal.throwIfAborted();
+			const response = this.sharedProcessGitHubService.getAnonymous({ apiBaseUri: 'https://api.github.com', path, options }, cancellation.token);
+			return await raceCancellationError(response, cancellation.token);
+		} catch (error) {
+			if (timedOut) {
+				// IPC may still be connecting, so whether the request was dispatched is unknown.
+				throw new GitHubRequestError('GitHub issue search timed out', 'timeout');
+			}
+			throw error;
+		} finally {
+			lifetime.dispose();
+		}
 	}
 
 	override async openReporter(data: IssueReporterData): Promise<void> {

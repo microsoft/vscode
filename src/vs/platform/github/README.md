@@ -15,10 +15,12 @@ Reusable GitHub engine and cross-target architecture.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
-- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with the existing default fetch implementation. Its separate, opt-in [typed service boundary](common/githubIpc.ts) currently exposes anonymous JSON reads only. Existing desktop callers have not moved there.
+- The [shared-process binding](electron-utility/githubService.ts) hosts an additional engine with the existing default fetch implementation. Its separate, opt-in [typed service boundary](common/githubIpc.ts) exposes anonymous JSON reads for the desktop issue reporter; other callers remain process-local.
 - The [legacy Sessions service](../../sessions/contrib/github/browser/githubService.ts) and extension clients still own independent requests and polling.
 
-These instances do not currently share application-wide request state.
+Desktop issue reporters share the shared-process engine across editor and Agents windows. Independent engines do not share application-wide request state.
+
+> **Desktop issue-reporter migration landing blocker:** This dependent patch must not land until an approved shared-process transport preserves desktop proxy and certificate behavior. The current shared binding uses Node's default fetch, not the Chromium session configured from `http.proxy` / `http.noProxy`, and has no equivalent proxy or system-certificate integration. Injected-fetch tests validate the migration offline, not enterprise reachability. This slice adds no transport implementation or cross-process fallback.
 
 The [client inventory](client-inventory.md) maps runtime callers, migration boundaries, and remaining gaps.
 
@@ -40,6 +42,8 @@ At most 64 clients are retained across authorization, anonymous and bootstrap co
 
 Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
 
+The shared-process binding lazily retains one anonymous reference for the normalized `https://api.github.com` API base until binding disposal. This preserves sequential ETag reuse for one-shot issue searches without changing the IPC contract or generic engine ownership. Other API bases remain call-scoped; releasing their final reference still disposes their cache.
+
 ### Anonymous public reads
 
 `acquireAnonymousClient` is an explicit, read-only capability for an approved HTTPS API base. It does not select an account, invoke a credential provider, resolve `/user`, or acquire scopes. Anonymous-only hosts can construct the engine without a credential provider; attempting to acquire an authenticated client then fails explicitly.
@@ -48,7 +52,7 @@ Anonymous clients expose API-relative JSON `GET` requests, not mutations, GraphQ
 
 Equivalent anonymous clients share requests and ETag state, but never share cached data with authenticated clients. All anonymous clients using the same API origin and engine-owned executor share an anonymous quota identity, independent of signed-in accounts; creating another client or releasing the final reference does not reset live server cooldowns. The engine's existing global/host/caller admission limits and client-capacity bound still apply. Independent engines/processes and unrelated clients behind the same public IP are not coordinated yet.
 
-The Issue Reporter's GitHub similar-issue searches, in both the wizard and legacy/web UI, use this capability with cancellable ten-second deadlines. Both search backends invalidate obsolete work when the source/input changes or the reporter is disposed, so late responses cannot cancel or replace a newer search. Existing duplicate-detection service calls and authenticated issue submission remain separate. Anonymous Copilot/device token issuance, general text/binary transfers and shared-process relocation remain outside this capability.
+The Issue Reporter's GitHub similar-issue searches, in both the wizard and legacy UI, use this capability with cancellable ten-second deadlines. The native form service routes desktop editor and Agents windows through shared-process anonymous-read IPC; web keeps its in-process anonymous client. Native cancellation and the absolute deadline also bound the wait for a shared-process connection, preventing delayed dispatch of obsolete searches. Both search backends invalidate obsolete work when the source/input changes or the reporter is disposed, so late responses cannot cancel or replace a newer search. Existing duplicate-detection service calls and authenticated issue submission remain separate. Anonymous Copilot/device token issuance and general text/binary transfers remain outside this capability.
 
 Existing consumers use these clients directly; there is no compatibility singleton API for queries or mutations. Agent Merge captures its authorized client with the turn. Host token refresh preserves the client and rotates credentials on the next request; revocation, endpoint changes and a resolved account change reset the dependent runtime. Async consumers release references that arrive after their owning scope has ended and do not install subscriptions with invalidated credentials.
 
@@ -105,7 +109,7 @@ Browser fetch, including desktop renderers, sends only `X-Client-Application` to
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-This preparation uses the engine's existing default fetch. Host-specific fetch, proxy and certificate integration is deferred; it does not modify the Agent Host proxy resolver or any existing workbench networking. Resolve that transport integration before migrating production callers.
+The binding still uses the engine's default fetch. Host-specific fetch, proxy and certificate integration is deferred; this patch does not modify the Agent Host proxy resolver or add another transport. Resolve that integration before landing the desktop issue-reporter migration.
 
 Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
 
@@ -113,6 +117,7 @@ Focused offline validation (from the repository root, with `COPILOT_HOME` cleare
 npm run transpile-client
 npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\node\githubService.test.ts
 .\scripts\test.bat --run src\vs\platform\github\test\electron-utility\githubService.test.ts
+.\scripts\test.bat --run src\vs\workbench\contrib\issue\test\browser\issueFormService.test.ts --run src\vs\workbench\contrib\issue\test\electron-browser\nativeIssueFormService.test.ts --run src\vs\workbench\contrib\issue\test\browser\baseIssueReporterService.test.ts --run src\vs\workbench\contrib\issue\test\browser\issueReporterOverlay.test.ts --grep "IssueFormService|BaseIssueReporterService|IssueReporterOverlay (stops a public issue search|leaving review)"
 ```
 
 Tests use injected fetchers, not live GitHub requests or inference.

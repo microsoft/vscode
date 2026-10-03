@@ -72,6 +72,20 @@ suite('Shared-process GitHub channel', () => {
 		await assert.rejects(client.getAnonymous({ apiBaseUri: 'https://api.test/api/v3', path: '/../resource' }, CancellationToken.None), { kind: 'validation' });
 	});
 
+	test('the channel does not retain anonymous caches without a binding-owned lease', async () => {
+		const etags: (string | null)[] = [];
+		const engine = store.add(new GitHubService({
+			fetch: async (_input, init) => {
+				etags.push(new Headers(init?.headers).get('If-None-Match'));
+				return new Response('{"value":1}', { headers: { ETag: '"one"' } });
+			},
+		}, new NullLogService(), NullTelemetryService));
+		const { client } = connect(engine);
+		await client.getAnonymous(request, CancellationToken.None);
+		await client.getAnonymous(request, CancellationToken.None);
+		assert.deepStrictEqual(etags, [null, null]);
+	});
+
 	for (const error of [
 		new GitHubRequestError('Not found', 'notFound', 404, 'missing', undefined, 'Not Found'),
 		new GitHubRequestTimeoutError(true),

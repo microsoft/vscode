@@ -61,7 +61,7 @@ suite('IssueFormService', () => {
 		return store.add(instantiationService.createInstance(IssueFormService));
 	}
 
-	test('search uses the governed anonymous client and safely encodes the public query', async () => {
+	test('web search stays local, coalesces anonymous reads and safely encodes the query', async () => {
 		const requests: { query: string | null; authenticated: boolean; credentials: RequestCredentials | undefined }[] = [];
 		const service = createSearchService(async (input, init) => {
 			requests.push({
@@ -79,6 +79,23 @@ suite('IssueFormService', () => {
 		assert.deepStrictEqual({ requests, results }, {
 			requests: [{ query: `is:issue repo:owner/repo ${query}`, authenticated: false, credentials: 'omit' }],
 			results: Array.from({ length: 2 }, () => [{ html_url: 'https://github.com/owner/repo/issues/1', title: 'Issue title', state: 'open' }]),
+		});
+	});
+
+	test('web search retains its anonymous ETags between sequential requests', async () => {
+		const etags: (string | null)[] = [];
+		const service = createSearchService(async (_input, init) => {
+			const etag = new Headers(init?.headers).get('If-None-Match');
+			etags.push(etag);
+			return etag ? new Response(null, { status: 304 })
+				: new Response('{"items":[{"html_url":"https://github.com/owner/repo/issues/1","title":"Issue title","state":"closed"}]}', { headers: { ETag: '"issues"' } });
+		});
+		const first = await service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal);
+		const second = await service.searchGitHubIssues('owner/repo', 'query', new AbortController().signal);
+		assert.deepStrictEqual({ etags, first, second }, {
+			etags: [null, '"issues"'],
+			first: [{ html_url: 'https://github.com/owner/repo/issues/1', title: 'Issue title', state: 'closed' }],
+			second: first,
 		});
 	});
 

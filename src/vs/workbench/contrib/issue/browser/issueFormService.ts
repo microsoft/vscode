@@ -16,6 +16,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IGitHubAnonymousClient, IGitHubService } from '../../../../platform/github/common/githubService.js';
+import { GitHubAnonymousReadOptions, GitHubRestResponse } from '../../../../platform/github/common/githubTransport.js';
 import { GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { arrayProperty, asObject, requiredString, stringProperty } from '../../../../platform/github/common/githubResponse.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -123,24 +124,29 @@ export class IssueFormService extends Disposable implements IIssueFormService {
 		if (this._store.isDisposed) {
 			throw new GitHubRequestError('Issue reporter was disposed', 'unknown');
 		}
-		this.gitHubSearchClient.value ??= this.gitHubService.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' });
 		const query = encodeURIComponent(`is:issue repo:${repo} ${title}`);
 		try {
-			const response = await this.gitHubSearchClient.value.object.get<unknown>(`/search/issues?q=${query}`, signal, {
+			const response = await this.getGitHubSearchResponse(`/search/issues?q=${query}`, signal, {
 				caller: 'github.query',
 				deadline: Date.now() + 10_000,
 			});
+			signal.throwIfAborted();
 			const items = arrayProperty(asObject(response.data, 'GitHub issue search response was malformed'), 'items');
 			return items.map(item => {
 				const issue = asObject(item, 'GitHub issue search result was malformed');
 				return { html_url: requiredString(issue, 'html_url'), title: requiredString(issue, 'title'), state: stringProperty(issue, 'state') };
 			});
 		} catch (error) {
-			if (!signal.aborted) {
+			if (!signal.aborted && !this._store.isDisposed) {
 				this.logService.warn('[IssueFormService] GitHub issue search failed', error);
 			}
 			throw error;
 		}
+	}
+
+	protected getGitHubSearchResponse(path: string, signal: AbortSignal, options: GitHubAnonymousReadOptions): Promise<GitHubRestResponse<unknown>> {
+		this.gitHubSearchClient.value ??= this.gitHubService.acquireAnonymousClient({ apiBaseUri: 'https://api.github.com' });
+		return this.gitHubSearchClient.value.object.get(path, signal, options);
 	}
 
 	async openReporter(data: IssueReporterData): Promise<void> {

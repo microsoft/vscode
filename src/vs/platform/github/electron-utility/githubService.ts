@@ -4,16 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IReference, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../telemetry/common/telemetryUtils.js';
 import { createGitHubClientMetadata } from '../common/githubRequestMetadata.js';
-import { GitHubService } from '../common/githubService.js';
+import { GitHubService, IGitHubAnonymousClient } from '../common/githubService.js';
+import { GitHubAnonymousClientOptions } from '../common/githubTypes.js';
 import { RequestFetch } from '../common/types.js';
 
 export class SharedProcessGitHubService extends GitHubService {
+
+	private readonly publicAnonymousClient = this._register(new MutableDisposable<IReference<IGitHubAnonymousClient>>());
+
 	constructor(
 		fetch: RequestFetch | undefined,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -31,5 +36,13 @@ export class SharedProcessGitHubService extends GitHubService {
 				|| event.affectsConfiguration(TELEMETRY_CRASH_REPORTER_SETTING_ID)
 			), () => getTelemetryLevel(configurationService)),
 		}, logService, telemetryService);
+	}
+
+	override acquireAnonymousClient(options: GitHubAnonymousClientOptions): IReference<IGitHubAnonymousClient> {
+		const reference = super.acquireAnonymousClient(options);
+		if (reference.object.apiBaseUri === 'https://api.github.com') {
+			this.publicAnonymousClient.value ??= super.acquireAnonymousClient({ apiBaseUri: reference.object.apiBaseUri });
+		}
+		return reference;
 	}
 }
