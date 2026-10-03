@@ -524,6 +524,49 @@ suite('NotebookTextModel', () => {
 		);
 	});
 
+	test('appends a batch of carriage-return progress lines without changing output events or version tracking', async () => {
+		await withTestNotebook(
+			[['var a = 1;', 'javascript', CellKind.Code, [], {}]],
+			(editor, _viewModel, store) => {
+				const textModel = editor.textModel;
+				textModel.applyEdits([{
+					index: 0,
+					editType: CellEditType.Output,
+					append: true,
+					outputs: [{
+						outputId: 'progress',
+						outputs: [{ mime: stdOutMime, data: valueBytesFromString('Log start\n') }]
+					}]
+				}], true, undefined, () => undefined, undefined, true);
+				const output = textModel.cells[0].outputs[0];
+				let changes = 0;
+				store.add(output.onDidChangeData(() => changes++));
+				const prefixes = Array.from({ length: 4000 }, (_, index) => `Task ${String(index).padStart(5, '0')}: `);
+				const progress = prefixes.map(prefix => `${prefix}running\r${prefix}complete\n`).join('');
+				textModel.applyEdits([{
+					editType: CellEditType.OutputItems,
+					append: true,
+					outputId: 'progress',
+					items: [{ mime: stdOutMime, data: valueBytesFromString(progress) }]
+				}], true, undefined, () => undefined, undefined, true);
+
+				assert.deepStrictEqual({
+					outputCount: output.outputs.length,
+					text: output.outputs[0].data.toString(),
+					version: output.versionId,
+					changes,
+					appended: output.appendedSinceVersion(0, stdOutMime),
+				}, {
+					outputCount: 1,
+					text: `Log start\n${prefixes.map(prefix => `${prefix}complete\n`).join('')}`,
+					version: 1,
+					changes: 1,
+					appended: undefined,
+				});
+			}
+		);
+	});
+
 	test('appending multiple different mime streaming outputs', async function () {
 		await withTestNotebook(
 			[
