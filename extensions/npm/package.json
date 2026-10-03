@@ -267,7 +267,8 @@
             "pnpm",
             "bun",
             "node",
-            "vp"
+            "vp",
+            "nub"
           ],
           "enumDescriptions": [
             "%config.npm.scriptRunner.auto%",
@@ -276,7 +277,8 @@
             "%config.npm.scriptRunner.pnpm%",
             "%config.npm.scriptRunner.bun%",
             "%config.npm.scriptRunner.node%",
-            "%config.npm.scriptRunner.vp%"
+            "%config.npm.scriptRunner.vp%",
+            "%config.npm.scriptRunner.nub%"
           ],
           "default": "auto",
           "description": "%config.npm.scriptRunner%"
