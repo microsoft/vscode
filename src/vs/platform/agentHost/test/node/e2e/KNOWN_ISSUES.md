@@ -78,6 +78,29 @@ Restarting the host lets the same new policy work, including message-content cap
     --grep "new sessions honor changed managed telemetry without restarting"
   ```
 
+### Copilot SDK inference spans need the upstream file-exporter runtime fix
+
+The Agent Host can export OpenTelemetry spans for a Copilot turn to a file so that
+operators can inspect model-call traces. The file receives the Agent Host's own
+spans, but not the Copilot SDK `invoke_agent` span (service name `github-copilot`)
+that identifies the inference call. Without that span, a trace cannot be correlated
+back to the Copilot model call that produced it.
+
+- Test: `provider turn exports SDK spans through the Agent Host file exporter` in `providers/copilotOtelAgentHostE2E.integrationTest.ts`.
+- Scope: Copilot, record and replay. Host and SDK wrapper are unchanged; the gap is in the bundled runtime's native span emission.
+- Expected: after a turn completes, the export file contains an `invoke_agent` span whose `service.name` is `github-copilot`, alongside the Agent Host session spans.
+- Observed: the export file contains the Agent Host spans (including `vscode.agent_host.session.title_changed`) but no `invoke_agent` / `github-copilot` span, so the test fails with `OTel spans have not reached the file exporter`.
+- Controls: the bundled runtime does export the host-originated spans, confirming the exporter path and polling window work; only the SDK inference span is missing.
+- Gate: `AGENT_HOST_RUN_KNOWN_ISSUES=1`. The desired-behavior assertion remains intact.
+- Runtime status: the SDK inference span requires the upstream file-exporter fix that is not yet bundled. Remove the gate and this entry once the runtime that emits the `invoke_agent` span is bundled and the test passes in CI.
+- Reproduce:
+
+  ```bash
+  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+    src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
+    --grep "provider turn exports SDK spans through the Agent Host file exporter"
+  ```
+
 ### Binary writes to client-hosted files are corrupted
 
 An agent host can address files that live on a connected client and send symmetric AHP filesystem operations back to that client. When the host writes binary content this way, bytes that are not valid UTF-8 are replaced before they reach the client, so images and other binary files can be corrupted.
