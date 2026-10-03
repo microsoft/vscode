@@ -32,7 +32,7 @@ import type { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck 
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
-import { AgentSession, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentCanvasSnapshot, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { AgentSession, SubagentChatSignal, type AgentSignal, type IAgentActionSignal, type IAgentTelemetryContext, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
@@ -1090,7 +1090,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	runtime: TestCopilotSessionRuntime;
 	mockSession: MockCopilotSession;
 	signals: AgentSignal[];
-	canvasSnapshots: IAgentCanvasSnapshot[];
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
 	storedFileContents: ReadonlyMap<string, string>;
@@ -1106,9 +1105,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	storageService: IAgentHostStorageService;
 }> {
 	const progressEmitter = disposables.add(new Emitter<AgentSignal>());
-	const canvasEmitter = disposables.add(new Emitter<IAgentCanvasSnapshot>());
 	const signals: AgentSignal[] = [];
-	const canvasSnapshots: IAgentCanvasSnapshot[] = [];
 	const waiters: { predicate: (signal: AgentSignal) => boolean; deferred: DeferredPromise<AgentSignal> }[] = [];
 
 	disposables.add(progressEmitter.event(signal => {
@@ -1121,7 +1118,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			}
 		}
 	}));
-	disposables.add(canvasEmitter.event(snapshot => canvasSnapshots.push(snapshot)));
 
 	const waitForSignal = (predicate: (signal: AgentSignal) => boolean): Promise<AgentSignal> => {
 		const existing = signals.find(predicate);
@@ -1377,7 +1373,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			chatChannelUri,
 			rawSessionId: 'test-session-1',
 			onDidSessionProgress: progressEmitter,
-			onDidChangeCanvases: canvasEmitter,
 			sessionLauncher,
 			launchPlan,
 			shellManager: options?.shellManager,
@@ -1421,7 +1416,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		runtime,
 		mockSession,
 		signals,
-		canvasSnapshots,
 		waitForSignal,
 		terminalManager,
 		storedFileContents,
@@ -2447,8 +2441,8 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
-	test('projects only live canvas events after resume and fences source revisions', async () => {
-		const { session, mockSession, canvasSnapshots } = await createAgentSession(disposables, {
+	test('projects live canvas channels after resume and clears unavailable sources', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables, {
 			resume: true,
 			configureMockSession: mock => {
 				mock.openCanvases.push({
@@ -2484,61 +2478,43 @@ suite('CopilotAgentSession', () => {
 			title: 'Preview',
 			status: 'ready',
 			url: 'https://example.test/live',
-		}, { id: 'live-open' });
-		const source = session.resolveCanvasSource('preview', 1);
+		});
 		mockSession.fire('session.canvas.unavailable', {
 			instanceId: 'preview',
 			extensionId: 'project:preview',
 			canvasId: 'preview',
 		});
-		assert.throws(() => session.resolveCanvasSource('preview', 1), /not available/);
 		session.dispose();
-
+		const canvases = signals.filter(signal => signal.kind === 'canvas');
+		const resource = canvases[0]?.resource.toString();
 		assert.deepStrictEqual({
-			source,
-			snapshots: canvasSnapshots.map(snapshot => ({
-				chat: snapshot.chat.toString(),
-				canvases: snapshot.canvases,
-			})),
+			states: canvases.map(signal => signal.state),
+			sameResource: canvases[1]?.resource.toString() === resource,
+			actions: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
 		}, {
-			source: 'https://example.test/live',
-			snapshots: [
+			states: [{
+				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
+				canvasId: 'preview', title: 'Preview', status: 'ready', url: 'https://example.test/live',
+			}, {
+				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
+				canvasId: 'preview', title: 'Preview', status: 'ready',
+			}],
+			sameResource: true,
+			actions: [
 				{
-					chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-					canvases: [{
-						instanceId: 'preview',
-						extensionId: 'project:preview',
-						extensionName: 'Preview',
-						canvasId: 'preview',
-						title: 'Preview',
-						status: 'ready',
-						revision: 1,
-						availability: 'ready',
-					}],
+					type: ActionType.ChatCanvasesChanged,
+					canvases: [{ resource }],
 				},
 				{
-					chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-					canvases: [{
-						instanceId: 'preview',
-						extensionId: 'project:preview',
-						extensionName: 'Preview',
-						canvasId: 'preview',
-						title: 'Preview',
-						status: 'ready',
-						revision: 2,
-						availability: 'unavailable',
-					}],
-				},
-				{
-					chat: buildDefaultChatUri(AgentSession.uri('copilot', 'test-session-1')),
-					canvases: [],
+					type: ActionType.ChatCanvasesChanged,
+					canvases: undefined,
 				},
 			],
 		});
 	});
 
 	test('ignores canvas events when the runtime was launched with canvases disabled', async () => {
-		const { session, mockSession, canvasSnapshots } = await createAgentSession(disposables, { canvasRuntimeEnabled: false });
+		const { session, mockSession, signals } = await createAgentSession(disposables, { canvasRuntimeEnabled: false });
 
 		mockSession.fire('session.canvas.opened', {
 			instanceId: 'preview',
@@ -2547,13 +2523,15 @@ suite('CopilotAgentSession', () => {
 			url: 'https://example.test/live',
 		});
 
-		assert.deepStrictEqual(canvasSnapshots, []);
-		assert.throws(() => session.resolveCanvasSource('preview', 1), /not available/);
+		assert.deepStrictEqual({
+			states: signals.filter(signal => signal.kind === 'canvas'),
+			membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged),
+		}, { states: [], membership: [] });
 		session.dispose();
 	});
 
-	test('publishes a new revision when the agent reopens an unchanged canvas instance', async () => {
-		const { session, mockSession, canvasSnapshots } = await createAgentSession(disposables);
+	test('keeps a canvas lifetime for updates and creates a new channel after closing', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
 		const canvas = {
 			instanceId: 'preview',
 			extensionId: 'project:preview',
@@ -2564,20 +2542,24 @@ suite('CopilotAgentSession', () => {
 
 		mockSession.fire('session.canvas.opened', canvas, { id: 'open-1' });
 		mockSession.fire('session.canvas.opened', canvas, { id: 'open-2' });
+		mockSession.fire('session.canvas.closed', { instanceId: canvas.instanceId, extensionId: canvas.extensionId, canvasId: canvas.canvasId });
+		mockSession.fire('session.canvas.opened', canvas, { id: 'open-3' });
 
-		assert.throws(() => session.resolveCanvasSource('preview', 1), /not available/);
+		const states = signals.filter(signal => signal.kind === 'canvas');
 		assert.deepStrictEqual({
-			revisions: canvasSnapshots.map(snapshot => snapshot.canvases[0]?.revision),
-			source: session.resolveCanvasSource('preview', 2),
+			states: states.map(signal => signal.state),
+			newLifetime: states[0].resource.toString() !== states[1].resource.toString(),
+			membershipCounts: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.length ?? 0),
 		}, {
-			revisions: [1, 2],
-			source: 'https://example.test/live',
+			states: [canvas, canvas],
+			newLifetime: true,
+			membershipCounts: [1, 0, 1],
 		});
 		session.dispose();
 	});
 
 	test('bounds the live canvas projection and evicts the oldest instance', async () => {
-		const { session, mockSession, canvasSnapshots } = await createAgentSession(disposables);
+		const { session, mockSession, signals } = await createAgentSession(disposables);
 		for (let index = 0; index < 9; index++) {
 			mockSession.fire('session.canvas.opened', {
 				instanceId: `canvas-${index}`,
@@ -2587,11 +2569,13 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
-		const finalCanvases = canvasSnapshots.at(-1)?.canvases;
-		assert.throws(() => session.resolveCanvasSource('canvas-0', 1), /not available/);
+		const actions = getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged);
+		const finalCanvases = actions.at(-1)?.canvases;
+		const states = signals.filter(signal => signal.kind === 'canvas');
+		const survivingResources = new Set(finalCanvases?.map(canvas => canvas.resource));
 		assert.deepStrictEqual({
-			instanceIds: finalCanvases?.map(canvas => canvas.instanceId),
-			newestSource: session.resolveCanvasSource('canvas-8', 9),
+			instanceIds: states.filter(signal => survivingResources.has(signal.resource.toString())).map(signal => signal.state.instanceId),
+			newestSource: states.at(-1)?.state.url,
 		}, {
 			instanceIds: ['canvas-1', 'canvas-2', 'canvas-3', 'canvas-4', 'canvas-5', 'canvas-6', 'canvas-7', 'canvas-8'],
 			newestSource: 'https://example.test/canvas-8',
