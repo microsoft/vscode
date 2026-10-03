@@ -13,6 +13,12 @@ There are two related but distinct bounded migrations:
 
 Neither path is open to newly designed settings or controls. Put new runtime-owned controls directly in the shared managed-settings schema and SDK contract. The legacy-setting bridge is unconditional; its former staged-adoption gate has been retired.
 
+Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host sandbox requirement. Existing sandbox-setting forwarding still carries its effective value as an overridable root default. Use runtime-native `sandbox.enabled` managed settings for mandatory sandboxing; do not promote the legacy value into a session policy floor. Local enforcement and other existing legacy translations are unchanged.
+
+Legacy sandbox settings and the `ChatAgentSandboxEnabled`, `ChatAgentSandboxAllowNetwork`, `ChatAgentSandboxAllowUnsandboxedCommands`, and `ChatAgentSandboxAllowAutoApprove` device policies are deprecated, not removed. Keep their existing defaults and Local behavior. Retain visible Settings editor migration notices and deprecated policy descriptions in the generated catalog. New Agent Host sandbox controls are not deprecated. Administrators should migrate to [Copilot managed settings](https://docs.github.com/en/copilot/how-tos/administer-copilot/manage-for-enterprise/use-managed-settings/get-started); personal Agent Host file-path preferences use `chat.agent.sandbox.fileSystem.userConfiguredPaths`.
+
+These four retired device policies are outside the supported Agent Host policy contract, so their catalog status is `notApplicable` and readiness does not report them as outstanding parity gaps. This is an explicit scope decision, not a claim that setting forwarding has no effect or that legacy and native enforcement are equivalent. Runtime-native sandbox requirements remain enforced.
+
 ## Legacy permission policy rules
 
 - Translate only exact enterprise `policyValue`; never user/workspace values.

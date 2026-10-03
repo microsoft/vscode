@@ -7,7 +7,7 @@ import { isObject } from '../../../../../base/common/types.js';
 
 const sandboxPolicyKey = 'vscode.resolvedSandboxPolicy';
 
-/** The effective runtime and forwarded VS Code sandbox floor for one session, not a client preference. */
+/** The runtime-resolved sandbox floor for one session, not a client preference. */
 export interface ISessionSandboxPolicy {
 	readonly enabled: boolean;
 	readonly allowBypass?: boolean;

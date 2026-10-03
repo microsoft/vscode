@@ -67,12 +67,13 @@ Restarting the host lets the same new policy work, including message-content cap
 - Expected: the second session completes without a manual restart, and its decoded inference span contains its actual user message under service B, correlated using the provider session ID reported over AHP.
 - Observed: the second turn fails with `Managed telemetry conflicts with the already selected OTel configuration`. The runtime deliberately permits only one effective telemetry configuration per process; suppressing the error or retaining policy A is not a fix.
 - Controls: unchanged-policy sessions and an explicit host restart both pass with capture enabled. Runtime `1.0.89-3` from SDK `1.0.15-preview.3`, tested through the current host's runtime-path override, completes the first turn but exports no inference spans. It is not a green baseline for the full telemetry contract.
-- Gate: `AGENT_HOST_RUN_KNOWN_ISSUES=1`. The desired-behavior assertion remains intact.
+- Expected failure: runs by default and accepts only the second session's known configuration-conflict error, tracked by [github/copilot-agent-runtime#24069](https://github.com/github/copilot-agent-runtime/pull/24069). A successful second turn and export fail the test as an unexpected pass, requiring removal of the marker. Setup, replay, and other failures remain failures.
+- After that recognized failure only, teardown permits unused future model responses; all observed requests must still match the recording.
 - Fixture provenance: the two trivial model responses were generated with an explicit restart between turns, then the restart was removed and the warm failure was confirmed in strict replay. The permanent warm scenario must never restart the host.
 - Reproduce:
 
   ```bash
-  AGENT_HOST_RUN_KNOWN_ISSUES=1 ./scripts/test-integration.sh --run \
+  ./scripts/test-integration.sh --run \
     src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
     --grep "new sessions honor changed managed telemetry without restarting"
   ```

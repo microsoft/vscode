@@ -16,6 +16,8 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../base/common/async.js';
 import { isObject } from '../../../base/common/types.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
@@ -72,6 +74,8 @@ function frameDataToString(data: unknown): string {
 }
 
 export interface IWebPubSubRelayTransportOptions {
+	/** Mission Control's logical client ID, shared with the AHP initialize request. */
+	readonly clientId: string;
 	/** Full WebSocket URL (including the `access_token` and `clientId` query params). */
 	readonly url: string;
 	/** Group to publish outbound AHP messages to (the `to_host` lane). */
@@ -134,8 +138,18 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	/** Guards against firing onClose / resolving connect more than once. */
 	private _closed = false;
 	private _connectResolved = false;
+	private readonly _watch = StopWatch.create(false);
+	private _publishAcknowledged = false;
+	private _hostFrames = 0;
+	private _hostMessages = 0;
+	private _lastHostFrameMs: number | undefined;
+	private _protocolErrors = 0;
+	private _expiredAssemblies = 0;
 
-	constructor(private readonly _options: IWebPubSubRelayTransportOptions) {
+	constructor(
+		private readonly _options: IWebPubSubRelayTransportOptions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 		if (this._options.ahpLogger) {
 			this._register(this._options.ahpLogger);
@@ -166,6 +180,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const handshakeStore = new DisposableStore();
 
 			const settleReject = (err: Error) => {
+				this._logService.warn(`${this._logContext()} handshake failed`);
 				handshakeStore.dispose();
 				this._closeSocket();
 				reject(err);
@@ -175,6 +190,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				handshakeStore.dispose();
 				this._rejectConnect = undefined;
 				this._connectResolved = true;
+				this._logService.info(`${this._logContext()} relay ready; joinedGroups=${this._options.joinGroups.length}`);
 				this._startObserving();
 				resolve();
 			};
@@ -197,7 +213,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				try {
 					frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
 				} catch (err) {
-					this._options.onProtocolError?.(err);
+					this._reportProtocolError('invalid JSON', err);
 					return;
 				}
 				this._handleHandshakeFrame(frame, settleResolve, settleReject);
@@ -208,6 +224,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			};
 
 			ws.onclose = ev => {
+				this._logService.warn(`${this._logContext()} socket closed during handshake; code=${ev.code}`);
 				settleReject(new Error(`WebSocket closed before connection was established: ${ev.code} ${ev.reason}`));
 			};
 		});
@@ -260,7 +277,15 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (!ws) {
 			return;
 		}
-		this._sweepTimer.cancelAndSet(() => this._reassembler.sweepExpired(), REASSEMBLY_SWEEP_INTERVAL_MS);
+		this._sweepTimer.cancelAndSet(() => {
+			const expired = this._reassembler.sweepExpired().length;
+			if (expired > 0) {
+				this._expiredAssemblies += expired;
+				if (this._expiredAssemblies === expired) {
+					this._logService.warn(`${this._logContext()} reassembly expired; count=${expired}`);
+				}
+			}
+		}, REASSEMBLY_SWEEP_INTERVAL_MS);
 
 		ws.onmessage = event => {
 			if (!this._closed) {
@@ -270,13 +295,19 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			try {
 				frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
 			} catch (err) {
-				this._options.onProtocolError?.(err);
+				this._reportProtocolError('invalid JSON', err);
 				return;
 			}
 			this._handleInboundFrame(frame, () => this._fireClose());
 		};
-		ws.onclose = () => this._fireClose();
-		ws.onerror = () => this._fireClose();
+		ws.onclose = event => {
+			this._logService.info(`${this._logContext()} socket closed; code=${event.code}`);
+			this._fireClose();
+		};
+		ws.onerror = () => {
+			this._logService.warn(`${this._logContext()} socket error`);
+			this._fireClose();
+		};
 	}
 
 	/** Handle publish acknowledgements and reassemble incoming group frames. */
@@ -294,17 +325,21 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const errorName = isObject(error) ? (error as { readonly name?: unknown }).name : undefined;
 			// Duplicate means the relay already accepted this publish, not that the host executed it.
 			if (frame['success'] === true || (frame['success'] === false && errorName === 'Duplicate')) {
+				if (!this._publishAcknowledged) {
+					this._publishAcknowledged = true;
+					this._logService.info(`${this._logContext()} first publish acknowledged; ackId=${ackId}`);
+				}
 				return;
 			}
 			const failure = new Error('WPS publish failed');
-			this._options.onProtocolError?.(failure);
+			this._reportProtocolError('publish rejected', failure, true);
 			onFail(failure);
 			return;
 		}
 		if (frame?.['type'] === 'message' && frame['sequenceId'] !== undefined) {
 			const sequenceId = frame['sequenceId'];
 			if (typeof sequenceId !== 'number' || !Number.isSafeInteger(sequenceId) || sequenceId <= 0) {
-				this._options.onProtocolError?.(new Error('Invalid WPS message sequenceId'));
+				this._reportProtocolError('invalid sequence ID', new Error('Invalid WPS message sequenceId'));
 				return;
 			}
 			const duplicate = sequenceId <= this._lastReceivedSequenceId;
@@ -314,7 +349,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._sendRaw({ type: 'sequenceAck', sequenceId: this._lastReceivedSequenceId });
 			} catch (err) {
 				const error = new Error('Failed to send WPS sequence acknowledgement', { cause: err });
-				this._options.onProtocolError?.(error);
+				this._reportProtocolError('sequence acknowledgement failed', error, true);
 				onFail(error);
 				return;
 			}
@@ -326,10 +361,17 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		try {
 			result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: this._options.groupValidation });
 		} catch (err) {
-			this._options.onProtocolError?.(err);
+			this._reportProtocolError('invalid group message', err);
 			return;
 		}
+		if (result.kind === 'payload' || result.kind === 'pending') {
+			this._lastHostFrameMs = this._watch.elapsed();
+			if (++this._hostFrames === 1) {
+				this._logService.info(`${this._logContext()} first host frame received`);
+			}
+		}
 		if (result.kind === 'payload') {
+			this._hostMessages++;
 			const payload = result.payload as ProtocolMessage;
 			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
 			this._onMessage.fire(payload);
@@ -384,7 +426,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			return;
 		}
 		const error = new Error('WPS publish acknowledgement timed out');
-		this._options.onProtocolError?.(error);
+		this._reportProtocolError('publish acknowledgement timed out', error, true);
 		if (this._rejectConnect) {
 			this._rejectConnect(error);
 		} else {
@@ -394,6 +436,17 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	private _sendRaw(obj: unknown): void {
 		this._ws?.send(JSON.stringify(obj));
+	}
+
+	private _logContext(): string {
+		return `[WebPubSubRelayTransport] clientId=${this._options.clientId} durationMs=${this._watch.elapsed()}`;
+	}
+
+	private _reportProtocolError(kind: string, error: unknown, fatal = false): void {
+		if (++this._protocolErrors === 1 || fatal) {
+			this._logService.warn(`${this._logContext()} protocol error; kind=${kind}`);
+		}
+		this._options.onProtocolError?.(error);
 	}
 
 	/** Fire onClose exactly once and stop background work. */
@@ -407,6 +460,9 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	/** Stop background work and close the socket without firing onClose. */
 	private _closeSocket(): void {
+		if (!this._closed) {
+			this._logService.info(`${this._logContext()} closing; relayReady=${this._connectResolved} publishAcknowledged=${this._publishAcknowledged} pendingJoins=${this._pendingJoinAcks.size} pendingPublishes=${this._pendingPublishAcks.size} hostFrames=${this._hostFrames} hostMessages=${this._hostMessages} hostSilenceMs=${this._lastHostFrameMs === undefined ? 'none' : this._watch.elapsed() - this._lastHostFrameMs} protocolErrors=${this._protocolErrors} expiredAssemblies=${this._expiredAssemblies}`);
+		}
 		this._closed = true;
 		this._sweepTimer.cancel();
 		this._publishAckTimer.cancel();

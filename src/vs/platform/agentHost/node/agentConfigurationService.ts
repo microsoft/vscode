@@ -19,13 +19,12 @@ import { getAgentCustomizationSettingsEntries, getProviderBackedRootConfigKeys, 
 import { copilotCliConfigSchema } from '../common/copilotCliConfig.js';
 import { agentMergeRootConfigSchema } from '../common/agentMerge.js';
 import { automationRootConfigSchema } from '../common/automationConfig.js';
-import { AgentHostSandboxConfigKey, AgentHostSandboxKey, sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
+import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
 import { agentHostProxyConfigSchema, clientOwnedApprovalRootConfigKeys, platformRootSchema, type ISchema, type SchemaDefinition, type SchemaValue } from '../common/agentHostSchema.js';
 import { ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType, type ActionOrigin } from '../common/state/sessionActions.js';
 import { isAhpChatChannel, parseSubagentSessionUri, ROOT_STATE_URI, type SessionConfigState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { type ISessionSandboxPolicy, readSessionSandboxPolicy, withSessionSandboxPolicy } from '../common/meta/agentSandboxPolicyMeta.js';
 import { ISessionSandboxState, readSessionSandboxState, withSessionSandboxState } from '../common/meta/agentSandboxStateMeta.js';
@@ -118,7 +117,7 @@ export interface IAgentConfigurationService {
 	 */
 	updateSessionConfig(session: ProtocolURI, patch: Record<string, unknown>): void;
 
-	/** Effective runtime and forwarded VS Code sandbox floor for this configuration owner. */
+	/** Runtime-resolved sandbox floor for this configuration owner. */
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined;
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void;
 	getSessionSandboxEnabled(session: ProtocolURI): boolean | undefined;
@@ -184,7 +183,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 		@ILogService private readonly _logService: ILogService,
 		private readonly _rootConfigResource?: URI,
 		providerConfigurations: readonly IAgentCustomizationSettingsRegistration[] = [],
-		private readonly _managedSettingsService?: IAgentHostManagedSettingsService,
 	) {
 		super();
 		// Merge our customization schema/values into the existing root config
@@ -210,13 +208,6 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 			this._sessionSandboxPolicies.delete(session);
 			this._sessionSandboxChanges.delete(session);
 		}));
-		if (this._managedSettingsService) {
-			this._register(this._managedSettingsService.onDidChangeSandboxRequired(() => {
-				for (const session of this._stateManager.getSessionUris()) {
-					this._publishSessionSandboxPolicy(session);
-				}
-			}));
-		}
 
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
 			if (envelope.action.type === ActionType.RootConfigChanged) {
@@ -284,20 +275,7 @@ export class AgentConfigurationService extends Disposable implements IAgentConfi
 
 	getSessionSandboxPolicy(session: ProtocolURI): ISessionSandboxPolicy | undefined {
 		const owner = resolveAgentHostSession(URI.parse(session)).toString();
-		const runtimePolicy = this._sessionSandboxPolicies.get(owner);
-		const sandbox = this.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox);
-		if (!this._managedSettingsService?.sandboxRequired) {
-			return runtimePolicy;
-		}
-		const runtimeAllowsBypass = runtimePolicy?.allowBypass !== false
-			&& (!runtimePolicy?.enabled || runtimePolicy.allowBypass === true);
-		return {
-			...runtimePolicy,
-			enabled: true,
-			allowBypass: runtimeAllowsBypass && sandbox?.[AgentHostSandboxKey.AllowUnsandboxedCommands] === true,
-			// A known VS Code requirement must not offer the runtime's retry-Off path for unresolved policy.
-			...(runtimePolicy?.failClosed ? { failClosed: false } : {}),
-		};
+		return this._sessionSandboxPolicies.get(owner);
 	}
 
 	setSessionSandboxPolicy(session: ProtocolURI, policy: ISessionSandboxPolicy): void {

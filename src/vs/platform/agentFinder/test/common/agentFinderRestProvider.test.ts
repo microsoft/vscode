@@ -96,6 +96,7 @@ function resourceSnapshot(resource: ICustomizationMarketplaceEntry) {
 		url: resource.url?.toString(),
 		repository: resource.repository?.toString(),
 		icon: resource.icon?.toString(),
+		...(resource.publisherUrl ? { publisherUrl: resource.publisherUrl.toString() } : {}),
 	};
 }
 
@@ -141,6 +142,7 @@ suite('AgentFinderRestProvider', () => {
 				repository: 'https://github.com/ChromeDevTools/chrome-devtools-mcp',
 				icon: 'https://github.com/ChromeDevTools.png?size%3D64',
 				publisher: 'ChromeDevTools',
+				publisherUrl: 'https://github.com/ChromeDevTools',
 				version: undefined,
 				score: undefined,
 				installation: { kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'main', path: 'skills/a11y-debugging' },
@@ -159,7 +161,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('resolves an MCP registry icon through the fixed Agent Finder registry', async () => {
+	test('resolves MCP registry metadata through the fixed Agent Finder registry', async () => {
 		const lookups: { url: string; manifestUrl: string | undefined; manifestVersion: string | undefined; cancelled: boolean }[] = [];
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async (url, manifest, token) => {
@@ -174,6 +176,9 @@ suite('AgentFinderRestProvider', () => {
 						light: 'https://avatars.githubusercontent.com/u/213697801',
 						dark: 'https://avatars.githubusercontent.com/u/213697801',
 					},
+					publisher: 'pgEdge',
+					publisherDisplayName: 'pgEdge, Inc.',
+					repositoryUrl: 'https://github.com/pgEdge/postgres-mcp',
 				});
 			},
 		});
@@ -187,8 +192,9 @@ suite('AgentFinderRestProvider', () => {
 				version: page.items[0].version,
 				url: page.items[0].url?.toString(),
 				externalUrl: page.items[0].externalUrl,
-				repository: page.items[0].repository,
+				repository: page.items[0].repository?.toString(),
 				publisher: page.items[0].publisher,
+				publisherUrl: page.items[0].publisherUrl?.toString(),
 				icon: page.items[0].icon?.toString(),
 				stars: page.items[0].stars,
 			},
@@ -200,8 +206,9 @@ suite('AgentFinderRestProvider', () => {
 				version: '1.0.0',
 				url: 'https://api.mcp.github.com/oss/v0.1/servers/io.github.pgEdge/postgres-mcp/versions/latest',
 				externalUrl: mcpServer.url,
-				repository: undefined,
-				publisher: undefined,
+				repository: 'https://github.com/pgEdge/postgres-mcp',
+				publisher: 'pgEdge, Inc.',
+				publisherUrl: 'https://github.com/pgEdge',
 				icon: 'https://avatars.githubusercontent.com/u/213697801',
 				stars: undefined,
 			},
@@ -214,7 +221,7 @@ suite('AgentFinderRestProvider', () => {
 		});
 	});
 
-	test('keeps the MCP result and logs when registry icon resolution fails', async () => {
+	test('keeps the MCP result and logs when registry metadata resolution fails', async () => {
 		const mcpGalleryService = upcastPartial<IMcpGalleryService>({
 			getMcpServer: async () => { throw new Error('offline'); },
 		});
@@ -228,7 +235,7 @@ suite('AgentFinderRestProvider', () => {
 			warnings: warning.args.map(args => args[0]),
 		}, {
 			icon: undefined,
-			warnings: ['[AgentFinderRestProvider] Failed to resolve the MCP catalog icon for \'io.github.pgEdge/postgres-mcp\'.'],
+			warnings: ['[AgentFinderRestProvider] Failed to resolve MCP catalog metadata for \'io.github.pgEdge/postgres-mcp\'.'],
 		});
 	});
 
@@ -252,7 +259,7 @@ suite('AgentFinderRestProvider', () => {
 		}, {
 			icon: undefined,
 			iconCancelled: true,
-			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog icons.'],
+			warnings: ['[AgentFinderRestProvider] Timed out resolving MCP catalog metadata.'],
 		});
 	}));
 
@@ -751,8 +758,8 @@ suite('AgentFinderRestProvider', () => {
 		const page = await service.query({}, CancellationToken.None);
 		const item = page.items[0];
 
-		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, version: item.version }, {
-			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', version: '2.0',
+		assert.deepStrictEqual({ repository: item.repository?.toString(), icon: item.icon?.toString(), publisher: item.publisher, publisherUrl: item.publisherUrl?.toString(), version: item.version }, {
+			repository: 'https://github.com/Owner/Repository', icon: 'https://github.com/Owner.png?size%3D64', publisher: 'Owner', publisherUrl: 'https://github.com/Owner', version: '2.0',
 		});
 	});
 

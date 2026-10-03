@@ -16,7 +16,7 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISessionCanvas, ISessionCapabilities, SessionCanvasAvailability } from '../../../../services/sessions/common/session.js';
+import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionCanvasInput } from '../../common/sessionCanvas.js';
 import { SessionCanvasService } from '../../electron-browser/sessionCanvasService.js';
@@ -31,11 +31,9 @@ suite('SessionCanvasService', () => {
 			resource: URI.parse('agent-host-canvas:/preview'),
 			instanceId: 'preview',
 			title: 'Preview',
-			revision: 1,
-			availability: SessionCanvasAvailability.Ready,
-			resolveSource: async () => URI.parse('https://example.test/preview'),
+			source: URI.parse('https://example.test/preview'),
 		};
-		const canvases = observableValue<readonly ISessionCanvas[]>('canvases', [canvas]);
+		const canvases = observableValue<readonly ISessionCanvas[] | undefined>('canvases', [canvas]);
 		const chat = upcastPartial<IChat>({ resource: chatResource, canvases });
 		const activeChat = observableValue<IChat>('activeChat', chat);
 		const capabilities = observableValue<ISessionCapabilities>('capabilities', { supportsCanvases: true, supportsMultipleChats: false });
@@ -107,7 +105,7 @@ suite('SessionCanvasService', () => {
 		assert.deepStrictEqual({ opened: harness.opened.length, closed: harness.closeCount }, { opened: 1, closed: 1 });
 	});
 
-	test('forgets a dismissed revision when the provider removes the canvas', () => {
+	test('forgets a dismissed canvas when the provider removes its membership', () => {
 		const { canvas, canvases, opened } = createHarness();
 		opened[0].dispose();
 
@@ -117,16 +115,7 @@ suite('SessionCanvasService', () => {
 		assert.strictEqual(opened.length, 2);
 	});
 
-	test('reveals a dismissed canvas when the provider publishes a new open revision', () => {
-		const { canvas, canvases, opened } = createHarness();
-		opened[0].dispose();
-
-		canvases.set([{ ...canvas, revision: 2 }], undefined);
-
-		assert.strictEqual(opened.length, 2);
-	});
-
-	test('forgets dismissed revisions when the owning session disappears', () => {
+	test('forgets dismissed canvases when the owning session disappears', () => {
 		const { activeSession, opened, session, sessionChanges } = createHarness();
 		opened[0].dispose();
 		activeSession.set(undefined, undefined);
@@ -135,5 +124,27 @@ suite('SessionCanvasService', () => {
 		activeSession.set(session, undefined);
 
 		assert.strictEqual(opened.length, 2);
+	});
+
+	test('metadata and source changes do not reveal a dismissed canvas', () => {
+		const { canvas, canvases, opened } = createHarness();
+		opened[0].dispose();
+		canvases.set([{ ...canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
+		assert.strictEqual(opened.length, 1);
+	});
+
+	test('metadata and source changes do not repeatedly reveal an open canvas', () => {
+		const { canvas, canvases, opened } = createHarness();
+		canvases.set([{ ...canvas, title: 'Updated', source: URI.parse('https://example.test/replacement') }], undefined);
+		assert.strictEqual(opened.length, 1);
+	});
+
+	test('temporary membership and canvas hydration do not forget dismissal', () => {
+		const { canvas, canvases, opened } = createHarness();
+		opened[0].dispose();
+		canvases.set(undefined, undefined);
+		canvases.set([{ ...canvas, instanceId: undefined, source: undefined }], undefined);
+		canvases.set([canvas], undefined);
+		assert.strictEqual(opened.length, 1);
 	});
 });
