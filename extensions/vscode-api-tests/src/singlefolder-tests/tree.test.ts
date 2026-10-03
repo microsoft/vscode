@@ -18,6 +18,37 @@ suite('vscode API - tree', () => {
 		assertNoRpc();
 	});
 
+	test('TreeView - clearSelection', async function () {
+		this.timeout(60_000);
+
+		type TreeElement = { readonly key: string };
+
+		const elements: TreeElement[] = [{ key: 'first' }, { key: 'second' }];
+
+		const provider: vscode.TreeDataProvider<TreeElement> = {
+			getChildren(element?: TreeElement): TreeElement[] {
+				return element ? [] : elements;
+			},
+			getTreeItem(element: TreeElement): vscode.TreeItem {
+				const item = new vscode.TreeItem(element.key, vscode.TreeItemCollapsibleState.None);
+				item.id = element.key;
+				return item;
+			},
+			getParent(): TreeElement | undefined {
+				return undefined;
+			}
+		};
+
+		const treeView = vscode.window.createTreeView('test.treeId', { treeDataProvider: provider });
+		disposables.push(treeView);
+
+		// Nothing is selected, so this is a no-op. It must not throw and must leave the
+		// selection empty -- the view is never shown in tests, so this asserts the API
+		// surface and the round trip to the main thread rather than the rendered selection.
+		treeView.clearSelection();
+		assert.deepStrictEqual(treeView.selection, []);
+	});
+
 	test('TreeView - element already registered', async function () {
 		this.timeout(60_000);
 
