@@ -376,6 +376,11 @@ export class CodeCell extends Disposable {
 		}
 
 		this._register(this.templateData.editor.onDidChangeCursorSelection((e) => {
+			// Disposal synchronously detaches the editor and fires this event while a list render may still be active; revealing would re-enter `ListView.render`.
+			if (this._isDisposed) {
+				return;
+			}
+
 			if (
 				// do not reveal the cell into view if this selection change was caused by restoring editors
 				e.source === 'restoreState' || e.oldModelVersionId === 0
