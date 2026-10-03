@@ -83,6 +83,11 @@ export type AgentHostE2EModelTraffic = 'recorded' | 'none';
  * same way it already did.
  */
 function clearReadOnlyAttributes(dir: string): void {
+	try {
+		chmodSync(dir, 0o700);
+	} catch {
+		// Continue clearing child attributes when the directory itself cannot be changed.
+	}
 	let entries: string[];
 	try {
 		entries = readdirSync(dir);
