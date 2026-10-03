@@ -154,8 +154,9 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
-				const startMarkerDisposed = this._startMarker.value?.line === -1;
-				output = xterm.getContentsAsText(this._startMarker.value, endMarker);
+				const startMarker = this._startMarker.value;
+				const startMarkerDisposed = startMarker?.line === -1;
+				output = xterm.getContentsAsText(startMarker, endMarker);
 				this._log('Fetched output via markers');
 
 				// The marker-based output includes the command echo (the line where the
@@ -164,7 +165,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 				// command echo (since the start marker is placed at the cursor before
 				// sendText), and trailing lines that look like shell prompts are removed.
 				if (output !== undefined) {
-					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+					output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this), /*allowLayoutMatch*/ startMarker !== undefined && !startMarkerDisposed);
 				}
 
 				if (startMarkerDisposed) {
