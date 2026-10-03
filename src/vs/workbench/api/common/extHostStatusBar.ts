@@ -206,7 +206,11 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		}
 
 		if (this._latestCommandRegistration) {
-			this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			if (this._visible) {
+				this._staleCommandRegistrations.add(this._latestCommandRegistration);
+			} else {
+				this._latestCommandRegistration.dispose();
+			}
 		}
 		this._latestCommandRegistration = new DisposableStore();
 		if (typeof command === 'string') {
@@ -239,6 +243,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 		clearTimeout(this._timeoutHandle);
 		this._visible = false;
 		this.#proxy.$disposeEntry(this._entryId);
+		this._staleCommandRegistrations.clear();
 	}
 
 	private update(): void {
