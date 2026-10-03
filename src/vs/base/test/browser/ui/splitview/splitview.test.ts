@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Sash, SashState } from '../../../../browser/ui/sash/sash.js';
+import { Orientation, Sash, SashState } from '../../../../browser/ui/sash/sash.js';
 import { IView, LayoutPriority, Sizing, SplitView } from '../../../../browser/ui/splitview/splitview.js';
 import { Emitter } from '../../../../common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
@@ -346,6 +346,89 @@ suite('Splitview', () => {
 
 		splitview.removeView(1, Sizing.Distribute);
 		assert.deepStrictEqual([view1.size, view3.size], [100, 100]);
+	});
+
+	for (const orientation of [Orientation.HORIZONTAL, Orientation.VERTICAL]) {
+		for (const sizing of [Sizing.Distribute, Sizing.Auto(0)]) {
+			test(`${sizing.type} sizing only lays out final sizes when adding and removing views (${orientation})`, () => {
+				const views = [0, 1, 2].map(() => store.add(new TestView(220, Number.POSITIVE_INFINITY)));
+				const splitview = store.add(new SplitView(container, { orientation }));
+				const layouts: number[][] = [[], [], []];
+				views.forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+				const takeLayouts = () => layouts.map(calls => calls.splice(0));
+				splitview.layout(1200);
+				splitview.addView(views[0], 1200);
+				takeLayouts();
+
+				splitview.addView(views[1], sizing);
+				const addedSecond = takeLayouts();
+				splitview.addView(views[2], sizing);
+				const addedThird = takeLayouts();
+				splitview.removeView(2, sizing);
+				const removedThird = takeLayouts();
+				splitview.layout(600);
+
+				assert.deepStrictEqual({ addedSecond, addedThird, removedThird, resized: takeLayouts() }, {
+					addedSecond: [[600], [600], []],
+					addedThird: [[400], [400], [400]],
+					removedThird: [[600], [600], []],
+					resized: [[300], [300], []],
+				});
+			});
+		}
+	}
+
+	test('distributed additions preserve fixed, capped, hidden and prioritized sizes', () => {
+		const fixed = store.add(new TestView(100, 100));
+		const capped = store.add(new TestView(100, 200));
+		const flexible = store.add(new TestView(100, Number.POSITIVE_INFINITY, LayoutPriority.High));
+		const hidden = store.add(new TestView(100, Number.POSITIVE_INFINITY));
+		const added = store.add(new TestView(100, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(1000);
+		splitview.addView(fixed, 100);
+		splitview.addView(capped, 200);
+		splitview.addView(flexible, 700);
+		splitview.addView(hidden, Sizing.Invisible(250));
+		const layouts: number[][] = [[], [], [], [], []];
+		[fixed, capped, flexible, hidden, added].forEach((view, index) => store.add(view.onDidLayout(event => layouts[index].push(event.size))));
+
+		splitview.addView(added, Sizing.Distribute);
+
+		assert.deepStrictEqual({
+			layouts,
+			sizes: [0, 1, 2, 3, 4].map(index => splitview.getViewSize(index)),
+			hiddenVisible: splitview.isViewVisible(3),
+			hiddenCachedSize: splitview.getViewCachedVisibleSize(3),
+			contentSize: splitview.contentSize,
+		}, {
+			layouts: [[100], [200], [400], [0], [300]],
+			sizes: [100, 200, 400, 0, 300],
+			hiddenVisible: false,
+			hiddenCachedSize: 250,
+			contentSize: 1000,
+		});
+	});
+
+	test('skipLayout defers a distributed addition without notifying views', () => {
+		const first = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const second = store.add(new TestView(20, Number.POSITIVE_INFINITY));
+		const splitview = store.add(new SplitView(container));
+		splitview.layout(200);
+		splitview.addView(first, 200);
+		const calls: number[] = [];
+		store.add(first.onDidLayout(event => calls.push(event.size)));
+		store.add(second.onDidLayout(event => calls.push(event.size)));
+
+		splitview.addView(second, Sizing.Distribute, 1, true);
+		const deferredCalls = [...calls];
+		splitview.layout(200);
+
+		assert.deepStrictEqual({ deferredCalls, calls, contentSize: splitview.contentSize }, {
+			deferredCalls: [],
+			calls: [180, 20],
+			contentSize: 200,
+		});
 	});
 
 	test('add views before layout', () => {
