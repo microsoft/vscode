@@ -292,6 +292,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			'turn-rename-chat-seed',
 			'/rename Seeded Chat',
 			reserveClientSequenceBlock(),
+			{ expectUnread: false },
 		);
 		const { tool } = await driveServerTool(
 			session,
