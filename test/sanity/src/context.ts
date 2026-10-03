@@ -916,9 +916,9 @@ export class TestContext {
 	 * @param installerPath The path to the installer executable.
 	 * @returns The path to the installed VS Code executable.
 	 */
-	public installWindowsApp(type: 'user' | 'system', installerPath: string): string {
+	public installWindowsApp(type: 'user' | 'system', installerPath: string, desktopShortcut = false): string {
 		this.log(`Installing ${installerPath} in silent mode`);
-		this.runNoErrors(installerPath, '/silent', '/mergetasks=!runcode');
+		this.runNoErrors(installerPath, '/silent', `/mergetasks=!runcode${desktopShortcut ? ',desktopicon' : ''}`);
 		this.log(`Installed ${installerPath} successfully`);
 
 		const appDir = this.getWindowsInstallDir(type);

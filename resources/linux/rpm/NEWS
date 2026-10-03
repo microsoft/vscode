@@ -1,0 +1,5 @@
+Linux desktop launcher names changed in version 1.139
+
+Existing pinned shortcuts may need to be re-created. Details and migration steps:
+
+https://code.visualstudio.com/updates/v1_139#_linux-desktop-launcher-names
