@@ -5,7 +5,16 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
+import { observableCodeEditor } from '../../../../browser/observableCodeEditor.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
+import { InlineEditsGutterIndicator } from '../../browser/view/inlineEdits/components/gutterIndicatorView.js';
+import { InlineEditTabAction } from '../../browser/view/inlineEdits/inlineEditsViewInterface.js';
+import { withAsyncTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { AnnotatedText, InlineEditContext, IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockSearchReplaceCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
 
 suite('Inline Edits', () => {
@@ -36,6 +45,31 @@ class Point {
 			}
 		);
 	}
+
+	test('Onboarding animation tolerates the gutter icon before DOM materialization', async function () {
+		await withAsyncTestCodeEditor('', {},
+			async (editor, _viewModel, instantiationService) => {
+				instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+					override isMotionReduced(): boolean { return false; }
+				}());
+				instantiationService.stub(IHoverService, NullHoverService);
+				const indicator = instantiationService.createInstance(
+					InlineEditsGutterIndicator,
+					observableCodeEditor(editor),
+					constObservable(undefined),
+					constObservable(InlineEditTabAction.Inactive),
+					constObservable(0),
+					constObservable(false),
+					observableValue('focusIsInMenu', false)
+				);
+				try {
+					await indicator.triggerAnimation();
+				} finally {
+					indicator.dispose();
+				}
+			}
+		);
+	});
 
 	test('Can Accept Inline Edit', async function () {
 		await runTest(async ({ context, model, editor, editorViewModel }, provider, view) => {
