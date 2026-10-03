@@ -468,7 +468,7 @@
 	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
 }
 
-.sessions-chat-send-button .monaco-button .codicon {
+.sessions-chat-send-button.labeled .monaco-button .codicon {
 	margin: 0;
 	font-size: var(--vscode-codiconFontSize-compact);
 }

@@ -1451,18 +1451,18 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				: localize('send', "Send");
 			const sendButton = this._sendButton = this._register(new Button(this._sendButtonContainer, {
 				secondary: true,
-				supportIcons: true,
+				supportIcons: !!this.options.sendButtonLabel,
 				title: sendButtonTitle,
 				hoverDelegate: this.options.sendButtonLabel ? this._register(this.instantiationService.createInstance(WorkbenchHoverDelegate, 'element', {
 					dynamicDelay: () => this.options.sendButtonLabel?.get() ? 0 : undefined,
 				}, {})) : undefined,
 				ariaLabel: localize('send', "Send"),
 			}));
-			sendButton.label = '$(arrow-up-compact)';
+			sendButton.icon = Codicon.arrowUpCompact;
 			if (this.options.sendButtonLabel) {
 				this._register(autorun(reader => {
 					const label = this.options.sendButtonLabel?.read(reader);
-					sendButton.label = label ? `$(arrow-up-compact) ${label}` : '$(arrow-up-compact)';
+					NewChatInputWidget._setSendButtonLabel(sendButton, label);
 					sendButton.setTitle(label ? localize('comparisonTokenWarning', "This will use tokens for each session.") : sendButtonTitle);
 					sendButton.element.ariaLabel = label ?? localize('send', "Send");
 					this._sendButtonContainer?.classList.toggle('labeled', !!label);
@@ -1510,6 +1510,17 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			},
 		}));
 		this._primaryPickerResponsiveLayout.layout();
+	}
+
+	private static _setSendButtonLabel(sendButton: Button, label: string | undefined): void {
+		if (label) {
+			sendButton.element.classList.remove(...ThemeIcon.asClassNameArray(Codicon.arrowUpCompact));
+			sendButton.label = `$(arrow-up-compact) ${label}`;
+		} else {
+			sendButton.label = '';
+			sendButton.element.classList.remove('monaco-text-button');
+			sendButton.icon = Codicon.arrowUpCompact;
+		}
 	}
 
 	private _createVoiceInputModePill(toolbar: HTMLElement, inputContainer: HTMLElement, isVoiceSessionActive: IObservable<boolean>, pillActive: IObservable<boolean>, onDidChangeVisibility: (visible: boolean) => void): void {
