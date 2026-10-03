@@ -22,7 +22,10 @@ class TestMeteredConnectionService extends Disposable implements IMeteredConnect
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
-	constructor(public isConnectionMetered: boolean) {
+	constructor(
+		public isConnectionMetered: boolean,
+		readonly whenInitialized: Promise<void> = Promise.resolve(),
+	) {
 		super();
 	}
 

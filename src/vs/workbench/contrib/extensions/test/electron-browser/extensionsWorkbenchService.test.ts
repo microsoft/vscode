@@ -5,6 +5,7 @@
 
 import * as sinon from 'sinon';
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey, AutoUpdateDelayConfigurationKey, ExtensionRuntimeActionType, AutoUpdateConfigurationValue } from '../../common/extensions.js';
 import { ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
@@ -1726,6 +1727,81 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
 		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
+
+	test('Test disable autoupdate while metered initialization is pending', async () => {
+		stubConfiguration('on');
+		const initialized = new DeferredPromise<void>();
+		const meteredConnectionService = {
+			isConnectionMetered: true,
+			whenInitialized: initialized.p,
+			onDidChangeIsConnectionMetered: Event.None,
+		};
+		instantiationService.stub(IMeteredConnectionService, meteredConnectionService);
+		let confirmationCount = 0;
+		instantiationService.stub(IDialogService, {
+			confirm: async () => {
+				confirmationCount++;
+				return { confirmed: true };
+			},
+		});
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
+		let galleryRequests = 0;
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async () => {
+			galleryRequests++;
+			return [];
+		});
+		testObject = await aWorkbenchService();
+		await timeout(0);
+
+		await testObject.updateAutoUpdateForAllExtensions(false);
+		const configurationService = instantiationService.get(IConfigurationService);
+		const beforeInitialization = {
+			confirmationCount,
+			autoUpdate: configurationService.getValue(AutoUpdateConfigurationKey),
+			galleryRequests,
+		};
+		meteredConnectionService.isConnectionMetered = false;
+		await initialized.complete();
+
+		assert.deepStrictEqual({
+			beforeInitialization,
+			autoUpdateAfterInitialization: configurationService.getValue(AutoUpdateConfigurationKey),
+		}, {
+			beforeInitialization: { confirmationCount: 1, autoUpdate: 'off', galleryRequests: 0 },
+			autoUpdateAfterInitialization: 'off',
+		});
+	});
+
+	for (const { name, currentValue, requestedValue, confirmed, expectedConfirmationCount, expectedValue } of [
+		{ name: 'enable autoupdate', currentValue: 'off', requestedValue: true, confirmed: true, expectedConfirmationCount: 1, expectedValue: 'on' },
+		{ name: 'cancel disabling autoupdate', currentValue: 'on', requestedValue: false, confirmed: false, expectedConfirmationCount: 1, expectedValue: 'on' },
+		{ name: 'leave enabled autoupdate unchanged', currentValue: 'on', requestedValue: true, confirmed: true, expectedConfirmationCount: 0, expectedValue: 'on' },
+		{ name: 'leave disabled autoupdate unchanged', currentValue: 'off', requestedValue: false, confirmed: true, expectedConfirmationCount: 0, expectedValue: 'off' },
+	]) {
+		test(`Test ${name} while metered`, async () => {
+			stubConfiguration(currentValue);
+			instantiationService.stub(IMeteredConnectionService, {
+				isConnectionMetered: true,
+				whenInitialized: Promise.resolve(),
+				onDidChangeIsConnectionMetered: Event.None,
+			});
+			let confirmationCount = 0;
+			instantiationService.stub(IDialogService, {
+				confirm: async () => {
+					confirmationCount++;
+					return { confirmed };
+				},
+			});
+			testObject = await aWorkbenchService();
+
+			await testObject.updateAutoUpdateForAllExtensions(requestedValue);
+
+			assert.deepStrictEqual({
+				confirmationCount,
+				autoUpdate: instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey),
+			}, { confirmationCount: expectedConfirmationCount, autoUpdate: expectedValue });
+		});
+	}
 
 	test('Test reset autoupdate extensions state when auto update is disabled', async () => {
 		instantiationService.stub(IDialogService, {

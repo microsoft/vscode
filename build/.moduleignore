@@ -155,6 +155,13 @@ vsda/**
 !vsda/rust/web/**
 !vsda/rust/bundler/**
 
+@vscode/metered/build/**
+@vscode/metered/src/**
+@vscode/metered/binding.gyp
+@vscode/metered/README.md
+@vscode/metered/index.d.ts
+!@vscode/metered/build/Release/vscode-metered.node
+
 @vscode/policy-watcher/build/**
 @vscode/policy-watcher/.husky/**
 @vscode/policy-watcher/src/**

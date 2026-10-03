@@ -26,10 +26,8 @@ export class MeteredConnectionChannel implements IServerChannel {
 	public async call(_: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case MeteredConnectionCommand.IsConnectionMetered:
+				await this.service.whenInitialized;
 				return this.service.isConnectionMetered;
-			case MeteredConnectionCommand.SetIsBrowserConnectionMetered:
-				this.service.setIsBrowserConnectionMetered(arg);
-				break;
 			default:
 				throw new Error(`Call not found: ${command}`);
 		}

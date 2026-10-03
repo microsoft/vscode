@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { IChannel } from '../../../base/parts/ipc/common/ipc.js';
@@ -16,7 +17,6 @@ export const METERED_CONNECTION_CHANNEL = 'meteredConnection';
 export enum MeteredConnectionCommand {
 	OnDidChangeIsConnectionMetered = 'OnDidChangeIsConnectionMetered',
 	IsConnectionMetered = 'IsConnectionMetered',
-	SetIsBrowserConnectionMetered = 'SetIsBrowserConnectionMetered',
 }
 
 /**
@@ -28,26 +28,34 @@ export class MeteredConnectionChannelClient extends Disposable implements IMeter
 	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
 	public readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
 
-	private _isConnectionMetered = false;
+	private _isConnectionMetered = true;
 	public get isConnectionMetered(): boolean {
 		return this._isConnectionMetered;
 	}
 
+	public readonly whenInitialized: Promise<void>;
+
 	constructor(channel: IChannel) {
 		super();
 
-		channel.call<boolean>(MeteredConnectionCommand.IsConnectionMetered).then(value => {
-			this._isConnectionMetered = value;
-			if (value) {
-				this._onDidChangeIsConnectionMetered.fire(value);
-			}
-		});
-
+		let receivedEvent = false;
 		this._register(channel.listen<boolean>(MeteredConnectionCommand.OnDidChangeIsConnectionMetered)(value => {
+			receivedEvent = true;
 			if (this._isConnectionMetered !== value) {
 				this._isConnectionMetered = value;
 				this._onDidChangeIsConnectionMetered.fire(value);
 			}
 		}));
+
+		this.whenInitialized = channel.call<boolean>(MeteredConnectionCommand.IsConnectionMetered).then(value => {
+			if (!receivedEvent) {
+				this._isConnectionMetered = value;
+			}
+		}, error => {
+			onUnexpectedError(error);
+			if (!receivedEvent) {
+				this._isConnectionMetered = false;
+			}
+		});
 	}
 }
