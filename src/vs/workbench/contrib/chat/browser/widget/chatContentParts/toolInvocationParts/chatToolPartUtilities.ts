@@ -54,6 +54,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 		return Codicon.search;
 	}
 
+	const icon = data?.icon && !ThemeIcon.isEqual(data.icon, Codicon.tools) ? data.icon : undefined;
 	const toolSpecificData = data?.toolSpecificData;
 	if (toolSpecificData?.kind === 'search') {
 		return Codicon.search;
@@ -68,16 +69,18 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 				return Codicon.terminalSecure;
 			}
 		}
-		return data?.icon ?? Codicon.terminal;
+		return icon ?? Codicon.terminal;
 	}
 
-	if (data?.icon) {
-		return data.icon;
+	if (icon) {
+		return icon;
 	}
 	if (lowerToolId.includes('comment')) {
 		return Codicon.comment;
 	}
 	if (
+		lowerToolId === 'rg' ||
+		lowerToolId === 'glob' ||
 		lowerToolId.includes('search') ||
 		lowerToolId.includes('grep') ||
 		lowerToolId.includes('find') ||
@@ -90,6 +93,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 		return Codicon.search;
 	}
 	if (
+		lowerToolId === 'view' ||
 		lowerToolId.includes('read') ||
 		lowerToolId.includes('get_file') ||
 		lowerToolId.includes('problems')
@@ -104,7 +108,7 @@ export function getToolInvocationIcon(toolId: string, data?: IToolInvocationIcon
 	) {
 		return Codicon.pencil;
 	}
-	if (lowerToolId.includes('terminal')) {
+	if (lowerToolId.includes('terminal') || lowerToolId === 'bash' || lowerToolId === 'powershell' || lowerToolId === 'shell') {
 		return Codicon.terminal;
 	}
 	return Codicon.tools;

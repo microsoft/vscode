@@ -3726,6 +3726,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
+		templateData.completedResponseDisclosureDisposables.add(this.hoverService.setupDelayedHover(label, { content: disclosureLabel }));
 
 		if (templateData.renderedPersistentProgress) {
 			const diffButton = templateData.completedResponseDisclosureDisposables.add(new MutableDisposable<ChatEditStatsButton>());
