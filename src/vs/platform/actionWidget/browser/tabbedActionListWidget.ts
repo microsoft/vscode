@@ -8,6 +8,7 @@ import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
+import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -22,6 +23,7 @@ import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { defaultButtonStyles } from '../../theme/browser/defaultStyles.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
+import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
 import './tabbedActionListWidget.css';
 
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
@@ -55,6 +57,11 @@ function readTabBox(element: HTMLElement): ITabBox {
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
+	/**
+	 * For a sizing build, other layouts the sizing tab can show at rest, such as a
+	 * mode it can be switched into. The popup is sized to the tallest of them.
+	 */
+	readonly alternateSizingItems?: readonly (readonly IActionListItem<T>[])[];
 }
 
 /**
@@ -72,6 +79,13 @@ export interface ITabDescriptor {
 	readonly tooltip?: string;
 	/** Optional leading icon rendered before the label. */
 	readonly icon?: ThemeIcon;
+	/** A separate mode switch beside the active tab's button. */
+	readonly toggle?: {
+		readonly label: string;
+		readonly ariaLabel: string;
+		readonly getState: () => { readonly checked: boolean; readonly enabled: boolean; readonly description?: string } | undefined;
+		readonly onChange: (checked: boolean) => void;
+	};
 }
 
 /**
@@ -113,6 +127,8 @@ export interface ITabbedActionListShowOptions<T> {
 	readonly accessibilityProvider?: Partial<IListAccessibilityProvider<IActionListItem<T>>>;
 	/** Optional fixed popup width. */
 	readonly width?: number;
+	/** Context view layer used when the picker must render above another context view. */
+	readonly contextViewLayer?: number;
 	/** Optional class name to add to the tab bar element (in addition to `.tabbed-action-list-tabbar`). Must be a single class. */
 	readonly tabBarClassName?: string;
 	/**
@@ -259,8 +275,10 @@ export class TabbedActionListWidget extends Disposable {
 					widget.style.width = `${options.width}px`;
 				}
 				let widgetClassNames: readonly string[] = [];
+				let hasRendered = false;
 				const applyWidgetClassNames = () => {
-					const next = options.widgetClassNames?.(activeTab) ?? [];
+					const next = (options.widgetClassNames?.(activeTab) ?? []).filter(className =>
+						className !== ACTION_WIDGET_DROPDOWN_MOTION_CLASS || (hasRendered && !isSwap));
 					const removed = widgetClassNames.filter(name => !next.includes(name));
 					const added = next.filter(name => !widgetClassNames.includes(name));
 					if (removed.length) {
@@ -322,6 +340,38 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
+				const activeIndex = options.tabs.findIndex(tab => tab.id === activeTab);
+				const toggleOptions = options.tabs[activeIndex]?.toggle;
+				let updateTabToggle: (() => void) | undefined;
+				if (toggleOptions) {
+					const button = radio.optionElements[activeIndex];
+					const group = dom.$('.tabbed-action-list-tab');
+					button.before(group);
+					group.appendChild(button);
+					const toggleContainer = dom.append(group, dom.$('.tabbed-action-list-tab-toggle'));
+					dom.append(toggleContainer, dom.$('span', undefined, toggleOptions.label));
+					const toggle = renderDisposables.add(new Switch({ ariaLabel: toggleOptions.ariaLabel }));
+					toggleContainer.appendChild(toggle.domNode);
+					updateTabToggle = () => {
+						const state = toggleOptions.getState();
+						toggleContainer.hidden = !state;
+						group.classList.toggle('has-toggle', !!state);
+						toggle.checked = !!state?.checked;
+						toggle.disabled = !state?.enabled;
+						toggle.setAriaLabel(toggleOptions.ariaLabel, state?.description ?? toggleOptions.ariaLabel);
+						if (state?.description) {
+							toggle.domNode.setAttribute('aria-description', state.description);
+						} else {
+							toggle.domNode.removeAttribute('aria-description');
+						}
+					};
+					updateTabToggle();
+					renderDisposables.add(toggle.onChange(checked => {
+						toggleOptions.onChange(checked);
+						updateTabToggle?.();
+					}));
+				}
+
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
@@ -363,6 +413,8 @@ export class TabbedActionListWidget extends Disposable {
 					options.anchor,
 				));
 				listRef = list;
+				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => Math.max(...[sizing.items, ...sizing.alternateSizingItems ?? []]
+					.map(sizingItems => list.computeHeightForItems(sizingItems, sizing.listOptions?.collapsedByDefault, sizing.listOptions))) || undefined;
 				this._focusItemAction = (itemId, actionId) => !body.inert && list.focusItemAction(itemId, actionId);
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
@@ -371,6 +423,7 @@ export class TabbedActionListWidget extends Disposable {
 						refreshPending = true;
 						return;
 					}
+					finishActionWidgetOpeningAnimation(widget);
 					const hadFocus = dom.isAncestorOfActiveElement(widget);
 					const bodyHeight = body.offsetHeight;
 					if (options.isBodyCollapsed?.() && dom.isAncestorOfActiveElement(body)) {
@@ -381,6 +434,7 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
+					updateTabToggle?.();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
 						: undefined;
@@ -388,9 +442,7 @@ export class TabbedActionListWidget extends Disposable {
 					if (list.headerContainer) {
 						list.headerContainer.hidden = !refreshed.listOptions?.headerText;
 					}
-					const sizingHeight = sizing
-						? list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined
-						: undefined;
+					const sizingHeight = sizing ? measureSizing(sizing) : undefined;
 					const sizingChanged = sizingHeight !== this._fixedListHeight;
 					if (sizingChanged) {
 						this._fixedListHeight = sizingHeight;
@@ -398,6 +450,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 					list.updateItems(refreshed.items, refreshOptions?.focusItemId, {
 						preserveHover: refreshOptions?.preserveHover,
+						preserveScrollPosition: refreshOptions?.preserveScrollPosition,
 						animateItemMove: refreshOptions?.animateItemMove && !this._accessibilityService.isMotionReduced(),
 					});
 					if (sizingChanged) {
@@ -448,7 +501,7 @@ export class TabbedActionListWidget extends Disposable {
 				// height however the popup opened.
 				if (needsSizing) {
 					const sizing = sizingBuild ?? { items, listOptions };
-					this._fixedListHeight = list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
+					this._fixedListHeight = measureSizing(sizing);
 					this._hasMeasuredSizingTab = true;
 				}
 
@@ -458,7 +511,9 @@ export class TabbedActionListWidget extends Disposable {
 						return;
 					}
 					const listBody = emptyBody ?? list.domNode;
-					const chromeHeight = getExpandedPopupHeight() - listBody.offsetHeight;
+					// Padding belongs to the popup's chrome, not the fixed list content height.
+					const listHeight = emptyBody ? listBody.offsetHeight : dom.getContentHeight(listBody);
+					const chromeHeight = getExpandedPopupHeight() - listHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
 						: Math.max(0, this._fixedPopupHeight - chromeHeight);
@@ -597,10 +652,13 @@ export class TabbedActionListWidget extends Disposable {
 						if (!details.restoreFocus?.()) {
 							if (dom.isHTMLElement(previousFocus) && previousFocus.isConnected && main.contains(previousFocus) && !previousFocus.closest('[inert]')) {
 								previousFocus.focus();
-							} else if (body.inert) {
-								options.focusFooter?.();
-							} else {
-								list.focus();
+							}
+							if (!dom.isAncestorOfActiveElement(main)) {
+								if (body.inert) {
+									options.focusFooter?.();
+								} else {
+									list.focus();
+								}
 							}
 						}
 						details.onBack?.();
@@ -609,7 +667,7 @@ export class TabbedActionListWidget extends Disposable {
 					store.add(dom.addDisposableListener(page, dom.EventType.KEY_DOWN, (event: KeyboardEvent) => {
 						if (event.key === 'Escape' && !event.isComposing) {
 							dom.EventHelper.stop(event, true);
-							goBack();
+							hide();
 						} else if (event.key === 'PageDown' || event.key === 'PageUp') {
 							dom.EventHelper.stop(event, true);
 							scrollbar.setScrollPosition({ scrollTop: viewport.scrollTop + (event.key === 'PageDown' ? 1 : -1) * viewport.clientHeight });
@@ -665,7 +723,7 @@ export class TabbedActionListWidget extends Disposable {
 					// The empty body and the hover panel carry controls of their own, e.g. a
 					// sign-in button or the detail card's pin. Keys pressed there belong to
 					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .tabbed-action-list-tab-toggle');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {
@@ -720,6 +778,11 @@ export class TabbedActionListWidget extends Disposable {
 					hide();
 				}));
 
+				hasRendered = true;
+				applyWidgetClassNames();
+				if (!isSwap) {
+					widget.classList.add(ACTION_WIDGET_ANIMATED_CLASS);
+				}
 				return renderDisposables;
 			},
 			onHide: () => {
@@ -740,6 +803,7 @@ export class TabbedActionListWidget extends Disposable {
 				this._onDidHide.fire();
 			},
 			get anchorPosition() { return listRef?.anchorPosition; },
+			layer: options.contextViewLayer,
 		}, undefined, false);
 
 		if (options.showCheckedItemHover && !options.isBodyCollapsed?.()) {

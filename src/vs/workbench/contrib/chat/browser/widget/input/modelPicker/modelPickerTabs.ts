@@ -7,7 +7,7 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
-import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { buildModelToProviderGroupMap, getProviderGroupForModel, getProviderGroupKey, isVersionAtLeast } from './modelPickerItemPrimitives.js';
 import { isDeprecated } from './modelPickerBadges.js';
 import { isEarlyAccessModel, latestOfEachLine } from './modelPickerLineage.js';
@@ -69,33 +69,6 @@ export interface IModelPickerSections {
 	readonly speedVariants: ReadonlyMap<string, IModelSpeedVariants>;
 }
 
-/**
- * Vendor ids that are the built-in provider under another name. Its models reach the
- * picker from the extension, from the CLI harness, and as agent-host copies, and each
- * of those names a different vendor.
- */
-const BUILT_IN_GROUP_IDS: ReadonlySet<string> = new Set([COPILOT_VENDOR_ID, 'copilotcli']);
-
-/**
- * Whether the user brought this model themselves rather than getting it from the
- * built-in provider.
- *
- * This follows the provider group, the same thing the picker names a model's source by,
- * rather than the BYOK flags: a host that forwards the built-in provider's models sets
- * those flags on every model it relays, which would file the whole catalogue under the
- * user's own models.
- */
-export function isUserProvidedModel(
-	model: ILanguageModelChatMetadataAndIdentifier,
-	languageModelsService: ILanguageModelsService,
-): boolean {
-	const groupId = model.metadata.modelGroup?.id ?? model.metadata.vendor;
-	if (BUILT_IN_GROUP_IDS.has(groupId)) {
-		return false;
-	}
-	return groupId !== languageModelsService.getVendors().find(vendor => vendor.isDefault)?.vendor;
-}
-
 /** The provider a model came from, as shown in group headings. */
 export function getModelProviderLabel(
 	model: ILanguageModelChatMetadataAndIdentifier,
@@ -109,12 +82,16 @@ export function getModelProviderLabel(
  * Splits models into one destination per provider: the built-in one first, then each
  * provider the user added, by name. Models with their own row, Auto by default, are left
  * out, and empty providers are dropped so the common case yields no tab bar.
+ *
+ * @param keepBuiltIn Keeps the built-in destination even with nothing to select, for a
+ * plan whose curated models still need to name the upgrade that would unlock them.
  */
 export function buildModelPickerDestinations(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	languageModelsService: ILanguageModelsService,
 	placeholders: readonly IModelPickerProviderPlaceholder[] = [],
 	hasOwnRow: (model: ILanguageModelChatMetadataAndIdentifier) => boolean = isAutoModel,
+	keepBuiltIn = false,
 ): IModelPickerDestination[] {
 	const builtInModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 	const userModels: ILanguageModelChatMetadataAndIdentifier[] = [];
@@ -136,7 +113,7 @@ export function buildModelPickerDestinations(
 	// the upgrade that would unlock them.
 	const hasOwnRowModel = models.some(hasOwnRow);
 	const destinations: IModelPickerDestination[] = [];
-	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel) {
+	if (builtInModels.length || builtInPlaceholders.length || hasOwnRowModel || keepBuiltIn) {
 		destinations.push({
 			id: MODEL_PICKER_BUILT_IN_DESTINATION,
 			label: builtInLabel,
@@ -186,6 +163,7 @@ export interface IModelPickerSectionsOptions {
 	/** The full destination catalogue, before collapsing speed variants. */
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 	readonly selectedModelId: string | undefined;
+	readonly organizationDefaultModelId?: string;
 	readonly recentModelIds: readonly string[];
 	readonly pinnedModelIds: readonly string[];
 	readonly controlModels: IStringDictionary<IModelControlEntry>;
@@ -194,13 +172,14 @@ export interface IModelPickerSectionsOptions {
 	readonly showSuggested: boolean;
 	/** Whether to name curated models the user cannot select yet. Off by default. */
 	readonly showUnavailable?: boolean;
+	readonly alwaysShowUnavailableModelIds?: ReadonlySet<string>;
 	/** This build's version, used to spot models gated behind a newer VS Code. */
 	readonly currentVSCodeVersion?: string;
 }
 
 /**
  * Splits a destination's models into favourites, the shortlist to lead with, and the
- * rest. Each model appears once, and the selected model is never folded into the rest.
+ * rest. Each model appears once; the selected and organization-default models stay visible.
  */
 export function buildModelPickerSections(options: IModelPickerSectionsOptions): IModelPickerSections {
 	// A model this build is too old to run is kept out of every selectable section and
@@ -264,6 +243,10 @@ export function buildModelPickerSections(options: IModelPickerSectionsOptions): 
 		if (selected) {
 			suggested.push(selected);
 		}
+		const organizationDefault = take(options.organizationDefaultModelId);
+		if (organizationDefault) {
+			suggested.push(organizationDefault);
+		}
 	}
 
 	const byName = (left: ILanguageModelChatMetadataAndIdentifier, right: ILanguageModelChatMetadataAndIdentifier) =>
@@ -295,13 +278,10 @@ function hasPromo(model: ILanguageModelChatMetadataAndIdentifier): boolean {
  * build is too old. Named so the path to unlocking them stays visible.
  */
 function buildUnavailableEntries(options: IModelPickerSectionsOptions): IModelPickerUnavailableEntry[] {
-	if (!options.showUnavailable) {
-		return [];
-	}
 	const present = new Set(options.models.flatMap(model => [model.identifier, model.metadata.id]));
 	const entries: IModelPickerUnavailableEntry[] = [];
 	for (const [id, entry] of Object.entries(options.controlModels)) {
-		if (!entry.featured) {
+		if (!entry.featured || (!options.showUnavailable && !options.alwaysShowUnavailableModelIds?.has(id))) {
 			continue;
 		}
 		const outOfDate = isOutOfDate(entry, options.currentVSCodeVersion);

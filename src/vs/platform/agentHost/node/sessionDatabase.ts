@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Sequencer, SequencerByKey } from '../../../base/common/async.js';
 import type { Database, RunResult } from '@vscode/sqlite3';
-import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type ILocalTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type SessionCatalogSyncWriteResult } from '../common/sessionDataService.js';
 import { dirname } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type Message } from '../common/state/sessionState.js';
@@ -196,6 +196,10 @@ export const sessionDatabaseMigrations: readonly ISessionDatabaseMigration[] = [
 			turn_id      TEXT NOT NULL REFERENCES turns(id) ON DELETE CASCADE,
 			output       BLOB NOT NULL
 		)`,
+	},
+	{
+		version: 15,
+		sql: `ALTER TABLE local_turns ADD COLUMN kind TEXT NOT NULL DEFAULT 'local'`,
 	},
 ];
 
@@ -532,6 +536,7 @@ export class SessionDatabase implements ISessionDatabase {
 	deleteTurn(turnId: string): Promise<void> {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned file edits, usage, and workspace transitions cascade-delete.
+			await dbRun(db, 'DELETE FROM local_turns WHERE turn_id = ?', [turnId]);
 			await dbRun(db, 'DELETE FROM turns WHERE id = ?', [turnId]);
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -584,8 +589,8 @@ export class SessionDatabase implements ISessionDatabase {
 
 	hasConversationTurns(): Promise<boolean> {
 		return this._queueOperation(async db => {
-			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_local_turns`, []);
-			return !!row?.has_turns || !!row?.has_local_turns;
+			const row = await dbGet(db, `SELECT EXISTS(SELECT 1 FROM turns LIMIT 1) AS has_turns, EXISTS(SELECT 1 FROM local_turns LIMIT 1) AS has_persisted_turns`, []);
+			return !!row?.has_turns || !!row?.has_persisted_turns;
 		});
 	}
 
@@ -735,6 +740,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete the target turn and all turns inserted after it (by rowid order).
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid >= (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -747,6 +758,12 @@ export class SessionDatabase implements ISessionDatabase {
 			// Delete all turns inserted after the given turn (by rowid order),
 			// keeping the given turn itself. Turn-owned child records cascade-delete.
 			await dbRun(db,
+				`DELETE FROM local_turns WHERE turn_id IN (
+					SELECT id FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)
+				)`,
+				[turnId],
+			);
+			await dbRun(db,
 				`DELETE FROM turns WHERE rowid > (SELECT rowid FROM turns WHERE id = ?)`,
 				[turnId],
 			);
@@ -758,25 +775,31 @@ export class SessionDatabase implements ISessionDatabase {
 		return this._mutateMetadataAndTurnUsage(async db => {
 			// Turn-owned child records cascade-delete via their foreign keys.
 			await dbExec(db, 'DELETE FROM turns');
+			await dbExec(db, 'DELETE FROM local_turns');
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
 	}
 
-	// ---- Local (host-injected) turns ------------------------------------
+	// ---- Host-persisted turns -------------------------------------------
 
-	insertLocalTurn(record: ILocalTurnRecord): Promise<void> {
+	insertPersistedTurn(record: IPersistedTurnRecord): Promise<void> {
 		return this._mutate(async db => {
+			if (record.kind === 'failed') {
+				await dbRun(db, 'INSERT OR IGNORE INTO turns (id) VALUES (?)', [record.turnId]);
+			}
 			await dbRun(db,
-				'INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload) VALUES (?, ?, ?, ?, ?)',
-				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq, record.payload],
+				`INSERT OR REPLACE INTO local_turns (turn_id, chat_uri, anchor_turn_id, seq, payload, kind)
+				VALUES (?, ?, ?, COALESCE(?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM local_turns)), ?, ?)`,
+				[record.turnId, record.chatUri, record.anchorTurnId ?? null, record.seq ?? null, record.payload, record.kind],
 			);
 		});
 	}
 
-	async getLocalTurns(): Promise<ILocalTurnRecord[]> {
+	async getPersistedTurns(): Promise<Array<IPersistedTurnRecord & { seq: number }>> {
 		const db = await this._ensureDb();
-		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload FROM local_turns ORDER BY seq', []);
+		const rows = await dbAll(db, 'SELECT turn_id, chat_uri, anchor_turn_id, seq, payload, kind FROM local_turns ORDER BY seq', []);
 		return rows.map(r => ({
+			kind: r.kind as IPersistedTurnRecord['kind'],
 			turnId: r.turn_id as string,
 			chatUri: r.chat_uri as string,
 			anchorTurnId: (r.anchor_turn_id as string | null) ?? undefined,
@@ -785,7 +808,7 @@ export class SessionDatabase implements ISessionDatabase {
 		}));
 	}
 
-	deleteLocalTurns(turnIds: readonly string[]): Promise<void> {
+	deletePersistedTurns(turnIds: readonly string[]): Promise<void> {
 		return this._track(() => {
 			if (turnIds.length === 0) {
 				return Promise.resolve();
@@ -1239,6 +1262,9 @@ export class SessionDatabase implements ISessionDatabase {
 					oldIds,
 				);
 			}
+			const failedTurns = oldIds.length === 0
+				? []
+				: await dbAll(db, `SELECT turn_id, anchor_turn_id, payload FROM local_turns WHERE kind = 'failed'`, []);
 
 			// Remap the remaining turn IDs to their new values
 			for (const [oldId, newId] of mapping) {
@@ -1258,8 +1284,8 @@ export class SessionDatabase implements ISessionDatabase {
 				);
 			}
 			for (const [oldId, newId] of mapping) {
-				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
-				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ?', [newId, oldId]);
+				await dbRun(db, 'UPDATE local_turns SET turn_id = ? WHERE turn_id = ? AND kind = ?', [newId, oldId, 'local']);
+				await dbRun(db, 'UPDATE local_turns SET anchor_turn_id = ? WHERE anchor_turn_id = ? AND kind = ?', [newId, oldId, 'local']);
 			}
 
 			// Rows past the fork point were already removed by the `turns`
@@ -1270,6 +1296,20 @@ export class SessionDatabase implements ISessionDatabase {
 				await dbRun(db, 'UPDATE turn_usage SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_delegation SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
 				await dbRun(db, 'UPDATE turn_workspace_transition SET turn_id = ? WHERE turn_id = ?', [newId, oldId]);
+			}
+			for (const failedTurn of failedTurns) {
+				const oldId = failedTurn.turn_id as string;
+				const newId = mapping.get(oldId);
+				if (!newId) {
+					continue;
+				}
+				const payload = remapPersistedTurnPayload(failedTurn.payload as string, oldId, newId);
+				const anchorTurnId = failedTurn.anchor_turn_id as string | null;
+				await dbRun(db,
+					`UPDATE local_turns SET turn_id = ?, anchor_turn_id = ?, payload = ?
+					WHERE turn_id = ? AND kind = 'failed'`,
+					[newId, anchorTurnId === null ? null : mapping.get(anchorTurnId) ?? null, payload, oldId],
+				);
 			}
 			await this._deleteWorkspaceTransitionMarkerIfEmpty(db);
 		});
@@ -1316,6 +1356,23 @@ export class SessionDatabase implements ISessionDatabase {
 	dispose(): void {
 		this.close();
 	}
+}
+
+function remapPersistedTurnPayload(payload: string, oldId: string, newId: string): string {
+	let value: unknown;
+	try {
+		value = JSON.parse(payload);
+	} catch {
+		throw new Error(`Cannot remap persisted turn ${oldId}: invalid JSON`);
+	}
+	if (!isRecord(value) || value.id !== oldId) {
+		throw new Error(`Cannot remap persisted turn ${oldId}: payload id does not match record id`);
+	}
+	return JSON.stringify({ ...value, id: newId });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
 function toReviewedFileRecord(row: Record<string, unknown>): IReviewedFileRecord {

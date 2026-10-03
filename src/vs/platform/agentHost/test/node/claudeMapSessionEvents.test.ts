@@ -883,7 +883,16 @@ suite('claudeMapSessionEvents — direct mapper tests', () => {
 			'claude-test': makeModelUsage({ inputTokens: 12, outputTokens: 34, cacheReadInputTokens: 5, contextWindow: 200_000, maxOutputTokens: 8192 }),
 		};
 
-		assert.deepStrictEqual(buildClaudeUsageInfo(result), { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' });
+		assert.deepStrictEqual(buildClaudeUsageInfo(result), {
+			inputTokens: 12,
+			outputTokens: 34,
+			cacheReadTokens: 5,
+			model: 'claude-test',
+			_meta: {
+				turnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+				directTurnTokenTotals: [{ model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 }],
+			},
+		});
 	});
 
 	test('buildClaudeUsageInfo omits the model field without modelUsage', () => {

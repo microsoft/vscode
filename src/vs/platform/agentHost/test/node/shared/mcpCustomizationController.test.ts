@@ -10,12 +10,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { AgentSession } from '../../../common/agent.js';
 import { isCustomizationEnabled } from '../../../common/customizationEnablement.js';
+import { readMcpServerSource, withMcpServerSourceMeta } from '../../../common/meta/mcpCustomizationMeta.js';
 import { ActionType } from '../../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionStatus, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
 import { buildChatUri } from '../../../common/state/sessionState.js';
 import type { SessionAction } from '../../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../../node/agentHostStateManager.js';
-import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
+import { applyMcpServerRuntimeStates, buildMcpChannel, getEffectiveMcpServerCustomizations, mergeMcpServerCustomizations, McpCustomizationController, findMcpChildId, findMcpServerName, parseMcpChannelUri, type ISdkMcpServer } from '../../../node/shared/mcpCustomizationController.js';
 
 const SESSION_URI = AgentSession.uri('copilot', 'session-1');
 const CHAT_URI = URI.parse(buildChatUri(SESSION_URI, 'chat-1'));
@@ -114,6 +115,39 @@ suite('McpCustomizationController', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('merges discovered and live native MCP identities while retaining metadata and distinct sources', () => {
+		const declaration: McpServerCustomization = {
+			type: CustomizationType.McpServer,
+			id: 'file:///workspace/.mcp.json#mcp=search',
+			uri: 'file:///workspace/.mcp.json',
+			name: 'search',
+			range: { start: { line: 2, character: 1 }, end: { line: 4, character: 2 } },
+			state: stopped(),
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			_meta: { declaration: true },
+		};
+		const distinct: McpServerCustomization = { ...declaration, id: 'another-source', uri: 'file:///other/.mcp.json' };
+		const { controller } = harness(store, { customizations: [declaration, distinct] });
+		store.add(controller);
+		controller.applyAll([{ name: 'search', state: ready(), source: 'workspace' }, server('runtime-only', stopped())]);
+		const live = controller.topLevelCustomizations();
+		const merged = mergeMcpServerCustomizations([declaration, distinct], live);
+
+		assert.deepStrictEqual(merged, [
+			{ ...live[0], ...declaration, state: ready(), channel: MCP_SEARCH_CHANNEL, mcpApp: live[0].mcpApp, _meta: { ...live[0]._meta, ...declaration._meta } },
+			distinct,
+			live[1],
+		]);
+	});
+
+	test('a removed declaration decision does not revive stale runtime enablement', () => {
+		const declaration: McpServerCustomization = { type: CustomizationType.McpServer, id: 'native', uri: 'file:///workspace/.mcp.json', name: 'search', state: stopped() };
+		const live: McpServerCustomization = { ...declaration, enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }], state: ready(), channel: MCP_SEARCH_CHANNEL };
+		const merged = mergeMcpServerCustomizations([declaration], [live]);
+		assert.ok(merged[0].type === CustomizationType.McpServer);
+		assert.deepStrictEqual({ count: merged.length, enabled: isCustomizationEnabled(merged[0]), state: merged[0].state }, { count: 1, enabled: true, state: ready() });
+	});
+
 	test('empty inventory dispatches nothing', () => {
 		const { controller, actions } = harness(store);
 		store.add(controller);
@@ -122,6 +156,124 @@ suite('McpCustomizationController', () => {
 
 		assert.deepStrictEqual(actions, []);
 		assert.deepStrictEqual(controller.topLevelCustomizations(), []);
+	});
+
+	test('retains source through lifecycle updates and republishes source-only inventory changes', () => {
+		const { controller, actions } = harness(store);
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			id: item.id, source: readMcpServerSource(item), state: item.state.kind,
+		}));
+
+		controller.applyOne(server('search', starting()));
+		controller.applyAll([{ ...server('search', starting()), source: 'user' }]);
+		const afterInventory = snapshot();
+		controller.applyOne(server('search', ready()));
+		const afterLifecycle = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'workspace' }]);
+
+		assert.deepStrictEqual({
+			afterInventory,
+			afterLifecycle,
+			afterSourceChange: snapshot(),
+			publishedSources: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated && action.customization.type === CustomizationType.McpServer ? [readMcpServerSource(action.customization)] : []),
+		}, {
+			afterInventory: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Starting }],
+			afterLifecycle: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'user', state: McpServerStatus.Ready }],
+			afterSourceChange: [{ id: 'mcp-top-level:copilot:session-1:search', source: 'workspace', state: McpServerStatus.Ready }],
+			publishedSources: [undefined, 'user', 'user', 'workspace'],
+		});
+	});
+
+	test('publishes source locations without changing identity and retains them across lifecycle updates', () => {
+		const { controller, actions } = harness(store);
+		store.add(controller);
+		const id = 'mcp-top-level:copilot:session-1:search';
+		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			id: item.id, uri: item.uri, state: item.state.kind,
+		}));
+
+		controller.applyOne(server('search', starting()));
+		controller.applyAll([{ ...server('search', starting()), source: 'user', sourceUri: uri }]);
+		const afterInventory = snapshot();
+		controller.applyOne(server('search', ready()));
+		const afterLifecycle = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'builtin', sourceUri: null }]);
+		const afterClearing = snapshot();
+		controller.applyOne(server('search', stopped()));
+
+		assert.deepStrictEqual({
+			afterInventory,
+			afterLifecycle,
+			afterClearing,
+			afterNextLifecycle: snapshot(),
+			publishedUris: actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated ? [action.customization.uri] : []),
+		}, {
+			afterInventory: [{ id, uri, state: McpServerStatus.Starting }],
+			afterLifecycle: [{ id, uri, state: McpServerStatus.Ready }],
+			afterClearing: [{ id, uri: id, state: McpServerStatus.Ready }],
+			afterNextLifecycle: [{ id, uri: id, state: McpServerStatus.Stopped }],
+			publishedUris: [id, uri, uri, id, id],
+		});
+	});
+
+	test('preserves restored source locations and ranges until the location changes', () => {
+		const id = 'restored-search';
+		const uri = URI.file('/home/test/.copilot/mcp-config.json').toString();
+		const range = { start: { line: 2, character: 1 }, end: { line: 4, character: 2 } };
+		const { controller } = harness(store, {
+			customizations: [{
+				type: CustomizationType.McpServer, id, uri, range, name: 'search', state: stopped(),
+			}],
+		});
+		store.add(controller);
+		const snapshot = () => controller.topLevelCustomizations().map(item => ({
+			id: item.id, uri: item.uri, range: item.range,
+		}));
+
+		controller.applyOne(server('search', ready()));
+		const restored = snapshot();
+		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: uri }]);
+		const unchanged = snapshot();
+		const newUri = URI.file('/custom/copilot/mcp-config.json').toString();
+		controller.applyAll([{ ...server('search', ready()), source: 'user', sourceUri: newUri }]);
+
+		assert.deepStrictEqual({ restored, unchanged, relocated: snapshot() }, {
+			restored: [{ id, uri, range }],
+			unchanged: [{ id, uri, range }],
+			relocated: [{ id, uri: newUri, range: undefined }],
+		});
+	});
+
+	test('retains restored sources and opaque metadata while replacing only the source slot', () => {
+		const restored = (id: string, name: string, meta: Record<string, unknown> | undefined): McpServerCustomization => ({
+			type: CustomizationType.McpServer,
+			id,
+			uri: `mcp-top-level:copilot:session-1:${name}`,
+			name,
+			state: stopped(),
+			_meta: meta,
+		});
+		const { controller, actions } = harness(store, {
+			customizations: [
+				restored('restored-search', 'search', withMcpServerSourceMeta({ 'test.opaque': 'kept' }, 'user')),
+				restored('restored-fs', 'fs', { 'test.opaque': 'kept' }),
+			]
+		});
+		store.add(controller);
+
+		controller.applyOne(server('search', ready()));
+		controller.applyOne(server('fs', ready()));
+		controller.applyAll([{ ...server('search', ready()), source: 'workspace' }, server('fs', ready())]);
+
+		assert.deepStrictEqual(actions.flatMap(action => action.type === ActionType.SessionCustomizationUpdated ? [{
+			id: action.customization.id, meta: action.customization._meta,
+		}] : []), [
+			{ id: 'restored-search', meta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'user' } },
+			{ id: 'restored-fs', meta: { 'test.opaque': 'kept' } },
+			{ id: 'restored-search', meta: { 'test.opaque': 'kept', 'agentHost.mcpServerSource': 'workspace' } },
+		]);
 	});
 
 	test('reapplying an unchanged inventory dispatches nothing', () => {

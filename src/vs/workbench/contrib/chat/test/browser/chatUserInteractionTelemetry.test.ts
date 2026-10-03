@@ -9,6 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
 import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
@@ -19,6 +20,37 @@ import { createChatUserInteractionTestHarness } from './chatUserInteractionTestU
 
 suite('ChatUserInteractionTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retains the remote routing identity before a response without exporting it', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const resource = URI.parse('remote-example-copilot:/session');
+		const timer = h.createInteraction({
+			context: getChatSessionTelemetryContext(resource),
+			getSessionResource: () => resource,
+		});
+		timer.cancel('queued');
+		assert.deepStrictEqual({
+			routes: h.otelRoutes,
+			payloadContainsResource: JSON.stringify(h.otel).includes(resource.toString()),
+			telemetryContainsAuthority: JSON.stringify(h.events).includes('example'),
+		}, {
+			routes: [{ resource, sessionType: 'remote-agent-host' }],
+			payloadContainsResource: false,
+			telemetryContainsAuthority: false,
+		});
+		h.assertFinished('queued');
+	});
+
+	test('uses the committed response routing identity instead of the original submission', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		const resource = URI.parse('remote-example-copilot:/committed');
+		const response = h.createResponse(resource);
+		const timer = h.createInteraction({ getSessionResource: () => URI.parse('agent-host-copilot:/original') });
+		timer.observeResponse(response.response, () => undefined);
+		timer.cancel('hidden');
+		assert.deepStrictEqual(h.otelRoutes, [{ resource, sessionType: 'remote-agent-host' }]);
+		h.assertFinished('hidden');
+	});
 
 	test('uses provider-neutral meaningful progress semantics', () => {
 		const cases: [IChatProgress | IChatProgressResponseContent, boolean][] = [
@@ -70,6 +102,11 @@ suite('ChatUserInteractionTelemetry', () => {
 		h.setTime(350);
 		h.frame();
 		timer.cancel('cancelled');
+		assert.deepStrictEqual(h.otel, [{
+			schemaVersion: 1, rendererId: 'test-renderer', interactionOrdinal: 1, requestId: 'request-id',
+			result: 'success', requestPhase: 'first', firstProgressKind: 'text', timeToFirstProgress: 250,
+			timeToTermination: undefined, windowVisible: true, windowFocused: false,
+		}]);
 		timer.setContext({ requestId: 'too-late' });
 		timer.observeResponse(response.response, () => view.widget);
 		const data = {
@@ -77,18 +114,27 @@ suite('ChatUserInteractionTelemetry', () => {
 			requestPhase: 'first', firstProgressKind: 'text',
 			requestId: 'request-id', chatSessionId: 'agent-host-copilotcli:/session',
 			agent: 'agent-id', agentExtensionId: 'publisher.extension', location: ChatAgentLocation.Chat,
-			model: 'model-id', permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
+			model: new TelemetryTrustedValue('model-id'), permissionLevel: ChatPermissionLevel.AutoApprove, chatMode: 'agent',
 			sessionType: 'agent-host-copilotcli', harness: undefined, windowVisible: true, windowFocused: false,
 		};
 		assert.deepStrictEqual({ events: h.events, logs: h.logs, finished, observing: response.hasListeners() }, {
 			events: [{ name: 'chat.userPerceivedTimeToFirstProgress', data }],
 			logs: [
-				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn' }] },
-				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data }] },
+				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn', epochMs: performance.timeOrigin + 100 }] },
+				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data, epochMs: performance.timeOrigin + 350 }] },
 			],
 			finished: 1, observing: false,
 		});
 		h.assertFinished('success');
+	});
+
+	test('reports only built-in model identifiers as trusted values', () => {
+		const h = createChatUserInteractionTestHarness(disposables);
+		for (const model of ['model-id', 'user-model', 'missing-model']) {
+			h.createInteraction({ context: { model } }).cancel('queued');
+		}
+		h.createInteraction().cancel('queued');
+		assert.deepStrictEqual(h.events.map(event => event.data.model), [new TelemetryTrustedValue('model-id'), 'unknown', 'unknown', undefined]);
 	});
 
 	for (const [part, kind] of [

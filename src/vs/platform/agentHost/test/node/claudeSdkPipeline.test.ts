@@ -69,6 +69,7 @@ class ImmediatelyDoneQuery implements Query {
 	streamInput(): never { throw new Error('not modeled'); }
 	stopTask(): never { throw new Error('not modeled'); }
 	reloadSkills(): never { throw new Error('not modeled'); }
+	reloadOutputStyles(): never { throw new Error('not modeled'); }
 	backgroundTasks(): never { throw new Error('not modeled'); }
 	async close(): Promise<void> { /* not exercised here */ }
 	async [Symbol.asyncDispose](): Promise<void> { /* not exercised here */ }
@@ -676,7 +677,8 @@ suite('ClaudeSdkPipeline', () => {
 	suite('context usage enrichment', () => {
 
 		/** The base `ChatUsage` {@link makeResultWithUsage} yields absent any enrichment. */
-		const baseUsage = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test' };
+		const turnTokenTotal = { model: 'claude-test', inputTokens: 12, cachedTokens: 5, outputTokens: 34 };
+		const baseUsage = { inputTokens: 12, outputTokens: 34, cacheReadTokens: 5, model: 'claude-test', _meta: { turnTokenTotals: [turnTokenTotal], directTurnTokenTotals: [turnTokenTotal] } };
 
 		function makeResultWithUsage(): SDKResultSuccess {
 			const result = makeResultSuccess('sess-1');
@@ -721,11 +723,10 @@ suite('ClaudeSdkPipeline', () => {
 					actions: [ActionType.ChatUsage, ActionType.ChatTurnComplete],
 					contextUsageCalls: [{ detail: 'summary' }],
 					usage: [{
+						...baseUsage,
 						inputTokens: 5_000,
-						outputTokens: 34,
-						cacheReadTokens: 5,
-						model: 'claude-test',
 						_meta: {
+							...baseUsage._meta,
 							contextAttribution: {
 								totalTokens: 5_000,
 								compactions: { count: 0 },
@@ -842,7 +843,7 @@ suite('ClaudeSdkPipeline', () => {
 
 			assert.deepStrictEqual(
 				usageActionsOf(signals).map(a => a.usage),
-				[{ ...baseUsage, _meta: { contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } } }],
+				[{ ...baseUsage, _meta: { ...baseUsage._meta, contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } } }],
 			);
 		});
 
@@ -911,11 +912,9 @@ suite('ClaudeSdkPipeline', () => {
 			assert.deepStrictEqual(
 				usageActionsOf(signals).map(a => a.usage),
 				[{
+					...baseUsage,
 					inputTokens: 4_800,
-					outputTokens: 34,
-					cacheReadTokens: 5,
-					model: 'claude-test',
-					_meta: { contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } },
+					_meta: { ...baseUsage._meta, contextAttribution: { totalTokens: 5_000, compactions: { count: 0 }, entries: [] } },
 				}],
 			);
 		});

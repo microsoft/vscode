@@ -159,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/opener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/output",
 			"project": "vscode-workbench"
 		},
@@ -435,6 +439,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/services/github",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/history",
 			"project": "vscode-workbench"
 		},
@@ -701,6 +709,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/canvases",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/chat",
 			"project": "vscode-sessions"
 		},
@@ -766,6 +778,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/sessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/sessionComparison",
 			"project": "vscode-sessions"
 		},
 		{

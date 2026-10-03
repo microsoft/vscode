@@ -7,7 +7,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { AGENTS_AUTHORITY } from '../../../base/common/network.js';
 import { PerformanceMark } from '../../../base/common/performance.js';
-import { isMacintosh, isNative, isWeb } from '../../../base/common/platform.js';
+import { isMacintosh, isNative, isTahoeOrNewer, isWeb } from '../../../base/common/platform.js';
 import { URI, UriComponents, UriDto } from '../../../base/common/uri.js';
 import { ISandboxConfiguration } from '../../../base/parts/sandbox/common/sandboxTypes.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -118,7 +118,7 @@ export function isAgentsWindowDraft(value: unknown): value is IAgentsWindowDraft
 }
 
 export interface IAgentsWindowNewSessionLink {
-	readonly workspaceUri: URI;
+	readonly workspaceUri?: URI;
 	readonly draft: IAgentsWindowDraft;
 }
 
@@ -131,14 +131,13 @@ export function parseExternalAgentsWindowNewSessionLinkUri(uri: URI | string, pr
 	const params = new URLSearchParams(parsed.query);
 	const workspace = params.get('workspace');
 	const prompt = params.get('prompt');
-	if (!workspace || !prompt) {
+	if (!prompt || workspace === '') {
 		return undefined;
 	}
 
 	try {
-		const workspaceUri = URI.parse(workspace, true);
 		return {
-			workspaceUri,
+			workspaceUri: workspace === null ? undefined : URI.parse(workspace, true),
 			draft: { inputText: prompt, attachments: '[]' },
 		};
 	} catch {
@@ -379,6 +378,13 @@ export function getWindowControlsStyle(configurationService: IConfigurationServi
 }
 
 export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
+
+/** Centers macOS traffic lights vertically, optionally keeping their horizontal inset independent of height. */
+export function getMacOSWindowControlsPosition(height: number, osVersion: string, horizontalInset?: number): IPoint | null {
+	const buttonHeight = isTahoeOrNewer(osVersion) ? 14 : 16;
+	const offset = Math.floor((height - buttonHeight) / 2);
+	return !offset && horizontalInset === undefined ? null : { x: horizontalInset ?? offset + 1, y: offset };
+}
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (isWeb) {

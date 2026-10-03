@@ -18,6 +18,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { ILogService } from '../../../log/common/log.js';
+import { IAgentHostStartupPerformance } from '../agentHostStartupPerformance.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { IAgentSdkDownloader } from '../agentSdkDownloader.js';
@@ -56,13 +57,14 @@ import { ClaudeAgentSession } from './claudeAgentSession.js';
 import { handleCanUseTool } from './claudeCanUseTool.js';
 import { handleElicitation } from './claudeElicitationBridge.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/agentModelPricing.js';
+import { createPricingMetaFromBilling, normalizeCAPIBilling } from '../../common/meta/agentModelMeta.js';
 import { toSdkModelId, tryParseClaudeModelId } from './claudeModelId.js';
 import type { IClaudeObservedModelLimits } from './claudeSdkPipeline.js';
 import { resolvePromptToContentBlocks } from './claudePromptResolver.js';
 import { IClaudeProxyHandle, IClaudeProxyService, type ClaudeTransport } from './claudeProxyService.js';
 import { readClaudePermissionMode } from './claudeSessionPermissionMode.js';
 import { ClaudeSessionMetadataStore, IClaudeSessionOverlay } from './claudeSessionMetadataStore.js';
+import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 import { IAgentHostSessionTitleSignal } from '../agentHostSessionTitleSignal.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 
@@ -497,6 +499,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 
 	private readonly _metadataStore: ClaudeSessionMetadataStore;
+	private readonly _terminalOutputs: ClaudeTerminalOutputs;
 
 	private _findAnySession(sessionId: string): ClaudeAgentSession | undefined {
 		return this._chatEntriesBySdkId.get(sessionId)?.chatSession;
@@ -676,9 +679,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		@IProductService private readonly _productService: IProductService,
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
+		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 	) {
 		super();
 		this._metadataStore = _instantiationService.createInstance(ClaudeSessionMetadataStore);
+		this._terminalOutputs = _instantiationService.createInstance(ClaudeTerminalOutputs);
 		this._register(this._gitHubEndpointService.onDidChange(() => {
 			this._gitHubEndpointGeneration++;
 			void this.authenticate(this._gitHubEndpointService.getCopilotResource().resource, '').catch(error =>
@@ -2014,7 +2019,9 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		if (!context.sdkSessionId) {
 			return [];
 		}
-		return this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
+		await this._terminalOutputs.restore(context.resource, context.chat, turns);
+		return turns;
 	}
 
 	/**
@@ -2094,7 +2101,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return turns;
 	}
 
-	private async _listClaudeCodeChats(): Promise<IAgentChatMetadata[] | undefined> {
+	private async _listClaudeCodeChats(kind: 'migration' | 'discovery'): Promise<IAgentChatMetadata[] | undefined> {
 		// SDK is the source of truth; we deliberately do NOT filter entries
 		// that lack a per-session DB — external Claude Code CLI sessions have
 		// no DB and must still surface. The SDK entry supplies the
@@ -2107,9 +2114,12 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		// *every* provider's legacy list disappears — the sibling Copilot
 		// provider gets nuked too. Catch and log instead.
 		let sdkEntries: readonly SDKSessionInfo[];
+		const timing = this._startupPerformance.start(kind === 'migration' ? 'sessionMigrationScan' : 'sessionDiscoveryScan', this.id);
 		try {
 			sdkEntries = await this._sdkService.listSessions();
+			timing?.complete('success', { scannedSessionCount: sdkEntries.length });
 		} catch (err) {
+			timing?.complete('error');
 			// SDK failed to load/enumerate — this is "can't enumerate yet",
 			// not an authoritative empty result, so callers must not treat it
 			// as "no external chats" and should retry later.
@@ -2127,12 +2137,23 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		return this._startClaudeCodeChatDiscovery();
 	}
 
+	private async _canListChatsWithoutDownload(): Promise<boolean> {
+		let sdkAvailability: 'available' | 'unavailable' | 'unknown' = 'unknown';
+		try {
+			const available = await this._sdkService.canLoadWithoutDownload();
+			sdkAvailability = available ? 'available' : 'unavailable';
+			return available;
+		} finally {
+			this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability });
+		}
+	}
+
 	async listChatsToMigrate(): Promise<AgentChatMigrationResult> {
-		if (!(await this._sdkService.canLoadWithoutDownload())) {
+		if (!(await this._canListChatsWithoutDownload())) {
 			this._logService.info('[Claude] SDK not downloaded yet; deferring the migratable chat list');
 			return AgentChatMigrationDeferred;
 		}
-		const chats = await this._listClaudeCodeChats();
+		const chats = await this._listClaudeCodeChats('migration');
 		if (!chats) {
 			return undefined;
 		}
@@ -2149,7 +2170,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 				// Waits for the SDK rather than pulling it down — see
 				// {@link listChatsToMigrate}. Returning leaves the retry loop happy,
 				// since no amount of retrying will make the user press Download.
-				if (!(await this._sdkService.canLoadWithoutDownload())) {
+				if (!(await this._canListChatsWithoutDownload())) {
 					this._logService.info('[Claude] SDK not downloaded yet; deferring chat discovery');
 					return;
 				}
@@ -2172,19 +2193,35 @@ export class ClaudeAgent extends Disposable implements IAgent {
 
 	private async _emitClaudeCodeChats(): Promise<boolean> {
 		try {
-			const chats = await this._listClaudeCodeChats();
+			const chats = await this._listClaudeCodeChats('discovery');
 			if (chats) {
 				const limiter = new Limiter<IAgentDiscoveredChat | undefined>(4);
 				const unknown = await Promise.all(chats.map(chat => limiter.queue(async () => {
 					return await this._isKnownClaudeCodeChat(chat) ? undefined : { ...chat, external: true };
 				})));
-				this._onDidDiscoverChats.fire(unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined));
+				const discovered = unknown.filter((chat): chat is IAgentDiscoveredChat => chat !== undefined);
+				this._onDidDiscoverChats.fire(discovered);
+				this._recordFirstDiscoveryResult(discovered.length, chats.length);
 				return true;
 			}
 		} catch (err) {
 			this._logService.warn('[Claude] Failed to emit discovered chats', err);
 		}
 		return false;
+	}
+
+	private _recordFirstDiscoveryResult(discoveredCount: number, listedCount: number): void {
+		if (this._shutdownPromise || this._store.isDisposed || !this._startupPerformance.isPending('firstSessionDiscoveryResult', this.id)) {
+			return;
+		}
+		this._startupPerformance.mark('firstSessionDiscoveryResult', {
+			provider: this.id, since: 'processStart',
+			...(this._startupPerformance.isEnabled ? {
+				candidateSessionCount: discoveredCount,
+				externalSessionCount: discoveredCount,
+				filteredSessionCount: listedCount - discoveredCount,
+			} : {}),
+		});
 	}
 
 	private async _isKnownClaudeCodeChat(chat: IAgentChatMetadata): Promise<boolean> {

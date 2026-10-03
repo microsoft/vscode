@@ -133,14 +133,17 @@ export class MockAgent implements IAgent {
 		readonly id: AgentProvider = 'mock',
 		private readonly _capabilities: IAgentCapabilities = { multipleChats: { fork: true } },
 		readonly agentHostCapabilities: IAgent['agentHostCapabilities'] = { workspaceConversion: false },
+		autoDiscover = true,
 	) {
-		queueMicrotask(() => {
-			void this.listExternalChats().then(chats => {
-				if (chats) {
-					this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
-				}
-			}, () => { });
-		});
+		if (autoDiscover) {
+			queueMicrotask(() => {
+				void this.listExternalChats().then(chats => {
+					if (chats) {
+						this.fireDiscoveredChats(chats.map(metadata => ({ ...metadata, external: true })));
+					}
+				}, () => { });
+			});
+		}
 	}
 
 	setAuthenticationRequired(requirement: Omit<AuthRequiredParams, 'channel'> | undefined): void {
@@ -514,6 +517,7 @@ export class ScriptedMockAgent implements IAgent {
 	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
+	private readonly _supportsMultipleChats = process.env['VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS'] === '1';
 
 	/**
 	 * Message history for the pre-existing session: a single user→assistant
@@ -561,7 +565,12 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	getDescriptor(): IAgentDescriptor {
-		return { provider: 'mock', displayName: 'Mock Agent', description: 'Scripted test agent' };
+		return {
+			provider: 'mock',
+			displayName: 'Mock Agent',
+			description: 'Scripted test agent',
+			capabilities: this._supportsMultipleChats ? { multipleChats: { fork: true } } : undefined,
+		};
 	}
 
 	async setWorkingDirectory(_chat: URI, _context: URI | IAgentChatContext, _workingDirectory: URI): Promise<void> {
@@ -1121,11 +1130,16 @@ export class ScriptedMockAgent implements IAgent {
 			if (!this._sessions.has(AgentSession.id(session))) {
 				return Promise.resolve(this._createSessionRecord(session));
 			}
+			if (this._supportsMultipleChats) {
+				return Promise.resolve({ project: mockProject(this.id) });
+			}
 			throw new Error('Scripted mock agent does not support multiple chats');
 		},
 		disposeChat: (chat: URI, context: URI | IAgentChatContext): Promise<void> => {
 			const { session } = this._resolveChatTarget(chat, context);
-			this._sessions.delete(AgentSession.id(session));
+			if (isDefaultChatUri(chat)) {
+				this._sessions.delete(AgentSession.id(session));
+			}
 			return Promise.resolve();
 		},
 		releaseChat: async (chat: URI, context: URI | IAgentChatContext): Promise<void> => {

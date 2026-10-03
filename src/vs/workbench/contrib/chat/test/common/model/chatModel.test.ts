@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -236,6 +237,37 @@ suite('ChatModel', () => {
 		assert.ok(model.timestamp > 0);
 	});
 
+	test('preserves Agent Host message metadata and latest-call detail across serialization', () => {
+		const metadata = { 'copilot.visibility': 'internal', opaque: { value: true } };
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, metadata);
+		model.acceptResponseProgress(request, { kind: 'usage', promptTokens: 10, completionTokens: 2, latestModelCall: { cost: 0.5 }, contextUsage: { currentTokens: 5, tokenLimit: 100 } });
+		const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value: model.toJSON(), serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const [roundTrip] = restored.getRequests();
+		assert.deepStrictEqual({
+			metadata: roundTrip.agentHostMetadata,
+			latest: roundTrip.response?.usage?.latestModelCall,
+			context: roundTrip.response?.usage?.contextUsage,
+			cost: roundTrip.response?.usage?.copilotCredits,
+		}, { metadata, latest: { cost: 0.5 }, context: { currentTokens: 5, tokenLimit: 100 }, cost: undefined });
+	});
+
+	test('context occupancy and latest-call changes notify the response model when token counts stay unchanged', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'display', parts: [] }, { variables: [] }, 0);
+		assert.ok(request.response);
+		let updates = 0;
+		testDisposables.add(request.response.onDidChange(() => updates++));
+		const usage = { kind: 'usage' as const, promptTokens: 90, completionTokens: 10 };
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 200, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 12 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		model.acceptResponseProgress(request, { ...usage, contextUsage: { currentTokens: 250, tokenLimit: 1_000 }, latestModelCall: { duration: 15 } });
+		assert.deepStrictEqual({ updates, context: request.response.usage?.contextUsage, latest: request.response.usage?.latestModelCall }, {
+			updates: 3, context: { currentTokens: 250, tokenLimit: 1_000 }, latest: { duration: 15 },
+		});
+	});
+
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
@@ -290,6 +322,58 @@ suite('ChatModel', () => {
 			completionTokenCount: 5,
 			responseContent: '',
 		});
+	});
+
+	test('registered tool icons survive chat serialization and restoration', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'test', parts: [] }, { variables: [] }, 0);
+		const tool = new ChatToolInvocation(
+			{ invocationMessage: 'Run custom tool' },
+			{ id: 'custom_tool', displayName: 'Custom tool', modelDescription: 'Custom tool', source: ToolDataSource.Internal, icon: Codicon.beaker },
+			'custom-tool', undefined, {},
+		);
+		await tool.didExecuteTool(undefined);
+		model.acceptResponseProgress(request, tool);
+		const serialized: ISerializableChatData3 = JSON.parse(JSON.stringify(model.toJSON()));
+		const restored = testDisposables.add(instantiationService.createInstance(
+			ChatModel,
+			{ value: serialized, serializer: undefined! },
+			{ initialLocation: ChatAgentLocation.Chat, canUseTools: true },
+		));
+		const invocation = restored.getRequests()[0].response?.entireResponse.value.find(part => part.kind === 'toolInvocationSerialized');
+		assert.deepStrictEqual(invocation?.icon, Codicon.beaker);
+	});
+
+	suite('Auto tier attribution', () => {
+		for (const isNotebook of [false, true]) {
+			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {
+				const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+				const request = model.addRequest({ text: 'edit', parts: [] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, undefined, 'copilot/auto');
+				const uri = isNotebook ? CellUri.generate(URI.file('/test.ipynb'), 0) : URI.file('/test.ts');
+				const operationLog = new ChatSessionOperationLog();
+				const buffers = [operationLog.createInitial(model)];
+
+				for (const autoTier of [undefined, 'efficiency', 'intelligence', undefined, 'fast'] as const) {
+					model.acceptResponseProgress(request, {
+						kind: 'textEdit', uri, edits: [{ range: new Range(1, 1, 1, 1), text: 'edit' }], done: false, autoTier,
+					}, true);
+					const mutation = operationLog.write(model);
+					if (mutation.op === 'replace') {
+						buffers.length = 0;
+					}
+					buffers.push(mutation.data);
+					operationLog.confirmWrite();
+				}
+
+				const serialized = [model.toJSON(), operationLog.read(VSBuffer.concat(buffers))];
+				assert.deepStrictEqual(serialized.map(value => {
+					const restored = testDisposables.add(instantiationService.createInstance(ChatModel, { value, serializer: undefined! }, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+					return restored.getRequests()[0].response!.response.value.map(part => part.kind === 'textEditGroup' || part.kind === 'notebookEditGroup'
+						? { kind: part.kind, tiers: part.editMetadata?.map(metadata => metadata.autoTier), batches: part.edits.length }
+						: { kind: part.kind });
+				}), serialized.map(() => [{ kind: isNotebook ? 'notebookEditGroup' : 'textEditGroup', tiers: [undefined, 'efficiency', 'intelligence', undefined, 'fast'], batches: 5 }]));
+			});
+		}
 	});
 
 	test('retained terminal identity survives chat serialization and restoration', () => {
@@ -651,16 +735,11 @@ suite('ChatModel', () => {
 	test('inputModel.setState preserves contrib keys owned by other writers', async function () {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 
-		// The chat service records "migration hint already shown" in `contrib`,
-		// then the input widget publishes its own contrib keys on the next sync
-		// (typing, sending, model change). That rebuild must not drop the
-		// service's key, or `chat.customizations.migrationHint: "once"` degrades
-		// into "always".
-		model.inputModel.setState({ contrib: { customizationMigrationHintShown: true } });
+		model.inputModel.setState({ contrib: { serviceOwnedKey: true } });
 		model.inputModel.setState({ inputText: 'typing', contrib: { widgetOwnedKey: 'from-widget' } });
 
 		assert.deepStrictEqual(model.inputModel.state.get()?.contrib, {
-			customizationMigrationHintShown: true,
+			serviceOwnedKey: true,
 			widgetOwnedKey: 'from-widget',
 		});
 	});
@@ -812,6 +891,27 @@ suite('Response', () => {
 		]);
 	});
 
+	for (const restored of [false, true]) {
+		test(`child edits do not split parent code fences (restored=${restored})`, () => {
+			const prefix = { kind: 'markdownContent', content: new MarkdownString('Before\n\n```ts\nconst value = ') } as const;
+			const edit = {
+				kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
+				subAgentInvocationId: 'parent-subagent', undoStopId: 'child-patch', diff: { added: 1, removed: 0 },
+			} as const;
+			const response = store.add(new Response(restored ? [prefix, edit] : []));
+			if (!restored) {
+				response.updateContent(prefix);
+				response.updateContent(edit);
+			}
+			response.updateContent({ kind: 'markdownContent', content: new MarkdownString('42;\n```\nAfter') });
+
+			assert.deepStrictEqual(response.value.map(part => part.kind === 'markdownContent' ? { kind: part.kind, content: part.content.value } : part), [
+				{ kind: 'markdownContent', content: 'Before\n\n```ts\nconst value = 42;\n```\nAfter' },
+				edit,
+			]);
+		});
+	}
+
 	test('mergeable thinking across nested subagent progress', () => {
 		const clock = sinon.useFakeTimers({ now: 1000 });
 		try {
@@ -829,7 +929,12 @@ suite('Response', () => {
 				},
 				subagentInvocationId: 'parent-tool',
 			}));
-			clock.tick(500);
+			clock.tick(250);
+			response.updateContent({
+				kind: 'externalEdit', uri: URI.file('/workspace/child.ts'), editKind: 'edit',
+				subAgentInvocationId: 'parent-tool',
+			});
+			clock.tick(250);
 			response.updateContent({ kind: 'thinking', id: 'reasoning', value: ' base stats.' });
 			clock.tick(1000);
 			// The parent's own content ends the section, so the timer covers the whole merged block.
@@ -840,6 +945,7 @@ suite('Response', () => {
 				: { kind: part.kind }), [
 				{ kind: 'thinking', id: 'reasoning', value: '**Evaluating battle strategies**\n\nThere is a chance to counter, given its solid base stats.', reasoningDurationMs: 2000 },
 				{ kind: 'toolInvocation' },
+				{ kind: 'externalEdit' },
 				{ kind: 'markdownContent' },
 			]);
 		} finally {

@@ -8,6 +8,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY as TOTAL_SESSIONS_KEY } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AgentsWindowUsage } from '../../../../workbench/contrib/chat/common/agentsWindowUsage.js';
 import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession, SessionArtifactKind } from '../../../services/sessions/common/session.js';
 import { getPullRequestStatusFromIcon, PullRequestStatus } from '../../github/common/types.js';
 import { linkKey } from '../../../common/sessionLinks.js';
@@ -23,8 +25,7 @@ function getResolvedPullRequestStatus(pullRequest: IGitHubPullRequestRef): PullR
 
 /** Storage key for the per-session lifecycle stats map (JSON encoded). Exported for tests. */
 export const SESSIONS_KEY = 'agentSessions.telemetry.summary.sessions';
-/** Storage key for the cumulative number of sessions started from the Agents window across all workspaces and providers. */
-export const TOTAL_SESSIONS_KEY = 'agentSessions.telemetry.totalSessions';
+export { TOTAL_SESSIONS_KEY };
 /** Storage key for the cumulative number of sessions started in each workspace (JSON encoded map of workspace URI -> count). */
 const WORKSPACE_SESSIONS_KEY = 'agentSessions.telemetry.workspaceSessions';
 /** Storage key for the cumulative number of sessions started for each sessions provider (JSON encoded map of providerId -> count). */
@@ -262,6 +263,7 @@ export class SessionsLifecycleTracker extends Disposable {
 
 	private readonly _appLaunchCount: number;
 	private readonly _stats: Map<string, IStoredSessionStats>;
+	private readonly _usage: AgentsWindowUsage;
 
 	constructor(
 		private readonly _storageService: IStorageService,
@@ -269,6 +271,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	) {
 		super();
 
+		this._usage = new AgentsWindowUsage(_storageService);
 		this._appLaunchCount = appLaunchCount;
 		this._stats = this._load();
 	}
@@ -362,7 +365,7 @@ export class SessionsLifecycleTracker extends Disposable {
 		const providerId = getSessionsTelemetryProviderId(session.providerId);
 		const workspaceUri = session.workspace.get()?.uri.toString();
 
-		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0) + 1;
+		const userSessionsTotal = this._usage.createdSessionCount + 1;
 		this._storageService.store(TOTAL_SESSIONS_KEY, userSessionsTotal, StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 		const providerCounts = this._readProviderCounterMap();
@@ -430,7 +433,7 @@ export class SessionsLifecycleTracker extends Disposable {
 	}
 
 	private _readUserRequestCounters(providerId: string, workspaceUri: string | undefined): IUserRequestCounters {
-		const userSessionsTotal = this._storageService.getNumber(TOTAL_SESSIONS_KEY, StorageScope.APPLICATION, 0);
+		const userSessionsTotal = this._usage.createdSessionCount;
 		const providerCounts = this._readProviderCounterMap();
 		const userSessionsForProvider = providerCounts[getSessionsTelemetryProviderId(providerId)] ?? 0;
 		let userSessionsInWorkspace = 0;

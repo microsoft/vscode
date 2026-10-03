@@ -5,6 +5,7 @@
 
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
+import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -50,7 +51,6 @@ interface ITestAgentContext {
 	readonly stateManager: AgentHostStateManager;
 	readonly configurationService: AgentConfigurationService;
 	readonly sdkDownloader: RecordingAgentSdkDownloader;
-	readonly runStartupAccountProbe: () => Promise<void>;
 }
 
 /**
@@ -70,6 +70,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ICodexProxyService, { _serviceBrand: undefined });
 	instantiationService.stub(IAgentConfigurationService, configurationService);
 	instantiationService.stub(IAgentHostWorktreeIsolation, new NullAgentHostWorktreeIsolation());
+	instantiationService.stub(IAgentHostStartupPerformance, NullAgentHostStartupPerformance);
 	instantiationService.stub(IAgentHostCustomizationEnablementService, createNoopCustomizationEnablementService());
 	instantiationService.stub(IAgentHostGitHubEndpointService, createTestGitHubEndpointService());
 	instantiationService.stub(IAgentHostProxyResolver, createTestAgentHostProxyResolver());
@@ -82,9 +83,7 @@ function createAgentContext(disposables: Pick<DisposableStore, 'add'>, models: (
 	instantiationService.stub(ILogService, logService);
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	const agent = disposables.add(instantiationService.createInstance(CodexAgent));
-	const runStartupAccountProbe = agent['_probeAccountAtStartup'].bind(agent);
-	agent['_probeAccountAtStartup'] = async () => { };
-	return { agent, stateManager, configurationService, sdkDownloader, runStartupAccountProbe };
+	return { agent, stateManager, configurationService, sdkDownloader };
 }
 
 function createAgent(disposables: Pick<DisposableStore, 'add'>, models: () => Promise<CCAModel[]>, rootConfig: Record<string, boolean> = {}, sdkDownloader = new RecordingAgentSdkDownloader()): CodexAgent {
@@ -156,15 +155,23 @@ suite('CodexAgent model refresh', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps the persistent app-server stopped until a Codex session is selected', async () => {
-		const agent = createAgent(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		const ctx = createAgentContext(disposables, async () => [], { [AgentHostConfigKey.AllowSignedOutWhenUsable]: true });
+		const agent = ctx.agent;
 		const requests: string[] = [];
 		const connection = createChatGPTConnection(undefined, requests);
 		let connectionRequested = false;
+		let rawConnectionRequests = 0;
+		agent['_startRawConnection'] = async () => {
+			rawConnectionRequests++;
+			throw new Error('ambient startup must not probe the ChatGPT account');
+		};
 		agent['_ensureConnection'] = async () => {
 			connectionRequested = true;
 			agent['_connection'] = connection as never;
+			void agent['_refreshAccount'](connection.client as never);
 			return connection as never;
 		};
+		await new Promise<void>(resolve => setImmediate(resolve));
 
 		// These are all ambient registration/startup paths in AgentService. None is
 		// an affirmative choice to use Codex.
@@ -175,11 +182,20 @@ suite('CodexAgent model refresh', () => {
 		await agent.authenticate(agent.getProtectedResources()[0].resource, 'token-replayed-at-registration');
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		discoveryListener.dispose();
-		assert.deepStrictEqual({ connectionRequested, metadata, migrated, models: agent.models.get() }, {
+		assert.deepStrictEqual({
+			connectionRequested,
+			rawConnectionRequests,
+			metadata,
+			migrated,
+			models: agent.models.get(),
+			account: readCodexAccountInfo(ctx.stateManager.rootState),
+		}, {
 			connectionRequested: false,
+			rawConnectionRequests: 0,
 			metadata: undefined,
 			migrated: AgentChatMigrationDeferred,
 			models: [],
+			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, rateLimits: undefined, authUrl: undefined, authUrlNonce: undefined },
 		});
 
 		// Even an ambient catalog refresh must not cross the session boundary.
@@ -197,6 +213,7 @@ suite('CodexAgent model refresh', () => {
 			enumerations: requests.filter(method => method === 'model/list').length,
 			discoveries: requests.filter(method => method === 'thread/list').length,
 			models: agent.models.get().map(model => ({ provider: model.provider, id: model.id, name: model.name, meta: model._meta })),
+			account: readCodexAccountInfo(ctx.stateManager.rootState).status,
 		}, {
 			connectionRequested: true,
 			enumerations: 1,
@@ -207,6 +224,7 @@ suite('CodexAgent model refresh', () => {
 				name: 'GPT-5.6-Sol',
 				meta: { modelSourceId: 'chatgptSubscription', modelGroupId: 'chatgpt' },
 			}],
+			account: 'signedIn',
 		});
 	});
 
@@ -480,193 +498,6 @@ suite('CodexAgent model refresh', () => {
 		});
 	});
 
-	test('startup account probe releases its one-off process before profile download finishes and still publishes complete details', async () => {
-		const ctx = createAgentContext(disposables, async () => []);
-		const requests: string[] = [];
-		const disposed: string[] = [];
-		const rateLimitStarted = new DeferredPromise<void>();
-		const releaseRateLimit = new DeferredPromise<void>();
-		const profileImageStarted = new DeferredPromise<void>();
-		const releaseProfileImage = new DeferredPromise<void>();
-		const profileImageStored = new DeferredPromise<void>();
-		const profileImageNonce = 'a'.repeat(64);
-		const profileImage = {
-			uri: `vscode-codex-profile-image:/profile-${profileImageNonce}.png`,
-			contentType: 'image/png',
-			sizeHint: 3,
-			nonce: profileImageNonce,
-		};
-		ctx.agent['_proxyResolver'].fetch = async () => {
-			await profileImageStarted.complete();
-			await releaseProfileImage.p;
-			return Response.json({ profile: { profile_picture_url: 'data:image/png;base64,AQID' } });
-		};
-		ctx.agent['_getProfileImageStore'] = () => ({
-			update: async () => {
-				await profileImageStored.complete();
-				return profileImage;
-			},
-			clear: async () => { },
-		}) as never;
-		ctx.agent['_startRawConnection'] = async () => ({
-			client: {
-				request: async (method: string) => {
-					requests.push(method);
-					if (method === 'account/read') {
-						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
-					}
-					if (method === 'account/rateLimits/read') {
-						await rateLimitStarted.complete();
-						await releaseRateLimit.p;
-						return {
-							rateLimits: {
-								primary: null,
-								secondary: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
-							},
-							rateLimitsByLimitId: null,
-							rateLimitResetCredits: null,
-						};
-					}
-					if (method === 'getAuthStatus') {
-						return { authMethod: 'chatgpt', authToken: 'header.payload.signature', requiresOpenaiAuth: true };
-					}
-					throw new Error(`Unexpected request: ${method}`);
-				},
-				dispose: () => { disposed.push('client'); },
-			},
-			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
-			child: { kill: () => { disposed.push('child'); return true; } },
-		}) as never;
-
-		const probe = ctx.runStartupAccountProbe();
-		await Promise.all([rateLimitStarted.p, profileImageStarted.p]);
-		assert.deepStrictEqual(disposed, []);
-		await releaseRateLimit.complete();
-		await probe;
-		assert.deepStrictEqual(disposed, ['client', 'proxy', 'child']);
-		await releaseProfileImage.complete();
-		await profileImageStored.p;
-		await new Promise<void>(resolve => setImmediate(resolve));
-
-		assert.deepStrictEqual({
-			requests,
-			disposed,
-			account: readCodexAccountInfo(ctx.stateManager.rootState),
-			connection: ctx.agent['_connection'].kind,
-		}, {
-			requests: ['account/read', 'account/rateLimits/read', 'getAuthStatus'],
-			disposed: ['client', 'proxy', 'child'],
-			account: {
-				status: 'signedIn',
-				email: 'person@example.com',
-				planType: 'plus',
-				profileImage,
-				requiresOpenaiAuth: true,
-				rateLimit: { usedPercent: 1, windowDurationMins: 7 * 24 * 60, resetsAt: 123 },
-				authUrl: undefined,
-				authUrlNonce: undefined,
-			},
-			connection: 'idle',
-		});
-	});
-
-	test('startup account probe tears down its one-off connection when account details stall', async () => {
-		const ctx = createAgentContext(disposables, async () => []);
-		Object.defineProperty(ctx.agent, '_startupAccountProbeTimeoutMs', { value: 5 });
-		const disposed: string[] = [];
-		const rateLimitStarted = new DeferredPromise<void>();
-		const releaseRateLimit = new DeferredPromise<void>();
-		const authStatusStarted = new DeferredPromise<void>();
-		const releaseAuthStatus = new DeferredPromise<void>();
-		ctx.agent['_startRawConnection'] = async () => ({
-			client: {
-				request: async (method: string) => {
-					if (method === 'account/read') {
-						return { account: { type: 'chatgpt', email: 'person@example.com', planType: 'plus' }, requiresOpenaiAuth: true };
-					}
-					if (method === 'account/rateLimits/read') {
-						await rateLimitStarted.complete();
-						await releaseRateLimit.p;
-						return { rateLimits: { primary: null, secondary: null }, rateLimitsByLimitId: null, rateLimitResetCredits: null };
-					}
-					if (method === 'getAuthStatus') {
-						await authStatusStarted.complete();
-						await releaseAuthStatus.p;
-						return { authMethod: 'chatgpt', authToken: null, requiresOpenaiAuth: true };
-					}
-					throw new Error(`Unexpected request: ${method}`);
-				},
-				dispose: () => { disposed.push('client'); },
-			},
-			proxyHandle: { dispose: () => { disposed.push('proxy'); } },
-			child: { kill: () => { disposed.push('child'); return true; } },
-		}) as never;
-
-		const probe = ctx.runStartupAccountProbe();
-		await Promise.all([rateLimitStarted.p, authStatusStarted.p]);
-		await probe;
-
-		assert.deepStrictEqual({
-			disposed,
-			account: readCodexAccountInfo(ctx.stateManager.rootState),
-			connection: ctx.agent['_connection'].kind,
-		}, {
-			disposed: ['client', 'proxy', 'child'],
-			account: {
-				status: 'signedIn',
-				email: 'person@example.com',
-				planType: 'plus',
-				profileImage: undefined,
-				requiresOpenaiAuth: true,
-				rateLimit: undefined,
-				authUrl: undefined,
-				authUrlNonce: undefined,
-			},
-			connection: 'idle',
-		});
-
-		const persistentReadStarted = new DeferredPromise<void>();
-		const persistentClient = {
-			request: async (method: string) => {
-				assert.strictEqual(method, 'account/read');
-				await persistentReadStarted.complete(undefined);
-				return { account: null, requiresOpenaiAuth: true };
-			},
-		};
-		ctx.agent['_connection'] = {
-			kind: 'ready',
-			client: persistentClient,
-			proxyHandle: { dispose() { } },
-			child: { kill: () => true },
-		} as never;
-		const persistentRefresh = ctx.agent['_refreshAccount'](persistentClient as never, false);
-		await new Promise<void>(resolve => setImmediate(resolve));
-		const persistentReadStartedBeforeDetailsReleased = persistentReadStarted.isSettled;
-		await Promise.all([releaseRateLimit.complete(), releaseAuthStatus.complete()]);
-		await persistentRefresh;
-
-		assert.strictEqual(persistentReadStartedBeforeDetailsReleased, true);
-	});
-
-	test('startup account probe does not download a missing SDK', async () => {
-		const ctx = createAgentContext(disposables, async () => []);
-		ctx.agent['_isSdkResolvableWithoutDownload'] = async () => false;
-		let connectionRequests = 0;
-		ctx.agent['_startRawConnection'] = async () => {
-			connectionRequests++;
-			throw new Error('startup probe must not download');
-		};
-		await ctx.runStartupAccountProbe();
-
-		assert.deepStrictEqual({
-			connectionRequests,
-			account: readCodexAccountInfo(ctx.stateManager.rootState),
-		}, {
-			connectionRequests: 0,
-			account: { status: 'unknown', email: undefined, planType: undefined, profileImage: undefined, requiresOpenaiAuth: undefined, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
-		});
-	});
-
 	test('standalone ChatGPT sign-in uses a temporary connection until login completes', async () => {
 		const ctx = createAgentContext(disposables, async () => []);
 		const requests: string[] = [];
@@ -719,7 +550,7 @@ suite('CodexAgent model refresh', () => {
 		}, {
 			requests: ['account/read', 'account/login/start', 'account/read', 'account/rateLimits/read', 'getAuthStatus'],
 			disposed: ['client', 'proxy', 'child'],
-			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, authUrl: undefined, authUrlNonce: undefined },
+			account: { status: 'signedIn', email: 'person@example.com', planType: 'plus', profileImage: undefined, requiresOpenaiAuth: true, rateLimit: undefined, rateLimits: [], authUrl: undefined, authUrlNonce: undefined },
 			connection: 'idle',
 		});
 	});
@@ -770,6 +601,7 @@ suite('CodexAgent model refresh', () => {
 				profileImage: undefined,
 				requiresOpenaiAuth: true,
 				rateLimit: undefined,
+				rateLimits: undefined,
 				authUrl: undefined,
 				authUrlNonce: undefined,
 			},
@@ -778,7 +610,6 @@ suite('CodexAgent model refresh', () => {
 
 	test('shutdown cancels a one-off account connection that is still starting', async () => {
 		const agent = createAgent(disposables, async () => []);
-		await agent['_startupAccountProbe'].complete(undefined);
 		const started = new DeferredPromise<void>();
 		const release = new DeferredPromise<void>();
 		const cancelled = new DeferredPromise<void>();
@@ -1396,7 +1227,7 @@ suite('CodexAgent model refresh', () => {
 		const second = agent['_refreshAccount'](client, false);
 		await firstStarted.p;
 		assert.strictEqual(requestIndex, 1);
-		await firstResponse.complete({ account: null, requiresOpenaiAuth: true });
+		await firstResponse.complete({ account: null, requiresOpenaiAuth: true, workspaceRouting: null });
 		await first;
 
 		await secondStarted.p;
@@ -1404,6 +1235,7 @@ suite('CodexAgent model refresh', () => {
 		await secondResponse.complete({
 			account: { type: 'chatgpt', email: 'new@example.com', planType: 'pro' },
 			requiresOpenaiAuth: true,
+			workspaceRouting: null,
 		});
 		await second;
 
@@ -1436,7 +1268,7 @@ suite('CodexAgent model refresh', () => {
 		};
 		agent['_connection'] = staleConnection as never;
 
-		const listing = agent['_listCodexChats']();
+		const listing = agent['_listCodexChats']('discovery');
 		await listStarted.p;
 		agent['_connection'] = createChatGPTConnection() as never;
 		await releaseList.complete();
@@ -1470,7 +1302,8 @@ suite('CodexAgent model refresh', () => {
 		const first = agent['_refreshAccountRateLimits'](client, 'person@example.com');
 		const second = agent['_refreshAccountRateLimits'](client, 'person@example.com');
 		resolveSecond({
-			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimits: { limitId: null, limitName: null, normalModelSlug: null, primary: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 }, secondary: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 }, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
@@ -1479,7 +1312,8 @@ suite('CodexAgent model refresh', () => {
 		await second;
 		const latestObservedAt = agent['_openAIAccountRateLimitUpdatedAt'];
 		resolveFirst({
-			rateLimits: { limitId: null, limitName: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: null, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			rateLimits: { limitId: null, limitName: null, normalModelSlug: null, primary: { usedPercent: 90, windowDurationMins: 300, resetsAt: 100 }, secondary: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 }, credits: null, individualLimit: null, spendControlReached: null, planType: null, rateLimitReachedType: null },
+			ordinaryUsageAllowed: null,
 			rateLimitsByLimitId: null,
 			rateLimitResetCredits: null,
 			accountId: null,
@@ -1489,10 +1323,15 @@ suite('CodexAgent model refresh', () => {
 
 		assert.deepStrictEqual({
 			rateLimit: agent['_openAIAccountRateLimit'],
+			rateLimits: agent['_openAIAccountRateLimits'],
 			hasObservationTime: Number.isFinite(latestObservedAt),
 			observedAt: agent['_openAIAccountRateLimitUpdatedAt'],
 		}, {
-			rateLimit: { usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			rateLimit: { usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 },
+			rateLimits: [
+				{ usedPercent: 42, windowDurationMins: 10080, resetsAt: 300 },
+				{ usedPercent: 20, windowDurationMins: 300, resetsAt: 200 },
+			],
 			hasObservationTime: true,
 			observedAt: latestObservedAt,
 		});
@@ -1507,12 +1346,14 @@ suite('CodexAgent model refresh', () => {
 			const agent = createAgent(disposables, async () => []);
 			agent['_setOpenAIAccountState']({ usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', email: 'person@example.com' });
 			agent['_openAIAccountRateLimit'] = { usedPercent: 90, windowDurationMins: 7 * 24 * 60 };
+			agent['_openAIAccountRateLimits'] = [agent['_openAIAccountRateLimit'], { usedPercent: 20, windowDurationMins: 300 }];
 			agent['_openAIAccountRateLimitUpdatedAt'] = Date.now();
 
 			agent['_setOpenAIAccountState'](state);
 
-			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
+			assert.deepStrictEqual({ rateLimit: agent['_openAIAccountRateLimit'], rateLimits: agent['_openAIAccountRateLimits'], observedAt: agent['_openAIAccountRateLimitUpdatedAt'] }, {
 				rateLimit: undefined,
+				rateLimits: undefined,
 				observedAt: undefined,
 			});
 		});

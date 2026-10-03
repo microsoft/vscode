@@ -13,6 +13,7 @@ export const fusionTestData = {
 	resolved: {
 		fusionId: 'fusion-1', turnId: 'sdk-turn', syntheticModel: 'hydrafusion', policy: 'max', contractVersion: 1,
 		pattern: 'cascade', primaryModel: 'model-a', secondaryModel: 'model-b', fallbackModel: 'model-a', followUpModel: 'model-a',
+		hint: 'SDK-provided workflow description.',
 		phasePlan: [
 			{ kind: 'primary', role: 'solver', scope: 'root', conditional: false },
 			{ kind: 'judge', role: 'judge', scope: 'review', conditional: false },

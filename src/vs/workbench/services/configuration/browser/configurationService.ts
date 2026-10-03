@@ -17,7 +17,7 @@ import { IPolicyConfiguration, NullPolicyConfiguration, PolicyConfiguration } fr
 import { Configuration } from '../common/configurationModels.js';
 import { FOLDER_CONFIG_FOLDER_NAME, defaultSettingsSchemaId, userSettingsSchemaId, workspaceSettingsSchemaId, folderSettingsSchemaId, IConfigurationCache, machineSettingsSchemaId, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, RestrictedSettings, PROFILE_SCOPES, LOCAL_MACHINE_PROFILE_SCOPES, profileSettingsSchemaId, APPLY_ALL_PROFILES_SETTING, APPLICATION_SCOPES } from '../common/configuration.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { IConfigurationRegistry, Extensions, allSettings, windowSettings, resourceSettings, applicationSettings, machineSettings, machineOverridableSettings, ConfigurationScope, IConfigurationPropertySchema, keyFromOverrideIdentifiers, OVERRIDE_PROPERTY_PATTERN, resourceLanguageSettingsSchemaId, configurationDefaultsSchemaId, applicationMachineSettings, isConfigurationDefaultSourceEquals, ConfigurationDefaultSource, IConfigurationDefaults, getConfigurationExperimentName } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IStoredWorkspaceFolder, isStoredWorkspaceFolder, IWorkspaceFolderCreationData, getStoredWorkspaceFolder, toWorkspaceFolders } from '../../../../platform/workspaces/common/workspaces.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ConfigurationEditing, EditableConfigurationTarget } from '../common/configurationEditing.js';
@@ -1382,7 +1382,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		this.logService.trace('ConfigurationService#updateDefaults: begin');
 		try {
 			// Check for experiments
-			await this.processExperimentalSettings(Object.keys(this.configurationRegistry.getConfigurationProperties()), false);
+			await this.processExperimentalSettings([
+				...Object.keys(this.configurationRegistry.getConfigurationProperties()),
+				...Object.keys(this.configurationRegistry.getExcludedConfigurationProperties()),
+			], false);
 		} finally {
 			// Invalidate defaults cache after extensions have registered
 			// and after the experiments have been resolved to prevent
@@ -1398,9 +1401,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 		const addedDefaults: IConfigurationDefaults[] = [];
 		const assignmentUpdates: Promise<void>[] = [];
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
+		const excludedProperties = this.configurationRegistry.getExcludedConfigurationProperties();
 		const defaultConfigurationsPreventingExperimentOverrides = this.configurationRegistry.getRegisteredDefaultConfigurations().filter(configuration => configuration.preventExperimentOverride);
 		for (const property of properties) {
-			const schema = allProperties[property];
+			const schema = allProperties[property] ?? excludedProperties[property];
 			if (!schema?.experiment) {
 				this.assignmentRequests.delete(property);
 				this.experimentalSettingsService.setAssignment(property, false);
@@ -1438,9 +1442,9 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 			const request = {};
 			this.assignmentRequests.set(property, request);
 			try {
-				const { value, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(schema.experiment.name ?? `config.${property}`);
+				const { value, hasAssignment } = await this.workbenchAssignmentService.getTreatmentWithAssignment(getConfigurationExperimentName(property, schema.experiment));
 				assignmentUpdates.push(hasAssignment.then(assigned => {
-					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && allProperties[property]?.experiment === schema.experiment) {
+					if (!this._store.isDisposed && this.assignmentRequests.get(property) === request && (allProperties[property] ?? excludedProperties[property])?.experiment === schema.experiment) {
 						this.experimentalSettingsService.setAssignment(property, assigned);
 					}
 				}, error => {
@@ -1448,6 +1452,10 @@ export class ConfigurationDefaultOverridesContribution extends Disposable implem
 						this.logService.error('ConfigurationService#processExperimentalSettings: assignment', property, error);
 					}
 				}));
+				// The setting may have been removed or replaced while its treatment resolved.
+				if (this._store.isDisposed || this.assignmentRequests.get(property) !== request || (allProperties[property] ?? excludedProperties[property]) !== schema) {
+					continue;
+				}
 				// Latch a `startup` value once it first resolves; keep it pending until then so a
 				// later (sign-in gated) value can still be applied.
 				if (!isAutoExperiment) {

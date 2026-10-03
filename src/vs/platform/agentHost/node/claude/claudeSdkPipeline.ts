@@ -237,7 +237,7 @@ export class ClaudeSdkPipeline extends Disposable {
 				type: ActionType.ChatUsage,
 				turnId,
 				usage: fetched
-					? { ...base, inputTokens: fetched.promptTokens ?? base.inputTokens, _meta: { contextAttribution: fetched.contextAttribution } }
+					? { ...base, inputTokens: fetched.promptTokens ?? base.inputTokens, _meta: { ...base._meta, contextAttribution: fetched.contextAttribution } }
 					: base,
 			},
 		});
@@ -813,6 +813,7 @@ export class ClaudeSdkPipeline extends Disposable {
 						turnDuration,
 						mode: this._currentPermissionMode,
 						clientContext,
+						signal: this._abortController.signal,
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);

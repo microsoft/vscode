@@ -14,9 +14,11 @@ import { mock } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { ChatHeader } from '../../browser/parts/chatHeader.js';
 import { SessionHeader } from '../../browser/parts/sessionHeader.js';
+import { SessionHeaderTargetsChatContext, SessionToolbarShowsSessionContext } from '../../common/contextkeys.js';
 import { ISessionsListModelService } from '../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
 import { IChat, ISessionCapabilities, SessionStatus } from '../../services/sessions/common/session.js';
@@ -45,13 +47,13 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, capabilities: 
 		override readonly resource = URI.parse('test-chat://main');
 		override readonly title = observableValue(this, 'Main Chat');
 		override readonly status = constObservable(mainChatStatus);
-		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: false });
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: false, canDelete: false });
 	}();
 	const secondChat = new class extends mock<IChat>() {
 		override readonly resource = URI.parse('test-chat://second');
 		override readonly title = observableValue(this, 'Second Chat');
 		override readonly status = constObservable(SessionStatus.Completed);
-		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canDelete: true });
+		override readonly capabilities = constObservable({ canRename: capabilities.supportsRename ?? false, canArchive: true, canDelete: true });
 	}();
 	const activeChat = observableValue<IChat>('activeChat', mainChat);
 	const session = new class extends mock<IActiveSession>() {
@@ -133,6 +135,7 @@ suite('Sessions - Headers', () => {
 
 	test('targets session actions at the session and chat actions at the represented chat', () => {
 		const { store, instantiationService, header, session, activeChat, mainChat, secondChat } = createHarness(disposables);
+		const contextKeyService = instantiationService.get(IContextKeyService);
 		const chatHeader = store.add(instantiationService.createInstance(ChatHeader));
 		chatHeader.setChat({
 			session,
@@ -149,16 +152,31 @@ suite('Sessions - Headers', () => {
 
 		const sessionArgs = describe(getMenuActionArgs(header));
 		const initialChatArgs = describe(getMenuActionArgs(chatHeader));
+		const mainChatContexts = {
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 		activeChat.set(secondChat, undefined);
+		const nestedSessionArgs = describe(getMenuActionArgs(header));
+		const nestedChatContexts = {
+			headerTargetsChat: SessionHeaderTargetsChatContext.getValue(contextKeyService),
+			toolbarShowsSession: SessionToolbarShowsSessionContext.getValue(contextKeyService),
+		};
 
 		assert.deepStrictEqual({
 			sessionArgs,
 			initialChatArgs,
+			nestedSessionArgs,
 			updatedChatArgs: describe(getMenuActionArgs(chatHeader)),
+			mainChatContexts,
+			nestedChatContexts,
 		}, {
 			sessionArgs: ['session'],
 			initialChatArgs: ['session', 'mainChat'],
+			nestedSessionArgs: ['session', 'secondChat'],
 			updatedChatArgs: ['session', 'secondChat'],
+			mainChatContexts: { headerTargetsChat: false, toolbarShowsSession: true },
+			nestedChatContexts: { headerTargetsChat: true, toolbarShowsSession: true },
 		});
 	});
 
@@ -198,6 +216,20 @@ suite('Sessions - Headers', () => {
 			secondTitle: 'Second Chat',
 			updatedSecondTitle: 'Renamed Second Chat',
 		});
+	});
+
+	test('shows New Session for an untitled nested session', () => {
+		const { store, instantiationService, session, activeChat, secondChat } = createHarness(disposables);
+		secondChat.title.set('', undefined);
+		activeChat.set(secondChat, undefined);
+		const header = store.add(instantiationService.createInstance(ChatHeader));
+		header.setChat({
+			session,
+			chat: activeChat,
+			activate: () => { },
+		});
+
+		assert.strictEqual(header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title-text')?.textContent, 'New Session');
 	});
 
 	test('uses a full-width backing surface with centered content and no separator', () => {

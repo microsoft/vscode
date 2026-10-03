@@ -7,9 +7,11 @@ import { IObservable } from '../../../../../base/common/observable.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
+import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { localize } from '../../../../../nls.js';
+import { NewSessionOnboardingHandoffContext } from '../../../../common/contextkeys.js';
 
 /**
  * Spotlight steps shown after the user presses the pulsing "New Session"
@@ -24,6 +26,7 @@ import { localize } from '../../../../../nls.js';
  *  - `sessions.newSession.isolation` — provider-specific config/isolation pickers
  */
 export const NEW_SESSION_TOUR_ID = 'sessions.onboarding.newSession';
+onboardingScenarioRegistry.registerDescriptor({ id: NEW_SESSION_TOUR_ID });
 
 /**
  * Shared "shown" persistence key for the new-session onboarding tours. The
@@ -80,7 +83,7 @@ export function createNewSessionTour(signal: IObservable<boolean>): IOnboardingS
 	return {
 		id: NEW_SESSION_TOUR_ID,
 		seenKey: NEW_SESSION_ONBOARDING_SEEN_KEY,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated()),
+		when: ContextKeyExpr.and(ChatContextKeys.enabled, EditorPartModalContext.toNegated(), NewSessionOnboardingHandoffContext.toNegated()),
 		trigger: { kind: 'observable', signal },
 		priority: 100,
 		experiment: NEW_SESSION_EXPERIMENT,

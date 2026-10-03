@@ -171,9 +171,14 @@
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size40);
-	padding: 4px 6px 6px 6px;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60) var(--vscode-spacing-size60);
 	color: var(--vscode-icon-foreground);
 }
+
+.experimental-new-session-composer .sessions-chat-toolbar .sessions-chat-config-toolbar .actions-container {
+	gap: var(--vscode-spacing-size40);
+}
+
 
 /* Voice mode controls (mic / stop / settings / disconnect) */
 .sessions-chat-voice-toolbar {
@@ -234,8 +239,16 @@
 	justify-content: flex-end;
 }
 
-.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .chat-agent-picker-item {
-	margin-left: auto;
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
+	justify-content: flex-start;
+	flex: 0 0 auto;
+	width: max-content;
+}
+
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
+.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
+	overflow: visible;
 }
 
 .agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-container > .chat-context-usage-container {
@@ -245,16 +258,8 @@
 	z-index: 1;
 }
 
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls {
-	justify-content: flex-start;
-	flex: 0 1 auto;
-	width: max-content;
-}
-
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-toolbar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar,
-.experimental-new-session-composer .sessions-chat-config-toolbar.new-chat-session-controls .monaco-action-bar .actions-container {
-	overflow: visible;
+.agent-sessions-workbench:not(.phone-layout) .chat-view-chat.experimental-session-composer .chat-input-toolbar .action-item.model-picker-item {
+	margin-left: auto;
 }
 
 .sessions-chat-config-toolbar .monaco-toolbar {
@@ -446,6 +451,31 @@
 	position: relative;
 	z-index: 1;
 	transition: background-color 250ms ease, color 250ms ease;
+}
+
+.sessions-chat-send-button.labeled {
+	width: auto;
+}
+
+.sessions-chat-send-button.labeled .monaco-button {
+	width: auto;
+	min-width: 22px;
+	padding: 0 var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label1);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
+}
+
+.sessions-chat-send-button.labeled .monaco-button .codicon {
+	margin: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.action-widget .sessions-new-chat-picker-list .monaco-list-row.sessions-run-multiple-agents-action.has-toolbar .action-list-item-toolbar {
+	display: flex;
+	visibility: visible;
 }
 
 .sessions-chat-send-button .monaco-button.disabled {

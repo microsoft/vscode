@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventHelper, EventType, getActiveElement, getWindow, hide, isAncestorOfActiveElement, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, clearNode, DisposableResizeObserver, EventHelper, EventType, getActiveElement, getWindow, hide, isAncestorOfActiveElement, isHTMLElement, scheduleAtNextAnimationFrame, setVisibility } from '../../../../../../base/browser/dom.js';
 import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -46,8 +46,7 @@ import { IChatCollapsibleIODataPart } from './chatToolInputOutputContentPart.js'
 import { ChatThinkingExternalResourceWidget } from './chatThinkingExternalResourcesWidget.js';
 import { LocalChatSessionUri, chatSessionResourceToId } from '../../../common/model/chatUri.js';
 import { IEditSessionDiffStats } from '../../../common/editing/chatEditingService.js';
-import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { hasToolInvocationError, isMcpToolInvocation } from './toolInvocationParts/chatToolPartUtilities.js';
+import { getToolInvocationIcon, hasToolInvocationError } from './toolInvocationParts/chatToolPartUtilities.js';
 
 
 // Context key id mirrored from `vs/sessions/common/contextkeys` (`IsPhoneLayoutContext`).
@@ -69,14 +68,6 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 	return raw.trim();
 }
 
-function isEditToolId(toolId: string): boolean {
-	const lowerToolId = toolId.toLowerCase();
-	return lowerToolId.includes('edit') ||
-		lowerToolId.includes('create') ||
-		lowerToolId.includes('replace') ||
-		lowerToolId.includes('patch');
-}
-
 /**
  * Returns true for edit tools whose generic display name should be replaced
  * with "Editing files" while streaming (e.g. replace, multi-replace, patch, insertEdit).
@@ -92,74 +83,6 @@ function isGenericEditToolId(toolId: string): boolean {
 		lowerToolId.includes('insertedit') ||
 		lowerToolId.includes('insert_edit') ||
 		lowerToolId.includes('editfile');
-}
-
-function isProblemsToolId(toolId: string | undefined): boolean {
-	switch (toolId?.toLowerCase()) {
-		case 'problems':
-		case 'get_errors':
-		case 'copilot_geterrors':
-			return true;
-		default:
-			return false;
-	}
-}
-
-function isNoProblemsFoundResult(toolId: string | undefined, resultText: string | undefined): boolean {
-	return isProblemsToolId(toolId) && resultText?.toLowerCase().includes('no problems found') === true;
-}
-
-export function getToolInvocationIcon(toolId: string, registeredIcon?: ThemeIcon, resultText?: string, source?: ToolDataSource): ThemeIcon {
-	if (isMcpToolInvocation({ toolId, source })) {
-		return Codicon.mcp;
-	}
-	if (isNoProblemsFoundResult(toolId, resultText)) {
-		return Codicon.search;
-	}
-
-	if (registeredIcon) {
-		return registeredIcon;
-	}
-
-	const lowerToolId = toolId.toLowerCase();
-
-	if (lowerToolId.includes('comment')) {
-		return Codicon.comment;
-	}
-
-	if (
-		lowerToolId.includes('search') ||
-		lowerToolId.includes('grep') ||
-		lowerToolId.includes('find') ||
-		lowerToolId.includes('list') ||
-		lowerToolId.includes('semantic') ||
-		lowerToolId.includes('changes') ||
-		lowerToolId.includes('codebase') ||
-		lowerToolId.includes('checked')
-	) {
-		return Codicon.search;
-	}
-
-	if (
-		lowerToolId.includes('read') ||
-		lowerToolId.includes('get_file') ||
-		lowerToolId.includes('problems')
-	) {
-		return Codicon.book;
-	}
-
-	if (isEditToolId(toolId)) {
-		return Codicon.pencil;
-	}
-
-	if (
-		lowerToolId.includes('terminal')
-	) {
-		return Codicon.terminal;
-	}
-
-	// default to generic tool icon
-	return Codicon.tools;
 }
 
 function setThinkingIcon(iconElement: HTMLElement, icon: ThemeIcon): void {
@@ -292,7 +215,7 @@ export type ChatThinkingItemMetadata =
 
 interface ILazyToolItem {
 	kind: 'tool';
-	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable }>;
+	lazy: Lazy<{ domNode: HTMLElement; disposable?: IDisposable; isVisible?: IObservable<boolean> }>;
 	toolInvocationId?: string;
 	toolInvocationOrMarkdown?: ChatThinkingItemMetadata;
 	originalParent?: HTMLElement;
@@ -430,6 +353,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
+	private fallbackTitle: string | undefined;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking');
 	private readonly workingTitle = localize('chat.thinking.header.working', 'Working');
 	private textContainer!: HTMLElement;
@@ -463,6 +387,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	private readonly toolWrappersByCallId = new Map<string, HTMLElement>();
 	private readonly toolIconsByCallId = new Map<string, HTMLElement>();
 	private readonly toolLabelsByCallId = new Map<string, string>();
+	private readonly hiddenToolCallIds = new Set<string>();
 	private readonly toolDisposables = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly ownedToolParts = new Map<string, IDisposable>();
 	private pendingRemovals: { toolCallId: string; toolLabel: string }[] = [];
@@ -613,7 +538,10 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		}
 
 		this._externalResourceWidget = this._register(this.instantiationService.createInstance(ChatThinkingExternalResourceWidget));
-		this._register(this._externalResourceWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(this._externalResourceWidget.onDidChangeHeight(() => {
+			this.updateToolChainVisibility();
+			this._onDidChangeHeight.fire();
+		}));
 		node.appendChild(this._externalResourceWidget.domNode);
 
 		if (!this.streamingCompleted && !this.element.isComplete) {
@@ -1355,14 +1283,15 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 			return this.allThinkingParts.some(part => this.getThinkingBody(extractTextFromPart(part)).length > 0);
 		}
 
-		// Multiple tool invocations or lazy items mean there's content to show
-		if (this.toolInvocationCount > 0 || this.lazyItems.length > 0) {
+		const hasVisibleLazyItems = this.lazyItems.some(item => item.kind === 'thinking' || !item.lazy.hasValue || item.lazy.value.isVisible?.get() !== false);
+		if (this.toolInvocationCount > this.hiddenToolCallIds.size || hasVisibleLazyItems) {
 			return true;
 		}
 
 		// Count meaningful children in the wrapper (exclude the working spinner)
 		if (this.wrapper) {
-			const meaningfulChildren = Array.from(this.wrapper.children).filter(child => child !== this.workingSpinnerElement).length;
+			const meaningfulChildren = Array.from(this.wrapper.children).filter(child =>
+				child !== this.workingSpinnerElement && isHTMLElement(child) && !child.hidden && child.style.display !== 'none').length;
 			if (meaningfulChildren > 1) {
 				return true;
 			}
@@ -1382,6 +1311,14 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 	}
 
 	private updateDropdownClickability(knownContentHeight?: number): void {
+		if (this.fallbackTitle !== undefined && this.currentTitle === this.fallbackTitle) {
+			const title = this.getFallbackTitle();
+			if (title !== this.currentTitle) {
+				this.currentTitle = this.fallbackTitle = title;
+				this.setFinalizedTitle(title);
+			}
+		}
+		this.updateToolChainVisibility();
 		if (this.isVerboseToolChain) {
 			return;
 		}
@@ -1404,6 +1341,16 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.setDropdownClickable(allowExpansion);
 	}
 
+	private updateToolChainVisibility(): void {
+		if (!this.isToolChain || !this.wrapper) {
+			return;
+		}
+		const hasPendingContent = this.lazyItems.some(item => item.kind === 'thinking' || !item.lazy.hasValue);
+		const hasVisibleContent = Array.from(this.wrapper.children).some(child => isHTMLElement(child) && !child.hidden && child.style.display !== 'none');
+		const hasResources = this._externalResourceWidget?.domNode.hasChildNodes() ?? false;
+		setVisibility(hasPendingContent || hasVisibleContent || hasResources, this.domNode);
+	}
+
 	private appendToWrapper(element: HTMLElement): void {
 		if (!this.wrapper) {
 			return;
@@ -1413,6 +1360,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		} else {
 			this.wrapper.appendChild(element);
 		}
+		this.updateToolChainVisibility();
 	}
 
 	private updateWorkingSpinnerVisibility(reader?: IReader): void {
@@ -1997,7 +1945,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			if (lazyItem && lazyItem.kind === 'tool') {
 				const toolInvocation = lazyItem.toolInvocationOrMarkdown && (lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocation' || lazyItem.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? lazyItem.toolInvocationOrMarkdown : undefined;
 				const result = lazyItem.lazy.value;
-				this.appendItemToDOM(result.domNode, lazyItem.toolInvocationId, lazyItem.toolInvocationOrMarkdown, lazyItem.originalParent);
+				this.appendItemToDOM(result.domNode, lazyItem.toolInvocationId, lazyItem.toolInvocationOrMarkdown, lazyItem.originalParent, result.isVisible);
 				if (result.disposable) {
 					const toolCallId = toolInvocation?.toolCallId;
 					if (toolCallId) {
@@ -2067,14 +2015,19 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 	}
 
-	private setFallbackTitle(): void {
-		const finalLabel = this.appendedItemCount > 0
-			? this.appendedItemCount === 1
+	private getFallbackTitle(): string {
+		const visibleItemCount = this.appendedItemCount - this.hiddenToolCallIds.size;
+		return visibleItemCount > 0
+			? visibleItemCount === 1
 				? localize('chat.thinking.finished.withStepsSingular', 'Finished with 1 step')
-				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', this.appendedItemCount)
+				: localize('chat.thinking.finished.withStepsPlural', 'Finished with {0} steps', visibleItemCount)
 			: localize('chat.thinking.finished', 'Finished Working');
+	}
 
+	private setFallbackTitle(): void {
+		const finalLabel = this.getFallbackTitle();
 		this.currentTitle = finalLabel;
+		this.fallbackTitle = finalLabel;
 		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
 		if (this.wrapper) {
 			this.wrapper.classList.remove('chat-thinking-streaming');
@@ -2098,7 +2051,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	 * Pass any already-created part as `eagerDisposable` to transfer ownership immediately.
 	 */
 	public appendItem(
-		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
+		factory: () => { domNode: HTMLElement; disposable?: IDisposable; isVisible?: IObservable<boolean> },
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
 		originalParent?: HTMLElement,
@@ -2144,7 +2097,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		// If expanded or has been expanded once, render immediately
 		if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {
 			const result = factory();
-			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent);
+			this.appendItemToDOM(result.domNode, toolInvocationId, toolInvocationOrMarkdown, originalParent, result.isVisible);
 			if (result.disposable) {
 				if (toolCallId) {
 					this.ownedToolParts.set(toolCallId, result.disposable);
@@ -2171,6 +2124,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	public removeMaterializedItem(toolCallId: string): void {
 		this.toolDisposables.deleteAndDispose(toolCallId);
 		this.ownedToolParts.delete(toolCallId);
+		this.hiddenToolCallIds.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -2264,6 +2218,8 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// Use the tracked displayed label (which may differ from invocationMessage
 			// for streaming edit tools that show "Editing files")
 			const toolCallId = removedItem.toolInvocationOrMarkdown.toolCallId;
+			this.toolDisposables.deleteAndDispose(toolCallId);
+			this.hiddenToolCallIds.delete(toolCallId);
 			this._pendingExternalResources.delete(toolCallId);
 			this._externalResourceWidget.removeToolInvocation(toolCallId);
 			const label = this.toolLabelsByCallId.get(toolCallId);
@@ -2324,6 +2280,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.toolDisposables.deleteAndDispose(toolCallId);
 		this.ownedToolParts.get(toolCallId)?.dispose();
 		this.ownedToolParts.delete(toolCallId);
+		this.hiddenToolCallIds.delete(toolCallId);
 
 		const wrapper = this.toolWrappersByCallId.get(toolCallId);
 		if (wrapper) {
@@ -2475,14 +2432,9 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 					if (isStreaming && currentState.type !== IChatToolInvocation.StateKind.Streaming) {
 						isStreaming = false;
 
-						// Update terminal tool icon based on sandbox wrapping state
-						const termData = toolInvocationOrMarkdown.toolSpecificData as IChatTerminalToolInvocationData | undefined;
-						if (termData?.kind === 'terminal' && !isMcpToolInvocation(toolInvocationOrMarkdown)) {
-							const iconEl = this.toolIconsByCallId.get(toolCallId);
-							if (iconEl) {
-								const newIcon = termData.commandLine?.isSandboxWrapped ? Codicon.terminalSecure : Codicon.terminal;
-								setThinkingIcon(iconEl, newIcon);
-							}
+						const iconElement = this.toolIconsByCallId.get(toolCallId);
+						if (iconElement) {
+							setThinkingIcon(iconElement, getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown));
 						}
 
 						if (toolInvocationOrMarkdown.presentation === 'hidden') {
@@ -2508,11 +2460,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 							const completedText = typeof completedMessage === 'string' ? completedMessage : completedMessage.value;
 							const iconElement = this.toolIconsByCallId.get(toolCallId);
 							if (iconElement) {
-								if (hasToolInvocationError(toolInvocationOrMarkdown)) {
-									setThinkingIcon(iconElement, Codicon.error);
-								} else if (!isMcpToolInvocation(toolInvocationOrMarkdown) && isNoProblemsFoundResult(toolInvocationOrMarkdown.toolId, completedText)) {
-									setThinkingIcon(iconElement, Codicon.search);
-								}
+								setThinkingIcon(iconElement, hasToolInvocationError(toolInvocationOrMarkdown) ? Codicon.error : getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, completedText));
 							}
 						}
 
@@ -2638,49 +2586,29 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		content: HTMLElement,
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: ChatThinkingItemMetadata,
-		originalParent?: HTMLElement
+		originalParent?: HTMLElement,
+		isVisible?: IObservable<boolean>,
 	): void {
-		if (!content.hasChildNodes() || content.textContent?.trim() === '') {
+		if (!isVisible && (!content.hasChildNodes() || content.textContent?.trim() === '')) {
 			return;
 		}
 
 		const itemWrapper = $('.chat-thinking-tool-wrapper');
 		const isMarkdownEdit = toolInvocationOrMarkdown?.kind === 'markdownContent';
 		const isExternalEdit = toolInvocationOrMarkdown?.kind === 'externalEdit';
-		const isMcpTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && isMcpToolInvocation(toolInvocationOrMarkdown);
-		const isTerminalTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'terminal';
-		const isSearchTool = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && toolInvocationOrMarkdown.toolSpecificData?.kind === 'search';
-		const toolInvocationIcon = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? toolInvocationOrMarkdown.icon : undefined;
-		const toolError = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') && hasToolInvocationError(toolInvocationOrMarkdown);
+		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 
 		let icon: ThemeIcon;
-		if (toolError) {
-			icon = Codicon.error;
-		} else if (isMcpTool) {
-			icon = Codicon.mcp;
-		} else if (isNoProblemsFoundResult(toolInvocationId, content.textContent ?? undefined)) {
-			icon = Codicon.search;
+		if (isToolInvocation) {
+			icon = hasToolInvocationError(toolInvocationOrMarkdown) ? Codicon.error : getToolInvocationIcon(toolInvocationOrMarkdown.toolId, toolInvocationOrMarkdown, content.textContent ?? undefined);
 		} else if (isMarkdownEdit || isExternalEdit) {
-			icon = Codicon.pencil;
-		} else if (isSearchTool) {
-			icon = Codicon.search;
-		} else if (isTerminalTool) {
-			const terminalData = (toolInvocationOrMarkdown as IChatToolInvocation | IChatToolInvocationSerialized).toolSpecificData as { kind: 'terminal'; terminalCommandState?: { exitCode?: number }; commandLine?: { isSandboxWrapped?: boolean } };
-			const exitCode = terminalData?.terminalCommandState?.exitCode;
-			const isSandboxWrapped = terminalData?.commandLine?.isSandboxWrapped;
-			if (exitCode !== undefined && exitCode !== 0) {
-				icon = Codicon.error;
-			} else if (isSandboxWrapped) {
-				icon = Codicon.terminalSecure;
-			} else {
-				icon = toolInvocationIcon ?? Codicon.terminal;
-			}
+			icon = getToolInvocationIcon('edit');
 		} else if (content.classList.contains('chat-hook-outcome-blocked')) {
 			icon = Codicon.error;
 		} else if (content.classList.contains('chat-hook-outcome-warning')) {
 			icon = Codicon.warning;
 		} else {
-			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, toolInvocationIcon, content.textContent ?? undefined) : Codicon.tools;
+			icon = toolInvocationId ? getToolInvocationIcon(toolInvocationId, undefined, content.textContent ?? undefined) : Codicon.tools;
 		}
 
 		const iconElement = createThinkingIcon(icon);
@@ -2704,10 +2632,27 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.singleItemInfo = undefined;
 		}
 
-		const isToolInvocation = toolInvocationOrMarkdown && (toolInvocationOrMarkdown.kind === 'toolInvocation' || toolInvocationOrMarkdown.kind === 'toolInvocationSerialized');
 		if (isToolInvocation && toolInvocationOrMarkdown.toolCallId) {
 			this.toolWrappersByCallId.set(toolInvocationOrMarkdown.toolCallId, itemWrapper);
 			this.toolIconsByCallId.set(toolInvocationOrMarkdown.toolCallId, iconElement);
+			if (isVisible) {
+				let toolStore = this.toolDisposables.get(toolInvocationOrMarkdown.toolCallId);
+				if (!toolStore) {
+					toolStore = new DisposableStore();
+					this.toolDisposables.set(toolInvocationOrMarkdown.toolCallId, toolStore);
+				}
+				toolStore.add(autorun(reader => {
+					const visible = isVisible.read(reader);
+					setVisibility(visible, itemWrapper);
+					if (visible) {
+						this.hiddenToolCallIds.delete(toolInvocationOrMarkdown.toolCallId);
+					} else {
+						this.hiddenToolCallIds.add(toolInvocationOrMarkdown.toolCallId);
+					}
+					this.updateDropdownClickability();
+					this._onDidChangeHeight.fire();
+				}));
+			}
 		}
 
 		this.appendToWrapper(itemWrapper);
@@ -2773,13 +2718,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			// (e.g. finalizeTitleIfDefault materialized it before the wrapper existed).
 			const result = item.lazy.value;
 			if (!result.domNode.parentElement) {
-				this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+				this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent, result.isVisible);
 			}
 			return;
 		}
 
 		const result = item.lazy.value;
-		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent);
+		this.appendItemToDOM(result.domNode, item.toolInvocationId, item.toolInvocationOrMarkdown, item.originalParent, result.isVisible);
 
 		if (result.disposable) {
 			const toolCallId = item.toolInvocationOrMarkdown && (item.toolInvocationOrMarkdown.kind === 'toolInvocation' || item.toolInvocationOrMarkdown.kind === 'toolInvocationSerialized') ? item.toolInvocationOrMarkdown.toolCallId : undefined;
