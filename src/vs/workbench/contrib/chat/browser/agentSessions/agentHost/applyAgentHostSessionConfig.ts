@@ -7,12 +7,13 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 
@@ -22,6 +23,7 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
  */
 export interface IApplyAgentHostSessionConfigServices {
 	readonly agentHostService: IAgentHostService;
+	readonly connectionsService: IAgentHostConnectionsService;
 	readonly provisionalService: IAgentHostUntitledProvisionalSessionService;
 	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
 	readonly workspaceContextService: IWorkspaceContextService;
@@ -47,12 +49,12 @@ export async function applyAgentHostSessionConfigChange(
 	config: Readonly<Record<string, string>>,
 	services: IApplyAgentHostSessionConfigServices,
 ): Promise<boolean> {
-	const backendSession = toAgentHostBackendSessionUri(sessionResource);
-	if (!backendSession) {
+	const provider = getLocalAgentHostSessionProvider(sessionResource);
+	if (!provider) {
 		return false;
 	}
 
-	const { agentHostService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
+	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
 	const policyRestricted = configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 	const partial: Record<string, string> = { ...config };
 	const autoApprove = partial[SessionConfigKey.AutoApprove];
@@ -64,10 +66,14 @@ export async function applyAgentHostSessionConfigChange(
 		?? workspaceContextService.getWorkspace().folders[0]?.uri;
 
 	if (isUntitledChatSession(sessionResource)) {
-		await provisionalService.applyConfigChange(sessionResource, backendSession.scheme, workingDirectory, partial);
+		await provisionalService.applyConfigChange(sessionResource, provider, workingDirectory, partial);
 		return true;
 	}
 
+	const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
+	if (!backendSession) {
+		return false;
+	}
 	agentHostService.dispatch(backendSession.toString(), {
 		type: ActionType.SessionConfigChanged,
 		config: partial,
@@ -75,6 +81,6 @@ export async function applyAgentHostSessionConfigChange(
 	const state = agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value;
 	const currentValues = state && !(state instanceof Error) ? state.config?.values : undefined;
 	const nextConfig = { ...(currentValues ?? {}), ...partial };
-	void provisionalService.refreshResolvedConfig(sessionResource, backendSession.scheme, workingDirectory, nextConfig);
+	void provisionalService.refreshResolvedConfig(sessionResource, provider, workingDirectory, nextConfig);
 	return true;
 }

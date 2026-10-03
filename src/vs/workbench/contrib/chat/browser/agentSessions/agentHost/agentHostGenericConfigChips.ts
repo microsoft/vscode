@@ -93,7 +93,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return;
 		}
 
-		const localBackend = toAgentHostBackendSessionUri(sessionResource);
+		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
@@ -183,7 +183,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		}
 		const entries = this._readSchemaProperties();
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		const isStartedSession = !!sessionResource && !(isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource));
+		const isStartedSession = !!sessionResource && !(isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource, this._connectionsService));
 		const desired = new Set<string>();
 		if (entries) {
 			const configSchema = { type: 'object' as const, properties: Object.fromEntries(entries) };

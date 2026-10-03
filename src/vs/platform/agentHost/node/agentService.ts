@@ -102,7 +102,7 @@ import { INetworkDiagnosticsService } from './networkDiagnosticsService.js';
 import { toAgentClientUri } from '../common/agentClientUri.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
-import { AgentHostTurnTracker, IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 import { resolveLastNonLocalTurnId } from '../common/agentHostConversationContext.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
@@ -806,7 +806,7 @@ export class AgentService extends Disposable implements IAgentService {
 		@IAdditionalWorktreeLifecycleService private readonly _additionalWorktreeLifecycleService: IAdditionalWorktreeLifecycleService,
 		@IAgentHostStartupPerformance private readonly _startupPerformance: IAgentHostStartupPerformance,
 		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
-		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
+		@IAgentHostTurnTracker private readonly _turnTracker: IAgentHostTurnTracker,
 	) {
 		super();
 		this._authService = core.authenticationService;

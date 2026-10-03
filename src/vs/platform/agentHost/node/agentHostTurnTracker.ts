@@ -6,7 +6,7 @@
 import { disposableTimeout } from '../../../base/common/async.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
@@ -160,9 +160,45 @@ interface ITurnUsage {
  * later completes, it also reports `agentHost.hungTurnCompleted` so permanent
  * hangs can be separated from merely slow ones.
  */
-export const IAgentHostTurnTracker = createDecorator<AgentHostTurnTracker>('agentHostTurnTracker');
+export const IAgentHostTurnTracker = createDecorator<IAgentHostTurnTracker>('agentHostTurnTracker');
 
-export class AgentHostTurnTracker extends Disposable {
+export interface IAgentHostTurnTracker extends IDisposable {
+	readonly _serviceBrand: undefined;
+	readonly onDidStartTurn: Event<string>;
+	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }>;
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: 'default' | 'auto' | 'explicit', permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI): void;
+	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void;
+	markFirstProgress(session: string, turnId: string): void;
+	markFirstSubstantiveProgress(session: string, turnId: string): void;
+	markSendStage(session: string, turnId: string, stage: AgentHostTurnSendStage): void;
+	markSendDispatched(session: string, turnId: string): void;
+	markProviderStage(session: string, turnId: string, stage: AgentHostProviderSendStage): void;
+	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder;
+	markActivity(session: string, turnId: string, activityKind: string): void;
+	setCurrentStage(session: string, turnId: string, stage: AgentHostTurnFailureStage): void;
+	toolCallStarted(session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void;
+	toolCallMetadataUpdated(session: string, turnId: string, toolCallId: string, contributor: ToolCallContributor | undefined): void;
+	toolCallEnded(session: string, turnId: string, toolCallId: string): void;
+	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void;
+	turnUnblocked(session: string, requestId: string): void;
+	updateModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void;
+	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void;
+	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
+	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
+	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void;
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined, editClassifierVersion: number): void;
+	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined;
+	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
+	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
+	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
+	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
+	getInitiatorClientId(session: string, turnId: string): string | undefined;
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): boolean;
+	clearSession(session: string): void;
+	clearTurnsExcept(session: string, keepTurnIds: ReadonlySet<string>): void;
+}
+
+export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTracker {
 	private _hostRootTurnOrdinal = 0;
 
 	declare readonly _serviceBrand: undefined;

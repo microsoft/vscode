@@ -84,10 +84,10 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
-	/** Optional owner-managed deletion for selected raw session IDs, working without a host connection. */
+	/** Optional owner-managed deletion for exact backend resources, working without a host connection. */
 	readonly deleteSessionsOnDemand?: {
-		ownsSession(sessionId: string): boolean;
-		deleteSessions(sessionIds: readonly string[]): Promise<void>;
+		ownsSession(session: URI): boolean;
+		deleteSessions(sessions: readonly URI[]): Promise<void>;
 	};
 	/** Optional progress messages during on-demand connect. */
 	readonly onDidReportConnectProgress?: Event<IAgentHostConnectProgress>;
@@ -579,16 +579,16 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	override async deleteSessions(sessionIds: readonly string[]): Promise<void> {
-		const ownerRawIds: string[] = [];
+		const ownerSessions: URI[] = [];
 		const hostSessionIds: string[] = [];
 		for (const sessionId of sessionIds) {
 			const key = this._sessionKeyFromChatId(sessionId);
-			const rawId = key ? AgentSession.id(key) : undefined;
-			if (rawId && this._deleteSessionsOnDemand?.ownsSession(rawId)) {
+			const backendSession = key ? this._sessionCache.get(key)?.backendUri : undefined;
+			if (backendSession && this._deleteSessionsOnDemand?.ownsSession(backendSession)) {
 				if (!key || !this._sessionCache.has(key)) {
 					throw new Error(localize('remoteAgentHost.deleteSessionNotFound', "Session not found."));
 				}
-				ownerRawIds.push(rawId);
+				ownerSessions.push(backendSession);
 			} else {
 				hostSessionIds.push(sessionId);
 			}
@@ -635,9 +635,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		if (worktreeError) {
 			throw worktreeError;
 		}
-		if (ownerRawIds.length > 0) {
+		if (ownerSessions.length > 0) {
 			// Owner deletion can disconnect the host, so finish its AHP deletions first.
-			await this._deleteSessionsOnDemand?.deleteSessions(ownerRawIds);
+			await this._deleteSessionsOnDemand?.deleteSessions(ownerSessions);
 		}
 	}
 

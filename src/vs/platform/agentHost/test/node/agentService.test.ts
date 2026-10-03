@@ -4969,18 +4969,16 @@ suite('AgentService (node dispatcher)', () => {
 		class PersistedMockAgent extends MockAgent {
 			constructor(provider: string, private readonly sdkMetadata: Map<string, IAgentChatMetadata>) {
 				super(provider);
-			}
-
-			override readonly chats = withChatOverrides(this.chats, base => ({
-				createChat: async (chat, context, options) => {
-					const result = await base.createChat(chat, context, options);
+				const createChat = this.chats.createChat;
+				this.chats.createChat = async (chat, context, options) => {
+					const result = await createChat(chat, context, options);
 					const metadata = await super.getChatMetadata(chat, context);
 					if (metadata) {
 						this.sdkMetadata.set(chat.toString(), metadata);
 					}
 					return result;
-				},
-			}));
+				};
+			}
 
 			override async getChatMetadata(chat: URI, context: URI | IAgentChatContext): Promise<IAgentChatMetadata | undefined> {
 				return this.sdkMetadata.get(chat.toString()) ?? super.getChatMetadata(chat, context);
@@ -5245,13 +5243,15 @@ suite('AgentService (node dispatcher)', () => {
 				));
 				const sdkBacking = AgentSession.uri(provider, `sdk-${provider}`);
 				const createAgent = () => disposables.add(new class extends PersistedMockAgent {
-					override readonly chats = withChatOverrides(this.chats, base => ({
-						createChat: async (chat, context, options) => {
-							const result = await base.createChat(chat, context, options);
+					constructor() {
+						super(provider, sdkMetadata);
+						const createChat = this.chats.createChat;
+						this.chats.createChat = async (chat, context, options) => {
+							const result = await createChat(chat, context, options);
 							return { ...result, providerData: 'sdk-backing', backingSession: sdkBacking };
-						},
-					}));
-				}(provider, sdkMetadata));
+						};
+					}
+				}());
 				const svc = createService();
 				const agent = createAgent();
 				registerTestAgentProvider(svc, agent);

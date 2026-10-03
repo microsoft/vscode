@@ -8,14 +8,15 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
-import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentHostService, IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -34,6 +35,7 @@ import { ContextKeyService } from '../../../../../../platform/contextkey/browser
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -296,6 +298,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			})] : [];
 		}
 		override getConnection(candidate: string) { return state.connected && candidate === address ? connection : undefined; }
+		override getConnectionByAuthority(candidate: string) { return state.connected && candidate === authority ? connection : undefined; }
 		override async removeRemoteAgentHost(candidate: string) {
 			calls.removed.push(candidate);
 			state.connected = false;
@@ -303,8 +306,15 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	}());
 	instantiationService.stub(IRemoteAgentHostConnectionCustomizationService, new RemoteAgentHostConnectionCustomizationService());
 	instantiationService.stub(IRemoteAgentHostAuthenticationService, authenticationService);
+	instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+		override readonly onAgentHostStart = Event.None;
+		override readonly onAgentHostExit = Event.None;
+		override readonly onDidNotification = Event.None;
+		override readonly resourceUris = createAgentHostResourceUriMapper('local');
+	}());
+	instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
 	const policies: string[] = [];
-	instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+	instantiationService.stub(IAgentHostConnectionsService, store.add(instantiationService.createInstance(class extends AgentHostConnectionsService {
 		override registerSessionResolutionPolicy(connectionAuthority: string, policy: IAgentHostSessionResolutionPolicy) {
 			assert.ok(policy.connectionAddress);
 			assert.deepStrictEqual({
@@ -316,10 +326,14 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				defaultChangesetKind: ChangesetKind.Session,
 			});
+			const registration = super.registerSessionResolutionPolicy(connectionAuthority, policy);
 			policies.push(connectionAuthority);
-			return toDisposable(() => policies.splice(policies.indexOf(connectionAuthority), 1));
+			return toDisposable(() => {
+				registration.dispose();
+				policies.splice(policies.indexOf(connectionAuthority), 1);
+			});
 		}
-	}());
+	})));
 	const resolvers = new Map<string, { resolve: (resource: URI) => URI | undefined; isNew: (resource: URI) => boolean }>();
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, new class extends mock<IAgentHostSessionWorkingDirectoryResolver>() {
 		override registerResolver(type: string, resolve: (resource: URI) => URI | undefined, isNew: (resource: URI) => boolean = () => false) {

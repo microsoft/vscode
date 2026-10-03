@@ -4300,6 +4300,30 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 suite('CloudSandboxSessionsProvider deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const targetProvider of ['codex', 'claude']) {
+		test(`owner-managed deletion retains provider identity for colliding raw IDs (${targetProvider})`, async () => {
+			const metadata = ['codex', 'claude'].map(provider => createSession('shared', { provider }));
+			const connection = store.add(new class extends MockAgentConnection {
+				override async listSessions(): Promise<IAgentSessionMetadata[]> { return metadata; }
+			}());
+			const ownerDeleted: string[] = [];
+			const provider = createProvider(store.add(new DisposableStore()), connection, {
+				deleteSessionsOnDemand: {
+					ownsSession: session => session.toString() === 'codex:/shared',
+					deleteSessions: async sessions => { ownerDeleted.push(...sessions.map(session => session.toString())); },
+				},
+			});
+			await timeout(0);
+			const session = provider.getSessions().find(session => session.resource.scheme.endsWith(`-${targetProvider}`));
+			assert.ok(session);
+			await provider.deleteSession(session.sessionId);
+			assert.deepStrictEqual({
+				ownerDeleted,
+				hostDeleted: connection.disposedSessions.map(session => session.toString()),
+			}, targetProvider === 'codex' ? { ownerDeleted: ['codex:/shared'], hostDeleted: [] } : { ownerDeleted: [], hostDeleted: ['claude:/shared'] });
+		});
+	}
+
 	for (const targets of [['additional-session'], ['sandbox-session', 'additional-session'], ['additional-session', 'sandbox-session']]) {
 		test(`routes mixed catalogs to their deletion owners: ${targets.join(', ')}`, async () => {
 			const operations: string[] = [];
@@ -4319,11 +4343,11 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 				noConnection: true,
 				deleteSessionsOnDemand: {
-					ownsSession: id => id === 'sandbox-session',
+					ownsSession: session => session.toString() === 'ahp-session:/sandbox-session',
 					deleteSessions: async ids => {
-						operations.push(`missionControl:${ids.join(',')}`);
+						operations.push(`missionControl:${ids.map(session => AgentSession.id(session)).join(',')}`);
 						for (const id of ids) {
-							sandbox.removeDeletedSession(id);
+							sandbox.removeDeletedSession(AgentSession.id(id));
 						}
 						provider.clearConnection();
 					},
@@ -4361,8 +4385,8 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			ctor: CloudSandboxSessionsProvider,
 			deleteSessionsOnDemand: {
-				ownsSession: id => id === 'sandbox-session',
-				deleteSessions: async ids => { owned.push(...ids); },
+				ownsSession: session => session.toString() === 'copilotcli:/sandbox-session',
+				deleteSessions: async ids => { owned.push(...ids.map(session => session.toString())); },
 			},
 		});
 		provider.seedSessions(metadata);
@@ -4387,11 +4411,11 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 				readOnlyWhenDisconnected: true,
 				connectOnDemand: async () => { connects++; },
 				deleteSessionsOnDemand: {
-					ownsSession: id => id === 'sandbox-session',
+					ownsSession: session => session.toString() === 'ahp-session:/sandbox-session',
 					deleteSessions: async ids => {
-						deleted.push([...ids]);
+						deleted.push(ids.map(session => AgentSession.id(session)));
 						for (const id of ids) {
-							sandbox.removeDeletedSession(id);
+							sandbox.removeDeletedSession(AgentSession.id(id));
 						}
 					},
 				},
@@ -4423,7 +4447,7 @@ suite('CloudSandboxSessionsProvider deletion', () => {
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			ctor: CloudSandboxSessionsProvider, noConnection: true,
 			deleteSessionsOnDemand: {
-				ownsSession: id => id === 'sandbox-session',
+				ownsSession: session => session.toString() === 'copilotcli:/sandbox-session',
 				deleteSessions: async () => { throw new Error('Mission Control rejected deletion'); },
 			},
 		});

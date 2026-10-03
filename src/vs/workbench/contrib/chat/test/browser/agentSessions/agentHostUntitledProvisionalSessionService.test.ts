@@ -34,7 +34,7 @@ import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvision
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
-import { toAgentHostBackendSessionUri } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
+import { getLocalAgentHostSessionProvider } from '../../../browser/agentSessions/agentHost/agentHostSessionUri.js';
 
 // ---- Mocks -----------------------------------------------------------------
 
@@ -227,7 +227,8 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 				if (sessionResolutions.has(sessionResource)) {
 					return sessionResolutions.get(sessionResource);
 				}
-				const backendSession = toAgentHostBackendSessionUri(sessionResource);
+				const provider = getLocalAgentHostSessionProvider(sessionResource);
+				const backendSession = provider ? sessionResource.with({ scheme: provider, fragment: '' }) : undefined;
 				return backendSession ? { connection: agentHost, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession } : undefined;
 			},
 		});

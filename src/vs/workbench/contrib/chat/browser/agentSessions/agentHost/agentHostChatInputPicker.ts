@@ -527,7 +527,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			return;
 		}
 
-		const localBackend = toAgentHostBackendSessionUri(sessionResource);
+		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 		if (localBackend && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
@@ -829,7 +829,7 @@ export class AgentHostChatInputPicker extends Disposable {
 			if (!bound) {
 				return undefined;
 			}
-			const backendSession = toAgentHostBackendSessionUri(sessionResource);
+			const backendSession = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
 			if (!backendSession) {
 				return undefined;
 			}
@@ -1173,7 +1173,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const partial = { [ctx.key]: normalizedValue };
 		const nextConfig = filterSessionConfigValues(ctx.configSchema, { ...this._readCurrentValues(), ...partial });
 
-		if (isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource)) {
+		if (isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource, this._connectionsService)) {
 			// Route through the provisional service so the workbench-owned
 			// config cache is updated synchronously. `tryRebind` reads from
 			// that cache, so a Send racing with this dispatch picks up the
