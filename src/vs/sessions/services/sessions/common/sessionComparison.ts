@@ -138,8 +138,18 @@ export interface ISessionComparisonSynthesisSelection {
 	readonly participantId?: string;
 }
 
+export const SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH = 1000;
+export const SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS = 32;
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
+
+export function getBoundedSessionComparisonManifestText(value: string): string {
+	return value.length <= SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH ? value : value.slice(0, SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH);
+}
+
+export function getBoundedSessionComparisonManifestList(values: readonly string[]): readonly string[] {
+	return values.slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).map(getBoundedSessionComparisonManifestText);
+}
 
 export interface ISessionComparisonSynthesisPlan {
 	readonly selections: readonly ISessionComparisonSynthesisSelection[];

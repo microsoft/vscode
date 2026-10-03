@@ -21,15 +21,13 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
 const ReadSessionComparisonToolId = 'vscode_readAttemptComparison';
 const MaxExplanationLength = 240;
 const MaxRationalePointLength = 180;
-const MaxManifestTextLength = 1000;
-const MaxManifestListItems = 32;
 
 interface ICompleteSessionComparisonInput {
 	readonly comparisonId: string;
@@ -678,34 +676,34 @@ function toManifestVerdict(verdict: ISessionComparisonVerdict, attemptNumbers: R
 	}
 	return {
 		recommendedAttemptNumber,
-		explanation: boundedText(verdict.explanation),
+		explanation: getBoundedSessionComparisonManifestText(verdict.explanation),
 		rationale: verdict.rationale,
-		conflicts: boundedList(verdict.conflicts),
-		attempts: verdict.attempts.slice(0, MaxManifestListItems).flatMap(attempt => {
+		conflicts: getBoundedSessionComparisonManifestList(verdict.conflicts),
+		attempts: verdict.attempts.slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(attempt => {
 			const attemptNumber = attemptNumbers.get(attempt.participantId);
 			return attemptNumber ? [{
 				attemptNumber,
-				summary: boundedText(attempt.summary),
+				summary: getBoundedSessionComparisonManifestText(attempt.summary),
 				validation: attempt.validation,
-				unresolvedIssues: boundedList(attempt.unresolvedIssues),
-				notableDifferences: boundedList(attempt.notableDifferences),
+				unresolvedIssues: getBoundedSessionComparisonManifestList(attempt.unresolvedIssues),
+				notableDifferences: getBoundedSessionComparisonManifestList(attempt.notableDifferences),
 			}] : [];
 		}),
-		decisionSections: (verdict.decisionSections ?? []).slice(0, MaxManifestListItems).flatMap(section => {
+		decisionSections: (verdict.decisionSections ?? []).slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(section => {
 			const sectionRecommendedAttemptNumber = attemptNumbers.get(section.recommendedParticipantId);
 			if (!sectionRecommendedAttemptNumber) {
 				return [];
 			}
 			return [{
-				id: boundedText(section.id),
-				title: boundedText(section.title),
-				description: boundedText(section.description),
-				affectedFiles: boundedList(section.affectedFiles),
-				options: section.options.slice(0, MaxManifestListItems).flatMap(option => {
+				id: getBoundedSessionComparisonManifestText(section.id),
+				title: getBoundedSessionComparisonManifestText(section.title),
+				description: getBoundedSessionComparisonManifestText(section.description),
+				affectedFiles: getBoundedSessionComparisonManifestList(section.affectedFiles),
+				options: section.options.slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(option => {
 					const attemptNumber = attemptNumbers.get(option.participantId);
 					return attemptNumber ? [{
 						attemptNumber,
-						approach: boundedText(option.approach),
+						approach: getBoundedSessionComparisonManifestText(option.approach),
 						assessment: option.assessment,
 					}] : [];
 				}),
@@ -713,14 +711,6 @@ function toManifestVerdict(verdict: ISessionComparisonVerdict, attemptNumbers: R
 			}];
 		}),
 	};
-}
-
-function boundedList(values: readonly string[]): readonly string[] {
-	return values.slice(0, MaxManifestListItems).map(boundedText);
-}
-
-function boundedText(value: string): string {
-	return value.length <= MaxManifestTextLength ? value : value.slice(0, MaxManifestTextLength);
 }
 
 function toolResult(value: string): IToolResult {
