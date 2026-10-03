@@ -34,8 +34,6 @@ export interface IOnboardingTargetOptions {
 export interface IOnboardingTarget {
 	readonly element: HTMLElement;
 	readonly open?: () => Promise<void> | void;
-	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
-	readonly onDidSelect?: Event<Promise<boolean>>;
 }
 
 interface IOnboardingTargetRegistration {
@@ -69,7 +67,6 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 		}
 		return {
 			element: target.element,
-			onDidSelect: target.onDidSelect,
 			open: () => {
 				if (onboardingTargetProviders.get(id) === provider) {
 					const current = provider.resolve(scope);

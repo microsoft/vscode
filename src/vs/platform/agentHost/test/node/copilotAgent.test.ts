@@ -3225,6 +3225,39 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('managed settings diagnostics include startup in the overall query deadline', async () => {
+		const client = new TestCopilotClient([]);
+		const startup = new DeferredPromise<void>();
+		const queryStarted = new DeferredPromise<void>();
+		const resolution = new DeferredPromise<ManagedSettingsResolveResult>();
+		client.startGate = startup.p;
+		client.resolveManagedSettings = () => {
+			queryStarted.complete();
+			return resolution.p;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /exceeded 4.5 seconds while querying native MDM and GitHub managed settings/);
+			await client.startCalled.p;
+			await clock.tickAsync(3000);
+			startup.complete();
+			await queryStarted.p;
+			await clock.tickAsync(1500);
+			await rejected;
+			assert.deepStrictEqual({ starts: client.startCallCount, stops: client.stopCallCount, requests: client.managedSettingsRequests }, {
+				starts: 1,
+				stops: 0,
+				requests: [{ clientName: 'vscode-agent-host' }],
+			});
+		} finally {
+			startup.complete();
+			resolution.complete(client.managedSettingsResolution);
+			clock.restore();
+			await disposeAgent(agent);
+		}
+	});
+
 	test('managed settings query timeout leaves the shared client usable', async () => {
 		const client = new TestCopilotClient([]);
 		const started = new DeferredPromise<void>();

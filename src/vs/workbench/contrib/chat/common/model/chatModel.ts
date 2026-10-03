@@ -2531,6 +2531,10 @@ export type IChatChangeEvent =
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
+	/** Request index for restored history; omitted for ordinary appends. */
+	readonly index?: number;
+	/** Previous request replaced at the insertion index. */
+	readonly replacedRequest?: IChatRequestModel;
 }
 
 export interface IChatChangedRequestEvent {
@@ -3375,7 +3379,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
 		agentHostMetadata?: Record<string, unknown>,
+		insertion?: { readonly index: number; readonly replace?: boolean },
 	): ChatRequestModel {
+		const index = insertion?.index ?? this._requests.length;
+		if (!Number.isInteger(index) || index < 0 || index > this._requests.length || (insertion?.replace && index === this._requests.length)) {
+			throw new BugIndicatingError('Invalid chat request insertion index');
+		}
+		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const requestTimestamp = timestamp === undefined
@@ -3419,9 +3429,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
-		this._requests.push(request);
+		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
-		this._onDidChange.fire({ kind: 'addRequest', request });
+		this._onDidChange.fire({ kind: 'addRequest', request, ...(insertion ? { index, replacedRequest } : {}) });
+		replacedRequest?.response?.dispose();
 		return request;
 	}
 
@@ -3495,8 +3506,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		const request = this._requests[index];
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			this._requests.splice(index, 1);
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}
 	}

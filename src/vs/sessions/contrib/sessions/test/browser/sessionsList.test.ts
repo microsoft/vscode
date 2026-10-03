@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -7548,31 +7548,6 @@ suite('Sessions - SessionsList', () => {
 			for (let i = 0; i < 50; i++) {
 				await Promise.resolve();
 			}
-		}
-
-		for (const isExternal of [false, true]) {
-			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
-				const session = createTestSession('Guided session', { isExternal }).session;
-				const harness = createListHarness(disposables, [session]);
-				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
-				const completion = new DeferredPromise<void>();
-				const container = harness.createContainer();
-				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
-					onSessionOpen: () => completion.p,
-				}));
-				const opened: string[] = [];
-				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
-				list.layout(300, 400);
-				list.collapseAllSections();
-				harness.store.add(list.revealSessionForOnboarding(session));
-				clickRow(findSessionRow(container, 'Guided session'));
-				await settle();
-				assert.deepStrictEqual(opened, []);
-				await completion.complete();
-				await settle();
-				assert.deepStrictEqual(opened, [session.resource.toString()]);
-			});
 		}
 
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {

@@ -10,7 +10,7 @@ import { dirname } from '../../../base/common/path.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { AgentProvider } from '../common/agent.js';
-import { decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
+import { AGENT_HOST_CATALOG_CHILD_LIMIT, decodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 
 /**
  * Durable origin used to resolve competing registrations for the same session.
@@ -238,6 +238,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
 	replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
+	/** Recovers membership without adding a chat already owned by another authoritative catalogue. */
+	recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult>;
 	/** Acknowledges the exact central revision written to the downgrade-compatibility mirror. */
 	markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean>;
 	/** Records the legacy payload used as the next three-way merge base without acknowledging a central revision. */
@@ -1352,6 +1354,14 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this._replaceSessionChatCatalog(session, chats, expectedRevision, false);
+	}
+
+	async recoverSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
+		return this._replaceSessionChatCatalog(session, chats, expectedRevision, true);
+	}
+
+	private async _replaceSessionChatCatalog(session: string, chats: readonly IAgentHostDatabaseSessionChat[], expectedRevision: number | undefined, recovering: boolean): Promise<AgentHostDatabaseSessionChatCatalogReplaceResult> {
 		this._validateSessionChats(chats);
 		if (expectedRevision !== undefined && (!Number.isSafeInteger(expectedRevision) || expectedRevision <= 0)) {
 			throw new Error('Expected session chat catalog revision must be a positive safe integer');
@@ -1378,6 +1388,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				if (currentRevision !== expectedRevision) {
 					await exec(database, 'COMMIT');
 					return { status: 'conflict' };
+				}
+				if (recovering) {
+					const foreign = await all(database, `SELECT DISTINCT chat_uri FROM session_chats
+						WHERE session_uri <> ? AND chat_uri NOT IN
+						(SELECT chat_uri FROM session_chats WHERE session_uri = ?)`, [session, session]);
+					const foreignUris = new Set(foreign.map(row => row.chat_uri as string));
+					chats = chats.filter(chat => !foreignUris.has(chat.chat)).map((chat, order) => ({ ...chat, order }));
+					if (chats.length > AGENT_HOST_CATALOG_CHILD_LIMIT - 1) {
+						throw new Error(`Peer-chat recovery exceeds the catalog limit for ${session}`);
+					}
 				}
 				const revision = (currentRevision ?? 0) + 1;
 				if (!Number.isSafeInteger(revision)) {
