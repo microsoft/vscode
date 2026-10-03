@@ -544,7 +544,7 @@ suite('ChatTerminalToolProgressPart full output', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const mode of ['thinking', 'simple', 'plain'] as const) {
-		test(`renders an underlined View Full Output link below the preview in ${mode} mode`, async () => {
+		test(`renders a View Full Output link below the preview in ${mode} mode`, async () => {
 			const harness = await createTerminalFullOutputHarness(store);
 			harness.container.classList.add('monaco-workbench');
 			const { part } = harness.createPart({ mode, preview: 'Open Full Output\r\npreview output' });
@@ -552,16 +552,28 @@ suite('ChatTerminalToolProgressPart full output', () => {
 			const link = viewFullOutputLink(part);
 			const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container');
 			assert.ok(output);
+			const decorationWith = (...classes: string[]) => {
+				harness.container.classList.add(...classes);
+				const decoration = mainWindow.getComputedStyle(link).textDecorationLine;
+				harness.container.classList.remove(...classes);
+				return decoration;
+			};
 
 			assert.deepStrictEqual({
 				guidance: part.domNode.querySelector('.chat-terminal-output-truncation')?.textContent,
-				link: { role: link.getAttribute('role'), tabIndex: link.tabIndex, decoration: mainWindow.getComputedStyle(link).textDecorationLine },
+				link: {
+					role: link.getAttribute('role'),
+					tabIndex: link.tabIndex,
+					decoration: decorationWith(),
+					underlineLinksDecoration: decorationWith('underline-links'),
+					highContrastDecorations: [decorationWith('hc-black'), decorationWith('hc-light')],
+				},
 				previewCursor: mainWindow.getComputedStyle(output).cursor,
 				opens: harness.openedEditors.length,
 				preview: snapshotText(harness.raw(part)),
 			}, {
 				guidance: fullOutputPreviewGuidance,
-				link: { role: 'button', tabIndex: 0, decoration: 'underline' },
+				link: { role: 'button', tabIndex: 0, decoration: 'none', underlineLinksDecoration: 'underline', highContrastDecorations: ['underline', 'underline'] },
 				previewCursor: 'auto',
 				opens: 0,
 				preview: 'Open Full Output\npreview output',
