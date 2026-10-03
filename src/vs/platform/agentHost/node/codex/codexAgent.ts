@@ -790,6 +790,8 @@ interface ICodexSession {
 	customizationDirectory: URI | undefined;
 	/** Workbench-facing turn id for the active turn. */
 	currentTurnId: string | undefined;
+	/** The latest thread restart requested and not yet settled, so that restarts of one session never overlap each other or a turn being claimed. */
+	threadRestart?: Promise<void>;
 	/** Whether the active turn must use only the dedicated Agent Merge GitHub tools. */
 	agentMergeTurn?: boolean;
 	/** Cumulative token-usage identity last observed for model-call deduplication. */
@@ -5695,10 +5697,35 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
+	 * Restarts of one session run one at a time, and none once a turn is claimed: overlapping restarts each start a thread, and the
+	 * turn could run on one while another is persisted as the session's thread. A restart is recorded in `threadRestart` as soon as it
+	 * is requested but checks for a claimed turn only after an await, so a turn that found no restart recorded is claimed first.
+	 */
+	private _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
+		const previous = session.threadRestart;
+		const restart = (async () => {
+			await previous?.catch(() => undefined);
+			if (session.firstTurnSent || session.currentTurnId !== undefined) {
+				this._markSessionForReload(session);
+				return;
+			}
+			await this._restartThreadNow(session, configResource);
+		})();
+		session.threadRestart = restart;
+		const settle = () => {
+			if (session.threadRestart === restart) {
+				session.threadRestart = undefined;
+			}
+		};
+		restart.then(settle, settle);
+		return restart;
+	}
+
+	/**
 	 * Restarts a pre-turn Codex thread so current `dynamicTools`, MCP servers, and customizations are applied at `thread/start`.
 	 * Only safe before history exists; the first send remains responsible for publishing materialization.
 	 */
-	private async _restartThreadWithCurrentTools(session: ICodexSession, configResource: URI = session.configurationResource): Promise<void> {
+	private async _restartThreadNow(session: ICodexSession, configResource: URI): Promise<void> {
 		const conn = this._connection;
 		const oldThreadId = session.threadId;
 		this._logService.info(`[Codex:${session.sessionId}] restarting thread ${oldThreadId} to apply client tools [${session.clientToolSet.merged().map(t => t.name).join(', ') || '(none)'}]`);
@@ -6035,7 +6062,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			// `_resumeSession` may have retried on a replacement process. Carry the
 			// exact connection that now owns the loaded thread into turn preparation.
-			conn = (await this._ensureThreadConnection(session, conn)).connection;
+			conn = await this._ensureSettledThreadConnection(session, conn);
 		} catch (err) {
 			session.agentMergeTurn = false;
 			const duration = this._clearTurnStopWatch(session);
@@ -6059,7 +6086,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		try {
 			if (isCompactCommand) {
 				await this._ensureCurrentLaunchBeforeTurn(session, configResource, conn);
-				conn = (await this._ensureThreadConnection(session, conn)).connection;
+				conn = await this._ensureSettledThreadConnection(session, conn);
 				const threadId = session.threadId!;
 				// Claim the host turn only once every reconnect-prone preparation step
 				// has completed. From here, connection-loss handling owns finalization.
@@ -6077,7 +6104,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			const model = await this._resolveModel(session);
 			const resolvedModel = parseCodexModelSelection(model);
 			const currentCustomizationLaunch = await this._ensureCurrentLaunchBeforeTurn(session, configResource, conn);
-			conn = (await this._ensureThreadConnection(session, conn)).connection;
+			conn = await this._ensureSettledThreadConnection(session, conn);
 			const threadId = session.threadId!;
 			const turnOptions = this._turnStartOptions(session, resolvedModel.modelId, currentCustomizationLaunch.developerInstructions, configResource);
 			const modelProvider = session.materializedModelProvider;
@@ -6971,6 +6998,23 @@ export class CodexAgent extends Disposable implements IAgent {
 					continue;
 				}
 				throw error;
+			}
+		}
+	}
+
+	/**
+	 * The thread's connection once no thread restart is pending. The caller reads `threadId` and claims its turn with no await
+	 * after this, so a restart either finishes before the turn reads the thread or, once the turn is claimed, reloads instead.
+	 */
+	private async _ensureSettledThreadConnection(session: ICodexSession, conn: IConnectionReady): Promise<IConnectionReady> {
+		while (true) {
+			// A restart clears `threadId` until its new thread starts, so wait it out before reading the thread.
+			while (session.threadRestart) {
+				await session.threadRestart;
+			}
+			conn = (await this._ensureThreadConnection(session, conn)).connection;
+			if (!session.threadRestart) {
+				return conn;
 			}
 		}
 	}

@@ -404,6 +404,53 @@ async function assertPrewarmEvictedOnSend(disposables: Pick<DisposableStore, 'ad
 	}
 }
 
+/**
+ * Prewarms a session on `thread-1` and answers its Codex requests in the background, holding back the first
+ * `thread/unsubscribe` and every `turn/start` until released so tests can line thread restarts up against a turn.
+ */
+async function createThreadRestartRace(disposables: Pick<DisposableStore, 'add'>) {
+	const agent = await createAgent(disposables);
+	agent['_refreshSkillHookCustomizations'] = async () => { };
+	const peer = disposables.add(createTestPeer());
+	agent['_connection'] = {
+		kind: 'ready',
+		client: new CodexAppServerClient(peer.transport),
+		usageSource: 'github',
+		child: { kill: () => true },
+	} as never;
+	const { session } = await createSession(agent, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+	const chat = defaultChatOf(session);
+	const entry = agent['_sessions'].get(AgentSession.id(session))!;
+	const prewarmStart = await readNextRequest(peer.outbound);
+	peer.push({ id: prewarmStart.id, result: { thread: { id: 'thread-1' } } });
+	await entry.materializePromise;
+
+	const requests: string[] = [];
+	const firstUnsubscribe = new DeferredPromise<void>();
+	const releaseFirstUnsubscribe = new DeferredPromise<void>();
+	const turnStarted = new DeferredPromise<void>();
+	const releaseTurn = new DeferredPromise<void>();
+	void (async () => {
+		let threads = 1;
+		while (true) {
+			const request = await readNextRequest(peer.outbound);
+			requests.push(request.params.threadId ? `${request.method} ${request.params.threadId}` : request.method);
+			if (request.method === 'thread/start') {
+				peer.push({ id: request.id, result: { thread: { id: `thread-${++threads}` } } });
+			} else if (request.method === 'thread/unsubscribe' && !firstUnsubscribe.isSettled) {
+				firstUnsubscribe.complete();
+				void releaseFirstUnsubscribe.p.then(() => peer.push({ id: request.id, result: {} }));
+			} else if (request.method === 'turn/start') {
+				turnStarted.complete();
+				void releaseTurn.p.then(() => peer.push({ id: request.id, result: {} }));
+			} else {
+				peer.push({ id: request.id, result: {} });
+			}
+		}
+	})().catch(() => { /* the request stream closes with the peer */ });
+	return { agent, peer, session, chat, context: chatContext(session, chat), entry, requests, firstUnsubscribe, releaseFirstUnsubscribe, turnStarted, releaseTurn };
+}
+
 suite('CodexAgent prewarm eviction', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -511,6 +558,96 @@ suite('CodexAgent prewarm eviction', () => {
 			{ method: 'turn/start', threadId: 'current-thread', developerInstructions: 'Use current instructions.' },
 		]);
 		peer.exit();
+	});
+
+	test('pre-turn thread restarts run one at a time and reload once the turn is claimed', async () => {
+		const race = await createThreadRestartRace(disposables);
+		const { agent, session, chat, context, entry } = race;
+
+		// A second restart and the first send arrive while the first restart still holds the prewarmed thread.
+		const firstChange = agent.chats.changeAgent(chat, undefined, context);
+		await race.firstUnsubscribe.p;
+		const secondChange = agent.chats.changeAgent(chat, undefined, context);
+		await new Promise(resolve => setImmediate(resolve));
+		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
+		race.releaseFirstUnsubscribe.complete();
+		await Promise.race([race.turnStarted.p, sending]);
+		// The turn is claimed but `turn/start` has not returned, so this restart must reload rather than replace the thread.
+		await agent.chats.changeAgent(chat, undefined, context);
+		race.releaseTurn.complete();
+		await Promise.all([firstChange, secondChange, sending]);
+
+		assert.deepStrictEqual({
+			requests: race.requests,
+			threadId: entry.threadId,
+			persistedThreadId: (await agent['_metadataStore'].read(session)).threadId,
+			needsResume: entry.needsResume,
+		}, {
+			requests: [
+				'thread/unsubscribe thread-1',
+				'thread/start',
+				'thread/unsubscribe thread-2',
+				'thread/start',
+				'turn/start thread-3',
+			],
+			threadId: 'thread-3',
+			persistedThreadId: 'thread-3',
+			needsResume: true,
+		});
+		race.peer.exit();
+	});
+
+	test('a turn waiting out a thread restart also waits out a restart requested after it', async () => {
+		const race = await createThreadRestartRace(disposables);
+		const { agent, session, chat, context, entry } = race;
+		race.releaseTurn.complete();
+		const launchCheckReached = new DeferredPromise<void>();
+		const releaseLaunchCheck = new DeferredPromise<void>();
+		const originalEnsureCurrentLaunch = agent['_ensureCurrentLaunchBeforeTurn'].bind(agent);
+		agent['_ensureCurrentLaunchBeforeTurn'] = async (...args: Parameters<typeof originalEnsureCurrentLaunch>) => {
+			launchCheckReached.complete();
+			await releaseLaunchCheck.p;
+			return originalEnsureCurrentLaunch(...args);
+		};
+		const claimWaiting = new DeferredPromise<void>();
+		const originalEnsureSettled = agent['_ensureSettledThreadConnection'].bind(agent);
+		let settledCalls = 0;
+		agent['_ensureSettledThreadConnection'] = (...args: Parameters<typeof originalEnsureSettled>) => {
+			// The first call precedes the launch check; the second is the one the turn is claimed after.
+			if (++settledCalls === 2) {
+				claimWaiting.complete();
+			}
+			return originalEnsureSettled(...args);
+		};
+
+		// The send starts waiting to claim its turn on the first restart before the second restart queues behind it.
+		const sending = agent.chats.sendMessage(chat, 'hello', undefined, undefined, 'turn-1');
+		await launchCheckReached.p;
+		const firstChange = agent.chats.changeAgent(chat, undefined, context);
+		await race.firstUnsubscribe.p;
+		releaseLaunchCheck.complete();
+		await claimWaiting.p;
+		const secondChange = agent.chats.changeAgent(chat, undefined, context);
+		await new Promise(resolve => setImmediate(resolve));
+		race.releaseFirstUnsubscribe.complete();
+		await Promise.all([firstChange, secondChange, sending]);
+
+		assert.deepStrictEqual({
+			requests: race.requests,
+			threadId: entry.threadId,
+			persistedThreadId: (await agent['_metadataStore'].read(session)).threadId,
+		}, {
+			requests: [
+				'thread/unsubscribe thread-1',
+				'thread/start',
+				'thread/unsubscribe thread-2',
+				'thread/start',
+				'turn/start thread-3',
+			],
+			threadId: 'thread-3',
+			persistedThreadId: 'thread-3',
+		});
+		race.peer.exit();
 	});
 
 	test('lists Codex Desktop chats without a chosen folder as workspace-less', async () => {
