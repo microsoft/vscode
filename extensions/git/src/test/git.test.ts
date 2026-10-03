@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, classifyGitStderrLines } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
 
@@ -715,6 +715,117 @@ suite('git', () => {
 				[...splitInChunks(['0', '01', '012', '0', '01', '012', '0', '01', '012'], 9)],
 				[['0', '01', '012', '0', '01'], ['012', '0', '01', '012']]
 			);
+		});
+	});
+
+	suite('classifyGitStderrLines', () => {
+		test('empty string', () => {
+			const result = classifyGitStderrLines('');
+			assert.deepStrictEqual(result, { warnings: [], errors: [] });
+		});
+
+		test('single error line', () => {
+			const result = classifyGitStderrLines('fatal: not a git repository');
+			assert.deepStrictEqual(result, {
+				warnings: [],
+				errors: ['fatal: not a git repository']
+			});
+		});
+
+		test('single warning line', () => {
+			const result = classifyGitStderrLines("Warning: Permanently added 'gitlab.com' to the list of known hosts.");
+			assert.deepStrictEqual(result, {
+				warnings: ["Permanently added 'gitlab.com' to the list of known hosts."],
+				errors: []
+			});
+		});
+
+		test('warning line (lowercase)', () => {
+			const result = classifyGitStderrLines("warning: adding embedded git repository: deps/lib");
+			assert.deepStrictEqual(result, {
+				warnings: ['adding embedded git repository: deps/lib'],
+				errors: []
+			});
+		});
+
+		test('mixed warnings and errors', () => {
+			const stderr = [
+				"Warning: Permanently added 'github.com' to the list of known hosts.",
+				'fatal: Could not read from remote repository.',
+				'',
+				'Please make sure you have the correct access rights',
+				'and the repository exists.'
+			].join('\n');
+
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: ["Permanently added 'github.com' to the list of known hosts."],
+				errors: [
+					'fatal: Could not read from remote repository.',
+					'Please make sure you have the correct access rights',
+					'and the repository exists.'
+				]
+			});
+		});
+
+		test('multiple warning lines only', () => {
+			const stderr = [
+				"Warning: Permanently added 'gitlab.com' to the list of known hosts.",
+				'warning: redirecting to https://gitlab.com/repo.git/'
+			].join('\n');
+
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: [
+					"Permanently added 'gitlab.com' to the list of known hosts.",
+					'redirecting to https://gitlab.com/repo.git/'
+				],
+				errors: []
+			});
+		});
+
+		test('warning mixed with error prefix lines', () => {
+			const stderr = [
+				"Warning: Permanently added 'host' to the list of known hosts.",
+				'error: failed to push some refs to origin',
+				'hint: Updates were rejected because the remote contains work'
+			].join('\n');
+
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: ["Permanently added 'host' to the list of known hosts."],
+				errors: [
+					'error: failed to push some refs to origin',
+					'hint: Updates were rejected because the remote contains work'
+				]
+			});
+		});
+
+		test('handles \\r\\n line endings', () => {
+			const stderr = "Warning: Permanently added 'host' to known hosts.\r\nfatal: connection refused";
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: ["Permanently added 'host' to known hosts."],
+				errors: ['fatal: connection refused']
+			});
+		});
+
+		test('trims whitespace from lines', () => {
+			const stderr = "  Warning: some warning  \n  error: some error  ";
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: ['some warning'],
+				errors: ['error: some error']
+			});
+		});
+
+		test('filters out empty lines', () => {
+			const stderr = "\n\nWarning: test warning\n\n\n";
+			const result = classifyGitStderrLines(stderr);
+			assert.deepStrictEqual(result, {
+				warnings: ['test warning'],
+				errors: []
+			});
 		});
 	});
 });
