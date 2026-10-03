@@ -9,8 +9,9 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ExtUri, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { RenameProvider, WorkspaceEdit, Rejection } from '../../../../../../editor/common/languages.js';
+import { RenameProvider, WorkspaceEdit, Rejection, TextEdit } from '../../../../../../editor/common/languages.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { observableValue, waitForState } from '../../../../../../base/common/observable.js';
 import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
@@ -19,6 +20,8 @@ import { IUriIdentityService } from '../../../../../../platform/uriIdentity/comm
 import { IBulkEditService, IBulkEditResult } from '../../../../../../editor/browser/services/bulkEditService.js';
 import { RenameTool } from '../../../browser/tools/renameTool.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
+import { IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IToolInvocation, IToolResult, IToolResultTextPart, ToolProgress } from '../../../common/tools/languageModelToolsService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
@@ -444,6 +447,145 @@ suite('RenameTool', () => {
 				result: 'Rename was not applied because it produced edits that cannot be reviewed in chat.',
 				progressCount: 0,
 				appliedEditCount: 0,
+			});
+		});
+
+		test('waits for chat edits to be applied before reporting success', async () => {
+			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({
+					edits: [makeEdit(testUri, new Range(1, 10, 1, 17), 'MyNewClass')]
+				}),
+			}));
+
+			const response = {} as IChatResponseModel;
+			const request = { response };
+			const isCurrentlyBeingModifiedBy = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>('isCurrentlyBeingModifiedBy', undefined);
+			const entry = {
+				modifiedURI: testUri,
+				state: observableValue('state', ModifiedFileEntryState.Modified),
+				lastModifyingResponse: observableValue<IChatResponseModel | undefined>('lastModifyingResponse', response),
+				isCurrentlyBeingModifiedBy,
+			} as unknown as IModifiedFileEntry;
+			const entries = observableValue<readonly IModifiedFileEntry[]>('entries', []);
+			let finishApplyingEdits: (() => void) | undefined;
+			const chatService = {
+				_serviceBrand: undefined,
+				getSession: () => ({
+					editingSession: { entries },
+					getRequests: () => [request],
+					acceptResponseProgress: (_request: typeof request, progress: { edits: TextEdit[]; done?: boolean }) => {
+						if (!progress.done && progress.edits.length === 0) {
+							isCurrentlyBeingModifiedBy.set({ responseModel: response, undoStopId: undefined }, undefined);
+							entries.set([entry], undefined);
+						} else if (progress.edits.length > 0) {
+							model.applyEdits(progress.edits);
+						} else {
+							finishApplyingEdits = () => isCurrentlyBeingModifiedBy.set(undefined, undefined);
+						}
+					},
+				}),
+			} as unknown as IChatService;
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(createMockTextModelService(model), { bulkEditService, chatService }));
+
+			let completed = false;
+			const invocation = tool.invoke(
+				{
+					parameters: { symbol: 'MyClass', newName: 'MyNewClass', uri: testUri.toString(), lineContent: 'import { MyClass }' },
+					context: { sessionResource: URI.parse('chat-session:test') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			).finally(() => completed = true);
+			await waitForState(entries, value => value.length > 0);
+
+			assert.deepStrictEqual({
+				completed,
+				contentAfterEdit: model.getLineContent(1),
+				bulkEditCount: bulkEditService.appliedEdits.length,
+			}, {
+				completed: false,
+				contentAfterEdit: 'import { MyNewClass } from "./myClass";',
+				bulkEditCount: 0,
+			});
+
+			finishApplyingEdits?.();
+			const result = await invocation;
+			assert.ok(getTextContent(result).includes('Renamed'));
+		});
+
+		test('returns an error when chat edits are rejected', async () => {
+			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({
+					edits: [makeEdit(testUri, new Range(1, 10, 1, 17), 'MyNewClass')]
+				}),
+			}));
+
+			const response = {} as IChatResponseModel;
+			const request = { response };
+			const state = observableValue('state', ModifiedFileEntryState.Modified);
+			const isCurrentlyBeingModifiedBy = observableValue<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>('isCurrentlyBeingModifiedBy', undefined);
+			const entry = {
+				modifiedURI: testUri,
+				state,
+				lastModifyingResponse: observableValue<IChatResponseModel | undefined>('lastModifyingResponse', response),
+				isCurrentlyBeingModifiedBy,
+			} as unknown as IModifiedFileEntry;
+			const entries = observableValue<readonly IModifiedFileEntry[]>('entries', []);
+			const chatService = {
+				_serviceBrand: undefined,
+				getSession: () => ({
+					editingSession: { entries },
+					getRequests: () => [request],
+					acceptResponseProgress: (_request: typeof request, progress: { edits: TextEdit[]; done?: boolean }) => {
+						if (!progress.done && progress.edits.length === 0) {
+							isCurrentlyBeingModifiedBy.set({ responseModel: response, undoStopId: undefined }, undefined);
+							entries.set([entry], undefined);
+						} else if (progress.done) {
+							state.set(ModifiedFileEntryState.Rejected, undefined);
+							isCurrentlyBeingModifiedBy.set(undefined, undefined);
+						}
+					},
+				}),
+			} as unknown as IChatService;
+			const tool = disposables.add(createTool(createMockTextModelService(model), { chatService }));
+
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'MyClass', newName: 'MyNewClass', uri: testUri.toString(), lineContent: 'import { MyClass }' },
+					context: { sessionResource: URI.parse('chat-session:test') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.strictEqual(getTextContent(result), 'Rename was not applied because the chat edit was rejected.');
+		});
+
+		test('returns an error when the chat edit target is unavailable', async () => {
+			const model = disposables.add(createTextModel(testContent, 'typescript', undefined, testUri));
+			disposables.add(langFeatures.renameProvider.register('typescript', {
+				provideRenameEdits: (): WorkspaceEdit & Rejection => ({
+					edits: [makeEdit(testUri, new Range(1, 10, 1, 17), 'MyNewClass')]
+				}),
+			}));
+			const bulkEditService = createMockBulkEditService();
+			const tool = disposables.add(createTool(createMockTextModelService(model), { bulkEditService }));
+
+			const result = await tool.invoke(
+				{
+					parameters: { symbol: 'MyClass', newName: 'MyNewClass', uri: testUri.toString(), lineContent: 'import { MyClass }' },
+					context: { sessionResource: URI.parse('chat-session:test') },
+				} as unknown as IToolInvocation,
+				noopCountTokens, noopProgress, CancellationToken.None
+			);
+
+			assert.deepStrictEqual({
+				result: getTextContent(result),
+				bulkEditCount: bulkEditService.appliedEdits.length,
+			}, {
+				result: 'Rename was not applied because the chat editing session is unavailable.',
+				bulkEditCount: 0,
 			});
 		});
 
