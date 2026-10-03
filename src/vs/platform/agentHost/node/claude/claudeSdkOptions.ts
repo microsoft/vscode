@@ -180,7 +180,8 @@ export async function buildOptions(
 		allowDangerouslySkipPermissions: true,
 		canUseTool: input.canUseTool,
 		onElicitation: input.onElicitation,
-		disallowedTools: ['WebSearch'],
+		// The Copilot proxy (CAPI) doesn't support WebSearch; native Anthropic sessions do.
+		...(isProxy ? { disallowedTools: ['WebSearch'] } : {}),
 		includePartialMessages: true,
 		forwardSubagentText: true,
 		enableFileCheckpointing: true,
