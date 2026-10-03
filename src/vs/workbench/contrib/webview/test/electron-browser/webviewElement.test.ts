@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { ProxyChannel } from '../../../../../base/parts/ipc/common/ipc.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -19,11 +21,13 @@ import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js'
 import { IWebviewManagerService } from '../../../../../platform/webview/common/webviewManagerService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
+import { KeyEvent } from '../../browser/webviewMessages.js';
 import { ElectronWebviewElement } from '../../electron-browser/webviewElement.js';
 
 class TestElectronWebviewElement extends ElectronWebviewElement {
 	public override get element(): HTMLIFrameElement | undefined { return super.element; }
 	public get frameName(): string { return this.id; }
+	public override handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent): void { super.handleKeyEvent(type, event); }
 }
 
 suite('ElectronWebviewElement', () => {
@@ -36,6 +40,7 @@ suite('ElectronWebviewElement', () => {
 			_serviceBrand: undefined,
 			onFoundInFrame: Event.None,
 			setIgnoreMenuShortcuts: async () => { },
+			runMacOSMenuAction: async (...args) => { calls.push({ command: 'runMacOSMenuAction', args }); },
 			findInFrame: async (...args) => { calls.push({ command: 'findInFrame', args }); },
 			stopFindInFrame: async (...args) => { calls.push({ command: 'stopFindInFrame', args }); },
 		};
@@ -127,5 +132,44 @@ suite('ElectronWebviewElement', () => {
 			searchesAfterStop: [],
 			searchesAfterDisposal: [],
 		});
+	}));
+
+	test('runs native macOS menu shortcuts that the workbench did not handle', () => runWithFakedTimers({}, async () => {
+		const { webview, calls } = createWebview();
+		assert.ok(webview.element);
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		webview.mountTo(container, mainWindow);
+		webview.element.focus();
+
+		let workbenchHandlesKey = false;
+		store.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => {
+			if (workbenchHandlesKey) {
+				e.preventDefault();
+			}
+		}));
+
+		const cmd = (keyCode: number, overrides?: Partial<KeyEvent>): KeyEvent => ({
+			key: '', code: '', keyCode, metaKey: true, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isTrusted: true, ...overrides
+		});
+		const keyH = 72;
+		const keyM = 77;
+
+		webview.handleKeyEvent('keydown', cmd(keyH));
+		webview.handleKeyEvent('keydown', cmd(keyH, { altKey: true }));
+		webview.handleKeyEvent('keydown', cmd(keyM));
+		webview.handleKeyEvent('keydown', cmd(keyH, { shiftKey: true }));
+		webview.handleKeyEvent('keyup', cmd(keyH));
+		webview.handleKeyEvent('keydown', cmd(keyH, { isTrusted: false }));
+		workbenchHandlesKey = true;
+		webview.handleKeyEvent('keydown', cmd(keyH));
+		await timeout(0);
+
+		assert.deepStrictEqual(calls.filter(call => call.command === 'runMacOSMenuAction'), isMacintosh ? [
+			{ command: 'runMacOSMenuAction', args: ['hide'] },
+			{ command: 'runMacOSMenuAction', args: ['hideOthers'] },
+			{ command: 'runMacOSMenuAction', args: ['minimize'] },
+		] : []);
 	}));
 });

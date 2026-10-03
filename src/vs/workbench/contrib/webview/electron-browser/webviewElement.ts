@@ -154,4 +154,8 @@ export class ElectronWebviewElement extends WebviewElement {
 			this._webviewKeyboardHandler.didBlur();
 		}
 	}
+
+	protected override handleUnhandledKeyDown(event: KeyboardEvent): void {
+		this._webviewKeyboardHandler.handleUnhandledKeyDown(event);
+	}
 }

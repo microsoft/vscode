@@ -718,7 +718,7 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		return !!this.element && this.window?.document.activeElement === this.element;
 	}
 
-	private handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
+	protected handleKeyEvent(type: 'keydown' | 'keyup', event: KeyEvent) {
 		if (!this.shouldForwardKeyEvent(event) || !this.isActiveElement()) {
 			return;
 		}
@@ -726,14 +726,26 @@ export class WebviewElement extends Disposable implements IWebviewElement, Webvi
 		// Electron: workaround for https://github.com/electron/electron/issues/14258
 		// We have to detect keyboard events in the <webview> and dispatch them to our
 		// keybinding service because these events do not bubble to the parent window anymore.
-		// Create a fake KeyboardEvent from the data provided
-		const emulatedKeyboardEvent = new KeyboardEvent(type, event);
+		// Create a fake KeyboardEvent from the data provided. It is cancelable so that we can
+		// tell whether the workbench handled it.
+		const emulatedKeyboardEvent = new KeyboardEvent(type, { ...event, cancelable: true });
 		// Force override the target
 		Object.defineProperty(emulatedKeyboardEvent, 'target', {
 			get: () => this.element,
 		});
 		// And re-dispatch
 		this.window?.dispatchEvent(emulatedKeyboardEvent);
+
+		if (type === 'keydown' && event.isTrusted && !emulatedKeyboardEvent.defaultPrevented) {
+			this.handleUnhandledKeyDown(emulatedKeyboardEvent);
+		}
+	}
+
+	/**
+	 * Invoked for trusted key down events from the webview that the workbench did not handle.
+	 */
+	protected handleUnhandledKeyDown(_event: KeyboardEvent): void {
+		// noop
 	}
 
 	private handleDragEvent(type: 'drag', event: WebViewDragEvent) {
