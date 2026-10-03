@@ -13,6 +13,7 @@ import type { ChangesetState } from '../channels-changeset/state.js';
 import type { ResourceWatchState } from '../channels-resource-watch/state.js';
 import type { AnnotationsState } from '../channels-annotations/state.js';
 import type { ChatState } from '../channels-chat/state.js';
+import type { CanvasState } from '../channels-canvas/state.js';
 import type { AutomationState } from '../channels-automation/state.js';
 import type { AutomationRunState } from '../channels-automation-run/state.js';
 
@@ -348,10 +349,10 @@ export interface ErrorInfo {
  * @category Common Types
  */
 export interface Snapshot {
-	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, or `ahp-chat:/<uuid>`) */
+	/** The subscribed channel URI (e.g. `ahp-root://`, `ahp-session:/<uuid>`, `ahp-chat:/<uuid>`, or `ahp-canvas:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | AutomationState | AutomationRunState;
+	state: RootState | SessionState | TerminalState | ChangesetState | ResourceWatchState | AnnotationsState | ChatState | CanvasState | AutomationState | AutomationRunState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

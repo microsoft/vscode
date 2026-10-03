@@ -11,6 +11,8 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -27,7 +29,6 @@ import { AccessibilityVerbositySettingId } from '../../../../workbench/contrib/a
 import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { focusWebContentsViewContainer, WebContentsViewHost } from '../../../../workbench/contrib/browserView/electron-browser/webContentsViewHost.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { SessionCanvasAvailability } from '../../../services/sessions/common/session.js';
 import { ISessionCanvasService, SessionCanvasInput } from '../common/sessionCanvas.js';
 
 export const SessionCanvasFocusedContext = new RawContextKey<boolean>('sessionCanvasFocused', false);
@@ -109,11 +110,11 @@ export class SessionCanvasEditor extends EditorPane {
 				this._detach(localize('canvas.closed', "This canvas is no longer available."));
 				return;
 			}
-			if (canvas.availability !== SessionCanvasAvailability.Ready) {
+			if (canvas.source === undefined) {
 				this._detach(localize('canvas.unavailable', "The canvas provider is temporarily unavailable."));
 				return;
 			}
-			const key = `${canvas.resource.toString()}\u0000${canvas.revision}`;
+			const key = `${canvas.resource.toString()}\u0000${canvas.source.toString()}`;
 			if (this.loadingKey !== key && this.loadedKey !== key) {
 				void this._load(input, key);
 			}
@@ -130,19 +131,16 @@ export class SessionCanvasEditor extends EditorPane {
 
 	private async _load(input: SessionCanvasInput, key: string): Promise<void> {
 		const canvas = input.canvas.get();
-		if (!canvas) {
+		if (canvas === undefined || canvas.source === undefined) {
 			return;
 		}
 		this._detach(localize('canvas.loading', "Loading canvas…"));
 		const sequence = ++this.loadSequence;
 		this.loadingKey = key;
 		try {
-			const source = await canvas.resolveSource();
-			if (!this._isCurrent(input, canvas.revision, sequence)) {
-				return;
-			}
+			const source = canvas.source;
 			const model = await this.browserViewService.createExternalBrowserView(source.toString(true));
-			if (!this._isCurrent(input, canvas.revision, sequence)) {
+			if (!this._isCurrent(input, source, sequence)) {
 				model.dispose();
 				return;
 			}
@@ -151,23 +149,23 @@ export class SessionCanvasEditor extends EditorPane {
 			this.message.textContent = localize('canvas.pageLoading', "Loading canvas page…");
 			this.loadedKey = key;
 			this.message.textContent = model.error ? localize('canvas.pageFailed', "The canvas page failed to load.") : '';
-		} catch (error) {
-			if (this._isCurrent(input, canvas.revision, sequence)) {
+		} catch {
+			if (this._isCurrent(input, canvas.source, sequence)) {
 				this._detach(localize('canvas.loadFailed', "The canvas could not be loaded."));
-				this.logService.error('[SessionCanvasEditor] Failed to load canvas', error);
+				this.logService.error('[SessionCanvasEditor] Failed to load canvas');
 			}
 		} finally {
-			if (this.loadingKey === key) {
+			if (sequence === this.loadSequence && this.loadingKey === key) {
 				this.loadingKey = undefined;
 			}
 		}
 	}
 
-	private _isCurrent(input: SessionCanvasInput, revision: number, sequence: number): boolean {
+	private _isCurrent(input: SessionCanvasInput, source: URI, sequence: number): boolean {
 		return !this._store.isDisposed
 			&& sequence === this.loadSequence
 			&& this.currentInput.get() === input
-			&& input.canvas.get()?.revision === revision
+			&& isEqual(input.canvas.get()?.source, source)
 			&& this.canvasService.isActiveOwner(input.reference);
 	}
 
@@ -212,8 +210,8 @@ export class SessionCanvasEditor extends EditorPane {
 			this.host.setModel(undefined);
 			const input = this.currentInput.get();
 			const canvas = input?.canvas.get();
-			if (input && canvas?.availability === SessionCanvasAvailability.Ready && this.canvasService.isActiveOwner(input.reference)) {
-				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.revision}`);
+			if (input && canvas?.source && this.canvasService.isActiveOwner(input.reference)) {
+				void this._load(input, `${canvas.resource.toString()}\u0000${canvas.source.toString()}`);
 			}
 		}));
 		const visible = this.presentationVisible.get() || this.group.activeEditor === this.input;
@@ -297,7 +295,7 @@ export class SessionCanvasEditor extends EditorPane {
 		const help = [
 			localize('canvas.help.overview', "This canvas is a private page owned by the active conversation."),
 			localize('canvas.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
-			localize('canvas.help.close', "Closing the tab hides the canvas until the agent opens that instance again."),
+			localize('canvas.help.close', "Closing the tab hides this canvas. A newly created canvas can open another tab."),
 		].join('\n\n');
 		this.semanticText = localize('canvas.reading', "Reading accessible canvas content…");
 		return new AccessibleContentProvider(

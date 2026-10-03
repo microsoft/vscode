@@ -14,6 +14,8 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { CheckboxChip } from './checkboxChip.js';
 import './media/branchPicker.css';
 
+export const NEW_WORKTREE_LABEL = localize('branchPicker.newWorktree', "New Worktree");
+
 const FILTER_THRESHOLD = 10;
 let descriptionIdPool = 0;
 

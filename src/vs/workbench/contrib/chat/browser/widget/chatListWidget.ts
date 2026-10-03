@@ -1374,6 +1374,12 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+		if (Object.hasOwn(options, 'firstRequestSummary')) {
+			const request = this._viewModel?.getItems().find(isRequestVM);
+			if (request && this._tree.hasElement(request)) {
+				this._tree.rerender(request);
+			}
+		}
 	}
 
 	setPaddingBottom(paddingBottom: number): void {

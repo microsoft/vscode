@@ -118,7 +118,6 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		options.logService,
 		options.rootConfigResource,
 		options.providerConfigurations ?? [],
-		managedSettingsService,
 	));
 	if (options.transientProxyConfiguration) {
 		configurationService.publishRootTransientValues(Object.fromEntries(

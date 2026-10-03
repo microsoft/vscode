@@ -466,8 +466,7 @@ export class AgentHostChatInputPicker extends Disposable {
 				this._hidePicker();
 			}
 			const sandboxSettingId = this._getSandboxSettingId();
-			if (e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)
+			if (e.affectsConfiguration(AgentHostCustomTerminalToolEnabledSettingId)
 				|| (sandboxSettingId && e.affectsConfiguration(sandboxSettingId))) {
 				this._refreshTrigger();
 				this._sandboxConfigChanged.trigger(undefined);
@@ -715,7 +714,6 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	private _isSandboxed(): boolean {
 		return !this._generic && this._property === SessionConfigKey.AutoApprove && this._readContext()?.key === SessionConfigKey.AutoApprove
-			&& this._isSandboxToggleSettingEnabled()
 			&& this._isSandboxingEnabled();
 	}
 
@@ -1023,10 +1021,6 @@ export class AgentHostChatInputPicker extends Disposable {
 		return getAgentHostSandboxSettingId(sessionType);
 	}
 
-	private _isSandboxToggleSettingEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
-	}
-
 	private _isSandboxingEnabled(): boolean {
 		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
 	}
@@ -1053,7 +1047,7 @@ export class AgentHostChatInputPicker extends Disposable {
 		const settingId = this._getSandboxSettingId();
 		const context = this._readContext(SessionConfigKey.SandboxEnabled);
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		if (this._generic || property !== SessionConfigKey.AutoApprove || !this._isSandboxToggleSettingEnabled() || !settingId || !context || !sessionResource) {
+		if (this._generic || property !== SessionConfigKey.AutoApprove || !settingId || !context || !sessionResource) {
 			return undefined;
 		}
 		return createAgentHostSandboxToggle(() => this._readSandboxToggleState(), checked => {

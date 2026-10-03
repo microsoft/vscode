@@ -3628,27 +3628,23 @@ suite('SessionsManagementService', () => {
 		}), /does not support model configuration/);
 	});
 
-	test('createNewSession forwards exact permission and mode choices and rejects unavailable permissions', () => {
+	test('createNewSession forwards exact permission and mode choices for provider validation', () => {
 		const session = stubSession({
 			sessionId: 's1',
 			providerId: 'test',
 		});
 		const providerOptions: Array<ISessionsProviderCreateSessionOptions | undefined> = [];
 		const provider = new class extends TestSessionsProvider {
+			override readonly supportsPermissionsForCreation = true;
 			override readonly sessionTypes: readonly ISessionType[] = [
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'supported', label: 'Supported', icon: Codicon.vm },
 				{ authRequirement: SessionTypeAuthRequirement.GitHub, id: 'unsupported', label: 'Unsupported', icon: Codicon.vm },
 			];
 			override resolveWorkspace(): ISessionWorkspace { return { folderUri: URI.parse('test:///folder') } as unknown as ISessionWorkspace; }
-			override getPermissionOptionsForCreation(sessionTypeId: string) {
-				return sessionTypeId === 'supported' ? [{
-					id: 'allowAll',
-					label: 'Allow all',
-					description: 'Allow all tools.',
-					isAllowAll: true,
-				}] : [];
-			}
 			override createNewSession(_folderUri?: URI, _sessionTypeId?: string, options?: ISessionsProviderCreateSessionOptions): ISession {
+				if (_sessionTypeId === 'unsupported') {
+					throw new Error(`Provider does not support permission '${options?.permissionId}'`);
+				}
 				providerOptions.push(options);
 				return session;
 			}
@@ -3670,6 +3666,18 @@ suite('SessionsManagementService', () => {
 			permissionId: 'allowAll',
 			modeId: 'autopilot',
 		}]);
+	});
+
+	test('createNewSession rejects permissions when the provider cannot apply them', () => {
+		const session = stubSession({ sessionId: 's1', providerId: 'test' });
+		const provider = new class extends TestSessionsProvider {
+			override resolveWorkspace(): ISessionWorkspace {
+				return { uri: URI.parse('test:///folder'), label: 'Test', icon: Codicon.folder, folders: [], requiresWorkspaceTrust: false, isVirtualWorkspace: false };
+			}
+			override createNewSession(): ISession { assert.fail('Must not create a session with ignored permissions'); }
+		}(session);
+		const { service } = createSessionsManagementService(session, disposables, provider);
+		assert.throws(() => service.createNewSession(URI.parse('test:///folder'), { permissionId: 'allowAll' }), /does not support permission 'allowAll'/);
 	});
 
 	test('createAndSendNewChatRequest rejects canonical Automation templates for providers without restoration support', async () => {

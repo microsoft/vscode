@@ -16,11 +16,13 @@ import { join } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { AgentHostCanvasesEnabledConfigKey } from '../../../common/agentHostSchema.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { ActionType, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatTurnCompleteAction, type ChatTurnStartedAction } from '../../../common/state/sessionActions.js';
-import { type SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
 import { buildDefaultChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ISessionWithDefaultChat, type RootState, type ToolDefinition } from '../../../common/state/sessionState.js';
 import { ToolCallConfirmationReason } from '../../../common/state/protocol/channels-chat/state.js';
+import type { CanvasState } from '../../../common/state/protocol/channels-canvas/state.js';
+import type { SubscribeResult } from '../../../common/state/protocol/common/commands.js';
 import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentHostSessionReleaseRetryMsEnvVar, AgentHostSessionResidencyLimitEnvVar } from '../../../common/agentService.js';
 import { createProviderSession, dispatchTurn, type IAgentHostProviderTestConfig } from '../providerIntegrationTestHelpers.js';
@@ -241,6 +243,19 @@ session = await joinSession({
 				90_000,
 			);
 			const openCanvasComplete = getActionEnvelope(openCanvasCompleteNotification).action as ChatToolCallCompleteAction;
+			const canvasNotification = await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatCanvasesChanged)
+				&& getActionEnvelope(n).action.type === ActionType.ChatCanvasesChanged,
+				90_000,
+			);
+			const canvasAction = getActionEnvelope(canvasNotification).action;
+			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged);
+			const canvasReference = canvasAction.canvases?.[0];
+			assert.ok(canvasReference);
+			const snapshot = await client.call<SubscribeResult>('subscribe', { channel: canvasReference.resource });
+			const state = snapshot.snapshot?.state;
+			assert.ok(state && hasKey(state, { instanceId: true }));
+			const canvas: CanvasState = state;
 			await client.waitForNotification(n =>
 				isActionNotification(n, ActionType.ChatTurnComplete)
 				&& (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-mock-canvas',
@@ -273,12 +288,16 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
+				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				providerTurn: {
 					message: providerTurnStarted.message,
 					response: providerResponse.part.kind === ResponsePartKind.Markdown ? providerResponse.part.content : undefined,
 				},
 			}, {
 				openCanvasSucceeded: true,
+				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				referencesContainOnlyResource: true,
 				providerTurn: {
 					message: {
 						text: `[scenario:${CANVAS_EXTENSION_TURN_SCENARIO_ID}] Report that the canvas request completed.`,

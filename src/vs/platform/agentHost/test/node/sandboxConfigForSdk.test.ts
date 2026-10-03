@@ -69,6 +69,8 @@ function expectedSandboxConfig(options?: {
 	deniedPaths?: string[];
 	allowOutbound?: boolean;
 	allowLocalNetwork?: boolean;
+	allowedHosts?: string[];
+	blockedHosts?: string[];
 	allowBypass?: boolean;
 	sandboxMcpServers?: boolean;
 	sandboxLspServers?: boolean;
@@ -76,6 +78,7 @@ function expectedSandboxConfig(options?: {
 }): SandboxConfig {
 	return {
 		enabled: true,
+		addCurrentWorkingDirectory: true,
 		...(options?.sandboxMcpServers !== undefined ? { sandboxMcpServers: options.sandboxMcpServers } : {}),
 		...(options?.sandboxLspServers !== undefined ? { sandboxLspServers: options.sandboxLspServers } : {}),
 		...(options?.allowDevToolAccess !== undefined ? { allowDevToolAccess: options.allowDevToolAccess } : {}),
@@ -85,15 +88,19 @@ function expectedSandboxConfig(options?: {
 			gh: true,
 		},
 		userPolicy: {
-			filesystem: {
-				...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),
-				...(options?.readonlyPaths?.length ? { readonlyPaths: options.readonlyPaths } : {}),
-				...(options?.readwritePaths?.length ? { readwritePaths: options.readwritePaths } : {}),
-			},
-			...(options?.allowOutbound !== undefined || options?.allowLocalNetwork !== undefined ? {
+			...(options?.deniedPaths?.length || options?.readonlyPaths?.length || options?.readwritePaths?.length ? {
+				filesystem: {
+					...(options?.deniedPaths?.length ? { deniedPaths: options.deniedPaths } : {}),
+					...(options?.readonlyPaths?.length ? { readonlyPaths: options.readonlyPaths } : {}),
+					...(options?.readwritePaths?.length ? { readwritePaths: options.readwritePaths } : {}),
+				},
+			} : {}),
+			...(options?.allowOutbound !== undefined || options?.allowLocalNetwork !== undefined || options?.allowedHosts?.length || options?.blockedHosts?.length ? {
 				network: {
 					...(options?.allowOutbound !== undefined ? { allowOutbound: options.allowOutbound } : {}),
 					...(options?.allowLocalNetwork !== undefined ? { allowLocalNetwork: options.allowLocalNetwork } : {}),
+					...(options?.allowedHosts?.length ? { allowedHosts: options.allowedHosts } : {}),
+					...(options?.blockedHosts?.length ? { blockedHosts: options.blockedHosts } : {}),
 				},
 			} : {}),
 		},
@@ -204,8 +211,9 @@ suite('buildSandboxConfigForSdk', () => {
 		test('does not serialize optional toggles when only enablement is supplied', () => {
 			assert.deepStrictEqual(buildSandboxConfigForSdk('linux', { enabled: AgentSandboxEnabledValue.On }), {
 				enabled: true,
+				addCurrentWorkingDirectory: true,
 				auth: { git: true, gh: true },
-				userPolicy: { filesystem: {} },
+				userPolicy: {},
 			});
 		});
 
@@ -250,7 +258,7 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['linux', 'darwin', 'win32'] as const) {
 				assert.deepStrictEqual([undefined, {}, { readwritePaths: ['workspace'] }].map(paths =>
 					buildSandboxConfigForSdk(platform, { ...cfg, [AgentHostSandboxKey.UserConfiguredPaths]: paths })?.userPolicy?.filesystem),
-					[{}, {}, { readwritePaths: ['workspace'] }]);
+					[undefined, undefined, { readwritePaths: ['workspace'] }]);
 			}
 		});
 
@@ -308,9 +316,12 @@ suite('buildSandboxConfigForSdk', () => {
 	});
 
 	suite('network hosts', () => {
-		test('drops host lists without adding a network policy', () => {
+		test('forwards host lists as a network policy', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
-				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, undefined, platform);
+				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['github.com'], blockedHosts: ['evil.example'] }))?.userPolicy?.network, {
+					allowedHosts: ['github.com'],
+					blockedHosts: ['evil.example'],
+				}, platform);
 			}
 		});
 
@@ -318,6 +329,8 @@ suite('buildSandboxConfigForSdk', () => {
 			for (const platform of ['darwin', 'linux'] as const) {
 				assert.deepStrictEqual(buildSandboxConfigForSdk(platform, sandbox(platform, AgentSandboxEnabledValue.On, undefined, { allowedHosts: ['a.example'], blockedHosts: ['b.example'] }, true))?.userPolicy?.network, {
 					allowOutbound: true,
+					allowedHosts: ['a.example'],
+					blockedHosts: ['b.example'],
 				}, platform);
 			}
 		});

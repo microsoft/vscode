@@ -31,6 +31,8 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platfor
 - **Update all** (`AGENT_HOST_UPDATE_SNAPSHOTS=1`) — rewrites AHP snapshots and forwards to real CAPI to re-record LLM fixtures. Needs `GITHUB_TOKEN` or `gh auth token`.
 - **Record LLM only** (`AGENT_HOST_REPLAY_RECORD=1`) — the legacy focused mode for re-recording only normalized LLM fixtures against real CAPI.
 
+Plugin hook fixtures run their `.cjs` helper scripts with the Node executable supplied by npm (`npm_node_execpath`), or `node` from the pinned development toolchain's `PATH` when invoking the shell scripts directly. The Electron test process's `process.execPath` is not used for these shell commands: it would start Chromium, require a GUI sandbox, and generate unnecessary background network traffic.
+
 ---
 
 ## Mental model
@@ -233,11 +235,39 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
+The Copilot managed-settings diagnostics suite waits for the authenticated
+provider's model catalog before requesting diagnostics. Authentication schedules
+runtime startup asynchronously; the catalog establishes a completed runtime RPC
+without creating a session or making a model request. The policy probe still
+fetches server settings afresh and retains the production 4.5-second overall and
+3.5-second query deadlines. Cold-start deadline behavior is covered by the
+Copilot agent unit tests.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).
 - **Claude** — enabled when `node_modules/@anthropic-ai/claude-agent-sdk` is present (dev dep).
 - **Codex** — shared suite enabled when `node_modules/@openai/codex` is present. Codex-specific *steering* tests (real-time, non-deterministic) are extra and gated behind `AGENT_HOST_REAL_CODEX=1`.
+
+### Expected failures
+
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
+operation while keeping its desired-behavior assertions. It logs and accepts
+only the specified error. An unexpected pass fails the run and identifies the
+marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
+Setup errors, different failures, and teardown errors remain failures.
+Skip these scenarios while recording so a known early failure cannot overwrite
+a complete fixture with a partial recording. Remove that recording skip together
+with the marker when the upstream fix is adopted.
+
+The managed-telemetry no-restart scenario runs this way by default. Do not
+replace its marker with a permanent negative assertion.
+
+If a recognized failure prevents later model turns, pass
+`{ allowUnconsumedResponses: true }` to the lease's replay verification at
+release, only after `assertExpectedFailure` returns. This permits unused future
+responses without accepting unrecorded requests or request mismatches. The
+option is per release; normal tests still require complete replay consumption.
 
 ---
 

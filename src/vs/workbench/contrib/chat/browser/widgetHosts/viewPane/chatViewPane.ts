@@ -850,17 +850,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControl: AgentSessionsControl | undefined;
 
 	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl; }
-	private sessionsListRevealCount = 0;
-
-	/** Shows the Sessions list for a navigation flow without replacing the current chat or saved layout. */
-	revealSessionsList(): IDisposable {
-		this.sessionsListRevealCount++;
-		this.refreshSessionsControlVisibility();
-		return toDisposable(() => {
-			this.sessionsListRevealCount--;
-			if (!this._store.isDisposed) { this.refreshSessionsControlVisibility(); }
-		});
-	}
 
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
@@ -982,9 +971,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (this.sessionsListRevealCount > 0) {
-			newSessionsContainerVisible = true;
-		} else if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
 			newSessionsContainerVisible = false; // disabled in settings
 		} else {
 

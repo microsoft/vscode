@@ -315,8 +315,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 				this.hide();
 			}
 			const settingId = this.getSandboxToggleSettingId();
-			const affectsSandboxToggle = e.affectsConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled)
-				|| (settingId !== undefined && e.affectsConfiguration(settingId))
+			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
 				|| this.delegate.sandboxToggleConfigurationKeys?.some(key => e.affectsConfiguration(key)) === true;
 			if (affectsSandboxToggle && this.element) {
 				this.renderLabel(this.element);
@@ -365,17 +364,8 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			: AgentSandboxSettingId.AgentSandboxEnabled;
 	}
 
-	private isSandboxToggleSettingEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(ChatConfiguration.PermissionsSandboxToggleEnabled) === true;
-	}
-
-	/**
-	 * Whether the sandbox toggle should surface for the current harness: the
-	 * experimental setting must be on and the delegate must opt in.
-	 */
 	private isSandboxToggleAvailable(): boolean {
-		return this.isSandboxToggleSettingEnabled()
-			&& this.delegate.isSandboxToggleApplicable?.() === true
+		return this.delegate.isSandboxToggleApplicable?.() === true
 			&& this.getSandboxToggleSettingId() !== undefined;
 	}
 

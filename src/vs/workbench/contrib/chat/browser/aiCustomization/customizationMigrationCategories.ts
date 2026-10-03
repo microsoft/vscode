@@ -451,16 +451,14 @@ function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationC
 			switch (property) {
 				case 'gallery':
 					return server.removedProperties?.gallery === false
-						? localize('mcpMigrationRemoveDisabledGallery', "The 'gallery' property will be removed. Automatic updates from the registry are already disabled for this MCP server.")
-						: localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
+						? localize('mcpMigrationRemoveDisabledGallery', "Removes 'gallery'. Registry updates are already off.")
+						: localize('mcpMigrationRemoveGallery', "Removes 'gallery'. Registry updates will stop.");
 				case 'version':
-					return localize('mcpMigrationRemoveVersion', "The 'version' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.");
+					return localize('mcpMigrationRemoveVersion', "Removes 'version'. Version pins are kept.");
 				case 'dev':
-					return localize('mcpMigrationRemoveDev', "The 'dev' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.");
+					return localize('mcpMigrationRemoveDev', "Removes 'dev'. Development mode will stop.");
 				case 'sandboxEnabled':
-					return server.removedProperties?.sandboxEnabled === false
-						? localize('mcpMigrationRemoveDisabledSandbox', "The 'sandboxEnabled' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by {0}.", harnessLabel)
-						: localize('mcpMigrationRemoveSandbox', "The 'sandboxEnabled' property will be removed. VS Code's per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by {0}.", harnessLabel);
+					return localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel);
 			}
 		});
 }

@@ -127,7 +127,7 @@ suite('agentHostBootstrap', () => {
 		assert.strictEqual(foundation.proxyResolver.getConfigurationValue(AgentHostProxyConfigKey.Proxy), 'http://proxy.example:8080');
 	});
 
-	test('wires the shared client policy service into the production configuration service', () => {
+	test('keeps shared managed permissions separate from runtime sandbox policy', () => {
 		const services = new StrictServiceCollection();
 		const foundation = createAgentServiceFoundation({
 			services,
@@ -144,10 +144,12 @@ suite('agentHostBootstrap', () => {
 			createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
 		});
 		foundation.stateManager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
-		managedSettings.setClientSandboxRequired('client', true);
+		managedSettings.setClientPermissions('client', { ask: ['Shell'] });
+		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session), undefined);
+		foundation.configurationService.setSessionSandboxPolicy(session, { enabled: true, allowBypass: false });
 		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session)?.enabled, true);
 		managedSettings.removeClient('client');
-		assert.strictEqual(foundation.configurationService.getSessionSandboxPolicy(session), undefined);
+		assert.deepStrictEqual(foundation.configurationService.getSessionSandboxPolicy(session), { enabled: true, allowBypass: false });
 	});
 
 	test('supplies product and component identification for Node GitHub egress', () => {

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { timeout } from '../../../../../base/common/async.js';
 import { IDelayedHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -2867,12 +2867,12 @@ suite('Sessions - SessionsList', () => {
 					.map(row => row.classList.contains('session-comparison-attempt')),
 				statusIconDisplays: [...container.querySelectorAll<HTMLElement>('.session-item .session-icon > .codicon')]
 					.map(icon => mainWindow.getComputedStyle(icon).display),
-				comparisonControlDisplay: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.session-comparison-archive')!).display,
+				comparisonControls: container.querySelectorAll('.session-comparison-archive').length,
 			}, {
 				connectors: [undefined, undefined, undefined],
 				comparisonAttempts: [false, false, false],
 				statusIconDisplays: ['flex', 'flex', 'flex'],
-				comparisonControlDisplay: 'none',
+				comparisonControls: 0,
 			});
 		});
 
@@ -3281,13 +3281,13 @@ suite('Sessions - SessionsList', () => {
 				summary: comparison?.querySelector('.session-group-description')?.textContent,
 				comparisonGroups: container.querySelectorAll('.session-comparison-group').length,
 				sessionRows: container.querySelectorAll('.session-item').length,
-				archiveDisplay: archive ? mainWindow.getComputedStyle(archive).display : undefined,
+				customArchiveButton: !!archive,
 			}, {
 				title: 'Improve the picker',
 				summary: 'Comparison · Starting attempts · 1 of 2 ready',
 				comparisonGroups: 1,
 				sessionRows: 0,
-				archiveDisplay: 'none',
+				customArchiveButton: false,
 			});
 		});
 
@@ -3308,57 +3308,25 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('archives complete comparison membership including pinned and filtered input waits', async () => {
-			const { attempt1, attempt2, judge, synthesis, container, harness, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
+		test('uses the group toolbar instead of a custom comparison archive button', () => {
+			const { attempt1, attempt2, judge, synthesis, container, list } = renderComparison(undefined, 'all', new Set(['attempt-2']));
 			attempt1.status.set(SessionStatus.Completed, undefined);
 			attempt2.status.set(SessionStatus.NeedsInput, undefined);
 			judge.status.set(SessionStatus.NeedsInput, undefined);
 			synthesis.status.set(SessionStatus.Completed, undefined);
 			list.filters.setExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }, true);
-			const archive = container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive');
 			assert.deepStrictEqual({
-				hidden: archive?.hidden,
-				display: archive ? mainWindow.getComputedStyle(archive).display : undefined,
-				ariaLabel: archive?.getAttribute('aria-label'),
-				checkIcon: archive?.querySelector('.codicon-check') !== null,
+				customArchiveButtons: container.querySelectorAll('.session-comparison-archive').length,
+				toolbars: container.querySelectorAll('.session-comparison-group .session-section-toolbar .monaco-toolbar').length,
 				stopButtons: container.querySelectorAll('.session-comparison-stop-all, .session-comparison-participant-stop').length,
 				sessionRows: [...container.querySelectorAll('.session-item')].map(row => row.querySelector('.session-title')?.textContent),
 			}, {
-				hidden: false,
-				display: 'flex',
-				ariaLabel: 'Archive Comparison',
-				checkIcon: true,
+				customArchiveButtons: 0,
+				toolbars: 1,
 				stopButtons: 0,
 				sessionRows: ['Synthesis', 'Copilot · Claude Opus 5'],
 			});
 
-			archive?.click();
-			await timeout(0);
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'attempt-2', 'judge', 'synthesis'],
-				archivedComparisonIds: ['comparison-1'],
-				deletedGroupIds: [group.id],
-			});
-		});
-
-		test('keeps the comparison when a participant session could not be archived', async () => {
-			const { container, harness } = renderComparison(undefined, 'attempt1');
-			container.querySelector<HTMLButtonElement>('.session-comparison-group .session-comparison-archive')?.click();
-			await timeout(0);
-
-			assert.deepStrictEqual({
-				archived: harness.managementService.archived.map(session => session.sessionId).sort(),
-				archivedComparisonIds: harness.archivedComparisonIds,
-				deletedGroupIds: harness.deletedGroupIds,
-			}, {
-				archived: ['attempt-1', 'judge', 'synthesis'],
-				archivedComparisonIds: [],
-				deletedGroupIds: [],
-			});
 		});
 
 		test('allows regrouping sessions from archived comparisons while retaining history lookup', () => {
@@ -7473,31 +7441,6 @@ suite('Sessions - SessionsList', () => {
 			for (let i = 0; i < 50; i++) {
 				await Promise.resolve();
 			}
-		}
-
-		for (const isExternal of [false, true]) {
-			test(`reports the exact session only after a revealed row finishes opening (external: ${isExternal})`, async () => {
-				const session = createTestSession('Guided session', { isExternal }).session;
-				const harness = createListHarness(disposables, [session]);
-				harness.instantiationService.stub(ICustomViewService, { hideCustomView: () => { }, activeCustomView: constObservable(undefined) });
-				const completion = new DeferredPromise<void>();
-				const container = harness.createContainer();
-				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
-					grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created,
-					onSessionOpen: () => completion.p,
-				}));
-				const opened: string[] = [];
-				harness.store.add(list.onDidOpenSession(resource => opened.push(resource.toString())));
-				list.layout(300, 400);
-				list.collapseAllSections();
-				harness.store.add(list.revealSessionForOnboarding(session));
-				clickRow(findSessionRow(container, 'Guided session'));
-				await settle();
-				assert.deepStrictEqual(opened, []);
-				await completion.complete();
-				await settle();
-				assert.deepStrictEqual(opened, [session.resource.toString()]);
-			});
 		}
 
 		function renderGatedList(title: string, canOpenSession?: (session: ISession) => Promise<boolean>) {
