@@ -75,6 +75,12 @@ const textDecoder = new TextDecoder('utf-8', { fatal: true });
 /** Strict canonical base64 (RFC 4648 standard alphabet, with padding, no whitespace). */
 const CANONICAL_BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
+/**
+ * `JSON.stringify({ kind: 'message', data })` is this ASCII prefix, the
+ * serialized `data`, then `}`.
+ */
+const MESSAGE_ENVELOPE_PREFIX = '{"kind":"message","data":';
+
 /** Encode a byte slice as a base64 string (RFC 4648 standard, with padding). */
 function bytesToBase64(bytes: Uint8Array): string {
 	return encodeBase64(VSBuffer.wrap(bytes), true /* padded */, false /* urlSafe */);
@@ -86,39 +92,38 @@ function base64ToBytes(b64: string): Uint8Array {
 }
 
 /**
- * Split an application payload into one or more {@link ChunkEnvelope}s.
- *
- * If the serialised single-frame envelope fits inside the ceiling, returns a
- * one-element array containing the `kind: "message"` envelope. Otherwise mints
- * a `group_id` and returns `total = ceil(len(B) / R)` `kind: "chunk"`
- * envelopes. The raw-byte budget is derived from the actual group id and the
- * widest permitted sequence fields so every serialized envelope fits.
+ * Serialize an application payload into one or more {@link ChunkEnvelope}s.
+ * Returns JSON strings so callers send the measured bytes without evaluating the payload again.
  */
-export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelope[] {
+export function chunk(payload: unknown, options: ChunkOptions = {}): string[] {
 	const maxChunkBytes = options.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES;
 	if (maxChunkBytes <= 0 || !Number.isFinite(maxChunkBytes)) {
 		throw new ChunkingError(`maxChunkBytes must be a positive finite number, got ${maxChunkBytes}`);
 	}
 
-	let payloadSerialised: string | undefined;
+	// Serializing the envelope rather than the bare payload gives the payload the same
+	// `toJSON` key it gets on the wire, so the fit check measures the bytes that are sent.
+	const message: ChunkEnvelope = { kind: 'message', data: payload };
+	let messageSerialised: string;
 	try {
-		payloadSerialised = JSON.stringify(payload);
+		messageSerialised = JSON.stringify(message);
 	} catch (cause) {
 		throw new ChunkingError(`payload is not JSON-serialisable: ${(cause as Error).message}`);
 	}
-	if (payloadSerialised === undefined) {
+	// `data` is omitted when the payload serializes to nothing (undefined, a function or a symbol).
+	if (!messageSerialised.startsWith(MESSAGE_ENVELOPE_PREFIX)) {
 		throw new ChunkingError('payload is not JSON-serialisable');
 	}
-	const rawBytes = textEncoder.encode(payloadSerialised);
+	const messageBytes = textEncoder.encode(messageSerialised);
+	const rawBytes = messageBytes.subarray(MESSAGE_ENVELOPE_PREFIX.length, messageBytes.byteLength - 1);
 	if (rawBytes.byteLength > DEFAULT_MAX_REASSEMBLY_BYTES) {
 		throw new ChunkingError(
 			`serialized payload is ${rawBytes.byteLength} bytes, exceeds ${DEFAULT_MAX_REASSEMBLY_BYTES}-byte ceiling`,
 		);
 	}
 
-	const singleSerialised = JSON.stringify({ kind: 'message', data: payload });
-	if (textEncoder.encode(singleSerialised).byteLength <= maxChunkBytes) {
-		return [{ kind: 'message', data: payload }];
+	if (messageBytes.byteLength <= maxChunkBytes) {
+		return [messageSerialised];
 	}
 
 	const newGroupId = options.newGroupId ?? generateUuid;
@@ -147,18 +152,18 @@ export function chunk(payload: unknown, options: ChunkOptions = {}): ChunkEnvelo
 		throw new ChunkingError(`payload requires ${total} chunks, exceeds ${DEFAULT_MAX_SEGMENTS_PER_GROUP}-chunk ceiling`);
 	}
 
-	const out: ChunkEnvelope[] = new Array<ChunkEnvelope>(total);
+	const out: string[] = new Array<string>(total);
 	for (let i = 0; i < total; i++) {
 		const start = i * rawBudget;
 		const end = Math.min(start + rawBudget, rawBytes.byteLength);
 		const slice = rawBytes.subarray(start, end);
-		out[i] = {
+		out[i] = JSON.stringify({
 			kind: 'chunk',
 			group_id: groupId,
 			seq: i,
 			total,
 			bytes: bytesToBase64(slice),
-		};
+		} satisfies ChunkEnvelope);
 	}
 	return out;
 }
