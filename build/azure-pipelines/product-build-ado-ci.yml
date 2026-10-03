@@ -456,12 +456,6 @@ extends:
           variables:
             BUILDSECMON_OPT_IN: true
           jobs:
-            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-              - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CHECK_ONLY: true
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS_ARM64, true) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-cli.yml@self
                 parameters:

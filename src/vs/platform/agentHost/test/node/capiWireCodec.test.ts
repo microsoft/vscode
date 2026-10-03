@@ -13,6 +13,24 @@ suite('Agent Host E2E Responses wire codec', () => {
 
 	const patch = '*** Begin Patch\n*** Update File: empty.txt\n@@\n-\n+fixed\n*** End Patch';
 
+	test('recognizes system prompts in instructions and system-role input messages', () => {
+		const userMessage = { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Hello' }] };
+		const requests = [
+			{ instructions: 'System prompt', input: [userMessage] },
+			{ input: [{ type: 'message', role: 'system', content: [{ type: 'input_text', text: 'System prompt' }] }, userMessage] },
+			{ input: [{ type: 'message', role: 'developer', content: [{ type: 'input_text', text: 'Environment preamble' }] }, userMessage] },
+			{ input: [userMessage] },
+			{ input: 'Hello' },
+		];
+		assert.deepStrictEqual(requests.map(request => summarizeResponsesRequest(JSON.stringify({ model: 'test-model', ...request }))), [
+			{ model: 'test-model', system: '${system}', messages: [{ role: 'user', content: 'Hello' }] },
+			{ model: 'test-model', system: '${system}', messages: [{ role: 'user', content: 'Hello' }] },
+			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
+			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
+			{ model: 'test-model', system: '', messages: [{ role: 'user', content: 'Hello' }] },
+		]);
+	});
+
 	test('round-trips custom tool input without JSON encoding or duplicate streaming content', () => {
 		const message: IAnthropicMessage = {
 			content: [

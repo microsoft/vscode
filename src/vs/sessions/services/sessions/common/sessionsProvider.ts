@@ -15,7 +15,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -28,6 +28,19 @@ export interface ISessionChangeEvent {
 
 /** Why a session resource is being resolved, so a provider can pick a latency budget. */
 export type SessionResourceResolveReason = 'open' | 'restore';
+
+/** Provider-owned permission choice exposed while configuring a new session. */
+export interface ISessionPermissionOption {
+	readonly id: string;
+	readonly label: string;
+	readonly description: string;
+	readonly isDefault?: boolean;
+	readonly isAllowAll?: boolean;
+	/** Optional session mode applied only when a comparison bulk permission toggle selects this option. */
+	readonly comparisonModeId?: string;
+	readonly locked?: boolean;
+	readonly lockedReason?: string;
+}
 
 /** A provider-prepared replacement draft and its rollback operation. */
 export interface IPreparedNewSession {
@@ -57,10 +70,16 @@ export interface ISendRequestOptions {
 export interface ISessionsProviderCreateSessionOptions {
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
+	/** Session that created this session, when it should be presented as a child. */
+	readonly createdBySession?: ISessionCreationReference;
 	/** Initial model identifier selected for the draft. */
 	readonly modelId?: string;
 	/** Model-specific primitive values applied only to this draft. */
 	readonly modelConfiguration?: Readonly<Record<string, string | number | boolean | null>>;
+	/** Provider-owned permission option resolved before the first request. */
+	readonly permissionId?: string;
+	/** Initial chat mode applied before the provider creates the draft session. */
+	readonly modeId?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
 }
@@ -164,6 +183,7 @@ export interface ISessionsProvider {
 	 * A human-readable label for the provider, used in the UI.
 	 */
 	readonly label: string;
+	readonly environment: ISessionEnvironment;
 
 	/**
 	 * Icon for the provider, used in the UI.
@@ -192,6 +212,13 @@ export interface ISessionsProvider {
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Returns an opaque target that the provider's session-context tool accepts
+	 * for the given chat, or `undefined` when transcript access is unavailable.
+	 */
+	getSessionContextReference?(chatResource: URI): string | undefined;
+
 	/**
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
@@ -212,7 +239,7 @@ export interface ISessionsProvider {
 	 */
 	resolveSessionResource?(resource: URI, reason?: SessionResourceResolveReason): Promise<URI | undefined>;
 	/**
-	 * Optional. Prepares a known session before it is opened or restored.
+	 * Optional. Prepares a known session for opening or restoration; it may already be visible.
 	 * Startup restoration invokes this only for the active session.
 	 */
 	prepareSessionForOpen?(session: ISession, reason: SessionResourceResolveReason): Promise<void>;
@@ -229,6 +256,12 @@ export interface ISessionsProvider {
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
+
+	/**
+	 * Whether this provider participates in workspace selection for new sessions and Automations.
+	 * Defaults to true; opting out does not prevent resolution of existing session workspaces.
+	 */
+	readonly supportsWorkspaceSelection?: boolean;
 
 	/**
 	 * Whether this provider can resolve and run sessions against local file-system workspaces.
@@ -250,6 +283,8 @@ export interface ISessionsProvider {
 	readonly usesCombinedNewSessionConfigPicker?: boolean;
 	/** Whether model-specific configuration can be scoped to a newly created draft. */
 	readonly supportsModelConfigurationForCreation?: boolean;
+	/** Exact permission choices available while creating the given session type. */
+	getPermissionOptionsForCreation?(sessionTypeId: string): readonly ISessionPermissionOption[];
 	/** Whether Automation configuration can be restored at draft creation and captured through `getAutomationSessionConfiguration`. */
 	readonly supportsAutomationSessionConfiguration?: boolean;
 
@@ -259,7 +294,7 @@ export interface ISessionsProvider {
 	 */
 	readonly onDidChangeCapabilities?: Event<void>;
 
-	/** Provider-owned Automation entities, persistence, and run history. */
+	/** Provider-owned Automation entities, persistence, and run history; absent for providers that do not participate in Automations. */
 	readonly automations?: ISessionsProviderAutomations;
 
 	/**
@@ -329,7 +364,7 @@ export interface ISessionsProvider {
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
-	/** Model preferences scoped to an Automation draft rather than the ordinary New Session defaults. */
+	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
 
 	/**

@@ -85,7 +85,7 @@ Subclasses implement `_discoverPluginSources()` to determine *which* plugin URIs
 
 **MarketplaceAgentPluginDiscovery** — resolves entries from `IPluginMarketplaceService.installedPlugins`, publishes only targets that still exist as directories, and delegates exact-URI removal and source cleanup to `IPluginInstallService`.
 
-**CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. CLI-owned plugins are not removable through VS Code because install, update, and uninstall are transactions coordinated by the CLI's cross-process lock and state writer.
+**CopilotCliAgentPluginDiscovery** — reads the Copilot CLI-managed `installedPlugins` records from `~/.copilot/config.json` and resolves their committed `cache_path` values. A correlated non-recursive watcher observes only the state file (or its nearest existing ancestor before first launch), and unchanged inventories are suppressed. CLI plugin entries do not create watchers inside their cache directories, so the CLI can atomically replace them on Windows. Uninstall delegates to the Copilot SDK so the runtime's cross-process lock and state writer own the complete transaction; direct installs carry the runtime-compatible opaque source ID needed to disambiguate same-name sources, and VS Code never deletes CLI-owned cache directories directly.
 
 ### Plugin Formats
 
@@ -96,7 +96,7 @@ Four format adapters share the discovery surface:
 | Manifest | `plugin.json` with the exact Agent Plugins v1 schema | `plugin.json` | `.claude-plugin/plugin.json` | `.plugin/plugin.json` |
 | Portable components | `skills/*/SKILL.md`, `mcp.json` | Host-specific components | Host-specific components | Open Plugin components |
 | Hooks config | `com.github.copilot/hooks/hooks.json` client extension | `hooks.json` | `hooks/hooks.json` | `hooks/hooks.json` |
-| Special handling | Compatible schema recognition, portable fixed paths, Copilot client extensions, package containment, and `${PLUGIN_ROOT}` in Copilot hooks | Legacy permissive behavior and `${PLUGIN_ROOT}` hook replacement | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
+| Special handling | Compatible schema recognition, portable fixed paths, Copilot client extensions, package containment, `${PLUGIN_ROOT}` in Copilot hooks, and Agent Plugin MCP path semantics | Legacy permissive behavior and `${PLUGIN_ROOT}` hook replacement | `${CLAUDE_PLUGIN_ROOT}` token replacement | `${PLUGIN_ROOT}` token replacement |
 
 Auto-detection first reads root `plugin.json`. The Agent adapter is selected when `$schema` uses the `agent-plugins.org` plugin schema namespace. Compatible schema revisions are accepted and known usable fields are read without rejecting unknown or malformed optional metadata. An Agent manifest wins over coexisting legacy metadata. Otherwise `.plugin/plugin.json` selects Open Plugin, a Claude path or manifest selects Claude, and the remaining packages use the Copilot adapter.
 
@@ -165,11 +165,13 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 
 | Kind | Provisioning | Cache path |
 |------|-------------|------------|
-| `RelativePath` | No-op (lives inside marketplace repo) | `<cacheRoot>/github.com/<owner>/<repo>/<path>` |
+| `RelativePath` | No-op (lives inside marketplace repo) | `<marketplaceRepository>/<path>` |
 | `GitHub` | `git clone` / `git pull` | `<cacheRoot>/github.com/<owner>/<repo>[/ref_<ref>]` |
 | `GitUrl` | `git clone` / `git pull` | `<cacheRoot>/<host>/<path>[/ref_<ref>]` |
 | `Npm` | `npm install` in terminal | `<cacheRoot>/npm/<sanitized-package>/` |
 | `Pip` | `pip install` in terminal | `<cacheRoot>/pip/<package>/` |
+
+Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific marketplace repositories use the isolated `<cacheRoot>/.marketplace-repositories/<host>/<path>/ref_<ref>` namespace so one cache variant cannot delete another. Storage-indexed legacy locations remain usable while valid.
 
 ## Configuration & Storage Keys
 

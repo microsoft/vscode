@@ -81,7 +81,6 @@
     "onStartupFinished",
     "onLanguageModelChat:copilot",
     "onUri",
-    "onCommand:_github.copilot.chat.reportHarnessSwitchFeedbackSurvey",
     "onCommand:_github.copilot.chat.reportModelFeedbackSurvey",
     "onFileSystem:ccreq",
     "onFileSystem:ccsettings"
@@ -4439,6 +4438,10 @@
                 "family": {
                   "type": "string",
                   "description": "Alias the model's family for capability routing (e.g. 'claude-opus-4.7')."
+                },
+                "thinkingInHistory": {
+                  "type": "boolean",
+                  "description": "%github.copilot.config.thinkingInHistory%"
                 }
               },
               "additionalProperties": false
@@ -6901,6 +6904,7 @@
       },
       {
         "path": "./assets/prompts/skills/create-canvas/SKILL.md",
+        "when": "config.chat.canvases.enabled",
         "sessionTypes": [
           "copilotcli"
         ]

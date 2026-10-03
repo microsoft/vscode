@@ -5,26 +5,24 @@
 
 import { getClientArea } from '../../base/browser/dom.js';
 import { mainWindow } from '../../base/browser/window.js';
-import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
+import { isMobile, isWeb } from '../../base/common/platform.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { DOCK_DETAIL_PANEL_SETTING } from '../common/sessionConfig.js';
-import { SinglePaneWorkbench } from './singlePaneWorkbench.js';
-import { IWorkbenchOptions, Workbench } from './workbench.js';
+import { MobileWorkbench } from './mobileWorkbench.js';
+import { DesktopWorkbench } from './desktopWorkbench.js';
+import { AgentWorkbenchLayout, IWorkbenchOptions, Workbench } from './workbench.js';
+
+export function getSessionsWorkbenchLayout(viewportWidth: number, platform = { isWeb, isMobile }): AgentWorkbenchLayout {
+	return platform.isWeb && platform.isMobile && viewportWidth < 640 ? AgentWorkbenchLayout.Mobile : AgentWorkbenchLayout.Desktop;
+}
 
 /**
- * Creates the Agents window workbench, choosing the single-pane variant when the
- * detail-panel setting is enabled on a non-phone viewport. Fixed at construction —
- * toggling the setting requires a window reload.
+ * Creates the Agents window workbench. Non-phone windows always use the
+ * desktop variant; phones use the dedicated mobile workbench.
  */
 export function createSessionsWorkbench(parent: HTMLElement, options: IWorkbenchOptions | undefined, serviceCollection: ServiceCollection, logService: ILogService): Workbench {
-	const configurationService = serviceCollection.get(IConfigurationService);
-	const isPhoneLayout = getClientArea(mainWindow.document.body).width < 640;
-	const singlePane = !(configurationService instanceof SyncDescriptor)
-		&& !isPhoneLayout
-		&& configurationService.getValue<boolean>(DOCK_DETAIL_PANEL_SETTING) === true;
-	return singlePane
-		? new SinglePaneWorkbench(parent, options, serviceCollection, logService)
-		: new Workbench(parent, options, serviceCollection, logService);
+	const layout = getSessionsWorkbenchLayout(getClientArea(mainWindow.document.body).width);
+	return layout === AgentWorkbenchLayout.Mobile
+		? new MobileWorkbench(parent, options, serviceCollection, logService)
+		: new DesktopWorkbench(parent, options, serviceCollection, logService);
 }

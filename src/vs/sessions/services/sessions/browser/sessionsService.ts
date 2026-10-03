@@ -961,10 +961,6 @@ export class SessionsService extends Disposable implements ISessionsService {
 				return;
 			}
 			const sessionData = this._getSession(resolved);
-			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
-			if (token.isCancellationRequested) {
-				return;
-			}
 			this._applyActiveChatSelection(sessionData, options);
 			this.sessionOpenTelemetryService.sessionResolved(
 				telemetryAttempt,
@@ -973,7 +969,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 				this.activeSession.get()?.sessionId === sessionData.sessionId,
 				sessionData.loading.get(),
 			);
+			// Mount the chat before connecting so its existing loading and recovery UI can render.
 			this._showSession(sessionData, options);
+			await this.sessionsProvidersService.getProvider(sessionData.providerId)?.prepareSessionForOpen?.(sessionData, 'open');
+			if (token.isCancellationRequested) {
+				return;
+			}
 			await this._waitForOpenSessionToLoad(sessionData, token, telemetryAttempt);
 		});
 	}

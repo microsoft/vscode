@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableFromEvent } from '../../../../../base/common/observable.js';
+import { constObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -21,6 +22,16 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
  * session is real, addressable, and unknown to the host all at once.
  */
 export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvider {
+	override get environment() {
+		return { id: 'cloud', label: localize('environment.cloud', "Cloud") };
+	}
+
+	readonly supportsWorkspaceSelection = false;
+
+	/** Sandboxes are per-session environments, not persistent Automation hosts. */
+	override get automations(): undefined { return undefined; }
+
+	private _taskRenameHandler: { readonly rawId: string; readonly rename: (title: string) => Promise<void> } | undefined;
 
 	/**
 	 * Provisional sessions kept out of {@link getSessions} because the caller is still showing a
@@ -42,6 +53,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return {
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
+			useSessionTitleForDefaultChat: true,
 			externalSessionState: (resource: URI, store: DisposableStore) => {
 				const key = this._localSessionStorageKey(AgentSession.id(resource));
 				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
@@ -49,8 +61,8 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 						this._storageService.store(key, true, StorageScope.PROFILE, StorageTarget.MACHINE);
 					}
 				}));
-				return observableFromEvent(this, this._storageService.onDidChangeValue(StorageScope.PROFILE, key, store),
-					() => !this._storageService.getBoolean(key, StorageScope.PROFILE, false));
+				// Preserve profile-local provenance without exposing sandbox sessions as external.
+				return constObservable(false);
 			},
 		};
 	}
@@ -59,16 +71,37 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		return `sessions.cloudSandbox.localSession.${this.id}.${rawId}`;
 	}
 
-	override async importSession(sessionId: string): Promise<void> {
-		await super.importSession(sessionId);
-		const rawId = this._rawIdFromChatId(sessionId);
-		if (rawId) {
-			this._storageService.store(this._localSessionStorageKey(rawId), true, StorageScope.PROFILE, StorageTarget.MACHINE);
-		}
-	}
-
 	protected override _resolveArchivedState(rawId: string, isArchived: boolean): boolean {
 		return this._sessionCache.get(rawId)?.isArchived.get() ?? isArchived;
+	}
+
+	/** Bind the discovered session's Mission Control rename operation. */
+	setTaskRenameHandler(rawId: string, rename: (title: string) => Promise<void>): void {
+		this._taskRenameHandler = { rawId, rename };
+	}
+
+	override async renameSession(sessionId: string, title: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const session = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (!session || !rawId) {
+			throw new Error(localize('cloudSandbox.sessionNotFound', "Sandbox session not found."));
+		}
+		const handler = this._taskRenameHandler;
+		if (handler?.rawId !== rawId) {
+			if (!this.connection) {
+				throw new Error(localize('cloudSandbox.renameUnavailable', "Connect to the environment to rename this session."));
+			}
+			return super.renameSession(sessionId, title);
+		}
+		await handler.rename(title);
+		if (this._store.isDisposed || this._sessionCache.get(rawId) !== session) {
+			throw new CancellationError();
+		}
+		if (this.connection) {
+			return super.renameSession(sessionId, title);
+		}
+		session.title.set(title, undefined);
+		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
 	override async archiveSession(sessionId: string): Promise<void> {
@@ -138,6 +171,16 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 
 	getSessionModifiedTime(rawId: string): number | undefined {
 		return this.getCachedSession(rawId)?.updatedAt.get().getTime();
+	}
+
+	removeDeletedSession(rawId: string): void {
+		const session = this._removeCachedSession(rawId);
+		this._withheldSessions.delete(rawId);
+		this._provisionalSessions.delete(rawId);
+		if (session) {
+			this._onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+			session.dispose();
+		}
 	}
 
 	override getSessions(): ISession[] {

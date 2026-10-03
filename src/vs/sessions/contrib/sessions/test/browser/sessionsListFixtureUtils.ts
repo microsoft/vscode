@@ -60,7 +60,7 @@ import { ILifecycleService, LifecyclePhase } from '../../../../../workbench/serv
 import { ComponentFixtureContext, ComponentFixtureOptions, createEditorServices, defineComponentFixture, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../common/contextkeys.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
@@ -70,6 +70,7 @@ import { ISessionsProvidersService } from '../../../../services/sessions/browser
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsWindowUsageService } from '../../../../services/sessions/browser/sessionsWindowUsageService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { buildTestSession, ITestChat, ITestChatSpec, ITestSession, ITestSessionSpec } from '../../../../services/sessions/test/common/testSessionBuilder.js';
 import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/browser/blockedSessions.js';
@@ -138,7 +139,6 @@ export interface ISessionsListFixtureView {
 	readonly expanded?: readonly SessionsListFixtureRow[];
 	/** Defaults to whether any session is archived. */
 	readonly showArchived?: boolean;
-	readonly showEmptyGroups?: boolean;
 	readonly reducedMotion?: boolean;
 }
 
@@ -167,9 +167,9 @@ export interface ISessionsListFixtureHeader {
 	readonly newSessionButtonTreatment?: NewSessionButtonStyle;
 	readonly automations?: boolean;
 	readonly automationRunStatus?: IAutomationRun['status'];
-	/** Shows Automations and Customizations as navigation rows above the Sessions header. */
+	/** Shows New Session, Automations, and Customizations as navigation rows above the Sessions header. */
 	readonly navigationShortcuts?: boolean;
-	/** Count shown on the Customizations navigation row. */
+	/** Customization count exposed in the navigation row's accessibility label. */
 	readonly customizationsCount?: number;
 	/** Shows the Customizations navigation row's migrations-available indicator. */
 	readonly customizationMigrationsAvailable?: boolean;
@@ -341,7 +341,11 @@ class SessionsListFixtureMenuService extends MenuService {
 	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
 		if (id === Menus.SidebarSessionsHeader) {
 			const newSession = new MenuItemAction({ id: NEW_SESSION_ACTION_ID, title: 'New Session' }, undefined, undefined, undefined, undefined, contextKeyService, this.commandService);
-			return { onDidChange: Event.None, getActions: () => [['navigation', [newSession]]], dispose: () => { } };
+			return {
+				onDidChange: Event.None,
+				getActions: () => SessionsListRearrangeContext.getValue(contextKeyService) ? [] : [['navigation', [newSession]]],
+				dispose: () => { },
+			};
 		}
 		const menu = super.createMenu(id, contextKeyService, options);
 		return {
@@ -573,7 +577,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}());
 	const automationRuns = observableValue<readonly IAutomationRun[]>('fixtureAutomationRuns', []);
 	const newSessionButtonStyle = header?.newSessionButtonStyle ?? header?.newSessionButtonTreatment;
-	const newSessionKeybinding = newSessionButtonStyle ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
+	const newSessionKeybinding = newSessionButtonStyle || header?.navigationShortcuts ? createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyCode.KeyN, OS) : undefined;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
@@ -657,6 +661,11 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() {
 				override readonly extUri = new ExtUri(() => true);
 			}());
+			reg.defineInstance(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
+				override readonly comparisons = constObservable([]);
+				override getComparison() { return undefined; }
+				override getComparisonForSession() { return undefined; }
+			}());
 			reg.defineInstance(ICustomViewService, new class extends mock<ICustomViewService>() {
 				override readonly activeCustomView = constObservable(undefined);
 				override hideCustomView(): void { }
@@ -682,6 +691,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -729,23 +739,15 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	let listParent = container;
-	let createSessionsHeader: ((container: HTMLElement, disposables: DisposableStore) => HTMLElement) | undefined;
+	let navigationContainer: HTMLElement | undefined;
 	if (header) {
 		container.classList.add('agent-sessions-viewpane', 'agent-sessions-section');
 		const content = DOM.append(container, DOM.$('.agent-sessions-content'));
+		navigationContainer = DOM.append(content, DOM.$('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(content, DOM.$('.agent-sessions-header-container'));
 		disposableStore.add(instantiationService.createInstance(NewSessionActionViewItemContribution));
 		const renderedHeader = renderSessionsHeader(sessionsHeaderContainer, false, instantiationService, contextKeyService, disposableStore);
 		renderedHeader.toolbar?.refresh();
-		// Like the Sessions view, render the header inside the tree when the navigation rows lead it.
-		createSessionsHeader = (headerContainer, disposables) => {
-			const treeHeader = renderSessionsHeader(headerContainer, false, instantiationService, contextKeyService, disposables);
-			treeHeader.toolbar?.refresh();
-			return treeHeader.row;
-		};
-		if (header.navigationShortcuts) {
-			DOM.hide(renderedHeader.row);
-		}
 		listParent = content;
 	}
 	const listHost = DOM.append(listParent, DOM.$(header ? '.agent-sessions-control-container' : 'div'));
@@ -760,15 +762,12 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
-		createSessionsHeader,
+		navigationContainer,
 		onSessionOpen: () => { },
 		approvalModel,
 	}));
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
-	}
-	if (view.showEmptyGroups !== undefined) {
-		list.setShowEmptyGroups(view.showEmptyGroups);
 	}
 	list.layout(height, width);
 	if (view.collapsed === 'all') {
@@ -847,7 +846,11 @@ async function renderHeaderState(list: SessionsList, container: HTMLElement, ins
 			affectsConfiguration: configuration => configuration === NEW_SESSION_BUTTON_STYLE_SETTING,
 		});
 	}
-	if (!container.querySelector('.agent-sessions-compact-new-button')) {
+	const newSessionButton = container.querySelector('.agent-sessions-compact-new-button');
+	if (header.navigationShortcuts && newSessionButton) {
+		throw new Error('Expected the experimental navigation to replace the Sessions header New Session action.');
+	}
+	if (!header.navigationShortcuts && !newSessionButton) {
 		throw new Error('Expected the production New Session action in the Sessions header.');
 	}
 	const style = header.newSessionButtonStyle ?? header.newSessionButtonTreatment;

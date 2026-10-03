@@ -120,8 +120,8 @@ suite('ChatUserInteractionTelemetry', () => {
 		assert.deepStrictEqual({ events: h.events, logs: h.logs, finished, observing: response.hasListeners() }, {
 			events: [{ name: 'chat.userPerceivedTimeToFirstProgress', data }],
 			logs: [
-				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn' }] },
-				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data }] },
+				{ message: '[ChatTTFP] start', args: [{ interactionId: timer.id, interactionKind: 'turn', epochMs: performance.timeOrigin + 100 }] },
+				{ message: '[ChatTTFP] end', args: [{ interactionId: timer.id, ...data, epochMs: performance.timeOrigin + 350 }] },
 			],
 			finished: 1, observing: false,
 		});

@@ -12,7 +12,6 @@ import { localize } from '../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { ILogService } from '../../log/common/log.js';
 import { IPathService } from '../../path/common/pathService.js';
-import { AgentSession } from '../common/agent.js';
 import { IAgentConnection, IAgentHostService } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, IAgentHostSessionResolutionPolicy, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
@@ -141,14 +140,21 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return connection ? { ...identity, connection } : undefined;
 	}
 
+	getSessionResource(backendSession: URI, authority = AMBIENT_AGENT_HOST_AUTHORITY): URI {
+		const backend = backendSession.scheme;
+		const alias = this._sessionResolutionPolicies.get(authority)?.sessionSchemeAlias;
+		const provider = alias && alias.backend === backend ? alias.ui : backend;
+		const prefix = authority === AMBIENT_AGENT_HOST_AUTHORITY ? LOCAL_AGENT_HOST_SCHEME_PREFIX : remoteAgentHostSessionTypeAuthorityPrefix(authority);
+		return backendSession.with({ scheme: `${prefix}${provider}` });
+	}
+
 	resolveSessionResourceIdentity(sessionResource: URI): IAgentHostSessionIdentity | undefined {
 		const scheme = sessionResource.scheme;
-		const rawSessionId = sessionResource.path.substring(1);
 
 		if (scheme.startsWith(LOCAL_AGENT_HOST_SCHEME_PREFIX)) {
 			const provider = scheme.substring(LOCAL_AGENT_HOST_SCHEME_PREFIX.length);
 			return provider
-				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, rawSessionId)
+				? this._createSessionIdentity(AMBIENT_AGENT_HOST_AUTHORITY, provider, sessionResource)
 				: undefined;
 		}
 
@@ -164,7 +170,7 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 			if (authority) {
 				const provider = scheme.substring(remoteAgentHostSessionTypeAuthorityPrefix(authority).length);
 				if (provider) {
-					return this._createSessionIdentity(authority, provider, rawSessionId);
+					return this._createSessionIdentity(authority, provider, sessionResource);
 				}
 			}
 		}
@@ -172,13 +178,14 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return undefined;
 	}
 
-	private _createSessionIdentity(authority: string, provider: string, rawSessionId: string): IAgentHostSessionIdentity {
+	private _createSessionIdentity(authority: string, provider: string, sessionResource: URI): IAgentHostSessionIdentity {
 		const policy = this._sessionResolutionPolicies.get(authority);
 		const alias = policy?.sessionSchemeAlias;
 		const backendProvider = alias?.ui === provider ? alias.backend : provider;
 		return {
 			connectionAuthority: authority,
-			backendSession: AgentSession.uri(backendProvider, rawSessionId),
+			...(policy?.connectionAddress !== undefined ? { connectionAddress: policy.connectionAddress } : {}),
+			backendSession: sessionResource.with({ scheme: backendProvider }),
 			defaultChangesetKind: policy?.defaultChangesetKind,
 		};
 	}

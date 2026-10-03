@@ -54,10 +54,13 @@ const updateSendButtonState = Reflect.get(NewChatInputWidget.prototype, '_update
 const updateInitializationLoadingState = Reflect.get(NewChatInputWidget.prototype, '_updateInitializationLoadingState') as (this: IInitializationLoadingHarness, loading: boolean) => void;
 const setLoadingSpinnerVisible = Reflect.get(NewChatInputWidget.prototype, '_setLoadingSpinnerVisible') as (this: ILoadingSpinnerHarness, visible: boolean) => void;
 const setInputEditorFocused = Reflect.get(NewChatInputWidget.prototype, '_setInputEditorFocused') as (container: HTMLElement, focused: boolean) => void;
+const getInputValue = Reflect.get(NewChatInputWidget.prototype, 'getInputValue') as (this: IInputValueHarness) => string;
+const setInputValue = Reflect.get(NewChatInputWidget.prototype, 'setInputValue') as (this: IInputValueHarness, value: string) => void;
+const clearInputOnSendStart = Reflect.get(NewChatInputWidget.prototype, '_clearInputOnSendStart') as (this: IClearInputOnSendStartHarness, rawQuery: string) => (() => void) | undefined;
 const showContextPicker = Reflect.get(NewChatInputWidget.prototype, '_showContextPicker') as (this: IContextPickerHarness) => void;
 const showAttachmentPicker = Reflect.get(NewChatContextAttachments.prototype, 'showPicker') as (this: IAttachmentPickerHarness, folderUri?: URI, contextActions?: readonly IWorkspacePickerContextAction[], anchor?: HTMLElement) => void;
 const updateAttachmentRendering = Reflect.get(NewChatContextAttachments.prototype, '_updateRendering') as (this: IAttachmentRenderingHarness) => void;
-const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon }[]) => readonly { label?: string; type?: string }[];
+const getStaticContextPicks = Reflect.get(NewChatContextAttachments.prototype, '_getStaticPicks') as (contextActions: readonly { label: string; icon: ThemeIcon; placement?: 'top' }[]) => readonly { label?: string; type?: string }[];
 
 interface IDraftStateHarness {
 	readonly storageService: {
@@ -139,6 +142,30 @@ interface IInitializationLoadingHarness {
 	readonly _initializationLoadingDelayDisposable: MutableDisposable<IDisposable>;
 	readonly options: {
 		readonly loading: { get(): boolean };
+	};
+}
+
+interface IInputValueHarness {
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+			getLineCount(): number;
+			getLineMaxColumn(lineNumber: number): number;
+		} | null;
+		setPosition(position: { lineNumber: number; column: number }): void;
+	};
+}
+
+interface IClearInputOnSendStartHarness {
+	readonly options: {
+		clearInputOnSendStart?: () => boolean;
+	};
+	readonly _editor: {
+		getModel(): {
+			getValue(): string;
+			setValue(value: string): void;
+		} | null;
 	};
 }
 
@@ -225,6 +252,51 @@ class InputModelReferenceHarness implements IInputModelReferenceHarness, IDispos
 
 suite('NewChatInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('gets and sets the composer input without moving focus', () => {
+		let value = 'Initial prompt';
+		let position: { lineNumber: number; column: number } | undefined;
+		const harness: IInputValueHarness = {
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+					getLineCount: () => 2,
+					getLineMaxColumn: () => 8,
+				}),
+				setPosition: newPosition => position = newPosition,
+			},
+		};
+
+		setInputValue.call(harness, 'Updated\nprompt');
+
+		assert.deepStrictEqual({
+			value: getInputValue.call(harness),
+			position,
+		}, {
+			value: 'Updated\nprompt',
+			position: { lineNumber: 2, column: 8 },
+		});
+	});
+
+	test('clears comparison input immediately and restores it after a failed send', () => {
+		let value = 'Compare these approaches';
+		const harness: IClearInputOnSendStartHarness = {
+			options: { clearInputOnSendStart: () => true },
+			_editor: {
+				getModel: () => ({
+					getValue: () => value,
+					setValue: newValue => value = newValue,
+				}),
+			},
+		};
+
+		const restore = clearInputOnSendStart.call(harness, value);
+		assert.deepStrictEqual({ value, canRestore: !!restore }, { value: '', canRestore: true });
+
+		restore?.();
+		assert.strictEqual(value, 'Compare these approaches');
+	});
 
 	test('exposes the scoped model control', () => {
 		const modelPickers = new NewChatModelPickerService();
@@ -779,8 +851,12 @@ suite('NewChatInputWidget', () => {
 		});
 	});
 
-	test('orders native attachment picks before provider context actions', () => {
+	test('orders top context actions before native attachment picks and remaining context actions', () => {
 		const picks = getStaticContextPicks([{
+			label: 'Agent...',
+			icon: Codicon.agent,
+			placement: 'top',
+		}, {
 			label: 'Issue...',
 			icon: Codicon.issues,
 		}, {
@@ -789,6 +865,8 @@ suite('NewChatInputWidget', () => {
 		}]);
 
 		assert.deepStrictEqual(picks.map(pick => pick.label ?? pick.type), [
+			'Agent...',
+			'separator',
 			'Files...',
 			'Image from Clipboard',
 			'separator',

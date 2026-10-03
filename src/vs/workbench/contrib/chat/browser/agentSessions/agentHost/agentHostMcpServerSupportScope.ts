@@ -101,15 +101,15 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 		case AgentHostMcpSupportReason.WorkingDirectoryNotPortable:
 			return localize('mcpCompatibilityWorkingDirectoryNotPortable', "Working directory settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, remove the cwd property.");
 		case AgentHostMcpSupportReason.GalleryMetadataNotPortable:
-			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the gallery property.");
+			return localize('mcpCompatibilityGalleryMetadataNotPortable', "Gallery metadata isn't supported. Migrating removes it and stops registry updates.");
 		case AgentHostMcpSupportReason.ServerVersionNotPortable:
-			return localize('mcpCompatibilityServerVersionNotPortable', "Server version metadata cannot be migrated to the destination MCP configuration.\nTo migrate this server, remove the version property.");
+			return localize('mcpCompatibilityServerVersionNotPortable', "Version metadata isn't supported. Migrating removes it; version pins are kept.");
 		case AgentHostMcpSupportReason.SseTransportNotPortable:
 			return localize('mcpCompatibilitySseTransportNotPortable', "SSE transport settings cannot be migrated to the workspace root .mcp.json file.\nTo migrate this server, use the default HTTP transport.");
 		case AgentHostMcpSupportReason.SandboxConfigurationIgnored:
-			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandbox settings are not supported by the Copilot harness.\nTo migrate this server, remove the server sandbox setting.");
+			return localize('mcpCompatibilitySandboxConfigurationIgnored', "Per-server sandboxing isn't supported. Migrating removes sandboxEnabled.");
 		case AgentHostMcpSupportReason.DevelopmentModeIgnored:
-			return localize('mcpCompatibilityDevelopmentModeIgnored', "MCP development mode is not supported by the Copilot harness.\nTo migrate this server, remove the development mode setting and restart the server manually after configuration changes.");
+			return localize('mcpCompatibilityDevelopmentModeIgnored', "Development mode isn't supported. Migrating removes dev.");
 		case AgentHostMcpSupportReason.OAuthClientConfigurationIgnored:
 			return localize('mcpCompatibilityOAuthClientConfigurationIgnored', "Custom OAuth client configuration is not supported by the Copilot harness.\nTo migrate this server, remove the custom OAuth client configuration and sign in when the Copilot harness prompts for authentication.");
 		case AgentHostMcpSupportReason.DefinitionNotLoaded:

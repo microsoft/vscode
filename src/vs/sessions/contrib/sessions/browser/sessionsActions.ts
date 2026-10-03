@@ -36,7 +36,7 @@ import { IViewsService } from '../../../../workbench/services/views/common/views
 import { getQuickNavigateHandler, inQuickPickContext } from '../../../../workbench/browser/quickaccess.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionsCategories } from '../../../common/categories.js';
-import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
+import { CanGoBackContext, CanGoForwardContext, SessionProviderIdContext, MultipleSessionsVisibleContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsMaximizedContext, SessionIsStickyContext, SessionsFocusContext, SessionSupportsMultipleChatsContext, SessionSupportsRenameContext, SessionsWelcomeVisibleContext, SessionIdContext, SessionHasMultipleCommittedChatsContext, SessionHasMultipleOpenChatsContext, SessionsPickerVisibleContext, SessionActiveChatIsClosableContext, SessionFocusedChatIsRenameTargetContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext, SessionChatsPickerVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatResourceContext, SessionsTitleBarNewSessionEnabledContext, SessionsEditorScopeContext, SessionsHasClosedItemContext, IsNewChatSessionContext, IsQuickChatSessionContext, SessionsListPromoteNewChatActionContext, SessionHeaderActiveChatIsPinnedContext, SessionHeaderShowsChatContext, SessionHeaderTargetsChatContext, SessionItemIsMultiSelectionContext, IsPhoneLayoutContext, SessionToolbarShowsSessionContext } from '../../../common/contextkeys.js';
 import { ANY_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
 import { ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../common/sessionCommands.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -717,13 +717,19 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 		super({
 			id: 'sessions.list.deleteChat',
 			title: localize2('deleteChat', "Delete..."),
+			icon: Codicon.trash,
 			f1: false,
-			menu: {
+			menu: [{
 				id: Menus.SessionChatItemContext,
 				group: '2_delete',
 				order: 1,
 				when: SessionChatItemCanDeleteContext,
-			},
+			}, {
+				id: Menus.SessionChatItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ContextKeyExpr.and(SessionChatItemCanDeleteContext, SessionChatItemIsUntitledContext),
+			}],
 		});
 	}
 
@@ -731,18 +737,22 @@ registerAction2(class DeleteSessionListChatAction extends Action2 {
 		if (!context || !getChatCapabilities(context.chat, context.session, undefined).canDelete) {
 			return;
 		}
-		await accessor.get(ISessionsManagementService).deleteChat(context.session, context.chat.resource);
+		await accessor.get(ISessionsManagementService).deleteChat(
+			context.session,
+			context.chat.resource,
+			context.chat.status.get() === SessionStatus.Untitled ? { skipConfirmation: true } : undefined,
+		);
 	}
 });
 
-// "New Chat in This Session" starts a new chat from the session header's overflow menu.
+// "New Nested Session" starts a nested session from the Sessions list.
 const ADD_CHAT_TO_SESSION_ACTION_ID = 'sessions.chatCompositeBar.addChat';
 
 registerAction2(class AddChatToSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: ADD_CHAT_TO_SESSION_ACTION_ID,
-			title: localize2('chatCompositeBar.addChat', "New Chat in This Session"),
+			title: localize2('chatCompositeBar.addChat', "New Nested Session"),
 			icon: Codicon.add,
 			precondition: SessionItemIsMultiSelectionContext.negate(),
 			keybinding: {
@@ -754,12 +764,6 @@ registerAction2(class AddChatToSessionAction extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyT,
 			},
 			menu: [{
-				id: Menus.SessionBarToolbar,
-				// Keep New Chat visually separate from the Side Chats submenu.
-				group: 'secondary/3_newChat',
-				order: 10,
-				when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext, IsQuickChatSessionContext.negate(), SessionIsArchivedContext.negate()),
-			}, {
 				id: Menus.SessionItemToolbar,
 				group: 'navigation',
 				order: 1,
@@ -919,6 +923,18 @@ registerAction2(class CloseChatAction extends Action2 {
 	}
 });
 
+MenuRegistry.appendMenuItem(Menus.SessionBarToolbar, {
+	command: {
+		id: CLOSE_CHAT_COMMAND_ID,
+		title: localize('closeChatGroup', "Close"),
+		tooltip: localize('closeChatGroupTooltip', "Close Chat Group"),
+		icon: Codicon.close,
+	},
+	when: ContextKeyExpr.and(SessionHeaderShowsChatContext, SessionActiveChatIsClosableContext),
+	group: 'navigation',
+	order: 30,
+});
+
 registerAction2(class CloseAllChatsAction extends Action2 {
 	constructor() {
 		super({
@@ -976,6 +992,7 @@ registerAction2(class DeleteChatAction extends Action2 {
 		super({
 			id: 'sessions.chatCompositeBar.deleteChat',
 			title: localize2('deleteActiveChat', "Delete Chat"),
+			icon: Codicon.trash,
 			f1: true,
 			category: SessionsCategories.Sessions,
 			keybinding: {
@@ -990,22 +1007,37 @@ registerAction2(class DeleteChatAction extends Action2 {
 					secondary: [KeyCode.Delete],
 				},
 			},
+			menu: [{
+				id: Menus.SessionBarToolbar,
+				group: 'secondary/1_session',
+				order: 30,
+				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext),
+			}, {
+				id: Menus.SessionHeaderContext,
+				group: '2_edit',
+				order: 2,
+				when: ContextKeyExpr.and(SessionHeaderTargetsChatContext, SessionActiveChatIsDeletableContext, SessionActiveChatIsUntitledContext),
+			}],
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, session?: IActiveSession, chat?: IChat): Promise<void> {
 		const sessionsService = accessor.get(ISessionsService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const session = sessionsService.activeSession.get();
+		session ??= sessionsService.activeSession.get();
 		if (!session) {
 			return;
 		}
-		const chat = session.activeChat.get();
+		chat ??= session.activeChat.get();
 		// The main chat and worker (subagent) chats report `canDelete: false`.
 		if (!chat || !getChatCapabilities(chat, session, undefined).canDelete) {
 			return;
 		}
-		await sessionsManagementService.deleteChat(session, chat.resource);
+		await sessionsManagementService.deleteChat(
+			session,
+			chat.resource,
+			chat.status.get() === SessionStatus.Untitled ? { skipConfirmation: true } : undefined,
+		);
 	}
 });
 
@@ -1103,12 +1135,15 @@ function openChatsPicker(accessor: ServicesAccessor, mru?: { readonly backward: 
 		readonly chat: IChat;
 	}
 
-	const toItem = (chat: IChat): IChatPickItem => ({
-		label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
-		description: fromNow(chat.updatedAt.get(), true, true),
-		iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
-		chat,
-	});
+	const toItem = (chat: IChat): IChatPickItem => {
+		const updatedAt = chat.updatedAt.get();
+		return {
+			label: chat.title.get()?.trim() || localize('untitledChat', "Untitled Chat"),
+			...(updatedAt ? { description: fromNow(updatedAt, true, true) } : {}),
+			iconClass: ThemeIcon.asClassName(Codicon.commentDiscussion),
+			chat,
+		};
+	};
 
 	// MRU mode cycles every open tab (including in-composer drafts) so the set of
 	// switchable chats matches the SessionHasMultipleOpenChatsContext gate. The
@@ -1891,6 +1926,7 @@ registerAction2(class CloseSessionAction extends Action2 {
 		super({
 			id: CLOSE_SESSION_COMMAND_ID,
 			title: localize2('chatCompositeBar.close', "Close"),
+			tooltip: localize2('chatCompositeBar.closeTooltip', "Close Session"),
 			icon: Codicon.close,
 			keybinding: {
 				weight: KeybindingWeight.SessionsContrib,
@@ -1904,6 +1940,14 @@ registerAction2(class CloseSessionAction extends Action2 {
 				win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			},
 			menu: [{
+				id: Menus.SessionBarToolbar,
+				when: ContextKeyExpr.and(
+					MultipleSessionsVisibleContext,
+					SessionToolbarShowsSessionContext,
+				),
+				group: 'navigation',
+				order: 30,
+			}, {
 				id: Menus.SessionBarToolbar,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(SessionIsCreatedContext, MultipleSessionsVisibleContext),

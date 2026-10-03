@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createCommandUri, isMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -17,7 +16,7 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
 import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
@@ -99,28 +98,6 @@ suite('customizationMigration', () => {
 		});
 	});
 
-	test('configured locations only groups customization types with candidates', () => {
-		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
-		const agent: IPromptPath = {
-			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
-			storage: PromptsStorage.local,
-			type: PromptsType.agent,
-			source: PromptFileSource.ConfigWorkspace,
-		};
-
-		assert.deepStrictEqual(category.group([agent]).map(group => ({
-			key: group.key,
-			label: group.label,
-			files: group.customizations
-				.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization))
-				.map(customization => customization.uri.path),
-		})), [{
-			key: PromptsType.agent,
-			label: 'Agents',
-			files: ['/workspace/.custom/agents/super.agent.md'],
-		}]);
-	});
-
 	test('presents MCP source-to-target migration without file-only behavior', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const candidate = {
@@ -134,9 +111,6 @@ suite('customizationMigration', () => {
 		} as const;
 
 		assert.deepStrictEqual({
-			presentation: category.getCandidatePresentation(candidate, uri => uri.path),
-			description: category.getPageDescription([candidate], 'Copilot'),
-			banner: category.getBanner?.([candidate], 'Copilot', undefined, []),
 			confirmation: category.getConfirmation([candidate], 'Copilot'),
 			failure: category.getMcpServerFailureMessage?.([{
 				storage: candidate.storage,
@@ -147,56 +121,43 @@ suite('customizationMigration', () => {
 				reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
 			}]),
 		}, {
-			presentation: {
-				name: 'Server',
-				selectionAriaLabel: 'Select Server from /workspace/.vscode/mcp.json',
-				pathLabel: '/workspace/.vscode/mcp.json to /workspace/.mcp.json',
-			},
-			description: 'Select the eligible MCP server to move so Copilot can discover it directly. Servers that cannot be migrated and unselected servers stay in their current files.',
-			banner: {
-				message: 'Eligible servers move from .vscode/mcp.json to .mcp.json at each workspace root so Copilot can discover them directly. Servers that cannot be migrated and unselected servers stay in their current files.',
-			},
 			confirmation: {
 				message: 'Migrate 1 MCP server to .mcp.json?',
-				detail: 'Selected entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated and unselected entries stay in place.',
+				detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
 				primaryButton: 'Migrate',
 			},
 			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
 		});
 	});
 
-	test('configured locations banner links to affected settings', () => {
+	test('configured locations copy explains harness discovery and setting scope', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
-		const modifiedSettingIds = [
-			PromptsConfig.MODE_LOCATION_KEY,
-			PromptsConfig.SKILLS_LOCATION_KEY,
-		];
-		const banner = category.getBanner?.([], 'Copilot', undefined, modifiedSettingIds);
-		const message = banner?.message;
-		const settingsLinks = [
-			PromptsConfig.MODE_LOCATION_KEY,
-			PromptsConfig.SKILLS_LOCATION_KEY,
-		].map(settingId => `[${settingId}](${createCommandUri('workbench.action.openSettings', { query: `@id:${settingId}` })})`);
+		const agent: IPromptPath = {
+			uri: URI.file('/workspace/.custom/agents/super.agent.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.agent,
+			source: PromptFileSource.ConfigWorkspace,
+		};
 
-		assert.deepStrictEqual(isMarkdownString(message) ? {
+		assert.deepStrictEqual({
 			settingIds: category.configurationSettingIds,
-			value: message.value,
-			isTrusted: message.isTrusted,
-			consequence: banner?.consequence,
-		} : message, {
+			card: category.getCardDescription([agent], 'Copilot'),
+			actionAriaLabel: category.cardActionAriaLabel,
+			confirmationDetail: category.getConfirmation([agent], 'Copilot').detail,
+		}, {
 			settingIds: [
 				PromptsConfig.AGENTS_LOCATION_KEY,
 				PromptsConfig.MODE_LOCATION_KEY,
 				PromptsConfig.SKILLS_LOCATION_KEY,
 				PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 			],
-			value: `The settings ${settingsLinks[0]} and ${settingsLinks[1]} are no longer read by Copilot. Move the customizations into supported harness folders so both VS Code and Copilot can use them.`,
-			isTrusted: { enabledCommands: ['workbench.action.openSettings'] },
-			consequence: 'The option to clear unused location settings after migration is selected by default.',
+			card: 'Found 1 customization in a location observed only by the Local agent harness. Copilot picks it up when running in VS Code. Move it to a supported location for use outside VS Code.',
+			actionAriaLabel: 'Migrate customizations from VS Code-configured locations',
+			confirmationDetail: 'This moves 1 customization out of a VS Code-configured location. If all customizations that use the affected location setting migrate successfully, that setting is cleared.',
 		});
 	});
 
-	test('groups user MCP migrations separately and scopes confirmation to the selected servers', () => {
+	test('scopes MCP confirmation to the selected servers', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const user = {
 			type: CustomizationMigrationType.McpServers,
@@ -210,13 +171,9 @@ suite('customizationMigration', () => {
 		const workspace = { ...user, id: 'workspace', storage: PromptsStorage.local } as const;
 		const confirmations = [[user], [user, { ...user, id: 'secondUser' }], [user, workspace]]
 			.map(candidates => category.getConfirmation(candidates, 'Copilot'));
-		const banner = category.getBanner?.([user], 'Copilot', undefined, []);
 		assert.deepStrictEqual({
-			groups: category.group([workspace, user]).map(group => [group.label, group.customizations.map(candidate => candidate.storage)]),
 			confirmations,
-			banner: banner?.message,
 		}, {
-			groups: [['User', [PromptsStorage.user]], ['Workspace', [PromptsStorage.local]]],
 			confirmations: [
 				{
 					message: 'Migrate 1 MCP server?',
@@ -234,11 +191,27 @@ suite('customizationMigration', () => {
 					primaryButton: 'Migrate',
 				},
 			],
-			banner: 'User servers move to mcp-config.json in Copilot home, making them available across profiles and workspaces. Disabled user servers may become enabled after migration. Workspace servers move to the root .mcp.json. Unselected servers and servers that cannot be migrated stay in their current files.',
 		});
 	});
 
-	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
+	test('describes MCP property removals', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
+		const server: IMcpServerCustomizationMigrationCandidate = {
+			type: CustomizationMigrationType.McpServers,
+			storage: PromptsStorage.user,
+			id: 'changed',
+			name: 'Changed',
+			sourceUri: URI.file('/profile/mcp.json'),
+			targetUri: URI.file('/home/.copilot/mcp-config.json'),
+			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+			removedProperties: { gallery: true },
+		};
+		const warning = 'Removes \'gallery\'. Registry updates will stop.';
+
+		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
+	});
+
+	test('explains MCP target conflicts and prioritizes rollback guidance', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const failure = {
 			storage: PromptsStorage.local as const,
@@ -246,17 +219,14 @@ suite('customizationMigration', () => {
 			name: 'demo',
 			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
 			targetUri: URI.file('/secondary/.mcp.json'),
-			conflictingUri: URI.file('/primary/.mcp.json'),
-			reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict,
+			reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
 		};
 
 		assert.deepStrictEqual({
 			single: category.getMcpServerFailureMessage?.([failure]),
-			multiple: category.getMcpServerFailureMessage?.([failure, { ...failure, name: 'other' }]),
 			rollback: category.getMcpServerFailureMessage?.([failure, { ...failure, reason: McpServerCustomizationMigrationFailureReason.RollbackFailed }]),
 		}, {
-			single: 'Could not migrate \'demo\' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.',
-			multiple: 'Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.',
+			single: 'Could not migrate \'demo\' because the destination already contains a different server with that name.',
 			rollback: 'Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.',
 		});
 	});

@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { DisposableStore, DisposableTracker, IDisposable, IReference, MutableDisposable, setDisposableTracker, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { $, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
+import { getBaseLayerHoverDelegate, setBaseLayerHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate2.js';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../../../../build/vite/style.css';
 import '../../../browser/media/style.css';
@@ -174,6 +175,9 @@ sourceMapSupport.install({
  * This is useful for fixtures where we want consistent behavior without persisted state.
  */
 class NullStorageService implements IStorageService {
+
+	async readApplicationSharedValue(): Promise<string | undefined> { return undefined; }
+	async compareAndSwapApplicationSharedValue(): Promise<{ swapped: boolean; currentValue: string | undefined }> { return { swapped: false, currentValue: undefined }; }
 
 	declare readonly _serviceBrand: undefined;
 
@@ -1019,6 +1023,52 @@ export class DisposableStackStore implements IDisposable {
 	}
 }
 
+const fixtureHoverServices = new Map<HTMLElement, IHoverService>();
+let constructingFixtureHoverService: IHoverService | undefined;
+let restoreFixtureHoverDelegate: (() => void) | undefined;
+
+/** Registers scoped base-layer hover routing; the returned callback ends synchronous widget construction. */
+export function registerFixtureHoverService(container: HTMLElement, service: IHoverService, store: DisposableStore): () => void {
+	if (!restoreFixtureHoverDelegate) {
+		const fallback = getBaseLayerHoverDelegate();
+		const delegate: typeof fallback = {
+			showInstantHover: (...args) => fallback.showInstantHover(...args),
+			showDelayedHover: (...args) => fallback.showDelayedHover(...args),
+			setupDelayedHover: (...args) => fallback.setupDelayedHover(...args),
+			setupDelayedHoverAtMouse: (...args) => fallback.setupDelayedHoverAtMouse(...args),
+			hideHover: (...args) => fallback.hideHover(...args),
+			showAndFocusLastHover: () => fallback.showAndFocusLastHover(),
+			showManagedHover: target => fallback.showManagedHover(target),
+			setupManagedHover: (options, target, content, hoverOptions) => {
+				for (let element: HTMLElement | null = target; element; element = element.parentElement) {
+					const owner = fixtureHoverServices.get(element);
+					if (owner) {
+						return owner.setupManagedHover(options, target, content, hoverOptions);
+					}
+				}
+				return (constructingFixtureHoverService ?? fallback).setupManagedHover(options, target, content, hoverOptions);
+			},
+		};
+		setBaseLayerHoverDelegate(delegate);
+		restoreFixtureHoverDelegate = () => {
+			if (getBaseLayerHoverDelegate() === delegate) {
+				setBaseLayerHoverDelegate(fallback);
+			}
+		};
+	}
+	fixtureHoverServices.set(container, service);
+	store.add(toDisposable(() => {
+		fixtureHoverServices.delete(container);
+		if (fixtureHoverServices.size === 0) {
+			restoreFixtureHoverDelegate?.();
+			restoreFixtureHoverDelegate = undefined;
+		}
+	}));
+	const previous = constructingFixtureHoverService;
+	constructingFixtureHoverService = service;
+	return () => { constructingFixtureHoverService = previous; };
+}
+
 export interface ComponentFixtureContext {
 	container: HTMLElement;
 	disposableStore: DisposableStore;
@@ -1029,6 +1079,8 @@ export interface ComponentFixtureContext {
 	readonly input: unknown;
 	/** Whether deterministic fixture focus overrides natural browser focus. */
 	readonly overrideFocus: boolean;
+	/** Whether the fixture is being explored rather than captured headlessly. */
+	readonly isInteractive: boolean;
 	/** Fires after the shared Enable Animations control changes the fixture container state. */
 	readonly onDidChangeEnableAnimations: Event<boolean>;
 	/** Applies initial focus only while deterministic fixture focus is enabled. */
@@ -1246,6 +1298,7 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 						fileIconTheme,
 						input: context.input,
 						overrideFocus: input.overrideFocus,
+						isInteractive: context.host.kind !== 'headless',
 						onDidChangeEnableAnimations: onDidChangeEnableAnimations.event,
 						focus: target => applyFixtureFocus(input.overrideFocus, target),
 					});

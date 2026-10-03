@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
+import { canRestageOntoIndexCopy, formatGitError, getRemoteTrackingRef, GitCheckoutProgressParser, isRetryableWorktreeRemovalError, parseChangedPaths, parseDefaultBranchRef, parseDefaultRemoteBranchRef, parseFetchRemoteUrls, parseGitDiffRawNumstat, parseGitHubRepoFromRemote, parseGitStatusV2, parseHasGitHubRemote, parseSingleLsTreeEntry, parseUntrackedPaths, summarizeStderrForError } from '../../node/agentHostGitService.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { EMPTY_TREE_OBJECT, getBranchCompletions, resolveDiffBaseBranchName } from '../../common/agentHostGitService.js';
@@ -192,6 +192,26 @@ suite('AgentHostGitService', () => {
 		});
 	});
 
+	suite('parseDefaultRemoteBranchRef', () => {
+		test('splits an origin remote-tracking ref into the default branch and its remote branch', () => {
+			assert.deepStrictEqual({
+				main: parseDefaultRemoteBranchRef('refs/remotes/origin/main\n'),
+				nested: parseDefaultRemoteBranchRef('refs/remotes/origin/release/1.0'),
+				otherRemote: parseDefaultRemoteBranchRef('refs/remotes/upstream/main'),
+				localRef: parseDefaultRemoteBranchRef('refs/heads/main'),
+				prefixOnly: parseDefaultRemoteBranchRef('refs/remotes/origin/'),
+				missing: parseDefaultRemoteBranchRef(undefined),
+			}, {
+				main: { branchName: 'main', remoteBranchName: 'origin/main' },
+				nested: { branchName: 'release/1.0', remoteBranchName: 'origin/release/1.0' },
+				otherRemote: undefined,
+				localRef: undefined,
+				prefixOnly: undefined,
+				missing: undefined,
+			});
+		});
+	});
+
 	suite('parseGitHubRepoFromRemote', () => {
 		test('parses only the requested fork remote', () => {
 			const out = [
@@ -325,6 +345,19 @@ suite('AgentHostGitService', () => {
 				'worktree-copied-new.txt',
 				'worktree-copied-old.txt',
 			]);
+		});
+	});
+
+	suite('canRestageOntoIndexCopy', () => {
+		test('allows only statuses whose paths git add can restage onto a copied index', () => {
+			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
+			assert.deepStrictEqual(
+				Object.fromEntries(statuses.map(status => [status, canRestageOntoIndexCopy(`${status} file.txt\x00`)])),
+				{
+					' M': true, 'M ': true, 'MM': true, 'A ': true, 'AM': true, ' D': true, ' T': true, '??': true,
+					'D ': false, 'AD': false, 'R ': false, 'C ': false, ' R': false, 'UU': false, 'AA': false, 'DD': false,
+				},
+			);
 		});
 	});
 
