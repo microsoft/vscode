@@ -50,7 +50,9 @@ function initializeGitBaseExtension(): Disposable {
 		try {
 			const gitBaseAPI = gitBaseExtension.getAPI(1);
 
-			disposables.add(gitBaseAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider()));
+			const remoteSourceProvider = new GithubRemoteSourceProvider();
+			disposables.add(remoteSourceProvider);
+			disposables.add(gitBaseAPI.registerRemoteSourceProvider(remoteSourceProvider));
 		}
 		catch (err) {
 			console.error('Could not initialize GitHub extension');
