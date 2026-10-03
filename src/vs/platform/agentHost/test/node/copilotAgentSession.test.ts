@@ -1080,7 +1080,6 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	beforeLaunch?: () => void;
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
-	mcpServerDisplayNames?: ReadonlyMap<string, string>;
 	/** BYOK providers and models the launcher currently resolves. */
 	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
@@ -1174,9 +1173,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			if (options?.captureRuntime) {
 				options.captureRuntime.current = runtime;
 			}
-			const wrapper = new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, logService);
-			wrapper.setMcpServerDisplayNames(options?.mcpServerDisplayNames ?? new Map());
-			return wrapper;
+			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, logService);
 		},
 		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
 	};
@@ -20068,12 +20065,10 @@ Use the attached image as context.
 			assert.strictEqual(session.requiresMcpLaunchConfigurationRefresh, true);
 		});
 
-		test('publishes connector display names without changing MCP runtime identity', async () => {
+		test('republishes pending connector authentication when display names become available', async () => {
 			const runtimeServerId = 'github-copilot-connector-94d26095770df60673dd';
 			const resource = 'https://api.github.com';
-			const { session, runtime, waitForSignal } = await createAgentSession(disposables, {
-				mcpServerDisplayNames: new Map([[runtimeServerId, 'GitHub']]),
-			});
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
 
 			const authPromise = runtime.handleMcpAuthRequest({
 				requestId: 'auth-connector',
@@ -20082,14 +20077,18 @@ Use the attached image as context.
 				reason: 'upscope',
 			}, { sessionId: 'test-session-1' });
 			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			const beforeDisplayName = readMcpServerDisplayName(session.topLevelMcpCustomizations()[0]);
+			runtime.setMcpServerDisplayNames(new Map([[runtimeServerId, 'GitHub']]));
 			const [server] = session.topLevelMcpCustomizations();
 			await session.resolveMcpAuthentication({ resource, scopes: [], token: 'connector-token' });
 
 			assert.deepStrictEqual({
+				beforeDisplayName,
 				name: server.name,
 				displayName: readMcpServerDisplayName(server),
 				result: await authPromise,
 			}, {
+				beforeDisplayName: undefined,
 				name: runtimeServerId,
 				displayName: 'GitHub',
 				result: { kind: 'token', accessToken: 'connector-token' },

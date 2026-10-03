@@ -52,6 +52,7 @@ const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	setMcpServerDisplayNames: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
 	handlePreToolUse: async () => { },
@@ -686,6 +687,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 
 	test('reconciles connector MCP servers through the Copilot runtime before launch completes', async () => {
 		const connectorCalls: string[] = [];
+		let connectorDisplayNames: ReadonlyMap<string, string> = new Map();
 		let featureFlags: Record<string, boolean> | undefined;
 		const session = {
 			sessionId: 'connector-session',
@@ -760,12 +762,15 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 			model: undefined,
 		};
 
-		const launched = await launcher.launch(plan, testRuntime);
+		const launched = await launcher.launch(plan, {
+			...testRuntime,
+			setMcpServerDisplayNames: displayNames => connectorDisplayNames = new Map(displayNames),
+		});
 		try {
 			assert.deepStrictEqual({
 				featureFlags,
 				connectorCalls,
-				connectorDisplayName: launched.getMcpServerDisplayName('connector-mail'),
+				connectorDisplayName: connectorDisplayNames.get('connector-mail'),
 			}, {
 				featureFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, MANAGED_MCP_SERVERS: true },
 				connectorCalls: ['capabilities', 'auth', 'accounts', 'reconcile:account-1:true'],
