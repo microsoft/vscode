@@ -437,6 +437,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 				return;
 			}
 		}
+		// A terminal only fires onExit once, so waiting would hang when the process already exited (e.g. a failed task terminal kept open).
+		if (instance.isDisposed || instance.exitCode !== undefined) {
+			instance.dispose(TerminalExitReason.User);
+			return;
+		}
 		return new Promise<void>(r => {
 			Event.once(instance.onExit)(() => r());
 			instance.dispose(TerminalExitReason.User);
