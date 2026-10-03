@@ -299,7 +299,7 @@ export class SimulationReviewService implements IReviewService {
 		return this._comments.slice();
 	}
 
-	addReviewComments(comments: ReviewComment[]) {
+	addReviewComments(comments: ReviewComment[], _opts?: { suppressAutoReveal?: boolean }) {
 		this._comments.push(...comments);
 	}
 
@@ -323,6 +323,10 @@ export class SimulationReviewService implements IReviewService {
 	}
 
 	findCommentThread(comment: ReviewComment): vscode.CommentThread | undefined {
+		return undefined;
+	}
+
+	getActiveThread(): vscode.CommentThread | undefined {
 		return undefined;
 	}
 }
