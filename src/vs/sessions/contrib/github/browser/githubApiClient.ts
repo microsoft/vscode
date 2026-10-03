@@ -7,11 +7,13 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IRequestOptions } from '../../../../base/parts/request/common/request.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../platform/endpoint/common/licenseAgreement.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { deriveGitHubEndpoints, IGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
+import { deriveGitHubEndpoints, GITHUB_DOT_COM_COPILOT_API_BASE_URI, IGitHubEndpoints } from '../../../../platform/github/common/githubEndpoints.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 
 const LOG_PREFIX = '[GitHubApiClient]';
 const TRACE_PREFIX = '[PR-ICON-TRACE]';
@@ -23,12 +25,18 @@ export interface IGitHubApiRequestOptions {
 	readonly createAuthenticationSession?: boolean;
 	/** Require these scopes instead of falling back to any available session. */
 	readonly authenticationScopes?: readonly string[];
+	readonly accountName?: string;
+	readonly contentType?: string;
+	readonly timeout?: number;
+	/** Called immediately before handing the request to the request service. */
+	readonly onDispatch?: () => void;
 }
 
 export interface IGitHubApiResponse<T> {
 	readonly data: T | undefined;
 	readonly statusCode: number;
 	readonly etag?: string;
+	readonly link?: string;
 }
 
 interface IGitHubGraphQLError {
@@ -40,11 +48,17 @@ interface IGitHubGraphQLResponse<T> {
 	readonly errors?: readonly IGitHubGraphQLError[];
 }
 
+interface IGitHubApiConnection {
+	readonly authenticationProviderId: string;
+	readonly endpoints: IGitHubEndpoints;
+}
+
 export class GitHubApiError extends Error {
 	constructor(
 		message: string,
 		readonly statusCode: number,
 		readonly rateLimitRemaining: number | undefined,
+		readonly retryAfterSeconds?: number,
 	) {
 		super(message);
 		this.name = 'GitHubApiError';
@@ -89,7 +103,18 @@ export class GitHubApiClient extends Disposable {
 		if (!connection) {
 			throw new GitHubAuthenticationError();
 		}
-		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection.authenticationProviderId, options);
+		return this._request<T>(method, `${connection.endpoints.apiBaseUri}${path}`, path, 'application/vnd.github.v3+json', callSite, connection, options);
+	}
+
+	async requestCopilot<T>(method: string, path: string, callSite: string, options: IGitHubApiRequestOptions & { readonly accountName: string }): Promise<IGitHubApiResponse<T>> {
+		const connection = this._getConnection();
+		if (!connection) {
+			throw new GitHubAuthenticationError();
+		}
+		if (connection.endpoints.enterpriseHost !== undefined) {
+			throw new Error('This Copilot API is only supported on GitHub.com.');
+		}
+		return this._request<T>(method, `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}${path}`, path, 'application/json', callSite, connection, options, true);
 	}
 
 	async graphql<T>(query: string, callSite: string, variables?: Record<string, unknown>, options?: Pick<IGitHubApiRequestOptions, 'token' | 'createAuthenticationSession'>): Promise<T> {
@@ -103,7 +128,7 @@ export class GitHubApiClient extends Disposable {
 			'/graphql',
 			'application/vnd.github+json',
 			callSite,
-			connection.authenticationProviderId,
+			connection,
 			{ ...options, data: { query, variables } }
 		);
 
@@ -122,7 +147,7 @@ export class GitHubApiClient extends Disposable {
 		return response.data.data;
 	}
 
-	private _getConnection(): { readonly authenticationProviderId: string; readonly endpoints: IGitHubEndpoints } | undefined {
+	private _getConnection(): IGitHubApiConnection | undefined {
 		const authenticationProvider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
 		const enterpriseUri = authenticationProvider.enterprise ? this._defaultAccountService.resolveGitHubUrl('') : undefined;
 		if (authenticationProvider.enterprise && !enterpriseUri) {
@@ -134,31 +159,52 @@ export class GitHubApiClient extends Disposable {
 		};
 	}
 
-	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, authenticationProviderId: string, options?: IGitHubApiRequestOptions): Promise<IGitHubApiResponse<T>> {
+	private async _request<T>(method: string, url: string, pathForLogging: string, accept: string, callSite: string, connection: IGitHubApiConnection, options?: IGitHubApiRequestOptions, copilot = false): Promise<IGitHubApiResponse<T>> {
 		const cancellationToken = options?.token ?? CancellationToken.None;
-		const token = await this._getAuthToken(authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes);
+		const selectedAccount = options?.accountName !== undefined ? this._defaultAccountService.currentDefaultAccount : undefined;
+		if (options?.accountName !== undefined && (selectedAccount?.accountName !== options.accountName || selectedAccount.authenticationProvider.id !== connection.authenticationProviderId)) {
+			throw new GitHubAuthenticationError();
+		}
+		const selectedSessionId = selectedAccount?.sessionId;
+		const token = await this._getAuthToken(connection.authenticationProviderId, options?.createAuthenticationSession !== false, cancellationToken, options?.authenticationScopes, selectedSessionId);
 		if (cancellationToken.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		if (options?.accountName !== undefined) {
+			const currentAccount = this._defaultAccountService.currentDefaultAccount;
+			const currentConnection = this._getConnection();
+			if (currentAccount?.accountName !== options.accountName
+				|| currentAccount.sessionId !== selectedSessionId
+				|| currentAccount.authenticationProvider.id !== connection.authenticationProviderId
+				|| currentConnection?.authenticationProviderId !== connection.authenticationProviderId
+				|| currentConnection.endpoints.apiBaseUri !== connection.endpoints.apiBaseUri) {
+				throw new GitHubAuthenticationError();
+			}
 		}
 
 		this._logService.trace(`${LOG_PREFIX} ${method} ${pathForLogging}`);
 		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] -> ${method} ${pathForLogging} (callSite ${callSite}${options?.etag !== undefined ? `, ifNoneMatch ${options.etag}` : ''})`);
 
-		const response = await this._requestService.request({
+		const requestOptions: IRequestOptions = {
 			type: method,
 			url,
 			headers: {
-				'Authorization': `token ${token}`,
+				'Authorization': `${copilot ? 'Bearer' : 'token'} ${token}`,
 				'Accept': accept,
 				'User-Agent': 'VSCode-Sessions-GitHub',
+				...(copilot ? { 'Copilot-Integration-Id': COPILOT_INTEGRATION_ID } : {}),
 				...(options?.etag !== undefined ? { 'If-None-Match': options.etag } : {}),
-				...(options?.data !== undefined ? { 'Content-Type': 'application/json' } : {}),
+				...(options?.data !== undefined ? { 'Content-Type': options.contentType ?? 'application/json' } : {}),
 			},
 			data: options?.data !== undefined ? JSON.stringify(options.data) : undefined,
 			// The renderer cache can return stale 200 responses despite ETag polling.
 			disableCache: true,
-			callSite
-		}, cancellationToken);
+			disableRemoteFallback: copilot && method !== 'GET' && method !== 'HEAD',
+			callSite,
+			timeout: options?.timeout,
+		};
+		options?.onDispatch?.();
+		const response = await this._requestService.request(requestOptions, cancellationToken);
 
 		const rateLimitRemaining = parseRateLimitHeader(response.res.headers?.['x-ratelimit-remaining']);
 		if (rateLimitRemaining !== undefined && rateLimitRemaining < 100) {
@@ -167,14 +213,17 @@ export class GitHubApiClient extends Disposable {
 
 		const statusCode = response.res.statusCode ?? 0;
 		const responseETag = response.res.headers?.['etag'];
+		const rawLink = response.res.headers?.['link'];
+		const link = Array.isArray(rawLink) ? rawLink.join(', ') : rawLink;
 
 		this._logService.trace(`${TRACE_PREFIX} [GitHubApiClient] <- ${method} ${pathForLogging} status ${statusCode}${responseETag ? `, etag ${responseETag}` : ''}${rateLimitRemaining !== undefined ? `, rateLimitRemaining ${rateLimitRemaining}` : ''} (callSite ${callSite})`);
 
 		if (
 			statusCode === 204 /* No Content */ ||
-			statusCode === 304 /* Not Modified */
+			statusCode === 304 /* Not Modified */ ||
+			(copilot && statusCode === 202 /* Accepted acknowledgement */)
 		) {
-			return { data: undefined, statusCode, etag: responseETag };
+			return { data: undefined, statusCode, etag: responseETag, link };
 		}
 
 		if (statusCode < 200 || statusCode >= 300) {
@@ -183,6 +232,7 @@ export class GitHubApiClient extends Disposable {
 				errorBody?.message ?? `GitHub API request failed: ${method} ${pathForLogging} (${statusCode})`,
 				statusCode,
 				rateLimitRemaining,
+				parseRetryAfterHeader(response.res.headers?.['retry-after']),
 			);
 		}
 
@@ -194,11 +244,10 @@ export class GitHubApiClient extends Disposable {
 				rateLimitRemaining,
 			);
 		}
-
-		return { data, statusCode, etag: responseETag };
+		return { data, statusCode, etag: responseETag, link };
 	}
 
-	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[]): Promise<string> {
+	private async _getAuthToken(authenticationProviderId: string, createIfNone: boolean, token: CancellationToken, scopes?: readonly string[], selectedSessionId?: string): Promise<string> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -209,7 +258,18 @@ export class GitHubApiClient extends Disposable {
 			}
 			sessions = await raceCancellationError(this._authenticationService.getSessions(authenticationProviderId, [], { createIfNone: true }), token);
 		}
-		const matchingSessions = sessions.filter(session => session.accessToken && (!scopes || scopes.every(scope => session.scopes.includes(scope))));
+		const selectedSession = selectedSessionId !== undefined ? sessions.find(session => session.id === selectedSessionId) : undefined;
+		if (selectedSessionId !== undefined && !selectedSession) {
+			throw new GitHubAuthenticationError();
+		}
+		const matchesAccount = (session: AuthenticationSession) => !selectedSession || (
+			session.account.id === selectedSession.account.id
+			&& session.authorizationServer?.toString() === selectedSession.authorizationServer?.toString()
+			&& session.scopes.includes('repo'));
+		const matchingSessions = sessions.filter(session =>
+			session.accessToken
+			&& (!scopes || scopes.every(scope => session.scopes.includes(scope)))
+			&& matchesAccount(session));
 		let session = matchingSessions.find(session => session.scopes.includes('repo')) ?? matchingSessions[0];
 		if (!session && scopes && createIfNone) {
 			if (token.isCancellationRequested) {
@@ -224,7 +284,8 @@ export class GitHubApiClient extends Disposable {
 				throw error;
 			}
 		}
-		if (!session?.accessToken || (scopes && !scopes.every(scope => session.scopes.includes(scope)))) {
+		if (!session?.accessToken || (scopes && !scopes.every(scope => session.scopes.includes(scope)))
+			|| !matchesAccount(session)) {
 			throw new GitHubAuthenticationError();
 		}
 
@@ -239,4 +300,17 @@ function parseRateLimitHeader(value: string | string[] | undefined): number | un
 	const str = Array.isArray(value) ? value[0] : value;
 	const parsed = parseInt(str, 10);
 	return isNaN(parsed) ? undefined : parsed;
+}
+
+function parseRetryAfterHeader(value: string | string[] | undefined): number | undefined {
+	const header = Array.isArray(value) ? value[0] : value;
+	if (header === undefined) {
+		return undefined;
+	}
+	const seconds = Number(header);
+	if (Number.isFinite(seconds) && seconds >= 0) {
+		return seconds;
+	}
+	const date = Date.parse(header);
+	return Number.isFinite(date) ? Math.max(0, Math.ceil((date - Date.now()) / 1000)) : undefined;
 }
