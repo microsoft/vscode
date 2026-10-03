@@ -12,6 +12,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
@@ -130,12 +132,14 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 	let tasks: FakeSessionsTasksService;
 	let mgmt: FakeSessionsManagementService;
 	let configurationService: TestConfigurationService;
+	let dialogService: TestDialogService;
 
 	function createDispatcher(): WorktreeCreatedTaskDispatcher {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsTasksService, tasks as unknown as ISessionsTasksService);
 		instantiationService.stub(ISessionsManagementService, mgmt as unknown as ISessionsManagementService);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(ILogService, new NullLogService());
 		return store.add(instantiationService.createInstance(WorktreeCreatedTaskDispatcher));
 	}
@@ -144,6 +148,7 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		tasks = new FakeSessionsTasksService();
 		mgmt = new FakeSessionsManagementService();
 		configurationService = new TestConfigurationService();
+		dialogService = new TestDialogService({ confirmed: true });
 	});
 
 	teardown(() => {
@@ -172,6 +177,22 @@ suite('WorktreeCreatedTaskDispatcher', () => {
 		await settle();
 
 		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'setup', sessionId: 'a' }]);
+	});
+
+	test('only runs user tasks when running worktree tasks is declined', async () => {
+		createDispatcher();
+		dialogService.setConfirmResult({ confirmed: false });
+		const { session, workspace } = makeSession({ id: 'a', hasWorktree: false });
+		tasks.setTasks(session.sessionId, [
+			entry('worktree-setup', 'worktreeCreated'),
+			{ ...entry('user-setup', 'worktreeCreated'), target: 'user' },
+		]);
+
+		mgmt.sessionStartedEmitter.fire(session);
+		workspace.set(makeWorkspace(true), undefined);
+		await settle();
+
+		assert.deepStrictEqual(tasks.ranTasks, [{ label: 'user-setup', sessionId: 'a' }]);
 	});
 
 	test('does not run for sessions only reported via onDidChangeSessions.added', async () => {
