@@ -2168,6 +2168,72 @@ suite('ChatSubagentContentPart', () => {
 			});
 		});
 
+		for (const blockingState of [
+			IChatToolInvocation.StateKind.WaitingForConfirmation,
+			IChatToolInvocation.StateKind.WaitingForPostApproval,
+			IChatToolInvocation.StateKind.WaitingForAuthentication,
+		]) {
+			test(`clears temporary generic labels after leaving blocking state ${blockingState}`, () => {
+				const snapshots = [
+					{ invocationMessage: 'read', pastTenseMessage: undefined },
+					{ invocationMessage: '', pastTenseMessage: undefined },
+					{ invocationMessage: 'read', pastTenseMessage: 'Read renderer.ts' },
+					{ invocationMessage: 'Reading renderer.ts', pastTenseMessage: 'Read renderer.ts' },
+				].map(({ invocationMessage, pastTenseMessage }) => {
+					const part = createPart(createMockToolInvocation({
+						toolSpecificData: { kind: 'subagent', chatResource: 'ahp-chat://subagent/test/tool-call', isActive: true },
+					}), createMockRenderContext(false));
+					const state = observableValue('state', createState(blockingState));
+					part.trackToolState({
+						...createMockToolInvocation({ toolId: 'read', invocationMessage }),
+						pastTenseMessage,
+						state,
+					});
+					const snapshot = () => ({
+						label: getOpenChatContext(part)?.activeToolLabel,
+						icon: getOpenChatContext(part)?.activeToolIcon?.id,
+						confirmations: getOpenChatContext(part)?.confirmationCount,
+					});
+					const waiting = snapshot();
+					state.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+					const executing = snapshot();
+					state.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+					return { waiting, executing, completed: snapshot() };
+				});
+				assert.deepStrictEqual(snapshots, [
+					{ waiting: 'read', executing: undefined, completed: undefined },
+					{ waiting: 'read', executing: undefined, completed: undefined },
+					{ waiting: 'read', executing: undefined, completed: 'Read renderer.ts' },
+					{ waiting: 'Reading renderer.ts', executing: 'Reading renderer.ts', completed: 'Read renderer.ts' },
+				].map(({ waiting, executing, completed }) => ({
+					waiting: { label: waiting, icon: 'book', confirmations: 1 },
+					executing: { label: executing, icon: executing ? 'book' : undefined, confirmations: 0 },
+					completed: { label: completed, icon: completed ? 'book' : undefined, confirmations: 0 },
+				})));
+			});
+		}
+
+		test('an approved generic tool does not displace a later descriptive tool when it completes', () => {
+			const part = createPart(createMockToolInvocation({
+				toolSpecificData: { kind: 'subagent', chatResource: 'ahp-chat://subagent/test/tool-call', isActive: true },
+			}), createMockRenderContext(false));
+			const readState = observableValue('readState', createState(IChatToolInvocation.StateKind.WaitingForConfirmation));
+			const searchState = observableValue('searchState', createState(IChatToolInvocation.StateKind.Executing));
+			part.trackToolState({ ...createMockToolInvocation({ toolId: 'read', invocationMessage: 'read' }), state: readState });
+			part.trackToolState({
+				...createMockToolInvocation({ toolId: 'search', invocationMessage: 'Search the renderer' }),
+				pastTenseMessage: 'Searched the renderer',
+				state: searchState,
+			});
+			readState.set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+			searchState.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			const afterSearch = getOpenChatContext(part)?.activeToolLabel;
+			readState.set(createState(IChatToolInvocation.StateKind.Completed), undefined);
+			assert.deepStrictEqual({ afterSearch, afterRead: getOpenChatContext(part)?.activeToolLabel }, {
+				afterSearch: 'Searched the renderer', afterRead: 'Searched the renderer',
+			});
+		});
+
 		test('should retain the most recent child tool after it completes', () => {
 			const part = createPart(createMockToolInvocation({
 				toolSpecificData: {

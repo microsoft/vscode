@@ -929,6 +929,16 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 				this.removeWorkingSpinner();
 			} else if (!isWaitingForConfirmation && wasWaitingForConfirmation) {
 				this.toolsWaitingForConfirmation--;
+				if (!this.getToolLabel(toolInvocation, state)) {
+					if (this.currentRunningToolCallId === toolInvocation.toolCallId) {
+						this.currentRunningToolMessage = undefined;
+						this.currentRunningToolIcon = undefined;
+					}
+					this.activeToolPresentations.delete(toolInvocation.toolCallId);
+					if (this.mostRecentToolPresentation?.callId === toolInvocation.toolCallId) {
+						this.mostRecentToolPresentation = undefined;
+					}
+				}
 				if (this.toolsWaitingForConfirmation === 0 && this.autoExpandedForConfirmation && !this.userManuallyExpanded) {
 					// Auto-collapse only if we auto-expanded and user didn't manually expand
 					this.autoExpandedForConfirmation = false;

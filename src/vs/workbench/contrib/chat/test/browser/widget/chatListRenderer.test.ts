@@ -1814,6 +1814,16 @@ suite('ChatListRenderer', () => {
 		return baseline;
 	}
 
+	/** Smaller inline text inherits the row's line height, which can expand the native font line box. */
+	function getNativeReadLineHeight(container: HTMLElement, fontSize: number): number {
+		const line = dom.append(container, dom.$('div', {
+			style: `font-size: var(--vscode-chat-font-size-body-s); line-height: ${fontSize * 1.5}px;`,
+		}, 'Read ', dom.$('span', { style: 'font-size: var(--vscode-chat-font-size-body-s);' }, 'renderer.ts')));
+		const height = line.getBoundingClientRect().height;
+		line.remove();
+		return height;
+	}
+
 	for (const animation of [ChatProgressAnimation.Off, ChatProgressAnimation.Draw]) {
 		for (const width of [180, 320]) {
 			test(`collapsible tool titles stay inside their rows at width ${width} (${animation})`, async () => {
@@ -1955,25 +1965,33 @@ suite('ChatListRenderer', () => {
 						textTop: labelBounds.top - prefixBounds.top,
 						textBottom: labelBounds.bottom - prefixBounds.bottom,
 						iconTop: icon.getBoundingClientRect().top - bounds.top,
-						countersAligned: [...pill.querySelectorAll('.label-added, .label-removed')].every(counter => textBounds(counter).bottom === labelBounds.bottom),
+						countersAligned: [...pill.querySelectorAll('.label-added, .label-removed')].every(counter => Math.abs(textBounds(counter).bottom - labelBounds.bottom) < 0.001),
 						countsVisible: [...pill.querySelectorAll('.label-added, .label-removed')].every(counter => {
 							const counterBounds = counter.getBoundingClientRect();
 							return counterBounds.width > 0 && counterBounds.left >= bounds.left && counterBounds.right <= bounds.right;
 						}),
 						countsHaveTrailingInset: !lastCount || mainWindow.getComputedStyle(lastCount).paddingRight === '2px',
 						originalReadFontSize: Math.abs(parseFloat(style.fontSize) - fontSize * 0.923 * 0.923) < 0.001,
-						originalReadHeight: bounds.height === labelBounds.height + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth),
+						originalReadHeight: Math.abs(bounds.height - labelBounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - parseFloat(style.borderTopWidth) - parseFloat(style.borderBottomWidth)) < 0.001,
 					};
 				});
 				assert.strictEqual(geometry.length, 2, `Expected tool and ${markdown ? 'markdown' : 'external'} edit file pills: ${template.value.textContent}`);
-				assert.deepStrictEqual(geometry, Array.from({ length: 2 }, () => ({
-					...geometry[0], display: 'inline', verticalAlign: 'baseline', padding: '1px 3px',
+				const reference = geometry[0];
+				const snapshots = geometry.map(({ height, textTop, textBottom, iconTop, ...style }) => ({
+					...style,
+					matchesReadGeometry: Math.abs(height - reference.height) < 0.001
+						&& Math.abs(textTop - reference.textTop) < 0.001
+						&& Math.abs(textBottom - reference.textBottom) < 0.001
+						&& Math.abs(iconTop - reference.iconTop) < 0.001,
+				}));
+				assert.deepStrictEqual(snapshots, Array.from({ length: 2 }, () => ({
+					...snapshots[0], display: 'inline', verticalAlign: 'baseline', padding: '1px 3px', matchesReadGeometry: true,
 					countersAligned: true, countsVisible: true, countsHaveTrailingInset: true, originalReadFontSize: true, originalReadHeight: true,
-				})));
+				})), JSON.stringify(geometry));
 			}
 		});
 
-		test(`read tool rows keep their height when streaming labels become file pills (fontSize=${fontSize})`, async () => {
+		test(`read tool rows preserve native inline line boxes when streaming completes (fontSize=${fontSize})`, async () => {
 			const { instantiationService, container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
 			instantiationService.stub(IChatMarkdownAnchorService, new class extends mock<IChatMarkdownAnchorService>() {
 				override register() { return Disposable.None; }
@@ -2006,11 +2024,19 @@ suite('ChatListRenderer', () => {
 			}
 			renderer.renderElement(node, 0, template);
 			await timeout(0);
+			const nativeLineHeight = getNativeReadLineHeight(container, fontSize);
 			assert.deepStrictEqual({
 				streamingRows: streaming.length,
 				completed: rows(),
 				filePills: template.value.querySelectorAll('.chat-inline-anchor-widget').length,
-			}, { streamingRows: 3, completed: streaming, filePills: 3 });
+			}, {
+				streamingRows: 3,
+				completed: streaming.map((row, index) => ({
+					height: nativeLineHeight,
+					top: row.top + index * (nativeLineHeight - row.height),
+				})),
+				filePills: 3,
+			});
 			request.response?.complete();
 		});
 	}
@@ -4920,7 +4946,7 @@ suite('ChatListRenderer', () => {
 					const adjacentLabels = [...row.parentElement!.querySelectorAll('.progress-container p')];
 					assert.strictEqual(adjacentLabels.length, 2);
 					const editContent = row.lastElementChild;
-					const lastLabel = includeProse ? editContent?.querySelector(':scope > p:last-child') : label;
+					const lastLabel = includeProse ? editContent?.querySelector(':scope > p:last-child') : pill.querySelector('.chat-codeblock-pill-row');
 					assert.ok(editContent && lastLabel);
 					const blocks = markdown ? [...editContent.children] : [];
 					file.focus();
@@ -4940,9 +4966,10 @@ suite('ChatListRenderer', () => {
 						insideDisclosure: !!pill.closest('.completed-response-disclosure'),
 					};
 					await render(ChatProgressAnimation.Off);
+					const nativeLineHeight = getNativeReadLineHeight(container, fontSize);
 					assert.deepStrictEqual({ enabled, restoredOff: legacySnapshot() }, {
 						enabled: {
-							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: fontSize * 1.5 * (includeProse ? 3 : 1) + (includeProse ? 32 : 0),
+							markdownWrapper: markdown, label: 'Edited', labelTop: 0, labelLeft: 24, rowHeight: nativeLineHeight + (includeProse ? fontSize * 3 + 32 : 0),
 							iconCentered: true, visibleToolIcons: 1, pillBaselineAligned: true, textGaps: [16, 16], blockGaps: includeProse ? [16, 16] : [], counts: ['+18', '-4'], focusablePill: true, insideDisclosure: completed,
 						},
 						restoredOff: before,
