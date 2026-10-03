@@ -161,6 +161,7 @@ export const config = {
 		darwinBundleDocumentType(['hh', 'hpp', 'hxx', 'h++'], 'cpp', 'C++ header file'),
 		darwinBundleDocumentType(['cc', 'cpp', 'cxx', 'c++'], 'cpp', 'C++ source code'),
 		darwinBundleDocumentType(['m'], 'default', 'Objective-C source code'),
+		darwinBundleDocumentType(['m4'], 'default', 'm4 macro file'),
 		darwinBundleDocumentType(['mm'], 'cpp', 'Objective-C++ source code'),
 		darwinBundleDocumentType(['cs', 'csx'], 'csharp', 'C# source code'),
 		darwinBundleDocumentType(['css'], 'css', 'CSS'),
@@ -181,6 +182,7 @@ export const config = {
 		darwinBundleDocumentType(['ts'], 'TypeScript', 'file'),
 		darwinBundleDocumentType(['tsx', 'jsx'], 'React', 'source code'),
 		darwinBundleDocumentType(['vue'], 'Vue', 'source code'),
+		darwinBundleDocumentType(['svelte'], 'default', 'Svelte source file'),
 		darwinBundleDocumentType(['ascx', 'csproj', 'dtd', 'plist', 'wxi', 'wxl', 'wxs', 'xml', 'xaml'], 'XML'),
 		darwinBundleDocumentType(['eyaml', 'eyml', 'yaml', 'yml'], 'YAML'),
 		darwinBundleDocumentType([
