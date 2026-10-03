@@ -14,7 +14,7 @@ type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' 
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
 type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
-function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean, requestSandboxPermissive?: boolean): CopilotShellPermissionRequest {
 	return {
 		kind: 'shell',
 		canOfferSessionApproval: false,
@@ -25,6 +25,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 		possiblePaths: [],
 		possibleUrls: [],
 		requestSandboxBypass,
+		requestSandboxPermissive,
 	};
 }
 
@@ -370,12 +371,16 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 		assert.strictEqual(display.toolInput, 'dir');
 	});
 
-	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
-		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
-
-		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	test('confirmation title reflects sandbox escalation for shell requests', () => {
+		assert.deepStrictEqual({
+			sandboxed: getPermissionDisplay(shellPermissionRequest('npm test'), wd).confirmationTitle,
+			bypass: getPermissionDisplay(shellPermissionRequest('npm test', true), wd).confirmationTitle,
+			permissive: getPermissionDisplay(shellPermissionRequest('npm test', true, true), wd).confirmationTitle,
+		}, {
+			sandboxed: 'Run in terminal?',
+			bypass: 'Run in terminal outside the sandbox?',
+			permissive: 'Retry by allowing filesystem access inside the sandbox?',
+		});
 	});
 
 });

@@ -1590,7 +1590,24 @@ suite('CopilotChatSessionsProvider', () => {
 		disposables.add(autorun(reader => observed.push(session.isExternal?.read(reader))));
 		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata }));
 
-		assert.deepStrictEqual(observed, [true, false]);
+		assert.deepStrictEqual({ observed, harness: session.harness, environment: session.environment, application: session.application.get() }, {
+			observed: [true, false],
+			harness: 'copilot',
+			environment: 'cloud',
+			application: { id: 'github/autopilot', label: 'Copilot App' },
+		});
+	});
+
+	test('cloud application metadata hydrates from event_type and survives adoption', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/from-cli' });
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { external: true } }));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const applications: string[] = [];
+		disposables.add(autorun(reader => applications.push(session.application.read(reader).id)));
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: { event_type: 'github/cli', external: true } }));
+		model.replaceSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud, createdAt: 1, metadata: {} }));
+		assert.deepStrictEqual(applications, ['github/autopilot', 'github/cli']);
 	});
 
 	test('cloud session refreshes linked issue artifacts and pill references atomically and removes stale links', () => {

@@ -7,6 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -19,7 +20,7 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import type { AutomaticTitleGenerationStrategy } from '../../node/agentHostSessionTitleController.js';
 import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
-import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
 import {
 	applyCreateChatTool,
@@ -108,7 +109,7 @@ suite('SessionServerTools', () => {
 	test('definitions and confirmation', () => {
 		assert.deepStrictEqual(sessionServerToolDefinitions.map(d => d.name), [SessionServerToolName.ListSessions, SessionServerToolName.GetCurrentSession, SessionServerToolName.SetWorkspace, SessionServerToolName.CreateSession, SessionServerToolName.RenameChat, SessionServerToolName.SendMessage, SessionServerToolName.GetSessionContext, SessionServerToolName.DeleteSession]);
 		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.ListSessions)?.description ?? '', /`openLink` for clickable Markdown links/);
-		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /target chat is busy.*message is queued/);
+		assert.match(sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.SendMessage)?.description ?? '', /reports `processing` or `completed`; decide whether to send a steering correction or a queued follow-up/);
 		assert.deepStrictEqual(sessionServerToolDefinitions.filter(definition => definition.enabledForEphemeralSessions).map(definition => definition.name), []);
 		assert.deepStrictEqual(
 			sessionServerToolDefinitions.map(({ name, deferLoading }) => ({ name, deferLoading })),
@@ -1114,16 +1115,17 @@ suite('SessionServerTools', () => {
 
 		const independent = await group.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.CreateSession, { relationship: 'independent', workspace: workspace.toString(), prompt: 'do it', title: 'New Task' });
 		const peer = await group.execute(stateManager, { sessionUri: 'copilot:/s1', chatUri: buildDefaultChatUri('copilot:/s1'), turnId: 'turn-1' }, SessionServerToolName.CreateSession, { relationship: 'currentSession', prompt: 'do it', title: 'Task A' });
-		const message = await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, buildDefaultChatUri('copilot:/s1'), 'turn-1');
+		const message = JSON.parse(await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, buildDefaultChatUri('copilot:/s1'), 'turn-1'));
 		// Retired but still routable: the compatibility contract must not regain the wording either.
 		const legacyChat = formatCreateChatResult(await applyCreateChatTool(accessor, { session: 'copilot:/s1', prompt: 'do it', title: 'T' }, URI.parse(buildDefaultChatUri('copilot:/s1')), 'turn-1'));
 
 		// Results must read as neutral statements of fact, not as "reply once and stop" (issue #330138).
-		for (const result of [independent, peer, message, legacyChat]) {
+		for (const result of [independent, peer, legacyChat]) {
 			assert.doesNotMatch(result, /Reply with one short sentence/, 'result no longer instructs the agent to stop and just confirm');
 			assert.doesNotMatch(result, /confirm/i, 'result carries no confirm-and-stop imperative');
 			assert.match(result, /^[^.]+\(agent-host-session:\/\/[^)]+\)\.$/, 'result is a single factual statement carrying the open link');
 		}
+		assert.deepStrictEqual({ action: message.action, openLink: message.openLink }, { action: 'started', openLink: 'agent-host-session://copilot/s2' });
 
 		// The persistent tool contract stays purely functional (issue #330138): no reply-and-stop signal, no UI-presentation policy.
 		for (const name of [SessionServerToolName.CreateSession, SessionServerToolName.SendMessage]) {
@@ -1587,6 +1589,9 @@ suite('SessionServerTools', () => {
 			await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs);
 		}
 		await assert.rejects(async () => { await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs); }, /more than 100 messages/);
+		assert.strictEqual(JSON.parse(await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, {
+			operation: 'cancel', session: 'copilot:/s1', messageId: 'missing', expectedRevision: 1,
+		})).reason, 'messageNotFound');
 		messageLimitsEnabled = false;
 		await messageGroup.execute(stateManager, executionContext('copilot:/caller'), SessionServerToolName.SendMessage, messageArgs);
 
@@ -2220,7 +2225,7 @@ suite('SessionServerTools', () => {
 		const currentChannel = buildDefaultChatUri('copilot:/s1');
 
 		// Explicit session -> owning session's default chat.
-		const toSession = await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, currentChannel, 'turn-1');
+		const toSession = JSON.parse(await applySendMessageTool(accessor, { session: 'copilot:/s2', message: 'hi' }, currentChannel, 'turn-1'));
 		assert.strictEqual(prompts.at(-1)?.session.toString(), 'copilot:/s2');
 		assert.strictEqual(prompts.at(-1)?.chat.toString(), buildDefaultChatUri('copilot:/s2'));
 		assert.strictEqual(prompts.at(-1)?.prompt, 'hi');
@@ -2228,18 +2233,24 @@ suite('SessionServerTools', () => {
 			sourceSession: 'copilot:/s1',
 			sourceChat: currentChannel,
 			sourceTurnId: 'turn-1',
+			messageId: toSession.messageId,
+			revision: 1,
 		});
-		assert.ok(toSession.includes('agent-host-session://copilot/s2'));
+		assert.deepStrictEqual({ action: toSession.action, openLink: toSession.openLink }, { action: 'started', openLink: 'agent-host-session://copilot/s2' });
 
 		// A create_chat open link -> that specific chat channel.
 		await applySendMessageTool(accessor, { session: 'agent-host-session://copilot/s2?chat=c9', message: 'yo' }, currentChannel);
 		assert.strictEqual(prompts.at(-1)?.chat.toString(), buildChatUri('copilot:/s2', 'c9'));
 
 		await applySendMessageTool(accessor, { session: 'agent-host-session://copilot/s1?chat=c9', message: 'same session' }, currentChannel, 'turn-2');
-		assert.deepStrictEqual(prompts.at(-1)?.delegation, {
+		const peerDelegation = prompts.at(-1)?.delegation;
+		assert.ok(peerDelegation && hasKey(peerDelegation, { sourceSession: true }));
+		assert.deepStrictEqual(peerDelegation, {
 			sourceSession: 'copilot:/s1',
 			sourceChat: currentChannel,
 			sourceTurnId: 'turn-2',
+			messageId: peerDelegation.messageId,
+			revision: 1,
 		});
 
 		// Refuses messaging the exact current chat channel (self-loop guard).
@@ -2248,6 +2259,8 @@ suite('SessionServerTools', () => {
 		await assert.rejects(() => applySendMessageTool(accessor, { session: 'copilot:/nope', message: 'x' }, currentChannel), /known session/);
 		assert.throws(() => getSendMessageArgs({ message: 'x' }, []), /session/);
 		assert.throws(() => getSendMessageArgs({ session: 'copilot:/s2' }, []), /message/);
+		assert.throws(() => getSendMessageArgs({ operation: 'send', session: 'copilot:/s2', message: 'x', delivery: 'later' }, [sessionMeta('s2', SessionStatus.Idle, workspace)]), /delivery/);
+		assert.throws(() => getSendMessageArgs({ operation: 'replace', session: 'copilot:/s2', message: 'x', messageId: 'm1' }, [sessionMeta('s2', SessionStatus.Idle, workspace)]), /expectedRevision/);
 	});
 
 	test('send_message queues agent-originated messages in FIFO order while the target chat is busy', async () => {
@@ -2278,10 +2291,12 @@ suite('SessionServerTools', () => {
 
 		const firstResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'first' });
 		const secondResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: targetSession, message: 'second' });
+		const first = JSON.parse(firstResult);
+		const second = JSON.parse(secondResult);
 
 		const targetState = stateManager.getChatState(targetChat);
 		assert.deepStrictEqual({
-			results: [firstResult, secondResult],
+			results: [first.action, second.action],
 			activeTurn: targetState?.activeTurn?.id,
 			queuedMessages: targetState?.queuedMessages?.map(queued => ({
 				text: queued.message.text,
@@ -2290,10 +2305,7 @@ suite('SessionServerTools', () => {
 			})),
 			prompts,
 		}, {
-			results: [
-				'Message queued (agent-host-session://copilot/s2).',
-				'Message queued (agent-host-session://copilot/s2).',
-			],
+			results: ['queued', 'queued'],
 			activeTurn: 'active-turn',
 			queuedMessages: [
 				{
@@ -2303,6 +2315,8 @@ suite('SessionServerTools', () => {
 						sourceSession: 'copilot:/s1',
 						sourceChat: buildDefaultChatUri('copilot:/s1'),
 						sourceTurnId: 'turn-1',
+						messageId: first.messageId,
+						revision: 1,
 					},
 				},
 				{
@@ -2312,6 +2326,8 @@ suite('SessionServerTools', () => {
 						sourceSession: 'copilot:/s1',
 						sourceChat: buildDefaultChatUri('copilot:/s1'),
 						sourceTurnId: 'turn-1',
+						messageId: second.messageId,
+						revision: 1,
 					},
 				},
 			],
@@ -2360,24 +2376,156 @@ suite('SessionServerTools', () => {
 		}));
 		const context = executionContext('copilot:/s1');
 
-		const queuedResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' });
-		const steeringResult = await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' });
+		const queuedResult = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: queuedSession, message: 'after queued' }));
+		const steeringResult = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, { session: steeringSession, message: 'after steering' }));
 
 		assert.deepStrictEqual({
-			results: [queuedResult, steeringResult],
+			results: [queuedResult.action, steeringResult.action],
 			queuedMessages: stateManager.getChatState(queuedChat)?.queuedMessages?.map(message => message.message.text),
 			steeringQueuedMessages: stateManager.getChatState(steeringChat)?.queuedMessages?.map(message => message.message.text),
 			steeringMessage: stateManager.getChatState(steeringChat)?.steeringMessage?.message.text,
 			prompts,
 		}, {
-			results: [
-				'Message queued (agent-host-session://copilot/s2).',
-				'Message queued (agent-host-session://copilot/s3).',
-			],
+			results: ['queued', 'queued'],
 			queuedMessages: ['older', 'after queued'],
 			steeringQueuedMessages: ['after steering'],
 			steeringMessage: 'steering',
 			prompts: [],
+		});
+		store.dispose();
+	});
+
+	test('send_message steers explicitly and does not overwrite an existing steering message', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.InProgress,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace)],
+		}));
+		const context = executionContext('copilot:/s1');
+
+		const steered = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+			operation: 'send', session: targetSession, delivery: 'steer', message: 'focus on tests',
+		}));
+		const rejected = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+			operation: 'send', session: targetSession, delivery: 'steer', message: 'second steering',
+		}));
+		const notReplaced = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+			operation: 'replace', session: targetSession, messageId: steered.messageId, expectedRevision: 1, message: 'replacement steering',
+		}));
+		const notCancelled = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+			operation: 'cancel', session: targetSession, messageId: steered.messageId, expectedRevision: 1,
+		}));
+
+		assert.deepStrictEqual({
+			steered: { action: steered.action, status: steered.status },
+			rejected: { action: rejected.action, reason: rejected.reason, targetStatus: rejected.targetStatus },
+			notReplaced: { action: notReplaced.action, reason: notReplaced.reason, status: notReplaced.status },
+			notCancelled: { action: notCancelled.action, reason: notCancelled.reason, status: notCancelled.status },
+			message: stateManager.getChatState(targetChat)?.steeringMessage?.message.text,
+		}, {
+			steered: { action: 'steered', status: 'processing' },
+			rejected: { action: 'rejected', reason: 'cannotSteer', targetStatus: 'steeringPending' },
+			notReplaced: { action: 'notReplaced', reason: 'processing', status: 'processing' },
+			notCancelled: { action: 'notCancelled', reason: 'processing', status: 'processing' },
+			message: 'focus on tests',
+		});
+		store.dispose();
+	});
+
+	test('send_message replaces and cancels owned pending messages but reports started message state', async () => {
+		const store = new DisposableStore();
+		const stateManager = store.add(new AgentHostStateManager(new NullLogService()));
+		const targetSession = 'copilot:/s2';
+		const targetChat = buildDefaultChatUri(targetSession);
+		stateManager.createSession({
+			resource: targetSession,
+			provider: 'copilot',
+			title: 'Target',
+			status: SessionStatus.InProgress,
+			createdAt: new Date(0).toISOString(),
+			modifiedAt: new Date(0).toISOString(),
+		});
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'active-turn',
+			startedAt: new Date(0).toISOString(),
+			message: { text: 'running', origin: { kind: MessageKind.User } },
+		});
+		const group = createSessionServerToolGroup(createAccessor({
+			listSessions: async () => [sessionMeta('s1', SessionStatus.InProgress, workspace), sessionMeta('s2', SessionStatus.InProgress, workspace), sessionMeta('s3', SessionStatus.InProgress, workspace)],
+		}));
+		const source = executionContext('copilot:/s1');
+		const otherSource = executionContext('copilot:/s3');
+
+		const first = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'send', session: targetSession, delivery: 'queue', message: 'first',
+		}));
+		const second = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'send', session: targetSession, delivery: 'queue', message: 'second',
+		}));
+		const notOwned = JSON.parse(await group.execute(stateManager, otherSource, SessionServerToolName.SendMessage, {
+			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 1, message: 'forged',
+		}));
+		const replaced = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 1, message: 'updated first',
+		}));
+		const conflict = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'cancel', session: targetSession, messageId: second.messageId, expectedRevision: 2,
+		}));
+		const cancelled = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'cancel', session: targetSession, messageId: second.messageId, expectedRevision: 1,
+		}));
+
+		const queuedMessage = stateManager.getChatState(targetChat)?.queuedMessages?.[0]?.message;
+		assert.ok(queuedMessage);
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'active-turn', duration: 1 });
+		stateManager.dispatchServerAction(targetChat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'delegated-turn',
+			startedAt: new Date(1).toISOString(),
+			message: queuedMessage,
+			queuedMessageId: first.messageId,
+		});
+		const processing = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 2, message: 'too late',
+		}));
+		stateManager.dispatchServerAction(targetChat, { type: ActionType.ChatTurnComplete, turnId: 'delegated-turn', duration: 1 });
+		const completed = JSON.parse(await group.execute(stateManager, source, SessionServerToolName.SendMessage, {
+			operation: 'replace', session: targetSession, messageId: first.messageId, expectedRevision: 2, message: 'still too late',
+		}));
+
+		assert.deepStrictEqual({
+			notOwned: { action: notOwned.action, reason: notOwned.reason },
+			replaced: { action: replaced.action, revision: replaced.revision, replacedMessage: replaced.replacedMessage },
+			conflict: { action: conflict.action, reason: conflict.reason, actualRevision: conflict.actualRevision },
+			cancelled: { action: cancelled.action, revision: cancelled.revision },
+			processing: { action: processing.action, reason: processing.reason, status: processing.status },
+			completed: { action: completed.action, reason: completed.reason, status: completed.status },
+			queue: stateManager.getChatState(targetChat)?.queuedMessages,
+		}, {
+			notOwned: { action: 'rejected', reason: 'messageNotOwned' },
+			replaced: { action: 'replaced', revision: 2, replacedMessage: 'first' },
+			conflict: { action: 'rejected', reason: 'revisionConflict', actualRevision: 1 },
+			cancelled: { action: 'cancelled', revision: 1 },
+			processing: { action: 'notReplaced', reason: 'processing', status: 'processing' },
+			completed: { action: 'notReplaced', reason: 'completed', status: 'completed' },
+			queue: undefined,
 		});
 		store.dispose();
 	});
@@ -2430,6 +2578,109 @@ suite('SessionServerTools', () => {
 		test('transcriptLimit drops older turns and flags truncated', () => {
 			const limited = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, snapshot, 'summary', 1));
 			assert.deepStrictEqual({ turns: limited.transcript.map((t: { turn: number }) => t.turn), truncated: limited.truncated }, { turns: [2], truncated: true });
+		});
+
+		test('returns only pending messages sent by the calling chat', () => {
+			const sourceChat = URI.parse(buildDefaultChatUri('copilot:/caller'));
+			const withPending: IChatContextSnapshot = {
+				...snapshot,
+				pendingMessages: [
+					{
+						kind: PendingMessageKind.Queued,
+						pending: {
+							id: 'mine',
+							message: {
+								text: 'latest instructions',
+								origin: { kind: MessageKind.Agent },
+								_meta: toAgentMessageDelegationMeta({
+									sourceSession: 'copilot:/caller',
+									sourceChat: sourceChat.toString(),
+									messageId: 'mine',
+									revision: 2,
+								}),
+							},
+						},
+					},
+					{
+						kind: PendingMessageKind.Steering,
+						pending: {
+							id: 'my-steering',
+							message: {
+								text: 'already sent',
+								origin: { kind: MessageKind.Agent },
+								_meta: toAgentMessageDelegationMeta({
+									sourceSession: 'copilot:/caller',
+									sourceChat: sourceChat.toString(),
+									messageId: 'my-steering',
+									revision: 1,
+								}),
+							},
+						},
+					},
+					{
+						kind: PendingMessageKind.Queued,
+						pending: {
+							id: 'theirs',
+							message: {
+								text: 'private',
+								origin: { kind: MessageKind.Agent },
+								_meta: toAgentMessageDelegationMeta({
+									sourceSession: 'copilot:/other',
+									sourceChat: buildDefaultChatUri('copilot:/other'),
+									messageId: 'theirs',
+									revision: 1,
+								}),
+							},
+						},
+					},
+				],
+			};
+
+			assert.deepStrictEqual(JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, withPending, 'summary', 10, sourceChat)).messagesSentByMe, [{
+				messageId: 'mine',
+				revision: 2,
+				delivery: 'queue',
+				status: 'pending',
+				message: 'latest instructions',
+			}, {
+				messageId: 'my-steering',
+				revision: 1,
+				delivery: 'steer',
+				status: 'processing',
+				message: 'already sent',
+			}]);
+		});
+
+		test('truncates pending message text using the selected detail cap', () => {
+			const sourceChat = URI.parse(buildDefaultChatUri('copilot:/caller'));
+			const context = JSON.parse(serializeSessionContext(URI.parse('copilot:/s1'), undefined, {
+				turns: [],
+				hasMoreHistory: false,
+				pendingMessages: [{
+					kind: PendingMessageKind.Queued,
+					pending: {
+						id: 'long-message',
+						message: {
+							text: 'x'.repeat(200),
+							origin: { kind: MessageKind.Agent },
+							_meta: toAgentMessageDelegationMeta({
+								sourceSession: 'copilot:/caller',
+								sourceChat: sourceChat.toString(),
+								messageId: 'long-message',
+								revision: 1,
+							}),
+						},
+					},
+				}],
+			}, 'summary', 10, sourceChat));
+
+			assert.deepStrictEqual({
+				message: context.messagesSentByMe[0].message,
+				truncated: context.truncated,
+			}, {
+				message: `${'x'.repeat(159)}…`,
+				truncated: true,
+			});
 		});
 
 		test('execute reads from the accessor; cold session returns identity + empty transcript', async () => {

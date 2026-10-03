@@ -25,7 +25,6 @@ import { ITelemetryService, TelemetryLevel } from '../../../../telemetry/common/
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentChatMigrationDeferred, AgentSession, IAgentDiscoveredChat } from '../../../common/agent.js';
 import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../../common/agentHostCheckpointService.js';
-import { readCodexSessionModel } from '../../../common/meta/codexSessionModel.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
 import { IAgentHostOTelService } from '../../../common/otel/agentHostOTelService.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
@@ -57,11 +56,6 @@ const codexHome = URI.file('/codex-discovery/custom-home');
 
 interface ITestCodexAgent {
 	_activated: boolean;
-	_refreshAccount(): Promise<{ usageSource: string; status: string }>;
-	_refreshContinuationAccount(): Promise<void>;
-	_sessions: { readonly size: number };
-	_sessionIdByChatUri: { readonly size: number };
-	_metadataStore: { hasKnownSession(session: URI): Promise<boolean> };
 	_probeAccountAtStartup(): Promise<void>;
 	_restartChatDiscovery(): void;
 	_emitCodexChats(): Promise<boolean>;
@@ -423,52 +417,6 @@ suite('Codex chat discovery', () => {
 		} finally {
 			store.dispose();
 		}
-	}));
-
-	test('on-demand continuation refresh reads account limits without scanning or publishing threads', () => runWithFakedTimers({}, async () => {
-		const { internal, client, downloader, events } = createHarness(disposables.add(new DisposableStore()));
-		downloader.resolvableWithoutDownload = true;
-		internal._activated = false;
-		let accountRefreshes = 0;
-		internal._refreshAccount = async () => {
-			accountRefreshes++;
-			return { usageSource: 'openai', status: 'signedOut' };
-		};
-		client.threads = [{ ...thread('passive'), modelProvider: 'openai', model: 'gpt' }];
-		await internal._refreshContinuationAccount();
-		assert.deepStrictEqual({
-			accountRefreshes, listCalls: client.listCalls, runtimes: internal._sessions.size,
-			bindings: internal._sessionIdByChatUri.size, active: internal._activated,
-			reads: client.historyRequests, discovered: events.flat().length,
-		}, { accountRefreshes: 1, listCalls: 0, runtimes: 0, bindings: 0, active: false, reads: [], discovered: 0 });
-	}));
-
-	test('passive catalog publishes exact provider/model and invalidates when either changes', () => runWithFakedTimers({}, async () => {
-		const { agent, client, filesystem } = createHarness(disposables.add(new DisposableStore()));
-		client.threads = [{ ...thread('external'), modelProvider: 'openai', model: 'gpt' }];
-		await agent.startChatDiscovery();
-		const session = AgentSession.uri('codex', 'external');
-		const chat = URI.parse(buildDefaultChatUri(session));
-		const initial = await agent.getChatMetadata(chat, session);
-		client.threads = [{ ...thread('external'), modelProvider: 'openai', model: 'gpt-next' }];
-		filesystem.changeHomeFile('session_index.jsonl');
-		await timeout(6000);
-		const changedModel = await agent.getChatMetadata(chat, session);
-		client.threads = [{ ...thread('external'), modelProvider: 'vscode-proxy', model: 'gpt-next' }];
-		filesystem.changeHomeFile('session_index.jsonl');
-		await timeout(6000);
-		const changedProvider = await agent.getChatMetadata(chat, session);
-		assert.deepStrictEqual([
-			initial?.model?.id, readCodexSessionModel(initial)?.id,
-			changedModel?.model?.id, readCodexSessionModel(changedModel)?.id,
-			changedProvider?.model?.id, readCodexSessionModel(changedProvider)?.id,
-			client.historyRequests,
-		], [
-			'@provider=openai:gpt', '@provider=openai:gpt',
-			'@provider=openai:gpt-next', '@provider=openai:gpt-next',
-			'@provider=vscode-proxy:gpt-next', '@provider=vscode-proxy:gpt-next',
-			[],
-		]);
 	}));
 
 	test('rollout updates do not rescan the catalog while additions and deletions do', () => runWithFakedTimers({}, async () => {

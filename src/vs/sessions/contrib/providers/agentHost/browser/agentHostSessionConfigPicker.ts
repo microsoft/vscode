@@ -46,10 +46,10 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../browser/menus.js';
 import { DevContainerWorktreeEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
-import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext } from '../../../../common/contextkeys.js';
-import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { SessionIdContext, SessionProviderIdContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionUsesExperimentalComposerLayoutContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTelemetry.js';
+import { NEW_WORKTREE_LABEL } from '../../../chat/browser/branchPicker.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
 import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
@@ -82,12 +82,8 @@ import { CodexSessionConfigKey } from '../../../../../platform/agentHost/common/
 import { type ISessionChangeset, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
-const ExperimentalSessionComposerLayout = ContextKeyExpr.and(
-	IsSessionsWindowContext,
-	ContextKeyExpr.equals(`config.${EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING}`, true),
-	ContextKeyExpr.equals(`config.${UNIFIED_WORKSPACE_PICKER_SETTING}`, true),
-	IsPhoneLayoutContext.negate(),
-)!;
+const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
+const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID);
 const AGENT_HOST_SESSION_CONFIG_PICKER_ID_PREFIX = 'sessions.agentHost.sessionConfigPicker';
@@ -1007,7 +1003,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	}
 
 	private _renderIsolationCheckbox(provider: IAgentHostSessionsProvider, sessionId: string, schema: SessionConfigPropertySchema, value: unknown | undefined, isReadOnly: boolean, isLoading: boolean): void {
-		const label = localize('agentHostSessionConfig.isolation.worktree', "New Worktree");
+		const label = NEW_WORKTREE_LABEL;
 		const worktreeIndex = schema.enum?.indexOf('worktree') ?? -1;
 		const checked = value === 'worktree';
 		const combinationDisabled = !this._isDevContainerWorktreeEnabled()
@@ -1272,7 +1268,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	protected async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string, branchCompletions?: readonly SessionConfigValueItem[], branchResultLimit?: number): Promise<readonly IConfigPickerItem[]> {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			const worktreeDisabled = !this._isDevContainerWorktreeEnabled() && provider.isDevContainerEnabled?.(sessionId) === true;
-			return ['worktree', schema.enum?.includes('workspace') ? 'workspace' : 'folder'].filter(value => schema.enum?.includes(value)).map(value => ({
+			return [schema.enum?.includes('workspace') ? 'workspace' : 'folder', 'worktree'].filter(value => schema.enum?.includes(value)).map(value => ({
 				value,
 				label: this._getLabel(sessionId, property, schema, value),
 				description: value === 'worktree'
@@ -1356,7 +1352,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 	private _getLabel(sessionId: string, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (this._isNewSessionIsolationPicker(sessionId, property, schema)) {
 			return value === 'worktree'
-				? localize('agentHostSessionConfig.isolation.worktree', "New Worktree")
+				? NEW_WORKTREE_LABEL
 				: value === 'folder' || value === 'workspace'
 					? localize('agentHostSessionConfig.isolation.branch', "Branch")
 					: schema.title;
@@ -2122,7 +2118,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2147,7 +2143,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2177,7 +2173,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, ExperimentalSessionComposerLayout.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2213,7 +2209,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					ChatContextKeyExprs.isAgentHostSession,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
-					ExperimentalSessionComposerLayout.negate(),
+					LegacySessionComposerLayout,
 				),
 			}],
 		});

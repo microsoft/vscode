@@ -41,6 +41,7 @@ import {
 	type ChangesetState,
 	type ChatState,
 	type ChatSummary,
+	type CanvasState,
 	type ErrorInfo,
 	type ErrorResponsePart,
 	type PendingMessage,
@@ -77,7 +78,7 @@ export {
 	SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus,
 	ToolResultContentType,
 	TurnState, type ActiveTurn, type AgentCustomization, type AgentCapabilities, type AgentInfo, type AgentSelection, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type AnnotationsSummary, type Changeset, type ChangesetFile,
-	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
+	type ChangesetOperation, type ChangesetState, type ChatState, type ChatSummary, type ChatOrigin, type CanvasReference, type CanvasState, type ChildCustomization, type ClientPluginCustomization, type ConfigPropertySchema,
 	type ConfigSchema,
 	type ContentRef, type Customization, type CustomizationDegradedState,
 	type CustomizationErrorState, type CustomizationLoadedState, type CustomizationLoadingState, type CustomizationLoadState, type DirectoryCustomization, type ErrorInfo, type HookCustomization, type FileEdit as ISessionFileDiff, type ToolResultEmbeddedResourceContent as IToolResultBinaryContent, type MarkdownResponsePart, type McpServerCustomization, type MessageAttachment,
@@ -650,6 +651,7 @@ export function createChatState(summary: ChatSummary): ChatState {
 		origin: summary.origin,
 		interactivity: summary.interactivity,
 		workingDirectories: summary.workingDirectories,
+		...(summary.changes !== undefined ? { changes: summary.changes } : {}),
 		turns: [],
 		activeTurn: undefined,
 	};
@@ -750,6 +752,7 @@ export function chatSummaryFromState(state: ChatState): ChatSummary {
 	if (state.origin !== undefined) { summary.origin = state.origin; }
 	if (state.interactivity !== undefined) { summary.interactivity = state.interactivity; }
 	if (state.workingDirectories !== undefined) { summary.workingDirectories = state.workingDirectories; }
+	if (state.changes !== undefined) { summary.changes = state.changes; }
 	return summary;
 }
 
@@ -812,6 +815,7 @@ export const enum StateComponents {
 	Annotations,
 	AutomationCatalog,
 	AutomationRun,
+	Canvas,
 }
 
 export type ComponentToState = {
@@ -823,6 +827,7 @@ export type ComponentToState = {
 	[StateComponents.Annotations]: AnnotationsState;
 	[StateComponents.AutomationCatalog]: AutomationState;
 	[StateComponents.AutomationRun]: AutomationRunState;
+	[StateComponents.Canvas]: CanvasState;
 };
 
 // ---- Default chat URI helpers ----------------------------------------------

@@ -110,6 +110,7 @@ function createMockProvider(id: string, opts?: {
 	const base = {
 		id,
 		label: `Provider ${id}`,
+		environment: { id, label: `Provider ${id}` },
 		icon: Codicon.remote,
 		order: 0,
 		sessionTypes: [],

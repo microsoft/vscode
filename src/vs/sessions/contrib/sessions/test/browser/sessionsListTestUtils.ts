@@ -29,6 +29,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../services/sessions/common/sessionsProvider.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -128,6 +129,9 @@ export interface ITestSession {
 
 export interface ITestSessionOptions {
 	readonly resourceId?: string;
+	readonly harness?: string;
+	readonly environment?: string;
+	readonly application?: string;
 	readonly workspaceLabel?: string;
 	readonly status?: SessionStatus;
 	readonly isArchived?: boolean;
@@ -161,6 +165,9 @@ export function createTestSession(title: string, options: ITestSessionOptions = 
 		resource,
 		providerId: 'test',
 		sessionType: 'test',
+		harness: options.harness ?? 'copilot',
+		environment: options.environment ?? 'local',
+		application: constObservable(getSessionApplication(options.application ?? 'vscode')),
 		icon: Codicon.account,
 		createdAt: now,
 		workspace: constObservable(isQuickChat ? undefined : {

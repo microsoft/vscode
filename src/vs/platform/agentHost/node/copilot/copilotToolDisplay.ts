@@ -395,6 +395,16 @@ const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReadPowerShell,
 ]);
 
+/** Set of tool names that read from, write to, or stop a shell started by an earlier shell tool call. */
+const SHELL_HELPER_TOOL_NAMES: ReadonlySet<string> = new Set([
+	...READ_SHELL_TOOL_NAMES,
+	...WRITE_SHELL_TOOL_NAMES,
+	CopilotToolName.StopBash,
+	CopilotToolName.BashShutdown,
+	CopilotToolName.StopPowerShell,
+	CopilotToolName.PowerShellShutdown,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
@@ -500,6 +510,14 @@ export function getToolMarkdownContent(toolName: string, parameters: Record<stri
  */
 export function isShellTool(toolName: string): boolean {
 	return SHELL_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool reads from, writes to, or stops a shell that an
+ * earlier shell tool call started.
+ */
+export function isShellHelperTool(toolName: string): boolean {
+	return SHELL_HELPER_TOOL_NAMES.has(toolName);
 }
 
 /**
@@ -1171,10 +1189,15 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
 		? request.requestSandboxBypass
 		: undefined;
+	const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
+		? request.requestSandboxPermissive === true
+		: false;
 
-	const shellConfirmationTitle = requestSandboxBypass
-		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
-		: localize('copilot.permission.shell.title', "Run in terminal?");
+	const shellConfirmationTitle = requestSandboxPermissive
+		? localize('copilot.permission.shell.permissive.title', "Retry by allowing filesystem access inside the sandbox?")
+		: requestSandboxBypass
+			? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
+			: localize('copilot.permission.shell.title', "Run in terminal?");
 
 	switch (request.kind) {
 		case 'shell': {

@@ -249,6 +249,8 @@ class IPCRunner extends events.EventEmitter {
 }
 
 app.on('ready', async () => {
+	session.defaultSession.setSpellCheckerLanguages([]);
+	session.defaultSession.setSpellCheckerEnabled(false);
 	const outDir = args.build ? 'out-build' : 'out';
 	const [{ createRemoteResourceRequestHandler }, { getRemoteResourceResponseHeaders }] = await Promise.all([
 		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/remoteResourceProtocol.js`)).href),
