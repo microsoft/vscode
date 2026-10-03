@@ -351,7 +351,8 @@ export enum EditorOption {
 	effectiveAllowVariableFonts = 174,
 	doubleClickSelectsBlock = 175,
 	fullwidthCharacterWidth = 176,
-	effectiveFullwidthCharacterWidth = 177
+	effectiveFullwidthCharacterWidth = 177,
+	occurrencesHighlightFromAllProviders = 178
 }
 
 /**

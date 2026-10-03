@@ -667,6 +667,11 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlightDelay?: number;
 	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -6018,7 +6023,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	occurrencesHighlightFromAllProviders
 }
 
 export const EditorOptions = {
@@ -6563,6 +6569,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(

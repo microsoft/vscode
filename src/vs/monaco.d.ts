@@ -3822,6 +3822,11 @@ declare namespace monaco.editor {
 		 */
 		occurrencesHighlightDelay?: number;
 		/**
+		 * Merge single-document highlights from all matching providers.
+		 * Defaults to false.
+		 */
+		occurrencesHighlightFromAllProviders?: boolean;
+		/**
 		 * Show code lens
 		 * Defaults to true.
 		 */
@@ -5278,7 +5283,8 @@ declare namespace monaco.editor {
 		effectiveAllowVariableFonts = 174,
 		doubleClickSelectsBlock = 175,
 		fullwidthCharacterWidth = 176,
-		effectiveFullwidthCharacterWidth = 177
+		effectiveFullwidthCharacterWidth = 177,
+		occurrencesHighlightFromAllProviders = 178
 	}
 
 	export const EditorOptions: {
@@ -5381,6 +5387,7 @@ declare namespace monaco.editor {
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
 		occurrencesHighlightDelay: IEditorOption<EditorOption.occurrencesHighlightDelay, number>;
+		occurrencesHighlightFromAllProviders: IEditorOption<EditorOption.occurrencesHighlightFromAllProviders, boolean>;
 		overtypeOnPaste: IEditorOption<EditorOption.overtypeOnPaste, boolean>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
