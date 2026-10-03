@@ -37,6 +37,7 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, NumberBadge } from '../../../services/activity/common/activity.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { OpenFileAction } from '../../../browser/actions/workspaceActions.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -59,6 +60,25 @@ import { ConfigurationManager } from './debugConfigurationManager.js';
 import { DebugMemoryFileSystemProvider } from './debugMemory.js';
 import { DebugSession } from './debugSession.js';
 import { DebugTaskRunner, TaskRunResult } from './debugTaskRunner.js';
+
+const MISSING_ACTIVE_FILE_VARIABLE_PLACEHOLDER = '__vscode_missing_active_file_variable__';
+const MISSING_ACTIVE_FILE_ERROR_MESSAGE = nls.localize('canNotResolveFile', "Variable {0} can not be resolved. Please open an editor.", MISSING_ACTIVE_FILE_VARIABLE_PLACEHOLDER);
+
+function isMissingActiveFileVariableError(error: unknown): boolean {
+	// Debug variable substitution can cross the extension-host RPC boundary, which preserves the message but not the error subtype.
+	if (!(error instanceof Error)) {
+		return false;
+	}
+
+	const variableOffset = MISSING_ACTIVE_FILE_ERROR_MESSAGE.indexOf(MISSING_ACTIVE_FILE_VARIABLE_PLACEHOLDER);
+	if (variableOffset === -1) {
+		return false;
+	}
+
+	const prefix = MISSING_ACTIVE_FILE_ERROR_MESSAGE.slice(0, variableOffset);
+	const suffix = MISSING_ACTIVE_FILE_ERROR_MESSAGE.slice(variableOffset + MISSING_ACTIVE_FILE_VARIABLE_PLACEHOLDER.length);
+	return error.message.length > prefix.length + suffix.length && error.message.startsWith(prefix) && error.message.endsWith(suffix);
+}
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -511,6 +531,7 @@ export class DebugService implements IDebugService {
 				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
 				if (!resolvedConfig) {
 					// User cancelled resolving of interactive variables, silently return
+					this.cancelTokens(sessionId);
 					return false;
 				}
 
@@ -990,12 +1011,28 @@ export class DebugService implements IDebugService {
 				return await dbg.substituteVariables(folder, config);
 			} catch (err) {
 				if (err.message !== errors.canceledName) {
-					this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+					if (isMissingActiveFileVariableError(err)) {
+						await this.showNoActiveFileError();
+					} else {
+						this.showError(err.message, undefined, !!launch?.getConfiguration(config.name));
+					}
 				}
 				return undefined;	// bail out
 			}
 		}
 		return Promise.resolve(config);
+	}
+
+	private async showNoActiveFileError(): Promise<void> {
+		await this.dialogService.prompt({
+			type: severity.Error,
+			message: nls.localize('debug.startDebuggingNoFile', "You need to open a file to start a debug session."),
+			buttons: [{
+				label: nls.localize('debug.openFile', "Open a File"),
+				run: () => this.commandService.executeCommand(OpenFileAction.ID)
+			}],
+			cancelButton: true
+		});
 	}
 
 	private async showError(message: string, errorActions: ReadonlyArray<IAction> = [], promptLaunchJson = true): Promise<void> {
