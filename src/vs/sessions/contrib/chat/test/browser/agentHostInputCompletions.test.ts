@@ -72,6 +72,15 @@ suite('AgentHostInputCompletions', () => {
 			);
 		});
 
+		test('returns the hint for an accepted skill completion', () => {
+			const entry = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/design-prep', 'file:///skills/design-prep/SKILL.md', { uri: 'file:///skills/design-prep/SKILL.md', argumentHint: '<problem>' });
+			const references = new Map([[entry.id, { text: '/design-prep', range: new OffsetRange(0, 12) }]]);
+			assert.deepStrictEqual(
+				getCommandArgumentHintPlaceholder('/design-prep ', [entry], references),
+				{ argumentHint: '<problem>', endOffset: 12 }
+			);
+		});
+
 		test('returns undefined without a hint, once an argument is typed, or with leading text', () => {
 			const withHint = commandEntry('task');
 			const withoutHint = commandEntry(undefined);
