@@ -37,6 +37,7 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { ExperimentalMissionControlEnvironment } from './missionControlEnvironment.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { parseChatUri } from '../common/state/sessionState.js';
 import { parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -511,8 +512,10 @@ async function startAgentHost(): Promise<void> {
 			onDidChangeGitHubIdentityAuthority,
 			environmentId => {
 				const mirror = instantiationService.createInstance(MissionControlSessionMirror, environmentId, {});
+				const sources = new DisposableStore();
+				const sdk = sources.add(instantiationService.createInstance(MissionControlSdkEventSource, environmentId, mirror, () => missionControl?.isEnabled === true));
 				const registered = new Set<string>();
-				const source = stateManager.onDidEmitEnvelope(envelope => {
+				sources.add(stateManager.onDidEmitEnvelope(envelope => {
 					const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
 						?? parseChangesetUri(envelope.channel)?.sessionUri ?? envelope.channel;
 					const session = stateManager.getSessionSummary(channel);
@@ -532,11 +535,12 @@ async function startAgentHost(): Promise<void> {
 							mirror.setLifecycle(session.resource, 'started');
 						}
 						mirror.enqueue(envelope, session.resource);
+						sdk.observeSession(session.resource);
 					} catch (error) {
 						logService.error('[AgentHost] Mission Control mirror admission failed', error);
 					}
-				});
-				return { mirror, source };
+				}));
+				return { mirror, source: sources };
 			},
 		))
 		: undefined;

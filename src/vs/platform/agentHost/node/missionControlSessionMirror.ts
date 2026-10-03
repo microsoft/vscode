@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from '../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, RunOnceScheduler } from '../../../base/common/async.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import type { ActionEnvelope } from '../common/state/sessionActions.js';
@@ -14,15 +16,22 @@ export interface IMissionControlMirrorProject {
 	readonly display_name: string;
 }
 
-export interface IMissionControlReplicationFrame {
+export interface IMissionControlSdkEvent {
+	readonly type: string;
+	readonly data: unknown;
+	readonly _truncated?: { readonly reason: 'oversize'; readonly bytes: number };
+}
+
+export type IMissionControlReplicationFrame = {
 	readonly environment_id: string;
 	readonly session_id: string;
-	readonly ns: 'ahp';
 	readonly seq: number;
 	readonly at: string;
 	readonly project?: IMissionControlMirrorProject;
-	readonly payload: ChunkEnvelope;
-}
+} & (
+		| { readonly ns: 'ahp'; readonly payload: ChunkEnvelope }
+		| { readonly ns: 'sdk'; readonly payload: IMissionControlSdkEvent }
+	);
 
 export type MissionControlMirrorFailure =
 	| { readonly namespace: 'ahp'; readonly reason: 'serialization_failed' | 'framing_failed' | 'spool_capacity'; readonly server_seq: number }
@@ -87,6 +96,7 @@ export interface IMissionControlMirrorStatus {
 interface RetainedFrame {
 	readonly json: string;
 	readonly bytes: number;
+	readonly journalEventId?: string;
 }
 
 interface BackfillRange {
@@ -94,16 +104,26 @@ interface BackfillRange {
 	readonly toSeq: number;
 }
 
-interface SessionSpool {
-	readonly sessionId: string;
-	readonly project: IMissionControlMirrorProject | undefined;
+interface NamespaceSpool {
 	readonly frames: Map<number, RetainedFrame>;
-	readonly backfills: BackfillRange[];
 	nextSeq: number;
 	publishedSeq: number;
 	acknowledgedSeq: number;
 	nextToSend: number;
 	bytes: number;
+}
+
+interface SdkSpool extends NamespaceSpool {
+	sequenceLimit: number;
+	droppedSequence: number | undefined;
+	droppedCount: number;
+}
+
+interface SessionSpool extends NamespaceSpool {
+	readonly sessionId: string;
+	readonly project: IMissionControlMirrorProject | undefined;
+	readonly backfills: BackfillRange[];
+	sdk?: SdkSpool;
 	failure: MissionControlMirrorFailure | undefined;
 	failureEvent: string | undefined;
 	failurePending: boolean;
@@ -124,8 +144,7 @@ function isSessionId(value: string): boolean {
 
 /**
  * Process-owned, bounded AHP frame spool, independent of socket lifetimes and direct client dispatch.
- * Restart loses retained frames and sequence counters: continuing the same mirrored session URI after restart is unsafe.
- * Only authoritative ActionEnvelopes are admitted; the mirror wire contract defines no initialSnapshot notification or native raw-SDK source.
+ * AHP restart continuity is unresolved; SDK sequence ranges are reserved durably by its source before admission.
  */
 export class MissionControlSessionMirror extends Disposable {
 	private readonly _sessions = new Map<string, SessionSpool>();
@@ -137,8 +156,12 @@ export class MissionControlSessionMirror extends Disposable {
 	private _attachment: { readonly sender: MissionControlMirrorSender } | undefined;
 	private _retainedFrames = 0;
 	private _retainedBytes = 0;
+	private _sdkRetainedFrames = 0;
+	private _sdkRetainedBytes = 0;
 	private _backfillFrames = 0;
 	private _backfillRequests = 0;
+	private _sdkAcknowledged: ((sessionId: string, journalEventId: string) => void) | undefined;
+	private readonly _sdkCapacityWaiters = new Map<string, DeferredPromise<void>>();
 
 	constructor(
 		private readonly _environmentId: string,
@@ -158,8 +181,13 @@ export class MissionControlSessionMirror extends Disposable {
 		this._now = now ?? Date.now;
 		this._register(toDisposable(() => {
 			this.detach();
+			for (const waiter of this._sdkCapacityWaiters.values()) {
+				waiter.error(new CancellationError());
+			}
+			this._sdkCapacityWaiters.clear();
 			this._sessions.clear();
 			this._retainedFrames = this._retainedBytes = this._backfillFrames = this._backfillRequests = 0;
+			this._sdkRetainedFrames = this._sdkRetainedBytes = 0;
 		}));
 	}
 
@@ -262,6 +290,144 @@ export class MissionControlSessionMirror extends Disposable {
 		this._fail(session, { namespace: 'ahp', reason: 'source_lag', skipped });
 	}
 
+	/** Grants a durably reserved range; discarded reservations become permitted SDK sequence gaps after restart. */
+	reserveSdkSequences(sessionId: string, first: number, limit: number): void {
+		const session = this._session(sessionId);
+		if (!isSequence(first) || !isSequence(limit) || limit - first < 2
+			|| (session.sdk && (first !== session.sdk.sequenceLimit || limit <= first))) {
+			throw new Error('Invalid SDK sequence reservation');
+		}
+		if (session.sdk) {
+			session.sdk.sequenceLimit = limit;
+		} else {
+			session.sdk = {
+				frames: new Map(), nextSeq: first, publishedSeq: first - 1, acknowledgedSeq: first - 1, nextToSend: first,
+				bytes: 0, sequenceLimit: limit, droppedSequence: undefined, droppedCount: 0,
+			};
+		}
+	}
+
+	getSdkNextSequence(sessionId: string): number | undefined {
+		return this._session(sessionId).sdk?.nextSeq;
+	}
+
+	/** SDK data is selected by its provider; oversized bodies use the portable placeholder, never chunking. */
+	enqueueSdk(sessionId: string, event: IMissionControlSdkEvent, at: string, journalEventId?: string): boolean {
+		const session = this._session(sessionId);
+		const sdk = session.sdk;
+		if (!sdk || sdk.nextSeq + 1 >= sdk.sequenceLimit || !event.type || !Number.isFinite(Date.parse(at))) {
+			throw new Error('SDK sequence range or event is invalid');
+		}
+		const { json, bytes } = this._sdkCandidate(session, event, at);
+		if (!this._sdkHasCapacity(sdk, bytes)) {
+			this._recordSdkDrop(session, 1, at);
+			return false;
+		}
+		sdk.frames.set(sdk.nextSeq++, { json, bytes, journalEventId });
+		sdk.bytes += bytes;
+		this._sdkRetainedFrames++;
+		this._sdkRetainedBytes += bytes;
+		this._wake(session);
+		return true;
+	}
+
+	/** Journal replay waits for durable credit rather than dropping the newest state behind a historical backlog. */
+	async waitForSdkCapacity(sessionId: string, event: IMissionControlSdkEvent, at: string, token: CancellationToken): Promise<void> {
+		while (true) {
+			this._assertLive();
+			const session = this._session(sessionId);
+			const sdk = session.sdk;
+			if (!sdk) {
+				throw new Error('SDK sequence range has not been reserved');
+			}
+			const { bytes } = this._sdkCandidate(session, event, at);
+			if (bytes > this._limits.maxSessionBytes || bytes > this._limits.maxTotalBytes) {
+				throw new Error('SDK event cannot fit the replay spool');
+			}
+			if (this._sdkHasCapacity(sdk, bytes)) {
+				return;
+			}
+			if (this._sdkCapacityWaiters.has(sessionId)) {
+				throw new Error('SDK replay already owns a capacity wait');
+			}
+			const waiter = new DeferredPromise<void>();
+			this._sdkCapacityWaiters.set(sessionId, waiter);
+			try {
+				await raceCancellationError(waiter.p, token);
+			} finally {
+				if (this._sdkCapacityWaiters.get(sessionId) === waiter) {
+					this._sdkCapacityWaiters.delete(sessionId);
+				}
+			}
+		}
+	}
+
+	private _sdkHasCapacity(sdk: SdkSpool, bytes: number): boolean {
+		return sdk.droppedSequence === undefined && sdk.frames.size < this._limits.maxSessionFrames
+			&& sdk.bytes + bytes <= this._limits.maxSessionBytes && this._sdkRetainedFrames < this._limits.maxTotalFrames
+			&& this._sdkRetainedBytes + bytes <= this._limits.maxTotalBytes;
+	}
+
+	private _sdkCandidate(session: SessionSpool, event: IMissionControlSdkEvent, at: string): RetainedFrame {
+		let json = this._sdkFrameJson(session, session.sdk!.nextSeq, at, event);
+		const originalBytes = Buffer.byteLength(json);
+		if (originalBytes + transportAckBytes > this._limits.maxEventBytes) {
+			json = this._sdkFrameJson(session, session.sdk!.nextSeq, at, {
+				type: event.type, data: null, _truncated: { reason: 'oversize', bytes: originalBytes },
+			});
+		}
+		const bytes = Buffer.byteLength(json);
+		if (bytes + transportAckBytes > this._limits.maxEventBytes) {
+			throw new Error('SDK metadata cannot fit the transport ceiling');
+		}
+		return { json, bytes };
+	}
+
+	setSdkAcknowledgementHandler(handler: (sessionId: string, journalEventId: string) => void): IDisposable {
+		if (this._sdkAcknowledged) {
+			throw new Error('SDK acknowledgement ownership is already assigned');
+		}
+		this._sdkAcknowledged = handler;
+		return toDisposable(() => {
+			if (this._sdkAcknowledged === handler) {
+				this._sdkAcknowledged = undefined;
+			}
+		});
+	}
+
+	reportSdkSourceLag(sessionId: string, skipped: number): void {
+		if (!Number.isSafeInteger(skipped) || skipped < 1) {
+			throw new Error('Invalid SDK source lag');
+		}
+		this._recordSdkDrop(this._session(sessionId), skipped, this._timestamp());
+	}
+
+	private _recordSdkDrop(session: SessionSpool, count: number, at: string): void {
+		const sdk = session.sdk;
+		if (!sdk || sdk.nextSeq >= sdk.sequenceLimit || !Number.isSafeInteger(sdk.droppedCount + count)) {
+			throw new Error('SDK truncation marker cannot be sequenced');
+		}
+		if (sdk.droppedSequence === undefined) {
+			sdk.droppedSequence = sdk.nextSeq++;
+			this._sdkRetainedFrames++;
+			this._logService.warn('[MissionControlSessionMirror] SDK metadata was dropped', { environment: this._environmentId, session: session.sessionId });
+		}
+		sdk.droppedCount += count;
+		if (sdk.droppedSequence <= sdk.publishedSeq) {
+			return;
+		}
+		const previousBytes = sdk.frames.get(sdk.droppedSequence)?.bytes ?? 0;
+		const json = this._sdkFrameJson(session, sdk.droppedSequence, at, { type: 'session.events_truncated', data: { dropped_count: sdk.droppedCount } });
+		const bytes = Buffer.byteLength(json);
+		if (bytes + transportAckBytes > this._limits.maxEventBytes) {
+			throw new Error('SDK truncation marker exceeds transport ceiling');
+		}
+		sdk.frames.set(sdk.droppedSequence, { json, bytes });
+		sdk.bytes += bytes - previousBytes;
+		this._sdkRetainedBytes += bytes - previousBytes;
+		this._wake(session);
+	}
+
 	/** Ordinary unsent lifecycle markers coalesce separately from the sticky mirror integrity signal. */
 	setLifecycle(sessionId: string, kind: Exclude<IMissionControlSessionLifecycle['kind'], 'mirror_failed'>, details?: Record<string, unknown>): void {
 		const session = this._session(sessionId);
@@ -287,6 +453,9 @@ export class MissionControlSessionMirror extends Disposable {
 		this._ready.clear();
 		for (const session of this._sessions.values()) {
 			session.nextToSend = session.acknowledgedSeq + 1;
+			if (session.sdk) {
+				session.sdk.nextToSend = session.sdk.acknowledgedSeq + 1;
+			}
 			session.failurePending = session.failureEvent !== undefined;
 			this._wake(session);
 		}
@@ -313,42 +482,74 @@ export class MissionControlSessionMirror extends Disposable {
 			|| Buffer.byteLength(JSON.stringify(value)) > this._limits.maxEventBytes) {
 			throw new Error('Invalid Mission Control ingest acknowledgement');
 		}
-		const advances: { session: SessionSpool; sequence: number }[] = [];
+		const advances: { session: SessionSpool; sequence: number; ns: 'ahp' | 'sdk' }[] = [];
 		for (const [sessionId, namespaces] of Object.entries(value.watermarks)) {
 			if (!isSessionId(sessionId) || !isObject(namespaces) || Object.keys(namespaces).length === 0
 				|| Object.entries(namespaces).some(([ns, seq]) => (ns !== 'ahp' && ns !== 'sdk') || !isSequence(seq))) {
 				throw new Error('Invalid Mission Control ingest watermark');
 			}
 			const session = this._sessions.get(sessionId);
-			if (session && isSequence(namespaces.ahp)) {
-				if (namespaces.ahp > session.publishedSeq) {
+			for (const ns of ['ahp', 'sdk'] as const) {
+				const spool = ns === 'ahp' ? session : session?.sdk;
+				const sequence = namespaces[ns];
+				if (!session || !spool || !isSequence(sequence)) {
+					continue;
+				}
+				if (sequence > spool.publishedSeq) {
 					throw new Error('Mission Control ingest watermark exceeds published sequence');
 				}
-				advances.push({ session, sequence: namespaces.ahp });
+				advances.push({ session, sequence, ns });
 			}
 		}
-		for (const { session, sequence } of advances) {
-			if (sequence <= session.acknowledgedSeq) {
+		for (const { session, sequence, ns } of advances) {
+			const spool = ns === 'ahp' ? session : session.sdk!;
+			if (sequence <= spool.acknowledgedSeq) {
 				continue;
 			}
-			session.acknowledgedSeq = sequence;
-			for (const [seq, frame] of session.frames) {
+			spool.acknowledgedSeq = sequence;
+			let journalEventId: string | undefined;
+			for (const [seq, frame] of spool.frames) {
 				if (seq > sequence) {
 					break;
 				}
-				session.frames.delete(seq);
-				session.bytes -= frame.bytes;
-				this._retainedBytes -= frame.bytes;
-				this._retainedFrames--;
+				spool.frames.delete(seq);
+				spool.bytes -= frame.bytes;
+				if (ns === 'ahp') {
+					this._retainedBytes -= frame.bytes;
+					this._retainedFrames--;
+				} else {
+					this._sdkRetainedBytes -= frame.bytes;
+					this._sdkRetainedFrames--;
+					journalEventId = frame.journalEventId ?? journalEventId;
+				}
 			}
-			session.nextToSend = Math.max(session.nextToSend, sequence + 1);
+			spool.nextToSend = Math.max(spool.nextToSend, sequence + 1);
+			if (ns === 'sdk' && session.sdk?.droppedSequence !== undefined && session.sdk.droppedSequence <= sequence) {
+				session.sdk.droppedSequence = undefined;
+				if (session.sdk.droppedCount) {
+					this._recordSdkDrop(session, 0, this._timestamp());
+				}
+			}
 			for (const range of session.backfills) {
+				if (ns !== 'ahp') {
+					break;
+				}
 				const next = Math.min(range.toSeq + 1, Math.max(range.nextSeq, sequence + 1));
 				this._backfillFrames -= next - range.nextSeq;
 				range.nextSeq = next;
 			}
 			this._pruneBackfills(session);
 			this._wake(session);
+			if (ns === 'sdk' && journalEventId !== undefined) {
+				this._sdkAcknowledged?.(session.sessionId, journalEventId);
+			}
+			if (ns === 'sdk') {
+				const waiters = [...this._sdkCapacityWaiters.values()];
+				this._sdkCapacityWaiters.clear();
+				for (const waiter of waiters) {
+					waiter.complete();
+				}
+			}
 		}
 	}
 
@@ -396,6 +597,13 @@ export class MissionControlSessionMirror extends Disposable {
 		} satisfies MissionControlMirrorEvent);
 	}
 
+	private _sdkFrameJson(session: SessionSpool, seq: number, at: string, payload: IMissionControlSdkEvent): string {
+		return JSON.stringify({
+			type: 'event', event: 'sessionEvents', dataType: 'json',
+			data: { environment_id: this._environmentId, session_id: session.sessionId, ns: 'sdk', seq, at, ...(session.project && { project: session.project }), payload },
+		} satisfies MissionControlMirrorEvent);
+	}
+
 	private _timestamp(): string {
 		return new Date(this._now()).toISOString();
 	}
@@ -433,13 +641,14 @@ export class MissionControlSessionMirror extends Disposable {
 		this._wake(session);
 	}
 
-	private _canSendFrame(session: SessionSpool): boolean {
+	private _canSendFrame(session: NamespaceSpool): boolean {
 		return session.nextToSend < session.nextSeq
 			&& (session.nextToSend <= session.publishedSeq || session.publishedSeq - session.acknowledgedSeq < creditWindow);
 	}
 
 	private _wake(session: SessionSpool): void {
-		if (this._attachment && (session.failurePending || session.lifecycleEvent || this._canSendFrame(session) || session.backfills.length > 0)) {
+		if (this._attachment && (session.failurePending || session.lifecycleEvent || this._canSendFrame(session)
+			|| (session.sdk && this._canSendFrame(session.sdk)) || session.backfills.length > 0)) {
 			this._ready.add(session);
 			if (!this._scheduler.isScheduled()) {
 				this._scheduler.schedule();
@@ -469,9 +678,10 @@ export class MissionControlSessionMirror extends Disposable {
 			const failure = session.failurePending;
 			const lifecycle = !failure && session.lifecycleEvent;
 			const normalFrame = !failure && !lifecycle && this._canSendFrame(session);
-			const range = !failure && !lifecycle && !normalFrame ? session.backfills[0] : undefined;
-			const seq = normalFrame ? session.nextToSend : range?.nextSeq;
-			const json = failure ? session.failureEvent : lifecycle || (seq !== undefined ? session.frames.get(seq)?.json : undefined);
+			const sdkFrame = !failure && !lifecycle && !normalFrame && session.sdk && this._canSendFrame(session.sdk) ? session.sdk : undefined;
+			const range = !failure && !lifecycle && !normalFrame && !sdkFrame ? session.backfills[0] : undefined;
+			const seq = normalFrame ? session.nextToSend : sdkFrame ? sdkFrame.nextToSend : range?.nextSeq;
+			const json = failure ? session.failureEvent : lifecycle || (seq !== undefined ? (sdkFrame ?? session).frames.get(seq)?.json : undefined);
 			if (!json) {
 				throw new Error('Mission Control mirror spool invariant violated');
 			}
@@ -488,6 +698,12 @@ export class MissionControlSessionMirror extends Disposable {
 			}
 			if (normalFrame && seq !== undefined) {
 				session.publishedSeq = Math.max(session.publishedSeq, seq);
+			} else if (sdkFrame && seq !== undefined) {
+				const firstPublication = seq > sdkFrame.publishedSeq;
+				sdkFrame.publishedSeq = Math.max(sdkFrame.publishedSeq, seq);
+				if (firstPublication && sdkFrame.droppedSequence === seq) {
+					sdkFrame.droppedCount = 0;
+				}
 			}
 			if (this._attachment !== attachment) {
 				break;
@@ -500,6 +716,8 @@ export class MissionControlSessionMirror extends Disposable {
 				}
 			} else if (normalFrame && seq !== undefined) {
 				session.nextToSend = Math.max(seq + 1, session.acknowledgedSeq + 1);
+			} else if (sdkFrame && seq !== undefined) {
+				sdkFrame.nextToSend = Math.max(seq + 1, sdkFrame.acknowledgedSeq + 1);
 			} else if (range && range.nextSeq === seq) {
 				range.nextSeq++;
 				this._backfillFrames--;

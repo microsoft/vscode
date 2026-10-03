@@ -182,6 +182,20 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} exposes native events before the SDK session is returned without changing policy handling`, async () => {
+			const fixture = setup(kind);
+			const events: string[] = [];
+			store.add(await fixture.launcher.launch(fixture.plan, { ...testRuntime, onSessionEvent: event => events.push(event.type) }));
+			fixture.captured?.onEvent?.({
+				id: 'title', parentId: null, timestamp: '2026-10-02T21:00:00Z',
+				type: 'session.title_changed', ephemeral: true, data: { title: 'Native title' },
+			});
+			assert.deepStrictEqual({
+				events,
+				applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			}, { events: ['session.managed_settings_resolved', 'session.title_changed'], applied: [false] });
+		});
+
 		for (const selection of ['on', 'off']) {
 			test(`${kind} applies SDK sandbox ${selection} when the custom terminal tool is enabled`, async () => {
 				const fixture = setup(kind);
@@ -890,7 +904,7 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		try {
 			sessions.add(await launcher.launch(plan, testRuntime));
 			assert.deepStrictEqual(milestones, [
-				'start:copilotcli',
+				'start:ahp-session',
 				'complete:failure',
 				'complete:fallbackCreate',
 			]);

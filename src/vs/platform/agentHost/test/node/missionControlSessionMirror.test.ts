@@ -10,6 +10,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { ActionType, type ActionEnvelope, type ChatDeltaAction } from '../../common/state/sessionActions.js';
 import { Reassembler } from '../../common/webPubSub/chunking.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import {
 	MissionControlSessionMirror, type IMissionControlSessionMirrorOptions, type MissionControlMirrorEvent, type IMissionControlMirrorBackfill,
 } from '../../node/missionControlSessionMirror.js';
@@ -31,7 +32,11 @@ function backfill(from_seq: number, to_seq: number, session_id = sessionId): IMi
 }
 
 function frames(events: readonly MissionControlMirrorEvent[]) {
-	return events.flatMap(event => event.event === 'sessionEvents' ? [event.data] : []);
+	return events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'ahp' ? [event.data] : []);
+}
+
+function sdkFrames(events: readonly MissionControlMirrorEvent[]) {
+	return events.flatMap(event => event.event === 'sessionEvents' && event.data.ns === 'sdk' ? [event.data] : []);
 }
 
 suite('MissionControlSessionMirror', () => {
@@ -443,7 +448,7 @@ suite('MissionControlSessionMirror', () => {
 	test('sender mutation cannot alter backfill and disposing cancels all scheduled work', () => {
 		const { mirror, events } = fixture();
 		store.add(mirror.attach(event => {
-			if (event.event === 'sessionEvents' && event.data.payload.kind === 'message') {
+			if (event.event === 'sessionEvents' && event.data.ns === 'ahp' && event.data.payload.kind === 'message') {
 				const envelope = event.data.payload.data as ActionEnvelope;
 				if (envelope.action.type === ActionType.ChatDelta) {
 					envelope.action.content = 'sender mutation';
@@ -465,5 +470,114 @@ suite('MissionControlSessionMirror', () => {
 		assert.strictEqual(events.length, 2);
 		assert.strictEqual(mirror.statistics.retainedBytes, 0);
 		assert.throws(() => mirror.enqueue(action(), sessionId), /disposed/);
+	});
+
+	test('SDK metadata has independent sequences and credits and does not block AHP', () => {
+		const { mirror, events, attach } = fixture();
+		mirror.reserveSdkSequences(sessionId, 2048, 4096);
+		attach();
+		for (let index = 0; index < 1025; index++) {
+			mirror.enqueueSdk(sessionId, { type: 'session.title_changed', data: { title: `Title ${index}` } }, at);
+		}
+		mirror.enqueue(action(), sessionId);
+		clock.runAll();
+		assert.deepStrictEqual({
+			ahp: frames(events).map(frame => frame.seq),
+			sdk: sdkFrames(events).map(frame => frame.seq),
+		}, { ahp: [0], sdk: Array.from({ length: 1024 }, (_, index) => 2048 + index) });
+		assert.throws(() => mirror.ingestAck({ watermarks: { [sessionId]: { ahp: 0, sdk: 4000 } } }), /exceeds published/);
+		assert.strictEqual(mirror.statistics.retainedFrames, 1);
+		mirror.ingestAck({ watermarks: { [sessionId]: { sdk: 2048 } } });
+		clock.runAll();
+		assert.strictEqual(sdkFrames(events).at(-1)?.seq, 3072);
+		assert.strictEqual(mirror.statistics.retainedFrames, 1);
+	});
+
+	test('SDK overload coalesces a bounded truncation marker without mutating already-published frames', () => {
+		const { mirror, events, attach } = fixture({ maxSessionFrames: 1 });
+		mirror.reserveSdkSequences(sessionId, 0, 1024);
+		mirror.enqueueSdk(sessionId, { type: 'session.title_changed', data: { title: 'Retained' } }, at);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		attach();
+		clock.runAll();
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		const before = sdkFrames(events).map(frame => frame.payload);
+		mirror.ingestAck({ watermarks: { [sessionId]: { sdk: 1 } } });
+		clock.runAll();
+		assert.deepStrictEqual(sdkFrames(events).map(frame => ({ seq: frame.seq, payload: frame.payload })), [
+			{ seq: 0, payload: { type: 'session.title_changed', data: { title: 'Retained' } } },
+			{ seq: 1, payload: { type: 'session.events_truncated', data: { dropped_count: 2 } } },
+			{ seq: 2, payload: { type: 'session.events_truncated', data: { dropped_count: 1 } } },
+		]);
+		assert.deepStrictEqual(sdkFrames(events).slice(0, 2).map(frame => frame.payload), before);
+	});
+
+	test('oversized SDK bodies become a portable placeholder rather than chunks or authoritative mirror failure', () => {
+		const { mirror, events, attach } = fixture({ maxEventBytes: 500 });
+		mirror.reserveSdkSequences(sessionId, 0, 1024);
+		const payload = { type: 'session.title_changed', data: { title: 'x'.repeat(1000) } };
+		mirror.enqueueSdk(sessionId, payload, at);
+		attach();
+		clock.runAll();
+		const frame = sdkFrames(events)[0];
+		const expectedBytes = Buffer.byteLength(JSON.stringify({
+			type: 'event', event: 'sessionEvents', dataType: 'json',
+			data: { environment_id: environment, session_id: sessionId, ns: 'sdk', seq: 0, at, payload },
+		}));
+		assert.deepStrictEqual(frame.payload, {
+			type: 'session.title_changed', data: null, _truncated: { reason: 'oversize', bytes: expectedBytes },
+		});
+		assert.strictEqual(mirror.getSessionStatus(sessionId).failure, undefined);
+		assert.ok(Buffer.byteLength(JSON.stringify(events[0])) < 500);
+	});
+
+	test('SDK truncation-marker retransmission preserves losses accumulated after its first publication', () => {
+		const { mirror, events, attach } = fixture({ maxSessionFrames: 1 });
+		mirror.reserveSdkSequences(sessionId, 0, 1024);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		attach().dispose();
+		attach();
+		clock.runAll();
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		attach();
+		clock.runAll();
+		mirror.ingestAck({ watermarks: { [sessionId]: { sdk: 1 } } });
+		clock.runAll();
+		assert.deepStrictEqual(sdkFrames(events).map(frame => frame.payload), [
+			{ type: 'session.idle', data: {} },
+			{ type: 'session.events_truncated', data: { dropped_count: 1 } },
+			{ type: 'session.idle', data: {} },
+			{ type: 'session.events_truncated', data: { dropped_count: 1 } },
+			{ type: 'session.events_truncated', data: { dropped_count: 1 } },
+		]);
+	});
+
+	test('journal replay waits for SDK capacity and retains the newest state instead of dropping it', async () => {
+		const { mirror, events, attach } = fixture({ maxSessionFrames: 1 });
+		mirror.reserveSdkSequences(sessionId, 0, 1024);
+		mirror.enqueueSdk(sessionId, { type: 'assistant.turn_start', data: { turnId: 'old' } }, at);
+		attach();
+		const latest = { type: 'assistant.turn_end', data: { turnId: 'old' } };
+		let ready = false;
+		const capacity = mirror.waitForSdkCapacity(sessionId, latest, at, CancellationToken.None).then(() => { ready = true; });
+		clock.runAll();
+		assert.strictEqual(ready, false);
+		mirror.ingestAck({ watermarks: { [sessionId]: { sdk: 0 } } });
+		await capacity;
+		mirror.enqueueSdk(sessionId, latest, at);
+		clock.runAll();
+		assert.deepStrictEqual(sdkFrames(events).map(frame => frame.payload.type), ['assistant.turn_start', 'assistant.turn_end']);
+	});
+
+	test('SDK replay capacity waits cancel without leaking ownership', async () => {
+		const { mirror } = fixture({ maxSessionFrames: 1 });
+		mirror.reserveSdkSequences(sessionId, 0, 1024);
+		mirror.enqueueSdk(sessionId, { type: 'session.idle', data: {} }, at);
+		const cancellation = store.add(new CancellationTokenSource());
+		const capacity = mirror.waitForSdkCapacity(sessionId, { type: 'session.idle', data: {} }, at, cancellation.token);
+		cancellation.cancel();
+		await assert.rejects(capacity, /Canceled/);
 	});
 });

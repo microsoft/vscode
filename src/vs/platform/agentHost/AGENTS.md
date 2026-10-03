@@ -85,6 +85,7 @@ Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
 - Reading history (`chats.getMessages`).
 - Emitting progress signals (`onDidChatProgress`).
+- Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
 - Re-attaching a chat's backing on restore (`materializeChat`) — including the session's default chat.
 - Advertising static capability flags (`getDescriptor().capabilities`).
