@@ -23,6 +23,10 @@ import { AnonymousAccount, BootstrapAccount } from './types.js';
 import { IPullRequestMutations, PullRequestMutationService } from './pullRequestMutationService.js';
 import { PullRequestQueryService } from './pullRequestQueryService.js';
 import { IPullRequestResources, PullRequestResourceService } from './pullRequestResourceService.js';
+import { GitHubCloudApi, normalizeGitHubCloudEndpoint } from './githubCloudApi.js';
+import { GitHubAutomations, IGitHubAutomations } from './githubAutomations.js';
+import { GitHubCloudTasks, IGitHubCloudTasks } from './githubCloudTasks.js';
+import { GitHubEnvironments, IGitHubEnvironments } from './githubEnvironments.js';
 
 export const IGitHubService = createDecorator<IGitHubService>('gitHubService');
 
@@ -58,6 +62,9 @@ export interface IGitHubClient {
 	readonly query: IGitHubQuery;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
+	readonly automations: IGitHubAutomations;
+	readonly cloudTasks: IGitHubCloudTasks;
+	readonly environments: IGitHubEnvironments;
 }
 
 /** Engine-owned grant entry retaining its leases, client resources and identity backoff. */
@@ -114,9 +121,10 @@ export class GitHubService extends Disposable implements IGitHubService {
 		const normalized: GitHubClientOptions = {
 			apiBaseUri: new URL(options.apiBaseUri).href.replace(/\/$/, ''),
 			graphQlUri: new URL(options.graphQlUri).href,
+			cloud: options.cloud ? normalizeGitHubCloudEndpoint(options.cloud) : undefined,
 			authorization: Object.freeze({ ...authorization, scopes: Object.freeze([...new Set(authorization.scopes)].sort()) }),
 		};
-		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri]);
+		const key = JSON.stringify([normalized.authorization.providerId, normalized.authorization.sessionId, normalized.authorization.accountId, normalized.authorization.scopes, normalized.authorization.authorizationServer, normalized.apiBaseUri, normalized.graphQlUri, normalized.cloud]);
 		let entry = this._clients.get(key);
 		if (!entry) {
 			this._ensureClientCapacity();
@@ -241,6 +249,9 @@ class GitHubClient extends Disposable implements IGitHubClient {
 	readonly query: IGitHubQuery;
 	readonly pullRequests: IPullRequestResources;
 	readonly mutations: IPullRequestMutations;
+	readonly automations: IGitHubAutomations;
+	readonly cloudTasks: IGitHubCloudTasks;
+	readonly environments: IGitHubEnvironments;
 
 	constructor(
 		context: GitHubClientOptions,
@@ -298,6 +309,10 @@ class GitHubClient extends Disposable implements IGitHubClient {
 			this.capabilities,
 			logService,
 		));
+		const cloud = this._register(new GitHubCloudApi(context.cloud, this.endpoint, this.credentials, this.transport));
+		this.cloudTasks = new GitHubCloudTasks(cloud);
+		this.automations = new GitHubAutomations(cloud, this.cloudTasks);
+		this.environments = new GitHubEnvironments(cloud);
 	}
 
 	invalidate(): void {

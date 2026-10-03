@@ -105,6 +105,16 @@ export interface GitHubClientOptions {
 	readonly authorization: GitHubAuthorizationContext;
 	readonly apiBaseUri: string;
 	readonly graphQlUri: string;
+	readonly cloud?: GitHubCloudEndpoint;
+}
+
+/** Host-approved agents API and headers for this grant; no endpoint discovery or fallback is implied. */
+export interface GitHubCloudEndpoint {
+	/** Complete agents API base, for example `https://api.githubcopilot.com/agents`. */
+	readonly apiBaseUri: string;
+	readonly integrationId: string;
+	/** Omitted unless the selected cloud endpoint requires an API version. */
+	readonly apiVersion?: string;
 }
 
 /** Trusted API base for public reads; callers cannot override authentication or network execution. */
