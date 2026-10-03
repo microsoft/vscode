@@ -182,6 +182,11 @@ export class ExplorerItem {
 		return new Map<string, ExplorerItem>();
 	}
 
+	/** Secondary index: lowercase name → child, used for O(1) case-insensitive lookups. */
+	@memoize private get childrenCaseInsensitive(): Map<string, ExplorerItem> {
+		return new Map<string, ExplorerItem>();
+	}
+
 	private updateName(value: string): void {
 		// Re-add to parent since the parent has a name map to children and the name might have changed
 		this._parent?.removeChild(this);
@@ -302,11 +307,23 @@ export class ExplorerItem {
 		// Inherit some parent properties to child
 		child._parent = this;
 		child.updateResource(false);
-		this.children.set(this.getPlatformAwareName(child.name), child);
+		this.children.set(child.name, child);
+		this.childrenCaseInsensitive.set(child.name.toLowerCase(), child);
 	}
 
 	getChild(name: string): ExplorerItem | undefined {
-		return this.children.get(this.getPlatformAwareName(name));
+		const child = this.children.get(name);
+		if (child) {
+			return child;
+		}
+
+		// On case-insensitive file systems fall back to the pre-built lowercase
+		// index for an O(1) lookup instead of a linear scan.
+		if (!this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.PathCaseSensitive)) {
+			return this.childrenCaseInsensitive.get(name.toLowerCase());
+		}
+
+		return undefined;
 	}
 
 	fetchChildren(sortOrder: SortOrder): ExplorerItem[] | Promise<ExplorerItem[]> {
@@ -402,11 +419,13 @@ export class ExplorerItem {
 	 */
 	removeChild(child: ExplorerItem): void {
 		this.nestedChildren = undefined;
-		this.children.delete(this.getPlatformAwareName(child.name));
+		this.children.delete(child.name);
+		this.childrenCaseInsensitive.delete(child.name.toLowerCase());
 	}
 
 	forgetChildren(): void {
 		this.children.clear();
+		this.childrenCaseInsensitive.clear();
 		this.nestedChildren = undefined;
 		this._isDirectoryResolved = false;
 		this._fileNester = undefined;
@@ -490,7 +509,7 @@ export class ExplorerItem {
 			// The name to search is between two separators
 			const name = path.substring(index, indexOfNextSep);
 
-			const child = this.children.get(this.getPlatformAwareName(name));
+			const child = this.getChild(name);
 
 			if (child) {
 				// We found a child with the given name, search inside it
