@@ -233,6 +233,14 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
+The Copilot managed-settings diagnostics suite waits for the authenticated
+provider's model catalog before requesting diagnostics. Authentication schedules
+runtime startup asynchronously; the catalog establishes a completed runtime RPC
+without creating a session or making a model request. The policy probe still
+fetches server settings afresh and retains the production 4.5-second overall and
+3.5-second query deadlines. Cold-start deadline behavior is covered by the
+Copilot agent unit tests.
+
 Provider availability:
 
 - **Copilot** (`copilotcli`) — always enabled (the CLI is a dev dependency).
