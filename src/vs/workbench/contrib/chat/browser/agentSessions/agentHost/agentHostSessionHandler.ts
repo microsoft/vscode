@@ -110,7 +110,7 @@ import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxP
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
-import { IAgentHostCustomizationService } from './agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from './agentHostCustomizationService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostSessionWorkingDirectorySynchronizer } from './agentHostSessionWorkingDirectorySynchronizer.js';
 import { IAgentHostShellInitSynchronizer } from './agentHostShellInitSynchronizer.js';
@@ -3579,9 +3579,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		});
 		const mcpStarting$ = derivedOpts({ equalsFn: equals }, reader => {
 			const state = mergedState$.read(reader);
-			const backgroundActions = new Map(this._customizationService.getMcpServers(opts.sessionResource)
+			const sessionServers = this._customizationService.getMcpServers(opts.sessionResource);
+			const backgroundActions = new Map(sessionServers
 				.filter(server => server.background !== undefined)
 				.map(server => [server.id, server.background]));
+			const displayLabels = new Map(sessionServers.map(server => [server.id, getMcpServerDisplayLabel(server)]));
 			const servers = state?.customizations?.flatMap(c => c.type === CustomizationType.McpServer
 				? [c]
 				: c.children?.filter(c => c.type === CustomizationType.McpServer) ?? []) ?? [];
@@ -3591,7 +3593,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					const id = opts.sessionResource.authority + '/' + server.id;
 					return {
 						id,
-						name: server.name,
+						name: displayLabels.get(id) ?? server.name,
 						blocking: server.state.kind === McpServerStatus.Starting && server.state.blocking === true,
 						background: backgroundActions.get(id),
 					};
@@ -4299,7 +4301,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				opts.sink([invocation]);
 			}
 		} else {
-			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris);
+			const mcpServerName = initial.status === ToolCallStatus.AuthRequired ? this._toolAuthenticationServerName(initial, opts) : undefined;
+			invocation = toolCallStateToInvocation(initial, subAgentInvocationId, opts.backendSession, this._config.connectionAuthority, opts.sessionResource.authority, undefined, this._config.connection.resourceUris, mcpServerName);
 			if (!renderedBySnapshot) {
 				opts.sink([invocation]);
 			}
@@ -4360,7 +4363,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.updatePreparedInvocation(prepared, invocation.parameters);
 			} else if (status === ToolCallStatus.AuthRequired) {
 				this._ensureLeftStreaming(invocation, tc, opts);
-				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority), () => {
+				invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, opts.sessionResource.authority, this._toolAuthenticationServerName(tc, opts)), () => {
 					this._dispatchAction(opts.backendSession, {
 						type: ActionType.ChatToolCallComplete,
 						turnId: opts.turnId,
@@ -4410,6 +4413,28 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 			}
 		}));
+		store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
+	}
+
+	private _refreshToolAuthenticationServerName(invocation: ChatToolInvocation, sessionResource: URI): void {
+		const state = invocation.state.get();
+		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
+			return;
+		}
+		const server = this._customizationService.getMcpServers(sessionResource).find(candidate => candidate.id === state.server.id);
+		if (!server) {
+			return;
+		}
+		const name = getMcpServerDisplayLabel(server);
+		if (name !== state.server.name) {
+			invocation.setAuthenticationRequired({ ...state.server, name });
+		}
+	}
+
+	private _toolAuthenticationServerName(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, opts: IObserveTurnOptions): string | undefined {
+		const id = toolCallAuthenticationServer(tc, opts.sessionResource.authority).id;
+		const server = this._customizationService.getMcpServers(opts.sessionResource).find(candidate => candidate.id === id);
+		return server ? getMcpServerDisplayLabel(server) : undefined;
 	}
 
 	/** Transitions an invocation from streaming once its AHP tool call is ready. */

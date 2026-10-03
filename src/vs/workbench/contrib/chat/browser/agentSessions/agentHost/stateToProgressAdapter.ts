@@ -2530,7 +2530,7 @@ function addCommentReference(tc: ToolCallState, resourceUris: IAgentHostResource
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string, mcpServerAuthority = sessionResource.authority, options?: IAgentHostToolInvocationOptions, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority), mcpServerName?: string): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -2633,7 +2633,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 		invocation.presentation = ToolInvocationPresentation.Hidden;
 	}
 	if (tc.status === ToolCallStatus.AuthRequired) {
-		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority));
+		invocation.setAuthenticationRequired(toolCallAuthenticationServer(tc, mcpServerAuthority, mcpServerName));
 	}
 	applyToolCallProgress(invocation, tc);
 
@@ -2694,11 +2694,11 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 	};
 }
 
-export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string): IChatMcpAuthenticationRequiredServer {
+export function toolCallAuthenticationServer(tc: ToolCallState & { status: ToolCallStatus.AuthRequired }, sessionAuthority: string, name?: string): IChatMcpAuthenticationRequiredServer {
 	const metadata = readToolCallMeta(tc);
 	return {
 		id: `${sessionAuthority}/${tc.contributor.customizationId}`,
-		name: tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
+		name: name ?? tc.auth.resource.resource_name ?? metadata.mcpServerName ?? tc.displayName,
 		resource: tc.auth.resource.resource,
 		oauthClient: tc.auth.oauthClient,
 		authorizationServers: tc.auth.resource.authorization_servers,

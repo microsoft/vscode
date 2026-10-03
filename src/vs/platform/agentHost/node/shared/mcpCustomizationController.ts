@@ -26,7 +26,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostState
 export interface ISdkMcpServer {
 	/** Server name (used both as the customization name and the channel suffix). */
 	readonly name: string;
-	/** Optional presentation-only name that does not participate in runtime identity. */
+	/** Optional Connector catalog name that does not participate in runtime identity. */
 	readonly displayName?: string;
 	readonly source?: McpServerSource;
 	/** Configuration file URI. Omitted on lifecycle updates; null clears a previously known source. */

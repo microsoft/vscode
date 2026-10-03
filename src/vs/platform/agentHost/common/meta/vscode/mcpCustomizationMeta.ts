@@ -39,12 +39,12 @@ export function withMcpServerSourceMeta(meta: Record<string, unknown> | undefine
 	return { ...(meta ?? {}), [sourceKey]: source };
 }
 
-/** Reads an optional presentation-only MCP server name without changing its runtime identity. */
+/** Reads an optional Connector catalog name without changing the MCP server's runtime identity. */
 export function readMcpServerDisplayName(customization: McpServerCustomization | undefined): string | undefined {
 	return normalizeMcpServerDisplayName(customization?._meta?.[displayNameKey]);
 }
 
-/** Records an optional presentation-only MCP server name while preserving every other metadata entry. */
+/** Records an optional Connector catalog name while preserving every other metadata entry. */
 export function withMcpServerDisplayNameMeta(meta: Record<string, unknown> | undefined, displayName: string | undefined): Record<string, unknown> | undefined {
 	const normalized = normalizeMcpServerDisplayName(displayName);
 	return normalized === undefined ? meta : { ...(meta ?? {}), [displayNameKey]: normalized };
