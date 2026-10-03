@@ -72,6 +72,7 @@ import {
 } from './aiCustomizationManagement.js';
 import { skillIcon } from './aiCustomizationIcons.js';
 import { ChatModelsWidget } from '../chatManagement/chatModelsWidget.js';
+import { IChatWidgetService } from '../chat.js';
 import { PromptsType, Target } from '../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, getMcpServerCustomizationMigrationCandidateKey, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, IMcpServerCustomizationMigrationResult, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
@@ -85,6 +86,7 @@ import { showConfigureHooksQuickPick } from '../promptSyntax/hookActions.js';
 import { resolveWorkspaceTargetDirectory, resolveUserTargetDirectory, CustomizationLocationPicker } from './customizationCreatorService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { isAgentHostTarget, isRemoteAgentHostTarget } from '../../common/chatSessionsService.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CodeEditorWidget } from '../../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -98,6 +100,7 @@ import { getSimpleEditorOptions } from '../../../codeEditor/browser/simpleEditor
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { FileSystemProviderCapabilities, IFileService } from '../../../../../platform/files/common/files.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -118,7 +121,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -132,7 +135,6 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { showNoFoldersDialog } from '../promptSyntax/pickers/askForPromptSourceFolder.js';
-import { isAgentHostTarget } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 const CUSTOMIZATION_MIGRATION_IGNORED_GROUPS_STORAGE_KEY = 'chat.customizationMigration.ignoredGroups';
@@ -530,6 +532,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@ICustomizationMarketplaceInstallService private readonly marketplaceInstallService: ICustomizationMarketplaceInstallService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -1059,6 +1063,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				dismissResult: () => {
 					this.migrationResult = undefined;
 					this.renderCustomizationMigrationDashboardState();
+				},
+				migrateWithAgent: () => {
+					void this.startCustomizationMigrationWithAgent();
 				},
 				migrateCategory: (id, storage) => {
 					const category = getCustomizationMigrationCategory(id);
@@ -1631,6 +1638,72 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getAllMigrationCandidates(): readonly CustomizationMigrationCandidate[] {
 		return [...this.customizationsByMigrationCategory.values()].flat();
+	}
+
+	private async startCustomizationMigrationWithAgent(): Promise<void> {
+		const harness = this.harnessService.getActiveDescriptor();
+		if (isRemoteAgentHostTarget(harness.id)) {
+			return;
+		}
+		const sessionResource = this.harnessService.activeSessionResource.get();
+		const customizations = [...this.customizationsByMigrationCategory].flatMap(([categoryId, candidates]) => {
+			const category = getCustomizationMigrationCategory(categoryId).migrationType;
+			return candidates
+				.filter(candidate => !this.isMigrationCategoryIgnored(categoryId, candidate.storage))
+				.map(customization => ({ category, customization }));
+		});
+		const inventoryCounts = new Map<CustomizationMigrationType, number>();
+		for (const [categoryId, candidates] of this.customizationsByMigrationCategory) {
+			const count = candidates.filter(candidate => !this.isMigrationCategoryIgnored(categoryId, candidate.storage)).length;
+			if (count > 0) {
+				const category = getCustomizationMigrationCategory(categoryId);
+				inventoryCounts.set(category.migrationType, (inventoryCounts.get(category.migrationType) ?? 0) + count);
+			}
+		}
+		const migrationFlowId = generateUuid();
+		if (!customizations.length) {
+			return;
+		}
+
+		try {
+			const targetTypes = new Set(customizations
+				.map(({ customization }) => customization)
+				.filter(customization => !isMcpServerCustomizationMigrationCandidate(customization))
+				.map(getCustomizationMigrationTargetType));
+			const targetFolderEntries = await Promise.all([...targetTypes].map(async type => [
+				type,
+				await harness.itemProvider?.provideSourceFolders?.(sessionResource, type, CancellationToken.None) ?? [],
+			] as const));
+			if (!isEqual(sessionResource, this.harnessService.activeSessionResource.get()) || harness.id !== this.harnessService.activeHarness.get()) {
+				return;
+			}
+
+			const recoveryBundleFolder = URI.joinPath(this.environmentService.workspaceStorageHome, 'customizationMigrations', migrationFlowId);
+			await this.fileService.createFolder(recoveryBundleFolder);
+			const prompt = createCustomizationMigrationAgentPrompt(harness, migrationFlowId, recoveryBundleFolder, customizations, new Map(targetFolderEntries));
+			const migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(`workbench.action.chat.openNewSessionSidebar.${harness.id}`, { prompt });
+			if (migrationSessionResource) {
+				this.customizationMigrationTelemetryService.watchAgentMigrationResult(
+					URI.joinPath(recoveryBundleFolder, 'migration-results.json'),
+					migrationFlowId,
+					inventoryCounts,
+					migrationSessionResource,
+					{
+						onDidBackground: Event.map(
+							Event.filter(this.chatWidgetService.onDidBackgroundSession, resource => isEqual(resource, migrationSessionResource)),
+							() => undefined,
+						),
+						onDidForeground: Event.filter(
+							this.chatWidgetService.onDidChangeFocusedSession,
+							() => isEqual(this.chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource, migrationSessionResource),
+						),
+					},
+				);
+			}
+		} catch (error) {
+			onUnexpectedError(error);
+			this.notificationService.error(localize('startAgentMigrationFailed', "Could not start the agent-guided customization migration."));
+		}
 	}
 
 	private getMigrationCategorySummaries(): readonly ICustomizationMigrationCategorySummary[] {
@@ -2277,6 +2350,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 		return {
 			scopes,
+			supportsAgentMigration: !isRemoteAgentHostTarget(this.harnessService.activeHarness.get()),
 			manualReviewItems: storages.flatMap(storage => this.getMcpMigrationExclusions(storage).map(exclusion => ({
 				id: `${CustomizationMigrationCategoryId.McpServers}:${storage}:exclusion:${exclusion.id}`,
 				label: exclusion.name,

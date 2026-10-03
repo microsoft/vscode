@@ -33,6 +33,13 @@
 	gap: var(--vscode-spacing-size160);
 }
 
+.customization-migration-dashboard .migration-page-title-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size120);
+}
+
 .customization-migration-dashboard h1,
 .customization-migration-dashboard h2,
 .customization-migration-dashboard h3,

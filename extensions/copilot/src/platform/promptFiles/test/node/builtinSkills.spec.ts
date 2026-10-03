@@ -60,4 +60,43 @@ suite('built-in skills', () => {
 		expect(skill).not.toContain('extensions_manage({');
 		expect(skill).not.toContain('run `/extensions`');
 	});
+
+	test('contributes the customization migration skill to Agent Host sessions', () => {
+		const manifest = JSON.parse(fs.readFileSync(path.join(copilotRoot, 'package.json'), 'utf-8')) as ICopilotPackage;
+		const contributions = manifest.contributes?.chatSkills?.filter(skill => skill.path.endsWith('/migrate-customizations/SKILL.md'));
+		const skill = fs.readFileSync(
+			path.join(copilotRoot, 'assets', 'prompts', 'skills', 'migrate-customizations', 'SKILL.md'),
+			'utf-8',
+		);
+		expect(skill).not.toContain('report_customization_migration');
+
+		expect({
+			contributions,
+			requiredContent: [
+				'name: migrate-customizations',
+				'user-invocable: true',
+				'disable-model-invocation: true',
+				'./references/migration-techniques.md',
+				'migration-log.md',
+				'restore.md',
+				'pull request',
+				'migration-results.json',
+			].filter(anchor => skill.includes(anchor)),
+		}).toEqual({
+			contributions: [{
+				path: './assets/prompts/skills/migrate-customizations/SKILL.md',
+				sessionTypes: ['copilotcli', 'claude', 'codex'],
+			}],
+			requiredContent: [
+				'name: migrate-customizations',
+				'user-invocable: true',
+				'disable-model-invocation: true',
+				'./references/migration-techniques.md',
+				'migration-log.md',
+				'restore.md',
+				'pull request',
+				'migration-results.json',
+			],
+		});
+	});
 });
