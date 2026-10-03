@@ -73,6 +73,31 @@ suite('byokResponsesTranslation', () => {
 		]);
 	});
 
+	test('replaces input_file parts with a newline-delimited omission note', () => {
+		const body: IResponsesRequest = {
+			model: 'm',
+			input: [{
+				type: 'message', role: 'user', content: [
+					{ type: 'input_text', text: 'summarize this' },
+					{ type: 'input_text', text: 'Document file "spec.pdf" at path "/work/spec.pdf"' },
+					{ type: 'input_file', filename: 'spec.pdf', file_data: 'data:application/pdf;base64,JVBERi0xLjQ=' },
+					{ type: 'input_file', file_id: 'file_123' },
+				]
+			}],
+		};
+
+		assert.deepStrictEqual(responsesRequestToBridge('acme', body).input, [
+			{
+				type: 'message', role: 'user', content: [
+					{ type: 'text', text: 'summarize this' },
+					{ type: 'text', text: 'Document file "spec.pdf" at path "/work/spec.pdf"' },
+					{ type: 'text', text: '\n[spec.pdf (application/pdf) omitted: this model does not accept file inputs]\n' },
+					{ type: 'text', text: '\n[file_123 omitted: this model does not accept file inputs]\n' },
+				]
+			},
+		]);
+	});
+
 	suite('capBridgeTools', () => {
 		const toolNames = (request: IByokLmChatRequest) => request.tools?.map(tool => tool.name);
 		const requestWithTools = (count: number, input: IByokLmChatRequest['input'] = []): IByokLmChatRequest => ({
