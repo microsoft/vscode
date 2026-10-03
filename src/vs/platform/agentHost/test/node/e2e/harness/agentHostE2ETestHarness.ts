@@ -83,11 +83,6 @@ export type AgentHostE2EModelTraffic = 'recorded' | 'none';
  * same way it already did.
  */
 function clearReadOnlyAttributes(dir: string): void {
-	try {
-		chmodSync(dir, 0o700);
-	} catch {
-		// Continue clearing child attributes when the directory itself cannot be changed.
-	}
 	let entries: string[];
 	try {
 		entries = readdirSync(dir);
@@ -133,7 +128,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		for (let index = pendingDirs.length - 1; index >= 0; index--) {
 			const dir = pendingDirs[index];
 			try {
-				rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+				rmSync(dir, { recursive: true, force: true });
 				pendingDirs.splice(index, 1);
 				errors.delete(dir);
 			} catch (error) {
@@ -150,7 +145,7 @@ export async function removeTempDirs(tempDirs: string[]): Promise<void> {
 		if (Date.now() >= deadline) {
 			throw new AggregateError(
 				Array.from(errors.values()),
-				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.map(dir => `${dir} (${errors.get(dir)?.message ?? 'unknown error'})`).join(', ')}`,
+				`Failed to remove Agent Host E2E temporary directories: ${pendingDirs.join(', ')}`,
 			);
 		}
 		await timeout(500);
