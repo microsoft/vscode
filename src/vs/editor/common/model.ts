@@ -1483,6 +1483,12 @@ export const enum PositionAffinity {
 	 * If the given position is on injected text, prefers the position right of it.
 	*/
 	RightOfInjectedText = 4,
+
+	/**
+	 * Prefers a cursor stop to the left of injected text, falling back to a stop to the right
+	 * when the left edge is not a cursor stop. Used by character-sized cursors.
+	 */
+	LeftOfInjectedTextBlockCursor = 5,
 }
 
 /**
