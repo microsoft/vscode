@@ -61,7 +61,6 @@ suite('Workbench GitHub service', () => {
 				override readonly version = '1.141.0';
 			}(),
 			configuration,
-			fetch,
 		));
 		return { service, sessions, state, changed, defaultChanged, calls, configuration };
 	}
