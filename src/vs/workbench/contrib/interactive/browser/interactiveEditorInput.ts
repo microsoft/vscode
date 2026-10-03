@@ -76,6 +76,8 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	private _editorModelReference: IResolvedNotebookEditorModel | null;
 
 	private _inputModelRef: IReference<IResolvedTextEditorModel> | null;
+	private _inputDocumentCreated = false;
+	private _isDisposing = false;
 
 	get primary(): EditorInput {
 		return this._notebookEditorInput;
@@ -169,6 +171,7 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 		}
 
 		const resolvedLanguage = language ?? this._initLanguage ?? PLAINTEXT_LANGUAGE_ID;
+		this._inputDocumentCreated = true;
 		this._interactiveDocumentService.willCreateInteractiveDocument(this.resource, this.inputResource, resolvedLanguage);
 		this._inputModelRef = await this._textModelService.createModelReference(this.inputResource);
 
@@ -249,13 +252,21 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 	}
 
 	override dispose() {
+		if (this.isDisposed() || this._isDisposing) {
+			return;
+		}
+		this._isDisposing = true;
+
 		// we support closing the interactive window without prompt, so the editor model should not be dirty
 		this._editorModelReference?.revert({ soft: true });
 
 		this._notebookEditorInput?.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
-		this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource, this.inputResource);
+		if (this._inputDocumentCreated) {
+			this._inputDocumentCreated = false;
+			this._interactiveDocumentService.willRemoveInteractiveDocument(this.resource, this.inputResource);
+		}
 		this._inputModelRef?.dispose();
 		this._inputModelRef = null;
 		super.dispose();

@@ -2083,6 +2083,39 @@ suite('EditorService', () => {
 		assert.ok(failingEditor instanceof ErrorPlaceholderEditor);
 	});
 
+	test('saveAs preserves a typed replacement across groups when the destination is already open', async () => {
+		const [part, service] = await createEditorService();
+		const firstGroup = part.activeGroup;
+		const destination = createTestFileEditorInput(URI.parse('my://target.code-search'), TEST_EDITOR_INPUT_ID);
+		const replacement = createTestFileEditorInput(destination.resource, TEST_EDITOR_INPUT_ID);
+		const untitled = disposables.add(new class extends TestFileEditorInput {
+			override async saveAs(): Promise<EditorInput> {
+				this.dirty = false;
+				return replacement;
+			}
+		}(URI.parse('untitled://search'), TEST_EDITOR_INPUT_ID));
+		untitled.capabilities = EditorInputCapabilities.Untitled;
+		await service.openEditor(untitled, { pinned: true }, firstGroup);
+		const secondGroup = part.copyGroup(firstGroup, firstGroup, GroupDirection.RIGHT);
+		await service.openEditor(destination, { pinned: true }, firstGroup);
+
+		const result = await service.save({ groupId: firstGroup.id, editor: untitled }, { saveAs: true });
+
+		assert.deepStrictEqual({
+			success: result.success,
+			returnedEditorIsLive: result.editors[0] instanceof EditorInput && !result.editors[0].isDisposed(),
+			firstGroupHasDestination: firstGroup.contains(destination),
+			secondGroupHasDestination: secondGroup.contains(destination),
+			secondGroupHasUntitled: secondGroup.contains(untitled)
+		}, {
+			success: true,
+			returnedEditorIsLive: true,
+			firstGroupHasDestination: true,
+			secondGroupHasDestination: true,
+			secondGroupHasUntitled: false
+		});
+	});
+
 	test('save, saveAll, revertAll', async function () {
 		const [part, service] = await createEditorService();
 
