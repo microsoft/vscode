@@ -6,6 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { escapeMarkdownSyntaxTokens } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -374,6 +375,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			name: agentId,
 			displayName,
 			description: agent.description,
+			welcomeTitle: displayName,
+			welcomeMessage: nls.localize('remoteAgentHost.welcomeMessage', "{0} runs on {1}.", escapeMarkdownSyntaxTokens(agentLabel), escapeMarkdownSyntaxTokens(hostLabel)),
 			hideFromSessionTypePicker: !this._isSessionsWindow && isCloudSandboxConnectionAddress(address),
 			canDelegate: true,
 			requiresCustomModels: true,

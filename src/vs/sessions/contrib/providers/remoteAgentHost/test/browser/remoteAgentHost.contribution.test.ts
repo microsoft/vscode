@@ -477,14 +477,7 @@ suite('Remote agent host provider ownership', () => {
 suite('Remote Agent Host chat session contribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('advertises target-only delegation', () => {
-		const address = 'test-host';
-		const agent: AgentInfo = {
-			provider: 'copilot',
-			displayName: 'Copilot',
-			description: 'test',
-			models: [],
-		};
+	function registerAgent(address: string, agent: AgentInfo, configuredName: string | undefined): IChatSessionsExtensionPoint | undefined {
 		const connection = new class extends mock<IAgentConnection>() { }();
 		const connectionStore = store.add(new DisposableStore());
 		const agents = store.add(new DisposableMap<string, DisposableStore>());
@@ -500,9 +493,19 @@ suite('Remote Agent Host chat session contribution', () => {
 		};
 
 		assert.throws(
-			() => harness._registerAgent(address, connection, agent, 'Test Host'),
+			() => harness._registerAgent(address, connection, agent, configuredName),
 			/Stop after registering the chat session contribution/
 		);
+		return registeredContribution;
+	}
+
+	test('advertises target-only delegation', () => {
+		const registeredContribution = registerAgent('test-host', {
+			provider: 'copilot',
+			displayName: 'Copilot',
+			description: 'test',
+			models: [],
+		}, 'Test Host');
 		assert.deepStrictEqual(registeredContribution && {
 			type: registeredContribution.type,
 			displayName: registeredContribution.displayName,
@@ -513,6 +516,22 @@ suite('Remote Agent Host chat session contribution', () => {
 			displayName: 'Copilot [Test Host]',
 			canDelegate: true,
 			supportsDelegation: false,
+		});
+	});
+
+	test('provides its own welcome instead of the delegation fallback', () => {
+		const registeredContribution = registerAgent('test-host', {
+			provider: 'codex',
+			displayName: 'Codex',
+			description: 'test',
+			models: [],
+		}, 'build_box');
+		assert.deepStrictEqual(registeredContribution && {
+			welcomeTitle: registeredContribution.welcomeTitle,
+			welcomeMessage: registeredContribution.welcomeMessage,
+		}, {
+			welcomeTitle: 'Codex [build_box]',
+			welcomeMessage: 'Codex runs on build\\_box.',
 		});
 	});
 });
