@@ -11,9 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { SCMMenus } from './menus.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { debounce } from '../../../../base/common/decorators.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
-import { basename } from '../../../../base/common/resources.js';
 import { binarySearch } from '../../../../base/common/arrays.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -30,15 +28,6 @@ import { getSCMRepositoryIcon } from './util.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
 	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
-}
-
-function getRepositoryName(workspaceContextService: IWorkspaceContextService, repository: ISCMRepository): string {
-	if (!repository.provider.rootUri) {
-		return repository.provider.label;
-	}
-
-	const folder = workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
-	return folder?.uri.toString() === repository.provider.rootUri.toString() ? folder.name : basename(repository.provider.rootUri);
 }
 
 export const RepositoryContextKeys = {
@@ -239,8 +228,7 @@ export class SCMViewService implements ISCMViewService {
 		@IExtensionService extensionService: IExtensionService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.menus = instantiationService.createInstance(SCMMenus);
 
@@ -529,9 +517,9 @@ export class SCMViewService implements ISCMViewService {
 			return comparePaths(op1.repository.provider.rootUri.fsPath, op2.repository.provider.rootUri.fsPath);
 		}
 
-		// Sort by name, path
-		const name1 = getRepositoryName(this.workspaceContextService, op1.repository);
-		const name2 = getRepositoryName(this.workspaceContextService, op2.repository);
+		// Sort by repository name, using the path as a tie-breaker.
+		const name1 = op1.repository.provider.name;
+		const name2 = op2.repository.provider.name;
 
 		const nameComparison = compareFileNames(name1, name2);
 		if (nameComparison === 0 && op1.repository.provider.rootUri && op2.repository.provider.rootUri) {
