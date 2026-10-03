@@ -860,8 +860,8 @@ export class TabbedModelPicker extends Disposable {
 			const { action, ariaDescription } = createModelAction(model, undefined, () => {
 				workflow.select(model.identifier);
 				// Update the rows in place, so checking a model keeps the list where it was
-				// instead of revealing that row at the top.
-				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true });
+				// instead of revealing that row at the top, and the popup keeps its size.
+				this._widget.refreshActiveList({ focusItemId: model.identifier, preserveScrollPosition: true, preserveSize: true });
 			}, section, true);
 			return {
 				item: { ...action, checked, enabled: !disabled },
