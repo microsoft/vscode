@@ -320,6 +320,10 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 					case '/':
 						return paths.sep;
 
+					case 'pathListSeparator':
+					case ':':
+						return paths.delimiter;
+
 					default: {
 						try {
 							return this.resolveFromMap(VariableKind.Unknown, replacement.id, argument, commandValueMapping, undefined);
