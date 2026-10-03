@@ -2671,6 +2671,7 @@ export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationI
 }
 
 export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationState, connectionAuthority: string): IToolConfirmationMessages {
+	const presentation = readToolCallPresentation(tc);
 	const riskAssessment = tc.riskAssessment;
 	let approvalReason: IToolConfirmationMessages['approvalReason'];
 	if (riskAssessment?.status === ToolCallRiskAssessmentStatus.Loading) {
@@ -2685,10 +2686,10 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 	return {
 		title: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
-			: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
+			: stringOrMarkdownToString(presentation.confirmationTitle ?? tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 		message: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
-			: stringOrMarkdownToString(readToolCallPresentation(tc).invocationMessage, connectionAuthority),
+			: stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority),
 		approvalReason,
 		...(tc.options ? { customOptions: tc.options } : {}),
 	};
