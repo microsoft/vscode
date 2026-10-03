@@ -36,12 +36,15 @@ export class MainEditorPart extends MainEditorPartBase {
 			return;
 		}
 
+		const compact = this.layoutService.isModernUICompact();
 		const marginLeft = !isPhoneLayout(this.layoutService)
+			&& !compact
 			&& !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			&& !this.layoutService.isVisible(Parts.SESSIONS_PART)
 			? AGENTS_FLOATING_PANEL_GAP : MainEditorPart.MARGIN_LEFT;
-		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - 2 /* border width */;
-		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
+		const borderTotal = compact ? 0 : 2;
+		const adjustedWidth = width - MainEditorPart.MARGIN_RIGHT - marginLeft - borderTotal;
+		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - borderTotal;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);
 

@@ -9,6 +9,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
@@ -331,7 +332,7 @@ suite('stateToProgressAdapter', () => {
 		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
@@ -3087,6 +3088,39 @@ suite('stateToProgressAdapter', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState(), undefined);
 			assert.deepStrictEqual(result, []);
 		});
+
+		for (const { fileName, title, resource } of [
+			{ fileName: '/workspaces/server/index.js', title: 'Edit index.js', resource: 'file:///workspaces/server/index.js' },
+			{ fileName: 'C:\\workspace\\file.ts', title: 'Edit file.ts', resource: 'file:///c%3A/workspace/file.ts' },
+			{ fileName: '\\\\server\\share\\file.ts', title: 'Edit file.ts', resource: 'file://server/share/file.ts' },
+			{ fileName: '/workspace/a\\b.ts', title: 'Edit a\\b.ts', resource: 'file:///workspace/a%5Cb.ts' },
+			{ fileName: '/workspace/a\\', title: 'Edit a\\', resource: 'file:///workspace/a%5C' },
+		]) {
+			test(`restores a remote write approval with a file pill and a plain filename in its title for ${fileName}`, () => {
+				const result = activeTurnToProgress(URI.parse('provider:/session/from-host'), createActiveTurnState([{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+						invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: fileName,
+						_meta: { promptRequest: { kind: 'write', fileName } },
+					},
+				}]), 'sandbox.example');
+				const invocation = result.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const confirmation = IChatToolInvocation.getConfirmationMessages(invocation);
+				assert.ok(confirmation?.message && typeof confirmation.message !== 'string');
+				const rendered = store.add(renderMarkdown(confirmation.message, getChatMarkdownRenderOptions()));
+				const target = rendered.element.querySelector('a')?.dataset.href;
+				assert.deepStrictEqual({
+					title: confirmation.title,
+					resource: target ? fromAgentHostUri(URI.parse(target)).toString() : undefined,
+					state: invocation.state.get().type,
+				}, {
+					title, resource,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				});
+			});
+		}
 
 		test('includes usage progress from active turn usage', () => {
 			const activeTurn = createActiveTurnState();

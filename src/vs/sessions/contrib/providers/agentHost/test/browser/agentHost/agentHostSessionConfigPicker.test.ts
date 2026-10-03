@@ -487,8 +487,8 @@ suite('Agent Host Session Config Picker', () => {
 			checkbox: container.querySelector('.monaco-checkbox'),
 		}, {
 			snapshots: [true, false].map(worktreeSelected => [
-				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
 				{ label: 'Branch', value: 'folder', checked: !worktreeSelected, detail: 'Works in the repository already on your machine' },
+				{ label: 'New Worktree', value: 'worktree', checked: worktreeSelected, detail: 'Creates a separate copy for this session' },
 			]),
 			selections: ['folder', 'worktree'].map(value => ({ sessionId: SESSION_ID, property: SessionConfigKey.Isolation, value })),
 			finalLabel: 'New Worktree',

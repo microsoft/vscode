@@ -48,11 +48,16 @@ export class CopilotSlashCommandProvider {
 		if (!key) {
 			return undefined;
 		}
-		if (key === copilotSandboxPolicyCommand.name) {
+		try {
+			const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
+			return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key) ?? (key === copilotSandboxPolicyCommand.name ? copilotSandboxPolicyCommand : undefined));
+		} catch (err) {
+			if (key !== copilotSandboxPolicyCommand.name) {
+				throw err;
+			}
+			this._logService.warn(`[Copilot] rpc.commands.list failed`, err);
 			return this._withHandler(copilotSandboxPolicyCommand);
 		}
-		const catalog = await this._getRuntimeSlashCommandCatalog(maxWaitMs);
-		return this._withHandler(catalog.byName.get(key) ?? catalog.byAlias.get(key));
 	}
 
 	private _withHandler(command: RuntimeSlashCommandInfo | undefined): ResolvedCopilotSlashCommand | undefined {
