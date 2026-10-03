@@ -978,7 +978,7 @@ export function getAgentHostE2ETestTimeout(normalTimeoutMs: number, extendedTime
 }
 
 function withAgentHostCoverage(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-	const childEnvironment: NodeJS.ProcessEnv = { ...environment, VSCODE_AGENT_HOST_SKIP_CHAT_RECOVERY_IN_TESTS: '1' };
+	const childEnvironment = { ...environment };
 	if (AGENT_HOST_E2E_COVERAGE) {
 		const coveragePath = resolvePath(process.cwd(), '.build', 'agent-host-e2e-coverage', 'raw');
 		mkdirSync(coveragePath, { recursive: true });
