@@ -9888,12 +9888,49 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('recent sessions missing cwd or client name wait for workspace metadata instead of rescanning', async () => {
+			const sessions: TestCopilotSessionMetadata[] = [
+				sdkSession('missing-cwd', undefined, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('missing-client', '/workspace', { modifiedTime: new Date() }),
+			];
+			const context = await createLiveDiscoveryAgent(sessions);
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const ids = ['missing-cwd', 'missing-client'];
+			try {
+				for (const id of ids) {
+					const directory = URI.joinPath(context.root, id);
+					await fs.mkdir(directory.fsPath);
+					await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+				}
+				await context.agent.startChatDiscovery();
+				await clock.tickAsync(10 * 60_000);
+				const idleScans = context.client.sessionListRequests.length;
+				sessions.splice(0, sessions.length, ...ids.map(id => sdkSession(id, context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() })));
+				for (const id of ids) {
+					const directory = URI.joinPath(context.root, id);
+					context.change(directory, URI.joinPath(directory, 'workspace.yaml'), FileChangeType.UPDATED);
+				}
+				await clock.tickAsync(501);
+				await raceTimeout(context.added.p, 5_000);
+				assert.deepStrictEqual({
+					idleScans, published: context.published.map(chat => sessionIdOfChat(chat.chat)).sort(),
+				}, { idleScans: 1, published: ['missing-client', 'missing-cwd'] });
+			} finally {
+				try {
+					await context.dispose();
+				} finally {
+					clock.restore();
+				}
+			}
+		});
+
 		test('discovers runtime sessions with candidate-only classification and a local-only catalog', async () => {
 			const sessions = Array.from({ length: 250 }, (_, index) => sdkSession(`rejected-${index}`, '/workspace', { clientName: 'unsupported' }));
 			const logService = new NullLogService();
 			const logs = spy(logService, 'info');
 			disposables.add(toDisposable(() => logs.restore()));
 			const context = await createLiveDiscoveryAgent(sessions, { logService });
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			const filterCalls: string[][] = [];
 			context.agent.setKnownSessionsFilter(async candidates => {
 				filterCalls.push(candidates.map(candidate => AgentSession.id(candidate)));
@@ -9906,6 +9943,7 @@ suite('CopilotAgent', () => {
 				context.change(context.root, directory, FileChangeType.ADDED);
 				sessions.push(sdkSession('live', context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
 				await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+				await clock.tickAsync(60_001);
 				await raceTimeout(context.added.p, 5_000);
 				assert.deepStrictEqual({
 					published: context.published.map(chat => ({ id: sessionIdOfChat(chat.chat), external: chat.external })),
@@ -9921,6 +9959,7 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				await context.dispose();
+				clock.restore();
 			}
 		});
 
@@ -9928,21 +9967,26 @@ suite('CopilotAgent', () => {
 			const sessions: TestCopilotSessionMetadata[] = [];
 			const context = await createLiveDiscoveryAgent(sessions);
 			const directory = URI.joinPath(context.root, 'partial-marker');
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			try {
 				await fs.mkdir(directory.fsPath);
 				await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
 				await writeExtensionHostMarker(context.userHome, 'partial-marker', {});
 				sessions.push(sdkSession('partial-marker', context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
 				await context.agent.startChatDiscovery();
+				await clock.tickAsync(10 * 60_000);
 				const before = context.published.length;
+				const idleScans = context.client.sessionListRequests.length;
 				await writeExtensionHostMarker(context.userHome, 'partial-marker', { origin: 'vscode' });
 				context.change(directory, URI.joinPath(directory, 'vscode.metadata.json'), FileChangeType.UPDATED);
+				await clock.tickAsync(501);
 				await raceTimeout(context.added.p, 5_000);
 				assert.deepStrictEqual({
-					before, published: context.published.map(chat => ({ external: chat.external, adoptable: readSessionEhcliAdoptable(chat._meta) })),
-				}, { before: 0, published: [{ external: false, adoptable: true }] });
+					before, idleScans, published: context.published.map(chat => ({ external: chat.external, adoptable: readSessionEhcliAdoptable(chat._meta) })),
+				}, { before: 0, idleScans: 1, published: [{ external: false, adoptable: true }] });
 			} finally {
 				await context.dispose();
+				clock.restore();
 			}
 		});
 
@@ -9959,6 +10003,7 @@ suite('CopilotAgent', () => {
 				};
 				const sessions: TestCopilotSessionMetadata[] = [];
 				const context = await createLiveDiscoveryAgent(sessions, { gitService });
+				const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 				const id = 'zz-changing-marker';
 				const directory = URI.joinPath(context.root, id);
 				try {
@@ -9980,6 +10025,7 @@ suite('CopilotAgent', () => {
 					}
 					release.complete();
 					await initial;
+					await clock.tickAsync(60_001);
 					await raceTimeout(context.added.p, 5_000);
 					assert.deepStrictEqual({
 						watching,
@@ -9988,6 +10034,7 @@ suite('CopilotAgent', () => {
 				} finally {
 					release.complete();
 					await context.dispose();
+					clock.restore();
 				}
 			});
 		}
@@ -10021,6 +10068,7 @@ suite('CopilotAgent', () => {
 				isCurrent: () => true,
 				prepare: async () => true,
 				validate: async () => true,
+				waitForChange: () => { },
 				describe: () => 'test',
 			}) !== undefined;
 		}
