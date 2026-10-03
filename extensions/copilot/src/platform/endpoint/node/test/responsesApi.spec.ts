@@ -12,6 +12,7 @@ import { ChatLocation } from '../../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { ILogService } from '../../../log/common/logService';
 import { FinishedCallback, IResponseDelta, isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
+import { withMessageContentMetadata } from '../../../networking/common/messageTelemetry';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { ChatCompletion, FilterReason, FinishedCompletionReason, openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
 import { IToolDeferralService } from '../../../networking/common/toolDeferralService';
@@ -23,7 +24,7 @@ import { createPlatformServices } from '../../../test/node/services';
 import type { ThinkingData, ThinkingOriginApi } from '../../../thinking/common/thinking';
 import { CacheType, CustomDataPartMimeTypes } from '../../common/endpointTypes';
 import { MISSING_STATEFUL_TOOL_RESULT } from '../../common/statefulMarkerContainer';
-import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging } from '../responsesApi';
+import { createResponsesRequestBody, getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, processResponseFromChatEndpoint, responseApiInputToRawMessagesForLogging, responseApiInputToTelemetryMessages } from '../responsesApi';
 
 const testEndpoint: IChatEndpoint = {
 	urlOrRequestMetadata: 'https://example.test/chat',
@@ -123,6 +124,54 @@ function isFunctionCallInputItem(item: OpenAI.Responses.ResponseInputItem, name:
 }
 
 describe('responseApiInputToRawMessagesForLogging', () => {
+
+	it('retains native reasoning fields for telemetry without changing debug logging', () => {
+		const reasoning: OpenAI.Responses.ResponseReasoningItem = {
+			type: 'reasoning',
+			id: 'rs_test',
+			content: [{ type: 'reasoning_text', text: 'Detailed reasoning' }],
+			summary: [{ type: 'summary_text', text: 'A summary with "quotes"\n and \\slashes' }],
+			encrypted_content: 'opaque',
+		};
+		const body: OpenAI.Responses.ResponseCreateParams = { model: 'gpt-5-mini', input: [reasoning] };
+		expect({
+			telemetry: responseApiInputToTelemetryMessages(body).map(withMessageContentMetadata),
+			debug: responseApiInputToRawMessagesForLogging(body),
+			input: body.input,
+		}).toEqual({
+			telemetry: [{
+				...reasoning, role: 'assistant',
+				content_metadata: [
+					{ path: '/content/0/text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/encrypted_content', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					{ path: '/summary/0/text', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+				],
+			}],
+			debug: [{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: `Reasoning summary: ${reasoning.summary[0].text}` }] }],
+			input: [reasoning],
+		});
+	});
+
+	it('retains empty reasoning summaries rather than generating a text-only placeholder', () => {
+		const reasoning: OpenAI.Responses.ResponseReasoningItem = { type: 'reasoning', id: 'rs_empty', summary: [], encrypted_content: 'opaque' };
+		expect(responseApiInputToTelemetryMessages({ model: 'gpt-5-mini', input: [reasoning] })).toEqual([
+			{ ...reasoning, role: 'assistant' },
+		]);
+	});
+
+	it('preserves refusal text and generated images in output telemetry', () => {
+		const input: OpenAI.Responses.ResponseOutputItem[] = [
+			{
+				type: 'message', id: 'message', role: 'assistant', status: 'completed',
+				content: [{ type: 'refusal', refusal: 'Cannot answer' }],
+			},
+			{ type: 'image_generation_call', id: 'image', status: 'completed', result: 'image-data' },
+		];
+		expect(responseApiInputToTelemetryMessages({ model: 'gpt-5-mini', input })).toEqual([
+			{ role: 'assistant', content: 'Cannot answer' },
+			{ role: 'assistant', content: [{ type: 'image_url', image_url: { url: 'image-data' } }] },
+		]);
+	});
 
 	it('converts simple string input to user message', () => {
 		const body: OpenAI.Responses.ResponseCreateParams = {
@@ -1341,7 +1390,7 @@ describe('createResponsesRequestBody prompt_cache_breakpoint markers', () => {
 });
 
 describe('processResponseFromChatEndpoint telemetry', () => {
-	it('emits engine.messages for Responses API assistant output', async () => {
+	it.each([false, true])('emits engine.messages for Responses API assistant output (reasoning: %s)', async withReasoning => {
 		const services = createPlatformServices();
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
@@ -1362,8 +1411,16 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 					output_tokens_details: { reasoning_tokens: 0 },
 				},
 				output: [
+					...(withReasoning ? [{
+						type: 'reasoning',
+						id: 'rs_output',
+						content: [{ type: 'reasoning_text', text: 'Detailed output reasoning' }],
+						summary: [{ type: 'summary_text', text: 'Summary' }],
+						encrypted_content: 'opaque',
+					}] : []),
 					{
 						type: 'message',
+						role: 'assistant',
 						content: [{ type: 'output_text', text: 'final assistant reply' }],
 					}
 				],
@@ -1383,8 +1440,9 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			telemetryData
 		);
 
-		for await (const _ of stream) {
-			// consume all completions to flush telemetry side effects
+		const returnedMessages: Raw.ChatMessage[] = [];
+		for await (const completion of stream) {
+			returnedMessages.push(completion.message);
 		}
 
 		const events = telemetryService.getEvents().telemetryServiceEvents.filter(e => e.eventName === 'engine.messages');
@@ -1392,9 +1450,24 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const outputEvent = events[events.length - 1];
 		const messagesJson = JSON.parse(String((outputEvent.properties as Record<string, string>)?.messagesJson));
-		expect(messagesJson).toHaveLength(1);
-		expect(messagesJson[0].role).toBe('assistant');
-		expect(messagesJson[0].content).toBe('final assistant reply');
+		expect(messagesJson).toHaveLength(withReasoning ? 2 : 1);
+		expect(messagesJson.at(-1).role).toBe('assistant');
+		expect(messagesJson.at(-1).content).toBe('final assistant reply');
+		if (withReasoning) {
+			expect(messagesJson[0]).toEqual({
+				role: 'assistant', content: [{ type: 'reasoning_text', text: 'Detailed output reasoning' }], type: 'reasoning', id: 'rs_output',
+				summary: [{ type: 'summary_text', text: 'Summary' }], encrypted_content: 'opaque',
+				content_metadata: [
+					{ path: '/content/0/text', purpose: 'reasoning', visibility: 'unknown', format: 'text' },
+					{ path: '/encrypted_content', purpose: 'reasoning', visibility: 'opaque', format: 'opaque' },
+					{ path: '/summary/0/text', purpose: 'reasoning_summary', visibility: 'unknown', format: 'text' },
+				],
+			});
+		}
+		expect(returnedMessages).toEqual([{
+			role: Raw.ChatRole.Assistant,
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'final assistant reply' }],
+		}]);
 
 		accessor.dispose();
 		services.dispose();

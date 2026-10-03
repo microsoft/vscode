@@ -12,11 +12,12 @@ import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, multiplexProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { gitHubCopilotRequestTeProperty } from '../common/fetch';
-import { APIJsonData, CAPIChatMessage, ChatCompletion, rawMessageToCAPI } from '../common/openai';
+import { TelemetryMessage, withMessageContentMetadata } from '../common/messageTelemetry';
+import { APIJsonData, ChatCompletion } from '../common/openai';
 import { FinishedCompletion, convertToAPIJsonData } from './stream';
 
 // TODO @lramos15 - Find a better file for this, since this file is for the chat stream and should not be telemetry related
-export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService) {
+export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetryService, messages: TelemetryMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService) {
 	const messageType = isOutput ? 'output' : 'input';
 
 	// Get the unique model call ID - it should already be set in the base telemetryData
@@ -38,13 +39,22 @@ export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetrySe
 						if (typeof part === 'string') {
 							return total + part.length;
 						}
-						if (part.type === 'text') {
+						if (part.type === 'text' || part.type === 'reasoning_text') {
 							return total + (part.text?.length || 0);
 						}
 						return total;
 					}, 0)
 					: 0,
 		};
+
+		for (const field of ['reasoning_text', 'reasoning_content', 'reasoning', 'cot_summary', 'reasoning_opaque', 'cot_id', 'encrypted_content'] as const) {
+			if (typeof msg[field] === 'string') {
+				processedMsg[field] = msg[field].length;
+			}
+		}
+		if (msg.summary) {
+			processedMsg.summary = msg.summary.map(part => ({ ...part, text: part.text.length }));
+		}
 
 		// Process tool_calls if present
 		if ('tool_calls' in msg && msg.tool_calls && Array.isArray(msg.tool_calls)) {
@@ -280,7 +290,7 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
 }
 
-function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, messageDirection: 'input' | 'output', logService?: ILogService): Array<{ uuid: string; headerRequestId: string }> {
+function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, messages: TelemetryMessage[], telemetryData: TelemetryData, messageDirection: 'input' | 'output', logService?: ILogService): Array<{ uuid: string; headerRequestId: string }> {
 	const messageData: Array<{ uuid: string; headerRequestId: string }> = [];
 
 	for (const message of messages) {
@@ -291,11 +301,8 @@ function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, me
 		// Create a hash of the message content AND headerRequestId to detect duplicates
 		// Including headerRequestId ensures same message content with different headerRequestIds gets separate UUIDs
 		const messageHash = hash({
-			role: message.role,
-			content: message.content,
+			...message,
 			headerRequestId: headerRequestId, // Include headerRequestId in hash for proper deduplication
-			...(('tool_calls' in message && message.tool_calls) && { tool_calls: message.tool_calls }),
-			...(('tool_call_id' in message && message.tool_call_id) && { tool_call_id: message.tool_call_id })
 		}).toString();
 
 		// Get existing UUID for this message content + headerRequestId combination, or generate a new one
@@ -420,7 +427,7 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 	}
 }
 
-function sendModelTelemetryEvents(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService): void {
+function sendModelTelemetryEvents(telemetryService: ITelemetryService, messages: TelemetryMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService): void {
 	// Skip model telemetry events for XtabProvider and api.* message sources
 	const messageSource = telemetryData.properties.messageSource as string;
 	if (messageSource === 'XtabProvider' || (messageSource && messageSource.startsWith('api.'))) {
@@ -452,9 +459,10 @@ function sendModelTelemetryEvents(telemetryService: ITelemetryService, messages:
 
 // ===== END MODEL TELEMETRY FUNCTIONS =====
 
-export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService, messages: CAPIChatMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService) {
+export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService, messages: TelemetryMessage[], telemetryData: TelemetryData, isOutput: boolean, logService?: ILogService) {
+	const classifiedMessages = messages.map(withMessageContentMetadata);
 	const telemetryDataWithPrompt = telemetryData.extendedBy({
-		messagesJson: JSON.stringify(messages),
+		messagesJson: JSON.stringify(classifiedMessages),
 	});
 
 	void multiplexProperties(telemetryDataWithPrompt.properties).then(properties => telemetryService.sendEnhancedGHTelemetryEvent('engine.messages', properties, telemetryDataWithPrompt.measurements)).catch(() => { /* best-effort telemetry */ });
@@ -464,7 +472,7 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 
 	// Send all model telemetry events (model.request.added, model.message.added, model.modelCall.input/output, model.request.options.added)
 	// Comment out the line below to disable the new deduplicated model telemetry events
-	sendModelTelemetryEvents(telemetryService, messages, telemetryData, isOutput, logService);
+	sendModelTelemetryEvents(telemetryService, classifiedMessages, telemetryData, isOutput, logService);
 
 	// Also send length-only telemetry
 	sendEngineMessagesLengthTelemetry(telemetryService, messages, telemetryData, isOutput, logService);
@@ -513,7 +521,6 @@ export function sendResponsesApiCompactionTelemetry(
 }
 
 export function prepareChatCompletionForReturn(
-	telemetryService: ITelemetryService,
 	logService: ILogService,
 	c: FinishedCompletion,
 	telemetryData: TelemetryData
@@ -538,9 +545,6 @@ export function prepareChatCompletionForReturn(
 		content: toTextParts(messageContent),
 	};
 
-	// Create enhanced message for telemetry with usage information
-	const telemetryMessage = rawMessageToCAPI(message);
-
 	// Add request metadata to telemetry data
 	telemetryData.extendWithRequestId(c.requestId);
 
@@ -560,7 +564,6 @@ export function prepareChatCompletionForReturn(
 		});
 	}
 
-	sendEngineMessagesTelemetry(telemetryService, [telemetryMessage], telemetryDataWithUsage, true, logService);
 	return {
 		message: message,
 		choiceIndex: c.index,
