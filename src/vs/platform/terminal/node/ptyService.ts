@@ -691,6 +691,7 @@ class PersistentTerminalProcess extends Disposable {
 	private readonly _pendingCommands = new Map<number, { resolve: (data: unknown) => void; reject: (err: unknown) => void }>();
 
 	private _isStarted: boolean = false;
+	private _isReattaching: boolean = false;
 	private _interactionState: MutationLogger<InteractionState>;
 
 	private _orphanQuestionBarrier: AutoOpenBarrier | null;
@@ -829,6 +830,7 @@ class PersistentTerminalProcess extends Disposable {
 		}
 		this._disconnectRunner1.cancel();
 		this._disconnectRunner2.cancel();
+		this._isReattaching = this._isStarted;
 	}
 
 	async detach(forcePersist?: boolean): Promise<void> {
@@ -856,6 +858,7 @@ class PersistentTerminalProcess extends Disposable {
 	}
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
+		this._isReattaching = false;
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && hasKey(result, { message: true })) {
@@ -904,7 +907,9 @@ class PersistentTerminalProcess extends Disposable {
 		return this._terminalProcess.processBinary(data);
 	}
 	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
-		if (this._inReplay) {
+		// A running process that's being reattached keeps its size until its terminal starts it; the
+		// terminal resizes it after the replay
+		if (this._inReplay || this._isReattaching) {
 			return;
 		}
 		this._serializer.handleResize(cols, rows);

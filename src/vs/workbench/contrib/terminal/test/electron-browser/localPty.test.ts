@@ -121,3 +121,22 @@ suite('LocalPty replay', () => {
 		});
 	});
 });
+
+suite('LocalPty resize', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sends the size again after a replay', async () => {
+		const calls: number[][] = [];
+		const pty = store.add(new LocalPty(1, true, upcastPartial<IPtyService>({
+			resize: async (id: number, cols: number, rows: number, pixelWidth?: number, pixelHeight?: number) => {
+				calls.push([cols, rows, pixelWidth ?? 0, pixelHeight ?? 0]);
+			}
+		})));
+		pty.resize(78, 12);
+		pty.resize(78, 12, 640, 240);
+		await pty.handleReplay({ events: [], commands: { isWindowsPty: false, hasRichCommandDetection: false, commands: [], promptInputModel: undefined } });
+		pty.resize(78, 12, 640, 240);
+		pty.resize(78, 12, 640, 240);
+		deepStrictEqual(calls, [[78, 12, 0, 0], [78, 12, 640, 240]]);
+	});
+});

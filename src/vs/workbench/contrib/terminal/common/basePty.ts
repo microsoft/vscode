@@ -102,6 +102,11 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 			}
 		} finally {
 			this._inReplay = false;
+			// The last size sent may not have reached the process: a running process that's being
+			// reattached ignores it, and a revived process got it without a pixel size. Make sure the
+			// terminal's next resize reaches it.
+			this._lastDimensions.cols = -1;
+			this._lastDimensions.rows = -1;
 		}
 
 		if (e.commands) {
