@@ -2050,10 +2050,12 @@ export function isSessionStatusRead(status: SessionStatus | undefined): boolean 
 
 /**
  * Whether a chat participates in the containing session's aggregate read state.
- * Tool/subagent chats retain exact per-chat state without making the session unread.
+ * Tool/subagent/hidden chats retain exact per-chat state without making the session unread.
  */
-export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin): boolean {
-	return origin?.kind !== ChatOriginKind.Tool && !isSubagentChatUri(resource);
+export function isChatInSessionReadAggregate(resource: ProtocolURI, origin?: ChatOrigin, interactivity?: ChatInteractivity): boolean {
+	return origin?.kind !== ChatOriginKind.Tool
+		&& interactivity !== ChatInteractivity.Hidden
+		&& !isSubagentChatUri(resource);
 }
 
 /** Whether the {@link SessionStatus.IsArchived} flag bit is set. */

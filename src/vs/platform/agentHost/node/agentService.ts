@@ -3460,6 +3460,7 @@ export class AgentService extends Disposable implements IAgentService {
 							kind: 'peer' as const,
 							origin: peer.origin,
 							archived: peer.archived,
+							isRead: peer.isRead,
 							inheritedTurnId: peer.inheritedTurnId,
 							workingDirectories: peer.workingDirectories,
 						})),
@@ -6863,7 +6864,7 @@ export class AgentService extends Disposable implements IAgentService {
 			? [AH_META_IS_ARCHIVED_DB_KEY, SessionStatus.IsArchived, action.isArchived] as const
 			: [AH_META_IS_READ_DB_KEY, SessionStatus.IsRead, action.isRead] as const;
 		const aggregateChats = action.type === ActionType.SessionIsReadChanged
-			? summary.chats?.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin)) ?? []
+			? summary.chats?.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) ?? []
 			: [];
 		const set = requestedSet && aggregateChats.length > 1 && aggregateChats.some(chat => chat.status !== undefined && !isSessionStatusRead(chat.status))
 			? false
@@ -6978,7 +6979,7 @@ export class AgentService extends Disposable implements IAgentService {
 								&& chat.origin !== null
 								&& !Array.isArray(chat.origin)
 								&& chat.origin.kind === ChatOriginKind.Tool;
-							return !isToolChat && isChatInSessionReadAggregate(chat.uri);
+							return !isToolChat && isChatInSessionReadAggregate(chat.uri, undefined, chat.interactivity);
 						});
 						const set = update.requestedSet && aggregateChats.length > 1 && aggregateChats.some(chat => chat.isRead === false)
 							? false

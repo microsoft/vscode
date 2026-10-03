@@ -666,6 +666,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (activeChatChanged) {
 				lastReadRequest = undefined;
 			}
+			if (activeSession.loading.read(reader)) {
+				lastReadRequest = undefined;
+				return;
+			}
 			if (!chat || chat.isRead.read(reader)) {
 				return;
 			}
@@ -680,14 +684,23 @@ export class SessionsService extends Disposable implements ISessionsService {
 				&& lastReadRequest.version === version) {
 				return;
 			}
-			lastReadRequest = { chat: chat.resource, version };
-			if (this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)) {
-				this.sessionsManagementService.markRead(activeSession, {
+			const readRequest = { chat: chat.resource, version };
+			lastReadRequest = readRequest;
+			const accepted = this.uriIdentityService.extUri.isEqual(chat.resource, mainChat.resource)
+				? this.sessionsManagementService.markRead(activeSession, {
 					preserveExplicitUnread: !activeChatChanged,
-				}).catch(onUnexpectedError);
-			} else {
-				this.sessionsManagementService.markChatRead(activeSession, chat).catch(onUnexpectedError);
-			}
+				})
+				: this.sessionsManagementService.markChatRead(activeSession, chat);
+			accepted.then(result => {
+				if (result === false && lastReadRequest === readRequest) {
+					lastReadRequest = undefined;
+				}
+			}, error => {
+				if (lastReadRequest === readRequest) {
+					lastReadRequest = undefined;
+				}
+				onUnexpectedError(error);
+			});
 		}));
 
 		return disposables;

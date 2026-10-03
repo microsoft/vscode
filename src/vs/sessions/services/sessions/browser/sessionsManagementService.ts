@@ -1331,11 +1331,11 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		await this._getProvider(session)?.setSessionReadState(session.sessionId, isRead);
 	}
 
-	async markChatRead(session: ISession, chat: IChat): Promise<void> {
-		await this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true);
+	async markChatRead(session: ISession, chat: IChat): Promise<boolean | void> {
+		return this._getProvider(session)?.setChatReadState?.(session.sessionId, chat.resource, true) ?? false;
 	}
 
-	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<void> {
+	markRead(session: ISession, options?: IMarkSessionReadOptions): Promise<boolean | void> {
 		if (options?.preserveExplicitUnread
 			&& this._explicitlyMarkedUnreadMainChats.has(session.resource)
 			&& this._explicitlyMarkedUnreadMainChats.get(session.resource) === this._getMainChatReadMarker(session)) {
@@ -1369,12 +1369,12 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		}
 	}
 
-	private _setMainChatReadState(session: ISession, isRead: boolean, provider = this._getProvider(session)): Promise<void> {
+	private _setMainChatReadState(session: ISession, isRead: boolean, provider = this._getProvider(session)): Promise<boolean | void> {
 		if (isRead) {
 			this._explicitlyMarkedUnreadMainChats.delete(session.resource);
 		}
 		if (!provider) {
-			return Promise.resolve();
+			return Promise.resolve(false);
 		}
 		const mainChat = session.mainChat.get();
 		return provider.setChatReadState

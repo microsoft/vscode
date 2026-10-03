@@ -1211,7 +1211,7 @@ export class AgentHostStateManager extends Disposable {
 			});
 		}
 		const restoredState = entry.state;
-		if (restoredState.chats.some(chat => isChatInSessionReadAggregate(chat.resource, chat.origin) && !isSessionStatusRead(chat.status))) {
+		if (restoredState.chats.some(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity) && !isSessionStatusRead(chat.status))) {
 			restoredState.status = withSessionStatusFlag(restoredState.status, SessionStatus.IsRead, false);
 		}
 		// A session that was previously surfaced (e.g. announced as an
@@ -1943,7 +1943,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		if (action.type === ActionType.SessionIsReadChanged && action.isRead) {
 			const state = this._sessionStates.get(channel)?.state;
-			const aggregateChats = state?.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin)) ?? [];
+			const aggregateChats = state?.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) ?? [];
 			if (aggregateChats.length > 1 && aggregateChats.some(chat => !isSessionStatusRead(chat.status))) {
 				action = { ...action, isRead: false };
 			} else if (aggregateChats.length === 1 && !isSessionStatusRead(aggregateChats[0].status)) {
@@ -1984,7 +1984,7 @@ export class AgentHostStateManager extends Disposable {
 				const summaryChanged = !this._summaryFieldsEqual(previousState, newState);
 				entry.state = newState;
 				this._synchronizeChatEntries(key, newState.chats);
-				const aggregateChats = newState.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin));
+				const aggregateChats = newState.chats.filter(chat => isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity));
 				if (sessionAction.type === ActionType.SessionIsReadChanged && !sessionAction.isRead && aggregateChats.length === 1) {
 					const chat = aggregateChats[0];
 					if (isSessionStatusRead(chat.status)) {
@@ -2036,7 +2036,7 @@ export class AgentHostStateManager extends Disposable {
 					this._pruneChatCanvases(channel, new Set(newChat.canvases?.map(canvas => canvas.resource) ?? []));
 				}
 				this._onChatStateChanged(sessionKey, channel, chat, newChat);
-				if (chatAction.type === ActionType.ChatIsReadChanged && !chatAction.isRead && isChatInSessionReadAggregate(channel, chatEntry.summary.origin)) {
+				if (chatAction.type === ActionType.ChatIsReadChanged && !chatAction.isRead && isChatInSessionReadAggregate(channel, chatEntry.summary.origin, chatEntry.summary.interactivity)) {
 					const session = this._sessionStates.get(sessionKey)?.state;
 					if (session && isSessionStatusRead(session.status)) {
 						sessionToMarkUnread = sessionKey;

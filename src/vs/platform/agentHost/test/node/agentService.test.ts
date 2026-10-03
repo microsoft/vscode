@@ -20919,6 +20919,8 @@ suite('AgentService (node dispatcher)', () => {
 				const other = URI.parse(buildChatUri(parent, otherId));
 				await localService.createChat(parent, selected, { title: 'Original Selected Chat' });
 				await localService.createChat(parent, other, { title: 'Original Other Chat' });
+				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
+				await peerStore.setRead(parent, other, false);
 				await perSession.database(other).createTurn('original-turn');
 				await perSession.database(other).setTurnEventId('original-turn', 'original-event');
 				const phantom = parent.with({ fragment: selectedId });
@@ -20926,7 +20928,6 @@ suite('AgentService (node dispatcher)', () => {
 				await database.registerRuntimeSession(phantom.toString(), { provider: 'copilotcli', startTime: 1, source: 'restore' }, { checkTombstone: false });
 				await database.registerRuntimeSession(explicitFragment.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
 				await perSession.database(parent).setMetadata('peerChats', '[]');
-				const peerStore = new AgentHostPeerChatStore(database, sessionData, new NullLogService());
 				await peerStore.reconcileLegacy(parent);
 				if (completed) {
 					await peerStore.recoverChatSelectionCorruption(parent, [selectedId]);
@@ -20972,12 +20973,14 @@ suite('AgentService (node dispatcher)', () => {
 					registered: registered.map(resource => resource.toString()).sort(),
 					membership: (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat),
 					listed: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.map(chat => ({ uri: chat.chat.toString(), title: chat.summary ?? '' })),
+					listedRecoveredPeerIsRead: listed.find(entry => entry.session.toString() === parent.toString())?.chats?.find(chat => chat.chat.toString() === other.toString())?.isRead,
 					turnEvent: await perSession.database(other).getTurnEventId('original-turn'),
 					providerData: await perSession.database(other).getMetadata('agentHost.chatProviderData'),
 					lazyBeforeOpen,
 					coldParentUnopened,
 					materializedBeforeOpen,
 					projectedAfterFirstList,
+					projectedRecoveredPeerIsRead: catalogDataOf(await database.getSessionV2(parent.toString()))?.chats.find(chat => chat.uri === other.toString())?.isRead,
 					completedRecoveryUnchanged: !completed || recoveryBeforeListing === await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409'),
 					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify((await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat)),
 					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
@@ -20990,12 +20993,14 @@ suite('AgentService (node dispatcher)', () => {
 						{ uri: selected.toString(), title: 'Original Selected Chat' },
 						{ uri: other.toString(), title: 'Original Other Chat' },
 					],
+					listedRecoveredPeerIsRead: false,
 					turnEvent: 'original-event',
 					providerData: '{"sdkSessionId":"original-sdk-session"}',
 					lazyBeforeOpen: true,
 					coldParentUnopened: true,
 					materializedBeforeOpen: [],
 					projectedAfterFirstList: [buildDefaultChatUri(parent), selected.toString(), other.toString()],
+					projectedRecoveredPeerIsRead: false,
 					completedRecoveryUnchanged: true,
 					completedMembershipUnchanged: true,
 					restoredTurns: [{ id: 'original-turn', text: 'Original peer conversation' }],

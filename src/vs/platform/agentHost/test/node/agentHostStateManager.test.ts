@@ -308,6 +308,25 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('hidden chats retain exact read state without affecting the session aggregate', () => {
+		manager.createSession(makeSessionSummary());
+		manager.dispatchServerAction(sessionUri, { type: ActionType.SessionIsReadChanged, isRead: true });
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		manager.addChat(sessionUri, hidden, { interactivity: ChatInteractivity.Hidden });
+
+		manager.dispatchServerAction(hidden, { type: ActionType.ChatIsReadChanged, isRead: false });
+
+		assert.deepStrictEqual({
+			session: isSessionStatusRead(manager.getSessionState(sessionUri)!.status),
+			defaultChat: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hidden: isSessionStatusRead(manager.getChatState(hidden)!.status),
+		}, {
+			session: true,
+			defaultChat: true,
+			hidden: false,
+		});
+	});
+
 	test('session read state synchronizes its sole default chat', () => {
 		manager.createSession(makeSessionSummary());
 
@@ -869,6 +888,25 @@ suite('AgentHostStateManager', () => {
 			sessionIsRead: false,
 			defaultChatIsRead: false,
 			peerIsRead: true,
+		});
+	});
+
+	test('restoreSession excludes hidden unread chats from the session aggregate', () => {
+		const hidden = buildChatUri(sessionUri, 'hidden');
+		const state = manager.restoreSession({
+			...makeSessionSummary(),
+			status: SessionStatus.Idle | SessionStatus.IsRead,
+			chats: [{ resource: hidden, title: 'Hidden', interactivity: ChatInteractivity.Hidden, status: SessionStatus.Idle }],
+		}, [], { defaultChatIsRead: true });
+
+		assert.deepStrictEqual({
+			sessionIsRead: isSessionStatusRead(state.status),
+			defaultChatIsRead: isSessionStatusRead(manager.getChatState(sessionChatUri)!.status),
+			hiddenIsRead: isSessionStatusRead(state.chats.find(chat => chat.resource === hidden)!.status),
+		}, {
+			sessionIsRead: true,
+			defaultChatIsRead: true,
+			hiddenIsRead: false,
 		});
 	});
 

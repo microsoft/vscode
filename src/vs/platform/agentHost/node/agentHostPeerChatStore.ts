@@ -749,11 +749,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		}
 		try {
 			const metadata = await ref.object.getMetadataObject({
+				[AH_META_IS_READ_DB_KEY]: true,
 				[CHAT_PROVIDER_DATA_METADATA_KEY]: true,
 				[CHAT_ORIGIN_METADATA_KEY]: true,
 				[CHAT_INHERITED_TURN_METADATA_KEY]: true,
 				[CHAT_WORKING_DIRECTORIES_METADATA_KEY]: true,
 			});
+			const isRead = metadata[AH_META_IS_READ_DB_KEY] !== undefined
+				? metadata[AH_META_IS_READ_DB_KEY] === 'true'
+				: entry.isRead;
 			const origin = metadata[CHAT_ORIGIN_METADATA_KEY]
 				? this._parseOrigin(metadata[CHAT_ORIGIN_METADATA_KEY])
 				: metadata[CHAT_ORIGIN_METADATA_KEY] === '' ? undefined : entry.origin;
@@ -762,7 +766,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
 			return {
 				uri: entry.uri,
-				...(entry.isRead !== undefined ? { isRead: entry.isRead } : {}),
+				...(isRead !== undefined ? { isRead } : {}),
 				...(metadata[CHAT_PROVIDER_DATA_METADATA_KEY] !== undefined
 					? metadata[CHAT_PROVIDER_DATA_METADATA_KEY] ? { providerData: metadata[CHAT_PROVIDER_DATA_METADATA_KEY] } : {}
 					: entry.providerData !== undefined ? { providerData: entry.providerData } : {}),

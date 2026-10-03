@@ -523,8 +523,9 @@ export interface ISessionsProvider {
 	/**
 	 * Set the read/unread state of a chat independently of its owning session.
 	 * Providers without independently readable chats leave this capability undefined.
+	 * Returns `false` when the transition was not accepted and may be retried.
 	 */
-	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<void>;
+	setChatReadState?(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean | void>;
 
 	/**
 	 * Delete a session.

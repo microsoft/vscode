@@ -8732,6 +8732,34 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('chat read state reports protocol rejection so callers can retry after initialization', async () => {
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: '0.8.0' }, undefined);
+			const provider = createProvider(disposables, agentHost);
+			const session = setupMultiChatSession(provider, 'chat-read-retry');
+			const sessionUri = AgentSession.uri('copilotcli', 'chat-read-retry').toString();
+			const defaultChat = buildDefaultChatUri(sessionUri);
+			agentHost.setSessionState('chat-read-retry', 'copilotcli', makeState([
+				makeChatSummary(defaultChat, ''),
+			], { defaultChat }));
+			const main = session.mainChat.get();
+
+			const rejected = await provider.setChatReadState(session.sessionId, main.resource, true);
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: PROTOCOL_VERSION }, undefined);
+			const accepted = await provider.setChatReadState(session.sessionId, main.resource, true);
+
+			assert.deepStrictEqual({
+				rejected,
+				accepted,
+				isRead: main.isRead.get(),
+				actions: agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.ChatIsReadChanged).length,
+			}, {
+				rejected: false,
+				accepted: true,
+				isRead: true,
+				actions: 1,
+			});
+		});
+
 		test('single default chat read state updates optimistically and dispatches to the host', async () => {
 			const provider = createProvider(disposables, agentHost);
 			const session = setupMultiChatSession(provider, 'single-chat-read');
@@ -8807,11 +8835,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			const backendSessionUri = AgentSession.uri('copilotcli', 'default-chat-read').toString();
 			const defaultChat = buildDefaultChatUri(backendSessionUri);
 			const peerChat = buildChatUri(backendSessionUri, 'peer-1');
+			const hiddenChat = buildChatUri(backendSessionUri, 'hidden');
 			agentHost.setSessionState('default-chat-read', 'copilotcli', makeState([
 				makeChatSummary(defaultChat, ''),
 				{ ...makeChatSummary(peerChat, 'Peer', ProtocolSessionStatus.Idle | ProtocolSessionStatus.IsRead), origin: { kind: ProtocolChatOriginKind.User } },
+				{ ...makeChatSummary(hiddenChat, 'Hidden'), interactivity: ProtocolChatInteractivity.Hidden },
 			], { defaultChat }));
-			const [main, peer] = session.chats.get();
+			const [main, peer, hidden] = session.chats.get();
 
 			await provider.setSessionReadState(session.sessionId, true);
 			const afterSessionRead = {
@@ -8823,6 +8853,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 			assert.deepStrictEqual({
 				afterSessionRead,
+				hidden: hidden.isRead.get(),
 				final: {
 					session: session.isRead.get(),
 					main: main.isRead.get(),
@@ -8837,6 +8868,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 					.filter(action => action.isRead !== undefined),
 			}, {
 				afterSessionRead: { session: true, main: true, peer: true },
+				hidden: false,
 				final: { session: false, main: true, peer: true },
 				action: [
 					{ channel: defaultChat, type: ActionType.ChatIsReadChanged, isRead: true },

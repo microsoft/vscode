@@ -1448,6 +1448,50 @@ suite('SessionsManagementService', () => {
 			});
 		});
 
+		test('retries marking the active chat read after provider loading completes', async () => {
+			const mainIsRead = observableValue('mainIsRead', false);
+			const loading = observableValue('loading', false);
+			const main = { ...stubChat, resource: URI.parse('test:///main'), isRead: mainIsRead };
+			const session = stubSession({
+				sessionId: 'startup-read-retry',
+				providerId: 'test',
+				loading,
+				mainChat: constObservable(main),
+				chats: constObservable([main]),
+			});
+			const attempts: boolean[] = [];
+			let ready = false;
+			const provider = new class extends TestSessionsProvider {
+				override async setChatReadState(_sessionId: string, _chatResource: URI, isRead: boolean): Promise<boolean> {
+					attempts.push(ready);
+					if (!ready) {
+						return false;
+					}
+					mainIsRead.set(isRead, undefined);
+					return true;
+				}
+			}(session);
+			const { view } = createSessionsManagementService(session, disposables, provider);
+
+			await view.openSession(session.resource);
+			await timeout(0);
+			const afterRejectedAttempt = mainIsRead.get();
+			loading.set(true, undefined);
+			ready = true;
+			loading.set(false, undefined);
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				afterRejectedAttempt,
+				afterReady: mainIsRead.get(),
+				attempts,
+			}, {
+				afterRejectedAttempt: false,
+				afterReady: true,
+				attempts: [false, true],
+			});
+		});
+
 		test('uses the main chat read operation when only a tool peer accompanies it', async () => {
 			const sessionIsRead = observableValue('sessionIsRead', false);
 			const mainIsRead = observableValue('mainIsRead', false);

@@ -210,7 +210,7 @@ export class AgentHostCatalogSourceResolver {
 			&& sessionMetadata.defaultChatIsRead.has(metadata)
 			? sessionMetadata.defaultChatIsRead.read(metadata)
 			: chat.isRead;
-		const aggregateChats = state.chats.filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin));
+		const aggregateChats = state.chats.filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin, chat.interactivity));
 		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
 			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
 			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);

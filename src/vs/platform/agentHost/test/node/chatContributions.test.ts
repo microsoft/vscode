@@ -1228,9 +1228,10 @@ suite('AgentHostChatContributions', () => {
 		});
 	});
 
-	test('mark unread contribution leaves the parent read when a tool chat completes', () => {
+	test('mark unread contribution leaves the parent read when tool and hidden chats complete', () => {
 		const session = 'agent-host-session://tool-unread';
 		const toolChat = buildChatUri(session, 'tool');
+		const hiddenChat = buildChatUri(session, 'hidden');
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
 		stateManager.createSession({
@@ -1244,6 +1245,9 @@ suite('AgentHostChatContributions', () => {
 		stateManager.addChat(session, toolChat, {
 			origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-call' },
 		});
+		stateManager.addChat(session, hiddenChat, {
+			interactivity: ChatInteractivity.Hidden,
+		});
 		const services = new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostStateManager, stateManager],
@@ -1253,13 +1257,16 @@ suite('AgentHostChatContributions', () => {
 		disposables.add(contributions.registerContribution(MarkUnreadContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 
 		contributions.turnEnd({ session, channel: toolChat, turnId: 'tool-turn', reason: { kind: 'success' } });
+		contributions.turnEnd({ session, channel: hiddenChat, turnId: 'hidden-turn', reason: { kind: 'success' } });
 
 		assert.deepStrictEqual({
 			sessionIsRead: !!(stateManager.getSessionState(session)!.status & SessionStatus.IsRead),
 			toolChatIsRead: !!(stateManager.getChatState(toolChat)!.status & SessionStatus.IsRead),
+			hiddenChatIsRead: !!(stateManager.getChatState(hiddenChat)!.status & SessionStatus.IsRead),
 		}, {
 			sessionIsRead: true,
 			toolChatIsRead: false,
+			hiddenChatIsRead: false,
 		});
 	});
 

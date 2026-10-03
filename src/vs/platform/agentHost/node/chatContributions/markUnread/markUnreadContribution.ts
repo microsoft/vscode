@@ -37,7 +37,7 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 		if (isKnownChat) {
 			this._stateManager.dispatchServerAction(turn.channel, { type: ActionType.ChatIsReadChanged, isRead: false });
 		}
-		if (!isChatInSessionReadAggregate(turn.channel, chatSummary?.origin)) {
+		if (!isChatInSessionReadAggregate(turn.channel, chatSummary?.origin, chatSummary?.interactivity)) {
 			return;
 		}
 		const status = this._stateManager.getSessionSummary(turn.session)?.status ?? 0;

@@ -1742,7 +1742,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		this._aggregateChatResources.clear();
 		for (const chat of chats) {
-			if (!isChatInSessionReadAggregate(chat.chat.toString(), chat.origin)) {
+			if (!isChatInSessionReadAggregate(chat.chat.toString(), chat.origin, chat.interactivity)) {
 				continue;
 			}
 			const chatId = parseChatUri(chat.chat)?.chatId;
@@ -1905,7 +1905,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			: isDefaultChatUri(summary.resource);
 		this._aggregateChatResources.clear();
 		for (const chat of state.chats) {
-			if (!isChatInSessionReadAggregate(chat.resource, chat.origin)) {
+			if (!isChatInSessionReadAggregate(chat.resource, chat.origin, chat.interactivity)) {
 				continue;
 			}
 			const chatId = parseChatUri(chat.resource)?.chatId;
@@ -6272,14 +6272,14 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 	}
 
-	async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<void> {
+	async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
 		const rawId = this._rawIdFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		const initializeResult = connection?.initializeResult.get();
 		const action = { type: ActionType.ChatIsReadChanged as const, isRead };
 		if (!cached || !connection || !initializeResult || !isActionKnownToVersion(action, initializeResult.protocolVersion)) {
-			return;
+			return false;
 		}
 		const backendChatResource = this.getBackendChatResource(chatResource);
 		if (!backendChatResource || !cached.setChatRead(chatResource, isRead)) {
@@ -6288,6 +6288,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._cacheDirty = true;
 		this._keepSessionStateAlive(cached.sessionId);
 		connection.dispatch(backendChatResource.toString(), action);
+		return true;
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
