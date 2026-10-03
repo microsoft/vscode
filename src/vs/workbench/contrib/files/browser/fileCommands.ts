@@ -46,7 +46,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants.js';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, COPY_NAME_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { RemoveRootFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { OpenEditorsView } from './views/openEditorsView.js';
@@ -229,11 +229,17 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
+async function resourcesToClipboard(resources: URI[], kind: 'path' | 'relativePath' | 'name', clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		if (kind === 'name') {
+			const text = resources.map(resource => basename(resource)).join(lineDelimiter);
+			await clipboardService.writeText(text);
+			return;
+		}
 
 		let separator: '/' | '\\' | undefined = undefined;
+		const relative = resources.length > 1 ? false : kind === 'relativePath';
 		const copyRelativeOrFullPathSeparatorSection = relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
 		const copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
 		if (copyRelativeOrFullPathSeparator === '/' || copyRelativeOrFullPathSeparator === '\\') {
@@ -247,7 +253,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 
 const copyPathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
-	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	await resourcesToClipboard(resources, 'path', accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -274,8 +280,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
-	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	await resourcesToClipboard(resources, 'relativePath', accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
+
+const copyNameCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, 'name', accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
+
+CommandsRegistry.registerCommand(COPY_NAME_COMMAND_ID, copyNameCommandHandler);
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -309,7 +322,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+		await resourcesToClipboard(resources, 'path', accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
