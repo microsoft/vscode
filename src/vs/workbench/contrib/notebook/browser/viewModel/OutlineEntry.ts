@@ -39,6 +39,7 @@ export class OutlineEntry {
 		readonly isPaused: boolean,
 		readonly range?: IRange,
 		readonly symbolKind?: SymbolKind,
+		readonly selectionRange?: IRange,
 	) { }
 
 	addChild(entry: OutlineEntry) {
