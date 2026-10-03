@@ -248,7 +248,14 @@ class IPCRunner extends events.EventEmitter {
 	}
 }
 
-app.on('ready', async () => {
+app.on('ready', () => {
+	initializeTestRunner().catch(error => {
+		console.error(error);
+		app.exit(1);
+	});
+});
+
+async function initializeTestRunner() {
 	const outDir = args.build ? 'out-build' : 'out';
 	const [{ createRemoteResourceRequestHandler }, { getRemoteResourceResponseHeaders }] = await Promise.all([
 		import(url.pathToFileURL(path.join(__dirname, `../../../${outDir}/vs/platform/protocol/electron-main/remoteResourceProtocol.js`)).href),
@@ -511,4 +518,4 @@ app.on('ready', async () => {
 			app.exit(runner.didFail ? 1 : 0);
 		});
 	}
-});
+}
