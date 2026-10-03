@@ -42,6 +42,12 @@ export function sendEngineMessagesLengthTelemetry(telemetryService: ITelemetrySe
 						if (part.type === 'text' || part.type === 'reasoning_text') {
 							return total + (part.text?.length || 0);
 						}
+						if (part.type === 'thinking') {
+							return total + (part.thinking?.length || 0) + (part.signature?.length || 0);
+						}
+						if (part.type === 'redacted_thinking') {
+							return total + (part.data?.length || 0);
+						}
 						return total;
 					}, 0)
 					: 0,

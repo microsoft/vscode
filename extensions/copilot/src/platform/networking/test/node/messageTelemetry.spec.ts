@@ -100,6 +100,51 @@ suite('Message content telemetry', () => {
 		});
 	});
 
+	test.each([
+		{
+			name: 'thinking text and signature',
+			content: [{ type: 'thinking', thinking: 'abc', signature: 'de' }],
+			length: 5,
+		},
+		{
+			name: 'redacted thinking data',
+			content: [{ type: 'redacted_thinking', data: 'abcd' }],
+			length: 4,
+		},
+		{
+			name: 'mixed answer and reasoning blocks',
+			content: [
+				{ type: 'text', text: 'answer' },
+				{ type: 'thinking', thinking: 'abc', signature: 'de' },
+				{ type: 'redacted_thinking', data: 'abcd' },
+			],
+			length: 15,
+		},
+		{
+			name: 'empty thinking with no signature',
+			content: [{ type: 'thinking', thinking: '' }],
+			length: 0,
+		},
+	])('counts $name without retaining content in length telemetry', async ({ content, length }) => {
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const internal = vi.spyOn(service, 'sendInternalMSFTTelemetryEvent');
+		const message = { role: 'assistant', content };
+		sendEngineMessagesTelemetry(service, [message], TelemetryData.createAndMarkAsIssued({ modelCallId: 'anthropic-lengths' }), true);
+
+		await vi.waitFor(() => expect(internal.mock.calls.filter(([name]) => name === 'engine.messages.length')).toHaveLength(1));
+		expect({
+			lengths: [enhanced, internal].map(spy => {
+				const event = spy.mock.calls.find(([name]) => name === 'engine.messages.length')!;
+				return JSON.parse(String(event[1]?.messagesJson));
+			}),
+			content: JSON.parse(String(enhanced.mock.calls.find(([name]) => name === 'engine.messages')![1]?.messagesJson)),
+		}).toEqual({
+			lengths: [[{ role: 'assistant', content: length }], [{ role: 'assistant', content: length }]],
+			content: [withMessageContentMetadata(message)],
+		});
+	});
+
 	test('emits distinct reasoning-only messages and removes their content from length telemetry', async () => {
 		const service = new SpyingTelemetryService();
 		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
