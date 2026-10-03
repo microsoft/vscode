@@ -37,7 +37,7 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
+	test('Marketplace visibility is experiment-controlled and default-on while the GitHub Feed is default-off', () => {
 		assert.deepStrictEqual({
 			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
@@ -46,10 +46,10 @@ suite('Chat configuration', () => {
 				type: 'boolean',
 				tags: ['experimental'],
 				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
-				default: false,
+				default: true,
 				experiment: { mode: 'auto' },
 			},
-			publicFeed: true,
+			publicFeed: false,
 		});
 	});
 
@@ -59,7 +59,7 @@ suite('Chat configuration', () => {
 				inspect: <T>() => inspection as unknown as IConfigurationValue<Readonly<T>>,
 			} as unknown as IConfigurationService);
 		assert.deepStrictEqual([
-			isDefault({ defaultValue: false, value: false }),
+			isDefault({ defaultValue: true, value: true }),
 			...[
 				'applicationValue',
 				'userValue',
@@ -69,7 +69,7 @@ suite('Chat configuration', () => {
 				'workspaceFolderValue',
 				'memoryValue',
 				'policyValue',
-			].map(layer => isDefault({ defaultValue: false, value: true, [layer]: true })),
+			].map(layer => isDefault({ defaultValue: true, value: true, [layer]: true })),
 		], [
 			true,
 			false,
