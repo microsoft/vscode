@@ -20955,7 +20955,7 @@ suite('AgentService (node dispatcher)', () => {
 					stateManager.removeSession(parent.toString());
 				}
 
-				const membershipBeforeListing = completed ? await database.getSessionChatCatalog(parent.toString()) : undefined;
+				const membershipBeforeListing = completed ? (await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat) : undefined;
 				const recoveryBeforeListing = completed ? await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409') : undefined;
 				const listed = await localService.listSessions();
 				const coldParentUnopened = !cold || stateManager.getSessionState(parent.toString()) === undefined;
@@ -20979,7 +20979,7 @@ suite('AgentService (node dispatcher)', () => {
 					materializedBeforeOpen,
 					projectedAfterFirstList,
 					completedRecoveryUnchanged: !completed || recoveryBeforeListing === await perSession.database(parent).getMetadata('agentHost.peerChatRecovery339409'),
-					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify(await database.getSessionChatCatalog(parent.toString())),
+					completedMembershipUnchanged: !completed || JSON.stringify(membershipBeforeListing) === JSON.stringify((await database.getSessionChatCatalog(parent.toString()))?.chats.map(chat => chat.chat)),
 					restoredTurns: restored?.turns.map(turn => ({ id: turn.id, text: turn.message.text })),
 					materialized: agent.materialized,
 				}, {
