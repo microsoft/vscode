@@ -99,6 +99,9 @@ suite('AgentHostGenericConfigChips', () => {
 			disposables.add(new TestInstantiationService()),
 			new class extends mock<IAgentHostConnectionsService>() {
 				override readonly onDidChangeSessionResolution = Event.None;
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: firstBackend };
+				}
 				override resolveSessionResource() {
 					return { connection: agentHostService, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession: firstBackend };
 				}
