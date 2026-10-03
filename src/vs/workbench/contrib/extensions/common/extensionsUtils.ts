@@ -72,6 +72,16 @@ export class KeymapExtensions extends Disposable implements IWorkbenchContributi
 	}
 }
 
+export function mergeExtensionIdentifiers(result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]): IExtensionIdentifier[] {
+	result = result || [];
+	for (const identifier of identifiers) {
+		if (!result.some(l => areSameExtensions(l, identifier))) {
+			result.push(identifier);
+		}
+	}
+	return result;
+}
+
 function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentifier[]> {
 	const extensionService = accessor.get(IExtensionManagementService);
 	const extensionEnablementService = accessor.get(IWorkbenchExtensionEnablementService);
@@ -82,15 +92,7 @@ function onExtensionChanged(accessor: ServicesAccessor): Event<IExtensionIdentif
 	return Event.debounce<IExtensionIdentifier[], IExtensionIdentifier[]>(Event.any(
 		Event.any(onDidInstallExtensions, Event.map(extensionService.onDidUninstallExtension, e => [e.identifier])),
 		Event.map(extensionEnablementService.onEnablementChanged, extensions => extensions.map(e => e.identifier))
-	), (result: IExtensionIdentifier[] | undefined, identifiers: IExtensionIdentifier[]) => {
-		result = result || [];
-		for (const identifier of identifiers) {
-			if (result.some(l => !areSameExtensions(l, identifier))) {
-				result.push(identifier);
-			}
-		}
-		return result;
-	});
+	), mergeExtensionIdentifiers);
 }
 
 export async function getInstalledExtensions(accessor: ServicesAccessor): Promise<IExtensionStatus[]> {
