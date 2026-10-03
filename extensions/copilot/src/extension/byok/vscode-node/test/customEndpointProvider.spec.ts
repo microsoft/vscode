@@ -9,12 +9,19 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BlockedExtensionService, IBlockedExtensionService } from '../../../../platform/chat/common/blockedExtensionService';
 import { IChatMLFetcher, type IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, type ChatResponse, type ChatResponses } from '../../../../platform/chat/common/commonTypes';
+import { getTextPart } from '../../../../platform/chat/common/globalStringUtils';
 import { MockChatMLFetcher } from '../../../../platform/chat/test/common/mockChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IChatModelInformation, ModelSupportedEndpoint } from '../../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../../platform/endpoint/common/endpointTypes';
 import { ExtensionContributedChatEndpoint } from '../../../../platform/endpoint/vscode-node/extChatEndpoint';
+import { ILogService } from '../../../../platform/log/common/logService';
+import { IResponseDelta } from '../../../../platform/networking/common/fetch';
+import { HeadersImpl, Response } from '../../../../platform/networking/common/fetcherService';
 import type { IChatEndpoint, IEndpointBody } from '../../../../platform/networking/common/networking';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
+import { TelemetryData } from '../../../../platform/telemetry/common/telemetryData';
+import { createFakeStreamResponse } from '../../../../platform/test/node/fetcher';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TokenizerType } from '../../../../util/common/tokenizer';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -22,6 +29,7 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { OpenAIEndpoint } from '../../node/openAIEndpoint';
 import type { OpenAICompatibleLanguageModelChatInformation } from '../abstractLanguageModelChatProvider';
 import type { IBYOKStorageService } from '../byokStorageService';
 import { CustomEndpointBYOKModelProvider, type CustomEndpointModelConfig, type CustomEndpointModelProviderConfig, CustomEndpointOAIEndpoint, hasExplicitApiPath, resolveCustomEndpointUrl } from '../customEndpointProvider';
@@ -232,6 +240,160 @@ describe('CustomEndpointBYOKModelProvider', () => {
 				}
 			};
 		}
+
+		describe('Chat Completions response content', () => {
+			function createEndpoint(streaming: boolean, custom: boolean = true): IChatEndpoint {
+				const metadata = makeMetadata(undefined);
+				metadata.capabilities.supports.streaming = streaming;
+				return custom
+					? instaService.createInstance(CustomEndpointOAIEndpoint, metadata, 'test-api-key', 'https://api.example.com/v1/chat/completions')
+					: instaService.createInstance(OpenAIEndpoint, metadata, 'test-api-key', 'https://api.example.com/v1/chat/completions');
+			}
+
+			function createResponse(content: unknown, streaming: boolean, reasoningContent?: string, withToolCall: boolean = false): Response {
+				const message = {
+					role: 'assistant',
+					content,
+					reasoning_content: reasoningContent,
+					tool_calls: withToolCall ? [{ index: 0, id: 'call_1', type: 'function', function: { name: 'test_tool', arguments: '{"value":1}' } }] : undefined,
+				};
+				const choice = { index: 0, finish_reason: withToolCall ? 'tool_calls' : 'stop' };
+				const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
+				return streaming
+					? createFakeStreamResponse(`data: ${JSON.stringify({ choices: [{ ...choice, delta: message }] })}\ndata: ${JSON.stringify({ choices: [], usage })}\ndata: [DONE]\n`)
+					: Response.fromText(200, 'OK', new HeadersImpl({}), JSON.stringify({ choices: [{ ...choice, message }], usage }), 'node-fetch');
+			}
+
+			async function processResponse(endpoint: IChatEndpoint, response: Response) {
+				const deltas: IResponseDelta[] = [];
+				const completions = await endpoint.processResponseFromChatEndpoint(
+					accessor.get(ITelemetryService),
+					accessor.get(ILogService),
+					response,
+					1,
+					async (_text, _index, delta) => {
+						deltas.push(delta);
+						return undefined;
+					},
+					TelemetryData.createAndMarkAsIssued(),
+				);
+				const results = [];
+				for await (const completion of completions) {
+					results.push(completion);
+				}
+				return {
+					messages: results.map(c => c.message),
+					text: results.map(c => getTextPart(c.message.content)).join(''),
+					streamedText: deltas.map(d => d.text).join(''),
+					thinking: deltas.map(d => d.thinking?.text ?? '').join(''),
+					toolCalls: deltas.flatMap(d => d.copilotToolCalls ?? []),
+					finishReason: results[0].finishReason,
+					usage: results[0].usage,
+				};
+			}
+
+			describe.each([false, true])('streaming: %s', streaming => {
+				it.each([
+					{ content: 'Hello world', text: 'Hello world', thinking: '' },
+					{ content: null, text: '', thinking: '' },
+					{ content: [], text: '', thinking: '' },
+					{ content: [{ type: 'text', text: 'Hello' }, { type: 'text', text: ' world' }], text: 'Hello world', thinking: '' },
+					{
+						content: [
+							{ type: 'thinking', thinking: [{ type: 'text', text: 'Analy' }, { type: 'text', text: 'zing' }] },
+							{ type: 'text', text: 'Hello world' },
+						],
+						text: 'Hello world',
+						thinking: 'Analyzing',
+					},
+					{ content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Analyzing' }] }], text: '', thinking: 'Analyzing' },
+					{ content: 'Hello world', reasoningContent: 'Analyzing', text: 'Hello world', thinking: 'Analyzing' },
+				])('separates text and thinking content (%#)', async ({ content, reasoningContent, text, thinking }) => {
+					const result = await processResponse(createEndpoint(streaming), createResponse(content, streaming, reasoningContent));
+					expect(result).toEqual({
+						messages: [{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text }] }],
+						text,
+						streamedText: text,
+						thinking,
+						toolCalls: [],
+						finishReason: 'stop',
+						usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+					});
+				});
+
+				it('preserves tools alongside structured content without repeating thinking', async () => {
+					const content = [
+						{ type: 'thinking', thinking: [{ type: 'text', text: 'Use a tool' }] },
+						{ type: 'text', text: 'Checking' },
+					];
+					const result = await processResponse(createEndpoint(streaming), createResponse(content, streaming, undefined, true));
+					expect({
+						text: result.text,
+						streamedText: result.streamedText,
+						thinking: result.thinking,
+						toolCalls: result.toolCalls,
+						finishReason: result.finishReason,
+					}).toEqual({
+						text: streaming ? 'Checking ' : 'Checking',
+						streamedText: streaming ? 'Checking ' : 'Checking',
+						thinking: 'Use a tool',
+						toolCalls: [{ id: 'call_1', name: 'test_tool', arguments: '{"value":1}' }],
+						finishReason: 'tool_calls',
+					});
+				});
+
+				it.each([
+					42,
+					[{ type: 'text', text: [] }],
+					[{ type: 'thinking', thinking: [{ type: 'text', text: 42 }] }],
+					[{ type: 'unsupported' }],
+					[null],
+				].map(content => ({ content })))('rejects unsupported custom content with an actionable error (%#)', async ({ content }) => {
+					await expect(processResponse(createEndpoint(streaming), createResponse(content, streaming)))
+						.rejects.toThrow('Unsupported Chat Completions response content');
+				});
+
+				it('keeps plain text responses working for other OpenAI-compatible providers', async () => {
+					const result = await processResponse(createEndpoint(streaming, false), createResponse('Hello world', streaming));
+					expect({ text: result.text, streamedText: result.streamedText, thinking: result.thinking }).toEqual({
+						text: 'Hello world', streamedText: 'Hello world', thinking: '',
+					});
+				});
+
+				it('retains custom response handling after cloning the endpoint', async () => {
+					const endpoint = createEndpoint(streaming).cloneWithTokenOverride(64000);
+					const result = await processResponse(endpoint, createResponse([{ type: 'text', text: 'Hello world' }], streaming));
+					expect(result.text).toBe('Hello world');
+				});
+			});
+
+			it('leaves other providers non-streaming response content and thinking behavior untouched', async () => {
+				const content = [
+					{ type: 'thinking', thinking: [{ type: 'text', text: 'Analyzing' }] },
+					{ type: 'text', text: 'Hello' },
+					{ type: 'provider-specific', value: 'not parsed by Custom Endpoint' },
+				];
+				const result = await processResponse(createEndpoint(false, false), createResponse(content, false, 'Existing reasoning'));
+				expect({ messages: result.messages, text: result.text, thinking: result.thinking }).toEqual({
+					messages: [{ role: 'assistant', content }],
+					text: 'Hello',
+					thinking: '',
+				});
+			});
+
+			it('separates thinking and text across streamed chunks', async () => {
+				const response = [
+					{ delta: { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'Analy' }] }] }, index: 0 },
+					{ delta: { content: [{ type: 'thinking', thinking: [{ type: 'text', text: 'zing' }] }] }, index: 0 },
+					{ delta: { content: [{ type: 'text', text: 'Hello\r' }] }, index: 0 },
+					{ delta: { content: [{ type: 'text', text: ' world' }] }, index: 0, finish_reason: 'stop' },
+				].map(choice => `data: ${JSON.stringify({ choices: [choice] })}\n`).join('') + 'data: [DONE]\n';
+				const result = await processResponse(createEndpoint(true), createFakeStreamResponse(response));
+				expect({ text: result.text, streamedText: result.streamedText, thinking: result.thinking }).toEqual({
+					text: 'Hello world', streamedText: 'Hello world', thinking: 'Analyzing',
+				});
+			});
+		});
 
 		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
 			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);

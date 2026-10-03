@@ -11,7 +11,7 @@ import { RawThinkingDelta, ThinkingDelta } from '../../thinking/common/thinking'
 import { extractThinkingDeltaFromChoice, } from '../../thinking/common/thinkingUtils';
 import { FinishedCallback, getRequestId, ICodeVulnerabilityAnnotation, ICopilotBeginToolCall, ICopilotConfirmation, ICopilotError, ICopilotFunctionCall, ICopilotReference, ICopilotToolCall, ICopilotToolCallStreamUpdate, IIPCodeCitation, isCodeCitationAnnotation, isCopilotAnnotation, RequestId } from '../common/fetch';
 import { DestroyableStream, Response } from '../common/fetcherService';
-import { APIErrorResponse, APIJsonData, APIUsage, ChoiceLogProbs, FilterReason, FinishedCompletionReason, isApiUsage, IToolCall } from '../common/openai';
+import { APIErrorResponse, APIJsonData, APIUsage, ChatCompletionContentParser, ChoiceLogProbs, FilterReason, FinishedCompletionReason, isApiUsage, IToolCall } from '../common/openai';
 
 /** Gathers together many chunks of a single completion choice. */
 class APIJsonDataStreaming {
@@ -231,7 +231,8 @@ export class SSEProcessor {
 		private readonly expectedNumChoices: number,
 		private readonly response: Response,
 		private readonly body: DestroyableStream<string>,
-		private readonly cancellationToken?: CancellationToken
+		private readonly cancellationToken?: CancellationToken,
+		private readonly contentParser?: ChatCompletionContentParser
 	) { }
 
 	static async create(
@@ -239,7 +240,8 @@ export class SSEProcessor {
 		telemetryService: ITelemetryService,
 		expectedNumChoices: number,
 		response: Response,
-		cancellationToken?: CancellationToken
+		cancellationToken?: CancellationToken,
+		contentParser?: ChatCompletionContentParser
 	) {
 		const body = response.body.pipeThrough(new TextDecoderStream());
 		return new SSEProcessor(
@@ -248,7 +250,8 @@ export class SSEProcessor {
 			expectedNumChoices,
 			response,
 			body,
-			cancellationToken
+			cancellationToken,
+			contentParser
 		);
 	}
 
@@ -417,11 +420,15 @@ export class SSEProcessor {
 
 				for (let i = 0; i < json.choices.length; i++) {
 					const choice = json.choices[i];
+					if (this.contentParser && choice.delta) {
+						const content = this.contentParser(choice.delta.content);
+						choice.delta = { ...choice.delta, content: content.text, thinking: choice.delta.thinking ?? content.thinking };
+					}
 
 					this.logChoice(choice);
 
 
-					const thinkingDelta = extractThinkingDeltaFromChoice(choice);
+					let thinkingDelta = extractThinkingDeltaFromChoice(choice);
 
 					// Once we observe any thinking text or an id in this batch, keep the flag true
 					thinkingFound ||= !!(thinkingDelta?.text || thinkingDelta?.id);
@@ -463,6 +470,9 @@ export class SSEProcessor {
 							copilotErrors: delta?.errors,
 							thinking: thinkingDelta ?? delta?.thinking,
 						});
+						if (this.contentParser) {
+							thinkingDelta = undefined;
+						}
 						if (finishOffset !== undefined) {
 							hadEarlyFinishedSolution = true;
 						}
@@ -471,6 +481,9 @@ export class SSEProcessor {
 
 					let handled = true;
 					if (choice.delta?.tool_calls?.length) {
+						if (this.contentParser && choice.delta.content) {
+							solution.append(choice);
+						}
 						const hadExistingToolCalls = this.toolCalls.hasToolCalls();
 						if (!hadExistingToolCalls) {
 							const firstToolCall = choice.delta.tool_calls.at(0);
