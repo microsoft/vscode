@@ -796,7 +796,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
-		test('hook rows keep commands separate from recycled path labels', async () => {
+		test('hook rows use an overflow menu without loaded status and keep commands separate from recycled path labels', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
 				id: 'prompt',
 				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -829,15 +829,20 @@ suite('aiCustomizationListWidget', () => {
 				source: PromptsStorage.local,
 				promptType: PromptsType.hook,
 				disabled: false,
+				status: 'loaded',
 			}], undefined);
 			widget.layout(800, 500);
 
 			const row = widget.element.querySelector('.ai-customization-list-item');
 			assert.deepStrictEqual({
+				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
+				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
 				command: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.textContent,
 				commandDisplay: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.style.display,
 				pathDisplay: row?.querySelector<HTMLElement>('.item-path')?.style.display,
 			}, {
+				statusDisplay: 'none',
+				hasOverflowAction: true,
 				command: 'npm run lint',
 				commandDisplay: '',
 				pathDisplay: 'none',

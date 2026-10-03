@@ -1559,11 +1559,11 @@ suite('mcpListWidget', () => {
 			let servers: AgentHostMcpServer[] = [server];
 			const shownLogs: string[] = [];
 			const shownLogSessions: string[] = [];
+			const outputActions: string[] = [];
 			const managementClicks: string[] = [];
 			const openedPlugins: string[] = [];
 			const openedExtensions: string[] = [];
 			let migrationRequests = 0;
-			let inlineOutputRequests = 0;
 			const hostEnablementCalls: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>[] = [];
 			const runtimeServers = observableValue<readonly IMcpServer[]>('runtimeServers', []);
 			let localEnablementCalls: [string, ContributionEnablementState][] = [];
@@ -1575,7 +1575,12 @@ suite('mcpListWidget', () => {
 			const agentHostCustomizationService = {
 				getMcpServers: () => servers,
 				onDidChangeCustomizations: onDidChangeCustomizations.event,
-				showMcpServerLog: async (resource: URI, serverId: string) => { shownLogs.push(serverId); shownLogSessions.push(resource.toString()); },
+				showMcpServerLog: async (resource: URI, serverId: string, beforeShow?: () => Promise<void>) => {
+					await beforeShow?.();
+					outputActions.push('show-output');
+					shownLogs.push(serverId);
+					shownLogSessions.push(resource.toString());
+				},
 				authenticateMcpServer: authenticate,
 				getWorkingDirectories: () => [],
 				setCustomizationEnablement: (...args: Parameters<IAgentHostCustomizationService['setCustomizationEnablement']>) => { hostEnablementCalls.push(args); },
@@ -1642,7 +1647,6 @@ suite('mcpListWidget', () => {
 				() => compatibilityKind,
 				plugin => openedPlugins.push(plugin.label),
 				() => migrationRequests++,
-				async () => { inlineOutputRequests++; },
 				{ isSessionsWindow } as IAICustomizationWorkspaceService,
 				agentPluginService,
 				hoverService,
@@ -1678,6 +1682,7 @@ suite('mcpListWidget', () => {
 				labelService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
+				_closeCustomizationEditor: async () => { outputActions.push('close-editor'); },
 				showMcpServerActions: (entry: Entry) => { menuActions = widget.getMcpServerActions(entry, store); },
 			});
 			const ariaSubscription = store.add(new MutableDisposable());
@@ -1688,11 +1693,11 @@ suite('mcpListWidget', () => {
 				templateData,
 				shownLogs,
 				shownLogSessions,
+				outputActions,
 				managementClicks,
 				openedPlugins,
 				openedExtensions,
 				migrationRequests: () => migrationRequests,
-				inlineOutputRequests: () => inlineOutputRequests,
 				hostEnablementCalls,
 				localEnablementCalls: () => localEnablementCalls,
 				menuActions: () => menuActions,
@@ -1986,7 +1991,7 @@ suite('mcpListWidget', () => {
 			});
 		});
 
-		function nativeServer() {
+		function nativeServer(onShowOutput?: () => void) {
 			const outputCalls: string[] = [];
 			const startCalls: string[] = [];
 			const connectionState = observableValue<McpConnectionState>('connectionState', { state: McpConnectionState.Kind.Error, message: 'Native connection failed' });
@@ -1999,7 +2004,10 @@ suite('mcpListWidget', () => {
 				override readonly capabilities = observableValue('capabilities', undefined);
 				override readDefinitions() { return definitions; }
 				override async start() { startCalls.push('native'); return this.connectionState.get(); }
-				override async showOutput() { outputCalls.push('native'); }
+				override async showOutput() {
+					onShowOutput?.();
+					outputCalls.push('native');
+				}
 			}();
 			const workbenchServer = new class extends mock<IWorkbenchMcpServer>() {
 				override readonly id = 'native';
@@ -2040,7 +2048,7 @@ suite('mcpListWidget', () => {
 			test(`${kind} errors show an icon and retain menu output routing`, async () => {
 				const ctx = createRenderer(erroring(), false);
 				disposables.add(ctx.store);
-				const native = nativeServer();
+				const native = nativeServer(() => ctx.outputActions.push('show-output'));
 				const entry: Entry = kind === 'session-only'
 					? { type: 'session-server-item', server: erroring() }
 					: kind === 'native' || kind === 'matched'
@@ -2054,8 +2062,6 @@ suite('mcpListWidget', () => {
 				await output[0].run();
 				const statusIcon = ctx.templateData.actions.querySelector('.mcp-server-state-icon');
 				const showOutputButton = ctx.templateData.actions.querySelector<HTMLElement>('.mcp-server-show-output');
-				showOutputButton?.click();
-				await Promise.resolve();
 				const hostOwned = !['native', 'builtin', 'plugin'].includes(kind);
 				assert.deepStrictEqual({
 					badge: ctx.templateData.container.querySelector('.plugin-list-item-status')?.textContent,
@@ -2065,17 +2071,17 @@ suite('mcpListWidget', () => {
 					nativeCalls: native.outputCalls,
 					hostCalls: ctx.shownLogs,
 					hostSessions: ctx.shownLogSessions,
+					outputActions: ctx.outputActions,
 					inlineOutputButton: showOutputButton?.textContent,
-					inlineOutputFollowsIcon: !!statusIcon && !!showOutputButton && statusIcon.compareDocumentPosition(showOutputButton) === Node.DOCUMENT_POSITION_FOLLOWING,
-					inlineOutputRequests: ctx.inlineOutputRequests(),
+					errorIcon: statusIcon?.classList.contains('error'),
 				}, {
 					badge: undefined, trailingStatus: 1, managementButtons: 1, enabledOutput: true,
 					nativeCalls: hostOwned ? [] : ['native'],
 					hostCalls: hostOwned ? ['server-1'] : [],
 					hostSessions: hostOwned ? ['vscode-agent-session:/session-2'] : [],
-					inlineOutputButton: 'Show Output',
-					inlineOutputFollowsIcon: true,
-					inlineOutputRequests: 1,
+					outputActions: ['close-editor', 'show-output'],
+					inlineOutputButton: undefined,
+					errorIcon: true,
 				});
 			});
 		}
@@ -3001,10 +3007,19 @@ suite('mcpListWidget', () => {
 		test('local error opens local output when no agent-host output exists', async () => {
 			const shownChannels: string[] = [];
 			let localOutputCount = 0;
+			const actions: string[] = [];
 			const outputHandler = getMcpServerOutputHandler(
 				{ showChannel: async channelId => { shownChannels.push(channelId); } },
-				{ showOutput: async () => { localOutputCount++; } },
+				{
+					showOutput: async () => {
+						actions.push('show-output');
+						localOutputCount++;
+					}
+				},
 				undefined,
+				async () => {
+					actions.push('close-editor');
+				},
 			);
 
 			await outputHandler?.();
@@ -3012,9 +3027,11 @@ suite('mcpListWidget', () => {
 			assert.deepStrictEqual({
 				shownChannels,
 				localOutputCount,
+				actions,
 			}, {
 				shownChannels: [],
 				localOutputCount: 1,
+				actions: ['close-editor', 'show-output'],
 			});
 		});
 	});

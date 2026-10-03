@@ -315,7 +315,6 @@ suite('SettingsSync - Auto', () => {
 		assert.ok(content !== null);
 		const actual = parseSettings(content);
 		assert.deepStrictEqual(actual, `{
-	,
 }`);
 	}));
 

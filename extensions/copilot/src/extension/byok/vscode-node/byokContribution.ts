@@ -43,6 +43,13 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		this._byokStorageService = new BYOKStorageService(extensionContext);
 		this._applyPolicy();
 		this._register(this._authService.onDidAuthenticationChange(() => this._applyPolicy()));
+		// A token minted after a failed attempt arrives without an identity change. Token loss is left to
+		// `onDidAuthenticationChange` so transient resets (e.g. on a 401) don't churn the providers.
+		this._register(this._authService.onDidCopilotTokenChange(() => {
+			if (this._authService.copilotToken) {
+				this._applyPolicy();
+			}
+		}));
 	}
 
 	private _buildProviders(): void {
@@ -72,7 +79,8 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	}
 
 	private _applyPolicy(): void {
-		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, this._authService.copilotToken);
+		const copilotToken = this._authService.copilotToken;
+		const allowed = isClientBYOKAllowed(!!this._authService.anyGitHubSession, copilotToken);
 		if (allowed && !this._providersRegistered) {
 			if (this._providers.size === 0) {
 				this._buildProviders();
@@ -92,7 +100,9 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		} else if (!allowed && this._providersRegistered) {
 			this._providerRegistrations.clear();
 			this._providersRegistered = false;
-			this._logService.info('BYOK: unregistered providers due to enterprise policy.');
+			this._logService.info(copilotToken
+				? 'BYOK: unregistered providers because client BYOK is not allowed by policy.'
+				: 'BYOK: unregistered providers because the Copilot token needed to check the BYOK policy is unavailable.');
 		}
 	}
 

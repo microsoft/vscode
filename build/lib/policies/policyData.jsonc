@@ -64,7 +64,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.allowedNetworkDomains",
-                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence.\n\nChanges may not take full effect until VS Code is restarted."
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.network.allowNetwork#` is enabled, all domains are allowed. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence.\n\nChanges may not take full effect until VS Code is restarted."
                 }
             },
             "type": "array",
@@ -82,7 +82,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.deniedNetworkDomains",
-                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`.\n\nChanges may not take full effect until VS Code is restarted."
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. This does not apply when `#chat.agent.sandbox.network.allowNetwork#` is enabled. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`.\n\nChanges may not take full effect until VS Code is restarted."
                 }
             },
             "type": "array",
@@ -129,57 +129,21 @@
             }
         },
         {
-            "key": "chat.agent.sandbox.allowAutoApprove",
-            "name": "ChatAgentSandboxAllowAutoApprove",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.116",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowAutoApprove",
-                    "value": "Controls whether agent mode terminal commands that run inside the sandbox are auto-approved. When disabled, the run in terminal tool uses the existing approval flow. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "agentHost": {
-                "status": "notEnforced"
-            }
-        },
-        {
-            "key": "chat.agent.sandbox.allowNetwork",
-            "name": "ChatAgentSandboxAllowNetwork",
-            "category": "IntegratedTerminal",
-            "minimumVersion": "1.127",
-            "localization": {
-                "description": {
-                    "key": "agentSandbox.allowNetwork",
-                    "value": "When `#chat.agent.sandbox.enabled#` is enabled, controls whether to allow all network domains in the sandbox. When enabled, the sandbox preserves file system restrictions while relaxing all network restrictions."
-                }
-            },
-            "type": "boolean",
-            "default": true,
-            "included": true,
-            "agentHost": {
-                "status": "enforced"
-            }
-        },
-        {
             "key": "chat.agent.sandbox.allowUnsandboxedCommands",
             "name": "ChatAgentSandboxAllowUnsandboxedCommands",
             "category": "IntegratedTerminal",
             "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.allowUnsandboxedCommands",
-                    "value": "Controls whether agent mode terminal commands can run outside the sandbox after user confirmation when a sandboxed command fails or when sandbox restrictions would block the command. This applies only when `#chat.agent.sandbox.enabled#` is enabled."
+                    "key": "agentSandbox.allowUnsandboxedCommandsPolicy",
+                    "value": "Deprecated. Controls whether Local agent terminal commands can run outside the sandbox after user confirmation when sandbox restrictions would block the command. Use the sandbox.allowBypass managed setting to control sandbox bypass in Copilot Agent Host."
                 }
             },
             "type": "boolean",
             "default": true,
             "included": true,
             "agentHost": {
-                "status": "enforced"
+                "status": "notApplicable"
             }
         },
         {
@@ -189,8 +153,8 @@
             "minimumVersion": "1.116",
             "localization": {
                 "description": {
-                    "key": "agentSandbox.enabledSetting",
-                    "value": "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. Use `#chat.agent.sandbox.allowNetwork#` to allow all network domains."
+                    "key": "agentSandbox.enabledPolicy",
+                    "value": "Deprecated. Controls whether the Local agent uses sandboxing to restrict what tools can do. In Copilot Agent Host, this legacy policy supplies an overridable sandbox default, not a mandatory requirement. Use the runtime-native sandbox.enabled managed setting to require sandboxing in Copilot Agent Host."
                 },
                 "enumDescriptions": [
                     {
@@ -211,7 +175,25 @@
             ],
             "included": true,
             "agentHost": {
-                "status": "partial"
+                "status": "notApplicable"
+            }
+        },
+        {
+            "key": "chat.agent.sandbox.network.allowNetwork",
+            "name": "ChatAgentSandboxAllowNetwork",
+            "category": "IntegratedTerminal",
+            "minimumVersion": "1.127",
+            "localization": {
+                "description": {
+                    "key": "agentSandbox.allowNetworkPolicy",
+                    "value": "Deprecated. Controls whether the Local agent sandbox allows outbound connections to all network domains while preserving file system restrictions. Use the sandbox.userPolicy.network.allowOutbound managed setting to enforce outbound network restrictions in Copilot Agent Host."
+                }
+            },
+            "type": "boolean",
+            "default": true,
+            "included": true,
+            "agentHost": {
+                "status": "notApplicable"
             }
         },
         {

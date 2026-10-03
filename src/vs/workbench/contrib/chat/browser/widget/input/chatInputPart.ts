@@ -1447,11 +1447,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setCurrentLanguageModel(pinnedModels[nextIndex], true);
 	}
 
-	/** Exact desktop picker owned by this input; combined phone sheets have no search contract. */
-	public getModelPickerControl(): ReturnType<ModelPickerActionItem['getModelPickerControl']> {
-		return this.chatPhoneInputPresenter.enabled.get() ? undefined : this.modelWidget?.getModelPickerControl();
-	}
-
 	public openModelPicker(): void {
 		if (this.chatPhoneInputPresenter.enabled.get()) {
 			this._showCombinedPhonePickerSheet();
@@ -3114,9 +3109,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const store = new DisposableStore();
 		this._contextUsageDisposables.value = store;
 		let lastRequest = model.lastRequest;
+		const previousResponseListeners = store.add(new DisposableMap<string>());
 		const observePreviousResponse = (request: IChatRequestModel | undefined) => {
 			if (request?.response) {
-				store.add(request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
+				previousResponseListeners.set(request.id, request.response.onDidChange(() => this.contextUsageWidget?.updateSessionCost(model.sessionCost)));
 			}
 		};
 		for (const request of model.getRequests().slice(0, -1)) {
@@ -3125,9 +3121,27 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		store.add(model.onDidChange(e => {
 			if (e.kind === 'addRequest') {
-				observePreviousResponse(e.request === model.lastRequest ? lastRequest : e.request);
+				if (e.replacedRequest) {
+					previousResponseListeners.deleteAndDispose(e.replacedRequest.id);
+				}
+				if (lastRequest !== model.lastRequest && lastRequest !== e.replacedRequest) {
+					observePreviousResponse(lastRequest);
+				}
+				if (e.request !== model.lastRequest) {
+					observePreviousResponse(e.request);
+				}
 				lastRequest = model.lastRequest;
 				this.contextUsageWidget?.update(model.lastRequest);
+			} else if (e.kind === 'removeRequest') {
+				previousResponseListeners.deleteAndDispose(e.requestId);
+				if (lastRequest !== model.lastRequest) {
+					lastRequest = model.lastRequest;
+					if (lastRequest) {
+						previousResponseListeners.deleteAndDispose(lastRequest.id);
+					}
+					this.contextUsageWidget?.update(lastRequest);
+				}
+				this.contextUsageWidget?.updateSessionCost(model.sessionCost);
 			} else if (e.kind === 'completedRequest') {
 				this.contextUsageWidget?.update(model.lastRequest);
 			}

@@ -276,7 +276,7 @@ suite('ChatModel', () => {
 			const writer = new ChatSessionOperationLog();
 			const initial = writer.createInitial(model);
 			const args: Parameters<ChatModel['addRequest']> = [{ text: 'Historical', parts: [] }, { variables: [] }, 0];
-			args[24] = index;
+			args[24] = { index };
 			const inserted = model.addRequest(...args);
 			const update = writer.write(model);
 			writer.confirmWrite();
@@ -297,8 +297,8 @@ suite('ChatModel', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
 		for (const index of [-1, 1, 0.5, NaN, Infinity]) {
 			const args: Parameters<ChatModel['addRequest']> = [{ text: 'Invalid', parts: [] }, { variables: [] }, 0];
-			args[24] = index;
-			assert.throws(() => model.addRequest(...args), RangeError);
+			args[24] = { index };
+			assert.throws(() => model.addRequest(...args), /Invalid chat request insertion index/);
 		}
 		assert.deepStrictEqual(model.getRequests(), []);
 	});

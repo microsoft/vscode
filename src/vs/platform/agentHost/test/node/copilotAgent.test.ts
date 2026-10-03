@@ -560,6 +560,7 @@ interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'lis
 			readonly list: CopilotClient['rpc']['sessions']['list'];
 		};
 		readonly models: { readonly list: CopilotModelsList };
+		readonly managedSettings: Pick<CopilotClient['rpc']['managedSettings'], 'resolve'>;
 		readonly plugins: { readonly uninstall: CopilotPluginsUninstall };
 	};
 }
@@ -598,7 +599,16 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 	};
 }
 
+type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
+
 class TestCopilotClient implements ITestCopilotClient {
+	managedSettingsResolution: ManagedSettingsResolveResult = {
+		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
+		layers: [],
+		diagnostics: [],
+	};
+	resolveManagedSettings: CopilotClient['rpc']['managedSettings']['resolve'] = async () => this.managedSettingsResolution;
+	readonly managedSettingsRequests: Parameters<CopilotClient['rpc']['managedSettings']['resolve']>[0][] = [];
 	discoverAgents: CopilotAgentDiscovery['discover'] = async () => ({ agents: [] });
 	getAgentDiscoveryPaths: CopilotAgentDiscovery['getDiscoveryPaths'] = async () => ({ paths: [] });
 	discoverInstructions: CopilotInstructionDiscovery['discover'] = async () => ({ sources: [] });
@@ -610,6 +620,12 @@ class TestCopilotClient implements ITestCopilotClient {
 	readonly skillDiscoveryRequests: Parameters<CopilotSkillDiscovery['discover']>[0][] = [];
 
 	readonly rpc: ITestCopilotClient['rpc'] = {
+		managedSettings: {
+			resolve: params => {
+				this.managedSettingsRequests.push(params);
+				return this.resolveManagedSettings(params);
+			},
+		},
 		agents: {
 			discover: async params => {
 				this.agentDiscoveryRequests.push(params);
@@ -3073,103 +3089,199 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('queries managed settings with pre-resolved token authentication', async () => {
-		let receivedInput: { authInfo?: { type: 'token'; host: string; token: string }; token?: string; signal?: AbortSignal } | undefined;
-		let proxyEnvironment: Record<string, string | undefined> | undefined;
-		const runtimeSdk = {
-			getManagedSettings: async (input?: typeof receivedInput) => {
-				receivedInput = input;
-				proxyEnvironment = {
-					HTTP_PROXY: process.env['HTTP_PROXY'],
-					HTTPS_PROXY: process.env['HTTPS_PROXY'],
-					http_proxy: process.env['http_proxy'],
-					https_proxy: process.env['https_proxy'],
-					ALL_PROXY: process.env['ALL_PROXY'],
-					all_proxy: process.env['all_proxy'],
-					NO_PROXY: process.env['NO_PROXY'],
-					no_proxy: process.env['no_proxy'],
-				};
-				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
-			},
-		};
-		const signal = new AbortController().signal;
-		const proxy = 'http://proxy.example.com:8080';
-		const noProxy = '127.0.0.1,localhost';
-		const before = {
-			HTTP_PROXY: process.env['HTTP_PROXY'],
-			HTTPS_PROXY: process.env['HTTPS_PROXY'],
-			http_proxy: process.env['http_proxy'],
-			https_proxy: process.env['https_proxy'],
-			ALL_PROXY: process.env['ALL_PROXY'],
-			all_proxy: process.env['all_proxy'],
-			NO_PROXY: process.env['NO_PROXY'],
-			no_proxy: process.env['no_proxy'],
-		};
-
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.example.com', signal, 3500, proxy, noProxy);
-
-		assert.deepStrictEqual({
-			authInfo: receivedInput?.authInfo,
-			token: receivedInput?.token,
-			signalForwarded: receivedInput?.signal === signal,
-			proxyEnvironment,
-			environmentRestored: {
-				HTTP_PROXY: process.env['HTTP_PROXY'],
-				HTTPS_PROXY: process.env['HTTPS_PROXY'],
-				http_proxy: process.env['http_proxy'],
-				https_proxy: process.env['https_proxy'],
-				ALL_PROXY: process.env['ALL_PROXY'],
-				all_proxy: process.env['all_proxy'],
-				NO_PROXY: process.env['NO_PROXY'],
-				no_proxy: process.env['no_proxy'],
-			},
-		}, {
-			authInfo: { type: 'token', host: 'https://github.example.com', token: 'token' },
-			token: 'token',
-			signalForwarded: true,
-			proxyEnvironment: {
-				HTTP_PROXY: proxy,
-				HTTPS_PROXY: proxy,
-				http_proxy: process.platform === 'win32' ? proxy : undefined,
-				https_proxy: process.platform === 'win32' ? proxy : undefined,
-				ALL_PROXY: undefined,
-				all_proxy: undefined,
-				NO_PROXY: noProxy,
-				no_proxy: process.platform === 'win32' ? noProxy : undefined,
-			},
-			environmentRestored: before,
-		});
+	test('queries sessionless managed settings with the host token and client identity', async () => {
+		const client = new TestCopilotClient([]);
+		await getCopilotManagedSettingsDiagnostics(client.rpc.managedSettings, 'token');
+		await getCopilotManagedSettingsDiagnostics(client.rpc.managedSettings, undefined);
+		assert.deepStrictEqual(client.managedSettingsRequests, [
+			{ gitHubToken: 'token', clientName: 'vscode-agent-host' },
+			{ clientName: 'vscode-agent-host' },
+		]);
 	});
 
 	test('identifies a stalled managed settings query', async () => {
-		const runtimeSdk = {
-			getManagedSettings: () => new Promise<never>(() => { }),
+		const managedSettings = {
+			resolve: () => new Promise<never>(() => { }),
 		};
 
 		await assert.rejects(
-			getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 10),
+			getCopilotManagedSettingsDiagnostics(managedSettings, 'token', 10),
 			/Copilot runtime managed-settings query exceeded 0.01 seconds while waiting for native MDM or GitHub policy resolution/,
 		);
 	});
 
-	test('bypasses loopback addresses for managed settings queries with a proxy', async () => {
-		let noProxy: string | undefined;
-		const runtimeSdk = {
-			getManagedSettings: async () => {
-				noProxy = process.env['NO_PROXY'];
-				return { resolved: { source: 'none' as const, serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] } };
-			},
+	test('managed settings diagnostics preserve account layers and cache warnings using the configured runtime', async () => {
+		const client = new TestCopilotClient([]);
+		client.managedSettingsResolution = {
+			account: 'test-account',
+			resolved: { ...client.managedSettingsResolution.resolved, source: 'server', serverManaged: true, managedKeys: ['permissions'], settings: { permissions: { deny: ['Shell'] } } },
+			layers: [{ source: 'server', settings: { permissions: { deny: ['Shell'] } } }],
+			diagnostics: [{ path: 'server', severity: 'warning', message: 'The live server-policy refresh failed; a cached result is being used.' }],
 		};
-
-		await getCopilotManagedSettingsDiagnostics(runtimeSdk, 'token', 'https://github.com', new AbortController().signal, 3500, 'http://proxy.example.com:8080');
-
-		assert.deepStrictEqual({
-			noProxy,
-			restoredNoProxy: process.env['NO_PROXY'],
-		}, {
-			noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
-			restoredNoProxy: undefined,
+		const endpointService = createTestGitHubEndpointService('https://github.example.com');
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			gitHubEndpointService: endpointService,
+			rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example.com:8080' },
 		});
+		try {
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'token');
+			const snapshot = await agent.getManagedSettingsDiagnostics();
+			const options = getCreatedClientOptions(agent).at(-1);
+			assert.deepStrictEqual({
+				snapshot,
+				request: client.managedSettingsRequests.at(-1),
+				host: options?.env?.['COPILOT_GH_HOST'],
+				proxy: options?.env?.['HTTPS_PROXY'],
+				noProxy: options?.env?.['NO_PROXY'],
+				useLoggedInUser: options?.useLoggedInUser,
+			}, {
+				snapshot: { ...client.managedSettingsResolution.resolved, account: 'test-account', layers: client.managedSettingsResolution.layers, diagnostics: client.managedSettingsResolution.diagnostics },
+				request: { gitHubToken: 'token', clientName: 'vscode-agent-host' },
+				host: endpointService.getEnterpriseHost(),
+				proxy: 'http://proxy.example.com:8080',
+				noProxy: 'localhost,127.0.0.1,::1,::ffff:127.0.0.1',
+				useLoggedInUser: false,
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings diagnostics work before authentication without creating a session', async () => {
+		const client = new TestCopilotClient([]);
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			const first = await agent.getManagedSettingsDiagnostics();
+			const second = await agent.getManagedSettingsDiagnostics();
+			assert.deepStrictEqual({ first, second, starts: client.startCallCount, requests: client.managedSettingsRequests }, {
+				first: { ...client.managedSettingsResolution.resolved, layers: [], diagnostics: [] },
+				second: first,
+				starts: 1,
+				requests: [{ clientName: 'vscode-agent-host' }, { clientName: 'vscode-agent-host' }],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings diagnostics surface resolver failures instead of an empty snapshot', async () => {
+		const client = new TestCopilotClient([]);
+		client.resolveManagedSettings = async () => { throw new Error('Policy resolution failed'); };
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		try {
+			await assert.rejects(agent.getManagedSettingsDiagnostics(), /Policy resolution failed/);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings diagnostics reject an account change during resolution', async () => {
+		const client = new TestCopilotClient([]);
+		const started = new DeferredPromise<void>();
+		const result = new DeferredPromise<ManagedSettingsResolveResult>();
+		client.resolveManagedSettings = () => {
+			started.complete();
+			return result.p;
+		};
+		const endpointService = createTestGitHubEndpointService();
+		const agent = createTestAgent(disposables, { copilotClient: client, gitHubEndpointService: endpointService });
+		try {
+			const diagnostics = agent.getManagedSettingsDiagnostics();
+			const rejected = assert.rejects(diagnostics, /authentication changed while collecting managed-settings diagnostics/);
+			await started.p;
+			await agent.authenticate(endpointService.getCopilotResource().resource, 'new-token');
+			result.complete(client.managedSettingsResolution);
+			await rejected;
+		} finally {
+			result.complete(client.managedSettingsResolution);
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings diagnostics do not issue a late query after startup times out', async () => {
+		const client = new TestCopilotClient([]);
+		const gate = new DeferredPromise<void>();
+		client.startGate = gate.p;
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /exceeded 4.5 seconds while starting the Copilot runtime/);
+			await client.startCalled.p;
+			await clock.tickAsync(4500);
+			await rejected;
+			gate.complete();
+			await clock.tickAsync(0);
+			assert.deepStrictEqual({ requests: client.managedSettingsRequests, stops: client.stopCallCount }, { requests: [], stops: 0 });
+			await agent.getManagedSettingsDiagnostics();
+			assert.deepStrictEqual({ requests: client.managedSettingsRequests, starts: client.startCallCount }, {
+				requests: [{ clientName: 'vscode-agent-host' }],
+				starts: 1,
+			});
+		} finally {
+			gate.complete();
+			clock.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings diagnostics include startup in the overall query deadline', async () => {
+		const client = new TestCopilotClient([]);
+		const startup = new DeferredPromise<void>();
+		const queryStarted = new DeferredPromise<void>();
+		const resolution = new DeferredPromise<ManagedSettingsResolveResult>();
+		client.startGate = startup.p;
+		client.resolveManagedSettings = () => {
+			queryStarted.complete();
+			return resolution.p;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /exceeded 4.5 seconds while querying native MDM and GitHub managed settings/);
+			await client.startCalled.p;
+			await clock.tickAsync(3000);
+			startup.complete();
+			await queryStarted.p;
+			await clock.tickAsync(1500);
+			await rejected;
+			assert.deepStrictEqual({ starts: client.startCallCount, stops: client.stopCallCount, requests: client.managedSettingsRequests }, {
+				starts: 1,
+				stops: 0,
+				requests: [{ clientName: 'vscode-agent-host' }],
+			});
+		} finally {
+			startup.complete();
+			resolution.complete(client.managedSettingsResolution);
+			clock.restore();
+			await disposeAgent(agent);
+		}
+	});
+
+	test('managed settings query timeout leaves the shared client usable', async () => {
+		const client = new TestCopilotClient([]);
+		const started = new DeferredPromise<void>();
+		const result = new DeferredPromise<ManagedSettingsResolveResult>();
+		client.resolveManagedSettings = () => {
+			started.complete();
+			return result.p;
+		};
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		const clock = useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		try {
+			const rejected = assert.rejects(agent.getManagedSettingsDiagnostics(), /query exceeded 3.5 seconds/);
+			await started.p;
+			await clock.tickAsync(3500);
+			await rejected;
+			assert.strictEqual(client.stopCallCount, 0);
+			result.complete(client.managedSettingsResolution);
+			await agent.getManagedSettingsDiagnostics();
+			assert.strictEqual(client.startCallCount, 1);
+		} finally {
+			result.complete(client.managedSettingsResolution);
+			clock.restore();
+			await disposeAgent(agent);
+		}
 	});
 
 	test('returns empty models and lists sessions before authentication', async () => {
@@ -9809,12 +9921,49 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('recent sessions missing cwd or client name wait for workspace metadata instead of rescanning', async () => {
+			const sessions: TestCopilotSessionMetadata[] = [
+				sdkSession('missing-cwd', undefined, { clientName: 'github/cli', modifiedTime: new Date() }),
+				sdkSession('missing-client', '/workspace', { modifiedTime: new Date() }),
+			];
+			const context = await createLiveDiscoveryAgent(sessions);
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const ids = ['missing-cwd', 'missing-client'];
+			try {
+				for (const id of ids) {
+					const directory = URI.joinPath(context.root, id);
+					await fs.mkdir(directory.fsPath);
+					await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+				}
+				await context.agent.startChatDiscovery();
+				await clock.tickAsync(10 * 60_000);
+				const idleScans = context.client.sessionListRequests.length;
+				sessions.splice(0, sessions.length, ...ids.map(id => sdkSession(id, context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() })));
+				for (const id of ids) {
+					const directory = URI.joinPath(context.root, id);
+					context.change(directory, URI.joinPath(directory, 'workspace.yaml'), FileChangeType.UPDATED);
+				}
+				await clock.tickAsync(501);
+				await raceTimeout(context.added.p, 5_000);
+				assert.deepStrictEqual({
+					idleScans, published: context.published.map(chat => sessionIdOfChat(chat.chat)).sort(),
+				}, { idleScans: 1, published: ['missing-client', 'missing-cwd'] });
+			} finally {
+				try {
+					await context.dispose();
+				} finally {
+					clock.restore();
+				}
+			}
+		});
+
 		test('discovers runtime sessions with candidate-only classification and a local-only catalog', async () => {
 			const sessions = Array.from({ length: 250 }, (_, index) => sdkSession(`rejected-${index}`, '/workspace', { clientName: 'unsupported' }));
 			const logService = new NullLogService();
 			const logs = spy(logService, 'info');
 			disposables.add(toDisposable(() => logs.restore()));
 			const context = await createLiveDiscoveryAgent(sessions, { logService });
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			const filterCalls: string[][] = [];
 			context.agent.setKnownSessionsFilter(async candidates => {
 				filterCalls.push(candidates.map(candidate => AgentSession.id(candidate)));
@@ -9827,6 +9976,7 @@ suite('CopilotAgent', () => {
 				context.change(context.root, directory, FileChangeType.ADDED);
 				sessions.push(sdkSession('live', context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
 				await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
+				await clock.tickAsync(60_001);
 				await raceTimeout(context.added.p, 5_000);
 				assert.deepStrictEqual({
 					published: context.published.map(chat => ({ id: sessionIdOfChat(chat.chat), external: chat.external })),
@@ -9842,6 +9992,7 @@ suite('CopilotAgent', () => {
 				});
 			} finally {
 				await context.dispose();
+				clock.restore();
 			}
 		});
 
@@ -9849,21 +10000,26 @@ suite('CopilotAgent', () => {
 			const sessions: TestCopilotSessionMetadata[] = [];
 			const context = await createLiveDiscoveryAgent(sessions);
 			const directory = URI.joinPath(context.root, 'partial-marker');
+			const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 			try {
 				await fs.mkdir(directory.fsPath);
 				await fs.writeFile(URI.joinPath(directory, 'events.jsonl').fsPath, '');
 				await writeExtensionHostMarker(context.userHome, 'partial-marker', {});
 				sessions.push(sdkSession('partial-marker', context.userHome.fsPath, { clientName: 'github/cli', modifiedTime: new Date() }));
 				await context.agent.startChatDiscovery();
+				await clock.tickAsync(10 * 60_000);
 				const before = context.published.length;
+				const idleScans = context.client.sessionListRequests.length;
 				await writeExtensionHostMarker(context.userHome, 'partial-marker', { origin: 'vscode' });
 				context.change(directory, URI.joinPath(directory, 'vscode.metadata.json'), FileChangeType.UPDATED);
+				await clock.tickAsync(501);
 				await raceTimeout(context.added.p, 5_000);
 				assert.deepStrictEqual({
-					before, published: context.published.map(chat => ({ external: chat.external, adoptable: readSessionEhcliAdoptable(chat._meta) })),
-				}, { before: 0, published: [{ external: false, adoptable: true }] });
+					before, idleScans, published: context.published.map(chat => ({ external: chat.external, adoptable: readSessionEhcliAdoptable(chat._meta) })),
+				}, { before: 0, idleScans: 1, published: [{ external: false, adoptable: true }] });
 			} finally {
 				await context.dispose();
+				clock.restore();
 			}
 		});
 
@@ -9880,6 +10036,7 @@ suite('CopilotAgent', () => {
 				};
 				const sessions: TestCopilotSessionMetadata[] = [];
 				const context = await createLiveDiscoveryAgent(sessions, { gitService });
+				const clock = useFakeTimers({ now: Date.now(), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 				const id = 'zz-changing-marker';
 				const directory = URI.joinPath(context.root, id);
 				try {
@@ -9901,6 +10058,7 @@ suite('CopilotAgent', () => {
 					}
 					release.complete();
 					await initial;
+					await clock.tickAsync(60_001);
 					await raceTimeout(context.added.p, 5_000);
 					assert.deepStrictEqual({
 						watching,
@@ -9909,6 +10067,7 @@ suite('CopilotAgent', () => {
 				} finally {
 					release.complete();
 					await context.dispose();
+					clock.restore();
 				}
 			});
 		}
@@ -9942,6 +10101,7 @@ suite('CopilotAgent', () => {
 				isCurrent: () => true,
 				prepare: async () => true,
 				validate: async () => true,
+				waitForChange: () => { },
 				describe: () => 'test',
 			}) !== undefined;
 		}

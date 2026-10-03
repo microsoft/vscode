@@ -2531,8 +2531,10 @@ export type IChatChangeEvent =
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
 	request: IChatRequestModel;
-	/** Request position when inserting history before existing requests. */
-	index?: number;
+	/** Request index for restored history; omitted for ordinary appends. */
+	readonly index?: number;
+	/** Previous request replaced at the insertion index. */
+	readonly replacedRequest?: IChatRequestModel;
 }
 
 export interface IChatChangedRequestEvent {
@@ -3352,7 +3354,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	/** Adds a request at the end, or at the supplied history insertion index. */
 	addRequest(
 		message: IParsedChatRequest,
 		variableData: IChatRequestVariableData,
@@ -3378,11 +3379,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		requestSource?: ChatRequestSource,
 		modelConfiguration?: IStringDictionary<unknown>,
 		agentHostMetadata?: Record<string, unknown>,
-		index?: number,
+		insertion?: { readonly index: number; readonly replace?: boolean },
 	): ChatRequestModel {
-		if (index !== undefined && (!Number.isInteger(index) || index < 0 || index > this._requests.length)) {
-			throw new RangeError(`Invalid chat request insertion index: ${index}`);
+		const index = insertion?.index ?? this._requests.length;
+		if (!Number.isInteger(index) || index < 0 || index > this._requests.length || (insertion?.replace && index === this._requests.length)) {
+			throw new BugIndicatingError('Invalid chat request insertion index');
 		}
+		const replacedRequest = insertion?.replace ? this._requests[index] : undefined;
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const requestTimestamp = timestamp === undefined
@@ -3426,9 +3429,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			isCompleteAddedRequest,
 			codeBlockInfos: undefined,
 		});
-		this._requests.splice(index ?? this._requests.length, 0, request);
+		this._requests.splice(index, replacedRequest ? 1 : 0, request);
 		markChat(this.sessionResource, ChatPerfMark.RequestUiUpdated);
-		this._onDidChange.fire({ kind: 'addRequest', request, ...(index !== undefined ? { index } : {}) });
+		this._onDidChange.fire({ kind: 'addRequest', request, ...(insertion ? { index, replacedRequest } : {}) });
+		replacedRequest?.response?.dispose();
 		return request;
 	}
 
@@ -3502,8 +3506,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		const request = this._requests[index];
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			this._requests.splice(index, 1);
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			request.response?.dispose();
 		}
 	}

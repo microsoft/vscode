@@ -12,10 +12,12 @@ import { ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart } from '../
 import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUserActionEvent } from './chatService.js';
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
-import { ILanguageModelsService } from '../languageModels.js';
+import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../languageModels.js';
 import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../chatSessionsService.js';
 import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { isByokModel } from '../chatSelectedModel.js';
 
 type ChatSessionModeEvent = {
 	isAgentHostSession: boolean;
@@ -186,6 +188,8 @@ export type ChatProviderInvokedEvent = ChatSessionModeEvent & {
 	enableCommandDetection: boolean;
 	attachmentKinds: string[];
 	model: string | undefined;
+	requestStartCopilotSku: string | undefined;
+	selectedModelSource: 'copilot' | 'byok' | 'other' | 'unknown';
 	permissionLevel: ChatPermissionLevel | undefined;
 	chatMode: string | undefined;
 	sessionType: string | undefined;
@@ -217,6 +221,8 @@ export type ChatProviderInvokedClassification = ChatSessionModeClassification & 
 	enableCommandDetection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether participation detection was disabled for this invocation.' };
 	attachmentKinds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The types of variables/attachments that the user included with their query.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model used to generate the response.' };
+	requestStartCopilotSku: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The workbench Copilot entitlement SKU when the request started, if known. Not the credential used by a remote host.' };
+	selectedModelSource: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Source of the selected model at request start: copilot catalog, explicitly marked byok, other catalog, or unknown. Not the actual routed model or billing provider.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval permission level selected in the permission picker (default, assisted, autoApprove, or autopilot). Undefined when the picker is not applicable (e.g. ask mode or API-driven requests).' };
 	chatMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat mode used for the request. Built-in modes (ask, agent, edit), extension-contributed names (e.g. Plan), or a hashed identifier for user-created custom agents.' };
 	sessionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session type scheme (e.g. vscodeLocalChatSession for local, or remote session scheme).' };
@@ -340,6 +346,8 @@ function getCodeBlocks(text: string): string[] {
 
 export class ChatRequestTelemetry {
 	private isComplete = false;
+	private readonly requestStartCopilotSku: string | undefined;
+	private readonly selectedModelSource: ChatProviderInvokedEvent['selectedModelSource'];
 
 	constructor(private readonly opts: {
 		agent: IChatAgentData;
@@ -360,7 +368,20 @@ export class ChatRequestTelemetry {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) { }
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+	) {
+		this.requestStartCopilotSku = chatEntitlementService.sku;
+		const selectedModel = opts.options?.userSelectedModelId;
+		const metadata = selectedModel ? languageModelsService.lookupLanguageModel(selectedModel) : undefined;
+		const modelProvider = metadata?.targetChatSessionType
+			? getAgentHostProviderForTelemetry(metadata.targetChatSessionType, chatSessionsService)
+			: undefined;
+		this.selectedModelSource = !metadata ? 'unknown'
+			: isByokModel(metadata) ? 'byok'
+				: metadata.vendor === COPILOT_VENDOR_ID || modelProvider === 'copilotcli' ? 'copilot'
+					: metadata.targetChatSessionType && (!modelProvider || modelProvider === 'unknown') ? 'unknown'
+						: 'other';
+	}
 
 	complete({ timeToFirstProgress, totalTime, result, requestType, request, detectedAgent }: {
 		timeToFirstProgress: number | undefined;
@@ -398,6 +419,8 @@ export class ChatRequestTelemetry {
 			numCodeBlocks: getCodeBlocks(request.response?.response.toString() ?? '').length,
 			attachmentKinds: this.attachmentKindsForTelemetry(request.variableData),
 			model: this.resolveModelId(this.opts.options?.userSelectedModelId),
+			requestStartCopilotSku: this.requestStartCopilotSku,
+			selectedModelSource: this.selectedModelSource,
 			permissionLevel: this.opts.options?.modeInfo?.kind === ChatModeKind.Ask ? undefined : this.opts.options?.modeInfo?.permissionLevel,
 			chatMode: this.opts.options?.modeInfo?.telemetryModeName ?? this.opts.options?.modeInfo?.telemetryModeId,
 			sessionType: getChatSessionTypeForTelemetry(this.opts.sessionResource),
