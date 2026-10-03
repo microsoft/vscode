@@ -4413,6 +4413,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				invocation.didExecuteTool(undefined);
 			}
 		}));
+		this._refreshToolAuthenticationServerName(invocation, opts.sessionResource);
 		store.add(this._customizationService.onDidChangeCustomizations(() => this._refreshToolAuthenticationServerName(invocation, opts.sessionResource)));
 	}
 
