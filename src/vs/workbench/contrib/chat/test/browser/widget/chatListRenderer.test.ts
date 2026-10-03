@@ -2201,23 +2201,38 @@ suite('ChatListRenderer', () => {
 		const footer = template.value.querySelector<HTMLElement>('.chat-working-progress');
 		const logo = footer?.querySelector<HTMLElement>('.chat-working-logo');
 		assert.ok(footer && logo);
+		renderer.setVisible(false);
 		container.style.display = 'none';
 		request.response?.complete();
 		const pathsAfterCompletion = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		// Exercise the progressive-render interval instead of relying on two frames finishing before it.
+		await timeout(100);
 		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => mainWindow.requestAnimationFrame(() => resolve())));
 		const pathsAfterFrames = [...logo.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
-		assert.deepStrictEqual({
+		const retained = {
 			sameLogo: footer.querySelector('.chat-working-logo') === logo,
 			active: logo.classList.contains('chat-working-logo-active'),
 			progressActive: footer.classList.contains('chat-working-progress-active'),
 			assembled: logo.classList.contains('chat-working-logo-draw-assembled'),
 			pathsStopped: pathsAfterFrames.every((path, index) => path === pathsAfterCompletion[index]),
+		};
+		container.style.display = '';
+		renderer.setVisible(true);
+		renderer.renderElement(node, 0, template);
+		assert.deepStrictEqual({
+			retained,
+			disposedAfterReveal: !logo.isConnected && !footer.isConnected,
+			completedProgressRows: template.value.querySelectorAll('.chat-working-progress').length,
 		}, {
-			sameLogo: true,
-			active: false,
-			progressActive: false,
-			assembled: true,
-			pathsStopped: true,
+			retained: {
+				sameLogo: true,
+				active: false,
+				progressActive: false,
+				assembled: true,
+				pathsStopped: true,
+			},
+			disposedAfterReveal: true,
+			completedProgressRows: 0,
 		});
 	});
 
