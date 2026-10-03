@@ -184,6 +184,11 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
+      - name: Compile Copilot Chat extension for integration tests & smoke tests
+        if: ${{ (inputs.electron_tests && inputs.integration_tests) || (inputs.smoke_tests && !inputs.browser_tests) }}
+        working-directory: extensions/copilot
+        run: npm run compile
+
       - name: 🧪 Run integration tests (Electron)
         if: ${{ inputs.electron_tests && inputs.integration_tests }}
         timeout-minutes: 20
@@ -207,11 +212,6 @@ jobs:
       - name: Compile smoke tests
         if: ${{ inputs.smoke_tests }}
         working-directory: test/smoke
-        run: npm run compile
-
-      - name: Compile Copilot Chat extension for smoke tests
-        if: ${{ inputs.smoke_tests && !inputs.browser_tests }}
-        working-directory: extensions/copilot
         run: npm run compile
 
       - name: Diagnostics before smoke test run
