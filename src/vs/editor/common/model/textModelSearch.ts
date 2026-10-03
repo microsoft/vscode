@@ -46,7 +46,7 @@ export class SearchParams {
 				wholeWord: false,
 				multiline: multiline,
 				global: true,
-				unicode: true
+				unicode: 'unicodeSets',
 			});
 		} catch (err) {
 			return null;
