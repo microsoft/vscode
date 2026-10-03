@@ -707,4 +707,76 @@ suite('SuggestController', function () {
 		assert.strictEqual(requestCount, 2);
 
 	});
+
+	test('getOverwriteInfo, #251013', async function () {
+
+		let resolve: (value: unknown) => void = () => { };
+		const p = new Promise(r => resolve = r);
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			async provideCompletionItems(doc, pos) {
+				await p;
+				const range = new Range(pos.lineNumber, pos.column - 2, pos.lineNumber, pos.column);
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'something',
+						insertText: 'something',
+						range: range
+					}]
+				};
+			}
+		}));
+
+		// replace mode
+		editor.updateOptions({ suggest: { insertMode: 'replace' } });
+		editor.setValue('<div class=""></div>');
+		editor.setSelection(new Selection(1, 13, 1, 13)); // cursor at <div class="|"></div>
+
+		// fire and forget
+		controller.triggerSuggest();
+
+		await timeout(10);
+		editor.trigger('keyboard', 'type', { text: 'so' }); // cursor at <div class="so|"></div>
+		assert.strictEqual(model.getValue(), '<div class="so"></div>');
+
+		// resolve completions
+		resolve(undefined);
+
+		await Event.toPromise(controller.model.onDidSuggest);
+
+		controller.acceptSelectedSuggestion(false, false);
+		assert.strictEqual(editor.getValue(), '<div class="something"></div>');
+	});
+
+	test('getOverwriteInfo, #10266', async function () {
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: 'console',
+						insertText: 'console',
+						range: new Range(1, 1, 1, 1)
+					}]
+				};
+			}
+		}));
+
+		editor.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		editor.trigger('keyboard', 'type', { text: 'abc' });
+		assert.strictEqual(model.getValue(), 'abc');
+
+		controller.acceptSelectedSuggestion(false, false);
+		assert.strictEqual(editor.getValue(), 'console');
+	});
 });
