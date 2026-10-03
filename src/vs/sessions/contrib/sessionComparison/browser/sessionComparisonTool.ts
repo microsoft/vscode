@@ -21,7 +21,7 @@ import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/co
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonDecisionAssessment, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, getBoundedSessionComparisonManifestList, getBoundedSessionComparisonManifestText, getSessionComparisonAttemptLabel, ISessionComparison, ISessionComparisonAttemptVerdict, ISessionComparisonRationale, ISessionComparisonService, ISessionComparisonVerdict, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS, SessionComparisonParticipantRole, SessionComparisonValidationEvidence, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../services/sessions/common/sessionComparison.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
 
 const CompleteSessionComparisonToolId = 'vscode_completeAttemptComparison';
@@ -36,24 +36,10 @@ interface ICompleteSessionComparisonInput {
 	readonly rationale: ISessionComparisonRationale;
 	readonly conflicts: readonly string[];
 	readonly attempts: readonly ICompleteSessionComparisonAttemptInput[];
-	readonly decisionSections: readonly ICompleteSessionComparisonDecisionSectionInput[];
 }
 
 interface ICompleteSessionComparisonAttemptInput extends Omit<ISessionComparisonAttemptVerdict, 'participantId'> {
 	readonly attemptNumber: number;
-}
-
-interface ICompleteSessionComparisonDecisionSectionInput {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string;
-	readonly affectedFiles: readonly string[];
-	readonly options: readonly {
-		readonly attemptNumber: number;
-		readonly approach: string;
-		readonly assessment: SessionComparisonDecisionAssessment;
-	}[];
-	readonly recommendedAttemptNumber: number;
 }
 
 interface IReadSessionComparisonInput {
@@ -75,7 +61,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.readTool.displayName', "Read Attempt Comparison"),
 			userDescription: localize('sessionComparison.readTool.userDescription', "Read the attempts and evidence for an active comparison"),
-			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt with a semantic lifecycle status, changed-file evidence status, change summaries, authoritative worktree locations, exact targets for get_session_context, the Judge verdict mapped to attempt numbers when available, and any user-selected synthesis plan. Attempt status is one of untitled, inProgress, needsInput, completed, error, or unavailable; only completed means the attempt finished successfully. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff, use get_session_context to identify validation the attempt already completed, never rerun a validation category with a clear reported result, and run only missing targeted validation when needed. If dependencies or build artifacts are unavailable, it must record validation as unavailable without installing dependencies or substituting another validation category. A synthesis agent must resolve the verdict\'s conflicts and consider every decision section while treating selected plan sections as user requirements. It does not return full transcripts or submit a verdict.',
+			modelDescription: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt with a semantic lifecycle status, changed-file evidence status, change summaries, authoritative worktree locations, exact targets for get_session_context, the Judge verdict mapped to attempt numbers when available, and any additional synthesis instructions. Attempt status is one of untitled, inProgress, needsInput, completed, error, or unavailable; only completed means the attempt finished successfully. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff, use get_session_context to identify validation the attempt already completed, never rerun a validation category with a clear reported result, and run only missing targeted validation when needed. If dependencies or build artifacts are unavailable, it must record validation as unavailable without installing dependencies or substituting another validation category. A synthesis agent must resolve the verdict\'s conflicts and treat additional synthesis instructions as user requirements. It does not return full transcripts or submit a verdict.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -165,27 +151,6 @@ export class ReadSessionComparisonTool implements IToolImpl {
 		});
 		const synthesisPlan = comparison.synthesisPlan ? {
 			instructions: comparison.synthesisPlan.instructions,
-			sections: comparison.verdict?.decisionSections ? comparison.synthesisPlan.selections.flatMap(selection => {
-				const section = comparison.verdict!.decisionSections!.find(section => section.id === selection.sectionId);
-				if (!section) {
-					return [];
-				}
-				const option = selection.participantId
-					? section.options.find(option => option.participantId === selection.participantId)
-					: undefined;
-				const attemptNumber = option ? attemptNumbers.get(option.participantId) : undefined;
-				return [{
-					sectionId: section.id,
-					title: section.title,
-					description: section.description,
-					affectedFiles: section.affectedFiles,
-					selection: option && attemptNumber ? {
-						kind: 'attempt',
-						attemptNumber,
-						approach: option.approach,
-					} : { kind: 'synthesizer' },
-				}];
-			}) : [],
 		} : undefined;
 		return toolResult(JSON.stringify({
 			comparisonId: comparison.id,
@@ -194,7 +159,7 @@ export class ReadSessionComparisonTool implements IToolImpl {
 			attempts,
 			verdict: comparison.verdict ? toManifestVerdict(comparison.verdict, attemptNumbers) : undefined,
 			synthesisPlan,
-			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget to identify validation the attempt already completed and for rationale or other non-code evidence; never recover implementation code or paths from a transcript. Do not rerun a validation category with a clear reported result. Run only missing targeted validation when needed. If required dependencies or build artifacts are unavailable, record validation as unavailable without installing or building dependencies or substituting another validation category. Record each validation category as a consistent state and source pair. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. During synthesis, resolve every reported conflict, consider every verdict decision section, and treat synthesisPlan instructions and selections as explicit user requirements. Resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
+			next: 'Review every completed attempt diff in its authoritative worktree and treat error as failed and inProgress or needsInput as unfinished. Terminal commands start in this Judge or synthesis worktree, not an attempt worktree: explicitly cd to the exact attempt worktree.workingDirectory in every command that inspects or validates it. When changedFilesStatus is unavailable, read the Git diff from that worktree instead. Use get_session_context with an exact attempt sessionContextTarget to identify validation the attempt already completed and for rationale or other non-code evidence; never recover implementation code or paths from a transcript. Do not rerun a validation category with a clear reported result. Run only missing targeted validation when needed. If required dependencies or build artifacts are unavailable, record validation as unavailable without installing or building dependencies or substituting another validation category. Record each validation category as a consistent state and source pair. Submit verdict references using the manifest attemptNumber values; do not copy participant or session UUIDs. During synthesis, resolve every reported conflict and treat synthesisPlan instructions as explicit user requirements. Resolve dependencies coherently rather than copying hunks mechanically. Do not modify any attempt, inspect another checkout, discover sessions, guess references, or create sessions.',
 		}));
 	}
 }
@@ -213,7 +178,7 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			icon: Codicon.compareChanges,
 			displayName: localize('sessionComparison.tool.displayName', "Complete Attempt Comparison"),
 			userDescription: localize('sessionComparison.tool.userDescription', "Submit the judge's structured attempt comparison"),
-			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point in this order: comparison, validation, codeQuality, and solution. Each point must cite concrete evidence and stay within the schema length limit. For each validation category, provide one consistent state and source evidence pair. Known passed or failed results must come from the attempt report or a Judge run; unavailable evidence cannot claim a known result. Identify semantic decision sections when attempts take meaningfully different approaches, including affected files and one concise option per relevant attemptNumber. Rate every option as better, neutral, or worse and rate each section\'s recommended option as better. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
+			modelDescription: 'Submit the final structured verdict for an active implementation-attempt comparison. Use this after reviewing every referenced attempt diff and running any missing targeted validation needed for a reliable recommendation. Reference attempts only by the attemptNumber values returned by readAttemptComparison; do not use participant or session UUIDs. Keep explanation to one concise sentence. Provide exactly one concise rationale point in this order: comparison, validation, codeQuality, and solution. Each point must cite concrete evidence and stay within the schema length limit. For each validation category, provide one consistent state and source evidence pair. Known passed or failed results must come from the attempt report or a Judge run; unavailable evidence cannot claim a known result. This persists an advisory verdict; synthesis only starts through an explicit user action. If invalid input is rejected, correct the reported fields and retry; do not submit again after success.',
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.and(ChatContextKeys.enabled),
 			runsInWorkspace: false,
@@ -286,45 +251,8 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 							additionalProperties: false,
 						},
 					},
-					decisionSections: {
-						type: 'array',
-						description: 'Semantic implementation decisions the user may customize before synthesis. Return an empty array when there are no meaningful cross-attempt choices.',
-						items: {
-							type: 'object',
-							properties: {
-								id: { type: 'string', description: 'A stable identifier unique within this verdict.' },
-								title: { type: 'string', description: 'A short user-facing name for the decision.' },
-								description: { type: 'string', description: 'What this decision controls and why the approaches differ.' },
-								affectedFiles: { type: 'array', items: { type: 'string' } },
-								options: {
-									type: 'array',
-									items: {
-										type: 'object',
-										properties: {
-											attemptNumber: { type: 'integer', minimum: 1 },
-											approach: { type: 'string', description: 'A concise description of this attempt\'s approach.' },
-											assessment: {
-												type: 'string',
-												description: 'Rate this approach relative to the other options for this decision.',
-												enum: [
-													SessionComparisonDecisionAssessment.Better,
-													SessionComparisonDecisionAssessment.Neutral,
-													SessionComparisonDecisionAssessment.Worse,
-												],
-											},
-										},
-										required: ['attemptNumber', 'approach', 'assessment'],
-										additionalProperties: false,
-									},
-								},
-								recommendedAttemptNumber: { type: 'integer', minimum: 1 },
-							},
-							required: ['id', 'title', 'description', 'affectedFiles', 'options', 'recommendedAttemptNumber'],
-							additionalProperties: false,
-						},
-					},
 				},
-				required: ['comparisonId', 'recommendedAttemptNumber', 'explanation', 'rationale', 'conflicts', 'attempts', 'decisionSections'],
+				required: ['comparisonId', 'recommendedAttemptNumber', 'explanation', 'rationale', 'conflicts', 'attempts'],
 				additionalProperties: false,
 			},
 		};
@@ -366,19 +294,6 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 			|| new Set(input.attempts.map(attempt => attempt.attemptNumber)).size !== input.attempts.length) {
 			return toolError('The verdict must recommend an attemptNumber and include exactly one finding for every attemptNumber returned by readAttemptComparison.');
 		}
-		const decisionSectionIds = new Set<string>();
-		if (input.decisionSections.some(section => {
-			const optionNumbers = new Set(section.options.map(option => option.attemptNumber));
-			const recommendedOption = section.options.find(option => option.attemptNumber === section.recommendedAttemptNumber);
-			const invalid = decisionSectionIds.has(section.id)
-				|| recommendedOption?.assessment !== SessionComparisonDecisionAssessment.Better
-				|| optionNumbers.size !== section.options.length
-				|| section.options.some(option => !Number.isInteger(option.attemptNumber) || !validAttemptNumbers.has(option.attemptNumber));
-			decisionSectionIds.add(section.id);
-			return invalid;
-		})) {
-			return toolError('Every synthesis decision section must have a unique ID, reference known attemptNumber values, and rate its recommended option as better.');
-		}
 
 		const verdict: ISessionComparisonVerdict = {
 			recommendedParticipantId: attemptParticipantsByNumber.get(input.recommendedAttemptNumber)!.id,
@@ -392,18 +307,6 @@ export class CompleteSessionComparisonTool implements IToolImpl {
 					...finding,
 				};
 			}),
-			decisionSections: input.decisionSections.map(section => ({
-				id: section.id,
-				title: section.title,
-				description: section.description,
-				affectedFiles: section.affectedFiles,
-				options: section.options.map(option => ({
-					participantId: attemptParticipantsByNumber.get(option.attemptNumber)!.id,
-					approach: option.approach,
-					assessment: option.assessment,
-				})),
-				recommendedParticipantId: attemptParticipantsByNumber.get(section.recommendedAttemptNumber)!.id,
-			})),
 		};
 		this.comparisonService.submitVerdict(comparison.id, verdict);
 		const result = toolResult(JSON.stringify({ status: 'submitted', comparisonId: comparison.id }));
@@ -485,7 +388,7 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 		|| !rationale
 		|| !isStringArray(value.conflicts)
 		|| !Array.isArray(value.attempts)
-		|| !Array.isArray(value.decisionSections)) {
+		|| Object.hasOwn(value, 'decisionSections')) {
 		return undefined;
 	}
 	const attempts: ICompleteSessionComparisonAttemptInput[] = [];
@@ -515,36 +418,6 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 			notableDifferences: attempt.notableDifferences,
 		});
 	}
-	const decisionSections: ICompleteSessionComparisonDecisionSectionInput[] = [];
-	for (const section of value.decisionSections) {
-		if (!isRecord(section)
-			|| typeof section.id !== 'string'
-			|| typeof section.title !== 'string'
-			|| typeof section.description !== 'string'
-			|| !isStringArray(section.affectedFiles)
-			|| !Array.isArray(section.options)
-			|| typeof section.recommendedAttemptNumber !== 'number') {
-			return undefined;
-		}
-		const options: { attemptNumber: number; approach: string; assessment: SessionComparisonDecisionAssessment }[] = [];
-		for (const option of section.options) {
-			if (!isRecord(option)
-				|| typeof option.attemptNumber !== 'number'
-				|| typeof option.approach !== 'string'
-				|| !isDecisionAssessment(option.assessment)) {
-				return undefined;
-			}
-			options.push({ attemptNumber: option.attemptNumber, approach: option.approach, assessment: option.assessment });
-		}
-		decisionSections.push({
-			id: section.id,
-			title: section.title,
-			description: section.description,
-			affectedFiles: section.affectedFiles,
-			options,
-			recommendedAttemptNumber: section.recommendedAttemptNumber,
-		});
-	}
 	return {
 		comparisonId: value.comparisonId,
 		recommendedAttemptNumber: value.recommendedAttemptNumber,
@@ -552,7 +425,6 @@ function parseInput(value: unknown): ICompleteSessionComparisonInput | undefined
 		rationale,
 		conflicts: value.conflicts,
 		attempts,
-		decisionSections,
 	};
 }
 
@@ -583,12 +455,6 @@ function rationalePointSchema(description: string): IJSONSchema {
 		maxLength: MaxRationalePointLength,
 		description,
 	};
-}
-
-function isDecisionAssessment(value: unknown): value is SessionComparisonDecisionAssessment {
-	return value === SessionComparisonDecisionAssessment.Better
-		|| value === SessionComparisonDecisionAssessment.Neutral
-		|| value === SessionComparisonDecisionAssessment.Worse;
 }
 
 function getManifestSessionStatus(status: SessionStatus | undefined): 'untitled' | 'inProgress' | 'needsInput' | 'completed' | 'error' | 'unavailable' {
@@ -688,27 +554,6 @@ function toManifestVerdict(verdict: ISessionComparisonVerdict, attemptNumbers: R
 				unresolvedIssues: getBoundedSessionComparisonManifestList(attempt.unresolvedIssues),
 				notableDifferences: getBoundedSessionComparisonManifestList(attempt.notableDifferences),
 			}] : [];
-		}),
-		decisionSections: (verdict.decisionSections ?? []).slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(section => {
-			const sectionRecommendedAttemptNumber = attemptNumbers.get(section.recommendedParticipantId);
-			if (!sectionRecommendedAttemptNumber) {
-				return [];
-			}
-			return [{
-				id: getBoundedSessionComparisonManifestText(section.id),
-				title: getBoundedSessionComparisonManifestText(section.title),
-				description: getBoundedSessionComparisonManifestText(section.description),
-				affectedFiles: getBoundedSessionComparisonManifestList(section.affectedFiles),
-				options: section.options.slice(0, SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS).flatMap(option => {
-					const attemptNumber = attemptNumbers.get(option.participantId);
-					return attemptNumber ? [{
-						attemptNumber,
-						approach: getBoundedSessionComparisonManifestText(option.approach),
-						assessment: option.assessment,
-					}] : [];
-				}),
-				recommendedAttemptNumber: sectionRecommendedAttemptNumber,
-			}];
 		}),
 	};
 }

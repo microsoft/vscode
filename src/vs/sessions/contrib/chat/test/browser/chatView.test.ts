@@ -34,11 +34,12 @@ import { renderChatRequestTimestamp } from '../../../../../workbench/contrib/cha
 import { MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackground } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../../common/layoutConstants.js';
-import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
+import { ChatView, EXPERIMENTAL_SESSION_CHAT_INPUT_TRAILING_SPACE, findInitialTranscriptContextEntry, findTranscriptContextEntry, getSessionChatItemHorizontalPadding, getSessionComparisonRequestSummary, getTranscriptProgress, isFocusChatPillsKeyDown, NewChatView, shouldRenderRunningSessionSecondaryToolbar, shouldShowSessionChatTip, shouldShowTranscriptPreparationCompletion, shouldShowTranscriptPreparationProgress } from '../../browser/chatView.js';
 import { SessionsChatViewStateService } from '../../browser/chatViewStateService.js';
 import { NewChatInSessionWidget } from '../../browser/newChatInSessionWidget.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
@@ -52,6 +53,37 @@ suite('Sessions - Chat View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => sinon.restore());
+
+	test('summarizes only comparison evaluators in their main chat', () => {
+		const attempt = URI.parse('test:/attempt');
+		const judge = URI.parse('test:/judge');
+		const synthesis = URI.parse('test:/synthesis');
+		const mainChat = URI.parse('test:/main-chat');
+		const secondaryChat = URI.parse('test:/secondary-chat');
+		const harness = { providerId: 'test', sessionTypeId: 'test', label: 'Test' };
+		const comparisons: ISessionComparison[] = [{
+			id: 'comparison', groupId: 'group', title: 'Compare', createdAt: 1,
+			workspace: URI.file('/workspace'), prompt: 'Implement the task',
+			participants: [
+				{ id: 'attempt', role: SessionComparisonParticipantRole.Attempt, harness, sessionResource: attempt },
+				{ id: 'judge', role: SessionComparisonParticipantRole.Judge, harness, sessionResource: judge },
+				{ id: 'synthesis', role: SessionComparisonParticipantRole.Synthesis, harness, sessionResource: synthesis },
+			],
+		}];
+		assert.deepStrictEqual({
+			attempt: getSessionComparisonRequestSummary(comparisons, attempt, mainChat, mainChat),
+			judge: getSessionComparisonRequestSummary(comparisons, judge, mainChat, mainChat),
+			synthesis: getSessionComparisonRequestSummary(comparisons, synthesis, mainChat, mainChat),
+			ordinary: getSessionComparisonRequestSummary(comparisons, URI.parse('test:/ordinary'), mainChat, mainChat),
+			secondary: getSessionComparisonRequestSummary(comparisons, judge, secondaryChat, mainChat),
+			unresolvedChat: getSessionComparisonRequestSummary(comparisons, judge, undefined, mainChat),
+			unresolvedSession: getSessionComparisonRequestSummary(comparisons, undefined, mainChat, mainChat),
+			unresolvedComparison: getSessionComparisonRequestSummary([], judge, mainChat, mainChat),
+		}, {
+			attempt: undefined, judge: 'Judge Instructions', synthesis: 'Synthesis Instructions',
+			ordinary: undefined, secondary: undefined, unresolvedChat: undefined, unresolvedSession: undefined, unresolvedComparison: undefined,
+		});
+	});
 
 	test('does not render the running-session secondary toolbar for the experimental composer', () => {
 		assert.deepStrictEqual([

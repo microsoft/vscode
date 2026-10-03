@@ -93,28 +93,6 @@ export interface ISessionComparisonAttemptVerdict {
 	readonly notableDifferences: readonly string[];
 }
 
-export interface ISessionComparisonDecisionOption {
-	readonly participantId: string;
-	readonly approach: string;
-	/** Undefined for verdicts persisted before decision assessments were introduced. */
-	readonly assessment?: SessionComparisonDecisionAssessment;
-}
-
-export const enum SessionComparisonDecisionAssessment {
-	Better = 'better',
-	Neutral = 'neutral',
-	Worse = 'worse',
-}
-
-export interface ISessionComparisonDecisionSection {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string;
-	readonly affectedFiles: readonly string[];
-	readonly options: readonly ISessionComparisonDecisionOption[];
-	readonly recommendedParticipantId: string;
-}
-
 export interface ISessionComparisonRationale {
 	readonly comparison: string;
 	readonly validation: string;
@@ -129,18 +107,12 @@ export interface ISessionComparisonVerdict {
 	readonly rationale?: ISessionComparisonRationale;
 	readonly conflicts: readonly string[];
 	readonly attempts: readonly ISessionComparisonAttemptVerdict[];
-	readonly decisionSections?: readonly ISessionComparisonDecisionSection[];
-}
-
-export interface ISessionComparisonSynthesisSelection {
-	readonly sectionId: string;
-	/** Undefined means the synthesis agent should decide for this section. */
-	readonly participantId?: string;
 }
 
 export const SESSION_COMPARISON_MANIFEST_TEXT_MAX_LENGTH = 1000;
 export const SESSION_COMPARISON_MANIFEST_LIST_MAX_ITEMS = 32;
 export const SESSION_COMPARISON_SYNTHESIS_INSTRUCTIONS_MAX_LENGTH = 4000;
+export const SESSION_COMPARISON_MAX_ATTEMPTS = 10;
 export const COMPARE_AGENTS_ENABLED_SETTING = 'sessions.chat.compareAgents.enabled';
 
 export function getBoundedSessionComparisonManifestText(value: string): string {
@@ -152,7 +124,6 @@ export function getBoundedSessionComparisonManifestList(values: readonly string[
 }
 
 export interface ISessionComparisonSynthesisPlan {
-	readonly selections: readonly ISessionComparisonSynthesisSelection[];
 	readonly instructions?: string;
 }
 
@@ -184,7 +155,7 @@ export interface IStartSessionComparisonOptions {
 	readonly prompt: string;
 	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly attempts: readonly ISessionComparisonAttemptConfiguration[];
-	readonly judgeHarness: ISessionComparisonHarness;
+	readonly judgeHarness?: ISessionComparisonHarness;
 	readonly synthesisHarness?: ISessionComparisonHarness;
 	readonly permissionLevel?: string;
 	readonly branch?: string;
@@ -199,6 +170,8 @@ export interface ISessionComparisonService {
 	getComparisonForSession(resource: URI): ISessionComparison | undefined;
 	cancelComparison(comparisonId: string): void;
 	archiveComparison(comparisonId: string): void;
+	/** Restores an automatically removed comparison group for bulk archive Undo and returns its group ID. */
+	restoreComparison(comparisonId: string): string;
 	selectAttempt(comparisonId: string, participantId: string): void;
 	submitVerdict(comparisonId: string, verdict: ISessionComparisonVerdict): void;
 	canRetryJudge(comparisonId: string): boolean;
@@ -208,6 +181,16 @@ export interface ISessionComparisonService {
 }
 
 export const ISessionComparisonService = createDecorator<ISessionComparisonService>('sessionComparisonService');
+
+export function getSessionComparisonWorkspaceError(branch: string | undefined, hasGitRemote: boolean | undefined): string | undefined {
+	if (!branch) {
+		return localize('sessionComparison.gitRepositoryRequired', "Comparisons require a Git repository with at least one commit.");
+	}
+	if (hasGitRemote !== true) {
+		return localize('sessionComparison.gitRemoteRequired', "Comparisons require a Git remote.");
+	}
+	return undefined;
+}
 
 export function getSessionComparisonHarnessLabel(participant: ISessionComparisonParticipant): string {
 	return getSessionComparisonHarnessDisplayLabel(participant.harness);
