@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { INativeHostService } from '../../native/common/native.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -18,14 +19,13 @@ export class SharedProcessGitHubService extends GitHubService {
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
 		@ILogService logService: ILogService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		fetch?: typeof globalThis.fetch,
-		env?: NodeJS.ProcessEnv,
 	) {
 		super({
-			fetch: createFetch(nativeHostService, configurationService, logService, env, fetch),
+			fetch: createFetch(nativeHostService, configurationService, environmentService, logService),
 			telemetrySource: 'sharedProcess',
 			clientMetadata: createGitHubClientMetadata(productService, 'shared-process', 'node'),
 			onDidChangeTelemetryLevel: Event.map(Event.filter(configurationService.onDidChangeConfiguration, event =>

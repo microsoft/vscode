@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ProxyAgentParams } from '@vscode/proxy-agent';
+import { getErrorMessage } from '../../../base/common/errors.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
+import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { INativeHostService } from '../../native/common/native.js';
 import { systemCertificatesNodeDefault } from '../../request/common/request.js';
+import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 
 /** Creates a proxy-aware GitHub fetch using the utility process's native-host networking. */
 export function createFetch(
 	nativeHostService: INativeHostService,
 	configurationService: IConfigurationService,
+	environmentService: INativeEnvironmentService,
 	logService: ILogService,
-	env: NodeJS.ProcessEnv = process.env,
-	fetchImpl: typeof globalThis.fetch = (input, init) => globalThis.fetch(input, init),
 ): typeof globalThis.fetch {
 	let fetchPromise: Promise<typeof globalThis.fetch> | undefined;
 	return async (input, init) => {
@@ -30,6 +32,13 @@ export function createFetch(
 			import('@vscode/proxy-agent'),
 			import('tls'),
 		]);
+
+		let shellEnv: NodeJS.ProcessEnv | undefined;
+		try {
+			shellEnv = await getResolvedShellEnv(configurationService, logService, environmentService.args, process.env);
+		} catch (error) {
+			logService.error('[GitHubService] Resolving shell environment failed', getErrorMessage(error));
+		}
 
 		const getConfigurationValue = <T>(key: string, fallback: T): T => {
 			const value = configurationService.inspect<T>(key);
@@ -78,9 +87,9 @@ export function createFetch(
 			proxyResolveTelemetry: () => { },
 			isUseHostProxyEnabled: () => true,
 			getNetworkInterfaceCheckInterval: () => getConfigurationValue('http.experimental.networkInterfaceCheckInterval', 300) * 1000,
-			env,
+			env: { ...process.env, ...shellEnv },
 		};
 
-		return createFetchPatch(params, fetchImpl, createProxyResolver(params).resolveProxyURL);
+		return createFetchPatch(params, globalThis.fetch, createProxyResolver(params).resolveProxyURL);
 	}
 }

@@ -101,19 +101,21 @@ Browser fetch, including desktop renderers, sends only `X-Client-Application` to
 
 ### Host networking
 
-GitHub service implementations own their plain [RequestFetch](common/types.ts) functions. The workbench and shared-process services create their fetches in their constructors using GitHub-local helpers; Agent Host reuses its existing host fetch. There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
+GitHub service implementations own their plain [RequestFetch](common/types.ts) functions. The workbench uses browser fetch, the shared-process service creates its proxy-aware fetch in its constructor, and Agent Host reuses its existing host fetch. There is no fetch service, fetch IPC or automatic move to a different machine after a failure.
 
-- **Web and desktop workbench:** [createFetch](common/githubFetch.ts) wraps browser fetch, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
+- **Web and desktop workbench:** browser fetch is used directly, including in the Agents window. CORS, exposed headers, opaque manual redirects, and browser/OS proxy and certificate decisions still apply.
 - **Standalone Agent Host:** GitHub receives the same fetch as Copilot and other host services, without an additional wrapper. The existing Agent Host proxy resolver owns host/PAC, authentication and certificate handling. The foundation preserves explicit test overrides for all consumers.
-- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups, and applies the common GitHub request policy. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist.
+- **Shared process:** [createFetch](electron-utility/githubFetch.ts) lazily configures Node fetch with local-machine proxy, Basic/Kerberos and certificate lookups. Proxy resolution uses Electron's utility-process network session, not a renderer window that might not exist.
 
-The helpers retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
+The bindings retain the runtime's normal fetch behavior, including HTTP 421 recovery and streaming decompression. They add no application retries or lower-level request/response adapter. Engine attempt counts describe fetch invocations, not a guarantee of one physical request. Engine limits apply to decoded bytes; callers must consume or cancel bodies, and engine cancellation reaches fetch through its abort signal.
 
-The transport enforces manual redirects. The workbench and shared-process helpers require HTTP(S) URLs without embedded credentials and omit ambient origin credentials. Anonymous and bootstrap requests also enforce credential omission and no-referrer policy in the transport. Anonymous requests never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
+The transport enforces manual redirects. Anonymous and bootstrap requests also enforce credential omission and no-referrer policy in the transport. Anonymous requests never invoke authentication. Explicit authorization headers supplied by the engine remain intact for permitted hops.
 
 #### Shared-process proxy and certificate behavior
 
 Routing follows the proxy helper's precedence and loopback bypass: `http.noProxy`/`NO_PROXY`, configured/environment proxies, then host system/PAC lookup. Network-interface changes invalidate cached system routes at `http.experimental.networkInterfaceCheckInterval`. Configuration comes from local-user/default values, not remote-workspace settings.
+
+On the first GitHub request, the shared-process fetch uses the [standard shell environment resolver](../shell/node/shellEnv.ts) and merges its result over the inherited process environment. This preserves login-shell proxy variables on GUI launches without delaying shared-process startup, and honors the resolver's Windows, CLI-launch, and user-environment flags. Lookup failures are logged once per fetch instance and retain the inherited environment, matching the existing request service.
 
 `http.proxyAuthorization` is supplied to proxy CONNECT requests rather than the origin and is not repeatedly resent after rejection. Kerberos uses the existing host lookup. With `http.systemCertificates` enabled, additional host certificates honor `http.systemCertificatesNode` and retain Node's default CA set.
 
@@ -131,8 +133,8 @@ Focused offline validation (from the repository root, with `COPILOT_HOME` cleare
 
 ```powershell
 npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubFetch.test.ts --run src\vs\platform\github\test\electron-utility\githubFetch.test.ts --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-.\scripts\test.bat --run src\vs\platform\github\test\common\githubFetch.test.ts --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\github\test\electron-utility\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'GitHub createFetch|Workbench GitHub service|SharedProcessGitHubService|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
+npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
+.\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
 ```
 
 Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
