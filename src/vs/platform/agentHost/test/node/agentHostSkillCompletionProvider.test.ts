@@ -131,6 +131,35 @@ suite('AgentHostSkillCompletionProvider', () => {
 		}]);
 	});
 
+	test('carries a skill argument hint into the completion metadata', async () => {
+		const agent = new MockAgent('mock');
+		agent.getSessionCustomizations = async () => [
+			directory('.copilot', 'file:///home/.copilot/skills', [
+				{ ...skillAt('design-prep', 'file:///home/.copilot/skills/design-prep/SKILL.md', 'Prep a design'), _meta: { 'vscode.skill.argumentHint': '<problem and repo> [offline]' } },
+				skillAt('no-hint', 'file:///home/.copilot/skills/no-hint/SKILL.md', 'No hint'),
+			]),
+		];
+		const provider = createProvider(agent);
+
+		const result = await run(provider, '/');
+
+		assert.deepStrictEqual(result.map(item => item.attachment?._meta), [
+			{
+				uri: 'file:///home/.copilot/skills/design-prep/SKILL.md',
+				name: 'design-prep',
+				displayName: 'design-prep',
+				description: 'Prep a design',
+				argumentHint: '<problem and repo> [offline]',
+			},
+			{
+				uri: 'file:///home/.copilot/skills/no-hint/SKILL.md',
+				name: 'no-hint',
+				displayName: 'no-hint',
+				description: 'No hint',
+			},
+		]);
+	});
+
 	test('filters user-disabled and disabled skills without filtering model-disabled skills', async () => {
 		const agent = new MockAgent('mock');
 		agent.getSessionCustomizations = async () => [

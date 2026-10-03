@@ -411,6 +411,27 @@ suite('pluginParsers', () => {
 				allUris: [firstSkill.toString(), lastSkill.toString()],
 			});
 		});
+
+		test('reads the argument-hint frontmatter and omits blank hints', async () => {
+			const root = URI.from({ scheme: Schemas.inMemory, path: '/plugin' });
+			const directory = URI.joinPath(root, 'skills');
+			const hinted = URI.joinPath(directory, 'hinted', 'SKILL.md');
+			const blank = URI.joinPath(directory, 'blank', 'SKILL.md');
+			const plain = URI.joinPath(directory, 'plain', 'SKILL.md');
+			await Promise.all([
+				fileService.writeFile(hinted, VSBuffer.fromString('---\nname: hinted\nargument-hint: "  <problem> [offline]  "\n---\nA skill.')),
+				fileService.writeFile(blank, VSBuffer.fromString('---\nname: blank\nargument-hint: "   "\n---\nA skill.')),
+				fileService.writeFile(plain, VSBuffer.fromString('---\nname: plain\n---\nA skill.')),
+			]);
+
+			const skills = await readSkills(root, [directory], fileService, { childDirectoriesOnly: true });
+
+			assert.deepStrictEqual(skills.map(skill => ({ name: skill.name, argumentHint: skill.argumentHint })), [
+				{ name: 'blank', argumentHint: undefined },
+				{ name: 'hinted', argumentHint: '<problem> [offline]' },
+				{ name: 'plain', argumentHint: undefined },
+			]);
+		});
 	});
 
 	suite('IParsedHookCommand.isEquals', () => {
@@ -495,6 +516,18 @@ suite('pluginParsers', () => {
 					disableModelInvocation: true,
 					disableUserInvocation: true,
 				},
+			});
+		});
+
+		test('toParsedSkill carries the argument hint in the customization metadata', () => {
+			const uri = URI.file('/home/.claude/skills/review/SKILL.md');
+			const parsed = toParsedSkill({ uri, name: 'review', argumentHint: '<pr number>' });
+			assert.deepStrictEqual(parsed.customization, {
+				type: CustomizationType.Skill,
+				id: customizationId(uri.toString()),
+				uri: uri.toString(),
+				name: 'review',
+				_meta: { 'vscode.skill.argumentHint': '<pr number>' },
 			});
 		});
 	});

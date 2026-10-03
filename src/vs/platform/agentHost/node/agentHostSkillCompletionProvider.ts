@@ -12,6 +12,7 @@ import { isCustomizationEnabled, isSkillEligibleForUserInvocation } from '../com
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
 import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
+import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
 import { buildDefaultChatUri, CustomizationType, DirectoryCustomization, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider } from './agentHostCompletions.js';
 import { extractWhitespaceDelimitedSlashToken, matchesSlashCompletion } from './agentHostSlashCompletion.js';
@@ -81,6 +82,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 						name: skill.name,
 						displayName: skill.slashCommandName,
 						description: skill.description,
+						argumentHint: skill.argumentHint,
 					}),
 				},
 			}));
@@ -113,6 +115,7 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 			slashCommandName: slashCommandName,
 			name: skill.name,
 			description: skill.description,
+			argumentHint: readSkillArgumentHint(skill),
 			uri: skill.uri,
 		};
 	}
@@ -126,5 +129,6 @@ interface SlashCommmandCandidate {
 	readonly slashCommandName: string;
 	readonly name: string;
 	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
 	readonly uri: string;
 }

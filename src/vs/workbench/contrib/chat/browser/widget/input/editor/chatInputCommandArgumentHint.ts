@@ -10,7 +10,7 @@ import { IDecorationOptions } from '../../../../../../../editor/common/editorCom
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getCommandArgumentHint } from '../../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
-import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
+import { getAgentHostCompletionReferenceKindFromValue } from '../../../../common/attachments/chatVariableEntries.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatWidget } from '../../../chat.js';
 import { ChatWidget } from '../../chatWidget.js';
@@ -21,7 +21,7 @@ const commandArgumentHintDecorationType = 'chat-command-argument-hint';
 
 /**
  * Renders an inline placeholder (ghost text) argument hint after an accepted
- * agent-host slash-command completion (e.g. `/rename `). The hint text is
+ * agent-host slash-command or skill completion (e.g. `/rename `). The hint text is
  * carried on the completion's dynamic-variable reference `_meta` (see
  * {@link getCommandArgumentHint}); it is shown only while the command reference
  * is the sole content followed by a single trailing space, i.e. before any
@@ -87,9 +87,9 @@ class InputEditorCommandArgumentHint extends Disposable {
 			return undefined;
 		}
 
-		// Find an agent-host command reference that carries an argument hint.
+		// Find an agent-host command or skill reference that carries an argument hint.
 		for (const ref of dynamicVariableModel.variables) {
-			if (getAgentHostCompletionReferenceKindFromValue(ref.data) !== AgentHostCompletionReferenceKind.Command) {
+			if (getAgentHostCompletionReferenceKindFromValue(ref.data) === undefined) {
 				continue;
 			}
 			const argumentHint = getCommandArgumentHint(ref._meta);

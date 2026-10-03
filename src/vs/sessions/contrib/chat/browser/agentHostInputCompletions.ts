@@ -130,10 +130,10 @@ export function getAgentHostCompletionAttachmentRange(
 
 /**
  * Determines whether an inline argument-hint placeholder should be shown for an
- * accepted agent-host slash command. Returns the hint text and the offset just
- * after the command token when the command is the sole content of `value`
- * followed by exactly one trailing space (i.e. no argument has been typed yet),
- * or `undefined` otherwise.
+ * accepted agent-host slash command or skill. Returns the hint text and the
+ * offset just after the command token when the command is the sole content of
+ * `value` followed by exactly one trailing space (i.e. no argument has been
+ * typed yet), or `undefined` otherwise.
  */
 export function getCommandArgumentHintPlaceholder(
 	value: string,
@@ -141,7 +141,7 @@ export function getCommandArgumentHintPlaceholder(
 	insertedReferences: ReadonlyMap<string, { text: string; range: OffsetRange | undefined }>,
 ): { argumentHint: string; endOffset: number } | undefined {
 	for (const entry of attachments) {
-		if (getAgentHostCompletionReferenceKind(entry) !== AgentHostCompletionReferenceKind.Command) {
+		if (getAgentHostCompletionReferenceKind(entry) === undefined) {
 			continue;
 		}
 		const argumentHint = getCommandArgumentHint(entry._meta);
