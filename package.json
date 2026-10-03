@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.140.0",
-  "distro": "3aa454bd18297929658b6d2118303535b690573c",
+  "version": "1.141.0",
+  "distro": "a620eb1a35f4f1994abbd67502c0b2c3b8e73ee0",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -22,6 +22,7 @@
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",
+    "install-fast": "node build/npm/fast-install.ts",
     "compile": "npm-run-all2 -lp compile-client compile-copilot",
     "compile-client": "npm run gulp compile",
     "compile-copilot": "npm --prefix extensions/copilot run compile",
@@ -30,6 +31,8 @@
     "typecheck-client": "tsc --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "codex:gen-protocol": "node build/codex/generate-protocol.mjs",
     "codex:check-protocol": "node build/codex/check-protocol-sync.ts",
+    "agent-host:generate-copilot-meta": "node build/agentHost/generateCopilotMetadata.ts",
+    "agent-host:check-copilot-meta": "node build/agentHost/generateCopilotMetadata.ts --check",
     "watch": "npm-run-all2 -lp watch-client-transpile watch-client watch-extensions watch-copilot",
     "watch-transpile": "npm-run-all2 -lp watch-client-transpile watch-extensions watch-copilot",
     "watchd": "deemon npm run watch",
@@ -99,7 +102,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.15-preview.3",
+    "@github/copilot-sdk": "1.0.17-preview.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -107,7 +110,7 @@
     "@microsoft/dev-tunnels-management": "^1.3.41",
     "@microsoft/dev-tunnels-ssh": "^3.12.22",
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
-    "@microsoft/mxc-sdk": "0.8.0",
+    "@microsoft/mxc-sdk": "0.9.0",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
     "@vscode/codicons": "^0.0.46-40",
@@ -129,7 +132,7 @@
     "@vscode/vscode-languagedetection": "1.0.23",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.8.0",
-    "@vscode/windows-registry": "^1.2.0",
+    "@vscode/windows-registry": "^1.3.0",
     "@xterm/addon-clipboard": "^0.3.0-beta.303",
     "@xterm/addon-image": "^0.10.0-beta.301",
     "@xterm/addon-ligatures": "^0.11.0-beta.301",
@@ -142,7 +145,7 @@
     "@xterm/xterm": "^6.1.0-beta.304",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
-    "foundry-local-sdk": "1.2.3",
+    "foundry-local-sdk": "2.0.1",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.4",
@@ -169,9 +172,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.258",
+    "@anthropic-ai/claude-agent-sdk": "0.3.281",
     "@eslint/compat": "^2.1.0",
-    "@openai/codex": "0.153.0",
+    "@openai/codex": "0.157.0",
     "@playwright/cli": "^0.1.9",
     "@playwright/test": "^1.61.1",
     "@stylistic/eslint-plugin": "^5.10.0",
@@ -245,6 +248,7 @@
     "istanbul-lib-report": "^3.0.0",
     "istanbul-lib-source-maps": "^4.0.1",
     "istanbul-reports": "^3.1.5",
+    "json-schema-to-typescript": "16.0.0",
     "js-yaml": "^4.2.0",
     "lazy.js": "^0.4.2",
     "merge-options": "^1.0.1",
@@ -294,7 +298,7 @@
   "allowScripts": {
     "bufferutil@4.1.0": true,
     "cpu-features": false,
-    "foundry-local-sdk@1.2.3": true,
+    "foundry-local-sdk@2.0.1": true,
     "kerberos@2.1.1": true,
     "koffi@3.2.1": false,
     "native-keymap@3.3.9": true,
@@ -312,7 +316,7 @@
     "@vscode/policy-watcher@1.4.0": true,
     "@vscode/spdlog@0.15.8": true,
     "@vscode/sqlite3@5.1.12-vscode": true,
-    "@vscode/windows-registry@1.2.0": true,
+    "@vscode/windows-registry@1.3.0": true,
     "@vscode/windows-mutex@0.5.3": true,
     "ssh2": false,
     "fsevents@2.3.2": true,
@@ -322,5 +326,5 @@
     "@vscode/windows-ca-certs@0.3.4": true,
     "@vscode/windows-process-tree@0.8.0": true
   },
-  "copilotRuntimeVersion": "1.0.89-3"
+  "copilotRuntimeVersion": "1.0.92-0"
 }

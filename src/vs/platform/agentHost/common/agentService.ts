@@ -6,20 +6,21 @@
 import type { CancellationToken } from '../../../base/common/cancellation.js';
 import type { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { IReference } from '../../../base/common/lifecycle.js';
+import { IDisposable, IReference } from '../../../base/common/lifecycle.js';
+import { equals } from '../../../base/common/objects.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IConfigurationChangeEvent, IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from './state/agentSubscription.js';
 import type { IRemoteWatchHandle } from './agentHostFileSystemProvider.js';
 import type { IAgentHostResourceUriMapper } from './agentHostUri.js';
+import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { IAgentHostClientTelemetryContext } from './agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
+import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -27,7 +28,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -42,10 +43,10 @@ export type {
 	IAgentSubagentStartedSignal, IAgentSubagentResumedSignal, IAgentSubagentCompletedSignal,
 	IAgentSteeringConsumedSignal, IMcpNotification, IActiveClient, AgentProvider, IAgentCapabilities,
 	IAgentDescriptor, AuthenticateParams, IAgentHostAuthTokenRequest, AuthenticateResult,
-	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot,
+	IAgentHostNetworkEndpoint, IAgentHostManagedSettingsSnapshot, IAgentPluginUninstallRequest,
 } from './agent.js';
 export {
-	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
+	AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE,
 	GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn, resolveAgentChatContext,
 	resolveAgentChatOrigin, resolveSubagentChatParent, resolveAgentHostCustomizations, subagentChatTitle,
 	SubagentChatSignal,
@@ -114,18 +115,29 @@ export const AgentHostSystemProxyEnabledSettingId = 'chat.agentHost.systemProxy.
 /** Configuration key controlling the GitHub MCP server in agent-host sessions. */
 export const AgentHostGitHubMcpServerEnabledSettingId = 'chat.agentHost.githubMcpServer.enabled';
 
-/** Configuration key gating active-agent session and chat title generation. */
-export const AgentHostActiveAgentTitleGenerationSettingId = 'chat.agentHost.experimental.activeAgentTitleGeneration';
-export const AgentHostDeferredTitleGenerationSettingId = 'chat.agentHost.experimental.deferredTitleGeneration';
+/** Configuration key enabling cached MCP tool routing and relevance-based authentication prompts. */
+export const AgentHostMcpToolRoutingEnabledSettingId = 'chat.agentHost.experimental.mcpToolRouting';
 
 /** Configuration key enabling rich-link guidance for Markdown plan documents. */
 export const AgentHostMarkdownPlanRichLinksEnabledSettingId = 'chat.agentHost.experimental.markdownPlanRichLinks';
 
+/** Configuration key enabling the initial workspace file-name snapshot in Copilot agent-host chats. */
+export const AgentHostWorkspaceSnapshotEnabledSettingId = 'chat.experimental.workspaceSnapshot';
+
+/** Configuration key controlling Agent Host agent-orchestration safety limits. */
+export const AgentHostAgentOrchestrationLimitsSettingId = 'chat.agentHost.agentOrchestrationLimits';
+
 /** Configuration key gating the artifact tools and their agent instruction. */
 export const ArtifactToolsSettingId = 'chat.artifactTools.enabled';
 
+/** Configuration key gating Canvas extensions and presentation in agent-host sessions. */
+export const CanvasesEnabledSettingId = 'chat.canvases.enabled';
+
 /** Configuration key controlling automatic pull request association for the checked-out branch. */
 export const AgentHostAutoAttachPullRequestsSettingId = 'chat.agentHost.experimental.autoAttachPullRequests';
+
+/** Configuration key controlling whether providers prepare a turn alongside the turn-start checkpoint. */
+export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.experimental.overlapProviderPreparation';
 
 /**
  * Configuration key gating multiple-working-directory support for the Copilot
@@ -261,20 +273,6 @@ export function isAgentEnabled(envValue: string | undefined, defaultEnabled: boo
 	return defaultEnabled;
 }
 
-/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxEnabled} for both terminal implementations. */
-export const AgentHostSdkSandboxEnabledSettingId = 'chat.agentHost.sdkSandbox.enabled';
-
-/** @deprecated Use {@link AgentSandboxSettingId.AgentSandboxWindowsEnabled} for both terminal implementations. */
-export const AgentHostSdkSandboxWindowsEnabledSettingId = 'chat.agentHost.sdkSandbox.enabledWindows';
-
-export type AgentHostCopilotSandboxSettingId =
-	| AgentSandboxSettingId.AgentSandboxEnabled
-	| AgentSandboxSettingId.AgentSandboxWindowsEnabled;
-
-export function getAgentHostCopilotSandboxSettingId(windows = isWindows): AgentHostCopilotSandboxSettingId {
-	return windows ? AgentSandboxSettingId.AgentSandboxWindowsEnabled : AgentSandboxSettingId.AgentSandboxEnabled;
-}
-
 /**
  * Selects whether the regular workbench surfaces Codex from the agent host
  * instead of the OpenAI extension.
@@ -369,6 +367,8 @@ export const AgentHostOTelOtlpProtocolSettingId = 'chat.agentHost.otel.otlpProto
 export const AgentHostOTelOtlpEndpointSettingId = 'chat.agentHost.otel.otlpEndpoint';
 /** Whether to include prompt/response content in span attributes (privacy-sensitive). */
 export const AgentHostOTelCaptureContentSettingId = 'chat.agentHost.otel.captureContent';
+/** Policy delivery slot for identity capture in the host-owned OTel pipeline. */
+export const AgentHostOTelCaptureIdentitySettingId = 'chat.agentHost.otel.captureIdentity';
 /** Output path when `exporterType` is `file`. */
 export const AgentHostOTelOutfileSettingId = 'chat.agentHost.otel.outfile';
 /** Policy-only delivery slot for the enterprise-managed OTel `service.name` (no user UI). */
@@ -405,6 +405,7 @@ export const AgentHostOTelEnvVars = Object.freeze({
 	OtlpMetricsProtocol: 'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
 	OtlpHeaders: 'OTEL_EXPORTER_OTLP_HEADERS',
 	CaptureContent: 'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT',
+	CaptureIdentity: 'COPILOT_OTEL_CAPTURE_IDENTITY',
 	FilePath: 'COPILOT_OTEL_FILE_EXPORTER_PATH',
 	SourceName: 'COPILOT_OTEL_SOURCE_NAME',
 	ServiceName: 'OTEL_SERVICE_NAME',
@@ -422,6 +423,7 @@ export interface IAgentHostOTelSettings {
 	readonly otlpProtocol?: string;
 	readonly otlpEndpoint?: string;
 	readonly captureContent?: boolean;
+	readonly captureIdentity?: boolean;
 	readonly outfile?: string;
 	readonly serviceName?: string;
 	readonly resourceAttributes?: Record<string, string>;
@@ -440,6 +442,12 @@ export interface IAgentHostOTelSettings {
  * the managed OTel env. See {@link readAgentHostOTelPolicySettings}.
  */
 export const AgentHostOTelPolicyIpcChannel = 'vscode:agentHostOTelPolicy';
+
+/** Whether the renderer has a settled policy rather than startup/refresh placeholders. */
+export interface IAgentHostOTelPolicyReadiness {
+	isReady(): boolean;
+	readonly onDidChange: Event<void>;
+}
 
 /** Renderer-to-main request to replace the shared local Agent Host process. */
 export const AgentHostRestartIpcChannel = 'vscode:restartAgentHost';
@@ -461,6 +469,7 @@ export function readAgentHostOTelPolicySettings(configurationService: IConfigura
 		otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
 		otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
 		captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
+		captureIdentity: policyValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 		outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
 		serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
 		resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
@@ -500,10 +509,43 @@ export function sanitizeAgentHostOTelPolicySettings(raw: unknown): IAgentHostOTe
 		otlpProtocol: asString(record.otlpProtocol),
 		otlpEndpoint: asString(record.otlpEndpoint),
 		captureContent: asBoolean(record.captureContent),
+		captureIdentity: asBoolean(record.captureIdentity),
 		outfile: asString(record.outfile),
 		serviceName: asString(record.serviceName),
 		resourceAttributes: asStringRecord(record.resourceAttributes),
 	};
+}
+
+/** Tracks renderer-forwarded policy and coalesces restart requests until the host starts. */
+export class AgentHostOTelPolicyState {
+	private _policy: IAgentHostOTelSettings | undefined;
+	private _restartPending = false;
+	private _hasSettledPolicy = false;
+
+	get policy(): IAgentHostOTelSettings | undefined {
+		return this._policy;
+	}
+
+	update(raw: unknown, agentHostRunning: boolean, ready = true): boolean {
+		if (!ready && (agentHostRunning || this._hasSettledPolicy)) {
+			return false;
+		}
+		this._hasSettledPolicy ||= ready;
+		const policy = sanitizeAgentHostOTelPolicySettings(raw);
+		if (equals(this._policy, policy)) {
+			return false;
+		}
+		this._policy = policy;
+		if (!agentHostRunning || this._restartPending) {
+			return false;
+		}
+		this._restartPending = true;
+		return true;
+	}
+
+	didStart(): void {
+		this._restartPending = false;
+	}
 }
 
 /**
@@ -528,11 +570,14 @@ function serializeResourceAttributes(attributes: Record<string, string> | undefi
  *
  * Only sets a key when the underlying setting was explicitly configured — empty
  * string / undefined settings are dropped so they don't shadow inherited env.
+ * Resolved shell env participates only in identity capture; other keys retain
+ * their existing process-env/settings precedence.
  */
 export function buildAgentHostOTelEnv(
 	settings: IAgentHostOTelSettings,
 	inheritedEnv: Readonly<Record<string, string | undefined>>,
 	policySettings: IAgentHostOTelSettings = {},
+	shellEnv: Readonly<Record<string, string | undefined>> = {},
 ): Record<string, string> {
 	const out: Record<string, string> = {};
 	const setIfMissing = (key: string, value: string | undefined): void => {
@@ -558,6 +603,9 @@ export function buildAgentHostOTelEnv(
 	setIfMissing(AgentHostOTelEnvVars.FilePath, settings.outfile);
 	if (settings.captureContent !== undefined) {
 		setIfMissing(AgentHostOTelEnvVars.CaptureContent, settings.captureContent ? 'true' : 'false');
+	}
+	if (settings.captureIdentity !== undefined && shellEnv[AgentHostOTelEnvVars.CaptureIdentity] === undefined) {
+		setIfMissing(AgentHostOTelEnvVars.CaptureIdentity, settings.captureIdentity ? 'true' : 'false');
 	}
 	if (settings.dbSpanExporterEnabled) {
 		setIfMissing(AgentHostOTelEnvVars.DbSpanExporterEnabled, 'true');
@@ -591,6 +639,9 @@ export function buildAgentHostOTelEnv(
 	}
 	if (policySettings.captureContent !== undefined) {
 		setPolicy(AgentHostOTelEnvVars.CaptureContent, policySettings.captureContent ? 'true' : 'false');
+	}
+	if (policySettings.captureIdentity !== undefined) {
+		setPolicy(AgentHostOTelEnvVars.CaptureIdentity, policySettings.captureIdentity ? 'true' : 'false');
 	}
 	if (policySettings.serviceName !== undefined && policySettings.serviceName !== '') {
 		setPolicy(AgentHostOTelEnvVars.ServiceName, policySettings.serviceName);
@@ -785,6 +836,10 @@ export interface IAgentHostManagementService {
 	claimDetachedWorktree(handle: string): Promise<void>;
 	deleteDetachedWorktree(handle: string): Promise<void>;
 	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void>;
+	/** Local-only bridge for refreshing live Copilot sessions after Connector membership or authorization changes. */
+	refreshCopilotConnectorSessions(): Promise<void>;
+	/** Local-only bridge for provider-owned plugin uninstall transactions. */
+	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
 	shutdown(): Promise<void>;
 	getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo>;
 	getManagedSettingsDiagnostics(): Promise<readonly IAgentHostManagedSettingsDiagnostics[]>;
@@ -832,6 +887,8 @@ export interface IAgentService {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
+	refreshCopilotConnectorSessions?(): Promise<void>;
+	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
 
 	/**
 	 * Create an additional chat within an existing session. Spins up the
@@ -874,7 +931,12 @@ export interface IAgentService {
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
-	createTerminal(params: CreateTerminalParams): Promise<void>;
+	/**
+	 * Create a terminal requested by a protocol client. Terminals created by
+	 * VS Code clients (per `clientType`) receive VS Code's terminal identity
+	 * (`TERM_PROGRAM`).
+	 */
+	createTerminal(params: CreateTerminalParams, clientType?: AgentHostClientType): Promise<void>;
 
 	/** Dispose a terminal and kill its process if still running. */
 	disposeTerminal(terminal: URI): Promise<void>;
@@ -1068,7 +1130,6 @@ export interface IAgentConnection {
 
 	/** Available for capable hosts, including while reconnecting; absent after permanent disconnection. */
 	readonly devContainerService?: IDevContainerAgentHostMainService;
-
 	readonly clientId: string;
 	readonly resourceUris: IAgentHostResourceUriMapper;
 
@@ -1137,6 +1198,8 @@ export interface IAgentConnection {
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;
+	/** Registers a connection-scoped handler that supplies MCP authentication without prompting. */
+	registerMcpAuthenticationHandler?(handler: (request: IAgentHostMcpAuthenticationRequest) => Promise<boolean>): IDisposable;
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
@@ -1144,6 +1207,8 @@ export interface IAgentConnection {
 	importSession?(session: URI): Promise<void>;
 	/** Requires the VS Code artifact removal capability advertised by initialize. */
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
+	/** Refresh a held subscription through the standard subscribe request, preserving pending actions. */
+	refreshSubscription?(resource: URI): Promise<void>;
 	createDetachedWorktree?(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }>;
 	claimDetachedWorktree?(handle: string): Promise<void>;
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
@@ -1267,6 +1332,12 @@ export interface IAgentHostService extends IAgentConnection {
 
 	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
 	setAuthenticationPending(pending: boolean): void;
+
+	/** Refresh live local Copilot sessions after Connector membership or authorization changes. */
+	refreshCopilotConnectorSessions?(): Promise<void>;
+
+	/** Uninstall a plugin through its local Agent Host provider. */
+	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
 
 	/** Start connecting to the agent host if it has not already started. */
 	startAgentHost(): void;

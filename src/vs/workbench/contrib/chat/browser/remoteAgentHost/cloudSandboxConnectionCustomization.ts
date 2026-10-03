@@ -7,6 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../platform/agentHost/common/agentService.js';
+import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import {
 	CLOUD_SANDBOX_ADDRESS_PREFIX,
 	CLOUD_SANDBOX_AGENT_PROVIDER,
@@ -56,9 +57,9 @@ export function createCloudSandboxConnectionCustomization(
 		return undefined;
 	}
 	return {
-		authenticate: async (request: IAgentHostAuthenticateRequest): Promise<IAgentHostAuthenticateRequest> => {
-			// Already sealed (e.g. re-sending a cached envelope) — forward as-is.
-			if (isCloudSandboxSealedToken(request.token)) {
+		requiresWorkspaceTrust: false,
+		authenticate: async (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason): Promise<IAgentHostAuthenticateRequest> => {
+			if (reason !== AuthRequiredReason.Expired && isCloudSandboxSealedToken(request.token)) {
 				return request;
 			}
 			if (userLocal && new URL(request.resource).origin !== new URL(GITHUB_COPILOT_PROTECTED_RESOURCE.resource).origin) {
@@ -72,7 +73,9 @@ export function createCloudSandboxConnectionCustomization(
 			if (!isGitHubResource(request.resource)) {
 				throw new Error(`Cloud sandbox cannot authenticate the non-GitHub resource '${request.resource}'.`);
 			}
-			const sealed = sandboxService.getSealedGitHubToken(environmentId);
+			const sealed = reason === AuthRequiredReason.Expired
+				? await sandboxService.refreshSealedGitHubToken(environmentId)
+				: sandboxService.getSealedGitHubToken(environmentId);
 			if (!sealed || !isCloudSandboxSealedToken(sealed)) {
 				throw new Error(`No sealed GitHub token is available for cloud sandbox ${address}; refusing to forward a plaintext bearer.`);
 			}

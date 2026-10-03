@@ -460,7 +460,7 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired
+				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
 					? MANAGED_CONFIRMATION_OPTIONS.slice()
 					: state.options
 						? state.options.slice()
@@ -484,8 +484,8 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
-	 * user selected "Allow in this Session": persist a sandbox opt-out for
-	 * escapes, or a tool permission for ordinary confirmations.
+	 * user selected "Allow in this Session": persist ordinary tool permissions.
+	 * Sandbox opt-outs are authorized by the provider's pending-request flow.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {
@@ -495,10 +495,6 @@ export class SessionPermissionManager extends Disposable {
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
 			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
 			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {
-				const policy = this._configService.getSessionSandboxPolicy(sessionKey);
-				if (!policy?.enabled || policy.allowBypass) {
-					this._configService.updateSessionConfig(sessionKey, { [SessionConfigKey.SandboxEnabled]: 'off' });
-				}
 				return;
 			}
 			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);

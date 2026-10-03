@@ -68,6 +68,7 @@ import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -161,7 +162,6 @@ async function startAgentHost(): Promise<void> {
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
-		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 		getGitHubIdentityApiBase = () => runtimeServices.gitHubEndpoints.getApiBaseUri();
 		onDidChangeGitHubIdentityAuthority = runtimeServices.gitHubEndpoints.onDidChange;
 		sessionDataService = runtimeServices.sessionData;
@@ -213,6 +213,7 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		disposables.dispose();
@@ -584,10 +585,13 @@ async function startAgentHost(): Promise<void> {
 	// Startup is complete once the last ingress has settled — successfully or
 	// not, since a failed WebSocket server is non-fatal. Deferred maintenance
 	// then runs after a client has also been served its first session listing.
+	let startupOutcome: 'success' | 'error' = 'success';
 	void configuredWebSocketServerStart.catch(err => {
+		startupOutcome = 'error';
 		logService.error('Failed to start WebSocket server', err);
 	}).finally(() => {
-		agentService.markStartupComplete();
+		agentService.markStartupComplete(startupOutcome);
+		markNodeCompileCacheReady(message => logService.info(message));
 	});
 
 	process.once('exit', () => {

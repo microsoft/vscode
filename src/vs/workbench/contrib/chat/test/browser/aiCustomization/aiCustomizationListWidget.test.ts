@@ -6,25 +6,28 @@
 import assert from 'assert';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationCardLayout, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
-import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
+import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getCollapsedCustomizationGroupKey, getCustomizationItemAriaLabel, getTargetedCreateActionLabel, usesCustomizationTreePresentation } from '../../../browser/aiCustomization/aiCustomizationListWidget.js';
+import { AICustomizationItemNormalizer, IAICustomizationListItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
-import { extractExtensionIdFromPath, getCustomizationSecondaryText, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
+import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -43,14 +46,12 @@ suite('aiCustomizationListWidget', () => {
 			instructions: usesCustomizationTreePresentation(AICustomizationManagementSection.Instructions),
 			hooks: usesCustomizationTreePresentation(AICustomizationManagementSection.Hooks),
 			prompts: usesCustomizationTreePresentation(AICustomizationManagementSection.Prompts),
-			promptsKeepCardLayout: usesCustomizationCardLayout(AICustomizationManagementSection.Prompts),
 		}, {
 			agents: true,
 			skills: true,
 			instructions: true,
 			hooks: true,
-			prompts: false,
-			promptsKeepCardLayout: true,
+			prompts: true,
 		});
 	});
 
@@ -192,7 +193,7 @@ suite('aiCustomizationListWidget', () => {
 			uri: URI.file('Q:\\workspace\\.github\\prompts\\review.prompt.md'),
 			name: 'review',
 			displayName: 'Review',
-			filename: 'review.prompt.md',
+			filename: '.github\\prompts\\review.prompt.md',
 			description: 'Review the current changes',
 			source: PromptsStorage.local,
 			promptType: PromptsType.prompt,
@@ -200,7 +201,7 @@ suite('aiCustomizationListWidget', () => {
 			status: 'degraded',
 		};
 
-		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. Review the current changes. Needs attention');
+		assert.strictEqual(getCustomizationItemAriaLabel(item), 'Review. .github\\prompts\\review.prompt.md. Needs attention');
 	});
 
 	test('virtualized row actions use a focused-row tab stop and skip disabled controls', () => {
@@ -474,10 +475,36 @@ suite('aiCustomizationListWidget', () => {
 			);
 		});
 
-		test('truncates non-hook descriptions to the first line', () => {
+		suite('splitPathLabel', () => {
+			test('keeps the filename visible after a path separator', () => {
+				assert.deepStrictEqual({
+					posix: splitPathLabel('.github/prompts/deeply/nested/review.prompt.md'),
+					windows: splitPathLabel('.github\\prompts\\deeply\\nested\\review.prompt.md'),
+					filename: splitPathLabel('review.prompt.md'),
+				}, {
+					posix: {
+						prefix: '.github/prompts/deeply/nested',
+						suffix: '/review.prompt.md',
+						suffixOffset: 29,
+					},
+					windows: {
+						prefix: '.github\\prompts\\deeply\\nested',
+						suffix: '\\review.prompt.md',
+						suffixOffset: 29,
+					},
+					filename: {
+						prefix: '',
+						suffix: 'review.prompt.md',
+						suffixOffset: 0,
+					},
+				});
+			});
+		});
+
+		test('shows the file location for non-hook customizations', () => {
 			assert.strictEqual(
-				getCustomizationSecondaryText('Show the first line.\nHide the rest.', 'prompt.md', PromptsType.prompt),
-				'Show the first line.'
+				getCustomizationSecondaryText('Prompt description', '.github/prompts/review.prompt.md', PromptsType.prompt),
+				'.github/prompts/review.prompt.md'
 			);
 		});
 
@@ -487,6 +514,25 @@ suite('aiCustomizationListWidget', () => {
 				'prompt.md'
 			);
 		});
+	});
+
+	test('normalizes remote workspace customization locations through the label service', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI, options?: Parameters<ILabelService['getUriLabel']>[1]): string {
+				return `${options?.relative ? 'relative' : 'absolute'}:${resource.path}`;
+			}
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, new class extends mock<IProductService>() { }());
+		const item = normalizer.normalizeItem({
+			uri: URI.parse('vscode-remote://ssh-remote+host/workspace/.github/prompts/review.prompt.md'),
+			type: PromptsType.prompt,
+			name: 'Review',
+			source: PromptsStorage.local,
+			extensionId: undefined,
+			pluginUri: undefined,
+		}, PromptsType.prompt);
+
+		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
 	});
 
 	suite('extractExtensionIdFromPath', () => {
@@ -575,10 +621,13 @@ suite('aiCustomizationListWidget', () => {
 		let instaService: TestInstantiationService;
 		const searchBarHeight = 40;
 		const headerHeight = 30;
+		const searchBarMargin = 16;
 		const setLayoutHeights = (widget: AICustomizationListWidget, clientHeight: number): void => {
 			Object.defineProperty(widget.element, 'clientHeight', { configurable: true, value: clientHeight });
 			Object.defineProperty(widget.element.querySelector('.list-search-and-button-container')!, 'offsetHeight', { configurable: true, value: searchBarHeight });
 			Object.defineProperty(widget.element.querySelector('.section-title-header')!, 'offsetHeight', { configurable: true, value: headerHeight });
+			Object.defineProperty(widget.element, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: 0 }) });
+			Object.defineProperty(widget.element.querySelector('.list-container')!, 'getBoundingClientRect', { configurable: true, value: () => DOMRect.fromRect({ y: headerHeight + searchBarHeight + searchBarMargin }) });
 		};
 
 		const descriptor: IHarnessDescriptor = {
@@ -653,6 +702,9 @@ suite('aiCustomizationListWidget', () => {
 				onWillExecuteCommand: Event.None,
 				onDidExecuteCommand: Event.None,
 			});
+			instaService.stub(ICustomizationMarketplaceService, {
+				sources: [],
+			});
 
 			// The widget reads items from the items model; stub it with empty
 			// per-section observables. This avoids needing to wire up the full
@@ -683,7 +735,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '430px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '414px');
 		});
 
 		test('falls back to supplied layout height when rendered container height is 0', () => {
@@ -695,7 +747,7 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(900, 320);
 
-			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '830px');
+			assert.strictEqual(widget.element.querySelector<HTMLElement>('.list-container')!.style.height, '814px');
 		});
 
 		test('instruction rows use an overflow menu without loaded status or targeting badges', async () => {
@@ -703,7 +755,7 @@ suite('aiCustomizationListWidget', () => {
 				id: 'instruction',
 				uri: URI.file('Q:\\workspace\\.github\\instructions\\typescript.instructions.md'),
 				name: 'TypeScript',
-				filename: 'typescript.instructions.md',
+				filename: '.github\\instructions\\typescript.instructions.md',
 				description: 'TypeScript instructions',
 				source: PromptsStorage.local,
 				promptType: PromptsType.instructions,
@@ -732,20 +784,167 @@ suite('aiCustomizationListWidget', () => {
 				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
 				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
 				descriptionDisplay: row?.querySelector<HTMLElement>('.item-description')?.style.display,
-				workspaceTabSelected: widget.element.querySelector('.customization-tree-tab.checked')?.getAttribute('aria-selected'),
+				secondaryText: row?.querySelector<HTMLElement>('.item-description')?.textContent,
+				usesHookSecondaryTextStyling: !row?.querySelector<HTMLElement>('.item-description')?.classList.contains('is-filename'),
 			}, {
 				badgeDisplay: 'none',
 				statusDisplay: 'none',
 				hasOverflowAction: true,
 				descriptionDisplay: '',
-				workspaceTabSelected: 'true',
+				secondaryText: '.github\\instructions\\typescript.instructions.md',
+				usesHookSecondaryTextStyling: true,
 			});
 		});
 
-		test('tree layout replaces rows when switching customization pages', async () => {
-			instaService.stub(IConfigurationService, new TestConfigurationService({
-				[ChatConfiguration.ChatCustomizationsListLayout]: 'tree',
-			}));
+		test('hook rows use an overflow menu without loaded status and keep commands separate from recycled path labels', async () => {
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [{
+				id: 'prompt',
+				uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+				name: 'Review',
+				filename: '.github/prompts/review.prompt.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.prompt,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Prompts);
+			items.set([{
+				id: 'hook',
+				uri: URI.file('/workspace/.github/hooks/hooks.json'),
+				name: 'Pre Tool Use',
+				filename: '.github/hooks/hooks.json',
+				description: 'npm run lint',
+				source: PromptsStorage.local,
+				promptType: PromptsType.hook,
+				disabled: false,
+				status: 'loaded',
+			}], undefined);
+			widget.layout(800, 500);
+
+			const row = widget.element.querySelector('.ai-customization-list-item');
+			assert.deepStrictEqual({
+				statusDisplay: row?.querySelector<HTMLElement>('.item-status-icon')?.style.display,
+				hasOverflowAction: !!row?.querySelector('.item-right .codicon-ellipsis'),
+				command: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.textContent,
+				commandDisplay: row?.querySelector<HTMLElement>('.item-description > .monaco-highlighted-label')?.style.display,
+				pathDisplay: row?.querySelector<HTMLElement>('.item-path')?.style.display,
+			}, {
+				statusDisplay: 'none',
+				hasOverflowAction: true,
+				command: 'npm run lint',
+				commandDisplay: '',
+				pathDisplay: 'none',
+			});
+		});
+
+		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
+			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
+			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
+			const themeChanges = disposables.add(new Emitter<ReturnType<IThemeService['getColorTheme']>>());
+			let themeType = ColorScheme.DARK;
+			instaService.stub(IThemeService, new class extends mock<IThemeService>() {
+				override readonly onDidColorThemeChange = themeChanges.event;
+				override getColorTheme() { return { type: themeType } as ReturnType<IThemeService['getColorTheme']>; }
+			}());
+			const marketplaceItem: IAICustomizationListItem = {
+				id: 'marketplace',
+				uri: marketplaceUri,
+				name: 'Marketplace Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+				marketplace: {
+					resource: {
+						sourceId: 'testSource',
+						identifier: 'marketplace',
+						displayName: 'Marketplace Skill',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.Skill,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						icon: {
+							light: URI.parse('https://example.com/skill-light.png'),
+							dark: URI.parse('https://example.com/skill-dark.png'),
+						},
+					},
+					state: { kind: 'installed', target: { kind: 'skill', uri: marketplaceUri } },
+				},
+			};
+			const plainItem: IAICustomizationListItem = {
+				id: 'plain',
+				uri: plainUri,
+				name: 'Plain Skill',
+				filename: 'SKILL.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [marketplaceItem, plainItem]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 2),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const rows = [...widget.element.querySelectorAll<HTMLElement>('.ai-customization-list-item')];
+			const withMarketplaceIcon = widget.element.classList.contains('show-item-type-icons');
+			const readIconState = () => rows.map(row => {
+				const icon = row.querySelector<HTMLElement>('.item-type-icon')!;
+				return {
+					name: row.querySelector('.item-name')?.textContent,
+					image: icon.querySelector<HTMLImageElement>('img')?.src,
+					fallbackDisplay: icon.querySelector<HTMLElement>('.codicon')?.style.display,
+					visibleChildren: [...icon.children].filter(child => !(child instanceof HTMLElement) || !child.hidden).length,
+				};
+			});
+			const darkIconState = readIconState();
+			themeType = ColorScheme.LIGHT;
+			themeChanges.fire({ type: themeType } as ReturnType<IThemeService['getColorTheme']>);
+			const lightIconState = readIconState();
+			items.set([plainItem], undefined);
+
+			assert.deepStrictEqual({
+				withMarketplaceIcon,
+				darkIconState,
+				lightIconState,
+				withoutMarketplaceIcon: widget.element.classList.contains('show-item-type-icons'),
+			}, {
+				withMarketplaceIcon: true,
+				darkIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-dark.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				lightIconState: [
+					{ name: 'Marketplace Skill', image: 'https://example.com/skill-light.png', fallbackDisplay: 'none', visibleChildren: 1 },
+					{ name: 'Plain Skill', image: undefined, fallbackDisplay: '', visibleChildren: 1 },
+				],
+				withoutMarketplaceIcon: false,
+			});
+		});
+
+		test('replaces tree rows when switching customization pages', async () => {
 			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
 				id: 'agent-one',
 				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
@@ -872,7 +1071,6 @@ suite('aiCustomizationListWidget', () => {
 				list.dispatchEvent(new FocusEvent('focus'));
 				const focusedList = listService.lastFocusedList;
 				assert(focusedList);
-				await focusedList.focusNext(1, false, new KeyboardEvent('keydown'));
 				const activeDescendant = list.getAttribute('aria-activedescendant');
 				const focusedRow = activeDescendant ? document.getElementById(activeDescendant) : undefined;
 
@@ -888,7 +1086,7 @@ suite('aiCustomizationListWidget', () => {
 			});
 		}
 
-		test('async section rerenders update the selected group tree', async () => {
+		test('async section rerenders update the grouped tree', async () => {
 			const items = observableValue<readonly IAICustomizationListItem[]>('test', []);
 			let completeLoading!: () => void;
 			const loading = new Promise<void>(resolve => completeLoading = resolve);
@@ -930,25 +1128,14 @@ suite('aiCustomizationListWidget', () => {
 
 			widget.layout(500, 800);
 
-			const tabs = Array.from(widget.element.querySelectorAll<HTMLElement>('.customization-tree-tab'), tab => ({
-				label: tab.firstChild?.textContent,
-				count: tab.querySelector('.customization-tab-count')?.textContent,
-				selected: tab.getAttribute('aria-selected'),
-			}));
-			const workspaceRowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
-			widget.element.querySelectorAll<HTMLElement>('.customization-tree-tab')[1].click();
-			const userRowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
+			const groups = Array.from(widget.element.querySelectorAll<HTMLElement>('.group-label'), label => label.textContent);
+			const rowCount = widget.element.querySelectorAll('.list-container .ai-customization-list-item').length;
 			assert.deepStrictEqual({
-				tabs,
-				workspaceRowCount,
-				userRowCount,
+				groups,
+				rowCount,
 			}, {
-				tabs: [
-					{ label: 'Workspace', count: '4', selected: 'true' },
-					{ label: 'User', count: '2', selected: 'false' },
-				],
-				workspaceRowCount: 4,
-				userRowCount: 2,
+				groups: ['User', 'Workspace'],
+				rowCount: 6,
 			});
 		});
 	});

@@ -96,6 +96,35 @@ suite('CustomizationMarketplaceIpc', () => {
 		assert.strictEqual(CUSTOMIZATION_MARKETPLACE_CHANNEL_NAME, 'customizationMarketplace');
 	});
 
+	test('the native public-feed client never forwards authenticated connector source IDs', async () => {
+		const requests: ICustomizationMarketplaceRequest[] = [];
+		const server = new CustomizationMarketplaceChannel(() => ({
+			async query(options) {
+				requests.push(options);
+				return { items: [] };
+			},
+		}));
+		const configuration = new TestConfigurationService({
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled]: true,
+		});
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const client = new CustomizationMarketplaceChannelClient({
+			call: (command, options, token) => server.call('test', command, options, token),
+			listen: () => Event.None,
+		}, configuration);
+		await assert.rejects(client.query({}, CancellationToken.None), isCancellationError);
+		await configuration.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, true);
+		await client.query({}, CancellationToken.None);
+		assert.deepStrictEqual({
+			sources: client.sources,
+			requests,
+		}, {
+			sources: [CustomizationMarketplaceSources.AgentFinderPublicFeed],
+			requests: [{ sourceIds: ['agentFinder'] }],
+		});
+	});
+
 	test('forwards only the selected enabled source', async () => {
 		const secondSetting = 'test.marketplace.second.enabled';
 		const calls: ICustomizationMarketplaceRequest[] = [];
@@ -233,6 +262,7 @@ suite('CustomizationMarketplaceIpc', () => {
 				url: URI.parse(externalUrl),
 				externalUrl,
 				repository: URI.parse('https://github.com/Owner/Repository'),
+				readmeUri: URI.parse('https://raw.githubusercontent.com/Owner/Repository/main/README.md'),
 				icon: URI.parse('https://github.com/Owner.png?size=64'),
 				publisher: 'Owner',
 				version: '1.0',
@@ -246,12 +276,46 @@ suite('CustomizationMarketplaceIpc', () => {
 
 		assert.deepStrictEqual({
 			page: result,
-			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].icon].map(uri => uri instanceof URI),
+			uriInstances: [result.items[0].url, result.items[0].repository, result.items[0].readmeUri, result.items[0].icon].map(uri => uri instanceof URI),
 			externalUrl: result.items[0].externalUrl,
 		}, {
 			page,
-			uriInstances: [true, true, true],
+			uriInstances: [true, true, true, true],
 			externalUrl,
+		});
+	});
+
+	test('revives light and dark icon URI bundles', async () => {
+		const page: ICustomizationMarketplacePage = {
+			items: [{
+				sourceId: 'testSource',
+				identifier: 'themed',
+				displayName: 'Themed',
+				description: '',
+				mediaType: CustomizationMarketplaceMediaType.McpServer,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				icon: {
+					light: URI.parse('https://example.com/light.png'),
+					dark: URI.parse('https://example.com/dark.png'),
+				},
+			}],
+		};
+		const client = createClient({ query: async () => page });
+		const result = await client.query({}, CancellationToken.None);
+		const icon = result.items[0].icon;
+
+		assert.deepStrictEqual(URI.isUri(icon) ? undefined : {
+			light: icon?.light instanceof URI,
+			dark: icon?.dark instanceof URI,
+			lightUri: icon?.light.toString(),
+			darkUri: icon?.dark.toString(),
+		}, {
+			light: true,
+			dark: true,
+			lightUri: 'https://example.com/light.png',
+			darkUri: 'https://example.com/dark.png',
 		});
 	});
 
@@ -310,6 +374,7 @@ suite('CustomizationMarketplaceIpc', () => {
 		const installations: CustomizationMarketplaceInstallation[] = [
 			{ kind: 'skill', repository: 'ChromeDevTools/chrome-devtools-mcp', ref: 'release/next', path: 'skills/a11y-debugging' },
 			{ kind: 'plugin', repository: 'JetBrains/go-modern-guidelines', ref: 'v1.2.3', path: '' },
+			{ kind: 'configuredPlugin' },
 			{ kind: 'mcp', name: 'ai.bittlebits/bittlebits', version: '1.0.0' },
 		];
 		const page: ICustomizationMarketplacePage = {

@@ -66,6 +66,8 @@ The view service:
 
 It delegates model lifecycle operations to `ISessionsManagementService`.
 
+Visible-session slots have stable identities independent of list position. The view service coordinates membership, activation, directional placement, cancellation, and persisted leaf bindings; the Sessions Part owns rendering and split geometry. Explicit batch opening resolves and prepares its sessions before committing a visibility change. Geometry and layout operations remain independent of providers and comparison membership. See [LAYOUT.md](LAYOUT.md#sessions-part) for the grid and restoration contract.
+
 ### Scoped session context
 
 Surfaces that can represent a session other than the window-global active session use `ISessionContext`. Commands and menus resolve their target through that scope rather than assuming the active session.
@@ -77,6 +79,8 @@ Provider-neutral interfaces live in `services/sessions/common/session.ts`.
 ### Identity
 
 An `ISession` has a provider-owned resource URI, provider identifier, session type, and globally unique session identifier. An `IChat` has its own provider-owned resource URI. Consumers compare resource identity and do not parse provider URI formats.
+
+Providers also supply independent harness and environment identifiers, plus observable creating-application metadata. These are presentation identities, not routing identities. Application metadata can arrive after discovery, but adopting or opening a session does not change its creating application. Agent hosts persist the initiating client's identity, including the Editor/Agents Window distinction; providers may combine those clients into one application filter.
 
 ### Observable state
 
@@ -105,13 +109,15 @@ Chat origin and interactivity describe whether a chat is user-created, tool-crea
 
 `ISession.workspace` describes the complete workspace in which a session operates. `IChat.workspace` describes the effective workspace available to that chat and may be a subset of the session workspace. Each folder of a chat's workspace reports that folder's own repository and pull request information, so chats sharing a folder share its pull requests. Each folder also has its own Agent Merge settings: Agent Merge actions and indicators for the focused conversation follow the folder `IActiveSession.activeChat` works in, while session-wide surfaces such as the sessions list use the session folder (the main chat's). A folder that is a VS Code-created worktree (`<repo>.worktrees/<name>`) reports its repository as the folder's project, so a chat working in such a worktree shows that project. Filesystem-facing UI and actions for the focused conversation use `IActiveSession.activeChat.workspace`; session lifecycle, creation, and list presentation continue to use the aggregate session workspace. In the compact sessions list, a chat row shows the folder its chat works in, on hover or focus, when the session spans more than one project and the chat works in exactly one folder. A quick chat is workspace-less by product intent and is identified through `ISession.isQuickChat`. An absent workspace alone does not prove that a session is a quick chat because workspace state may still be hydrating.
 
+`ISessionsRecentWorkspacesService` owns persistent workspace dismissals shared by the new-session pickers. Provider-derived workspaces require a non-archived, non-external session; dismissals also prevent automatic selection and survive provider refreshes and reloads. Only a successful send from the new-session composer clears a dismissal, using the selected workspace captured before session preparation; browsing or sessions created elsewhere do not clear it.
+
 ### Capabilities
 
 Capabilities describe operations supported by the backing provider and remain observable when support may change during hydration. Provider-specific checks belong in the provider; shared services and UI consume the capability contract.
 
 ### Changes
 
-Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
+Sessions expose compact aggregate change summaries; chats own file changes and selectable changeset catalogues. Chats may also expose a compact, provider-scoped `changesSummary`, which session lists read without loading chat details or changesets. A provider may project a session-owned changeset into each chat catalogue, using the changeset resource to identify equivalent projections across chats. Every chat publishes a changeset observable; `undefined` means its catalogue has not been published yet and an empty array is an authoritative empty catalogue. The Changes editor shows the active chat's catalogue, including projected session-owned entries, and preserves its order. Transport, reconciliation, and backend metadata stay in the provider. Presentation stays in the owning changes and layout contributions.
 
 Features may extend individual changeset operation descriptors through contribution-owned contracts, keeping feature-specific capabilities out of `ISessionChangeset`. The Changes contribution defines the Create PR operation's preparation and submission contract and owns its form; providers attach that capability only to supported operations and own generation, creation, and transport. Preparation is read-only and returns repository and branch identity for submission to revalidate before mutations. Submission uses confirmed values, saving any Agent Merge configuration as session-only overrides after creation.
 
@@ -123,9 +129,13 @@ Turn-level file changes route through `IChatResponseFileChangesService`. The edi
 
 Sessions may expose the artifacts and references recorded by the agent. Both share one session-scoped observable and are told apart by `isArtifact`: an artifact is something the session produced that is not an ordinary workspace edit, while a reference is something it only points the user at. Consumers that surface one category must filter on that field rather than assuming the observable holds artifacts alone. Chats may expose the customizations used or read during their turns; these are chat-scoped. Providers that cannot determine either may omit the corresponding observable.
 
+The Agents Window and editor-window Agent Host inputs use the same workbench-owned pill catalog, renderer, customization presentation, and subagent grouping and filtering. Surface adapters supply session state and navigation, not separate pill implementations or visibility preferences.
+
 Providers may advertise `supportsRemoveArtifacts` and implement `removeSessionArtifact`. User-initiated removal routes through `ISessionsManagementService` to the owning provider, which persists and publishes the updated artifact list. Removing a record does not remove independent session associations or alter the linked resource.
 
-Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside the repository-discovered associations of the focused chat's workspace (or the session workspace for session-wide consumers). A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. References retain their optional recorded-reference ID; presentation uses that ID for per-item removal and never infers record identity from a title or URL.
+Chats may expose server-published live canvases through an observable provider-neutral collection when the owning provider permits canvas presentation for that session. Each chat discovers membership from its advertised canvas channel references; each subscribed channel supplies presentation metadata and an optional live HTTP(S) source. Unknown membership is distinct from an authoritative empty collection, and pending canvas state retains its resource without a source. The local Agent Host provider enables presentation only for durable Copilot sessions, while ephemeral and remote sessions expose no canvas capability. Canvas execution and presentation continue to follow the existing canvas enablement setting. Closing presentation dismisses that canvas lifetime without invoking provider operations. Metadata and source updates do not reopen a dismissed canvas. Canvas membership and sources are not persisted across restarts.
+
+Recorded GitHub issue and pull request artifacts are resolved from `ISession.artifacts` independently of workspace or repository availability, alongside repository-discovered associations. Chat-scoped surfaces use records owned by the focused chat plus unowned session records, while session-wide consumers use the aggregate; repository associations follow the focused chat's workspace or the session workspace respectively. Recorded references never enter the dedicated pull request and issue pills, even when a provider echoes them into its GitHub metadata; they always stay in the references pill. A chat's pull request pill shows the pull requests of its folders' repositories; recorded pull requests from other repositories remain in the artifacts list. The dedicated pills, artifact de-duplication, and pull-request polling share this resolution. Promoted entries retain their optional recorded-reference ID; presentation uses that ID for per-item removal, names the removal after whether the record is an artifact or a reference, and never infers record identity from a title or URL.
 
 ## Provider contract
 
@@ -136,6 +146,7 @@ Recorded GitHub issues and pull requests are resolved from `ISession.artifacts` 
 A provider exposes:
 
 - stable identity and presentation metadata;
+- an environment identifier and display name, with observable connectivity for remote environments; multiple providers may share an environment;
 - supported session types and their changes;
 - the current session catalog and catalog changes;
 - workspace browsing and resolution;
@@ -145,7 +156,7 @@ Catalog events distinguish added, removed, and changed facades. Facade replaceme
 
 A provider that supersedes sessions from another provider may implement `resolveSessionResource`. Open paths use this hook to redirect persisted or linked resources before lookup. Providers decline unfamiliar resources, in which case callers retain the original resource.
 
-A provider that must establish backend state before presenting a session may implement `prepareSessionForOpen`. Explicit opens await preparation; startup restoration invokes it asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
+A provider that must establish backend state for an existing session may implement `prepareSessionForOpen`. Ordinary single-session opens activate and present the session while preparation is pending, allowing its loading and connection state to render; they still await preparation before completing. Providers must not rely on preparation completing before presentation. Open-to-side and batch grid operations await preparation before committing their visibility changes. Startup restoration invokes preparation asynchronously only for the active session so inactive restored slots stay lazy and one slow provider cannot block the grid.
 
 ### Drafts
 
@@ -153,7 +164,7 @@ A provider that must establish backend state before presenting a session may imp
 
 An editor-window draft handoff fills the existing New Session composer only when its input and attachments are empty. The handoff preserves occupied live or restored drafts, including their workspace, and yields to newer input or navigation while awaiting setup or workspace creation. It never sends a request or clears the source editor's draft.
 
-The product protocol link `<product-protocol>://agents/new?workspace=<encoded URI>&prompt=<encoded text>` opens the Agents Window and applies its workspace and prompt through the same draft handoff. Opening the link never submits the prompt, and an occupied composer remains unchanged.
+The product protocol link `<product-protocol>://agents/new?prompt=<encoded text>&workspace=<optional encoded URI>` opens the Agents Window and applies its prompt and optional workspace through the same draft handoff. When `workspace` is omitted, the handoff explicitly selects No Workspace. Opening the link never submits the prompt, and an occupied composer remains unchanged.
 
 Automation editing uses an independent draft so it cannot replace the ordinary New Session composer. Providers advertise `supportsAutomationSessionConfiguration` when they restore `ISessionsProviderCreateSessionOptions.automationConfiguration` before the draft's first configuration resolution and implement `getAutomationSessionConfiguration` to capture the current template. The management service rejects canonical templates for providers without this capability, while deprecated flat aliases continue through ordinary model, mode, and permission operations. It distinguishes unsupported capture from a valid empty template, a replaced draft, and capture failure.
 
@@ -161,7 +172,7 @@ Provider-specific configuration remains opaque to shared Sessions code. Scoped A
 
 ### Operations
 
-Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, and chat creation. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
+Providers implement only operations advertised by their contracts, including request sending, model selection, rename, archive, read state, deletion, chat creation, and optional worktree disk-usage measurement. Shared cleanup UI consumes the optional measurement through the management service and remains independent of provider transport or filesystem details. Capability checks happen before invocation. Once invoked, an operation returns a defined result or rejects; unsupported behavior must not be reported as a success-shaped fallback.
 
 ### Provider ownership
 

@@ -129,32 +129,43 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	}
 
 	registerAuthenticationProvider(id: string, label: string, provider: vscode.AuthenticationProvider, options?: vscode.AuthenticationProviderOptions): vscode.Disposable {
+		const disposables = new DisposableStore();
+		// Capture changes before queueing, but forward them only after the main thread acknowledges registration.
+		const bufferedSessionChanges = Event.buffer<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>(
+			listener => provider.onDidChangeSessions(listener), 'authentication provider registration', false, [], disposables);
+		const providerData: ProviderWithMetadata = { label, provider, disposable: disposables, options: options ?? { supportsMultipleAccounts: false } };
 		// register
 		void this._providerOperations.queue(id, async () => {
 			// This use to be synchronous, but that wasn't an accurate representation because the main thread
 			// may have unregistered the provider in the meantime. I don't see how this could really be done
 			// synchronously, so we just say first one wins.
 			if (this._authenticationProviders.get(id)) {
+				disposables.dispose();
 				this._logService.error(`An authentication provider with id '${id}' is already registered. The existing provider will not be replaced.`);
 				return;
 			}
-			const listener = provider.onDidChangeSessions(e => this._proxy.$sendDidChangeSessions(id, e));
-			this._authenticationProviders.set(id, { label, provider, disposable: listener, options: options ?? { supportsMultipleAccounts: false } });
-			await this._proxy.$registerAuthenticationProvider({
-				id,
-				label,
-				supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
-				supportedAuthorizationServers: options?.supportedAuthorizationServers,
-				supportsChallenges: options?.supportsChallenges
-			});
+			this._authenticationProviders.set(id, providerData);
+			try {
+				await this._proxy.$registerAuthenticationProvider({
+					id,
+					label,
+					supportsMultipleAccounts: options?.supportsMultipleAccounts ?? false,
+					supportedAuthorizationServers: options?.supportedAuthorizationServers,
+					supportsChallenges: options?.supportsChallenges
+				});
+				disposables.add(bufferedSessionChanges(e => this._proxy.$sendDidChangeSessions(id, e)));
+			} catch (error) {
+				disposables.dispose();
+				this._authenticationProviders.delete(id);
+				this._logService.error(`Failed to register authentication provider '${id}'.`, error);
+			}
 		});
 
 		// unregister
 		return new Disposable(() => {
 			void this._providerOperations.queue(id, async () => {
-				const providerData = this._authenticationProviders.get(id);
-				if (providerData) {
-					providerData.disposable?.dispose();
+				if (this._authenticationProviders.get(id) === providerData) {
+					disposables.dispose();
 					this._authenticationProviders.delete(id);
 					await this._proxy.$unregisterAuthenticationProvider(id);
 				}

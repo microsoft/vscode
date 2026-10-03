@@ -89,6 +89,10 @@ const toolIdsThatCannotBeAutoApproved = new Set([
 	'vscode_get_modified_files_confirmation',
 ]);
 
+const toolIdsThatAlwaysRequireConfirmation: ReadonlySet<string> = new Set([
+	TerminalToolId.CreateAndRunTask,
+]);
+
 // Fetch uses two tools: the model-facing 'copilot_fetchWebPage' and the internal
 // 'vscode_fetchWebPage_internal' it delegates to. Both auto-approve themselves, so the Autopilot
 // risk gate classifies them to catch dangerous fetches (leaking secrets to an attacker URL,
@@ -435,12 +439,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (toolData) {
 			if (pendingInvocation) {
 				pendingInvocation.presentation = ToolInvocationPresentation.Hidden;
-				pendingInvocation.cancelFromStreaming(ToolConfirmKind.Denied, reason);
+				pendingInvocation.cancelFromStreaming({ type: ToolConfirmKind.Denied, source: 'hook' }, reason);
 			} else if (request) {
 				const cancelledInvocation = ChatToolInvocation.createCancelled(
 					{ toolCallId: dto.callId, toolId: dto.toolId, toolData, subagentInvocationId: dto.subAgentInvocationId, chatRequestId: dto.chatRequestId },
 					dto.parameters,
-					ToolConfirmKind.Denied,
+					{ type: ToolConfirmKind.Denied, source: 'hook' },
 					reason
 				);
 				cancelledInvocation.presentation = ToolInvocationPresentation.Hidden;
@@ -623,8 +627,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				// invocation never briefly enters `WaitingForConfirmation`. A
 				// preToolUse hook that returned `ask` explicitly forces a
 				// confirmation, so never let `preApproved` override it.
-				const preResolvedAutoConfirmed = resolvedAutoConfirmed
-					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
+				const preResolvedAutoConfirmed = toolIdsThatAlwaysRequireConfirmation.has(tool.data.id)
+					? undefined
+					: resolvedAutoConfirmed ?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
 
 				// In Autopilot, run the risk classifier on an auto-approved call that would
 				// otherwise show a confirmation. A "red" rating skips the call; anything else
@@ -656,7 +661,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				// suppresses its own confirmation under Autopilot and never reaches it. The tool
 				// is not run, and an info note explains why.
 				if (riskSkipExplanation) {
-					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped });
+					this._logToolApprovalTelemetry(tool, dto, { type: ToolConfirmKind.Skipped, source: 'riskAssessment' });
 					// Terminal and edit tools hide their invocation part once complete, so show the
 					// reason as a separate info note.
 					this._chatService.appendProgress(request, {
@@ -707,8 +712,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const { autoConfirmed: fallbackAutoConfirmed, preparedInvocation: updatedPreparedInvocation } = await this.resolveAutoConfirmFromHook(preToolUseHookResult, tool, dto, preparedInvocation, undefined);
 				preparedInvocation = updatedPreparedInvocation;
-				const autoConfirmed = fallbackAutoConfirmed
-					?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
+				const autoConfirmed = toolIdsThatAlwaysRequireConfirmation.has(tool.data.id)
+					? undefined
+					: fallbackAutoConfirmed ?? (preToolUseHookResult?.permissionDecision === 'ask' ? undefined : dto.preApproved);
 				if (preparedInvocation?.confirmationMessages?.title && !autoConfirmed) {
 					const result = await this._dialogService.confirm({ message: renderAsPlaintext(preparedInvocation.confirmationMessages.title), detail: renderAsPlaintext(preparedInvocation.confirmationMessages.message!) });
 					if (!result.confirmed) {
@@ -1022,7 +1028,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const fallbackExplanation = localize('autopilotRiskSkipFallback', "The action was assessed as potentially destructive or irreversible.");
 				const explanation = assessment.explanation.trim() || fallbackExplanation;
 				this._logService.info(`[LanguageModelToolsService#invokeTool] Autopilot skipping high-risk tool ${tool.data.id}: ${explanation}`);
-				return { autoConfirmed: { type: ToolConfirmKind.Skipped }, skipExplanation: explanation };
+				return { autoConfirmed: { type: ToolConfirmKind.Skipped, source: 'riskAssessment' }, skipExplanation: explanation };
 			}
 		} catch (err) {
 			this._logService.warn(`[LanguageModelToolsService#invokeTool] Autopilot risk assessment failed for tool ${tool.data.id}, allowing: ${toErrorMessage(err)}`);
@@ -1352,8 +1358,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 		if (toolIdsThatCannotBeAutoApproved.has(toolData.id)) {
-			// Special case, this tool will always require user confirmation as there are multiple options,
-			// These aren't LM generated instead are generated by extension before agentic loop starts.
 			return false;
 		}
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
@@ -1385,6 +1389,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown, chatSessionResource: URI | undefined, chatRequestId: string | undefined, combination?: { label: string; key: string }, workingDirectory?: URI): Promise<ConfirmedReason | undefined> {
 		const tool = this._tools.get(toolId);
 		if (!tool) {
+			return undefined;
+		}
+
+		if (toolIdsThatAlwaysRequireConfirmation.has(tool.data.id)) {
 			return undefined;
 		}
 

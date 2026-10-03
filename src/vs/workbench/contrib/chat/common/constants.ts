@@ -26,12 +26,6 @@ export const enum BYOKUtilityModelDefault {
 	Copilot = 'copilot',
 }
 
-export const enum CustomizationMigrationHintMode {
-	Never = 'never',
-	Once = 'once',
-	Always = 'always',
-}
-
 export enum ChatConfiguration {
 	PluginsEnabled = 'chat.plugins.enabled',
 	PluginLocations = 'chat.pluginLocations',
@@ -76,6 +70,7 @@ export enum ChatConfiguration {
 	InlineChatAgentHostEnabled = 'chat.inlineChat.agentHost.enabled',
 	CollapseCompletedResponses = 'chat.agent.collapseCompletedResponses',
 	SimpleTerminalCollapsible = 'chat.tools.terminal.simpleCollapsible',
+	TerminalOutputReflow = 'chat.tools.terminal.outputReflow',
 	CompressOutputEnabled = 'chat.tools.compressOutput.enabled',
 	ThinkingPhrases = 'chat.agent.thinking.phrases',
 	AutoExpandToolFailures = 'chat.tools.autoExpandFailures',
@@ -97,7 +92,6 @@ export enum ChatConfiguration {
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
 	SubagentsDefaultToAuto = 'chat.subagents.defaultToAuto',
-	SubagentsUseRichRendering = 'chat.subagents.useRichRendering',
 	SubagentsShowCreditUsage = 'chat.subagents.showCreditUsage',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
@@ -113,18 +107,18 @@ export enum ChatConfiguration {
 	OpenInAgentsWindowRevealCurrentSession = 'chat.experimental.openInAgentsWindow.revealCurrentSession',
 	OpenInAgentsWindowTransferDraft = 'chat.experimental.openInAgentsWindow.transferDraft',
 	AgentsParallelWorkBannerEnabled = 'chat.agentsParallelWorkBanner.enabled',
+	CopilotHarnessIntroductionMode = 'chat.copilotHarnessIntroduction.mode',
+	HarnessSwitchFeedbackSurveyEnabled = 'chat.harnessSwitchFeedbackSurvey.enabled',
 
 	ChatCustomizationsStructuredPreviewEnabled = 'chat.customizations.structuredPreview.enabled',
-	ChatCustomizationsListLayout = 'chat.experimental.customizations.listLayout',
 	ChatCustomizationsToggleStyle = 'chat.experimental.customizations.toggleStyle',
 	ChatCustomizationsPromptMigrationEnabled = 'chat.customizations.promptMigration.enabled',
 	ChatCustomizationsUserDataMigrationEnabled = 'chat.customizations.userDataMigration.enabled',
 	ChatCustomizationsLocationsMigrationEnabled = 'chat.customizations.locationsMigration.enabled',
 	ChatCustomizationsMcpServerMigrationEnabled = 'chat.customizations.mcpServerMigration.enabled',
-	ChatCustomizationsMigrationHint = 'chat.customizations.migrationHint',
+	ChatCustomizationsMigrationEnabled = 'chat.customizations.migration.enabled',
 	AutopilotAdvancedEnabled = 'chat.autopilot.advanced.enabled',
 	DefaultPermissionLevel = 'chat.permissions.default',
-	PermissionsSandboxToggleEnabled = 'chat.experimental.permissionsSandboxToggle.enabled',
 	ExperimentalModePermissionsPicker = 'chat.experimentalModePermissionsPicker',
 	DefaultConfiguration = 'chat.defaultConfiguration',
 	DefaultModel = 'chat.defaultModel',
@@ -153,6 +147,21 @@ export enum ChatConfiguration {
 
 	CollectInstructionsInExtension = 'chat.experimental.collectInstructionsInExtension',
 	ImplicitContextActiveEditor = 'chat.implicitContext.includeActiveEditor',
+}
+
+export const CHAT_ATTACH_CONTEXT_ACTION_ID = 'workbench.action.chat.attachContext';
+
+export const enum CopilotHarnessIntroductionMode {
+	Off = 'off',
+	NewSession = 'newSession',
+	AfterRequest = 'afterRequest',
+}
+
+export function getCopilotHarnessIntroductionMode(configurationService: IConfigurationService): CopilotHarnessIntroductionMode {
+	const mode = configurationService.getValue<CopilotHarnessIntroductionMode>(ChatConfiguration.CopilotHarnessIntroductionMode);
+	return mode === CopilotHarnessIntroductionMode.NewSession || mode === CopilotHarnessIntroductionMode.AfterRequest
+		? mode
+		: CopilotHarnessIntroductionMode.Off;
 }
 
 export const enum ChatClosedPromoNotification {
@@ -256,11 +265,9 @@ export enum ThinkingDisplayMode {
 
 export enum ChatProgressAnimation {
 	Off = 'off',
-	Weave = 'weave',
 	Draw = 'draw',
-	Orbit = 'orbit',
-	Accordion = 'accordion',
-	Dial = 'dial',
+	DrawMonochrome = 'drawMonochrome',
+	DrawMonochromeNoIcon = 'drawMonochromeNoIcon',
 }
 
 export enum ChatProgressVerbosity {
@@ -399,6 +406,9 @@ export function isNewChatSessionTypeUsable(
 	agentHostEnabled = true,
 	managedSandboxEnforced = false,
 ): boolean {
+	if (chatSessionsService.getChatSessionContribution(sessionType)?.hideFromSessionTypePicker) {
+		return false;
+	}
 	if (sessionType === localChatSessionType) {
 		return isEditorLocalAgentEnabled(configurationService, workspace, agentHostEnabled && managedSandboxEnforced);
 	}
@@ -599,7 +609,8 @@ export function isVisibleEditorChatSessionType(
 		return false;
 	}
 
-	return !!chatSessionsService.getChatSessionContribution(sessionType);
+	const contribution = chatSessionsService.getChatSessionContribution(sessionType);
+	return !!contribution && !contribution.hideFromSessionTypePicker;
 }
 
 function getVisibleNonLocalEditorChatSessionTypes(
@@ -622,6 +633,8 @@ export const CHAT_SUBAGENT_RESOURCE_QUERY_PARAM = 'subagentChatResource';
 
 export const OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openWorkspaceInAgentsWindow';
 export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+/** Cumulative number of sessions started from the Agents Window, persisted in application storage. */
+export const AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY = 'agentSessions.telemetry.totalSessions';
 export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),

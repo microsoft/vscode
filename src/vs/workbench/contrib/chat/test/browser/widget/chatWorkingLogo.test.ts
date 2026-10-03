@@ -6,53 +6,23 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { retry } from '../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import { ChatWorkingLogo, ChatWorkingLogoMotion, ChatWorkingProgressLogo, getConfiguredProgressAnimation } from '../../../browser/widget/chatWorkingLogo.js';
+import { ChatWorkingLogo, ChatWorkingProgressLogo, getConfiguredProgressAnimation } from '../../../browser/widget/chatWorkingLogo.js';
+import { getChatWorkingLogoDrawFrame } from '../../../browser/widget/chatWorkingLogoDraw.js';
 import { ChatConfiguration, ChatProgressAnimation } from '../../../common/constants.js';
-
-function sampleOutline(face: HTMLElement): readonly { x: number; y: number }[] {
-	const svg = face.querySelector('svg');
-	const path = svg?.querySelector('path');
-	assert.ok(svg && path);
-	const box = svg.viewBox.baseVal;
-	const length = path.getTotalLength();
-	return Array.from({ length: 257 }, (_, index) => {
-		const point = path.getPointAtLength(length * index / 256);
-		return { x: (point.x - box.x) / box.width, y: (point.y - box.y) / box.height };
-	});
-}
-
-/** Projects the ribbon outline through its HTML transform and the logo's perspective. */
-function projectOutline(face: HTMLElement, outline: readonly { x: number; y: number }[], size: number, perspective: number, perspectiveOrigin: { x: number; y: number }): readonly { x: number; y: number }[] {
-	const style = mainWindow.getComputedStyle(face);
-	const [originX, originY, originZ = 0] = style.transformOrigin.split(' ').map(value => Number.parseFloat(value));
-	const matrix = new DOMMatrix(style.transform === 'none' ? undefined : style.transform);
-	return outline.map(point => {
-		const x = point.x * size - originX;
-		const y = point.y * size - originY;
-		const z = -originZ;
-		const w = matrix.m14 * x + matrix.m24 * y + matrix.m34 * z + matrix.m44;
-		const transformedX = matrix.m11 * x + matrix.m21 * y + matrix.m31 * z + matrix.m41 + originX * w;
-		const transformedY = matrix.m12 * x + matrix.m22 * y + matrix.m32 * z + matrix.m42 + originY * w;
-		const transformedZ = matrix.m13 * x + matrix.m23 * y + matrix.m33 * z + matrix.m43 + originZ * w;
-		const projectedW = w - transformedZ / perspective;
-		assert.ok(projectedW > 0, 'Ribbon crossed the perspective camera plane');
-		return {
-			x: perspectiveOrigin.x + (transformedX - perspectiveOrigin.x * w) / projectedW,
-			y: perspectiveOrigin.y + (transformedY - perspectiveOrigin.y * w) / projectedW,
-		};
-	});
-}
 
 suite('ChatWorkingLogo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-	const ribbonStudies: readonly ChatWorkingLogoMotion[] = ['ladder', 'carousel', 'piston', 'bridge', 'fan', 'comb', 'braid', 'sling', 'folio', 'helix'];
-	const alternatives: readonly ChatWorkingLogoMotion[] = ['aperture', 'accordion', 'dial', 'magnet', 'trace', 'pendulum', 'prism', ...ribbonStudies];
-	const motions: readonly ChatWorkingLogoMotion[] = ['fold', 'weave', 'weave-v', 'draw', 'relay', 'stack', 'orbit', 'shutter', ...alternatives];
+	const accessibilityService = new class extends TestAccessibilityService {
+		override isMotionReduced(): boolean { return false; }
+	}();
 
 	function createConfiguration() {
 		const configuration = new TestConfigurationService();
@@ -66,82 +36,135 @@ suite('ChatWorkingLogo', () => {
 		return { configuration, fireChange };
 	}
 
-	test('configured progress defaults to Draw and switches motions without replacing its faces', async () => {
+	function createDynamicLogo(animation: ChatProgressAnimation, motionReduced = false) {
+		let now = 0;
+		let pendingFrame: (() => void) | undefined;
+		let changeVisibility: ((visible: boolean) => void) | undefined;
+		const parent = mainWindow.document.body.appendChild($(`.${motionReduced ? 'monaco-reduce-motion' : 'monaco-enable-motion'}`));
+		store.add(toDisposable(() => parent.remove()));
+		const logo = store.add(new ChatWorkingLogo(animation, 'stable', {
+			now: () => now,
+			isMotionReduced: () => motionReduced,
+			observeVisibility: (_element, onDidChange) => {
+				changeVisibility = onDidChange;
+				onDidChange(true);
+				return toDisposable(() => changeVisibility = undefined);
+			},
+			scheduleFrame: (_targetWindow, runner) => {
+				pendingFrame = runner;
+				return toDisposable(() => {
+					if (pendingFrame === runner) {
+						pendingFrame = undefined;
+					}
+				});
+			},
+		}));
+		parent.appendChild(logo.domNode);
+		return {
+			logo,
+			advanceTo(time: number): void {
+				now = time;
+				assert.ok(pendingFrame, 'Expected a pending animation frame');
+				pendingFrame();
+			},
+			hasPendingFrame: () => pendingFrame !== undefined,
+			setVisible(visible: boolean): void {
+				assert.ok(changeVisibility);
+				changeVisibility(visible);
+			},
+		};
+	}
+
+	test('an unregistered progress setting falls back to Off and switches Draw styles without replacing its faces', async () => {
 		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
 		store.add(toDisposable(() => parent.remove()));
 		const { configuration, fireChange } = createConfiguration();
-		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService())));
+		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, store.add(new NullLogService()), accessibilityService));
 		parent.appendChild(logo.domNode);
-		const faces = [...logo.domNode.children];
-		const initial = { animation: logo.domNode.dataset.animation, animated: logo.domNode.getAnimations({ subtree: true }).length > 0 };
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const faces = [...logo.domNode.querySelectorAll('.chat-working-logo-face')];
+		const initial = { animation: logo.domNode.dataset.animation, animations: logo.domNode.getAnimations({ subtree: true }).length };
 		const snapshots = [];
-		for (const motion of Object.values(ChatProgressAnimation)) {
-			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, motion);
+		for (const animation of [...Object.values(ChatProgressAnimation), ChatProgressAnimation.Draw]) {
+			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
 			fireChange();
+			const style = mainWindow.getComputedStyle(logo.domNode);
 			snapshots.push({
 				animation: logo.domNode.dataset.animation,
-				duration: logo.durationMs,
-				classApplied: logo.domNode.classList.contains(motion === ChatProgressAnimation.Off ? 'chat-working-logo-static' : `chat-working-logo-${motion}`),
+				filter: style.filter,
+				visibility: style.visibility,
+				animations: logo.domNode.getAnimations({ subtree: true }).length,
 			});
 		}
 		const animations = logo.domNode.getAnimations({ subtree: true });
 		fireChange(ChatConfiguration.ThinkingPhrases);
 		const sameAnimations = logo.domNode.getAnimations({ subtree: true }).every((animation, index) => animation === animations[index]);
 		logo.dispose();
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Weave);
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.DrawMonochrome);
 		fireChange();
 		assert.deepStrictEqual({
 			initial, snapshots,
-			sameFaces: [...logo.domNode.children].every((face, index) => face === faces[index]),
+			sameFaces: [...logo.domNode.querySelectorAll('.chat-working-logo-face')].every((face, index) => face === faces[index]),
 			sameAnimations,
-			motionAfterDisposal: logo.domNode.dataset.animation,
+			animationAfterDisposal: logo.domNode.dataset.animation,
 		}, {
-			initial: { animation: 'draw', animated: true },
+			initial: { animation: 'off', animations: 0 },
 			snapshots: [
-				{ animation: 'off', duration: 1200, classApplied: true },
-				{ animation: 'weave', duration: 1200, classApplied: true },
-				{ animation: 'draw', duration: 2400, classApplied: true },
-				{ animation: 'orbit', duration: 3000, classApplied: true },
-				{ animation: 'accordion', duration: 1500, classApplied: true },
-				{ animation: 'dial', duration: 1600, classApplied: true },
+				{ animation: 'off', filter: 'none', visibility: 'visible', animations: 0 },
+				{ animation: 'draw', filter: 'none', visibility: 'visible', animations: 0 },
+				{ animation: 'drawMonochrome', filter: 'grayscale(1)', visibility: 'visible', animations: 0 },
+				{ animation: 'drawMonochromeNoIcon', filter: 'grayscale(1)', visibility: 'hidden', animations: 0 },
+				{ animation: 'draw', filter: 'none', visibility: 'visible', animations: 0 },
 			],
 			sameFaces: true,
 			sameAnimations: true,
-			motionAfterDisposal: 'dial',
+			animationAfterDisposal: 'draw',
 		});
 	});
 
-	test('changing the configured motion does not reactivate an inactive logo', async () => {
+	test('changing the configured style does not reactivate an inactive logo', async () => {
 		const { configuration, fireChange } = createConfiguration();
-		const logo = store.add(new ChatWorkingProgressLogo('insider', configuration, store.add(new NullLogService())));
+		const logo = store.add(new ChatWorkingProgressLogo('insider', configuration, store.add(new NullLogService()), accessibilityService));
 		mainWindow.document.body.appendChild(logo.domNode);
 		logo.setActive(false);
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.Orbit);
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, ChatProgressAnimation.DrawMonochrome);
 		fireChange();
 		assert.deepStrictEqual({
-			motion: logo.domNode.dataset.motion,
+			animation: logo.domNode.dataset.animation,
 			animations: logo.domNode.getAnimations({ subtree: true }).length,
 			active: logo.domNode.classList.contains('chat-working-logo-active'),
 			color: logo.domNode.style.color,
+			filter: mainWindow.getComputedStyle(logo.domNode).filter,
 		}, {
-			motion: 'orbit',
+			animation: 'drawMonochrome',
 			animations: 0,
 			active: false,
 			color: 'var(--vscode-chat-workingProgressInsidersIconForeground)',
+			filter: 'grayscale(1)',
 		});
+	});
+
+	test('removed animation settings resolve to Draw before migration and for experiment defaults', async () => {
+		const { configuration } = createConfiguration();
+		const logger = store.add(new NullLogService());
+		const results = [];
+		for (const animation of ['weave', 'orbit', 'accordion', 'dial', 'ribbon']) {
+			await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, animation);
+			results.push(getConfiguredProgressAnimation(configuration, logger));
+		}
+		assert.deepStrictEqual(results, Array(5).fill(ChatProgressAnimation.Draw));
 	});
 
 	test('unsupported animation settings are logged and leave the logo static', async () => {
 		const { configuration } = createConfiguration();
-		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, 'weave-v');
+		await configuration.setUserConfiguration(ChatConfiguration.PersistentProgress, 'unsupported');
 		const warnings: string[] = [];
 		const logger = store.add(new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}());
-		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, logger));
-		assert.deepStrictEqual({ animation: logo.domNode.dataset.animation, static: logo.domNode.classList.contains('chat-working-logo-static'), warnings }, {
+		const logo = store.add(new ChatWorkingProgressLogo('stable', configuration, logger, accessibilityService));
+		assert.deepStrictEqual({ animation: logo.domNode.dataset.animation, warnings }, {
 			animation: 'off',
-			static: true,
 			warnings: ['ChatWorkingProgressLogo: unsupported progress animation, using Off'],
 		});
 	});
@@ -157,435 +180,205 @@ suite('ChatWorkingLogo', () => {
 		assert.deepStrictEqual({ results, warnings: warnings.length }, { results: [ChatProgressAnimation.Off, ChatProgressAnimation.Off, ChatProgressAnimation.Off], warnings: 1 });
 	});
 
-	test('uses the same three Stable ribbon faces for every motion and tint', () => {
-		const logos = motions.flatMap(motion => [
-			store.add(new ChatWorkingLogo(motion, 'stable')),
-			store.add(new ChatWorkingLogo(motion, 'insider')),
+	test('uses the same decorative ribbon faces and product theme colors for every style', () => {
+		const logos = Object.values(ChatProgressAnimation).flatMap(animation => [
+			store.add(new ChatWorkingLogo(animation, 'stable')),
+			store.add(new ChatWorkingLogo(animation, 'insider')),
 		]);
-		const paths = logos.map(logo => [...logo.domNode.querySelectorAll('path')].map(path => path.getAttribute('d')));
+		const paths = logos.map(logo => [...logo.domNode.querySelectorAll('.chat-working-logo-face path')].map(path => path.getAttribute('d')));
 		assert.deepStrictEqual({
-			faceCounts: logos.map(logo => logo.domNode.children.length),
+			faceCounts: logos.map(logo => logo.domNode.querySelectorAll('.chat-working-logo-face').length),
 			sameGeometry: paths.every(value => JSON.stringify(value) === JSON.stringify(paths[0])),
 			decorative: logos.every(logo => logo.domNode.getAttribute('aria-hidden') === 'true'),
-			palettes: logos.slice(0, 2).map(logo => logo.domNode.style.color),
+			palettes: logos.map(logo => logo.domNode.style.color),
 		}, {
-			faceCounts: Array(motions.length * 2).fill(3),
+			faceCounts: Array(Object.values(ChatProgressAnimation).length * 2).fill(1),
 			sameGeometry: true,
 			decorative: true,
-			palettes: ['var(--vscode-chat-workingProgressStableIconForeground)', 'var(--vscode-chat-workingProgressInsidersIconForeground)'],
+			palettes: Object.values(ChatProgressAnimation).flatMap(() => ['var(--vscode-chat-workingProgressStableIconForeground)', 'var(--vscode-chat-workingProgressInsidersIconForeground)']),
 		});
 	});
 
-	for (const motion of motions.filter(motion => motion !== 'draw')) {
-		test(`${motion} animates only transforms and opacity on HTML wrappers`, () => {
-			const logo = store.add(new ChatWorkingLogo(motion));
-			mainWindow.document.body.appendChild(logo.domNode);
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			const keyframes = animations.flatMap(animation => animation.effect instanceof KeyframeEffect ? animation.effect.getKeyframes() : []);
-			const metadata = new Set(['offset', 'computedOffset', 'easing', 'composite']);
-			const properties = new Set(keyframes.flatMap(frame => Object.keys(frame).filter(key => !metadata.has(key))));
-			const motionReduced = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
-			assert.deepStrictEqual({
-				animationCount: animations.length,
-				onlyCompositorProperties: [...properties].every(property => property === 'transform' || property === 'opacity'),
-				htmlTargets: animations.every(animation => animation.effect instanceof KeyframeEffect && animation.effect.target instanceof HTMLElement),
-				durations: [...new Set(animations.map(animation => animation.effect?.getTiming().duration))],
-			}, {
-				animationCount: motionReduced ? 0 : 3,
-				onlyCompositorProperties: true,
-				htmlTargets: true,
-				durations: motionReduced ? [] : [logo.durationMs],
+	test('monochrome preserves high contrast theme colors', () => {
+		const filters = ['hc-black', 'hc-light'].flatMap(theme => {
+			const parent = mainWindow.document.body.appendChild($(`.${theme}`));
+			store.add(toDisposable(() => parent.remove()));
+			return (['stable', 'insider'] as const).map(quality => {
+				const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.DrawMonochrome, quality));
+				parent.appendChild(logo.domNode);
+				return mainWindow.getComputedStyle(logo.domNode).filter;
 			});
 		});
-	}
-
-	test('draw builds and undraws in the same three-beat order without fading or moving the faces', () => {
-		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
-		store.add(toDisposable(() => parent.remove()));
-		const samples = [
-			{ time: 0, reveal: [0, 0, 0] },
-			{ time: 160, reveal: [0.5, 0, 0] },
-			{ time: 320, reveal: [1, 0, 0] },
-			{ time: 480, reveal: [1, 0.5, 0] },
-			{ time: 640, reveal: [1, 1, 0] },
-			{ time: 800, reveal: [1, 1, 0.5] },
-			{ time: 960, reveal: [1, 1, 1] },
-			{ time: 1200, reveal: [1, 1, 1] },
-			{ time: 1440, reveal: [1, 1, 1] },
-			{ time: 1600, reveal: [0.5, 1, 1] },
-			{ time: 1760, reveal: [0, 1, 1] },
-			{ time: 1920, reveal: [0, 0.5, 1] },
-			{ time: 2080, reveal: [0, 0, 1] },
-			{ time: 2240, reveal: [0, 0, 0.5] },
-			{ time: 2400, reveal: [0, 0, 0] },
-			{ time: 2560, reveal: [0.5, 0, 0] },
-		];
-		const sizes = [12, 16, 64];
-		const observations = sizes.flatMap(size => {
-			const logo = store.add(new ChatWorkingLogo('draw'));
-			logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
-			parent.appendChild(logo.domNode);
-			const faces = ['descending', 'spine', 'ascending'].map(name => {
-				const face = logo.domNode.querySelector<HTMLElement>(`.chat-working-logo-${name}`);
-				assert.ok(face);
-				return face;
-			});
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			assert.strictEqual(animations.length, 3);
-			for (const animation of animations) {
-				animation.pause();
-			}
-			return samples.map(sample => {
-				for (const animation of animations) {
-					animation.currentTime = sample.time;
-				}
-				const styles = faces.map(face => mainWindow.getComputedStyle(face));
-				const reveal = styles.map(style => {
-					assert.ok(style.clipPath.startsWith('inset('), style.clipPath);
-					const [top, right = top, bottom = top, left = right] = style.clipPath.slice(6, -1).split(/\s+/).map(value => Number.parseFloat(value));
-					return Math.round((1 - Math.max(top + bottom, left + right) / 100) * 1000) / 1000;
-				});
-				return {
-					size, time: sample.time, reveal,
-					opacity: styles.map(style => Math.round(Number(style.opacity) * 1000) / 1000),
-					stationary: styles.every(style => style.transform === 'none'),
-				};
-			});
-		});
-		assert.deepStrictEqual(observations, sizes.flatMap(size => samples.map(sample => ({
-			size, time: sample.time, reveal: sample.reveal, opacity: Array(3).fill(1), stationary: true,
-		}))));
+		assert.deepStrictEqual(filters, ['none', 'none', 'none', 'none']);
 	});
 
-	test('draw resolves to a full static logo when stopped, reduced, or replaced with Weave', () => {
-		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
-		store.add(toDisposable(() => parent.remove()));
-		const logo = store.add(new ChatWorkingLogo('draw', 'insider'));
-		parent.appendChild(logo.domNode);
-		const faces = [...logo.domNode.children];
-		const snapshot = () => faces.map(face => {
-			const style = mainWindow.getComputedStyle(face);
-			return { clip: style.clipPath, opacity: style.opacity };
-		});
-		for (const animation of logo.domNode.getAnimations({ subtree: true })) {
-			animation.pause();
-			animation.currentTime = logo.durationMs * 0.3;
-		}
-		logo.setActive(false);
-		const stopped = snapshot();
-		logo.setActive(true);
-		parent.classList.add('monaco-reduce-motion');
-		const reduced = snapshot();
-		const reducedAnimations = logo.domNode.getAnimations({ subtree: true }).length;
-		parent.classList.remove('monaco-reduce-motion');
-		logo.setMotion('weave');
-		const noClipping = snapshot().every(face => face.clip === 'none');
-		const sameFaces = [...logo.domNode.children].every((face, index) => face === faces[index]);
-		logo.dispose();
-		const assembled = Array.from({ length: 3 }, () => ({ clip: 'none', opacity: '1' }));
-		assert.deepStrictEqual({ stopped, reduced, reducedAnimations, noClipping, sameFaces, connected: logo.domNode.isConnected }, {
-			stopped: assembled, reduced: assembled, reducedAnimations: 0, noClipping: true, sameFaces: true, connected: false,
-		});
-	});
-
-	test('draw and erase sweep each ribbon in the same counterclockwise direction', () => {
-		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
-		store.add(toDisposable(() => parent.remove()));
-		const samples = [
-			{ face: 'descending', time: 160, insets: [0, 50, 0, 0] },
-			{ face: 'spine', time: 480, insets: [50, 0, 0, 0] },
-			{ face: 'ascending', time: 800, insets: [0, 0, 0, 50] },
-			{ face: 'descending', time: 1600, insets: [0, 0, 0, 50] },
-			{ face: 'spine', time: 1920, insets: [0, 0, 50, 0] },
-			{ face: 'ascending', time: 2240, insets: [0, 50, 0, 0] },
-		];
-		const sizes = [12, 16, 64];
-		const observations = sizes.flatMap(size => {
-			const logo = store.add(new ChatWorkingLogo('draw'));
-			logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
-			parent.appendChild(logo.domNode);
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			assert.strictEqual(animations.length, 3);
-			for (const animation of animations) {
-				animation.pause();
-			}
-			return samples.map(sample => {
-				for (const animation of animations) {
-					animation.currentTime = sample.time;
-				}
-				const face = logo.domNode.querySelector(`.chat-working-logo-${sample.face}`);
-				assert.ok(face);
-				const clip = mainWindow.getComputedStyle(face).clipPath;
-				const [top, right = top, bottom = top, left = right] = clip.slice(6, -1).split(/\s+/).map(value => Math.round(Number.parseFloat(value)));
-				return { size, face: sample.face, time: sample.time, insets: [top, right, bottom, left] };
-			});
-		});
-		assert.deepStrictEqual(observations, sizes.flatMap(size => samples.map(sample => ({ size, ...sample }))));
-	});
-
-	const testWithMotion = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches ? test.skip : test;
-	testWithMotion('ten additional ribbon studies give all three pieces distinct moving paths', () => {
-		const paths = ribbonStudies.map(motion => {
-			const logo = store.add(new ChatWorkingLogo(motion));
-			logo.domNode.style.width = logo.domNode.style.height = '16px';
-			mainWindow.document.body.appendChild(logo.domNode);
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			assert.strictEqual(animations.length, 3);
-			for (const animation of animations) {
-				animation.pause();
-			}
-			const poses = [0, 0.25, 0.4, 0.55, 0.7].map(phase => {
-				for (const animation of animations) {
-					animation.currentTime = phase * logo.durationMs;
-				}
-				return [...logo.domNode.children].map(face => mainWindow.getComputedStyle(face).transform);
-			});
-			const signatures = poses[0].map((_, index) => JSON.stringify(poses.map(pose => pose[index])));
-			return { motion, independentPaths: new Set(signatures).size, everyPieceMoves: poses[0].every((rest, index) => poses.some(pose => pose[index] !== rest)) };
-		});
-		assert.deepStrictEqual({ count: paths.length, paths }, {
-			count: 10,
-			paths: ribbonStudies.map(motion => ({ motion, independentPaths: 3, everyPieceMoves: true })),
-		});
-	});
-
-	testWithMotion('weave rests assembled after the shared reset and at the loop seam', () => {
-		const logo = store.add(new ChatWorkingLogo('weave'));
-		mainWindow.document.body.appendChild(logo.domNode);
-		const animations = logo.domNode.getAnimations({ subtree: true });
-		assert.strictEqual(animations.length, 3);
-		for (const animation of animations) {
-			animation.pause();
-		}
-		const poses = [0, 0.8, 0.9, 0.94, 0.999, 1].map(phase => {
-			for (const animation of animations) {
-				animation.currentTime = logo.durationMs * phase;
-			}
-			return [...logo.domNode.children].map(face => {
-				const style = mainWindow.getComputedStyle(face);
-				return { identity: new DOMMatrix(style.transform).isIdentity, opacity: style.opacity };
-			});
-		});
-		assert.deepStrictEqual(poses, Array.from({ length: 6 }, () => Array.from({ length: 3 }, () => ({ identity: true, opacity: '1' }))));
-	});
-
-	testWithMotion('weave holds three quick beats before resetting every piece together', () => {
-		const logo = store.add(new ChatWorkingLogo('weave'));
-		logo.domNode.style.width = logo.domNode.style.height = '16px';
-		mainWindow.document.body.appendChild(logo.domNode);
-		const animations = logo.domNode.getAnimations({ subtree: true });
-		const beats = animations.map(animation => {
-			assert.ok(animation.effect instanceof KeyframeEffect);
-			const frames = animation.effect.getKeyframes();
-			const peakIndex = frames.findIndex(frame => frame.transform !== frames[0].transform || frame.opacity !== frames[0].opacity);
-			assert.ok(peakIndex > 0 && peakIndex < frames.length - 2);
-			animation.pause();
-			return {
-				start: Math.round(frames[peakIndex - 1].computedOffset * logo.durationMs),
-				peak: Math.round(frames[peakIndex].computedOffset * logo.durationMs),
-				resetStart: Math.round(frames[peakIndex + 1].computedOffset * logo.durationMs),
-				resetEnd: Math.round(frames[peakIndex + 2].computedOffset * logo.durationMs),
-			};
-		});
-		const faces = [...logo.domNode.children];
-		const pose = (face: Element) => {
-			const style = mainWindow.getComputedStyle(face);
-			return { transform: style.transform, opacity: style.opacity };
+	test('Draw preserves the product mark with parabolic velocity and separate loops', () => {
+		const staticLogo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Off, 'stable'));
+		const { logo: drawLogo, advanceTo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw);
+		const drawPaths = [...drawLogo.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')];
+		const renderedFaces = [...drawLogo.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-face')];
+		const svg = drawLogo.domNode.querySelector<SVGSVGElement>('.chat-working-logo-draw-container > svg');
+		assert.ok(svg);
+		const initial = drawPaths.map(path => path.getAttribute('d') ?? '');
+		advanceTo(600);
+		const moving = drawPaths.map(path => path.getAttribute('d') ?? '');
+		drawLogo.setActive(true);
+		const afterRedundantActivation = drawPaths.map(path => path.getAttribute('d') ?? '');
+		advanceTo(800);
+		const continued = drawPaths.map(path => path.getAttribute('d') ?? '');
+		drawLogo.setActive(false);
+		const assembled = {
+			class: drawLogo.domNode.classList.contains('chat-working-logo-draw-assembled'),
+			faceDisplay: mainWindow.getComputedStyle(drawLogo.domNode.querySelector<HTMLElement>('.chat-working-logo-face')!).display,
+			drawDisplay: mainWindow.getComputedStyle(drawLogo.domNode.querySelector<HTMLElement>('.chat-working-logo-draw-container')!).display,
 		};
-		const holdsUntilReset = faces.map((face, index) => {
-			const animation = animations[index];
-			const beat = beats[index];
-			animation.currentTime = beat.peak;
-			const peakPose = pose(face);
-			for (let time = beat.peak; time <= beat.resetStart; time += 10) {
-				animation.currentTime = time;
-				const currentPose = pose(face);
-				if (currentPose.transform !== peakPose.transform || currentPose.opacity !== peakPose.opacity) {
-					return false;
-				}
-			}
-			return true;
-		});
-		const sequence: string[] = [];
-		for (let frame = 0; frame <= 400; frame++) {
-			for (const animation of animations) {
-				animation.currentTime = logo.durationMs * frame / 200;
-			}
-			const displacedFaces = faces.flatMap((face, index) => {
-				const currentPose = pose(face);
-				return new DOMMatrix(currentPose.transform).isIdentity && currentPose.opacity === '1' ? [] : [index + 1];
-			});
-			const state = displacedFaces.join(',');
-			if (sequence.at(-1) !== state) {
-				sequence.push(state);
-			}
+		const sampleFrames = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].map(getChatWorkingLogoDrawFrame);
+		const fullLength = getChatWorkingLogoDrawFrame(0.5).head;
+		const coordinates = sampleFrames.flatMap(frame => Object.values(frame.paths))
+			.flatMap(path => [...path.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)])
+			.flatMap(match => [Number(match[1]), Number(match[2])]);
+		const frameIntervalMs = 1000 / 30;
+		const sampledTie = Array.from({ length: Math.ceil(drawLogo.drawDurationMs * 0.4 / frameIntervalMs) + 1 }, (_, index) =>
+			getChatWorkingLogoDrawFrame(Math.min(index * frameIntervalMs / drawLogo.drawDurationMs, 0.4)));
+		let maximumTravel = 0;
+		for (let index = 1; index < sampledTie.length; index++) {
+			maximumTravel = Math.max(maximumTravel, Math.abs(sampledTie[index].head - sampledTie[index - 1].head));
 		}
+		const compactDevicePixelScale = 0.84 * 12 / 84 * 2;
+		const tieStartSpeed = getChatWorkingLogoDrawFrame(0.00001).head / fullLength / 0.00001;
+		const longQuadraticStartSpeed = (2 / 0.42) / 7600;
 		assert.deepStrictEqual({
-			durationMs: logo.durationMs,
-			beats,
-			pauseMs: logo.durationMs - beats[2].resetEnd,
-			easing: faces.map(face => mainWindow.getComputedStyle(face).animationTimingFunction),
-			holdsUntilReset,
-			sequence,
-		}, {
-			durationMs: 1200,
-			beats: [
-				{ start: 0, peak: 210, resetStart: 690, resetEnd: 960 },
-				{ start: 210, peak: 420, resetStart: 690, resetEnd: 960 },
-				{ start: 420, peak: 630, resetStart: 690, resetEnd: 960 },
-			],
-			pauseMs: 240,
-			easing: ['ease-in-out', 'ease-in-out', 'ease-in-out'],
-			holdsUntilReset: [true, true, true],
-			sequence: ['', '1', '1,2', '1,2,3', '', '1', '1,2', '1,2,3', ''],
-		});
-	});
-
-	for (const motion of alternatives) {
-		testWithMotion(`${motion} holds an identical assembled pose across its loop seam`, () => {
-			const logo = store.add(new ChatWorkingLogo(motion));
-			mainWindow.document.body.appendChild(logo.domNode);
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			assert.strictEqual(animations.length, 3);
-			for (const animation of animations) {
-				animation.pause();
-			}
-			const phases = [0, 0.94, 0.999, 1, 1.001, 1.15];
-			const poses = phases.map(phase => {
-				for (const animation of animations) {
-					animation.currentTime = logo.durationMs * phase;
-				}
-				return [...logo.domNode.children].map(face => {
-					const style = mainWindow.getComputedStyle(face);
-					return { identity: new DOMMatrix(style.transform).isIdentity, opacity: style.opacity };
-				});
-			});
-			assert.deepStrictEqual(poses, phases.map(() => Array.from({ length: 3 }, () => ({ identity: true, opacity: '1' }))));
-		});
-	}
-
-	testWithMotion('dial turns forward through three detents without reversing at the seam', () => {
-		const logo = store.add(new ChatWorkingLogo('dial'));
-		mainWindow.document.body.appendChild(logo.domNode);
-		const frames = logo.domNode.getAnimations({ subtree: true }).map(animation => {
-			assert.ok(animation.effect instanceof KeyframeEffect);
-			return animation.effect.getKeyframes().map(frame => ({ phase: frame.computedOffset, transform: frame.transform }));
-		});
-		assert.deepStrictEqual(frames, Array.from({ length: 3 }, () => [
-			{ phase: 0, transform: 'rotate(0deg)' },
-			{ phase: 0.16, transform: 'rotate(0deg)' },
-			{ phase: 0.28, transform: 'rotate(120deg)' },
-			{ phase: 0.32, transform: 'rotate(120deg)' },
-			{ phase: 0.44, transform: 'rotate(240deg)' },
-			{ phase: 0.48, transform: 'rotate(240deg)' },
-			{ phase: 0.6, transform: 'rotate(360deg)' },
-			{ phase: 1, transform: 'rotate(360deg)' },
-		]));
-	});
-
-	testWithMotion('Weave V preserves the original beat, hold and reset timing', () => {
-		const timing = (['weave', 'weave-v'] as const).map(motion => {
-			const logo = store.add(new ChatWorkingLogo(motion));
-			mainWindow.document.body.appendChild(logo.domNode);
-			return logo.domNode.getAnimations({ subtree: true }).map(animation => {
-				assert.ok(animation.effect instanceof KeyframeEffect && animation.effect.target);
+			drawDuration: drawLogo.drawDurationMs,
+			cycleSpeedup: Math.round(4000 / drawLogo.drawDurationMs * 1000) / 1000,
+			sameColor: staticLogo.domNode.style.color === drawLogo.domNode.style.color,
+			lazyArtwork: [staticLogo, drawLogo].map(logo => !!logo.domNode.querySelector('.chat-working-logo-draw-container')),
+			viewBox: svg.getAttribute('viewBox'),
+			shapeRendering: svg.getAttribute('shape-rendering'),
+			overflow: mainWindow.getComputedStyle(svg).overflow,
+			maskFills: drawPaths.map(path => path.getAttribute('fill')),
+			maskStrokes: drawPaths.map(path => path.getAttribute('stroke')),
+			maskStrokeWidths: drawPaths.map(path => path.getAttribute('stroke-width')),
+			maskStrokeJoins: drawPaths.map(path => path.getAttribute('stroke-linejoin')),
+			maskTransforms: drawPaths.map(path => path.getAttribute('transform')),
+			renderedFills: renderedFaces.map(path => path.getAttribute('fill')),
+			renderedGeometryMatchesStatic: renderedFaces.every((path, index) =>
+				path.getAttribute('d') === staticLogo.domNode.querySelectorAll('.chat-working-logo-face path')[index].getAttribute('d')),
+			cssAnimations: drawLogo.domNode.getAnimations({ subtree: true }).length,
+			pathChanged: moving.some((path, index) => path !== initial[index]),
+			redundantActivationPreservedFrame: afterRedundantActivation.every((path, index) => path === moving[index]),
+			continuedAfterRedundantActivation: continued.some((path, index) => path !== moving[index]),
+			assembled,
+			allMotionWithinMark: coordinates.every(value => value > -1.5 && value < 101.5),
+			tieCubic: [0.1, 0.2, 0.3].map(progress => Math.round(getChatWorkingLogoDrawFrame(progress).head / fullLength * 1000) / 1000),
+			hold: [0.4, 0.475, 0.55].map(progress => {
+				const frame = getChatWorkingLogoDrawFrame(progress);
+				return [frame.tail, frame.head];
+			}),
+			untieCubic: [0.65, 0.75, 0.85].map(progress => Math.round(getChatWorkingLogoDrawFrame(progress).tail / fullLength * 1000) / 1000),
+			loopRest: [0.95, 0.975, 0.999].map(progress => {
+				const frame = getChatWorkingLogoDrawFrame(progress);
 				return {
-					duration: animation.effect.getTiming().duration,
-					phases: animation.effect.getKeyframes().map(frame => frame.computedOffset),
-					easing: mainWindow.getComputedStyle(animation.effect.target).animationTimingFunction,
+					endsTogether: frame.tail === frame.head,
+					empty: Object.values(frame.paths).every(path => path.length === 0),
 				};
-			});
+			}),
+			endpointSpeeds: {
+				fastestSpeedup: Math.round(tieStartSpeed / drawLogo.drawDurationMs / longQuadraticStartSpeed * 1000) / 1000,
+				tieSlowest: Math.round((fullLength - getChatWorkingLogoDrawFrame(0.39999).head) / fullLength / 0.00001 * 1000) / 1000,
+				untieSlowest: Math.round(getChatWorkingLogoDrawFrame(0.55001).tail / fullLength / 0.00001 * 1000) / 1000,
+			},
+			maximumTieDevicePixelTravelAt30Fps: Math.round(maximumTravel * compactDevicePixelScale * 1000) / 1000,
+			pendingAfterStop: hasPendingFrame(),
+		}, {
+			drawDuration: 2667,
+			cycleSpeedup: 1.5,
+			sameColor: true,
+			lazyArtwork: [false, true],
+			viewBox: '6 6 84 84',
+			shapeRendering: 'geometricPrecision',
+			overflow: 'visible',
+			maskFills: ['#fff', '#fff', '#fff'],
+			maskStrokes: ['#fff', '#fff', '#fff'],
+			maskStrokeWidths: ['4', '4', '4'],
+			maskStrokeJoins: ['round', 'round', 'round'],
+			maskTransforms: Array(3).fill('translate(6 6) scale(0.84)'),
+			renderedFills: ['currentColor', 'currentColor', 'currentColor'],
+			renderedGeometryMatchesStatic: true,
+			cssAnimations: 0,
+			pathChanged: true,
+			redundantActivationPreservedFrame: true,
+			continuedAfterRedundantActivation: true,
+			assembled: { class: true, faceDisplay: 'block', drawDisplay: 'none' },
+			allMotionWithinMark: true,
+			tieCubic: [0.578, 0.875, 0.984],
+			hold: Array.from({ length: 3 }, () => [0, fullLength]),
+			untieCubic: [0.016, 0.125, 0.422],
+			loopRest: Array.from({ length: 3 }, () => ({ endsTogether: true, empty: true })),
+			endpointSpeeds: {
+				fastestSpeedup: 4.488,
+				tieSlowest: 0,
+				untieSlowest: 0,
+			},
+			maximumTieDevicePixelTravelAt30Fps: 5.751,
+			pendingAfterStop: false,
 		});
-		assert.deepStrictEqual(timing[1], timing[0]);
 	});
 
-	testWithMotion('Weave V joins the diagonals below their outer tips through the hold', () => {
-		const observations = [];
-		for (const size of [12, 16, 64]) {
-			const logo = store.add(new ChatWorkingLogo('weave-v'));
-			logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
-			mainWindow.document.body.appendChild(logo.domNode);
-			const faces = [...logo.domNode.querySelectorAll<HTMLElement>(':scope > .chat-working-logo-face')];
-			const animations = logo.domNode.getAnimations({ subtree: true });
-			assert.strictEqual(animations.length, 3);
-			for (const animation of animations) {
-				animation.pause();
-			}
-			const style = mainWindow.getComputedStyle(logo.domNode);
-			const perspective = Number.parseFloat(style.perspective);
-			const origin = { x: size / 2, y: size / 2 };
-			// Approximate centerlines through the original ribbon end caps.
-			const point = (x: number, y: number) => ({ x: (x - 6) / 84, y: (y - 6) / 84 });
-			for (const phase of [0.35, 0.525, 0.575]) {
-				for (const animation of animations) {
-					animation.currentTime = phase * logo.durationMs;
-				}
-				const [rightTip, rightJoint] = projectOutline(faces[0], [point(73, 12), point(12, 64)], size, perspective, origin);
-				const [leftTip, leftJoint] = projectOutline(faces[1], [point(12, 32), point(73, 84)], size, perspective, origin);
-				observations.push({
-					size, phase,
-					joinGap: Math.hypot(rightJoint.x - leftJoint.x, rightJoint.y - leftJoint.y) / size,
-					tipHeightDifference: Math.abs(rightTip.y - leftTip.y) / size,
-					rise: Math.min(rightJoint.y, leftJoint.y) / size - Math.max(rightTip.y, leftTip.y) / size,
-					minimumArmWidth: Math.min(leftJoint.x - leftTip.x, rightTip.x - rightJoint.x) / size,
-				});
-			}
-		}
-		assert.ok(observations.every(observation => observation.joinGap < 0.01 && observation.tipHeightDifference < 0.01 && observation.rise > 0.5 && observation.minimumArmWidth > 0.3), JSON.stringify(observations));
+	test('draw resolves to a full static logo when stopped, reduced, or disabled', () => {
+		const { logo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw);
+		const faces = [...logo.domNode.querySelectorAll('.chat-working-logo-face')];
+		const snapshot = (target: ChatWorkingLogo) => ({
+			assembled: target.domNode.classList.contains('chat-working-logo-draw-assembled'),
+			faceDisplay: mainWindow.getComputedStyle(target.domNode.querySelector<HTMLElement>('.chat-working-logo-face')!).display,
+			drawDisplay: mainWindow.getComputedStyle(target.domNode.querySelector<HTMLElement>('.chat-working-logo-draw-container')!).display,
+		});
+		logo.setActive(false);
+		const stopped = snapshot(logo);
+		const stoppedPendingFrame = hasPendingFrame();
+		const { logo: reducedLogo, hasPendingFrame: hasReducedPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw, true);
+		const reduced = snapshot(reducedLogo);
+		logo.setAnimation(ChatProgressAnimation.Off);
+		const disabled = {
+			drawDisplay: mainWindow.getComputedStyle(logo.domNode.querySelector<HTMLElement>('.chat-working-logo-draw-container')!).display,
+			faceDisplays: faces.map(face => mainWindow.getComputedStyle(face).display),
+		};
+		const sameFaces = [...logo.domNode.querySelectorAll('.chat-working-logo-face')].every((face, index) => face === faces[index]);
+		assert.deepStrictEqual({ stopped, stoppedPendingFrame, reduced, reducedPendingFrame: hasReducedPendingFrame(), disabled, sameFaces }, {
+			stopped: { assembled: true, faceDisplay: 'block', drawDisplay: 'none' },
+			stoppedPendingFrame: false,
+			reduced: { assembled: true, faceDisplay: 'block', drawDisplay: 'none' },
+			reducedPendingFrame: false,
+			disabled: { drawDisplay: 'none', faceDisplays: ['block'] },
+			sameFaces: true,
+		});
 	});
 
-	for (const motion of ['weave', 'weave-v', 'orbit', 'shutter', ...alternatives] as const) {
-		testWithMotion(`${motion} keeps both diagonals behind the moving spine edge throughout its cycle`, () => {
-			const observations = [];
-			for (const size of [12, 16, 64]) {
-				const logo = store.add(new ChatWorkingLogo(motion));
-				logo.domNode.style.width = logo.domNode.style.height = `${size}px`;
-				mainWindow.document.body.appendChild(logo.domNode);
-				const faces = [...logo.domNode.querySelectorAll<HTMLElement>(':scope > .chat-working-logo-face')];
-				const outlines = faces.map(sampleOutline);
-				const animations = logo.domNode.getAnimations({ subtree: true });
-				assert.strictEqual(animations.length, 3);
-				for (const animation of animations) {
-					animation.pause();
-				}
-				const style = mainWindow.getComputedStyle(logo.domNode);
-				const perspective = Number.parseFloat(style.perspective);
-				const [perspectiveX, perspectiveY] = style.perspectiveOrigin.split(' ').map(value => Number.parseFloat(value));
-				const perspectiveOrigin = { x: perspectiveX, y: perspectiveY };
-				let maximumOverrun = -Infinity;
-				let minimumSpinePosition = Infinity;
-				let maximumSpinePosition = -Infinity;
-				let opaqueSpine = true;
-				let assembledAtBoundary = true;
-				for (let frame = 0; frame <= 200; frame++) {
-					for (const animation of animations) {
-						animation.currentTime = logo.durationMs * frame / 200;
-					}
-					const [top, bottom] = projectOutline(faces[2], [{ x: 1, y: 0 }, { x: 1, y: 1 }], size, perspective, perspectiveOrigin);
-					const edgeX = bottom.x - top.x;
-					const edgeY = bottom.y - top.y;
-					const edgeLength = Math.hypot(edgeX, edgeY);
-					for (let index = 0; index < 2; index++) {
-						for (const point of projectOutline(faces[index], outlines[index], size, perspective, perspectiveOrigin)) {
-							maximumOverrun = Math.max(maximumOverrun, ((point.x - top.x) * edgeY - (point.y - top.y) * edgeX) / edgeLength);
-						}
-					}
-					const spinePosition = (top.x + bottom.x) / 2;
-					minimumSpinePosition = Math.min(minimumSpinePosition, spinePosition);
-					maximumSpinePosition = Math.max(maximumSpinePosition, spinePosition);
-					opaqueSpine &&= mainWindow.getComputedStyle(faces[2]).opacity === '1';
-					if (frame === 0 || frame === 200) {
-						assembledAtBoundary &&= faces.every(face => new DOMMatrix(mainWindow.getComputedStyle(face).transform).isIdentity);
-					}
-				}
-				observations.push({ size, maximumOverrun, spineTravel: maximumSpinePosition - minimumSpinePosition, opaqueSpine, assembledAtBoundary });
-			}
-			assert.ok(observations.every(result => result.maximumOverrun <= 0.02 && result.spineTravel > result.size * 0.04 && result.opaqueSpine && result.assembledAtBoundary), JSON.stringify(observations));
+	test('hidden Draw logos suspend and resume their animation frame', () => {
+		const { logo, advanceTo, hasPendingFrame, setVisible } = createDynamicLogo(ChatProgressAnimation.Draw);
+		advanceTo(300);
+		const beforeHide = [...logo.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		setVisible(false);
+		const pendingWhileHidden = hasPendingFrame();
+		const hiddenPaths = [...logo.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		setVisible(true);
+		const pendingAfterShow = hasPendingFrame();
+		advanceTo(450);
+		const resumedPaths = [...logo.domNode.querySelectorAll<SVGPathElement>('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		assert.deepStrictEqual({
+			pendingWhileHidden,
+			hiddenPathsUnchanged: hiddenPaths.every((path, index) => path === beforeHide[index]),
+			pendingAfterShow,
+			resumed: resumedPaths.some((path, index) => path !== hiddenPaths[index]),
+		}, {
+			pendingWhileHidden: false,
+			hiddenPathsUnchanged: true,
+			pendingAfterShow: true,
+			resumed: true,
 		});
-	}
+	});
 
 	test('stops motion and removes the mark on disposal', () => {
-		const logo = store.add(new ChatWorkingLogo('weave'));
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw));
 		mainWindow.document.body.appendChild(logo.domNode);
 		logo.setActive(false);
 		const stoppedAnimations = logo.domNode.getAnimations({ subtree: true }).length;
@@ -599,17 +392,149 @@ suite('ChatWorkingLogo', () => {
 		});
 	});
 
-	test('reduced motion leaves every face assembled and opaque', () => {
+	test('Draw follows the latest visibility entry when intersection changes are batched', async () => {
+		let observer: TestIntersectionObserver | undefined;
+		class TestIntersectionObserver extends mock<IntersectionObserver>() {
+			private target: Element | undefined;
+
+			constructor(private readonly callback: IntersectionObserverCallback) {
+				super();
+				observer = this;
+			}
+
+			override observe(target: Element): void {
+				this.target = target;
+			}
+
+			override disconnect(): void {
+				this.target = undefined;
+			}
+
+			report(...intersections: boolean[]): void {
+				assert.ok(this.target);
+				this.callback(intersections.map(isIntersecting => upcastPartial<IntersectionObserverEntry>({ target: this.target, isIntersecting })), this);
+			}
+		}
+
+		let now = 0;
+		let pendingFrame: (() => void) | undefined;
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', {
+			now: () => now,
+			isMotionReduced: () => false,
+			intersectionObserver: TestIntersectionObserver,
+			scheduleFrame: (_window, runner) => {
+				pendingFrame = runner;
+				return toDisposable(() => pendingFrame = undefined);
+			},
+		}));
+		await Promise.resolve();
+		assert.ok(observer);
+		observer.report(false, true);
+		const scheduledAfterShowing = !!pendingFrame;
+		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		const initialPaths = paths();
+		now = 300;
+		pendingFrame?.();
+		const moved = paths().some((path, index) => path !== initialPaths[index]);
+		observer.report(true, false);
+		const scheduledWhileHidden = !!pendingFrame;
+		observer.report(false, true);
+		const scheduledAfterResuming = !!pendingFrame;
+		logo.dispose();
+		assert.deepStrictEqual({
+			scheduledAfterShowing, moved, scheduledWhileHidden, scheduledAfterResuming, scheduledAfterDisposal: !!pendingFrame,
+		}, {
+			scheduledAfterShowing: true, moved: true, scheduledWhileHidden: false, scheduledAfterResuming: true, scheduledAfterDisposal: false,
+		});
+	});
+
+	test('Draw keeps moving after real visibility changes and DOM remounts', async () => {
+		const parent = mainWindow.document.body.appendChild($('.monaco-enable-motion'));
+		parent.style.setProperty('--vscode-codiconFontSize', '16px');
+		store.add(toDisposable(() => parent.remove()));
+		const logo = store.add(new ChatWorkingLogo(ChatProgressAnimation.Draw, 'stable', { isMotionReduced: () => false }));
+		parent.appendChild(logo.domNode);
+		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		const nextFrame = () => new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const waitForMotion = async () => {
+			const before = paths();
+			await retry(async () => assert.notDeepStrictEqual(paths(), before), 10, 100);
+		};
+
+		await waitForMotion();
+		parent.style.display = 'none';
+		await nextFrame();
+		await nextFrame();
+		const hidden = paths();
+		await nextFrame();
+		await nextFrame();
+		const pausedWhileHidden = paths();
+		parent.style.display = '';
+		await waitForMotion();
+		parent.remove();
+		await nextFrame();
+		await nextFrame();
+		const detached = paths();
+		await nextFrame();
+		await nextFrame();
+		const pausedWhileDetached = paths();
+		mainWindow.document.body.appendChild(parent);
+		await waitForMotion();
+
+		assert.deepStrictEqual({ pausedWhileHidden, pausedWhileDetached }, { pausedWhileHidden: hidden, pausedWhileDetached: detached });
+	});
+
+	test('disposal cancels a scheduled Draw frame', () => {
+		const { logo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw);
+		const pendingBeforeDisposal = hasPendingFrame();
+		logo.dispose();
+		assert.deepStrictEqual({
+			pendingBeforeDisposal,
+			pendingAfterDisposal: hasPendingFrame(),
+			connected: logo.domNode.isConnected,
+		}, {
+			pendingBeforeDisposal: true,
+			pendingAfterDisposal: false,
+			connected: false,
+		});
+	});
+
+	test('reduced motion leaves every face assembled and keeps the no-icon style hidden', () => {
 		const parent = mainWindow.document.body.appendChild($('.monaco-reduce-motion'));
 		store.add(toDisposable(() => parent.remove()));
-		const faces = motions.flatMap(motion => {
-			const logo = store.add(new ChatWorkingLogo(motion));
+		const snapshots = Object.values(ChatProgressAnimation).map(animation => {
+			let scheduledFrames = 0;
+			const logo = store.add(new ChatWorkingLogo(animation, 'stable', {
+				isMotionReduced: () => true,
+				scheduleFrame: () => {
+					scheduledFrames++;
+					return toDisposable(() => undefined);
+				},
+			}));
 			parent.appendChild(logo.domNode);
-			return [...logo.domNode.children];
+			const drawContainer = logo.domNode.querySelector<HTMLElement>('.chat-working-logo-draw-container');
+			return {
+				visibility: mainWindow.getComputedStyle(logo.domNode).visibility,
+				scheduledFrames,
+				faces: [...logo.domNode.querySelectorAll('.chat-working-logo-face')].map(face => {
+					const style = mainWindow.getComputedStyle(face);
+					return { transform: style.transform, opacity: style.opacity, animation: style.animationName, clip: style.clipPath };
+				}),
+				assembled: logo.domNode.classList.contains('chat-working-logo-draw-assembled'),
+				faceDisplay: mainWindow.getComputedStyle(logo.domNode.querySelector<HTMLElement>('.chat-working-logo-face')!).display,
+				drawDisplay: drawContainer ? mainWindow.getComputedStyle(drawContainer).display : 'none',
+			};
 		});
-		assert.deepStrictEqual(faces.map(face => {
-			const style = mainWindow.getComputedStyle(face);
-			return { transform: style.transform, opacity: style.opacity, animation: style.animationName, clip: style.clipPath };
-		}), faces.map(() => ({ transform: 'none', opacity: '1', animation: 'none', clip: 'none' })));
+		assert.deepStrictEqual(snapshots, Object.values(ChatProgressAnimation).map(animation => {
+			const draw = animation === ChatProgressAnimation.Draw || animation === ChatProgressAnimation.DrawMonochrome;
+			return {
+				visibility: animation === ChatProgressAnimation.DrawMonochromeNoIcon ? 'hidden' : 'visible',
+				scheduledFrames: 0,
+				faces: [{ transform: 'none', opacity: '1', animation: 'none', clip: 'none' }],
+				assembled: draw,
+				faceDisplay: 'block',
+				drawDisplay: 'none',
+			};
+		}));
 	});
 });

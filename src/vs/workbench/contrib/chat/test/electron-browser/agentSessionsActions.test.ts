@@ -5,29 +5,40 @@
 
 import assert from 'assert';
 import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContext, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService, IOpenAgentsWindowOptions } from '../../../../../platform/native/common/native.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { CommandService } from '../../../../services/commands/common/commandService.js';
 import { IExtensionService, NullExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
+import { IChatViewTitleActionContext } from '../../common/actions/chatActions.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../common/constants.js';
 import { IChatViewModel } from '../../common/model/chatViewModel.js';
-import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
+import { OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 
 class TestCommandService extends mock<ICommandService>() {
 	readonly calls: { readonly commandId: string; readonly args: readonly unknown[] }[] = [];
@@ -35,6 +46,17 @@ class TestCommandService extends mock<ICommandService>() {
 	override async executeCommand<T = unknown>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
 		this.calls.push({ commandId, args });
 		return undefined;
+	}
+}
+
+class TestDecisionTelemetryService extends TestExperimentTriggerTelemetryService {
+	readonly decisions: object[] = [];
+
+	override publicLog2(eventName?: string, data?: object): void {
+		super.publicLog2(eventName, data);
+		if (eventName === 'chat.openInAgentsWindowDecision' && data) {
+			this.decisions.push(data);
+		}
 	}
 }
 
@@ -56,6 +78,69 @@ suite('Agents window launch enablement', () => {
 		...actions.map(action => ({ name: action.desc.id, command: action.desc.id, args: [] })),
 		...explicitTargets.map(target => ({ name: `explicit ${Object.keys(target)[0]}`, command: OPEN_AGENTS_WINDOW_COMMAND_ID, args: [target] })),
 	];
+
+	function createContribution(sessionCount?: number) {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const storageService = disposables.add(new InMemoryStorageService());
+		if (sessionCount !== undefined) {
+			storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, sessionCount, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		}
+		const contextKeyService = disposables.add(new MockContextKeyService());
+		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IProductService, upcastPartial<IProductService>({}));
+		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => Disposable.None }));
+		disposables.add(instantiationService.createInstance(OpenWorkspaceInAgentsContribution));
+		return { storageService, contextKeyService };
+	}
+
+	test('restores whether a session has been created in the Agents Window', () => {
+		assert.deepStrictEqual([undefined, 0, 1, 2].map(count => {
+			const { contextKeyService } = createContribution(count);
+			return contextKeyService.getContextKeyValue(ChatContextKeys.hasCreatedSessionInAgentsWindow.key);
+		}), [false, false, true, true]);
+	});
+
+	test('enables both default keybindings only after the first Agents Window session without gating the command', () => {
+		const { storageService, contextKeyService } = createContribution();
+		const screenReaderMode = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(contextKeyService);
+		const isSessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		contextKeyService.createKey(`config.${ChatConfiguration.AgentEnabled}`, true);
+		const context: IContext = { getValue: key => contextKeyService.getContextKeyValue(key) };
+		const action = new OpenAgentsWindowAction();
+		const keybindings = action.desc.keybinding;
+		assert.ok(Array.isArray(keybindings));
+		const matches = () => keybindings.map(keybinding => keybinding.when?.evaluate(context));
+
+		screenReaderMode.set(false);
+		const beforeFirstSession = matches();
+		const commandAvailableBeforeFirstSession = action.desc.precondition?.evaluate(context);
+		screenReaderMode.set(true);
+		const screenReaderBeforeFirstSession = matches();
+
+		storageService.store(AGENTS_WINDOW_TOTAL_SESSIONS_STORAGE_KEY, 1, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const screenReaderAfterFirstSession = matches();
+		screenReaderMode.set(false);
+		const afterFirstSession = matches();
+		isSessionsWindow.set(true);
+		const inAgentsWindow = matches();
+
+		assert.deepStrictEqual({
+			beforeFirstSession,
+			commandAvailableBeforeFirstSession,
+			screenReaderBeforeFirstSession,
+			screenReaderAfterFirstSession,
+			afterFirstSession,
+			inAgentsWindow,
+		}, {
+			beforeFirstSession: [false, false],
+			commandAvailableBeforeFirstSession: true,
+			screenReaderBeforeFirstSession: [false, false],
+			screenReaderAfterFirstSession: [false, true],
+			afterFirstSession: [true, false],
+			inAgentsWindow: [false, false],
+		});
+	});
 
 	for (const scenario of scenarios) {
 		test(`direct command respects effective agent enablement: ${scenario.name}`, async () => {
@@ -105,6 +190,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		test(`explicit Open in Agents prefers the active root with a first-root fallback (${activeFile ?? 'no editor'})`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = ['/first', '/second'].map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -128,6 +214,7 @@ suite('OpenWorkspaceInAgentsWindowAction', () => {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 		let workspaceFolderUri = URI.file('/workspace');
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -184,6 +271,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		test(`infers ${scenario.name} without turning it into an explicit selection`, async () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
+			instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: undefined }));
 			const folders = scenario.folders.map((path, index) => new WorkspaceFolder({ uri: URI.file(path), name: path, index }));
 			const calls: IOpenAgentsWindowOptions[] = [];
 			instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -225,14 +313,16 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function run(sessionResource: URI | undefined, revealCurrentSession = true) {
+	async function runWithTelemetry(sessionResource: URI | undefined, revealCurrentSession = true) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const commandService = new TestCommandService();
+		const telemetryService = new TestDecisionTelemetryService();
 		const configurationService = new TestConfigurationService({
 			[ChatConfiguration.OpenInAgentsWindowRevealCurrentSession]: revealCurrentSession,
 		});
 		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(ITelemetryService, telemetryService);
 		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({
 			lastFocusedWidget: sessionResource ? upcastPartial<IChatWidget>({
 				viewModel: upcastPartial<IChatViewModel>({ sessionResource }),
@@ -241,7 +331,11 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 
 		const action = new OpenWorkspaceInAgentsWindowTitleBarAction();
 		await instantiationService.invokeFunction(accessor => action.run(accessor));
-		return commandService.calls;
+		return { calls: commandService.calls, decisions: telemetryService.decisions, triggers: telemetryService.triggers };
+	}
+
+	async function run(sessionResource: URI | undefined, revealCurrentSession = true) {
+		return (await runWithTelemetry(sessionResource, revealCurrentSession)).calls;
 	}
 
 	test('reveals a persisted local Agent Host session and otherwise opens a workspace draft', async () => {
@@ -278,6 +372,78 @@ suite('OpenWorkspaceInAgentsWindowTitleBarAction', () => {
 			noSession: [{
 				commandId: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
 				args: [{ source: AgentsWindowOpenSource.TitleBar }],
+			}],
+		});
+	});
+
+	test('logs each eligible title-bar decision before selecting its branch', async () => {
+		const localSession = URI.from({ scheme: 'agent-host-claude', path: '/session' });
+		const reveal = await runWithTelemetry(localSession);
+		const fallback = await runWithTelemetry(localSession, false);
+
+		assert.deepStrictEqual({
+			reveal: { decisions: reveal.decisions, triggers: reveal.triggers },
+			fallback: { decisions: fallback.decisions, triggers: fallback.triggers },
+		}, {
+			reveal: {
+				decisions: [{
+					branch: 'revealCurrentSession',
+					entryPoint: 'applicationTitleBar',
+					agentSessionId: 'fcbdc4c271c889825d8338d2d8f10b6e5e95c171',
+				}],
+				triggers: ['config.chat.experimental.openInAgentsWindow.revealCurrentSession'],
+			},
+			fallback: {
+				decisions: [{
+					branch: 'openWorkspaceFallback',
+					entryPoint: 'applicationTitleBar',
+					agentSessionId: 'fcbdc4c271c889825d8338d2d8f10b6e5e95c171',
+				}],
+				triggers: ['config.chat.experimental.openInAgentsWindow.revealCurrentSession'],
+			},
+		});
+	});
+
+	test('does not log a decision without an eligible persisted local Agent Host session', async () => {
+		const missing = await runWithTelemetry(undefined);
+		const untitled = await runWithTelemetry(URI.from({ scheme: 'agent-host-claude', path: '/untitled-session' }));
+		const remote = await runWithTelemetry(URI.from({ scheme: 'remote-host-claude', path: '/session' }));
+		const regular = await runWithTelemetry(URI.from({ scheme: 'vscode-chat-session', path: '/session' }));
+
+		assert.deepStrictEqual({
+			missing: { decisions: missing.decisions, triggers: missing.triggers },
+			untitled: { decisions: untitled.decisions, triggers: untitled.triggers },
+			remote: { decisions: remote.decisions, triggers: remote.triggers },
+			regular: { decisions: regular.decisions, triggers: regular.triggers },
+		}, {
+			missing: { decisions: [], triggers: [] },
+			untitled: { decisions: [], triggers: [] },
+			remote: { decisions: [], triggers: [] },
+			regular: { decisions: [], triggers: [] },
+		});
+	});
+
+	test('does not log a title-bar decision from the chat title action', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const commandService = new TestCommandService();
+		const telemetryService = new TestDecisionTelemetryService();
+		const sessionResource = URI.from({ scheme: 'agent-host-claude', path: '/session' });
+		const context = upcastPartial<IChatViewTitleActionContext>({ sessionResource });
+		instantiationService.stub(ICommandService, commandService);
+		instantiationService.stub(ITelemetryService, telemetryService);
+
+		await instantiationService.invokeFunction(accessor => new OpenWorkspaceInAgentsWindowChatTitleAction().run(accessor, context));
+
+		assert.deepStrictEqual({
+			decisions: telemetryService.decisions,
+			triggers: telemetryService.triggers,
+			calls: commandService.calls,
+		}, {
+			decisions: [],
+			triggers: [],
+			calls: [{
+				commandId: OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID,
+				args: [{ source: AgentsWindowOpenSource.ChatTitleBar, sessionResource }],
 			}],
 		});
 	});

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, addDisposableListener, animate, append, EventType, getActiveElement, getWindow, isHTMLElement, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
@@ -92,6 +92,9 @@ export class SpotlightOverlay extends Disposable {
 
 	private readonly _onDidSkip = this._register(new Emitter<SpotlightSkipReason>());
 	readonly onDidSkip: Event<SpotlightSkipReason> = this._onDidSkip.event;
+
+	private readonly _onDidLoseTarget = this._register(new Emitter<void>());
+	readonly onDidLoseTarget: Event<void> = this._onDidLoseTarget.event;
 
 	private _target: HTMLElement | undefined;
 	private _options: ISpotlightShowOptions = {};
@@ -188,6 +191,28 @@ export class SpotlightOverlay extends Disposable {
 
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.RESIZE, () => this.scheduleLayout()));
 		this._stepListeners.add(addDisposableListener(targetWindow, EventType.SCROLL, () => this.scheduleLayout(), true));
+		if (externalUiParticipates) {
+			this._stepListeners.add(addDisposableListener(targetWindow, EventType.KEY_DOWN, event => {
+				const eventTarget = event.target;
+				if (!isHTMLElement(eventTarget) || this._root.contains(eventTarget) || target.contains(eventTarget)) {
+					return;
+				}
+				const keyboardEvent = new StandardKeyboardEvent(event);
+				if (keyboardEvent.equals(KeyCode.Escape)) {
+					this._onDidSkip.fire(OnboardingDismissReason.EscapeKey);
+				}
+			}, true));
+		}
+
+		// ResizeObserver does not report position-only shifts caused by surrounding content.
+		let previousRect = target.getBoundingClientRect();
+		this._stepListeners.add(animate(targetWindow, () => {
+			const rect = target.getBoundingClientRect();
+			if (rect.x !== previousRect.x || rect.y !== previousRect.y || rect.width !== previousRect.width || rect.height !== previousRect.height) {
+				previousRect = rect;
+				this.layout();
+			}
+		}));
 
 		// Cancel any pending scheduled frame when the step changes. Registered
 		// once here (not per schedule) so high-frequency scroll/resize events
@@ -263,6 +288,11 @@ export class SpotlightOverlay extends Disposable {
 		const viewportHeight = targetWindow.document.documentElement.clientHeight;
 
 		const rect = target.getBoundingClientRect();
+		if (!target.isConnected || rect.width === 0 || rect.height === 0) {
+			this._root.style.display = 'none';
+			this._onDidLoseTarget.fire();
+			return;
+		}
 		const padding = this._options.padding ?? DEFAULT_HOLE_PADDING;
 		const holeLeft = Math.max(0, rect.left - padding);
 		const holeTop = Math.max(0, rect.top - padding);

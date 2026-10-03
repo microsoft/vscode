@@ -8,8 +8,10 @@ import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
@@ -29,8 +31,9 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../../..
 import { StateType } from '../../../../../../../../platform/update/common/update.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../../../services/chat/common/chatEntitlementService.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../../browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelProviderDescriptor, ILanguageModelsService, IModelConfigurationAccess, IModelControlEntry, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../../common/constants.js';
+import { IModelPickerWorkflow, IModelPickerWorkflowState } from '../../../../../browser/widget/input/modelPicker/modelPickerWorkflow.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
 function model(id: string, configurable = true): ILanguageModelChatMetadataAndIdentifier {
@@ -75,7 +78,7 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const hydra = model('hydrafusion', false);
-	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', detail: 'Research preview', tooltip: 'May use multiple models.' } };
+	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
 }
 
 suite('TabbedModelPicker', () => {
@@ -87,19 +90,25 @@ suite('TabbedModelPicker', () => {
 		access?: IModelConfigurationAccess;
 		details?: string;
 		cacheWarm?: boolean;
+		contextViewLayer?: number;
+		inDialog?: boolean;
 		policyDefault?: string;
 		userDefault?: string;
 		selectedModelId?: string;
 		pinnedModelIds?: string[];
 		controlModels?: IStringDictionary<IModelControlEntry>;
+		controlManifest?: IModelsControlManifest;
+		entitlement?: ChatEntitlement;
 		showUnavailable?: boolean;
 		providerPlaceholders?: ITabbedModelPickerContext['providerPlaceholders'];
 		beforeSave?: (values: IStringDictionary<unknown>) => Promise<void>;
+		workflow?: IModelPickerWorkflow;
 	} = {}) {
 		const container = dom.append(document.body, dom.$('.monaco-workbench.monaco-reduce-motion'));
 		container.style.cssText = '--vscode-spacing-size60: 6px; --vscode-spacing-size280: 28px;';
 		disposables.add(toDisposable(() => container.remove()));
-		const anchor = dom.append(container, dom.$('button'));
+		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
+		const anchor = dom.append(anchorContainer, dom.$('button'));
 		anchor.style.cssText = 'position: fixed; bottom: 20px; left: 20px; width: 120px; height: 22px;';
 		const popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
@@ -142,13 +151,19 @@ suite('TabbedModelPicker', () => {
 			getContainer: () => container, mainContainer: container, onDidChangeActiveContainer: Event.None,
 		}));
 		instantiationService.set(IStorageService, disposables.add(new InMemoryStorageService()));
-		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({ entitlement: ChatEntitlement.Pro }));
+		let entitlement = options.entitlement ?? ChatEntitlement.Pro;
+		const entitlementChanged = disposables.add(new Emitter<void>());
+		instantiationService.set(IChatEntitlementService, upcastPartial<IChatEntitlementService>({
+			get entitlement() { return entitlement; },
+			onDidChangeEntitlement: entitlementChanged.event,
+		}));
 		instantiationService.set(ILanguageModelsService, upcastPartial<ILanguageModelsService>({
 			getVendors: () => [
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'copilot', displayName: 'Copilot', isDefault: true }),
 				upcastPartial<ILanguageModelProviderDescriptor>({ vendor: 'ollama', displayName: 'Ollama' }),
 			],
 			getLanguageModelGroups: () => [],
+			getModelsControlManifest: () => options.controlManifest ?? { free: {}, paid: {} },
 		}));
 		const changed = disposables.add(new Emitter<string>());
 		const values = new Map<string, IStringDictionary<unknown>>();
@@ -170,6 +185,7 @@ suite('TabbedModelPicker', () => {
 		let hintDismissed = false;
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
+			workflow: options.workflow,
 			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0].identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
@@ -180,15 +196,23 @@ suite('TabbedModelPicker', () => {
 			onTogglePin: (id, pinned) => { if (pinned) { pins.push(id); } },
 			onManageModels: () => { },
 			onDidToggleOtherModels: () => { },
+			onDidSearch: () => { },
 			onConfigurationChanged: (...change) => configurationChanges.push(change),
 			cacheBreakHint: undefined,
 			configurationCacheBreakHint: options.cacheWarm ? { text: 'Changing options resets the prompt cache.', link: undefined, dismiss: () => { hintDismissed = true; } } : undefined,
 		};
 		const picker = disposables.add(instantiationService.createInstance(TabbedModelPicker));
-		picker.show(anchor, context, options.details);
+		picker.show(anchor, context, options.details, false, options.contextViewLayer);
 		return {
 			picker, popup, anchor, context, selections, pins, values, changed, configurationService, configurationChanges,
+			dismiss: () => contextView.hideContextView(),
+			setEntitlement: (value: ChatEntitlement) => {
+				entitlement = value;
+				entitlementChanged.fire();
+			},
 			get hintDismissed() { return hintDismissed; },
+			get contextViewLayer() { return activeDelegate?.layer; },
+			get anchorPosition() { return activeDelegate?.anchorPosition; },
 		};
 	}
 
@@ -206,6 +230,27 @@ suite('TabbedModelPicker', () => {
 		element(popup, '[role="button"][aria-label="Back to Models"]').click();
 	}
 
+	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
+		const result = createPicker({ inDialog: true, contextViewLayer: 1, details: models[0].identifier });
+		const details = {
+			layer: result.contextViewLayer,
+			position: result.anchorPosition,
+			model: result.popup.querySelector('.chat-model-card-name')?.textContent,
+		};
+		goBack(result.popup);
+		assert.deepStrictEqual({
+			details,
+			list: { layer: result.contextViewLayer, position: result.anchorPosition },
+			visible: result.picker.isVisible,
+			selections: result.selections,
+		}, {
+			details: { layer: 1, position: AnchorPosition.BELOW, model: 'First' },
+			list: { layer: 1, position: AnchorPosition.BELOW },
+			visible: true,
+			selections: [],
+		});
+	});
+
 	function defaultBadgeModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-org-default-badge:not([hidden])'), badge => {
 			const name = badge.closest('.monaco-list-row')?.querySelector('.title')?.textContent
@@ -217,6 +262,164 @@ suite('TabbedModelPicker', () => {
 
 	function selectedModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-model[aria-checked="true"] .title'), title => title.textContent!);
+	}
+
+	test('guided selection keeps the popup open, excludes routing, and exposes accessible navigation', () => {
+		const attempts: IModelPickerWorkflowState = {
+			title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+			multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+		};
+		const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+		let finished = false;
+		const workflow: IModelPickerWorkflow = {
+			available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+			start: () => state.set(attempts, undefined),
+			cancel: () => state.set(undefined, undefined),
+			reset: () => state.set(undefined, undefined),
+			select: id => state.set({ ...state.get()!, selectedModelIds: [id], canGoNext: true, canFinish: false, count: state.get()?.multiple ? { label: 'Number of Runs', value: 2, min: 2, max: 10 } : undefined }, undefined),
+			setCount: () => { },
+			back: () => state.set(attempts, undefined),
+			next: () => state.set({ ...attempts, title: state.get()?.title === 'Judge' ? 'Synthesizer' : 'Judge', description: 'Optional review.', multiple: false, canGoBack: true, canFinish: true }, undefined),
+			finish: () => finished = true,
+		};
+		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
+		element(popup, '[aria-label="Compare Models"]').click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
+			checks: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
+		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
+		const list = element(popup, '.monaco-list');
+		list.focus();
+		list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+		const buttons = () => [...popup.querySelectorAll<HTMLElement>('.model-picker-workflow-actions .monaco-button')];
+		assert.deepStrictEqual({
+			visible: picker.isVisible, selected: selectedModels(popup).length, selections,
+			count: popup.querySelector('select')?.getAttribute('aria-label'),
+			buttons: buttons().map(button => button.textContent?.trim()),
+		}, { visible: true, selected: 1, selections: [], count: 'Number of Runs', buttons: ['Cancel', 'Next'] });
+		buttons()[1].click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			buttons: buttons().map(button => button.textContent?.trim()),
+			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
+		}, { heading: 'Judge\nOptional review.', buttons: ['Cancel', 'Back', 'Done'], radios: 3, checkboxes: 0 });
+		element(popup, '.chat-model-picker-model').click();
+		buttons()[2].click();
+		assert.deepStrictEqual({
+			heading: popup.querySelector('.action-list-header-text')?.textContent,
+			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			cancel: buttons()[0].textContent?.trim(),
+		}, { heading: 'Synthesizer\nOptional review.', radios: 3, cancel: 'Cancel' });
+		buttons()[1].click();
+		assert.ok(popup.querySelector('.action-list-header-text')?.textContent?.startsWith('Attempts'));
+		element(popup, '.chat-model-picker-model').click();
+		buttons()[1].click();
+		buttons()[2].click();
+		assert.deepStrictEqual({ finished, visible: picker.isVisible, selections }, { finished: true, visible: false, selections: [] });
+	});
+
+	for (const committed of [false, true]) {
+		for (const dismissal of ['Escape', 'click-away', 'Cancel'] as const) {
+			test(`${dismissal} cancels working selections without changing ${committed ? 'committed comparison' : 'single-model'} state`, () => {
+				const state = observableValue<IModelPickerWorkflowState | undefined>('draft', undefined);
+				const summary = constObservable(committed ? '2 Attempts' : undefined);
+				let cancelled = 0;
+				const workflow: IModelPickerWorkflow = {
+					available: constObservable(true), summary, state, label: 'Compare Models',
+					start: () => state.set({
+						title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: committed ? [models[0].identifier] : [],
+						multiple: true, maxSelections: 10, canGoBack: false, canGoNext: false, canFinish: false,
+					}, undefined),
+					cancel: () => { cancelled++; state.set(undefined, undefined); },
+					reset: () => assert.fail('Dismissal must not reset committed state'),
+					select: id => state.set({ ...state.get()!, selectedModelIds: [id] }, undefined),
+					back: () => { }, next: () => { }, setCount: () => { },
+					finish: () => assert.fail('Dismissal must not commit'),
+				};
+				const { picker, popup, anchor, context, dismiss, selections } = createPicker({ workflow });
+				if (!committed) {
+					element(popup, '[aria-label="Compare Models"]').click();
+				}
+				element(popup, '.chat-model-picker-model').click();
+				if (dismissal === 'Cancel') {
+					element(popup, '.model-picker-workflow-actions .monaco-button').click();
+				} else if (dismissal === 'Escape') {
+					element(popup, '.monaco-list').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+				} else {
+					dismiss();
+				}
+				const closed = { visible: picker.isVisible, state: state.get(), cancelled, selections, summary: workflow.summary.get() };
+				picker.show(anchor, context);
+				assert.deepStrictEqual({
+					closed, reopened: state.get()?.selectedModelIds,
+				}, {
+					closed: { visible: false, state: undefined, cancelled: 1, selections: [], summary: committed ? '2 Attempts' : undefined },
+					reopened: committed ? [models[0].identifier] : undefined,
+				});
+			});
+		}
+	}
+
+	/** The active list's rows, with separators prefixed by `--` and followed by their heading. */
+	function listRows(popup: HTMLElement): string[] {
+		return Array.from(popup.querySelectorAll('.chat-model-picker-tabbed .monaco-list-row'), row => row.classList.contains('separator')
+			? `--${row.textContent ?? ''}`
+			: row.querySelector('.title')?.textContent ?? '');
+	}
+
+	for (const clickSelection of [false, true]) {
+		test(`workflow selections preserve typed search text and focused model with ${clickSelection ? 'mouse' : 'keyboard'} selection`, () => {
+			const state = observableValue<IModelPickerWorkflowState | undefined>('workflow', undefined);
+			const workflow: IModelPickerWorkflow = {
+				available: constObservable(true), summary: constObservable(undefined), state, label: 'Compare Models',
+				start: () => state.set({
+					title: 'Attempts', description: 'Select models.', summary: '2 Attempts', selectedModelIds: [],
+					multiple: true, maxSelections: 10, canGoBack: false, canGoNext: true, canFinish: false,
+				}, undefined),
+				cancel: () => state.set(undefined, undefined),
+				reset: () => state.set(undefined, undefined),
+				select: id => {
+					const draft = state.get()!;
+					state.set({ ...draft, selectedModelIds: draft.selectedModelIds.includes(id) ? draft.selectedModelIds.filter(selected => selected !== id) : [...draft.selectedModelIds, id] }, undefined);
+				},
+				setCount: () => { }, back: () => { }, next: () => { }, finish: () => { },
+			};
+			const result = createPicker({ workflow });
+			const { picker, popup } = result;
+			element(popup, '[aria-label="Compare Models"]').click();
+			element(popup, '[data-id="search"]').click();
+			const filterInput = popup.querySelector<HTMLInputElement>('input')!;
+			filterInput.value = 'Fi';
+			filterInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+			const snapshots = [undefined, 'ArrowDown', 'ArrowUp'].map(key => {
+				const input = popup.querySelector<HTMLInputElement>('input')!;
+				if (key) {
+					input.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode: key === 'ArrowDown' ? 40 : 38, bubbles: true }));
+				}
+				if (clickSelection && !key) {
+					element(popup, '.monaco-list-row.focused').click();
+				} else {
+					input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				}
+				return {
+					filter: popup.querySelector<HTMLInputElement>('input')?.value,
+					focused: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+					selected: state.get()?.selectedModelIds,
+				};
+			});
+			assert.deepStrictEqual(snapshots, [
+				{ filter: 'Fi', focused: 'First', selected: [models[0].identifier] },
+				{ filter: 'Fi', focused: 'Fixed', selected: [models[0].identifier, models[2].identifier] },
+				{ filter: 'Fi', focused: 'First', selected: [models[2].identifier] },
+			]);
+			picker.hide();
+			reopen(result);
+			element(popup, '[aria-label="Compare Models"]').click();
+			element(popup, '[data-id="search"]').click();
+			assert.strictEqual(popup.querySelector<HTMLInputElement>('input')?.value, '');
+		});
 	}
 
 	for (const initiallyAuto of [false, true]) {
@@ -234,17 +437,26 @@ suite('TabbedModelPicker', () => {
 				const { width, height, x, y } = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 				return { width, height, x, y };
 			};
+			// Copilot has only two models here, so the Auto view is the taller layout and
+			// must still fit: Efficiency, Balance, Intelligence, and HydraFusion.
+			const visibleRoutes = () => {
+				const listBottom = element(popup, '.monaco-list').getBoundingClientRect().bottom;
+				return Array.from(popup.querySelectorAll('.chat-model-picker-routing-model'), row => row.getBoundingClientRect())
+					.filter(row => row.height > 0 && row.bottom <= listBottom + 0.5).length;
+			};
 			const initial = bounds();
 			const switchTop = element(popup, '[role="switch"]').getBoundingClientRect().top;
+			const initialRoutes = visibleRoutes();
 			element(popup, '[role="switch"]').click();
 			const toggled = bounds();
 			const toggledSwitchTop = element(popup, '[role="switch"]').getBoundingClientRect().top;
+			const autoRoutes = initiallyAuto ? initialRoutes : visibleRoutes();
 			element(popup, '[role="switch"]').click();
 			element(popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
 			const otherProvider = bounds();
 			element(popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
-			assert.deepStrictEqual({ measurable: initial.height > 0, toggled, toggledSwitchTop, otherProvider, restored: bounds() }, {
-				measurable: true, toggled: initial, toggledSwitchTop: switchTop, otherProvider: initial, restored: initial,
+			assert.deepStrictEqual({ measurable: initial.height > 0, toggled, toggledSwitchTop, otherProvider, restored: bounds(), autoRoutes }, {
+				measurable: true, toggled: initial, toggledSwitchTop: switchTop, otherProvider: initial, restored: initial, autoRoutes: 4,
 			});
 		});
 	}
@@ -397,6 +609,44 @@ suite('TabbedModelPicker', () => {
 		row.click();
 	}
 
+	test('HydraFusion routing shows its description and Learn more under the entry, without a flyout', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({ models: [auto, hydra, ...models], selectedModelId: auto.identifier });
+		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
+			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
+		assert.ok(row);
+		// A large font stands in for a long translation, which must shorten the text rather than hide the link.
+		result.popup.style.cssText = '--vscode-fontSize-label2: 16px; --vscode-spacing-size160: 16px; --vscode-spacing-size200: 20px;';
+		const detail = element(row, '.detail');
+		const link = element(detail, '.monaco-link');
+		const detailBounds = detail.getBoundingClientRect();
+		const linkBounds = link.getBoundingClientRect();
+		const snapshot = {
+			detail: detail.lastChild?.textContent,
+			link: link.textContent,
+			ariaLabel: row.getAttribute('aria-label'),
+			chevron: !!row.querySelector('.action-list-submenu-indicator.has-submenu'),
+			truncated: detail.scrollHeight > detail.clientHeight,
+			linkEndsLastLine: Math.abs(linkBounds.bottom - detailBounds.bottom) <= 0.5 && Math.abs(linkBounds.right - detailBounds.right) <= 0.5,
+		};
+		row.click();
+		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
+			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			link: 'Learn more',
+			ariaLabel: 'HydraFusion, Research preview, Picks a workflow per task, using one or more models to draft, review, or escalate.',
+			chevron: false,
+			truncated: true,
+			linkEndsLastLine: true,
+			selections: [hydra.identifier],
+		});
+	});
+
+	/** Reopens the picker on the latest selection, as the chat input does. */
+	function reopen(result: ReturnType<typeof createPicker>): void {
+		result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections.at(-1) ?? result.context.selectedModelId });
+	}
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();
@@ -406,13 +656,17 @@ suite('TabbedModelPicker', () => {
 			beforeSave: async next => { writes.push(next); await pending.p; },
 		});
 		selectRoutingChoice(result.popup, 'Intelligence');
+		const closed = !result.picker.isVisible;
+		reopen(result);
 		selectRoutingChoice(result.popup, 'Efficiency');
 		await timeout(0);
 		const before = [...writes];
 		await pending.complete();
 		await timeout(0);
+		reopen(result);
 		const changes = result.configurationChanges.map(([, , , from, to]) => ({ from, to }));
-		assert.deepStrictEqual({ before, writes, changes, selected: selectedModels(result.popup), selections: result.selections }, {
+		assert.deepStrictEqual({ closed, before, writes, changes, selected: selectedModels(result.popup), selections: result.selections }, {
+			closed: true,
 			before: [{ tier: 'intelligence' }],
 			writes: [{ tier: 'intelligence' }, { tier: 'efficiency' }],
 			changes: [{ from: 'balance', to: 'intelligence' }, { from: 'intelligence', to: 'efficiency' }],
@@ -420,28 +674,37 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('failed tier saves are reported without changing the selected preference', async () => {
-		const failure = new Error('Cannot save the routing preference.');
-		const result = createPicker({
-			models: [createAutoModel(), ...models],
-			beforeSave: async () => { throw failure; },
+	for (const start of ['Auto', 'another provider\'s model'] as const) {
+		test(`failed tier saves from ${start} are reported without changing the selected model or preference`, async () => {
+			const failure = new Error('Cannot save the routing preference.');
+			const auto = createAutoModel();
+			const local = model('Local');
+			const ollama = { ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } };
+			const result = createPicker({ models: [auto, ...models, ollama], beforeSave: async () => { throw failure; } });
+			if (start !== 'Auto') {
+				// The Copilot tab remembers Auto mode, so its tiers are one click away.
+				result.picker.show(result.anchor, { ...result.context, selectedModelId: ollama.identifier });
+				element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+			}
+			const reported: Error[] = [];
+			const previousHandler = errorHandler.getUnexpectedErrorHandler();
+			setUnexpectedErrorHandler(error => reported.push(error));
+			try {
+				selectRoutingChoice(result.popup, 'Intelligence');
+				await timeout(0);
+			} finally {
+				setUnexpectedErrorHandler(previousHandler);
+			}
+			result.picker.show(result.anchor, { ...result.context, selectedModelId: start === 'Auto' ? auto.identifier : ollama.identifier });
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
+			assert.deepStrictEqual({
+				reported,
+				changes: result.configurationChanges,
+				selected: selectedModels(result.popup),
+				selections: result.selections,
+			}, { reported: [failure], changes: [], selected: start === 'Auto' ? ['Balance'] : [], selections: [] });
 		});
-		const reported: Error[] = [];
-		const previousHandler = errorHandler.getUnexpectedErrorHandler();
-		setUnexpectedErrorHandler(error => reported.push(error));
-		try {
-			selectRoutingChoice(result.popup, 'Intelligence');
-			await timeout(0);
-		} finally {
-			setUnexpectedErrorHandler(previousHandler);
-		}
-		assert.deepStrictEqual({
-			reported,
-			changes: result.configurationChanges,
-			selected: selectedModels(result.popup),
-			selections: result.selections,
-		}, { reported: [failure], changes: [], selected: ['Balance'], selections: [] });
-	});
+	}
 
 	for (const reopen of [false, true]) {
 		test(`pending tier saves cannot override ${reopen ? 'a reopened picker with a new scope' : 'switching to manual mode'}`, async () => {
@@ -449,6 +712,7 @@ suite('TabbedModelPicker', () => {
 			const pending = new DeferredPromise<void>();
 			const result = createPicker({ models: [auto, ...models], beforeSave: () => pending.p });
 			selectRoutingChoice(result.popup, 'Intelligence');
+			result.picker.show(result.anchor, result.context);
 			element(result.popup, '[role="switch"]').click();
 			if (reopen) {
 				result.picker.hide();
@@ -489,7 +753,13 @@ suite('TabbedModelPicker', () => {
 		const focusAfterToggle = document.activeElement === toggle;
 		const separateControl = !toggle.closest('.monaco-button');
 		const routes = Array.from(result.popup.querySelectorAll('.chat-model-picker-model .title'), title => title.textContent);
-		selectRoutingChoice(result.popup, 'Balance');
+		const closedAfter: boolean[] = [];
+		const choose = (label: string) => {
+			selectRoutingChoice(result.popup, label);
+			closedAfter.push(!result.picker.isVisible);
+			reopen(result);
+		};
+		choose('Balance');
 		await timeout(0);
 		states.push(state());
 		element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
@@ -501,21 +771,22 @@ suite('TabbedModelPicker', () => {
 		input.value = 'HydraFusion';
 		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		const searchResults = Array.from(result.popup.querySelectorAll('.chat-model-picker-model .title'), title => title.textContent);
-		selectRoutingChoice(result.popup, 'HydraFusion');
-		element(result.popup, '[data-id="search"]').click();
+		choose('HydraFusion');
 		toggle = element(result.popup, '[role="switch"]');
 		states.push(state());
 		toggle.click();
 		states.push(state());
 		toggle.click();
 		states.push(state());
-		selectRoutingChoice(result.popup, 'Efficiency');
+		choose('Efficiency');
 		await timeout(0);
+		reopen(result);
+		toggle = element(result.popup, '[role="switch"]');
 		toggle.click();
 		toggle.click();
 		states.push(state());
 		assert.deepStrictEqual({
-			states, routes, otherProvider, searchResults, focusAfterToggle, separateControl,
+			states, routes, otherProvider, searchResults, focusAfterToggle, separateControl, closedAfter,
 			selections: result.selections,
 			changes: result.configurationChanges.map(([, , , from, to]) => ({ from, to })),
 		}, {
@@ -533,6 +804,7 @@ suite('TabbedModelPicker', () => {
 			searchResults: ['HydraFusion'],
 			focusAfterToggle: true,
 			separateControl: true,
+			closedAfter: [true, true, true],
 			selections: [auto.identifier, hydra.identifier, models[0].identifier, hydra.identifier, auto.identifier, models[0].identifier, auto.identifier],
 			changes: [{ from: 'balance', to: 'efficiency' }],
 		});
@@ -559,25 +831,184 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('Auto-only plans keep the switch on and retain unavailable models and provider navigation', () => {
+	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+			const auto = createAutoModel();
+			const hydra = createHydraFusionModel();
+			const result = createPicker({
+				models: [auto, hydra, ...models],
+				selectedModelId: auto.identifier,
+				entitlement,
+				showUnavailable: false,
+				controlModels: {},
+			});
+			result.picker.refresh([auto, hydra, ...models]);
+			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+			unavailableHydra.click();
+			assert.deepStrictEqual({
+				label: unavailableHydra.querySelector('.title')?.textContent,
+				upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+				selected: selectedModels(result.popup),
+				selections: result.selections,
+			}, {
+				label: 'HydraFusion',
+				upgrade: true,
+				selected: ['Balance'],
+				selections: [],
+			});
+		});
+	}
+
+	test('Free plans remove the synthesized HydraFusion upgrade when the live model is removed', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Free,
+			showUnavailable: false,
+			controlModels: {},
+		});
+		assert.ok(result.popup.querySelector('.chat-model-picker-unavailable'));
+		result.picker.refresh([auto, ...models]);
+		assert.strictEqual(result.popup.querySelector('.chat-model-picker-unavailable'), null);
+	});
+
+	test('resolving an open picker to Free replaces HydraFusion with an unavailable upgrade', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: auto.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
+		result.setEntitlement(ChatEntitlement.Free);
+		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
+		assert.deepStrictEqual({
+			before,
+			label: unavailableHydra.querySelector('.title')?.textContent,
+			upgrade: unavailableHydra.textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			before: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
+			label: 'HydraFusion',
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [],
+		});
+	});
+
+	test('resolving an open picker to Free replaces a selected HydraFusion with Auto', () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({
+			models: [auto, hydra, ...models],
+			selectedModelId: hydra.identifier,
+			entitlement: ChatEntitlement.Unknown,
+			showUnavailable: true,
+			controlModels: {
+				hydrafusion: { label: 'HydraFusion', exists: true, featured: true },
+			},
+			controlManifest: {
+				free: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
+			},
+		});
+		result.setEntitlement(ChatEntitlement.Free);
+		assert.deepStrictEqual({
+			upgrade: element(result.popup, '.chat-model-picker-unavailable').textContent?.includes('Upgrade'),
+			selected: selectedModels(result.popup),
+			selections: result.selections,
+		}, {
+			upgrade: true,
+			selected: ['Balance'],
+			selections: [auto.identifier],
+		});
+	});
+
+	test('Auto-only plans name the tab Auto without a switch and retain unavailable models and provider navigation', () => {
 		const result = createPicker({
 			models: [createAutoModel()],
 			showUnavailable: true,
 			controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
 			providerPlaceholders: [{ vendor: 'ollama', label: 'Ollama', message: 'Add a model.' }],
 		});
-		const toggle = result.popup.querySelector<HTMLButtonElement>('[role="switch"]')!;
-		const initial = { checked: toggle.getAttribute('aria-checked'), disabled: toggle.disabled, unavailable: result.popup.textContent?.includes('Locked Model') };
+		const initial = {
+			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			switchHidden: element(result.popup, '.tabbed-action-list-tab-toggle').hidden,
+			selected: selectedModels(result.popup),
+			unavailable: result.popup.textContent?.includes('Locked Model'),
+		};
 		element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
 		assert.deepStrictEqual({ initial, emptyProvider: !!result.popup.querySelector('.tabbed-action-list-empty'), selections: result.selections }, {
-			initial: { checked: 'true', disabled: true, unavailable: true },
+			initial: { tabs: ['Auto', 'Ollama'], switchHidden: true, selected: ['Balance'], unavailable: true },
 			emptyProvider: true,
 			selections: [],
 		});
 	});
 
-	for (const auto of [createAutoModel(), model('auto', false)]) {
-		test(`Auto ${auto.metadata.configurationSchema ? 'with tiers' : 'without a schema'} has no Details entry point`, () => {
+	test('Free and Student plans head the models that Auto-only access lacks as upgrades, beside the routing choices', () => {
+		const rows = [ChatEntitlement.Free, ChatEntitlement.EDU].map(entitlement => listRows(createPicker({
+			models: [createAutoModel()],
+			entitlement,
+			showUnavailable: true,
+			controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+		}).popup));
+		assert.deepStrictEqual(rows, Array(2).fill(['--Optimize for · 10% discount', 'Efficiency', 'Balance', 'Intelligence', '--Upgrade for More Models', 'Locked Model']));
+	});
+
+	test('Free and Student plans keep the Copilot tab for upgrades when Copilot relays no selectable model', () => {
+		const local = model('Local');
+		const result = Object.fromEntries([ChatEntitlement.Free, ChatEntitlement.EDU, ChatEntitlement.Pro].map(entitlement => {
+			const { popup, selections } = createPicker({
+				models: [{ ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } }],
+				selectedModelId: createAutoModel().identifier,
+				entitlement,
+				showUnavailable: true,
+				controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
+			});
+			const tabs = Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label'));
+			const initialRows = listRows(popup);
+			element(popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			return [ChatEntitlement[entitlement], { tabs, initialRows, providerRows: listRows(popup), selections }];
+		}));
+		assert.deepStrictEqual(result, {
+			Free: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			EDU: { tabs: ['Copilot', 'Ollama'], initialRows: ['--Upgrade for More Models', 'Locked Model'], providerRows: ['Local'], selections: [] },
+			Pro: { tabs: ['Ollama'], initialRows: ['Local'], providerRows: ['Local'], selections: [] },
+		});
+	});
+
+	test('HydraFusion alone stays grouped under the Auto tab without a switch', () => {
+		const hydra = createHydraFusionModel();
+		const { popup, selections } = createPicker({ models: [hydra], selectedModelId: hydra.identifier });
+		assert.deepStrictEqual({
+			tabs: Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			switchHidden: element(popup, '.tabbed-action-list-tab-toggle').hidden,
+			rows: listRows(popup),
+			selected: selectedModels(popup),
+			selections,
+		}, {
+			tabs: ['Auto'],
+			switchHidden: true,
+			rows: ['--Alternative routing', 'HydraFusion'],
+			selected: ['HydraFusion'],
+			selections: [],
+		});
+	});
+
+	for (const [name, auto] of [['Auto with tiers', createAutoModel()], ['Auto without a schema', model('auto', false)], ['HydraFusion', createHydraFusionModel()]] as const) {
+		test(`${name} has no Details entry point`, () => {
 			const { picker, popup, anchor, context, selections } = createPicker({ models: [auto, ...models], details: auto.identifier });
 			const initial = {
 				details: !!popup.querySelector('.tabbed-action-list-details'),
@@ -586,7 +1017,7 @@ suite('TabbedModelPicker', () => {
 			};
 			element(popup, '[data-id="search"]').click();
 			const input = popup.querySelector<HTMLInputElement>('input')!;
-			input.value = 'auto';
+			input.value = auto.metadata.name;
 			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 			const searchActions = popup.querySelectorAll('.chat-model-picker-model .action-label').length;
 			picker.hide();

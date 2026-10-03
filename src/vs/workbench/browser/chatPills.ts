@@ -85,6 +85,8 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Starts resolving metadata for this entry without opening it. */
+	readonly prefetch?: () => void;
 	open(): void;
 }
 
@@ -96,6 +98,7 @@ export interface IChatPillAction extends IAction {
 export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
 export const chatPillCopyHashHoverLabel = localize('chatPills.copyHash', "Copy Hash");
 export const chatPillRemoveReferenceHoverLabel = localize('chatPills.removeReference', "Remove Reference");
+export const chatPillRemoveArtifactHoverLabel = localize('chatPills.removeArtifact', "Remove Artifact");
 
 export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel: string): T & IChatPillAction {
 	return Object.assign(action, { hoverLabel });
@@ -196,7 +199,7 @@ export interface IChatPillSection {
 export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel = localize('chatPills.open', "Open {0}", label)): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	const value = uri.toString(true);
 	return {
-		ariaDescription: value,
+		ariaDescription: value === label ? undefined : value,
 		ariaLabel,
 		hover: getChatPillLocationHover(value),
 		tooltip: value,
@@ -226,7 +229,7 @@ export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
 export type ChatPillsCompactMode = boolean | 'auto';
 
 export interface IChatPillsRowOptions {
-	/** Collapses pills to their icons and uses tighter spacing while preserving full accessible labels and tooltips. */
+	/** Collapses pills to icons; `auto` collapses only the trailing pills needed to fit, preserving accessible labels and tooltips. */
 	readonly compact?: ChatPillsCompactMode;
 	/** Window that owns the row. Required when rendering in an auxiliary window. */
 	readonly targetWindow?: CodeWindow;
@@ -241,7 +244,8 @@ export class ChatPillsRow extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _resizeObserver: DisposableResizeObserver;
 	private readonly _mutationObserver: MutationObserver | undefined;
-	private _expandedContentWidth: number | undefined;
+	private _getPillElements: (() => readonly HTMLElement[]) | undefined;
+	private _pillMeasurements: { readonly expandedWidth: number; readonly pills: readonly { readonly element: HTMLElement; readonly widthReduction: number }[] } | undefined;
 	private _isLayouting = false;
 	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
 	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
@@ -267,14 +271,14 @@ export class ChatPillsRow extends Disposable {
 
 		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
 			if (entries.some(entry => entry.target !== this.content)) {
-				this._expandedContentWidth = undefined;
+				this._pillMeasurements = undefined;
 			}
 			this.layout();
 		}, targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
 		if (compactMode === 'auto') {
 			this._mutationObserver = new targetWindow.MutationObserver(() => {
-				this._expandedContentWidth = undefined;
+				this._pillMeasurements = undefined;
 				this.layout();
 			});
 			this._observeMutations();
@@ -287,7 +291,12 @@ export class ChatPillsRow extends Disposable {
 				this._onDidChangeLayout.fire();
 			}
 		}));
-		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, () => this.scanDomNode()));
+		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, event => {
+			if (isHTMLElement(event.target)) {
+				event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
+			this.scanDomNode();
+		}));
 		this._register(addDisposableListener(this.content, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			const target = isHTMLElement(event.target) ? event.target : this.content;
@@ -301,8 +310,13 @@ export class ChatPillsRow extends Disposable {
 		}));
 	}
 
-	observe(element: HTMLElement): void {
+	/** Observes size changes; supplying the current pill buttons enables automatic compaction. */
+	observe(element: HTMLElement, getPillElements?: () => readonly HTMLElement[]): void {
 		this._register(this._resizeObserver.observe(element));
+		if (getPillElements) {
+			this._getPillElements = getPillElements;
+		}
+		this._pillMeasurements = undefined;
 		this.layout();
 	}
 
@@ -312,22 +326,42 @@ export class ChatPillsRow extends Disposable {
 		}
 
 		this._isLayouting = true;
+		if (this._mutationObserver?.takeRecords().length) {
+			this._pillMeasurements = undefined;
+		}
 		this._mutationObserver?.disconnect();
 		try {
-			if (this._mutationObserver) {
-				const availableWidth = this.element.getBoundingClientRect().width;
-				if (this._expandedContentWidth === undefined || !this.element.classList.contains('compact')) {
-					const wasCompact = this.element.classList.contains('compact');
-					this.element.classList.remove('compact');
-					const expandedContentWidth = [...this.content.children].reduce((width, child) => {
+			const availableWidth = this.element.clientWidth;
+			if (this._mutationObserver && availableWidth > 0) {
+				if (!this._pillMeasurements) {
+					const pills = this._getPillElements?.() ?? [];
+					for (const pill of pills) {
+						pill.classList.remove('compact');
+					}
+					const expandedWidth = [...this.content.children].reduce((width, child) => {
 						return isHTMLElement(child) ? Math.max(width, child.offsetLeft + child.offsetWidth) : width;
 					}, 0);
-					if (expandedContentWidth > 0 || this.content.children.length === 0) {
-						this._expandedContentWidth = expandedContentWidth;
+					const expandedWidths = pills.map(pill => pill.getBoundingClientRect().width);
+					for (const pill of pills) {
+						pill.classList.add('compact');
 					}
-					this.element.classList.toggle('compact', wasCompact);
+					this._pillMeasurements = {
+						expandedWidth,
+						pills: pills.map((element, index) => ({
+							element,
+							widthReduction: expandedWidths[index] - element.getBoundingClientRect().width,
+						})),
+					};
 				}
-				this.element.classList.toggle('compact', availableWidth > 0 && this._expandedContentWidth !== undefined && this._expandedContentWidth > availableWidth + 1);
+				const { pills } = this._pillMeasurements;
+				let requiredWidth = this._pillMeasurements.expandedWidth;
+				let compactFrom = pills.length;
+				while (compactFrom > 0 && requiredWidth > availableWidth + 1) {
+					requiredWidth -= pills[--compactFrom].widthReduction;
+				}
+				for (let index = 0; index < pills.length; index++) {
+					pills[index].element.classList.toggle('compact', index >= compactFrom);
+				}
 			}
 			this.scanDomNode();
 			this._onDidChangeLayout.fire();

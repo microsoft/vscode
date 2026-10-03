@@ -624,10 +624,6 @@ export class TerminalSandboxEngine extends Disposable {
 			return false;
 		}
 		await this.getOS();
-		if (this._os === OperatingSystem.Windows) {
-			const value = this._getSandboxConfiguredWindowsEnabledValue();
-			return isAgentSandboxEnabledValue(value);
-		}
 		const value = this._getSandboxConfiguredEnabledValue();
 		return isAgentSandboxEnabledValue(value);
 	}
@@ -691,7 +687,7 @@ export class TerminalSandboxEngine extends Disposable {
 				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
-			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths, ...this._getHostReadPaths()]);
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 			this._windowsMxcEnvironment = env;
 		} else if (this._os === OperatingSystem.Macintosh) {
@@ -761,7 +757,7 @@ export class TerminalSandboxEngine extends Disposable {
 				...await this._updateAllowWritePathsWithWorkspaceFolders(windowsFileSystemSetting.allowWrite),
 				...filesystemPolicy.readwritePaths
 			]);
-			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths]);
+			allowReadPaths = await this._resolveFileSystemPaths([...(windowsFileSystemSetting.allowRead ?? []), ...filesystemPolicy.readonlyPaths, ...this._getHostReadPaths()]);
 			denyReadPaths = await this._resolveFileSystemPaths(windowsFileSystemSetting.denyRead ?? []);
 		} else if (this._os === OperatingSystem.Macintosh) {
 			allowWritePaths = (await this._resolveFileSystemPaths(await this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite, commandRuntimeAllowWritePaths))).filter(path => path !== configFilePath);
@@ -962,9 +958,12 @@ export class TerminalSandboxEngine extends Disposable {
 		return [...new Set([...(configuredDenyRead ?? []), ...(userHome ? [userHome] : [])])];
 	}
 
+	private _getHostReadPaths(): string[] {
+		return this._host.getReadRoots?.().map(root => this._getUriPath(root)) ?? [];
+	}
+
 	private async _updateAllowReadPathsWithAllowWrite(configuredAllowRead: string[] | undefined, allowWrite: string[], commandRuntimeAllowRead: string[] = []): Promise<string[]> {
-		const hostReadPaths = this._host.getReadRoots?.().map(root => this._getUriPath(root)) ?? [];
-		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...hostReadPaths, ...allowWrite])];
+		return [...new Set([...(configuredAllowRead ?? []), ...getTerminalSandboxReadAllowListForCommands(this._os, this._commandAllowListKeywords, this._commandAllowListCommandDetails), ...commandRuntimeAllowRead, ...this._getSandboxRuntimeReadPaths(), ...await this._getWorkspaceStorageReadPaths(), ...this._getHostReadPaths(), ...allowWrite])];
 	}
 
 	private async _resolveFileSystemPaths(paths: string[] | undefined): Promise<string[]> {
@@ -1084,10 +1083,6 @@ export class TerminalSandboxEngine extends Disposable {
 
 	private _getSandboxConfiguredEnabledValue(): AgentSandboxEnabledValue {
 		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxEnabled) ?? AgentSandboxEnabledValue.Off;
-	}
-
-	private _getSandboxConfiguredWindowsEnabledValue(): AgentSandboxEnabledValue {
-		return this._host.getSandboxSetting<AgentSandboxEnabledValue>(AgentSandboxSettingId.AgentSandboxWindowsEnabled) ?? AgentSandboxEnabledValue.Off;
 	}
 
 	private _isSandboxAllowNetworkConfigured(): boolean {
