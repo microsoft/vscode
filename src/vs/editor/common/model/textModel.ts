@@ -183,6 +183,8 @@ const enum StringOffsetValidationType {
 	SurrogatePairs = 1,
 }
 
+const textDirectionDecorationDescription = 'detect-text-direction';
+
 export class TextModel extends Disposable implements model.ITextModel, IDecorationsTreesHost {
 
 	static _MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB,  // used in tests
@@ -302,6 +304,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _attachedViews = this._register(new AttachedViews());
 	private readonly _viewModels = new Set<IViewModel>();
 
+	private _textDirectionDecorations: string[] = [];
+
 	constructor(
 		source: string | model.ITextBufferFactory,
 		languageIdOrSelection: string | ILanguageSelection,
@@ -415,6 +419,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this.__isDisposing = true;
 		this._onWillDispose.fire();
 		this._tokenizationTextModelPart.dispose();
+		this._textDirectionWatcher?.dispose();
 		this._isDisposed = true;
 		super.dispose();
 		this._bufferDisposable.dispose();
@@ -1615,6 +1620,105 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public canRedo(): boolean {
 		return this._undoRedoService.canRedo(this.uri);
+	}
+
+	private _updateFileTextDirections(): void {
+		const lineCount = this.getLineCount();
+		for (let lineNumber = 1; lineNumber <= lineCount; lineNumber++) {
+			const lineContent = this.getLineContent(lineNumber);
+			const textDirection = strings.getTextDirection(lineContent);
+
+			if (textDirection === model.TextDirection.LTR) {
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, []);
+				break;
+			}
+
+			if (textDirection === model.TextDirection.RTL) {
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, [{
+					range: this.getFullModelRange(),
+					options: {
+						description: textDirectionDecorationDescription,
+						textDirection: model.TextDirection.RTL,
+					}
+				}]);
+				break;
+			}
+		}
+	}
+
+	private _updateLineTextDirections(lineNumbers: Iterable<number>): void {
+		const oldDecorations: string[] = [];
+		const newDecorations: model.IModelDeltaDecoration[] = [];
+
+		for (const lineNumber of lineNumbers) {
+			for (const oldDecoration of this.getLineDecorations(lineNumber)) {
+				if (oldDecoration.options.description === textDirectionDecorationDescription) {
+					oldDecorations.push(oldDecoration.id);
+				}
+			}
+
+			const lineContent = this.getLineContent(lineNumber);
+			const textDirection = strings.getTextDirection(lineContent);
+
+			if (textDirection === model.TextDirection.RTL) {
+				newDecorations.push({
+					range: new Range(lineNumber, 1, lineNumber, 1),
+					options: {
+						description: textDirectionDecorationDescription,
+						textDirection: model.TextDirection.RTL
+					}
+				});
+			}
+		}
+
+		this._textDirectionDecorations.push(...this.deltaDecorations(oldDecorations, newDecorations));
+	}
+
+	private _textDirectionWatcher: IDisposable | undefined;
+
+	public setDetectTextDirection(detectTextDirection: model.DetectTextDirection): void {
+		this._textDirectionWatcher?.dispose();
+
+		switch (detectTextDirection) {
+			case model.DetectTextDirection.RTL:
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, [{
+					range: this.getFullModelRange(),
+					options: {
+						description: textDirectionDecorationDescription,
+						textDirection: model.TextDirection.RTL,
+					}
+				}]);
+				break;
+
+			case model.DetectTextDirection.DETECT_LINE:
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, []);
+				this._textDirectionWatcher = this.onDidChangeContent((event) => {
+					const lineNumbers = new Set<number>();
+					for (const change of event.changes) {
+						for (let lineNumber = change.range.startLineNumber; lineNumber <= change.range.endLineNumber; lineNumber++) {
+							lineNumbers.add(lineNumber);
+						}
+					}
+
+					this._updateLineTextDirections(lineNumbers);
+				});
+
+				this._updateLineTextDirections(Array.from({ length: this.getLineCount() }, (_, idx) => idx + 1));
+				break;
+
+			case model.DetectTextDirection.DETECT_FILE:
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, []);
+				this._textDirectionWatcher = this.onDidChangeContent(() => {
+					this._updateFileTextDirections();
+				});
+
+				this._updateFileTextDirections();
+				break;
+
+			default:
+				this._textDirectionDecorations = this.deltaDecorations(this._textDirectionDecorations, []);
+				break;
+		}
 	}
 
 	//#endregion
